@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Paperless Assistant Setup</title>
+  <style>
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input[type="text"], 
+    input[type="password"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    .help-text {
+      font-size: 0.9em;
+      color: #666;
+      margin-top: 5px;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .error {
+      color: #dc3545;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #dc3545;
+      border-radius: 4px;
+      background: #f8d7da;
+    }
+    .success {
+      color: #28a745;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #28a745;
+      border-radius: 4px;
+      background: #d4edda;
+    }
+  </style>
+</head>
+<body>
+  <h1>Paperless Assistant Setup</h1>
+  
+  <% if (typeof error !== 'undefined' && error) { %>
+    <div class="error"><%= error %></div>
+  <% } %>
+  
+  <% if (typeof success !== 'undefined' && success) { %>
+    <div class="success"><%= success %></div>
+  <% } %>
+
+  <form action="/setup" method="POST">
+    <div class="form-group">
+      <label for="paperlessUrl">Paperless-ngx API URL:</label>
+      <input 
+        type="text" 
+        id="paperlessUrl" 
+        name="paperlessUrl" 
+        value="<%= typeof config !== 'undefined' ? config.PAPERLESS_API_URL || config.paperlessUrl || '' : '' %>"
+        placeholder="http://your-paperless-instance:8000/api" 
+        required
+      >
+      <div class="help-text">Die vollständige URL zu Ihrer Paperless-ngx API</div>
+    </div>
+
+    <div class="form-group">
+      <label for="paperlessToken">Paperless-ngx API Token:</label>
+      <input 
+        type="password" 
+        id="paperlessToken" 
+        name="paperlessToken" 
+        value="<%= typeof config !== 'undefined' ? config.PAPERLESS_API_TOKEN || config.paperlessToken || '' : '' %>"
+        required
+      >
+      <div class="help-text">Ihr API Token aus den Paperless-ngx Einstellungen</div>
+    </div>
+
+    <div class="form-group">
+      <label for="openaiKey">OpenAI API Key:</label>
+      <input 
+        type="password" 
+        id="openaiKey" 
+        name="openaiKey" 
+        value="<%= typeof config !== 'undefined' ? config.OPENAI_API_KEY || config.openaiKey || '' : '' %>"
+        required
+      >
+      <div class="help-text">Ihr OpenAI API Key für die ChatGPT Integration</div>
+    </div>
+
+    <div class="form-group">
+      <label for="scanInterval">Scan Interval (Cron Format):</label>
+      <input 
+        type="text" 
+        id="scanInterval" 
+        name="scanInterval" 
+        value="<%= typeof config !== 'undefined' ? config.SCAN_INTERVAL || config.scanInterval || '*/30 * * * *' : '*/30 * * * *' %>"
+        required
+      >
+      <div class="help-text">Wie oft soll nach neuen Dokumenten gesucht werden? Standard: Alle 30 Minuten</div>
+    </div>
+
+    <button type="submit">Konfiguration speichern</button>
+  </form>
+</body>
+</html>

@@ -1,0 +1,31 @@
+{
+  "name": "paperless-ai",
+  "version": "1.0.0",
+  "description": "AI based Tag, correspondent and meta data generation",
+  "main": "server.js",
+  "scripts": {
+    "test": "nodemon server.js"
+  },
+  "keywords": [
+    "paperless-ngx",
+    "ai",
+    "paperless",
+    "artificial",
+    "intelligence"
+  ],
+  "author": "Clusterzx",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.8",
+    "better-sqlite3": "^11.6.0",
+    "body-parser": "^1.20.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
+    "express": "^4.21.1",
+    "node-cron": "^3.0.3",
+    "nodemon": "^3.1.7",
+    "openai": "^4.73.1",
+    "sqlite3": "^5.1.7"
+  }
+}
