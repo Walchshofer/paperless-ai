@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  paperless-assistant:
+    build: .
+    container_name: paperless-assistant
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    ports:
+      - "3000:3000"
+    environment:
+      - CONFIG_PATH=/app/config
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
