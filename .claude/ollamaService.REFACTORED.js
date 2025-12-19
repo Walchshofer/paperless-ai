@@ -165,14 +165,12 @@ class OllamaService {
             const customFieldsStr = this._generateCustomFieldsTemplate();
             const systemPrompt = this._generateSystemPrompt(customFieldsStr);
 
-            // 4. Calculate Context - MUST include both system prompt AND user prompt
-            const systemPromptTokens = calculateTokens(systemPrompt);
+            // 4. Calculate Context
             const promptTokenCount = calculateTokens(prompt);
-            const totalInputTokens = systemPromptTokens + promptTokenCount;
-            const expectedResponseTokens = 2048;  // Matches num_predict for full JSON with custom_fields
-            const numCtx = this._calculateNumCtx(totalInputTokens, expectedResponseTokens);
+            const expectedResponseTokens = 512;
+            const numCtx = this._calculateNumCtx(promptTokenCount, expectedResponseTokens);
 
-            console.log(`[DEBUG] Tokens: ${totalInputTokens} (system: ${systemPromptTokens}, prompt: ${promptTokenCount}), Context: ${numCtx}, Model: ${this.model}`);
+            console.log(`[DEBUG] Tokens: ${promptTokenCount}, Context: ${numCtx}, Model: ${this.model}`);
             console.log(`[DEBUG] Use existing data: ${config.useExistingData}, External API: ${validatedExternalApiData ? 'included' : 'none'}`);
 
             // 5. Call API
@@ -218,37 +216,24 @@ class OllamaService {
 
     async _callOllamaAPI(prompt, systemPrompt, numCtx, schema) {
         try {
-            // DEBUG: Log request details
-            console.log('[DEBUG] Ollama API request - system prompt length:', systemPrompt.length);
-            console.log('[DEBUG] Ollama API request - prompt length:', prompt.length);
-            console.log('[DEBUG] Ollama API request - numCtx:', numCtx);
-
-            // NOTE: gpt-oss doesn't support the 'format' parameter for JSON schema
-            // JSON output is requested via the system prompt instead
             const res = await this.client.post(`${this.apiUrl}/api/generate`, {
                 model: this.model,
                 prompt: prompt,
                 system: systemPrompt,
                 stream: false,
-                // format: schema,  // REMOVED: gpt-oss doesn't support this
+                format: schema,
                 options: {
                     temperature: 0.7,
                     top_p: 0.9,
                     repeat_penalty: 1.1,
                     top_k: 7,
-                    num_predict: 2048,  // Increased to allow full JSON response with custom_fields
+                    num_predict: 256,
                     num_ctx: numCtx
                 }
             });
 
-            console.log('[DEBUG] Ollama API response - status:', res.status);
-            console.log('[DEBUG] Ollama API response - has data:', !!res.data);
-            console.log('[DEBUG] Ollama API response - response length:', res.data?.response?.length || 0);
-
             if (res.status !== 200) throw new Error(`Ollama Status: ${res.status}`);
-            if (!res.data) throw new Error('No data in Ollama response');
-            // Allow empty response string - will be parsed as JSON below
-            if (res.data.response === undefined) throw new Error('No response field in Ollama data');
+            if (!res.data || !res.data.response) throw new Error('Empty response from Ollama');
 
             return res.data;
         } catch (error) {
@@ -258,9 +243,6 @@ class OllamaService {
     }
 
     _processOllamaResponse(responseData) {
-        // Log raw response for debugging
-        console.log('[DEBUG] Raw Ollama response:', JSON.stringify(responseData.response).substring(0, 500));
-
         if (responseData.response && typeof responseData.response === 'object') {
             return this._normalize(responseData.response);
         }
@@ -270,8 +252,7 @@ class OllamaService {
             try {
                 return this._normalize(JSON.parse(responseData.response));
             } catch(e) {
-                console.error('[ERROR] Failed to parse JSON. Response was:', responseData.response);
-                throw new Error('Could not parse JSON from response');
+                 throw new Error('Could not parse JSON from response');
             }
         }
         throw new Error('Invalid response structure');
