@@ -143,7 +143,11 @@ class OllamaService {
 
             // 4. Merge results
             console.log('[SEQUENTIAL] Step 3: Merging results');
-            const mergedResult = this._mergeAnalysisResults(textResult, visionResult);
+            const mergedResult = this._mergeAnalysisResults(textResult, visionResult, {
+                quality,
+                threshold: config.visualRag.textQualityThreshold,
+                mode: 'SEQUENTIAL'
+            });
 
             const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
             console.log(`[SEQUENTIAL] Analysis completed in ${elapsedTime}s`);
@@ -153,7 +157,7 @@ class OllamaService {
         } catch (error) {
             console.error(`[SEQUENTIAL] Analysis failed: ${error.message}`);
             return {
-                document: { tags: [], correspondent: null },
+                document: this._emptyDocument(),
                 metrics: null,
                 error: error.message
             };
@@ -168,9 +172,12 @@ class OllamaService {
      * @param {Object} visionResult - Result from vision analysis
      * @returns {Object} Merged result
      */
-    _mergeAnalysisResults(textResult, visionResult) {
+    _mergeAnalysisResults(textResult, visionResult, options = {}) {
         const textDoc = textResult.document || {};
         const visionDoc = visionResult.document || {};
+        const threshold = options.threshold ?? config.visualRag.textQualityThreshold;
+        const preferVisionFields = options.mode === 'SEQUENTIAL'
+            || (typeof options.quality === 'number' && options.quality < threshold);
 
         // Merge tags: union, deduplicated
         const mergedTags = [...new Set([
@@ -184,11 +191,15 @@ class OllamaService {
         // Vision takes priority for title (better at reading headers)
         const title = visionDoc.title || textDoc.title;
 
-        // Vision takes priority for document_type
-        const document_type = visionDoc.document_type || textDoc.document_type;
+        // Vision takes priority for document_type when text quality is weak or in sequential mode
+        const document_type = preferVisionFields
+            ? (visionDoc.document_type || textDoc.document_type)
+            : (textDoc.document_type || visionDoc.document_type);
 
-        // Prefer text for date (better contextual understanding)
-        const document_date = textDoc.document_date || visionDoc.document_date;
+        // Prefer vision for date when text quality is weak or in sequential mode
+        const document_date = preferVisionFields
+            ? (visionDoc.document_date || textDoc.document_date)
+            : (textDoc.document_date || visionDoc.document_date);
 
         // Prefer text for language detection
         const language = textDoc.language || visionDoc.language;
@@ -236,28 +247,108 @@ class OllamaService {
         try {
             console.log(`[VISION] Starting vision analysis for document ${documentId}`);
 
+            let plannerResult;
+            try {
+                plannerResult = await this.analyzeDocumentPlannerVision(documentId);
+            } catch (error) {
+                console.warn('[VISION] Planner failed, using default profile');
+                plannerResult = {
+                    category: 'general',
+                    doc_type_hint: null,
+                    confidence: 0.5,
+                    keywords: [],
+                    needs_visual: true
+                };
+            }
+            console.log('[VISION] Planner classification:', JSON.stringify(plannerResult));
+
             // Load thumbnail
             const base64Image = await this._loadThumbnailAsBase64(documentId);
             if (!base64Image) {
                 console.log('[VISION] Fallback to text: no thumbnail available');
-                return this._analyzeDocumentText(content, options.existingTags || [], options.existingCorrespondentList || [], options.existingDocumentTypesList || [], documentId, null, options);
+                const textResult = await this._analyzeDocumentText(
+                    content,
+                    options.existingTags || [],
+                    options.existingCorrespondentList || [],
+                    options.existingDocumentTypesList || [],
+                    documentId,
+                    null,
+                    options
+                );
+                return { ...textResult, _planner: plannerResult };
             }
 
             // Initialize FieldProfiler
             await this.fieldProfiler.init();
 
             // Select profile based on classification
-            const profileId = this.fieldProfiler.selectProfile(options.classification || {});
+            const profileId = this.fieldProfiler.selectProfile(plannerResult);
             console.log(`[VISION] Using profile: ${profileId}`);
+            console.log(`[PLANNER] Selected profile: ${profileId} (confidence: ${plannerResult.confidence})`);
 
-            // Generate extraction prompt
-            const prompt = this.fieldProfiler.generateExtractionPrompt(profileId);
+            const renderDpi = config.visualRag.visionRenderDpi;
+            const maxVisionPages = config.visualRag.maxVisionPages;
+            let pagesToRender = [1];
 
-            // Call vision API
-            const response = await this._callOllamaVisionAPI(prompt, base64Image);
+            if (plannerResult.category === 'financial') {
+                try {
+                    const doc = await paperlessService.getDocument(documentId);
+                    const pageCount = doc?.page_count || doc?.pageCount;
+                    if (pageCount && Number.isInteger(pageCount) && pageCount > 1) {
+                        pagesToRender.push(pageCount);
+                    }
+                } catch (error) {
+                    console.warn(`[VISION] Failed to fetch page count for ${documentId}: ${error.message}`);
+                }
+            }
 
-            // Process response
-            const parsedResponse = this._processOllamaResponse(response);
+            pagesToRender = [...new Set(pagesToRender)].slice(0, maxVisionPages);
+            console.log(`[VISION] Rendering pages: ${pagesToRender.join(', ')} at ${renderDpi} DPI`);
+
+            const renderedImages = [];
+            for (const page of pagesToRender) {
+                const rendered = await this._loadRenderedPageAsBase64(documentId, page, renderDpi);
+                if (rendered) {
+                    renderedImages.push(rendered);
+                }
+            }
+
+            const extractionImages = renderedImages.length > 0 ? renderedImages : [base64Image];
+
+            const maxRetries = config.visualRag.maxRetriesExtractor;
+            let parsedResponse = null;
+            let validation = { valid: false, errors: [] };
+
+            for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+                const prompt = this.fieldProfiler.generateExtractionPrompt(profileId, { strict: attempt > 0 });
+                if (attempt > 0) {
+                    console.warn(`[VISION] Extraction retry ${attempt}/${maxRetries}`);
+                }
+
+                const response = await this._callOllamaVisionAPI(prompt, extractionImages);
+                parsedResponse = this._processOllamaResponse(response);
+                validation = this.fieldProfiler.validateResult(parsedResponse, profileId);
+
+                if (validation.valid) {
+                    break;
+                }
+
+                console.warn(`[VISION] Extraction validation failed: ${validation.errors.join(', ')}`);
+            }
+
+            if (!validation.valid) {
+                console.warn('[VISION] Extraction invalid after retries, falling back to text-only');
+                const textResult = await this._analyzeDocumentText(
+                    content,
+                    options.existingTags || [],
+                    options.existingCorrespondentList || [],
+                    options.existingDocumentTypesList || [],
+                    documentId,
+                    null,
+                    options
+                );
+                return { ...textResult, _planner: plannerResult };
+            }
 
             const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
             console.log(`[VISION] Analysis completed in ${elapsedTime}s`);
@@ -271,16 +362,105 @@ class OllamaService {
                     processingTime: elapsedTime
                 },
                 truncated: false,
-                _analysisMode: 'VISION_ONLY'
+                _analysisMode: 'VISION_ONLY',
+                _planner: plannerResult
             };
 
         } catch (error) {
             console.error(`[VISION] Analysis failed: ${error.message}`);
             return {
-                document: { tags: [], correspondent: null },
+                document: this._emptyDocument(),
                 metrics: null,
                 error: error.message
             };
+        }
+    }
+
+    /**
+     * Analyze document with vision model for classification (Planner stage)
+     * Uses page 1 thumbnail to determine document category before extraction
+     *
+     * @param {number|string} documentId - Document ID
+     * @returns {Promise<Object>} Classification result
+     * @returns {string} return.category - Document category (financial, medical, legal, technical, personal, general)
+     * @returns {string|null} return.doc_type_hint - Specific document type (invoice, befund, vertrag, etc.)
+     * @returns {number} return.confidence - Classification confidence 0.0-1.0
+     * @returns {string[]} return.keywords - Relevant keywords found in document
+     * @returns {boolean} return.needs_visual - Whether document requires visual analysis (tables, forms, etc.)
+     *
+     * @example
+     * const classification = await ollamaService.analyzeDocumentPlannerVision(123);
+     * // { category: 'financial', doc_type_hint: 'invoice', confidence: 0.9, keywords: ['rechnung', 'uid'], needs_visual: true }
+     */
+    async analyzeDocumentPlannerVision(documentId) {
+        const defaultClassification = {
+            category: 'general',
+            doc_type_hint: null,
+            confidence: 0.5,
+            keywords: [],
+            needs_visual: false
+        };
+
+        try {
+            console.log(`[PLANNER] Starting classification for document ${documentId}`);
+
+            const base64Image = await this._loadThumbnailAsBase64(documentId);
+            if (!base64Image) {
+                console.log('[PLANNER] No thumbnail available, using default classification');
+                return defaultClassification;
+            }
+
+            console.log(`[PLANNER] Thumbnail loaded: ${base64Image.length} bytes`);
+
+            const maxRetries = config.visualRag.maxRetriesPlanner;
+
+            for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+                const prompt = this._generatePlannerPrompt(attempt > 0);
+                if (attempt > 0) {
+                    console.warn(`[PLANNER] Retry ${attempt}/${maxRetries}`);
+                }
+
+                console.log('[PLANNER] Calling vision API with planning prompt');
+
+                const response = await this._callOllamaVisionAPI(prompt, base64Image, {
+                    keep_alive: config.ollama.visionKeepAlive,
+                    num_predict: 700,
+                    temperature: 0.2,
+                    num_ctx: 8192
+                });
+
+                const rawResponse = typeof response?.response === 'string'
+                    ? response.response
+                    : JSON.stringify(response?.response);
+                if (rawResponse) {
+                    console.log(`[PLANNER] Raw response: ${rawResponse.substring(0, 200)}...`);
+                } else {
+                    console.log('[PLANNER] Raw response: <empty>');
+                }
+
+                let parsedResponse = null;
+                if (response && typeof response.response === 'object') {
+                    parsedResponse = response.response;
+                } else {
+                    parsedResponse = extractJsonFromResponse(response?.response);
+                }
+
+                console.log(`[PLANNER] Classification result: ${JSON.stringify(parsedResponse)}`);
+
+                const validation = this._validatePlannerResponse(parsedResponse);
+                console.log(`[PLANNER] Validation: ${validation.valid ? 'passed' : 'failed'}`);
+
+                if (validation.valid) {
+                    return parsedResponse;
+                }
+
+                console.warn(`[PLANNER] Invalid response structure: ${validation.errors.join(', ')}`);
+            }
+
+            return defaultClassification;
+        } catch (error) {
+            console.error(`[PLANNER] Failed: ${error.message}`);
+            return defaultClassification;
         }
     }
 
@@ -326,7 +506,7 @@ class OllamaService {
         } catch (error) {
             console.error(`[ANALYSIS] Failed for document ${id}: ${error.message}`);
             return {
-                document: { tags: [], correspondent: null },
+                document: this._emptyDocument(),
                 metrics: null,
                 error: error.message
             };
@@ -384,11 +564,10 @@ class OllamaService {
                 }
 
                 const customFieldsTemplate = {};
-                customFieldsObj.custom_fields.forEach((field, index) => {
-                    customFieldsTemplate[index] = {
-                        field_name: field.value,
-                        value: "Fill in the value based on your analysis"
-                    };
+                customFieldsObj.custom_fields.forEach((field) => {
+                    if (field?.value) {
+                        customFieldsTemplate[field.value] = null;
+                    }
                 });
 
                 const customFieldsStr = '"custom_fields": ' + JSON.stringify(customFieldsTemplate, null, 2)
@@ -438,7 +617,7 @@ class OllamaService {
         } catch (error) {
             console.error(`[ERROR] Analysis failed: ${error.message}`);
             return {
-                document: { tags: [], correspondent: null },
+                document: this._emptyDocument(),
                 metrics: null,
                 error: error.message
             };
@@ -467,10 +646,11 @@ class OllamaService {
                 model: this.model,
                 prompt: prompt,
                 system: systemPrompt,
+                keep_alive: config.ollama.textKeepAlive,
                 stream: false,
                 // format: schema,  // REMOVED: gpt-oss doesn't support this
                 options: {
-                    temperature: 0.7,
+                    temperature: 0.35,
                     top_p: 0.9,
                     repeat_penalty: 1.1,
                     top_k: 7,
@@ -516,14 +696,31 @@ class OllamaService {
     }
 
     _normalize(data) {
+        const normalizedData = (data && typeof data === 'object') ? data : {};
+        const customFields = (normalizedData && typeof normalizedData.custom_fields === 'object' && !Array.isArray(normalizedData.custom_fields))
+            ? normalizedData.custom_fields
+            : {};
+
         return {
-            tags: Array.isArray(data.tags) ? data.tags : [],
-            correspondent: data.correspondent || null,
-            title: data.title || null,
-            document_date: data.document_date || null,
-            document_type: data.document_type || null,
-            language: data.language || null,
-            custom_fields: data.custom_fields || null
+            tags: Array.isArray(normalizedData.tags) ? normalizedData.tags : [],
+            correspondent: normalizedData.correspondent || null,
+            title: normalizedData.title || null,
+            document_date: normalizedData.document_date || null,
+            document_type: normalizedData.document_type || null,
+            language: normalizedData.language || null,
+            custom_fields: customFields
+        };
+    }
+
+    _emptyDocument() {
+        return {
+            title: null,
+            correspondent: null,
+            tags: [],
+            document_type: null,
+            document_date: null,
+            language: null,
+            custom_fields: {}
         };
     }
 
@@ -558,6 +755,52 @@ class OllamaService {
     }
 
     /**
+     * Load rendered page image as base64 for vision extraction
+     * Falls back to thumbnail if render is unavailable
+     * @param {number|string} documentId - Document ID
+     * @param {number} page - Page number (1-based)
+     * @param {number} dpi - Render DPI
+     * @returns {Promise<string|null>} Base64 encoded image or null
+     */
+    async _loadRenderedPageAsBase64(documentId, page = 1, dpi = 150) {
+        const renderDir = path.join(process.cwd(), 'public', 'images', 'rendered');
+        const renderPath = path.join(renderDir, `${documentId}_p${page}_${dpi}.png`);
+
+        try {
+            const buffer = await fs.readFile(renderPath);
+            return buffer.toString('base64');
+        } catch (e) {
+            // cache miss, continue to fetch
+        }
+
+        try {
+            if (typeof paperlessService.initialize === 'function') {
+                paperlessService.initialize();
+            }
+
+            if (!paperlessService.client) {
+                console.warn('[VISION] Paperless client not initialized for render');
+            } else {
+                const response = await paperlessService.client.get(`/documents/${documentId}/thumb/`, {
+                    responseType: 'arraybuffer',
+                    params: { page, dpi }
+                });
+
+                if (response?.data?.byteLength > 0) {
+                    await fs.mkdir(renderDir, { recursive: true });
+                    await fs.writeFile(renderPath, response.data);
+                    return Buffer.from(response.data).toString('base64');
+                }
+            }
+        } catch (error) {
+            console.warn(`[VISION] Render fetch failed for doc ${documentId} page ${page}: ${error.message}`);
+        }
+
+        console.warn('[VISION] Rendered page unavailable, using thumbnail (degraded fidelity)');
+        return this._loadThumbnailAsBase64(documentId);
+    }
+
+    /**
      * Call Ollama Vision API with image input
      * @param {string} prompt - Analysis prompt
      * @param {string} base64Image - Base64 encoded image
@@ -569,19 +812,24 @@ class OllamaService {
             console.log('[DEBUG] Calling Ollama Vision API');
             console.log('[DEBUG] Vision model:', config.ollama.visionModel);
             console.log('[DEBUG] Prompt length:', prompt.length);
-            console.log('[DEBUG] Image size:', base64Image.length, 'bytes');
+            const imageList = Array.isArray(base64Image) ? base64Image.filter(Boolean) : [base64Image];
+            const imageBytes = imageList.reduce((total, img) => total + (img ? img.length : 0), 0);
+            console.log('[DEBUG] Image count:', imageList.length);
+            console.log('[DEBUG] Image size:', imageBytes, 'bytes');
+
+            const visionOptions = {
+                num_ctx: options.num_ctx || 32768,
+                num_predict: options.num_predict || 1600,
+                temperature: options.temperature || 0.3
+            };
 
             const response = await this.client.post(`${this.apiUrl}/api/generate`, {
                 model: config.ollama.visionModel,
                 prompt: prompt,
-                images: [base64Image],
+                images: imageList,
                 keep_alive: options.keep_alive || config.ollama.visionKeepAlive,
                 stream: false,
-                options: {
-                    num_ctx: 32768,
-                    num_predict: 4096,
-                    temperature: 0.3
-                }
+                options: visionOptions
             });
 
             console.log('[DEBUG] Vision API response - status:', response.status);
@@ -599,6 +847,45 @@ class OllamaService {
             console.error('[ERROR] Vision API call failed:', error.message);
             throw error;
         }
+    }
+
+    _validatePlannerResponse(response) {
+        const errors = [];
+        const allowedCategories = ['financial', 'medical', 'legal', 'technical', 'personal', 'general'];
+
+        if (!response || typeof response !== 'object' || Array.isArray(response)) {
+            errors.push('response is not an object');
+            return { valid: false, errors };
+        }
+
+        const requiredFields = ['category', 'doc_type_hint', 'confidence', 'keywords', 'needs_visual'];
+        requiredFields.forEach((field) => {
+            if (!(field in response)) {
+                errors.push(`missing ${field}`);
+            }
+        });
+
+        if (typeof response.category !== 'string' || !allowedCategories.includes(response.category)) {
+            errors.push('invalid category');
+        }
+
+        if ('doc_type_hint' in response && response.doc_type_hint !== null && typeof response.doc_type_hint !== 'string') {
+            errors.push('invalid doc_type_hint');
+        }
+
+        if (typeof response.confidence !== 'number' || Number.isNaN(response.confidence) || response.confidence < 0 || response.confidence > 1) {
+            errors.push('invalid confidence');
+        }
+
+        if (!Array.isArray(response.keywords)) {
+            errors.push('invalid keywords');
+        }
+
+        if (typeof response.needs_visual !== 'boolean') {
+            errors.push('invalid needs_visual');
+        }
+
+        return { valid: errors.length === 0, errors };
     }
 
     async _validateAndTruncateExternalApiData(apiData, maxTokens = 500) {
@@ -708,11 +995,23 @@ class OllamaService {
         return 'SEQUENTIAL';
     }
 
+    _generatePlannerPrompt(strict = false) {
+        const basePrompt = 'AT/DE doc classifier. Choose ONE: financial, medical, legal, technical, personal, general. Hints: financial=Rechnung/Quittung/Honorarnote/Bank, medical=Befund/Rezept/Arztbrief, legal=Vertrag/Vereinbarung/GZ, technical=Anleitung/Datenblatt, personal=Brief/Mitteilung/Schreiben. Return ONLY JSON: {"category":"financial|medical|legal|technical|personal|general","doc_type_hint":"invoice|lab_report|contract|...","confidence":0-1,"keywords":["..."],"needs_visual":true|false}. Rules: doc_type_hint specific; confidence>=0.8 clear, 0.5-0.8 maybe, <0.5 unsure; keywords 2-5 DE/EN; needs_visual true if tables/forms/stamps/complex layout.';
+        if (strict) {
+            return `${basePrompt} STRICT MODE: JSON only, no extra keys.`;
+        }
+        return basePrompt;
+    }
+
     _generateCustomFieldsTemplate() {
         try {
             const obj = JSON.parse(process.env.CUSTOM_FIELDS || '{"custom_fields":[]}');
             const tpl = {};
-            obj.custom_fields.forEach((f, i) => tpl[i] = { field_name: f.value, value: "Fill in the value based on your analysis" });
+            obj.custom_fields.forEach((f) => {
+                if (f?.value) {
+                    tpl[f.value] = null;
+                }
+            });
             return '"custom_fields": ' + JSON.stringify(tpl, null, 2).split('\n').map(l => '    ' + l).join('\n');
         } catch (e) { return ""; }
     }
@@ -724,7 +1023,7 @@ class OllamaService {
             YOU MUSTNOT: Return a response without the desired JSON format.
             YOU MUST: Return the result EXCLUSIVELY as a JSON object. The Tags, Title and Document_Type MUST be in the language that is used in the document.:
             IMPORTANT: The custom_fields are optional and can be left out if not needed, only try to fill out the values if you find a matching information in the document.
-            Do not change the value of field_name, only fill out the values. If the field is about money only add the number without currency and always use a . for decimal places.
+            custom_fields keys are fixed IDs; do not invent or rename keys. Use null when unknown. If the field is about money only add the number without currency and always use a . for decimal places.
             {
                 "title": "xxxxx",
                 "correspondent": "xxxxxxxx",
@@ -760,11 +1059,10 @@ class OllamaService {
         // Generate custom fields template for the prompt
         const customFieldsTemplate = {};
 
-        customFieldsObj.custom_fields.forEach((field, index) => {
-            customFieldsTemplate[index] = {
-                field_name: field.value,
-                value: "Fill in the value based on your analysis"
-            };
+        customFieldsObj.custom_fields.forEach((field) => {
+            if (field?.value) {
+                customFieldsTemplate[field.value] = null;
+            }
         });
 
         // Convert template to string for replacement and wrap in custom_fields
@@ -882,7 +1180,7 @@ class OllamaService {
         } catch (error) {
             console.error('Error analyzing document with Ollama:', error);
             return {
-                document: { tags: [], correspondent: null },
+                document: this._emptyDocument(),
                 metrics: null,
                 error: error.message
             };

@@ -40,17 +40,26 @@
         "invoice_net",
         "payment_due_date",
         "iban",
-        "currency"
+        "currency",
+        "uid",
+        "bic",
+        "payment_reference",
+        "vat_rate",
+        "total_gross",
+        "total_net"
       ],
       "instructions": "Extract all financial data accurately. Pay special attention to amounts, VAT calculations, and payment details. Read tables carefully for line items.",
       "extractionHints": {
         "invoice_number": "Usually labeled 'Rechnungsnummer', 'Invoice No.', or similar",
         "invoice_amount": "Look for 'Total', 'Gesamtbetrag', 'Brutto' - extract number only",
-        "invoice_vat": "Look for 'MwSt', 'VAT', 'USt' - usually 19% or 7% in Germany",
-        "iban": "Format: DE## #### #### #### #### ##",
-        "payment_due_date": "Look for 'Zahlbar bis', 'Due date', 'Fällig am'"
+        "invoice_vat": "Look for 'MwSt', 'VAT', 'USt' - usually 20%, 10%, or 13% in Austria",
+        "iban": "Format: AT## #### #### #### ####",
+        "payment_due_date": "Look for 'Zahlbar bis', 'Due date', 'Fällig am'",
+        "uid": "Austrian tax ID, format: ATU########",
+        "payment_reference": "Look for 'Zahlungsreferenz', 'Verwendungszweck', 'Referenz'",
+        "vat_rate": "Extract percentage: 20% (standard), 10% (reduced), 13% (special)"
       },
-      "keywords": ["rechnung", "invoice", "quittung", "receipt", "bank", "zahlung", "payment", "konto"]
+      "keywords": ["rechnung", "invoice", "quittung", "receipt", "bank", "zahlung", "payment", "konto", "honorarnote", "uid", "zahlungsreferenz", "verwendungszweck", "erlagschein", "zahlschein"]
     },
 
     "medical": {
@@ -70,7 +79,11 @@
         "diagnosis",
         "medication",
         "lab_values",
-        "appointment_date"
+        "appointment_date",
+        "provider_name",
+        "provider_location",
+        "report_date",
+        "insurance"
       ],
       "instructions": "Handle medical documents with precision. Extract lab values from tables, medication names and dosages, and diagnostic findings. Preserve German medical terminology.",
       "extractionHints": {
@@ -78,9 +91,12 @@
         "doctor_name": "Look for 'Dr.', signature, or letterhead",
         "diagnosis": "Look for 'Diagnose:', 'Befund:', or 'Findings:'",
         "medication": "Extract drug names with dosage, e.g., 'Ibuprofen 400mg'",
-        "lab_values": "Read table rows: test name → value → reference range"
+        "lab_values": "Read table rows: test name → value → reference range",
+        "provider_name": "Look for clinic/hospital name in letterhead or footer",
+        "report_date": "Date when report was issued, often labeled 'Befunddatum'",
+        "insurance": "Look for 'Versicherung', 'Krankenkasse' (ÖGK, SVS, BVAEB)"
       },
-      "keywords": ["arzt", "doctor", "patient", "diagnose", "befund", "labor", "rezept", "prescription", "krankenhaus", "hospital"]
+      "keywords": ["arzt", "doctor", "patient", "diagnose", "befund", "labor", "rezept", "prescription", "krankenhaus", "hospital", "österreich", "ögk", "ökg", "svs", "bvaeb", "befundbericht", "arztbrief"]
     },
 
     "legal": {
@@ -99,16 +115,20 @@
         "contract_start_date",
         "contract_end_date",
         "contract_value",
-        "termination_notice"
+        "termination_notice",
+        "case_number",
+        "deadline_date"
       ],
       "instructions": "Extract legal document details with focus on parties, dates, and obligations. Identify contract terms and termination conditions.",
       "extractionHints": {
         "contract_parties": "Look for 'zwischen' (between), party names at document start",
         "contract_start_date": "Look for 'ab', 'beginning', 'effective date'",
         "contract_end_date": "Look for 'bis', 'until', 'expires'",
-        "termination_notice": "Look for 'Kündigungsfrist', 'notice period'"
+        "termination_notice": "Look for 'Kündigungsfrist', 'notice period'",
+        "case_number": "Look for 'GZ', 'Geschäftszahl', 'Aktenzeichen' - Austrian court/administrative reference",
+        "deadline_date": "Look for 'Frist', 'Fällig bis', 'Deadline'"
       },
-      "keywords": ["vertrag", "contract", "vereinbarung", "agreement", "kündigung", "termination", "rechtlich", "legal"]
+      "keywords": ["vertrag", "contract", "vereinbarung", "agreement", "kündigung", "termination", "rechtlich", "legal", "gz", "geschäftszahl", "aktenzeichen", "unser zeichen"]
     },
 
     "technical": {
@@ -158,9 +178,9 @@
       "extractionHints": {
         "sender_address": "Usually top-left or letterhead",
         "recipient_address": "Usually below sender or in address window area",
-        "reference_number": "Look for 'Aktenzeichen', 'Ref:', 'Unser Zeichen'"
+        "reference_number": "Look for 'Aktenzeichen', 'Ref:', 'Unser Zeichen', 'GZ'"
       },
-      "keywords": ["brief", "letter", "mitteilung", "notice", "schreiben"]
+      "keywords": ["brief", "letter", "mitteilung", "notice", "schreiben", "unser zeichen", "aktenzeichen", "gz", "geschäftszahl"]
     }
   },
 

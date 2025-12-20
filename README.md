@@ -102,6 +102,14 @@ TEXT_QUALITY_THRESHOLD=60
 
 # Force all documents through vision model (useful for testing)
 FORCE_VISUAL_RAG=no
+
+# Render settings for vision extraction
+VISION_RENDER_DPI=150
+MAX_VISION_PAGES=4
+
+# Retry policy for vision planner/extractor
+VISUAL_RAG_MAX_RETRIES_PLANNER=1
+VISUAL_RAG_MAX_RETRIES_EXTRACTOR=1
 ```
 
 ### Domain-Specific Extraction
