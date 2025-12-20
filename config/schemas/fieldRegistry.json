@@ -1,0 +1,183 @@
+{
+  "_version": "1.0.0",
+  "_description": "Central registry of all extractable fields. Field IDs are immutable once deployed.",
+
+  "fields": {
+    "title": {
+      "type": "string",
+      "description": "Document title (short, descriptive)",
+      "required": true,
+      "maxLength": 128
+    },
+    "correspondent": {
+      "type": "string",
+      "description": "Document sender/originator (not recipient)",
+      "required": true
+    },
+    "tags": {
+      "type": "array",
+      "itemType": "string",
+      "description": "Classification tags",
+      "required": true
+    },
+    "document_type": {
+      "type": "string",
+      "description": "Document category (Invoice, Contract, Letter, etc.)",
+      "required": true
+    },
+    "document_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Primary document date (YYYY-MM-DD)",
+      "required": true
+    },
+    "language": {
+      "type": "string",
+      "description": "Document language (ISO 639-1: en, de, es, etc.)",
+      "required": true,
+      "enum": ["en", "de", "es", "fr", "it", "nl", "pl", "pt", "ru", "zh", "ja", "ko"]
+    },
+
+    "invoice_number": {
+      "type": "string",
+      "description": "Invoice/receipt number",
+      "domain": "financial"
+    },
+    "invoice_amount": {
+      "type": "number",
+      "description": "Total invoice amount (no currency symbol)",
+      "domain": "financial"
+    },
+    "invoice_vat": {
+      "type": "number",
+      "description": "VAT/tax amount",
+      "domain": "financial"
+    },
+    "invoice_net": {
+      "type": "number",
+      "description": "Net amount before tax",
+      "domain": "financial"
+    },
+    "payment_due_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Payment due date (YYYY-MM-DD)",
+      "domain": "financial"
+    },
+    "iban": {
+      "type": "string",
+      "description": "Bank account IBAN",
+      "domain": "financial"
+    },
+    "currency": {
+      "type": "string",
+      "description": "Currency code (EUR, USD, etc.)",
+      "domain": "financial",
+      "enum": ["EUR", "USD", "GBP", "CHF", "PLN", "CZK", "SEK", "NOK", "DKK"]
+    },
+
+    "patient_name": {
+      "type": "string",
+      "description": "Patient name",
+      "domain": "medical"
+    },
+    "doctor_name": {
+      "type": "string",
+      "description": "Doctor/physician name",
+      "domain": "medical"
+    },
+    "diagnosis": {
+      "type": "string",
+      "description": "Medical diagnosis or finding",
+      "domain": "medical"
+    },
+    "medication": {
+      "type": "array",
+      "itemType": "string",
+      "description": "List of medications",
+      "domain": "medical"
+    },
+    "lab_values": {
+      "type": "object",
+      "description": "Lab test results as key-value pairs",
+      "domain": "medical"
+    },
+    "appointment_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Medical appointment date",
+      "domain": "medical"
+    },
+
+    "contract_parties": {
+      "type": "array",
+      "itemType": "string",
+      "description": "Parties to the contract",
+      "domain": "legal"
+    },
+    "contract_start_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Contract start date",
+      "domain": "legal"
+    },
+    "contract_end_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Contract end date",
+      "domain": "legal"
+    },
+    "contract_value": {
+      "type": "number",
+      "description": "Contract monetary value",
+      "domain": "legal"
+    },
+    "termination_notice": {
+      "type": "string",
+      "description": "Termination notice period",
+      "domain": "legal"
+    },
+
+    "product_name": {
+      "type": "string",
+      "description": "Product/device name",
+      "domain": "technical"
+    },
+    "model_number": {
+      "type": "string",
+      "description": "Model/part number",
+      "domain": "technical"
+    },
+    "serial_number": {
+      "type": "string",
+      "description": "Serial number",
+      "domain": "technical"
+    },
+    "manufacturer": {
+      "type": "string",
+      "description": "Manufacturer name",
+      "domain": "technical"
+    },
+    "specifications": {
+      "type": "object",
+      "description": "Technical specifications as key-value pairs",
+      "domain": "technical"
+    },
+
+    "sender_address": {
+      "type": "string",
+      "description": "Sender postal address",
+      "domain": "personal"
+    },
+    "recipient_address": {
+      "type": "string",
+      "description": "Recipient postal address",
+      "domain": "personal"
+    },
+    "reference_number": {
+      "type": "string",
+      "description": "Reference/case number",
+      "domain": "personal"
+    }
+  }
+}

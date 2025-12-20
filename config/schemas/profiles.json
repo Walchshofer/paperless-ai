@@ -1,0 +1,181 @@
+{
+  "_version": "1.0.0",
+  "_description": "Expert profiles defining field sets for each document domain",
+
+  "profiles": {
+    "general": {
+      "name": "General Document",
+      "description": "Default profile for unclassified documents",
+      "coreFields": [
+        "title",
+        "correspondent",
+        "tags",
+        "document_type",
+        "document_date",
+        "language"
+      ],
+      "customFields": [],
+      "instructions": "Extract basic document metadata. Focus on identifying the sender and document purpose.",
+      "extractionHints": {
+        "correspondent": "Look for letterhead, signature, or 'From:' fields",
+        "document_date": "Prefer the most prominent date on the document"
+      }
+    },
+
+    "financial": {
+      "name": "Financial Document Expert",
+      "description": "Invoices, receipts, bank statements, financial reports",
+      "coreFields": [
+        "title",
+        "correspondent",
+        "tags",
+        "document_type",
+        "document_date",
+        "language"
+      ],
+      "customFields": [
+        "invoice_number",
+        "invoice_amount",
+        "invoice_vat",
+        "invoice_net",
+        "payment_due_date",
+        "iban",
+        "currency"
+      ],
+      "instructions": "Extract all financial data accurately. Pay special attention to amounts, VAT calculations, and payment details. Read tables carefully for line items.",
+      "extractionHints": {
+        "invoice_number": "Usually labeled 'Rechnungsnummer', 'Invoice No.', or similar",
+        "invoice_amount": "Look for 'Total', 'Gesamtbetrag', 'Brutto' - extract number only",
+        "invoice_vat": "Look for 'MwSt', 'VAT', 'USt' - usually 19% or 7% in Germany",
+        "iban": "Format: DE## #### #### #### #### ##",
+        "payment_due_date": "Look for 'Zahlbar bis', 'Due date', 'Fällig am'"
+      },
+      "keywords": ["rechnung", "invoice", "quittung", "receipt", "bank", "zahlung", "payment", "konto"]
+    },
+
+    "medical": {
+      "name": "Medical Document Expert",
+      "description": "Lab reports, prescriptions, doctor letters, diagnoses",
+      "coreFields": [
+        "title",
+        "correspondent",
+        "tags",
+        "document_type",
+        "document_date",
+        "language"
+      ],
+      "customFields": [
+        "patient_name",
+        "doctor_name",
+        "diagnosis",
+        "medication",
+        "lab_values",
+        "appointment_date"
+      ],
+      "instructions": "Handle medical documents with precision. Extract lab values from tables, medication names and dosages, and diagnostic findings. Preserve German medical terminology.",
+      "extractionHints": {
+        "patient_name": "Usually at top of document or after 'Patient:'",
+        "doctor_name": "Look for 'Dr.', signature, or letterhead",
+        "diagnosis": "Look for 'Diagnose:', 'Befund:', or 'Findings:'",
+        "medication": "Extract drug names with dosage, e.g., 'Ibuprofen 400mg'",
+        "lab_values": "Read table rows: test name → value → reference range"
+      },
+      "keywords": ["arzt", "doctor", "patient", "diagnose", "befund", "labor", "rezept", "prescription", "krankenhaus", "hospital"]
+    },
+
+    "legal": {
+      "name": "Legal Document Expert",
+      "description": "Contracts, agreements, legal notices, court documents",
+      "coreFields": [
+        "title",
+        "correspondent",
+        "tags",
+        "document_type",
+        "document_date",
+        "language"
+      ],
+      "customFields": [
+        "contract_parties",
+        "contract_start_date",
+        "contract_end_date",
+        "contract_value",
+        "termination_notice"
+      ],
+      "instructions": "Extract legal document details with focus on parties, dates, and obligations. Identify contract terms and termination conditions.",
+      "extractionHints": {
+        "contract_parties": "Look for 'zwischen' (between), party names at document start",
+        "contract_start_date": "Look for 'ab', 'beginning', 'effective date'",
+        "contract_end_date": "Look for 'bis', 'until', 'expires'",
+        "termination_notice": "Look for 'Kündigungsfrist', 'notice period'"
+      },
+      "keywords": ["vertrag", "contract", "vereinbarung", "agreement", "kündigung", "termination", "rechtlich", "legal"]
+    },
+
+    "technical": {
+      "name": "Technical Document Expert",
+      "description": "Manuals, specifications, datasheets, technical reports",
+      "coreFields": [
+        "title",
+        "correspondent",
+        "tags",
+        "document_type",
+        "document_date",
+        "language"
+      ],
+      "customFields": [
+        "product_name",
+        "model_number",
+        "serial_number",
+        "manufacturer",
+        "specifications"
+      ],
+      "instructions": "Extract technical specifications accurately. Read specification tables and identify product identifiers. Preserve exact model numbers and measurements.",
+      "extractionHints": {
+        "model_number": "Look for 'Model', 'Typ', 'Part No.', often alphanumeric",
+        "serial_number": "Look for 'S/N', 'Serial', usually longer alphanumeric",
+        "specifications": "Extract key specs as object: {voltage: '230V', power: '2000W'}"
+      },
+      "keywords": ["manual", "anleitung", "specification", "datasheet", "technisch", "technical", "modell", "model"]
+    },
+
+    "personal": {
+      "name": "Personal Correspondence Expert",
+      "description": "Letters, notices, personal documents",
+      "coreFields": [
+        "title",
+        "correspondent",
+        "tags",
+        "document_type",
+        "document_date",
+        "language"
+      ],
+      "customFields": [
+        "sender_address",
+        "recipient_address",
+        "reference_number"
+      ],
+      "instructions": "Extract correspondence metadata. Identify sender and recipient clearly. Look for reference numbers for official correspondence.",
+      "extractionHints": {
+        "sender_address": "Usually top-left or letterhead",
+        "recipient_address": "Usually below sender or in address window area",
+        "reference_number": "Look for 'Aktenzeichen', 'Ref:', 'Unser Zeichen'"
+      },
+      "keywords": ["brief", "letter", "mitteilung", "notice", "schreiben"]
+    }
+  },
+
+  "categoryMapping": {
+    "invoice": "financial",
+    "receipt": "financial",
+    "bank_statement": "financial",
+    "lab_report": "medical",
+    "prescription": "medical",
+    "doctor_letter": "medical",
+    "contract": "legal",
+    "agreement": "legal",
+    "manual": "technical",
+    "datasheet": "technical",
+    "letter": "personal",
+    "notice": "personal"
+  }
+}

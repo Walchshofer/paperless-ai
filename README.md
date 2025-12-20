@@ -26,8 +26,13 @@ Powered by **Retrieval-Augmented Generation (RAG)**, you can now search semantic
 - Detects new documents in Paperless-ngx automatically
 - Analyzes content using OpenAI API, Ollama, and other compatible backends
 - Assigns title, tags, document type, and correspondent
+- **Visual RAG Pipeline** (Ollama only):
+  - Multi-model routing: Text analysis, Vision analysis, or Sequential (hybrid)
+  - Automatic quality assessment for scanned documents
+  - Vision model fallback for poor OCR or complex layouts (tables, forms, multi-column)
+  - Domain-specific field extraction (financial, medical, legal, technical)
 - Built-in support for:
-  - Ollama (Mistral, Llama, Phi-3, Gemma-2)
+  - Ollama (Mistral, Llama, Phi-3, Gemma-2, **Qwen3-VL for vision**)
   - OpenAI
   - DeepSeek.ai
   - OpenRouter.ai
@@ -56,6 +61,73 @@ Powered by **Retrieval-Augmented Generation (RAG)**, you can now search semantic
 - Disable prompts and apply tags automatically
 - Set custom output tags for tracked classification  
 ![PPAI_SHOWCASE3](https://github.com/user-attachments/assets/1fc9f470-6e45-43e0-a212-b8fa6225e8dd)
+
+---
+
+## 👁️ Visual RAG (Ollama Vision Models)
+
+**NEW:** Paperless-AI now supports vision models for enhanced document analysis!
+
+### What is Visual RAG?
+
+Visual RAG combines traditional text-based analysis with vision model capabilities to improve extraction accuracy for:
+- Scanned documents with poor OCR quality
+- Complex layouts (tables, forms, multi-column documents)
+- Documents with visual elements that don't translate well to text
+
+### How It Works
+
+The system automatically routes documents through a **3-stage pipeline**:
+
+1. **TEXT_ONLY** - High quality OCR, simple layouts → Fast text-only analysis
+2. **VISION_ONLY** - Very poor OCR quality → Direct vision model analysis
+3. **SEQUENTIAL** - Medium quality or complex layouts → Text analysis first, vision enhancement if needed
+
+### Configuration
+
+Add these environment variables to enable Visual RAG:
+
+```bash
+# Vision model configuration
+OLLAMA_VISION_MODEL=qwen3-vl:8b
+VISION_KEEP_ALIVE=5m
+TEXT_KEEP_ALIVE=2m
+
+# Enable Visual RAG pipeline (yes/no)
+ENABLE_VISUAL_RAG=yes
+
+# Text quality threshold (0-100)
+# Below this score triggers vision analysis in sequential mode
+TEXT_QUALITY_THRESHOLD=60
+
+# Force all documents through vision model (useful for testing)
+FORCE_VISUAL_RAG=no
+```
+
+### Domain-Specific Extraction
+
+Visual RAG includes specialized profiles for different document types:
+
+- **Financial** - Invoices, receipts, bank statements (extracts amounts, IBAN, VAT, payment dates)
+- **Medical** - Lab reports, prescriptions, doctor letters (extracts diagnoses, medications, lab values)
+- **Legal** - Contracts, agreements (extracts parties, dates, termination clauses)
+- **Technical** - Manuals, datasheets (extracts model numbers, specifications)
+- **Personal** - Letters, notices (extracts addresses, reference numbers)
+
+The system automatically selects the appropriate profile based on document classification.
+
+### Requirements
+
+- Ollama installation with vision model support
+- Recommended: `qwen3-vl:8b` (6.1GB) - install with `ollama pull qwen3-vl:8b`
+- Text model: Any Ollama model (llama3.2, mistral, etc.)
+
+### Performance Notes
+
+- Vision analysis takes longer than text-only (due to model size)
+- Keep-alive settings prevent frequent model reloads
+- Sequential mode provides best balance of speed and accuracy
+- Disable with `ENABLE_VISUAL_RAG=no` to revert to text-only mode
 
 ---
 

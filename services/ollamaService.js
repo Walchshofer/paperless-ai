@@ -5,6 +5,7 @@ const path = require('path');
 const paperlessService = require('./paperlessService');
 const os = require('os');
 const RestrictionPromptService = require('./restrictionPromptService');
+const FieldProfiler = require('./visual-rag/FieldProfiler');
 
 // ============================================================================
 //  INTERNAL UTILITIES (Inlined to prevent loading errors)
@@ -81,6 +82,9 @@ class OllamaService {
 
         this.isGptOss = this.model.toLowerCase().includes('gpt-oss');
 
+        // Initialize FieldProfiler for Visual RAG
+        this.fieldProfiler = new FieldProfiler();
+
         this.documentAnalysisSchema = {
             type: "object",
             properties: {
@@ -99,10 +103,244 @@ class OllamaService {
         this.playgroundSchema = this.documentAnalysisSchema;
     }
 
-    async analyzeDocument(content, existingTags = [], existingCorrespondentList = [], existingDocumentTypesList = [], id, customPrompt = null, options = {}) {
+    /**
+     * Analyze document using sequential text-then-vision pipeline
+     * @param {number|string} documentId - Document ID
+     * @param {string} content - Document text content
+     * @param {Object} options - Analysis options
+     * @returns {Promise<Object>} Merged analysis result
+     */
+    async analyzeDocumentSequential(documentId, content, options = {}) {
         const startTime = Date.now();
         try {
-            console.log(`[DEBUG] Starting document analysis for ID: ${id}`);
+            console.log(`[SEQUENTIAL] Starting sequential analysis for document ${documentId}`);
+
+            // 1. Text analysis first
+            console.log('[SEQUENTIAL] Step 1: Text analysis');
+            const textResult = await this._analyzeDocumentText(
+                content,
+                options.existingTags || [],
+                options.existingCorrespondentList || [],
+                options.existingDocumentTypesList || [],
+                documentId,
+                null,
+                options
+            );
+
+            // 2. Check if text quality is sufficient
+            const quality = this._assessTextQuality(content);
+            console.log(`[SEQUENTIAL] Text quality: ${quality}, Threshold: ${config.visualRag.textQualityThreshold}`);
+
+            if (quality >= config.visualRag.textQualityThreshold) {
+                console.log('[SEQUENTIAL] Text quality sufficient, skipping vision analysis');
+                textResult._analysisMode = 'SEQUENTIAL_TEXT_ONLY';
+                return textResult;
+            }
+
+            // 3. Vision analysis to enhance results
+            console.log('[SEQUENTIAL] Step 2: Vision analysis for enhancement');
+            const visionResult = await this.analyzeDocumentWithVision(documentId, content, options);
+
+            // 4. Merge results
+            console.log('[SEQUENTIAL] Step 3: Merging results');
+            const mergedResult = this._mergeAnalysisResults(textResult, visionResult);
+
+            const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
+            console.log(`[SEQUENTIAL] Analysis completed in ${elapsedTime}s`);
+
+            return mergedResult;
+
+        } catch (error) {
+            console.error(`[SEQUENTIAL] Analysis failed: ${error.message}`);
+            return {
+                document: { tags: [], correspondent: null },
+                metrics: null,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Merge text and vision analysis results
+     * Vision results take priority for visual elements (tables, amounts)
+     * Text results used for language and contextual understanding
+     * @param {Object} textResult - Result from text analysis
+     * @param {Object} visionResult - Result from vision analysis
+     * @returns {Object} Merged result
+     */
+    _mergeAnalysisResults(textResult, visionResult) {
+        const textDoc = textResult.document || {};
+        const visionDoc = visionResult.document || {};
+
+        // Merge tags: union, deduplicated
+        const mergedTags = [...new Set([
+            ...(textDoc.tags || []),
+            ...(visionDoc.tags || [])
+        ])];
+
+        // Vision takes priority for correspondent (better at reading letterheads)
+        const correspondent = visionDoc.correspondent || textDoc.correspondent;
+
+        // Vision takes priority for title (better at reading headers)
+        const title = visionDoc.title || textDoc.title;
+
+        // Vision takes priority for document_type
+        const document_type = visionDoc.document_type || textDoc.document_type;
+
+        // Prefer text for date (better contextual understanding)
+        const document_date = textDoc.document_date || visionDoc.document_date;
+
+        // Prefer text for language detection
+        const language = textDoc.language || visionDoc.language;
+
+        // Merge custom fields: vision takes priority (better at reading tables/amounts)
+        const custom_fields = {
+            ...(textDoc.custom_fields || {}),
+            ...(visionDoc.custom_fields || {})
+        };
+
+        return {
+            document: {
+                title,
+                correspondent,
+                tags: mergedTags,
+                document_type,
+                document_date,
+                language,
+                custom_fields
+            },
+            metrics: {
+                promptTokens: (textResult.metrics?.promptTokens || 0) + (visionResult.metrics?.promptTokens || 0),
+                completionTokens: (textResult.metrics?.completionTokens || 0) + (visionResult.metrics?.completionTokens || 0),
+                totalTokens: (textResult.metrics?.totalTokens || 0) + (visionResult.metrics?.totalTokens || 0),
+                processingTime: (parseFloat(textResult.metrics?.processingTime || 0) + parseFloat(visionResult.metrics?.processingTime || 0)).toFixed(2)
+            },
+            truncated: textResult.truncated || visionResult.truncated || false,
+            _analysisMode: 'SEQUENTIAL',
+            _sources: {
+                text: textDoc,
+                vision: visionDoc
+            }
+        };
+    }
+
+    /**
+     * Analyze document using vision model
+     * @param {number|string} documentId - Document ID
+     * @param {string} content - Document text content (for classification)
+     * @param {Object} options - Analysis options
+     * @returns {Promise<Object>} Analysis result
+     */
+    async analyzeDocumentWithVision(documentId, content, options = {}) {
+        const startTime = Date.now();
+        try {
+            console.log(`[VISION] Starting vision analysis for document ${documentId}`);
+
+            // Load thumbnail
+            const base64Image = await this._loadThumbnailAsBase64(documentId);
+            if (!base64Image) {
+                console.log('[VISION] Fallback to text: no thumbnail available');
+                return this._analyzeDocumentText(content, options.existingTags || [], options.existingCorrespondentList || [], options.existingDocumentTypesList || [], documentId, null, options);
+            }
+
+            // Initialize FieldProfiler
+            await this.fieldProfiler.init();
+
+            // Select profile based on classification
+            const profileId = this.fieldProfiler.selectProfile(options.classification || {});
+            console.log(`[VISION] Using profile: ${profileId}`);
+
+            // Generate extraction prompt
+            const prompt = this.fieldProfiler.generateExtractionPrompt(profileId);
+
+            // Call vision API
+            const response = await this._callOllamaVisionAPI(prompt, base64Image);
+
+            // Process response
+            const parsedResponse = this._processOllamaResponse(response);
+
+            const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
+            console.log(`[VISION] Analysis completed in ${elapsedTime}s`);
+
+            return {
+                document: parsedResponse,
+                metrics: {
+                    promptTokens: 0,
+                    completionTokens: 0,
+                    totalTokens: 0,
+                    processingTime: elapsedTime
+                },
+                truncated: false,
+                _analysisMode: 'VISION_ONLY'
+            };
+
+        } catch (error) {
+            console.error(`[VISION] Analysis failed: ${error.message}`);
+            return {
+                document: { tags: [], correspondent: null },
+                metrics: null,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Main document analysis entry point with routing
+     * Routes to TEXT_ONLY, VISION_ONLY, or SEQUENTIAL based on content quality and config
+     * @param {string} content - Document text content
+     * @param {Array} existingTags - Existing tags from Paperless
+     * @param {Array} existingCorrespondentList - Existing correspondents
+     * @param {Array} existingDocumentTypesList - Existing document types
+     * @param {number|string} id - Document ID
+     * @param {string|null} customPrompt - Optional custom prompt
+     * @param {Object} options - Additional options
+     * @returns {Promise<Object>} Analysis result
+     */
+    async analyzeDocument(content, existingTags = [], existingCorrespondentList = [], existingDocumentTypesList = [], id, customPrompt = null, options = {}) {
+        try {
+            // Determine analysis mode based on content quality and configuration
+            const mode = this._determineAnalysisMode(content);
+            console.log(`[ANALYSIS] Document ${id} - Mode: ${mode}`);
+
+            // Store options for nested calls
+            const enrichedOptions = {
+                ...options,
+                existingTags,
+                existingCorrespondentList,
+                existingDocumentTypesList
+            };
+
+            // Route to appropriate analysis method
+            switch (mode) {
+                case 'VISION_ONLY':
+                    return await this.analyzeDocumentWithVision(id, content, enrichedOptions);
+
+                case 'SEQUENTIAL':
+                    return await this.analyzeDocumentSequential(id, content, enrichedOptions);
+
+                case 'TEXT_ONLY':
+                default:
+                    return await this._analyzeDocumentText(content, existingTags, existingCorrespondentList, existingDocumentTypesList, id, customPrompt, options);
+            }
+
+        } catch (error) {
+            console.error(`[ANALYSIS] Failed for document ${id}: ${error.message}`);
+            return {
+                document: { tags: [], correspondent: null },
+                metrics: null,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Internal text-only analysis method
+     * @private
+     */
+    async _analyzeDocumentText(content, existingTags = [], existingCorrespondentList = [], existingDocumentTypesList = [], id, customPrompt = null, options = {}) {
+        const startTime = Date.now();
+        try {
+            console.log(`[TEXT] Starting text-only analysis for ID: ${id}`);
 
             // 1. Validation
             const validation = validateDocumentContent(content);
@@ -303,6 +541,66 @@ class OllamaService {
         } catch (e) {}
     }
 
+    /**
+     * Load thumbnail image as base64 for vision analysis
+     * @param {number|string} documentId - Document ID
+     * @returns {Promise<string|null>} Base64 encoded image or null
+     */
+    async _loadThumbnailAsBase64(documentId) {
+        const thumbnailPath = path.join(process.cwd(), 'public', 'images', `${documentId}.png`);
+        try {
+            const buffer = await fs.readFile(thumbnailPath);
+            return buffer.toString('base64');
+        } catch (e) {
+            console.log(`[VISION] No thumbnail for doc ${documentId}`);
+            return null;
+        }
+    }
+
+    /**
+     * Call Ollama Vision API with image input
+     * @param {string} prompt - Analysis prompt
+     * @param {string} base64Image - Base64 encoded image
+     * @param {Object} options - Additional options (keep_alive, etc.)
+     * @returns {Promise<Object>} Ollama response
+     */
+    async _callOllamaVisionAPI(prompt, base64Image, options = {}) {
+        try {
+            console.log('[DEBUG] Calling Ollama Vision API');
+            console.log('[DEBUG] Vision model:', config.ollama.visionModel);
+            console.log('[DEBUG] Prompt length:', prompt.length);
+            console.log('[DEBUG] Image size:', base64Image.length, 'bytes');
+
+            const response = await this.client.post(`${this.apiUrl}/api/generate`, {
+                model: config.ollama.visionModel,
+                prompt: prompt,
+                images: [base64Image],
+                keep_alive: options.keep_alive || config.ollama.visionKeepAlive,
+                stream: false,
+                options: {
+                    num_ctx: 32768,
+                    num_predict: 4096,
+                    temperature: 0.3
+                }
+            });
+
+            console.log('[DEBUG] Vision API response - status:', response.status);
+            console.log('[DEBUG] Vision API response - has data:', !!response.data);
+
+            if (response.status !== 200) throw new Error(`Ollama Vision Status: ${response.status}`);
+            if (!response.data) throw new Error('No data in Ollama vision response');
+            if (response.data.response === undefined) throw new Error('No response field in Ollama vision data');
+
+            return response.data;
+        } catch (error) {
+            if (error.code === 'ECONNABORTED') {
+                throw new Error(`Vision API timeout (${this.timeout}ms). Model loading?`);
+            }
+            console.error('[ERROR] Vision API call failed:', error.message);
+            throw error;
+        }
+    }
+
     async _validateAndTruncateExternalApiData(apiData, maxTokens = 500) {
         if (!apiData) return null;
 
@@ -319,6 +617,95 @@ class OllamaService {
 
         console.log(`[DEBUG] External API data validated: ${dataTokens} tokens`);
         return dataString;
+    }
+
+    /**
+     * Assess text quality score (0-100)
+     * Higher scores indicate better OCR quality
+     * @param {string} content - Document text content
+     * @returns {number} Quality score 0-100
+     */
+    _assessTextQuality(content) {
+        if (!content || content.length < 50) return 0;
+
+        const words = content.split(/\s+/);
+        const avgWordLength = words.reduce((sum, w) => sum + w.length, 0) / words.length;
+        const specialCharRatio = (content.match(/[^\w\s]/g) || []).length / content.length;
+
+        let score = 100;
+
+        // Penalize short average word length (OCR artifacts)
+        if (avgWordLength < 3) score -= 30;
+
+        // Penalize high special character ratio (OCR noise)
+        if (specialCharRatio > 0.15) score -= 30;
+
+        // Penalize very short documents
+        if (words.length < 20) score -= 20;
+
+        return Math.max(0, score);
+    }
+
+    /**
+     * Detect visual complexity patterns in text
+     * @param {string} content - Document text content
+     * @returns {string[]} Array of detected patterns (table, form, columns)
+     */
+    _detectVisualComplexity(content) {
+        const flags = [];
+
+        // Detect tables (multiple pipe characters)
+        if ((content.match(/\|/g) || []).length > 5) {
+            flags.push('table');
+        }
+
+        // Detect forms (checkbox patterns)
+        if (/\[\s*[xX]?\s*\]/.test(content)) {
+            flags.push('form');
+        }
+
+        // Detect multi-column layout (multiple spaces between words)
+        if (/^\s{2,}\S+\s{2,}\S+/m.test(content)) {
+            flags.push('columns');
+        }
+
+        return flags;
+    }
+
+    /**
+     * Determine analysis mode based on text quality and configuration
+     * @param {string} content - Document text content
+     * @returns {string} Analysis mode: TEXT_ONLY, VISION_ONLY, or SEQUENTIAL
+     */
+    _determineAnalysisMode(content) {
+        // If Visual RAG is disabled, use text-only mode
+        if (!config.visualRag.enabled) {
+            return 'TEXT_ONLY';
+        }
+
+        // If force vision is enabled, always use vision
+        if (config.visualRag.forceVision) {
+            return 'VISION_ONLY';
+        }
+
+        // Assess text quality
+        const quality = this._assessTextQuality(content);
+        const complexity = this._detectVisualComplexity(content);
+
+        console.log(`[ANALYSIS] Text quality: ${quality}, Complexity flags: ${complexity.join(', ') || 'none'}`);
+
+        // Very low quality - go straight to vision
+        if (quality < 40) {
+            return 'VISION_ONLY';
+        }
+
+        // High quality and low complexity - text is sufficient
+        if (quality >= 70 && complexity.length < 2) {
+            return 'TEXT_ONLY';
+        }
+
+        // Medium quality or complex layout - use sequential analysis
+        return 'SEQUENTIAL';
     }
 
     _generateCustomFieldsTemplate() {
