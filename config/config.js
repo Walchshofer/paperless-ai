@@ -75,7 +75,10 @@ module.exports = {
   },
   ollama: {
     apiUrl: process.env.OLLAMA_API_URL || 'http://localhost:11434',
-    model: process.env.OLLAMA_MODEL || 'llama3.2'
+    model: process.env.OLLAMA_MODEL || 'llama3.2',
+    visionModel: process.env.OLLAMA_VISION_MODEL || 'qwen3-vl:8b',
+    visionKeepAlive: process.env.VISION_KEEP_ALIVE || '5m',
+    textKeepAlive: process.env.TEXT_KEEP_ALIVE || '2m'
   },
   custom: {
     apiUrl: process.env.CUSTOM_BASE_URL || '',
@@ -92,6 +95,12 @@ module.exports = {
   aiProvider: process.env.AI_PROVIDER || 'openai',
   scanInterval: process.env.SCAN_INTERVAL || '*/30 * * * *',
   useExistingData: process.env.USE_EXISTING_DATA || 'no',
+  // Visual RAG configuration
+  visualRag: {
+    enabled: parseEnvBoolean(process.env.ENABLE_VISUAL_RAG, 'no'),
+    textQualityThreshold: parseInt(process.env.TEXT_QUALITY_THRESHOLD || '60', 10),
+    forceVision: parseEnvBoolean(process.env.FORCE_VISUAL_RAG, 'no')
+  },
   // Add limit functions to config
   limitFunctions: {
     activateTagging: limitFunctions.activateTagging,
