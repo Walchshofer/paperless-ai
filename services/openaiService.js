@@ -98,11 +98,10 @@ class OpenAIService {
       // Generate custom fields template for the prompt
       const customFieldsTemplate = {};
 
-      customFieldsObj.custom_fields.forEach((field, index) => {
-        customFieldsTemplate[index] = {
-          field_name: field.value,
-          value: "Fill in the value based on your analysis"
-        };
+      customFieldsObj.custom_fields.forEach((field) => {
+        if (field?.value) {
+          customFieldsTemplate[field.value] = null;
+        }
       });
 
       // Convert template to string for replacement and wrap in custom_fields
@@ -223,19 +222,37 @@ class OpenAIService {
         throw new Error('Invalid response structure: missing tags array or correspondent string');
       }
 
+      const normalizedResponse = this._normalizeDocumentOutput(parsedResponse);
+
       return {
-        document: parsedResponse,
+        document: normalizedResponse,
         metrics: mappedUsage,
         truncated: truncatedContent.length < content.length
       };
     } catch (error) {
       console.error('Failed to analyze document:', error);
       return {
-        document: { tags: [], correspondent: null },
+        document: this._normalizeDocumentOutput(null),
         metrics: null,
         error: error.message
       };
     }
+  }
+
+  _normalizeDocumentOutput(data) {
+    const customFields = (data && typeof data.custom_fields === 'object' && !Array.isArray(data.custom_fields))
+      ? data.custom_fields
+      : {};
+
+    return {
+      title: data?.title ?? null,
+      correspondent: data?.correspondent ?? null,
+      tags: Array.isArray(data?.tags) ? data.tags : [],
+      document_type: data?.document_type ?? null,
+      document_date: data?.document_date ?? null,
+      language: data?.language ?? null,
+      custom_fields: customFields
+    };
   }
 
   /**
@@ -346,15 +363,17 @@ class OpenAIService {
         throw new Error('Invalid response structure: missing tags array or correspondent string');
       }
 
+      const normalizedResponse = this._normalizeDocumentOutput(parsedResponse);
+
       return {
-        document: parsedResponse,
+        document: normalizedResponse,
         metrics: mappedUsage,
         truncated: truncatedContent.length < content.length
       };
     } catch (error) {
       console.error('Failed to analyze document:', error);
       return {
-        document: { tags: [], correspondent: null },
+        document: this._normalizeDocumentOutput(null),
         metrics: null,
         error: error.message
       };

@@ -70,10 +70,14 @@ class FieldProfiler {
      * @returns {string} Profile ID
      */
     selectProfile(classification) {
-        const { category, confidence, keywords } = classification;
+        const { category, confidence, keywords } = classification || {};
+        const normalizedCategory = (category || '').toLowerCase();
 
-        // Direct category mapping
-        const categoryMap = {
+        // Primary mapping from configuration
+        const configMapping = (profiles && profiles.categoryMapping) || {};
+
+        // Fallback hardcoded synonyms (for backward compatibility)
+        const fallbackMap = {
             'medical': 'medical',
             'health': 'medical',
             'financial': 'financial',
@@ -89,22 +93,30 @@ class FieldProfiler {
             'correspondence': 'personal'
         };
 
-        // Check direct mapping first
-        const normalizedCategory = (category || '').toLowerCase();
-        if (categoryMap[normalizedCategory]) {
-            return categoryMap[normalizedCategory];
+        // 1) Check configuration mapping first
+        if (configMapping[normalizedCategory]) {
+            return configMapping[normalizedCategory];
         }
 
-        // Keyword-based fallback
+        // 2) Check fallback mapping
+        if (fallbackMap[normalizedCategory]) {
+            return fallbackMap[normalizedCategory];
+        }
+
+        // 3) Keyword-based fallback (check config first, then fallback)
         if (keywords && Array.isArray(keywords)) {
             for (const keyword of keywords) {
-                const normalizedKeyword = keyword.toLowerCase();
-                if (categoryMap[normalizedKeyword]) {
-                    return categoryMap[normalizedKeyword];
+                const normalizedKeyword = (keyword || '').toLowerCase();
+                if (configMapping[normalizedKeyword]) {
+                    return configMapping[normalizedKeyword];
+                }
+                if (fallbackMap[normalizedKeyword]) {
+                    return fallbackMap[normalizedKeyword];
                 }
             }
         }
 
+        // Default
         return this.options.defaultProfile;
     }
 
@@ -237,10 +249,11 @@ class FieldProfiler {
      */
     generateExtractionPrompt(profileId, options = {}) {
         const fieldSet = this.getFieldSet(profileId);
-        const schema = this.generateExtractionSchema(profileId);
-
         const profile = profiles.profiles[profileId];
         const hints = fieldSet.extractionHints;
+        const coreFieldIds = Object.keys(fieldSet.coreFields);
+        const customFieldIds = Object.keys(fieldSet.customFields || {});
+        const strictMode = options.strict === true;
 
         let prompt = `You are a ${profile.name} document extractor.\n\n`;
 
@@ -258,17 +271,24 @@ class FieldProfiler {
             prompt += `\n`;
         }
 
-        // Add output schema
-        prompt += `Extract ONLY these fields. Output JSON matching this schema:\n`;
-        prompt += `\`\`\`json\n${JSON.stringify(schema, null, 2)}\n\`\`\`\n\n`;
+        prompt += `Return ONLY JSON with keys: ${coreFieldIds.join(', ')}, custom_fields.\n`;
+        if (customFieldIds.length > 0) {
+            prompt += `custom_fields is an object with only these keys: ${customFieldIds.join(', ')}.\n`;
+        } else {
+            prompt += `custom_fields must be {}.\n`;
+        }
 
         // Add constraints
         prompt += `Constraints:\n`;
         prompt += `- Output ONLY valid JSON, no explanations\n`;
-        prompt += `- Do NOT invent fields not in the schema\n`;
+        prompt += `- Do NOT invent fields or custom_fields keys\n`;
         prompt += `- Use null for fields you cannot extract\n`;
         prompt += `- Dates must be YYYY-MM-DD format\n`;
         prompt += `- Numbers must be plain (no currency symbols)\n`;
+        prompt += `- Use decimal dot for numbers\n`;
+        if (strictMode) {
+            prompt += `STRICT MODE: Output JSON only, no extra keys, use null only when unknown.\n`;
+        }
 
         return prompt;
     }
@@ -309,6 +329,17 @@ class FieldProfiler {
             for (const key of Object.keys(result)) {
                 if (!allowedFields.has(key)) {
                     warnings.push(`Unexpected field: ${key} (will be ignored)`);
+                }
+            }
+        }
+
+        // Strict validation for nested custom_fields when enabled
+        if (this.options.strictMode && result.custom_fields) {
+            const allowedCustomFields = new Set(Object.keys(fieldSet.customFields || {}));
+
+            for (const key of Object.keys(result.custom_fields)) {
+                if (!allowedCustomFields.has(key)) {
+                    errors.push(`Unknown custom field: ${key} (not in profile ${profileId})`);
                 }
             }
         }

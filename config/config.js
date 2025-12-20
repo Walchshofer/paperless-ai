@@ -99,7 +99,11 @@ module.exports = {
   visualRag: {
     enabled: parseEnvBoolean(process.env.ENABLE_VISUAL_RAG, 'no'),
     textQualityThreshold: parseInt(process.env.TEXT_QUALITY_THRESHOLD || '60', 10),
-    forceVision: parseEnvBoolean(process.env.FORCE_VISUAL_RAG, 'no')
+    forceVision: parseEnvBoolean(process.env.FORCE_VISUAL_RAG, 'no'),
+    visionRenderDpi: parseInt(process.env.VISION_RENDER_DPI || '150', 10),
+    maxVisionPages: parseInt(process.env.MAX_VISION_PAGES || '4', 10),
+    maxRetriesPlanner: parseInt(process.env.VISUAL_RAG_MAX_RETRIES_PLANNER || '1', 10),
+    maxRetriesExtractor: parseInt(process.env.VISUAL_RAG_MAX_RETRIES_EXTRACTOR || '1', 10)
   },
   // Add limit functions to config
   limitFunctions: {
@@ -126,7 +130,7 @@ module.exports = {
   }`,
   mustHavePrompt: `  Return the result EXCLUSIVELY as a JSON object. The Tags, Title and Document_Type MUST be in the language that is used in the document.:
   IMPORTANT: The custom_fields are optional and can be left out if not needed, only try to fill out the values if you find a matching information in the document.
-  Do not change the value of field_name, only fill out the values. If the field is about money only add the number without currency and always use a . for decimal places.
+  custom_fields keys are fixed IDs; do not invent or rename keys. Use null when unknown. If the field is about money only add the number without currency and always use a . for decimal places.
   {
     "title": "xxxxx",
     "correspondent": "xxxxxxxx",

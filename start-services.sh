@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/bin/sh
 # start-services.sh - Script to start both Node.js and Python services
 
 # Activate virtual environment for Python
-source /app/venv/bin/activate
+. /app/venv/bin/activate
 
 # Start the Python RAG service in the background
 echo "Starting Python RAG service..."

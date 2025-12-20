@@ -35,8 +35,8 @@ RUN npm ci --only=production && npm cache clean --force
 # Copy application source code
 COPY . .
 
-# Make startup script executable
-RUN chmod +x start-services.sh
+# Normalize line endings and make startup script executable
+RUN sed -i 's/\r$//' /app/start-services.sh && chmod +x /app/start-services.sh
 
 # Configure persistent data volume
 VOLUME ["/app/data"]
