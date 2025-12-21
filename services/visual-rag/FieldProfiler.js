@@ -147,6 +147,7 @@ class FieldProfiler {
         const result = {
             profileId,
             profileName: profile.name,
+            profileInstructions: profile.instructions || '',
             coreFields: {},
             customFields: {},
             extractionHints: profile.extractionHints || {}
@@ -240,58 +241,6 @@ class FieldProfiler {
     // ========================================================================
     //  PROMPT GENERATION
     // ========================================================================
-
-    /**
-     * Generate extraction prompt for a profile
-     * @param {string} profileId - Profile ID
-     * @param {Object} options - Additional options
-     * @returns {string} System prompt for extractor
-     */
-    generateExtractionPrompt(profileId, options = {}) {
-        const fieldSet = this.getFieldSet(profileId);
-        const profile = profiles.profiles[profileId];
-        const hints = fieldSet.extractionHints;
-        const coreFieldIds = Object.keys(fieldSet.coreFields);
-        const customFieldIds = Object.keys(fieldSet.customFields || {});
-        const strictMode = options.strict === true;
-
-        let prompt = `You are a ${profile.name} document extractor.\n\n`;
-
-        // Add domain-specific instructions
-        if (profile.instructions) {
-            prompt += `Domain instructions:\n${profile.instructions}\n\n`;
-        }
-
-        // Add extraction hints
-        if (hints && Object.keys(hints).length > 0) {
-            prompt += `Field extraction hints:\n`;
-            for (const [fieldId, hint] of Object.entries(hints)) {
-                prompt += `- ${fieldId}: ${hint}\n`;
-            }
-            prompt += `\n`;
-        }
-
-        prompt += `Return ONLY JSON with keys: ${coreFieldIds.join(', ')}, custom_fields.\n`;
-        if (customFieldIds.length > 0) {
-            prompt += `custom_fields is an object with only these keys: ${customFieldIds.join(', ')}.\n`;
-        } else {
-            prompt += `custom_fields must be {}.\n`;
-        }
-
-        // Add constraints
-        prompt += `Constraints:\n`;
-        prompt += `- Output ONLY valid JSON, no explanations\n`;
-        prompt += `- Do NOT invent fields or custom_fields keys\n`;
-        prompt += `- Use null for fields you cannot extract\n`;
-        prompt += `- Dates must be YYYY-MM-DD format\n`;
-        prompt += `- Numbers must be plain (no currency symbols)\n`;
-        prompt += `- Use decimal dot for numbers\n`;
-        if (strictMode) {
-            prompt += `STRICT MODE: Output JSON only, no extra keys, use null only when unknown.\n`;
-        }
-
-        return prompt;
-    }
 
     // ========================================================================
     //  VALIDATION

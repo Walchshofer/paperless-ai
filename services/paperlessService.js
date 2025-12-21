@@ -4,13 +4,16 @@ const config = require('../config/config');
 const fs = require('fs');
 const path = require('path');
 const { parse, isValid, parseISO, format } = require('date-fns');
+const FieldMatcher = require('./FieldMatcher');
 
 class PaperlessService {
   constructor() {
     this.client = null;
     this.tagCache = new Map();
     this.customFieldCache = new Map();
+    this.fieldMatcher = null;
     this.lastTagRefresh = 0;
+    this.lastCustomFieldRefresh = 0;
     this.CACHE_LIFETIME = 3000; // 3 Sekunden
   }
 
@@ -50,12 +53,180 @@ class PaperlessService {
   }
 
 
+  /**
+   * Get rendered page images for a document
+   * @param {number} documentId - Document ID
+   * @returns {Promise<Array<Buffer>>} Array of page image buffers
+   */
+  async getDocumentPageImages(documentId) {
+    this.initialize();
+    const pageImages = [];
+
+    try {
+      const docMeta = await this.getDocument(documentId);
+      const pageCount = docMeta?.page_count || docMeta?.pageCount || 1;
+      const maxPages = config.duplicateDetection?.maxPagesToCompare || 10;
+      const pagesToFetch = Math.min(pageCount, maxPages);
+
+      for (let page = 1; page <= pagesToFetch; page++) {
+        try {
+          const response = await this.client.get(`/documents/${documentId}/preview/`, {
+            params: { page },
+            responseType: 'arraybuffer',
+            timeout: 30000
+          });
+          pageImages.push(Buffer.from(response.data));
+        } catch (pageError) {
+          console.warn(`[PAPERLESS] Could not fetch page ${page} for document ${documentId}`);
+        }
+      }
+
+      return pageImages;
+    } catch (error) {
+      console.error(`[PAPERLESS] Error fetching page images for document ${documentId}:`, error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Add a tag to a document by name
+   * @param {number} documentId - Document ID
+   * @param {string} tagName - Tag name
+   * @returns {Promise<boolean>} Whether the tag was added
+   */
+  async addTagToDocument(documentId, tagName) {
+    try {
+      const { tagIds, errors } = await this.processTags([tagName]);
+      if (errors?.length) {
+        console.warn(`[PAPERLESS] Tag processing errors for ${documentId}:`, errors);
+      }
+      if (!tagIds || tagIds.length === 0) {
+        return false;
+      }
+      await this.updateDocument(documentId, { tags: tagIds });
+      return true;
+    } catch (error) {
+      console.error(`[PAPERLESS] Error adding tag to document ${documentId}:`, error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Resolve a tag ID by name without creating new tags.
+   * @param {string} tagName - Tag name
+   * @returns {Promise<number|null>} Tag ID or null if not found
+   */
+  async getTagIdByName(tagName) {
+    this.initialize();
+    if (!tagName) return null;
+    try {
+      await this.ensureTagCache();
+      const tag = await this.findExistingTag(tagName);
+      return tag?.id || null;
+    } catch (error) {
+      console.error(`[PAPERLESS] Error resolving tag "${tagName}":`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Remove a tag from a document by tag ID.
+   * @param {number} documentId - Document ID
+   * @param {number} tagId - Tag ID to remove
+   * @returns {Promise<boolean>} Whether the update succeeded
+   */
+  async removeTagFromDocument(documentId, tagId) {
+    this.initialize();
+    if (!this.client) return false;
+    try {
+      const currentDoc = await this.getDocument(documentId);
+      if (!currentDoc?.tags) return false;
+
+      const remainingTags = currentDoc.tags.filter(id => id !== tagId);
+      await this.client.patch(`/documents/${documentId}/`, { tags: remainingTags });
+      return true;
+    } catch (error) {
+      console.error(`[PAPERLESS] Error removing tag ${tagId} from document ${documentId}:`, error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Set storage path for a document.
+   * @param {number} documentId - Document ID
+   * @param {number} storagePathId - Storage path ID
+   * @returns {Promise<boolean>} Whether the update succeeded
+   */
+  async setStoragePath(documentId, storagePathId) {
+    this.initialize();
+    if (!this.client) return false;
+    try {
+      await this.client.patch(`/documents/${documentId}/`, { storage_path: storagePathId });
+      return true;
+    } catch (error) {
+      console.error(`[PAPERLESS] Error setting storage path for document ${documentId}:`, error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Merge documents using Paperless bulk_edit.
+   * @param {number[]} documentIds - Documents to merge
+   * @param {number} metadataDocumentId - Document ID whose metadata to keep
+   * @param {boolean} deleteOriginals - Whether to delete originals
+   * @returns {Promise<boolean>} Whether the merge request succeeded
+   */
+  async mergeDocuments(documentIds, metadataDocumentId, deleteOriginals = true) {
+    this.initialize();
+    if (!this.client) return false;
+    try {
+      const payload = {
+        documents: documentIds,
+        method: 'merge',
+        parameters: {
+          metadata_document_id: metadataDocumentId,
+          delete_originals: !!deleteOriginals
+        }
+      };
+      await this.client.post('/documents/bulk_edit/', payload);
+      return true;
+    } catch (error) {
+      console.error('[PAPERLESS] Error merging documents:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Add a note to a document
+   * @param {number} documentId - Document ID
+   * @param {string} note - Note content
+   */
+  async addNoteToDocument(documentId, note) {
+    this.initialize();
+    try {
+      await this.client.post(`/documents/${documentId}/notes/`, { note });
+    } catch (error) {
+      console.error(`[PAPERLESS] Error adding note to document ${documentId}:`, error.message);
+    }
+  }
+
   // Aktualisiert den Tag-Cache, wenn er älter als CACHE_LIFETIME ist
   async ensureTagCache() {
     const now = Date.now();
     if (this.tagCache.size === 0 || (now - this.lastTagRefresh) > this.CACHE_LIFETIME) {
       await this.refreshTagCache();
     }
+  }
+
+  async ensureCustomFieldCache() {
+    const now = Date.now();
+    if (this.customFieldCache.size === 0 || (now - this.lastCustomFieldRefresh) > this.CACHE_LIFETIME) {
+      await this.refreshCustomFieldCache();
+    }
+  }
+
+  _refreshFieldMatcher() {
+    this.fieldMatcher = new FieldMatcher([...this.customFieldCache.values()]);
   }
 
   // Lädt alle existierenden Tags
@@ -145,6 +316,7 @@ class PaperlessService {
       const newField = response.data;
       console.log(`[DEBUG] Successfully created custom field "${fieldName}" with ID ${newField.id}`);
       this.customFieldCache.set(fieldName.toLowerCase(), newField);
+      this._refreshFieldMatcher();
       return newField;
     } catch (error) { 
       if (error.response?.status === 400) {
@@ -171,6 +343,8 @@ class PaperlessService {
   
   async findExistingCustomField(fieldName) {
     const normalizedName = fieldName.toLowerCase();
+
+    await this.ensureCustomFieldCache();
     
     const cachedField = this.customFieldCache.get(normalizedName);
     if (cachedField) {
@@ -178,21 +352,17 @@ class PaperlessService {
       return cachedField;
     }
 
-    try {
-      const response = await this.client.get('/custom_fields/', {
-        params: {
-          name__iexact: normalizedName  // Case-insensitive exact match
-        }
-      });
-
-      if (response.data.results.length > 0) {
-        const foundField = response.data.results[0];
-        console.log(`[DEBUG] Found existing custom field "${fieldName}" via API with ID ${foundField.id}`);
-        this.customFieldCache.set(normalizedName, foundField);
-        return foundField;
+    if (this.fieldMatcher) {
+      const match = await this.fieldMatcher.findBestMatch(fieldName);
+      if (match?.field) {
+        const matchName = match.field.name || fieldName;
+        const confidence = typeof match.confidence === 'number'
+          ? match.confidence.toFixed(2)
+          : 'n/a';
+        console.log(`[DEBUG] Matched custom field "${fieldName}" -> "${matchName}" (${match.method}, ${confidence})`);
+        this.customFieldCache.set(matchName.toLowerCase(), match.field);
+        return match.field;
       }
-    } catch (error) {
-      console.warn(`[ERROR] searching for custom field "${fieldName}":`, error.message);
     }
 
     return null;
@@ -243,6 +413,7 @@ class PaperlessService {
             nextUrl = null;
           }
         }
+        this._refreshFieldMatcher();
         this.lastCustomFieldRefresh = Date.now();
         console.log(`[DEBUG] Custom field cache refreshed. Found ${this.customFieldCache.size} fields.`);
       } catch (error) {

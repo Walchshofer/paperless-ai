@@ -1214,6 +1214,13 @@ module.exports = PatternDetectionEngine;
 
 ## 🎯 Implementation Roadmap
 
+## Implementation Status (Paperless-AI)
+
+- Medical expert pipeline routing, prompts, and executor are implemented in Paperless-AI.
+- Expert model settings and feature toggle are available via the Settings UI (Ollama only).
+- Expert results are merged additively with the general extraction flow.
+
+
 ### Phase 1: Foundation (Week 1-2)
 - [ ] Create SQLite health metrics database
 - [ ] Add biomarker definitions table
