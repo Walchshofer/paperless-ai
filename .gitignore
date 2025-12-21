@@ -53,3 +53,6 @@ surya_models.py
 /prompts/
 /prompts/**
 !/prompts/README.md
+
+# Local archive for dev-only items (kept locally, not tracked)
+/.archive/
