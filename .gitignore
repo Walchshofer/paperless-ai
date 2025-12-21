@@ -52,3 +52,4 @@ surya_models.py
 # Ignore repository `prompts/` folder (non-hidden) and all its contents
 /prompts/
 /prompts/**
+!/prompts/README.md
