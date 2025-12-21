@@ -4,8 +4,14 @@ const fs = require('fs').promises;
 const path = require('path');
 const paperlessService = require('./paperlessService');
 const os = require('os');
-const RestrictionPromptService = require('./restrictionPromptService');
 const FieldProfiler = require('./visual-rag/FieldProfiler');
+const PromptFactory = require('./PromptFactory');
+const ExtractionValidator = require('./ExtractionValidator');
+const routingConfig = require('../config/routing');
+const TelemetryCollector = require('./TelemetryCollector');
+const expertRegistry = require('./ExpertRegistry');
+const ExpertPipelineExecutor = require('./ExpertPipelineExecutor');
+const healthMetricsService = require('./HealthMetricsService');
 
 // ============================================================================
 //  INTERNAL UTILITIES (Inlined to prevent loading errors)
@@ -84,6 +90,8 @@ class OllamaService {
 
         // Initialize FieldProfiler for Visual RAG
         this.fieldProfiler = new FieldProfiler();
+        this.promptFactory = new PromptFactory(this.fieldProfiler);
+        this.extractionValidator = new ExtractionValidator();
 
         this.documentAnalysisSchema = {
             type: "object",
@@ -235,6 +243,90 @@ class OllamaService {
         };
     }
 
+    _deriveFallbackReason(validation) {
+        if (!validation) return 'unknown';
+        if (validation.missingFields && validation.missingFields.length > 0) {
+            return 'missing_fields';
+        }
+        if (validation.lowConfidenceFields && validation.lowConfidenceFields.length > 0) {
+            return 'low_confidence';
+        }
+        if (typeof validation.score === 'number' && validation.score < 1) {
+            return 'low_score';
+        }
+        return 'unknown';
+    }
+
+    _persistHealthMetrics(documentId, extractionResult, plannerResult) {
+        try {
+            const biomarkers = extractionResult?.biomarkers;
+            if (!Array.isArray(biomarkers) || biomarkers.length === 0) {
+                return;
+            }
+
+            if (plannerResult?.category && plannerResult.category !== 'medical') {
+                return;
+            }
+
+            const summary = healthMetricsService.storeMetrics(documentId, {
+                test_date: extractionResult.test_date || extractionResult.testDate || null,
+                laboratory: extractionResult.laboratory || null,
+                biomarkers
+            });
+
+            if (summary.inserted > 0) {
+                console.log(`[HEALTH_METRICS] Stored ${summary.inserted} biomarkers for doc ${documentId}`);
+            }
+        } catch (error) {
+            console.error(`[HEALTH_METRICS] Failed to store metrics for doc ${documentId}: ${error.message}`);
+        }
+    }
+
+    _buildRoutingMetadata(plannerResult) {
+        const category = (plannerResult?.category || 'general').toLowerCase();
+        const categoryConfig = routingConfig.categories[category] || routingConfig.categories.general;
+        const confidence = typeof plannerResult?.confidence === 'number' ? plannerResult.confidence : 0;
+        const modality = plannerResult?.modality || 'unknown';
+
+        const expertPipeline = categoryConfig?.expertPipeline || null;
+        const expertConfig = expertPipeline ? routingConfig.expertPipelines[expertPipeline] : null;
+        const expertActive = config.expertPipelineEnabled === 'yes'
+            && expertConfig?.status === 'active'
+            && confidence >= (expertConfig?.minConfidence || 0.7);
+
+        const modalityConfig = categoryConfig?.modalityRouting?.[modality] || null;
+
+        let recommendedModel = config.ollama.model;
+        let analysisModel = null;
+        let fallbackModel = null;
+        let pipeline = 'text_only';
+
+        if (categoryConfig?.preferVision) {
+            recommendedModel = config.ollama.visionModel;
+            pipeline = 'vision_only';
+            if (categoryConfig.fallbackToText) {
+                fallbackModel = config.ollama.model;
+            }
+        }
+
+        if (expertActive && modalityConfig) {
+            pipeline = modalityConfig.pipeline;
+            analysisModel = modalityConfig.analysisModel;
+        }
+
+        return {
+            pipeline,
+            expertPipeline: expertActive ? expertPipeline : null,
+            expertOptions: ['medical', 'financial', 'legal'],
+            modality,
+            recommendedModel,
+            analysisModel,
+            fallbackModel,
+            routingConfidence: confidence,
+            requiresExpertExtraction: expertActive
+        };
+    }
+
     /**
      * Analyze document using vision model
      * @param {number|string} documentId - Document ID
@@ -244,28 +336,38 @@ class OllamaService {
      */
     async analyzeDocumentWithVision(documentId, content, options = {}) {
         const startTime = Date.now();
+        const telemetry = new TelemetryCollector(documentId);
+        let fallbackTriggered = false;
+        let fallbackReason = null;
         try {
             console.log(`[VISION] Starting vision analysis for document ${documentId}`);
 
             let plannerResult;
+            const plannerStage = telemetry.startStage('planner', config.ollama.visionModel);
             try {
                 plannerResult = await this.analyzeDocumentPlannerVision(documentId);
+                telemetry.endStage(plannerStage, true);
             } catch (error) {
+                telemetry.endStage(plannerStage, false);
                 console.warn('[VISION] Planner failed, using default profile');
                 plannerResult = {
                     category: 'general',
                     doc_type_hint: null,
+                    modality: 'unknown',
                     confidence: 0.5,
                     keywords: [],
                     needs_visual: true
                 };
+                plannerResult.routing = this._buildRoutingMetadata(plannerResult);
             }
-            console.log('[VISION] Planner classification:', JSON.stringify(plannerResult));
+
+            console.log('[VISION] Final classification:', JSON.stringify(plannerResult));
 
             // Load thumbnail
             const base64Image = await this._loadThumbnailAsBase64(documentId);
             if (!base64Image) {
                 console.log('[VISION] Fallback to text: no thumbnail available');
+                const fallbackStage = telemetry.startStage('fallback', this.model);
                 const textResult = await this._analyzeDocumentText(
                     content,
                     options.existingTags || [],
@@ -275,7 +377,22 @@ class OllamaService {
                     null,
                     options
                 );
-                return { ...textResult, _planner: plannerResult };
+                telemetry.endStage(fallbackStage, true);
+                fallbackTriggered = true;
+                fallbackReason = 'no_thumbnail';
+                telemetry.setRouting(
+                    {
+                        category: plannerResult.category,
+                        confidence: plannerResult.confidence,
+                        modality: plannerResult.modality,
+                        expertPipeline: plannerResult.routing?.expertPipeline
+                    },
+                    fallbackTriggered,
+                    fallbackReason
+                );
+                const telemetryPayload = telemetry.finalize();
+                console.log('[TELEMETRY]', JSON.stringify(telemetryPayload));
+                return { ...textResult, _planner: plannerResult, _telemetry: telemetryPayload };
             }
 
             // Initialize FieldProfiler
@@ -285,6 +402,7 @@ class OllamaService {
             const profileId = this.fieldProfiler.selectProfile(plannerResult);
             console.log(`[VISION] Using profile: ${profileId}`);
             console.log(`[PLANNER] Selected profile: ${profileId} (confidence: ${plannerResult.confidence})`);
+            const fieldSet = this.fieldProfiler.getFieldSet(profileId);
 
             const renderDpi = config.visualRag.visionRenderDpi;
             const maxVisionPages = config.visualRag.maxVisionPages;
@@ -318,9 +436,10 @@ class OllamaService {
             const maxRetries = config.visualRag.maxRetriesExtractor;
             let parsedResponse = null;
             let validation = { valid: false, errors: [] };
+            const visionStage = telemetry.startStage('vision', config.ollama.visionModel);
 
             for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
-                const prompt = this.fieldProfiler.generateExtractionPrompt(profileId, { strict: attempt > 0 });
+                const prompt = this.promptFactory.buildVisionPrompt(fieldSet, fieldSet.profileName, { strict: attempt > 0 });
                 if (attempt > 0) {
                     console.warn(`[VISION] Extraction retry ${attempt}/${maxRetries}`);
                 }
@@ -336,8 +455,10 @@ class OllamaService {
                 console.warn(`[VISION] Extraction validation failed: ${validation.errors.join(', ')}`);
             }
 
+            telemetry.endStage(visionStage, validation.valid);
             if (!validation.valid) {
                 console.warn('[VISION] Extraction invalid after retries, falling back to text-only');
+                const fallbackStage = telemetry.startStage('fallback', this.model);
                 const textResult = await this._analyzeDocumentText(
                     content,
                     options.existingTags || [],
@@ -347,23 +468,161 @@ class OllamaService {
                     null,
                     options
                 );
-                return { ...textResult, _planner: plannerResult };
+                telemetry.endStage(fallbackStage, true);
+                fallbackTriggered = true;
+                fallbackReason = 'vision_validation_failed';
+                telemetry.setRouting(
+                    {
+                        category: plannerResult.category,
+                        confidence: plannerResult.confidence,
+                        modality: plannerResult.modality,
+                        expertPipeline: plannerResult.routing?.expertPipeline
+                    },
+                    fallbackTriggered,
+                    fallbackReason
+                );
+                const telemetryPayload = telemetry.finalize();
+                console.log('[TELEMETRY]', JSON.stringify(telemetryPayload));
+                return { ...textResult, _planner: plannerResult, _telemetry: telemetryPayload };
             }
 
-            const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
-            console.log(`[VISION] Analysis completed in ${elapsedTime}s`);
-
-            return {
+            const visionElapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
+            const visionResult = {
                 document: parsedResponse,
                 metrics: {
                     promptTokens: 0,
                     completionTokens: 0,
                     totalTokens: 0,
-                    processingTime: elapsedTime
+                    processingTime: visionElapsedTime
                 },
                 truncated: false,
                 _analysisMode: 'VISION_ONLY',
                 _planner: plannerResult
+            };
+
+            const extractionSchema = this.fieldProfiler.generateExtractionSchema(profileId);
+            const requiredFields = Array.isArray(options.requiredFields)
+                ? options.requiredFields
+                : (extractionSchema?.required || []);
+            const minConfidence = typeof options.minConfidence === 'number'
+                ? options.minConfidence
+                : 0.7;
+            const extractionValidation = this.extractionValidator.validateExtraction(
+                parsedResponse,
+                requiredFields,
+                minConfidence
+            );
+            const fallbackEnabled = options.fallbackEnabled !== false;
+            const fieldsRequested = requiredFields.length;
+            const fieldsExtracted = requiredFields.filter(field => parsedResponse?.[field] !== null && parsedResponse?.[field] !== undefined).length;
+            telemetry.setExtractionStats(
+                fieldsRequested,
+                fieldsExtracted,
+                extractionValidation.missingFields,
+                extractionValidation.lowConfidenceFields
+            );
+            telemetry.setValidation(extractionValidation.score, extractionValidation.isValid);
+
+            if (config.expertPipelineEnabled === 'yes') {
+                const expertMatch = expertRegistry.matchExpert(plannerResult);
+                if (expertMatch && plannerResult.routing?.expertPipeline) {
+                    console.log(`[VISION] Triggering expert pipeline: ${expertMatch.domain}`);
+
+                    const expertContext = {
+                        documentId,
+                        modality: plannerResult.modality || 'unknown',
+                        doc_type_hint: plannerResult.doc_type_hint,
+                        base64Image: extractionImages[0],
+                        content,
+                        visionResult: parsedResponse,
+                        missingFields: extractionValidation.missingFields
+                    };
+
+                    const expertExecutor = new ExpertPipelineExecutor(this.promptFactory, this.client);
+                    const expertResult = await expertExecutor.execute(
+                        expertMatch.domain,
+                        expertContext,
+                        telemetry
+                    );
+
+                    if (expertResult) {
+                        parsedResponse = this._mergeAnalysisResults(
+                            { document: parsedResponse },
+                            { document: expertResult }
+                        ).document;
+                        console.log(`[VISION] Expert pipeline merged ${Object.keys(expertResult).length} fields`);
+                    }
+                }
+            }
+
+            this._persistHealthMetrics(documentId, parsedResponse, plannerResult);
+
+            if (extractionValidation.shouldFallback && fallbackEnabled) {
+                console.log(`[FALLBACK] Triggering fallback for doc ${documentId}`);
+                const fallbackStage = telemetry.startStage('fallback', this.model);
+                const fallbackResult = await this._analyzeDocumentText(
+                    content,
+                    options.existingTags || [],
+                    options.existingCorrespondentList || [],
+                    options.existingDocumentTypesList || [],
+                    documentId,
+                    null,
+                    options
+                );
+                telemetry.endStage(fallbackStage, true);
+
+                const mergedResult = this._mergeAnalysisResults(fallbackResult, visionResult, {
+                    mode: 'SEQUENTIAL'
+                });
+                fallbackTriggered = true;
+                fallbackReason = this._deriveFallbackReason(extractionValidation);
+                telemetry.setRouting(
+                    {
+                        category: plannerResult.category,
+                        confidence: plannerResult.confidence,
+                        modality: plannerResult.modality,
+                        expertPipeline: plannerResult.routing?.expertPipeline
+                    },
+                    fallbackTriggered,
+                    fallbackReason
+                );
+                const telemetryPayload = telemetry.finalize();
+                console.log('[TELEMETRY]', JSON.stringify(telemetryPayload));
+                return {
+                    ...mergedResult,
+                    _analysisMode: 'VISION_WITH_FALLBACK',
+                    _extractionMode: 'VISION_WITH_FALLBACK',
+                    _primaryModel: config.ollama.visionModel,
+                    _fallbackModel: this.model,
+                    _fallbackUsed: true,
+                    _fallbackReason: fallbackReason,
+                    _validation: extractionValidation,
+                    _planner: plannerResult,
+                    _telemetry: telemetryPayload
+                };
+            }
+
+            console.log(`[VISION] Analysis completed in ${visionElapsedTime}s`);
+            telemetry.setRouting(
+                {
+                    category: plannerResult.category,
+                    confidence: plannerResult.confidence,
+                    modality: plannerResult.modality,
+                    expertPipeline: plannerResult.routing?.expertPipeline
+                },
+                fallbackTriggered,
+                fallbackReason
+            );
+            const telemetryPayload = telemetry.finalize();
+            console.log('[TELEMETRY]', JSON.stringify(telemetryPayload));
+            return {
+                ...visionResult,
+                _extractionMode: 'VISION_ONLY',
+                _primaryModel: config.ollama.visionModel,
+                _fallbackModel: null,
+                _fallbackUsed: false,
+                _validation: extractionValidation,
+                _telemetry: telemetryPayload
             };
 
         } catch (error) {
@@ -396,10 +655,15 @@ class OllamaService {
         const defaultClassification = {
             category: 'general',
             doc_type_hint: null,
+            modality: 'unknown',
             confidence: 0.5,
             keywords: [],
             needs_visual: false
         };
+        const applyRouting = (classification) => ({
+            ...classification,
+            routing: this._buildRoutingMetadata(classification)
+        });
 
         try {
             console.log(`[PLANNER] Starting classification for document ${documentId}`);
@@ -407,7 +671,7 @@ class OllamaService {
             const base64Image = await this._loadThumbnailAsBase64(documentId);
             if (!base64Image) {
                 console.log('[PLANNER] No thumbnail available, using default classification');
-                return defaultClassification;
+                return applyRouting(defaultClassification);
             }
 
             console.log(`[PLANNER] Thumbnail loaded: ${base64Image.length} bytes`);
@@ -415,7 +679,7 @@ class OllamaService {
             const maxRetries = config.visualRag.maxRetriesPlanner;
 
             for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
-                const prompt = this._generatePlannerPrompt(attempt > 0);
+                const prompt = this.promptFactory.buildPlannerPrompt(attempt > 0);
                 if (attempt > 0) {
                     console.warn(`[PLANNER] Retry ${attempt}/${maxRetries}`);
                 }
@@ -451,16 +715,19 @@ class OllamaService {
                 console.log(`[PLANNER] Validation: ${validation.valid ? 'passed' : 'failed'}`);
 
                 if (validation.valid) {
-                    return parsedResponse;
+                    if (!parsedResponse.modality) {
+                        parsedResponse.modality = 'unknown';
+                    }
+                    return applyRouting(parsedResponse);
                 }
 
                 console.warn(`[PLANNER] Invalid response structure: ${validation.errors.join(', ')}`);
             }
 
-            return defaultClassification;
+            return applyRouting(defaultClassification);
         } catch (error) {
             console.error(`[PLANNER] Failed: ${error.message}`);
-            return defaultClassification;
+            return applyRouting(defaultClassification);
         }
     }
 
@@ -535,13 +802,10 @@ class OllamaService {
 
             await this._handleThumbnailCaching(id);
 
-            // Get external API data if available and validate it
-            let externalApiData = options.externalApiData || null;
             let validatedExternalApiData = null;
-
-            if (externalApiData) {
+            if (options.externalApiData) {
                 try {
-                    validatedExternalApiData = await this._validateAndTruncateExternalApiData(externalApiData);
+                    validatedExternalApiData = await this._validateAndTruncateExternalApiData(options.externalApiData);
                     console.log('[DEBUG] External API data validated and included');
                 } catch (error) {
                     console.warn('[WARNING] External API data validation failed:', error.message);
@@ -549,38 +813,24 @@ class OllamaService {
                 }
             }
 
-            // 3. Build Prompt
-            let prompt;
-            if (!customPrompt) {
-                prompt = this._buildPrompt(content, existingTags, existingCorrespondentList, existingDocumentTypesList, options);
-            } else {
-                // Parse CUSTOM_FIELDS for custom prompt
-                let customFieldsObj;
-                try {
-                    customFieldsObj = JSON.parse(process.env.CUSTOM_FIELDS || '{}');
-                } catch (error) {
-                    console.error('Failed to parse CUSTOM_FIELDS:', error);
-                    customFieldsObj = { custom_fields: [] };
+            const promptResult = this.promptFactory.buildTextPrompt(
+                content,
+                {
+                    existingTags,
+                    existingCorrespondentList,
+                    existingDocumentTypesList
+                },
+                {
+                    customPrompt,
+                    validatedExternalApiData
                 }
+            );
 
-                const customFieldsTemplate = {};
-                customFieldsObj.custom_fields.forEach((field) => {
-                    if (field?.value) {
-                        customFieldsTemplate[field.value] = null;
-                    }
-                });
-
-                const customFieldsStr = '"custom_fields": ' + JSON.stringify(customFieldsTemplate, null, 2)
-                    .split('\n')
-                    .map(line => '    ' + line)
-                    .join('\n');
-
-                prompt = customPrompt + '\n\n' + config.mustHavePrompt.replace('%CUSTOMFIELDS%', customFieldsStr) + "\n\n" + JSON.stringify(content);
+            if (customPrompt) {
                 console.log('[DEBUG] Ollama Service started with custom prompt');
             }
 
-            const customFieldsStr = this._generateCustomFieldsTemplate();
-            const systemPrompt = this._generateSystemPrompt(customFieldsStr);
+            const { prompt, systemPrompt } = promptResult;
 
             // 4. Calculate Context - MUST include both system prompt AND user prompt
             const systemPromptTokens = calculateTokens(systemPrompt);
@@ -852,6 +1102,7 @@ class OllamaService {
     _validatePlannerResponse(response) {
         const errors = [];
         const allowedCategories = ['financial', 'medical', 'legal', 'technical', 'personal', 'general'];
+        const allowedModalities = ['lab', 'radiology', 'prescription', 'unknown'];
 
         if (!response || typeof response !== 'object' || Array.isArray(response)) {
             errors.push('response is not an object');
@@ -883,6 +1134,12 @@ class OllamaService {
 
         if (typeof response.needs_visual !== 'boolean') {
             errors.push('invalid needs_visual');
+        }
+
+        if (response.category === 'medical') {
+            if (!response.modality || !allowedModalities.includes(response.modality)) {
+                errors.push('invalid or missing modality for medical document');
+            }
         }
 
         return { valid: errors.length === 0, errors };
@@ -995,153 +1252,6 @@ class OllamaService {
         return 'SEQUENTIAL';
     }
 
-    _generatePlannerPrompt(strict = false) {
-        const basePrompt = 'AT/DE doc classifier. Choose ONE: financial, medical, legal, technical, personal, general. Hints: financial=Rechnung/Quittung/Honorarnote/Bank, medical=Befund/Rezept/Arztbrief, legal=Vertrag/Vereinbarung/GZ, technical=Anleitung/Datenblatt, personal=Brief/Mitteilung/Schreiben. Return ONLY JSON: {"category":"financial|medical|legal|technical|personal|general","doc_type_hint":"invoice|lab_report|contract|...","confidence":0-1,"keywords":["..."],"needs_visual":true|false}. Rules: doc_type_hint specific; confidence>=0.8 clear, 0.5-0.8 maybe, <0.5 unsure; keywords 2-5 DE/EN; needs_visual true if tables/forms/stamps/complex layout.';
-        if (strict) {
-            return `${basePrompt} STRICT MODE: JSON only, no extra keys.`;
-        }
-        return basePrompt;
-    }
-
-    _generateCustomFieldsTemplate() {
-        try {
-            const obj = JSON.parse(process.env.CUSTOM_FIELDS || '{"custom_fields":[]}');
-            const tpl = {};
-            obj.custom_fields.forEach((f) => {
-                if (f?.value) {
-                    tpl[f.value] = null;
-                }
-            });
-            return '"custom_fields": ' + JSON.stringify(tpl, null, 2).split('\n').map(l => '    ' + l).join('\n');
-        } catch (e) { return ""; }
-    }
-
-    _generateSystemPrompt(customFieldsStr) {
-        let systemPromptTemplate = `
-            You are a document analyzer. Your task is to analyze documents and extract relevant information. You do not ask back questions.
-            YOU MUSTNOT: Ask for additional information or clarification, or ask questions about the document, or ask for additional context.
-            YOU MUSTNOT: Return a response without the desired JSON format.
-            YOU MUST: Return the result EXCLUSIVELY as a JSON object. The Tags, Title and Document_Type MUST be in the language that is used in the document.:
-            IMPORTANT: The custom_fields are optional and can be left out if not needed, only try to fill out the values if you find a matching information in the document.
-            custom_fields keys are fixed IDs; do not invent or rename keys. Use null when unknown. If the field is about money only add the number without currency and always use a . for decimal places.
-            {
-                "title": "xxxxx",
-                "correspondent": "xxxxxxxx",
-                "tags": ["Tag1", "Tag2", "Tag3", "Tag4"],
-                "document_type": "Invoice/Contract/...",
-                "document_date": "YYYY-MM-DD",
-                "language": "en/de/es/...",
-                %CUSTOMFIELDS%
-            }
-            ALWAYS USE THE INFORMATION TO FILL OUT THE JSON OBJECT. DO NOT ASK BACK QUESTIONS.
-        `;
-
-        return systemPromptTemplate.replace('%CUSTOMFIELDS%', customFieldsStr);
-    }
-
-    _buildPrompt(content, existingTags = [], existingCorrespondent = [], existingDocumentTypes = [], options = {}) {
-        let systemPrompt;
-
-        // Validate that existingCorrespondent is an array and handle if it's not
-        const correspondentList = Array.isArray(existingCorrespondent)
-            ? existingCorrespondent
-            : [];
-
-        // Parse CUSTOM_FIELDS from environment variable
-        let customFieldsObj;
-        try {
-            customFieldsObj = JSON.parse(process.env.CUSTOM_FIELDS || '{}');
-        } catch (error) {
-            console.error('Failed to parse CUSTOM_FIELDS:', error);
-            customFieldsObj = { custom_fields: [] };
-        }
-
-        // Generate custom fields template for the prompt
-        const customFieldsTemplate = {};
-
-        customFieldsObj.custom_fields.forEach((field) => {
-            if (field?.value) {
-                customFieldsTemplate[field.value] = null;
-            }
-        });
-
-        // Convert template to string for replacement and wrap in custom_fields
-        const customFieldsStr = '"custom_fields": ' + JSON.stringify(customFieldsTemplate, null, 2)
-            .split('\n')
-            .map(line => '    ' + line)  // Add proper indentation
-            .join('\n');
-
-        // Get system prompt based on configuration
-        if (config.useExistingData === 'yes' && config.restrictToExistingTags === 'no' && config.restrictToExistingCorrespondents === 'no') {
-            // Format existing tags
-            const existingTagsList = existingTags.join(', ');
-
-            // Format existing correspondents - handle both array of objects and array of strings
-            const existingCorrespondentList = correspondentList
-                .filter(Boolean)  // Remove any null/undefined entries
-                .map(correspondent => {
-                    if (typeof correspondent === 'string') return correspondent;
-                    return correspondent?.name || '';
-                })
-                .filter(name => name.length > 0)  // Remove empty strings
-                .join(', ');
-
-            // Format existing document types - handle both array of objects and array of strings
-            const existingDocumentTypesList = existingDocumentTypes
-                .filter(Boolean)  // Remove any null/undefined entries
-                .map(docType => {
-                    if (typeof docType === 'string') return docType;
-                    return docType?.name || '';
-                })
-                .filter(name => name.length > 0)  // Remove empty strings
-                .join(', ');
-
-            systemPrompt = `
-            Pre-existing tags: ${existingTagsList}\n\n
-            Pre-existing correspondents: ${existingCorrespondentList}\n\n
-            Pre-existing document types: ${existingDocumentTypesList}\n\n
-            ` + process.env.SYSTEM_PROMPT + '\n\n' + config.mustHavePrompt.replace('%CUSTOMFIELDS%', customFieldsStr);
-        } else {
-            systemPrompt = process.env.SYSTEM_PROMPT + '\n\n' + config.mustHavePrompt.replace('%CUSTOMFIELDS%', customFieldsStr);
-        }
-
-        // Get validated external API data if available
-        let validatedExternalApiData = null;
-        if (options.externalApiData) {
-            try {
-                validatedExternalApiData = this._validateAndTruncateExternalApiData(options.externalApiData);
-                console.log('[DEBUG] External API data validated and included');
-            } catch (error) {
-                console.warn('[WARNING] External API data validation failed:', error.message);
-                validatedExternalApiData = null;
-            }
-        }
-
-        // Process placeholder replacements in system prompt
-        systemPrompt = RestrictionPromptService.processRestrictionsInPrompt(
-            systemPrompt,
-            existingTags,
-            correspondentList,
-            existingDocumentTypes,
-            config
-        );
-
-        // Include validated external API data if available
-        if (validatedExternalApiData) {
-            systemPrompt += `\n\nAdditional context from external API:\n${validatedExternalApiData}`;
-        }
-
-        if (process.env.USE_PROMPT_TAGS === 'yes') {
-            systemPrompt = `
-            Take these tags and try to match one or more to the document content.\n\n
-            ` + config.specialPromptPreDefinedTags;
-        }
-
-        return `${systemPrompt}
-        ${JSON.stringify(content)}
-        `;
-    }
-
     async analyzePlayground(content, prompt) {
         try {
             // Calculate context window size
@@ -1149,7 +1259,7 @@ class OllamaService {
             const numCtx = this._calculateNumCtx(promptTokenCount, 512);
 
             // Generate playground system prompt (simpler than full analysis)
-            const systemPrompt = this._generatePlaygroundSystemPrompt();
+            const systemPrompt = this.promptFactory.buildBaseTemplate('playground');
 
             // Call Ollama API
             const response = await this._callOllamaAPI(
@@ -1187,23 +1297,6 @@ class OllamaService {
         }
     }
 
-    _generatePlaygroundSystemPrompt() {
-        return `
-            You are a document analyzer. Your task is to analyze documents and extract relevant information. You do not ask back questions.
-            YOU MUSTNOT: Ask for additional information or clarification, or ask questions about the document, or ask for additional context.
-            YOU MUSTNOT: Return a response without the desired JSON format.
-            YOU MUST: Analyze the document content and extract the following information into this structured JSON format and only this format!:         {
-            "title": "xxxxx",
-            "correspondent": "xxxxxxxx",
-            "tags": ["Tag1", "Tag2", "Tag3", "Tag4"],
-            "document_type": "Invoice/Contract/...",
-            "document_date": "YYYY-MM-DD",
-            "language": "en/de/es/..."
-            }
-            ALWAYS USE THE INFORMATION TO FILL OUT THE JSON OBJECT. DO NOT ASK BACK QUESTIONS.
-        `;
-    }
-
     async generateText(prompt) {
         try {
             // Calculate context window size based on prompt length
@@ -1211,7 +1304,7 @@ class OllamaService {
             const numCtx = this._calculateNumCtx(promptTokenCount, 1024);
 
             // Simple system prompt for text generation
-            const systemPrompt = `You are a helpful assistant. Generate a clear, concise, and informative response to the user's question or request.`;
+            const systemPrompt = this.promptFactory.buildGenericAssistantPrompt();
 
             // Call Ollama API without enforcing a specific response format
             const response = await this.client.post(`${this.apiUrl}/api/generate`, {

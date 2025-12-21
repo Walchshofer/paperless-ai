@@ -8,6 +8,9 @@ const AIServiceFactory = require('./services/aiServiceFactory');
 const documentModel = require('./models/document');
 const setupService = require('./services/setupService');
 const setupRoutes = require('./routes/setup');
+const duplicateDetector = require('./services/DuplicateDetector');
+const healthMetricsService = require('./services/HealthMetricsService');
+const PatternDetectionEngine = require('./services/PatternDetectionEngine');
 
 // Add environment variables for RAG service if not already set
 process.env.RAG_SERVICE_URL = process.env.RAG_SERVICE_URL || 'http://localhost:8000';
@@ -181,6 +184,119 @@ async function saveOpenApiSpec() {
 }
 
 // Document processing functions
+async function tagDocumentAsDuplicate(duplicateDocId, originalDocId) {
+  try {
+    const tagName = config.duplicateDetection?.duplicateTagName || 'duplicate';
+    await paperlessService.addTagToDocument(duplicateDocId, tagName);
+    await paperlessService.addNoteToDocument(
+      duplicateDocId,
+      `Marked as duplicate of document #${originalDocId} by Paperless-AI`
+    );
+    return true;
+  } catch (error) {
+    console.error(`[DUPLICATE_DETECTOR] Failed to tag document ${duplicateDocId}:`, error.message);
+    return false;
+  }
+}
+
+async function archiveDuplicateDocument(duplicateDocId, originalDocId) {
+  try {
+    const mode = config.duplicateDetection?.duplicateArchiveMode || 'remove_tag';
+    if (mode === 'storage_path') {
+      const storagePathId = config.duplicateDetection?.duplicateArchiveStoragePathId;
+      if (!storagePathId) {
+        console.warn('[DUPLICATE_DETECTOR] Archive storage path not configured, skipping archive');
+        return false;
+      }
+      await paperlessService.setStoragePath(duplicateDocId, storagePathId);
+    } else {
+      const tagName = config.duplicateDetection?.duplicateArchiveTagName || 'Inbox';
+      const tagId = await paperlessService.getTagIdByName(tagName);
+      if (!tagId) {
+        console.warn(`[DUPLICATE_DETECTOR] Archive tag "${tagName}" not found, skipping archive`);
+        return false;
+      }
+      await paperlessService.removeTagFromDocument(duplicateDocId, tagId);
+    }
+
+    await paperlessService.addNoteToDocument(
+      duplicateDocId,
+      `Archived duplicate of document #${originalDocId} by Paperless-AI`
+    );
+    return true;
+  } catch (error) {
+    console.error(`[DUPLICATE_DETECTOR] Failed to archive document ${duplicateDocId}:`, error.message);
+    return false;
+  }
+}
+
+async function mergeDuplicateDocument(duplicateDocId, originalDocId) {
+  try {
+    const deleteOriginals = config.duplicateDetection?.duplicateMergeDeleteOriginals === 'yes';
+    const merged = await paperlessService.mergeDocuments([duplicateDocId], originalDocId, deleteOriginals);
+    if (merged) {
+      await paperlessService.addNoteToDocument(
+        originalDocId,
+        `Merged duplicate document #${duplicateDocId} into this document by Paperless-AI`
+      );
+    }
+    return merged;
+  } catch (error) {
+    console.error(`[DUPLICATE_DETECTOR] Failed to merge document ${duplicateDocId}:`, error.message);
+    return false;
+  }
+}
+
+async function applyDuplicateAction(duplicateDocId, originalDocId) {
+  const action = config.duplicateDetection?.duplicateAction || 'skip';
+
+  if (action === 'merge') {
+    return mergeDuplicateDocument(duplicateDocId, originalDocId);
+  }
+  if (action === 'archive') {
+    return archiveDuplicateDocument(duplicateDocId, originalDocId);
+  }
+
+  // Default behavior: tag duplicates for review.
+  return tagDocumentAsDuplicate(duplicateDocId, originalDocId);
+}
+
+async function preprocessForDuplicates(documentId) {
+  try {
+    const pageImages = await paperlessService.getDocumentPageImages(documentId);
+
+    if (!pageImages || pageImages.length === 0) {
+      console.log(`[DUPLICATE_DETECTOR] No page images for document ${documentId}, skipping duplicate check`);
+      return { action: 'process', reason: 'No page images available' };
+    }
+
+    const fingerprint = await duplicateDetector.generateFingerprint(documentId, pageImages);
+    const duplicateCheck = await duplicateDetector.checkDuplicate(fingerprint);
+
+    if (duplicateCheck.action === 'skip') {
+      duplicateDetector.markAsDuplicate(documentId, duplicateCheck.originalDocumentId);
+      await applyDuplicateAction(documentId, duplicateCheck.originalDocumentId);
+      console.log(`[DUPLICATE_DETECTOR] Skipping document ${documentId}: ${duplicateCheck.reason}`);
+
+      return duplicateCheck;
+    }
+
+    if (duplicateCheck.action === 'replace') {
+      duplicateDetector.markAsDuplicate(duplicateCheck.originalDocumentId, documentId);
+      duplicateDetector.removeFingerprint(duplicateCheck.originalDocumentId);
+      await applyDuplicateAction(duplicateCheck.originalDocumentId, documentId);
+      console.log(`[DUPLICATE_DETECTOR] Document ${documentId} replaces ${duplicateCheck.originalDocumentId}: ${duplicateCheck.reason}`);
+    }
+
+    duplicateDetector.registerFingerprint(fingerprint);
+
+    return { action: 'process', reason: 'Not a duplicate or is superset' };
+  } catch (error) {
+    console.error(`[DUPLICATE_DETECTOR] Error checking document ${documentId}:`, error.message);
+    return { action: 'process', reason: 'Duplicate check failed, processing anyway' };
+  }
+}
+
 async function processDocument(doc, existingTags, existingCorrespondentList, existingDocumentTypesList, ownUserId) {
   const isProcessed = await documentModel.isDocumentProcessed(doc.id);
   if (isProcessed) return null;
@@ -194,6 +310,16 @@ async function processDocument(doc, existingTags, existingCorrespondentList, exi
     return null;
   }else {
     console.log(`[DEBUG] Document ${doc.id} rights for AI User - processed`);
+  }
+
+  if (config.duplicateDetection?.enabled === 'yes') {
+    const duplicateResult = await preprocessForDuplicates(doc.id);
+    if (duplicateResult.action === 'skip') {
+      console.log(`[PROCESSOR] Skipping document ${doc.id} - duplicate detected`);
+      await documentModel.addProcessedDocument(doc.id, doc.title);
+      await documentModel.setProcessingStatus(doc.id, doc.title, 'complete');
+      return null;
+    }
   }
 
   let [content, originalData] = await Promise.all([
@@ -544,6 +670,38 @@ app.get('/health', async (req, res) => {
     res.status(503).json({ 
       status: 'error', 
       message: error.message 
+    });
+  }
+});
+
+app.get('/api/duplicates/stats', (req, res) => {
+  res.json(duplicateDetector.getStats());
+});
+
+app.get('/api/duplicates/check/:documentId', (req, res) => {
+  const duplicateOf = duplicateDetector.getDuplicateOf(parseInt(req.params.documentId, 10));
+  res.json({
+    documentId: parseInt(req.params.documentId, 10),
+    isDuplicate: duplicateOf !== null,
+    duplicateOf
+  });
+});
+
+app.get('/api/experts/status', (req, res) => {
+  const expertRegistry = require('./services/ExpertRegistry');
+  res.json(expertRegistry.getStatus());
+});
+
+app.get('/api/health/patterns', (req, res) => {
+  try {
+    const engine = new PatternDetectionEngine(healthMetricsService.getDb());
+    const patterns = engine.analyzePatterns();
+    res.json(patterns);
+  } catch (error) {
+    console.error('[HEALTH_METRICS] Pattern analysis failed:', error.message);
+    res.status(500).json({
+      error: 'pattern_analysis_failed',
+      message: error.message
     });
   }
 });

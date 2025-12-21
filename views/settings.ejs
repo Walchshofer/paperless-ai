@@ -327,6 +327,97 @@
                                     </div>
                                 </div>
 
+                                <!-- Expert Models Section (Ollama Only) -->
+                                <div id="expertModelsSettings" class="space-y-4 border-t pt-4 mt-4">
+                                    <h3 class="text-lg font-medium flex items-center gap-2 text-primary">
+                                        <i class="fas fa-user-md text-blue-500"></i>
+                                        Expert Models (Ollama)
+                                    </h3>
+                                    <p class="text-sm text-gray-500 mb-4">Configure specialized models for domain-specific document analysis. Leave empty to use defaults.</p>
+
+                                    <!-- Expert Pipeline Toggle -->
+                                    <div class="border border-gray-200 shadow-sm rounded-lg hover:border-blue-500 transition-colors duration-200 mb-4">
+                                        <label for="expertPipelineEnabled" class="flex items-center p-4 cursor-pointer w-full">
+                                            <input type="checkbox"
+                                                id="expertPipelineEnabled"
+                                                name="expertPipelineEnabled"
+                                                class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                                <%= config.EXPERT_PIPELINE_ENABLED === 'yes' ? 'checked' : '' %>>
+                                            <div class="ml-3">
+                                                <div class="flex items-center text-gray-900 font-medium">
+                                                    <i class="fas fa-flask mr-2 text-blue-500"></i>
+                                                    Enable Expert Pipeline
+                                                </div>
+                                                <p class="text-sm text-gray-500 mt-1">Activate domain-specific expert models for enhanced extraction (Medical active, Financial/Legal planned)</p>
+                                            </div>
+                                        </label>
+                                    </div>
+
+                                    <!-- Medical Expert Models -->
+                                    <div id="medicalExpertSettings" class="space-y-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                        <h4 class="font-medium flex items-center gap-2">
+                                            <i class="fas fa-heartbeat text-red-500"></i>
+                                            Medical Expert Models
+                                            <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Active</span>
+                                        </h4>
+
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div class="space-y-2">
+                                                <label for="medicalVisionModel" class="text-sm font-medium">Vision/OCR Model</label>
+                                                <input type="text"
+                                                    id="medicalVisionModel"
+                                                    name="medicalVisionModel"
+                                                    value="<%= config.MEDICAL_VISION_MODEL || 'qwen3-vl:8b' %>"
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                    placeholder="qwen3-vl:8b">
+                                                <p class="text-xs text-gray-500">For OCR and document transcription</p>
+                                            </div>
+
+                                            <div class="space-y-2">
+                                                <label for="medicalAnalysisModel" class="text-sm font-medium">Analysis Model</label>
+                                                <input type="text"
+                                                    id="medicalAnalysisModel"
+                                                    name="medicalAnalysisModel"
+                                                    value="<%= config.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3' %>"
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                    placeholder="medtext-llama3">
+                                                <p class="text-xs text-gray-500">For lab value analysis and normalization</p>
+                                            </div>
+
+                                            <div class="space-y-2">
+                                                <label for="medicalRadiologyModel" class="text-sm font-medium">Radiology Model</label>
+                                                <input type="text"
+                                                    id="medicalRadiologyModel"
+                                                    name="medicalRadiologyModel"
+                                                    value="<%= config.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.5' %>"
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                    placeholder="llava-med-v1.5">
+                                                <p class="text-xs text-gray-500">For X-ray, CT, MRT analysis</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Financial Expert Models (Planned) -->
+                                    <div class="space-y-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg opacity-60">
+                                        <h4 class="font-medium flex items-center gap-2">
+                                            <i class="fas fa-coins text-yellow-500"></i>
+                                            Financial Expert Models
+                                            <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">Planned</span>
+                                        </h4>
+                                        <p class="text-sm text-gray-500">Financial document analysis models will be available in a future update.</p>
+                                    </div>
+
+                                    <!-- Legal Expert Models (Planned) -->
+                                    <div class="space-y-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg opacity-60">
+                                        <h4 class="font-medium flex items-center gap-2">
+                                            <i class="fas fa-gavel text-purple-500"></i>
+                                            Legal Expert Models
+                                            <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">Planned</span>
+                                        </h4>
+                                        <p class="text-sm text-gray-500">Legal document analysis models will be available in a future update.</p>
+                                    </div>
+                                </div>
+
                                 <!-- Custom Provider Settings -->
                                 <div id="customSettings" class="space-y-4">
                                     <div class="space-y-2">

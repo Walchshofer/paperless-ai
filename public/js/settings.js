@@ -40,15 +40,18 @@ class FormManager {
         this.systemPrompt = document.getElementById('systemPrompt');
         this.systemPromptBtn = document.getElementById('systemPromptBtn');
         this.disableAutomaticProcessing = document.getElementById('disableAutomaticProcessing');
+        this.expertPipelineEnabled = document.getElementById('expertPipelineEnabled');
         this.initialize();
     }
 
     initialize() {
         this.toggleProviderSettings();
+        this.toggleExpertSettings();
         this.toggleTagsInput();
         this.handleDisableAutomaticProcessing();
         
         this.aiProvider.addEventListener('change', () => this.toggleProviderSettings());
+        this.expertPipelineEnabled?.addEventListener('change', () => this.toggleExpertSettings());
         this.tokenLimit.addEventListener('input', () => this.validateTokenLimit()); 
         this.responseTokens.addEventListener('input', () => this.validateResponseTokens()); 
         this.showTags.addEventListener('change', () => this.toggleTagsInput());
@@ -175,6 +178,27 @@ class FormManager {
                 azureDeploymentName.required = true;
                 azureApiVersion.required = true;
                 break;
+        }
+
+        this.toggleExpertSettings();
+    }
+
+    toggleExpertSettings() {
+        const expertSettings = document.getElementById('expertModelsSettings');
+        const medicalSettings = document.getElementById('medicalExpertSettings');
+        const provider = this.aiProvider.value;
+
+        if (provider !== 'ollama') {
+            expertSettings?.classList.add('hidden');
+            return;
+        }
+
+        expertSettings?.classList.remove('hidden');
+
+        if (this.expertPipelineEnabled?.checked) {
+            medicalSettings?.classList.remove('opacity-50', 'pointer-events-none');
+        } else {
+            medicalSettings?.classList.add('opacity-50', 'pointer-events-none');
         }
     }
 

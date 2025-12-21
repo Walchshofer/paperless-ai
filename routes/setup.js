@@ -2683,6 +2683,14 @@ router.get('/settings', async (req, res) => {
     OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-4o-mini',
     OLLAMA_API_URL: process.env.OLLAMA_API_URL || 'http://localhost:11434',
     OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'llama3.2',
+    EXPERT_PIPELINE_ENABLED: process.env.EXPERT_PIPELINE_ENABLED || 'yes',
+    MEDICAL_VISION_MODEL: process.env.MEDICAL_VISION_MODEL || 'qwen3-vl:8b',
+    MEDICAL_ANALYSIS_MODEL: process.env.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3',
+    MEDICAL_RADIOLOGY_MODEL: process.env.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.5',
+    FINANCIAL_VISION_MODEL: process.env.FINANCIAL_VISION_MODEL || '',
+    FINANCIAL_ANALYSIS_MODEL: process.env.FINANCIAL_ANALYSIS_MODEL || '',
+    LEGAL_VISION_MODEL: process.env.LEGAL_VISION_MODEL || '',
+    LEGAL_ANALYSIS_MODEL: process.env.LEGAL_ANALYSIS_MODEL || '',
     SCAN_INTERVAL: process.env.SCAN_INTERVAL || '*/30 * * * *',
     SYSTEM_PROMPT: process.env.SYSTEM_PROMPT || '',
     PROCESS_PREDEFINED_DOCUMENTS: process.env.PROCESS_PREDEFINED_DOCUMENTS || 'no',
@@ -3592,6 +3600,10 @@ router.post('/setup', express.json(), async (req, res) => {
       openaiModel,
       ollamaUrl,
       ollamaModel,
+      expertPipelineEnabled,
+      medicalVisionModel,
+      medicalAnalysisModel,
+      medicalRadiologyModel,
       scanInterval,
       systemPrompt,
       showTags,
@@ -4000,6 +4012,10 @@ router.post('/settings', express.json(), async (req, res) => {
       openaiModel,
       ollamaUrl,
       ollamaModel,
+      expertPipelineEnabled,
+      medicalVisionModel,
+      medicalAnalysisModel,
+      medicalRadiologyModel,
       scanInterval,
       systemPrompt,
       showTags,
@@ -4043,6 +4059,14 @@ router.post('/settings', express.json(), async (req, res) => {
       OPENAI_MODEL: process.env.OPENAI_MODEL || '',
       OLLAMA_API_URL: process.env.OLLAMA_API_URL || '',
       OLLAMA_MODEL: process.env.OLLAMA_MODEL || '',
+      EXPERT_PIPELINE_ENABLED: process.env.EXPERT_PIPELINE_ENABLED || 'yes',
+      MEDICAL_VISION_MODEL: process.env.MEDICAL_VISION_MODEL || 'qwen3-vl:8b',
+      MEDICAL_ANALYSIS_MODEL: process.env.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3',
+      MEDICAL_RADIOLOGY_MODEL: process.env.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.5',
+      FINANCIAL_VISION_MODEL: process.env.FINANCIAL_VISION_MODEL || '',
+      FINANCIAL_ANALYSIS_MODEL: process.env.FINANCIAL_ANALYSIS_MODEL || '',
+      LEGAL_VISION_MODEL: process.env.LEGAL_VISION_MODEL || '',
+      LEGAL_ANALYSIS_MODEL: process.env.LEGAL_ANALYSIS_MODEL || '',
       SCAN_INTERVAL: process.env.SCAN_INTERVAL || '*/30 * * * *',
       SYSTEM_PROMPT: process.env.SYSTEM_PROMPT || '',
       PROCESS_PREDEFINED_DOCUMENTS: process.env.PROCESS_PREDEFINED_DOCUMENTS || 'no',
@@ -4201,6 +4225,10 @@ router.post('/settings', express.json(), async (req, res) => {
     if (customBaseUrl) updatedConfig.CUSTOM_BASE_URL = customBaseUrl;
     if (customModel) updatedConfig.CUSTOM_MODEL = customModel;
     if (disableAutomaticProcessing) updatedConfig.DISABLE_AUTOMATIC_PROCESSING = disableAutomaticProcessing;
+    updatedConfig.EXPERT_PIPELINE_ENABLED = (expertPipelineEnabled === 'on' || expertPipelineEnabled === 'yes') ? 'yes' : 'no';
+    updatedConfig.MEDICAL_VISION_MODEL = medicalVisionModel || 'qwen3-vl:8b';
+    updatedConfig.MEDICAL_ANALYSIS_MODEL = medicalAnalysisModel || 'medtext-llama3';
+    updatedConfig.MEDICAL_RADIOLOGY_MODEL = medicalRadiologyModel || 'llava-med-v1.5';
 
     // Update custom fields
     if (processedCustomFields.length > 0 || customFields) {

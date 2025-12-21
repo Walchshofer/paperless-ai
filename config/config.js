@@ -80,6 +80,22 @@ module.exports = {
     visionKeepAlive: process.env.VISION_KEEP_ALIVE || '5m',
     textKeepAlive: process.env.TEXT_KEEP_ALIVE || '2m'
   },
+  expertModels: {
+    medical: {
+      vision: process.env.MEDICAL_VISION_MODEL || 'qwen3-vl:8b',
+      analysis: process.env.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3',
+      radiology: process.env.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.5'
+    },
+    financial: {
+      vision: process.env.FINANCIAL_VISION_MODEL || '',
+      analysis: process.env.FINANCIAL_ANALYSIS_MODEL || ''
+    },
+    legal: {
+      vision: process.env.LEGAL_VISION_MODEL || '',
+      analysis: process.env.LEGAL_ANALYSIS_MODEL || ''
+    }
+  },
+  expertPipelineEnabled: parseEnvBoolean(process.env.EXPERT_PIPELINE_ENABLED, 'yes'),
   custom: {
     apiUrl: process.env.CUSTOM_BASE_URL || '',
     apiKey: process.env.CUSTOM_API_KEY || '',
@@ -104,6 +120,19 @@ module.exports = {
     maxVisionPages: parseInt(process.env.MAX_VISION_PAGES || '4', 10),
     maxRetriesPlanner: parseInt(process.env.VISUAL_RAG_MAX_RETRIES_PLANNER || '1', 10),
     maxRetriesExtractor: parseInt(process.env.VISUAL_RAG_MAX_RETRIES_EXTRACTOR || '1', 10)
+  },
+  duplicateDetection: {
+    enabled: parseEnvBoolean(process.env.DUPLICATE_DETECTION_ENABLED, 'yes'),
+    similarityThreshold: parseFloat(process.env.DUPLICATE_SIMILARITY_THRESHOLD || '0.95'),
+    maxPagesToCompare: parseInt(process.env.DUPLICATE_MAX_PAGES || '10', 10),
+    duplicateAction: process.env.DUPLICATE_ACTION || 'skip',
+    duplicateTagName: process.env.DUPLICATE_TAG_NAME || 'duplicate',
+    duplicateArchiveMode: process.env.DUPLICATE_ARCHIVE_MODE || 'remove_tag',
+    duplicateArchiveTagName: process.env.DUPLICATE_ARCHIVE_TAG_NAME || 'Inbox',
+    duplicateArchiveStoragePathId: process.env.DUPLICATE_ARCHIVE_STORAGE_PATH_ID
+      ? parseInt(process.env.DUPLICATE_ARCHIVE_STORAGE_PATH_ID, 10)
+      : null,
+    duplicateMergeDeleteOriginals: parseEnvBoolean(process.env.DUPLICATE_MERGE_DELETE_ORIGINALS, 'yes')
   },
   // Add limit functions to config
   limitFunctions: {
