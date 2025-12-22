@@ -175,6 +175,8 @@ class PromptFactory {
         prompt += `- Use decimal dot for numbers\n`;
         if (strictMode) {
             prompt += `STRICT MODE: Output JSON only, no extra keys, use null only when unknown.\n`;
+            prompt += `- Do NOT include chain-of-thought or <thinking> blocks\n`;
+            prompt += `- Put all content in the JSON object only\n`;
         }
 
         return prompt;
@@ -390,6 +392,17 @@ RULES:
 - For correspondent, use the shortest recognizable form (e.g., "Amazon" not "Amazon EU SARL")
 - For dates, prefer the most prominent/relevant date
 - Return ONLY valid JSON`;
+    }
+
+    buildJsonRepairPrompt(rawText) {
+        return `Extract the valid JSON object from the text below.
+Rules:
+- Ignore any <thinking> blocks or non-JSON content.
+- Return ONLY the JSON object (no markdown, no commentary).
+- If multiple JSON objects appear, return the most complete one.
+
+TEXT:
+${rawText}`;
     }
 
     buildMedicalExtractionPrompt(content, fields) {

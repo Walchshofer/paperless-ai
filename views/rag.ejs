@@ -910,11 +910,34 @@
             }
         }
 
+        function getLoadedModelDisplay(statusData) {
+            const loadedModels = Array.isArray(statusData.ai_loaded_models)
+                ? statusData.ai_loaded_models
+                : [];
+            if (loadedModels.length > 0) {
+                const names = loadedModels
+                    .map((model) => {
+                        if (typeof model === 'string') return model;
+                        return model?.name || model?.model;
+                    })
+                    .filter(Boolean);
+                if (names.length > 0) {
+                    return names.join(', ').toUpperCase();
+                }
+            }
+            if (statusData.ai_model) {
+                return statusData.ai_model.toUpperCase();
+            }
+            return null;
+        }
+
         function updateStatus(statusData) {
             // Update AI model info
             if (statusData.ai_status === 'ok') {
-                const modelName = statusData.ai_model.toUpperCase();
-                aiModelName.textContent = `AI MODEL: ${modelName}`;
+                const modelName = getLoadedModelDisplay(statusData);
+                aiModelName.textContent = modelName
+                    ? `AI MODEL: ${modelName}`
+                    : 'AI MODEL: NONE (IDLE)';
             } else {
                 aiModelName.textContent = 'AI: Not available';
             }

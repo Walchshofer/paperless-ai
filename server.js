@@ -349,6 +349,20 @@ async function processDocument(doc, existingTags, existingCorrespondentList, exi
 async function buildUpdateData(analysis, doc) {
   const updateData = {};
 
+  const documentType = analysis.document.document_type
+    ? String(analysis.document.document_type).toLowerCase()
+    : '';
+  const isNote = ['note', 'memo', 'list', 'notiz', 'notizen'].includes(documentType);
+
+  if (isNote) {
+    if (!analysis.document.correspondent) {
+      analysis.document.correspondent = 'AI User';
+    }
+    if (!analysis.document.document_date) {
+      analysis.document.document_date = new Date().toISOString().slice(0, 10);
+    }
+  }
+
   console.log('TEST: ', config.addAIProcessedTag)
   console.log('TEST 2: ', config.addAIProcessedTags)
   // Only process tags if tagging is activated
@@ -406,8 +420,17 @@ async function buildUpdateData(analysis, doc) {
     // First, add any new/updated fields
     for (const key in customFields) {
       const customField = customFields[key];
-      
-      if (!customField.field_name || !customField.value?.trim()) {
+
+      if (!customField || !customField.field_name) {
+        console.log('[DEBUG] Skipping null/invalid custom field');
+        continue;
+      }
+
+      const trimmedValue = typeof customField.value === 'string'
+        ? customField.value.trim()
+        : null;
+
+      if (!trimmedValue) {
         console.log(`[DEBUG] Skipping empty/invalid custom field`);
         continue;
       }
@@ -416,7 +439,7 @@ async function buildUpdateData(analysis, doc) {
       if (fieldDetails?.id) {
         processedFields.push({
           field: fieldDetails.id,
-          value: customField.value.trim()
+          value: trimmedValue
         });
         processedFieldIds.add(fieldDetails.id);
       }

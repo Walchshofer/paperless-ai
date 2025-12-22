@@ -94,19 +94,23 @@ class HistoryManager {
                 {
                     data: null,
                     render: (data) => `
-                        <div class="flex space-x-2">
-                            <button onclick="window.open('${data.link}')" class="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="window.open('/history/doc/${data.document_id}', '_blank', 'noopener')" class="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors" aria-label="View document" title="View document">
                                 <i class="fa-solid fa-eye"></i>
                                 <span class="hidden sm:inline ml-1">View</span>
                             </button>
-                            <button onclick="window.open('/chat?open=${data.document_id}')" class="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                            <button onclick="window.open('/chat?open=${data.document_id}')" class="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors" aria-label="Chat about document" title="Chat about document">
                                 <i class="fa-solid fa-comment"></i>
                                 <span class="hidden sm:inline ml-1">Chat</span>
+                            </button>
+                            <button onclick="window.historyManager.reanalyzeDocument(${data.document_id})" class="px-3 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors" aria-label="Re-analyse document" title="Re-analyse document">
+                                <i class="fa-solid fa-arrows-rotate"></i>
+                                <span class="hidden sm:inline ml-1">Re-analyse</span>
                             </button>
                         </div>
                     `,
                     orderable: false,
-                    width: '150px'
+                    width: '210px'
                 }
             ],
             order: [[2, 'desc']],
@@ -255,8 +259,33 @@ class HistoryManager {
     }
 
     getSelectedDocuments() {
-        return Array.from(document.querySelectorAll('.doc-select:checked'))
+        return Array.from(document.querySelectorAll('.doc-select:checked'))     
             .map(checkbox => checkbox.value);
+    }
+
+    async reanalyzeDocument(documentId) {
+        if (!documentId) return;
+        const confirmed = confirm('Re-analyse this document? It will be treated as new.');
+        if (!confirmed) return;
+
+        try {
+            const response = await fetch(`/api/history/reanalyze/${documentId}`, {
+                method: 'POST'
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(payload.error || 'Failed to queue re-analysis');
+            }
+
+            alert(payload.message || 'Document queued for re-analysis.');
+            if (this.table) {
+                await this.table.ajax.reload(null, false);
+            }
+        } catch (error) {
+            console.error('Error re-analysing document:', error);
+            alert('Failed to re-analyse document. Please try again.');
+        }
     }
 
     async resetDocuments(ids) {

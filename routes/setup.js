@@ -20,6 +20,7 @@ const cookieParser = require('cookie-parser');
 const { authenticateJWT, isAuthenticated } = require('./auth.js');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const customService = require('../services/customService.js');
+const expertRegistry = require('../services/ExpertRegistry');
 const config = require('../config/config.js');
 require('dotenv').config({ path: '../data/.env' });
 
@@ -702,7 +703,13 @@ router.get('/chat', async (req, res) => {
       const {open} = req.query;
       const documents = await paperlessService.getDocuments();
       const version = configFile.PAPERLESS_AI_VERSION || ' ';
-      res.render('chat', { documents, open, version });
+      res.render('chat', {
+        documents,
+        open,
+        version,
+        aiProvider: configFile.aiProvider,
+        ollamaModel: configFile.ollama?.model
+      });
   } catch (error) {
     console.error('[ERRO] loading documents:', error);
     res.status(500).send('Error loading documents');
@@ -796,7 +803,8 @@ router.get('/chat', async (req, res) => {
  */
 router.get('/chat/init', async (req, res) => {
   const documentId = req.query.documentId;
-  const result = await ChatService.initializeChat(documentId);
+  const model = req.query.model;
+  const result = await ChatService.initializeChat(documentId, { model });
   res.json(result);
 });
 
@@ -880,13 +888,13 @@ router.get('/chat/init', async (req, res) => {
  */
 router.post('/chat/message', async (req, res) => {
   try {
-    const { documentId, message } = req.body;
+    const { documentId, message, model } = req.body;
     if (!documentId || !message) {
       return res.status(400).json({ error: 'Document ID and message are required' });
     }
-    
+
     // Use the new streaming method
-    await ChatService.sendMessageStream(documentId, message, res);
+    await ChatService.sendMessageStream(documentId, message, res, { model });
   } catch (error) {
     console.error('Chat message error:', error);
     res.status(500).json({ error: error.message });
@@ -982,13 +990,52 @@ router.get('/chat/init/:documentId', async (req, res) => {
   try {
       const { documentId } = req.params;
       if (!documentId) {
-          return res.status(400).json({ error: 'Document ID is required' });
+          return res.status(400).json({ error: 'Document ID is required' });    
       }
-      const result = await ChatService.initializeChat(documentId);
+      const model = req.query.model;
+      const result = await ChatService.initializeChat(documentId, { model });
       res.json(result);
   } catch (error) {
       console.error('[ERRO] initializing chat:', error);
       res.status(500).json({ error: 'Failed to initialize chat' });
+  }
+});
+
+router.get('/api/ollama/models', async (req, res) => {
+  try {
+    const provider = config.aiProvider;
+    const defaultModel = config.ollama?.model || null;
+
+    if (provider !== 'ollama') {
+      return res.json({
+        provider,
+        defaultModel,
+        models: [],
+        expertModels: []
+      });
+    }
+
+    const models = await ollamaService.listModels();
+    const expertModels = expertRegistry.getActiveExperts().flatMap(expert => (
+      Object.entries(expert.models || {})
+        .filter(([, model]) => model)
+        .map(([stage, model]) => ({
+          model,
+          label: `${expert.domain} ${stage}`,
+          domain: expert.domain,
+          stage
+        }))
+    ));
+
+    res.json({
+      provider,
+      defaultModel,
+      models,
+      expertModels
+    });
+  } catch (error) {
+    console.error('[ERROR] loading Ollama models:', error);
+    res.status(500).json({ error: 'Failed to load Ollama models' });
   }
 });
 
@@ -1053,6 +1100,51 @@ router.get('/history', async (req, res) => {
   } catch (error) {
     console.error('[ERROR] loading history page:', error);
     res.status(500).send('Error loading history page');
+  }
+});
+
+router.get('/history/doc/:id', async (req, res) => {
+  try {
+    const documentId = req.params.id;
+    if (!documentId) {
+      return res.status(400).send('Document ID is required');
+    }
+
+    const [document, content] = await Promise.all([
+      paperlessService.getDocument(documentId),
+      paperlessService.getDocumentContent(documentId)
+    ]);
+
+    const tags = Array.isArray(document?.tags)
+      ? await Promise.all(document.tags.map(async tagId => {
+          const tagName = await paperlessService.getTagTextFromId(tagId);
+          return tagName || `Tag ${tagId}`;
+        }))
+      : [];
+
+    let correspondentName = 'Not assigned';
+    if (document?.correspondent) {
+      const correspondent = await paperlessService.getCorrespondentNameById(document.correspondent);
+      correspondentName = correspondent?.name || correspondent?.value || correspondentName;
+    }
+
+    const createdAt = document?.created || document?.created_at || '';
+    const paperlessBaseUrl = process.env.PAPERLESS_API_URL
+      ? process.env.PAPERLESS_API_URL.replace(/\/api$/, '')
+      : '';
+
+    res.render('history-document', {
+      documentId: document?.id || documentId,
+      title: document?.title || `Document ${documentId}`,
+      content: content || 'No content available for this document.',
+      tags,
+      correspondent: correspondentName,
+      createdAt,
+      paperlessUrl: paperlessBaseUrl
+    });
+  } catch (error) {
+    console.error('[ERROR] loading history document:', error);
+    res.status(500).send('Error loading document preview');
   }
 });
 
@@ -2334,6 +2426,36 @@ router.get('/api/tagsCount', async (req, res) => {
 
 const documentQueue = [];
 let isProcessing = false;
+
+router.post('/api/history/reanalyze/:id', async (req, res) => {
+  try {
+    const documentId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(documentId)) {
+      return res.status(400).json({ error: 'Invalid document ID' });
+    }
+
+    await documentModel.deleteDocumentsIdList([documentId]);
+
+    const document = await paperlessService.getDocument(documentId);
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    documentQueue.push(document);
+    processQueue().catch((error) => {
+      console.error('[ERROR] Re-analysis queue failed:', error);
+    });
+
+    return res.status(202).json({
+      message: 'Document queued for re-analysis',
+      documentId,
+      queuePosition: documentQueue.length
+    });
+  } catch (error) {
+    console.error('[ERROR] re-analysing document:', error);
+    return res.status(500).json({ error: 'Failed to queue document' });
+  }
+});
 
 function extractDocumentId(url) {
   const match = url.match(/\/documents\/(\d+)\//);

@@ -96,6 +96,10 @@ router.get('/status', async (req, res) => {
     // Combine RAG and AI status
     status.ai_status = aiStatus.status;
     status.ai_model = aiStatus.model;
+    status.ai_loaded_models = Array.isArray(aiStatus.loadedModels)
+      ? aiStatus.loadedModels
+      : [];
+    status.ai_loaded_model_count = status.ai_loaded_models.length;
     // console.log('RAG Status:', status);
     // console.log('AI Status:', aiStatus);
     res.json(status);
