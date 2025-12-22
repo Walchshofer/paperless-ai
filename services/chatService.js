@@ -57,7 +57,7 @@ class ChatService {
    * Initializes a new chat for a document
    * @param {string} documentId - The ID of the document
    */
-  async initializeChat(documentId) {
+  async initializeChat(documentId, options = {}) {
     try {
       // Get document information
       const document = await PaperlessService.getDocument(documentId);
@@ -84,14 +84,20 @@ class ChatService {
         }
       ];
       
+      const requestedModel = typeof options.model === 'string' && options.model.trim()
+        ? options.model.trim()
+        : null;
+
       this.chats.set(documentId, {
         messages,
-        documentTitle: document.title
+        documentTitle: document.title,
+        model: requestedModel
       });
-      
+
       return {
         documentTitle: document.title,
-        initialized: true
+        initialized: true,
+        model: requestedModel
       };
     } catch (error) {
       console.error(`Error initializing chat for document ${documentId}:`, error);
@@ -99,13 +105,20 @@ class ChatService {
     }
   }
 
-  async sendMessageStream(documentId, userMessage, res) {
+  async sendMessageStream(documentId, userMessage, res, options = {}) {
     try {
       if (!this.chats.has(documentId)) {
-        await this.initializeChat(documentId);
+        await this.initializeChat(documentId, options);
       }
 
       const chatData = this.chats.get(documentId);
+      const requestedModel = typeof options.model === 'string' && options.model.trim()
+        ? options.model.trim()
+        : null;
+      if (requestedModel) {
+        chatData.model = requestedModel;
+      }
+
       chatData.messages.push({
         role: "user",
         content: userMessage
@@ -183,6 +196,7 @@ class ChatService {
           }
         }
       } else if (aiProvider === 'ollama') {
+        const model = chatData.model || process.env.OLLAMA_MODEL;
         // Use OpenAI SDK for Ollama with OpenAI API compatibility
         const ollamaOpenAI = new OpenAI({
           baseURL: `${process.env.OLLAMA_API_URL}/v1`,
@@ -190,7 +204,7 @@ class ChatService {
         });
 
         const stream = await ollamaOpenAI.chat.completions.create({
-          model: process.env.OLLAMA_MODEL,
+          model: model,
           messages: chatData.messages,
           stream: true,
         });

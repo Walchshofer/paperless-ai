@@ -73,39 +73,82 @@
                     <!-- Document Selection -->
                     <div class="material-card">
                         <h2 class="card-title">Select Document</h2>
-                        <select id="documentSelect" class="select-input">
-                            <option value="">Please choose...</option>
-                            <% documents.forEach(function(doc) { %>
-                                <option value="<%= doc.id %>" <%= doc.id == open ? 'selected="true"' : '' %>><%= doc.title %></option>
-                            <% }); %>
-                        </select>
+                        <div class="grid gap-4 <%= aiProvider === 'ollama' ? 'md:grid-cols-2' : '' %>">
+                            <div>
+                                <label for="documentSelect" class="block text-sm font-medium text-gray-600 mb-2">Document</label>
+                                <select id="documentSelect" class="select-input">
+                                    <option value="">Please choose...</option>
+                                    <% documents.forEach(function(doc) { %>
+                                        <option value="<%= doc.id %>" <%= doc.id == open ? 'selected="true"' : '' %>><%= doc.title %></option>
+                                    <% }); %>
+                                </select>
+                            </div>
+                            <% if (aiProvider === 'ollama') { %>
+                                <div>
+                                    <label for="modelSelect" class="block text-sm font-medium text-gray-600 mb-2">Ollama Model</label>
+                                    <select id="modelSelect" class="select-input" data-default="<%= ollamaModel || '' %>">
+                                        <option value="">Loading models...</option>
+                                    </select>
+                                    <p class="text-xs text-gray-500 mt-2">Includes expert models when configured.</p>
+                                </div>
+                            <% } %>
+                        </div>
                     </div>
 
                     <!-- Chat Interface -->
                     <div class="material-card chat-interface">
-                        <!-- Initial State -->
-                        <div class="initial-state" id="initialState">
-                            <p>Please select a document to start the chat.</p>
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
+                            <div>
+                                <h3 class="text-sm font-semibold text-gray-700">Workspace</h3>
+                                <p class="text-xs text-gray-500">Chat with the document or preview its content.</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button class="chat-tab-button px-3 py-2 text-sm font-medium border-b-2 border-blue-500 text-blue-600" data-tab-target="chatTab">Chat</button>
+                                <button class="chat-tab-button px-3 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab-target="documentTab">Document</button>
+                            </div>
                         </div>
 
-                        <!-- Chat History -->
-                        <div id="chatHistory" class="chat-history hidden">
-                            <!-- Messages will be added here dynamically -->
+                        <div id="chatTab" class="chat-tab-panel flex flex-col flex-1">
+                            <!-- Initial State -->
+                            <div class="initial-state" id="initialState">
+                                <p>Please select a document to start the chat.</p>
+                            </div>
+
+                            <!-- Chat History -->
+                            <div id="chatHistory" class="chat-history hidden">
+                                <!-- Messages will be added here dynamically -->
+                            </div>
+
+                            <!-- Message Input -->
+                            <div id="messageForm" class="message-form hidden">
+                                <input type="hidden" id="documentId" name="documentId" value="">
+                                <textarea
+                                    id="messageInput"
+                                    name="message"
+                                    class="message-input"
+                                    placeholder="Type your message... (Shift + Enter for new line)"
+                                    rows="1"
+                                    required></textarea>
+                                <button type="submit" class="send-button">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
                         </div>
 
-                        <!-- Message Input -->
-                        <div id="messageForm" class="message-form hidden">
-                            <input type="hidden" id="documentId" name="documentId" value="">
-                            <textarea 
-                                id="messageInput"
-                                name="message" 
-                                class="message-input"
-                                placeholder="Type your message... (Shift + Enter for new line)"
-                                rows="1"
-                                required></textarea>
-                            <button type="submit" class="send-button">
-                                <i class="fas fa-paper-plane"></i>
-                            </button>
+                        <div id="documentTab" class="chat-tab-panel hidden flex-1 p-4 overflow-y-auto">
+                            <div class="text-sm text-gray-500" id="documentPreviewEmpty">
+                                Select a document to view its content here.
+                            </div>
+                            <div id="documentPreview" class="hidden">
+                                <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                    <div>
+                                        <h3 class="text-lg font-semibold text-gray-800" id="documentPreviewTitle">Document</h3>
+                                        <p class="text-xs text-gray-500" id="documentPreviewMeta"></p>
+                                    </div>
+                                    <a id="documentPreviewLink" href="#" target="_blank" rel="noopener" class="text-sm text-blue-600 hover:text-blue-700">Open document</a>
+                                </div>
+                                <div class="bg-white border border-gray-200 rounded-lg p-4 text-sm whitespace-pre-wrap" id="documentPreviewContent"></div>
+                            </div>
                         </div>
                     </div>
                 </div>

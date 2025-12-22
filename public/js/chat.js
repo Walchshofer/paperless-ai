@@ -1,4 +1,5 @@
 let currentDocumentId = null;
+let currentModel = null;
 
 // Initialize marked with options for code highlighting
 marked.setOptions({
@@ -17,22 +18,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedTheme = localStorage.getItem('theme') || 'light';
     setTheme(savedTheme);
     setupTextareaAutoResize();
+    setupChatTabs();
+    setupModelSelector();
 });
 
 async function initializeChat(documentId) {
     try {
-        const response = await fetch(`/chat/init/${documentId}`);
+        currentModel = getSelectedModel();
+        const modelParam = currentModel ? `?model=${encodeURIComponent(currentModel)}` : '';
+        const response = await fetch(`/chat/init/${documentId}${modelParam}`);
         if (!response.ok) throw new Error('Failed to initialize chat');
         const data = await response.json();
-        
-        document.getElementById('initialState').classList.add('hidden');
-        document.getElementById('chatHistory').classList.remove('hidden');
+
+        document.getElementById('initialState').classList.add('hidden');        
+        document.getElementById('chatHistory').classList.remove('hidden');      
         document.getElementById('messageForm').classList.remove('hidden');
         document.getElementById('documentId').value = documentId;
         document.getElementById('chatHistory').innerHTML = '';
         
         currentDocumentId = documentId;
-        
+        loadDocumentPreview(documentId);
+
         addMessage('Chat initialized for document: ' + data.documentTitle, false);
     } catch (error) {
         console.error('Error initializing chat:', error);
@@ -49,7 +55,8 @@ async function sendMessage(message) {
             },
             body: JSON.stringify({
                 documentId: currentDocumentId,
-                message: message
+                message: message,
+                model: currentModel
             })
         });
         
@@ -202,10 +209,192 @@ function setupTextareaAutoResize() {
     });
 }
 
+function setupChatTabs() {
+    const tabButtons = document.querySelectorAll('.chat-tab-button');
+    const tabPanels = document.querySelectorAll('.chat-tab-panel');
+    if (!tabButtons.length || !tabPanels.length) return;
+
+    tabButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            const targetId = button.dataset.tabTarget;
+            switchChatTab(targetId);
+        });
+    });
+}
+
+function switchChatTab(targetId) {
+    if (!targetId) return;
+    const tabButtons = document.querySelectorAll('.chat-tab-button');
+    const tabPanels = document.querySelectorAll('.chat-tab-panel');
+
+    tabButtons.forEach((button) => {
+        const isActive = button.dataset.tabTarget === targetId;
+        button.classList.toggle('border-blue-500', isActive);
+        button.classList.toggle('text-blue-600', isActive);
+        button.classList.toggle('border-transparent', !isActive);
+        button.classList.toggle('text-gray-500', !isActive);
+    });
+
+    tabPanels.forEach((panel) => {
+        panel.classList.toggle('hidden', panel.id !== targetId);
+    });
+}
+
+function setupModelSelector() {
+    const modelSelect = document.getElementById('modelSelect');
+    if (!modelSelect) return;
+
+    modelSelect.addEventListener('change', () => {
+        currentModel = getSelectedModel();
+    });
+
+    loadOllamaModels();
+}
+
+async function loadOllamaModels() {
+    const modelSelect = document.getElementById('modelSelect');
+    if (!modelSelect) return;
+
+    try {
+        const response = await fetch('/api/ollama/models');
+        if (!response.ok) throw new Error('Failed to load models');
+        const data = await response.json();
+        populateModelSelect(modelSelect, data);
+    } catch (error) {
+        console.error('Error loading Ollama models:', error);
+        modelSelect.innerHTML = '<option value="">Models unavailable</option>';
+        currentModel = getSelectedModel();
+    }
+}
+
+function populateModelSelect(modelSelect, data) {
+    const installedModels = Array.isArray(data.models) ? data.models : [];
+    const expertModels = Array.isArray(data.expertModels) ? data.expertModels : [];
+    const defaultModel = data.defaultModel || modelSelect.dataset.default || '';
+
+    modelSelect.innerHTML = '';
+
+    const seen = new Set();
+    const uniqueInstalled = installedModels.filter((model) => {
+        if (!model || seen.has(model)) return false;
+        seen.add(model);
+        return true;
+    });
+
+    if (uniqueInstalled.length) {
+        const group = document.createElement('optgroup');
+        group.label = 'Installed models';
+        uniqueInstalled.forEach((model) => {
+            const option = document.createElement('option');
+            option.value = model;
+            option.textContent = model;
+            group.appendChild(option);
+        });
+        modelSelect.appendChild(group);
+    }
+
+    if (expertModels.length) {
+        const group = document.createElement('optgroup');
+        group.label = 'Expert models';
+        expertModels.forEach((entry) => {
+            if (!entry.model) return;
+            const option = document.createElement('option');
+            option.value = entry.model;
+            option.textContent = entry.label
+                ? `${entry.label} (${entry.model})`
+                : entry.model;
+            group.appendChild(option);
+        });
+        modelSelect.appendChild(group);
+    }
+
+    if (!uniqueInstalled.length && !expertModels.length) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'No models available';
+        modelSelect.appendChild(option);
+    }
+
+    const defaultExists = defaultModel
+        && (uniqueInstalled.includes(defaultModel)
+            || expertModels.some((entry) => entry.model === defaultModel));
+
+    if (defaultExists) {
+        modelSelect.value = defaultModel;
+    } else if (modelSelect.options.length) {
+        modelSelect.selectedIndex = 0;
+    }
+
+    currentModel = getSelectedModel();
+}
+
+function getSelectedModel() {
+    const modelSelect = document.getElementById('modelSelect');
+    if (!modelSelect) return null;
+    return modelSelect.value || null;
+}
+
+async function loadDocumentPreview(documentId) {
+    const previewEmpty = document.getElementById('documentPreviewEmpty');
+    const preview = document.getElementById('documentPreview');
+    if (!previewEmpty || !preview) return;
+
+    if (!documentId) {
+        resetDocumentPreview();
+        return;
+    }
+
+    previewEmpty.textContent = 'Loading document preview...';
+    previewEmpty.classList.remove('hidden');
+    preview.classList.add('hidden');
+
+    try {
+        const response = await fetch(`/manual/preview/${documentId}`);
+        if (!response.ok) throw new Error('Failed to load document content');
+        const data = await response.json();
+
+        const titleEl = document.getElementById('documentPreviewTitle');
+        const metaEl = document.getElementById('documentPreviewMeta');
+        const contentEl = document.getElementById('documentPreviewContent');
+        const linkEl = document.getElementById('documentPreviewLink');
+
+        const tags = Array.isArray(data.tags) ? data.tags.filter(Boolean) : [];
+        const metaParts = [`ID: ${data.id || documentId}`];
+        if (tags.length) metaParts.push(`Tags: ${tags.join(', ')}`);
+
+        if (titleEl) titleEl.textContent = data.title || `Document ${documentId}`;
+        if (metaEl) metaEl.textContent = metaParts.join(' • ');
+        if (contentEl) contentEl.textContent = data.content || 'No content available for this document.';
+        if (linkEl) linkEl.href = `/history/doc/${documentId}`;
+
+        previewEmpty.classList.add('hidden');
+        preview.classList.remove('hidden');
+    } catch (error) {
+        console.error('Error loading document preview:', error);
+        previewEmpty.textContent = 'Failed to load document preview.';
+        previewEmpty.classList.remove('hidden');
+        preview.classList.add('hidden');
+    }
+}
+
+function resetDocumentPreview() {
+    const previewEmpty = document.getElementById('documentPreviewEmpty');
+    const preview = document.getElementById('documentPreview');
+    if (!previewEmpty || !preview) return;
+
+    previewEmpty.textContent = 'Select a document to view its content here.';
+    previewEmpty.classList.remove('hidden');
+    preview.classList.add('hidden');
+}
+
 document.getElementById('documentSelect').addEventListener('change', function() {
     const documentId = this.value;
     if (documentId) {
+        currentModel = getSelectedModel();
         initializeChat(documentId);
+    } else {
+        currentDocumentId = null;
+        resetDocumentPreview();
     }
 });
 
@@ -215,6 +404,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (documentId) {
         initializeChat(documentId);
+    } else {
+        resetDocumentPreview();
     }
 });
 
@@ -232,18 +423,19 @@ document.getElementById('messageInput').addEventListener('keydown', async (e) =>
 async function submitForm() {
     const messageInput = document.getElementById('messageInput');
     const message = messageInput.value.trim();
-    
+
     if (!message) return;
-    
+
     try {
         // Show user message immediately
         addMessage(message, true);
-        
+
         // Clear input and reset height
         messageInput.value = '';
         messageInput.style.height = 'auto';
-        
+
         // Send message and handle streaming response
+        currentModel = getSelectedModel();
         await sendMessage(message);
     } catch {
         showError('Failed to send message');
