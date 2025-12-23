@@ -2138,7 +2138,7 @@
                   "ollamaModel": {
                     "type": "string",
                     "description": "Ollama model to use for analysis",
-                    "example": "llama2"
+                    "example": "sauerkraut-llama3.1:8b"
                   },
                   "customApiKey": {
                     "type": "string",
@@ -3027,7 +3027,7 @@
                   "ollamaModel": {
                     "type": "string",
                     "description": "Ollama model to use for analysis",
-                    "example": "llama2"
+                    "example": "sauerkraut-llama3.1:8b"
                   },
                   "customApiKey": {
                     "type": "string",

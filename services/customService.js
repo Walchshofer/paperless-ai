@@ -2,7 +2,8 @@ const {
   calculateTokens,
   calculateTotalPromptTokens,
   truncateToTokenLimit,
-  writePromptToFile
+  writePromptToFile,
+  appendFilenameFormat
 } = require('./serviceUtils');
 const OpenAI = require('openai');
 const config = require('../config/config');
@@ -140,6 +141,8 @@ class CustomOpenAIService {
         console.log('[DEBUG] Replace system prompt with custom prompt');
         systemPrompt = customPrompt + '\n\n' + config.mustHavePrompt;
       }
+
+      systemPrompt = appendFilenameFormat(systemPrompt);
 
       // Calculate tokens AFTER all prompt modifications are complete
       const totalPromptTokens = await calculateTotalPromptTokens(

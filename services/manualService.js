@@ -1,8 +1,9 @@
-const { 
+const {
     calculateTokens, 
     calculateTotalPromptTokens, 
     truncateToTokenLimit, 
-    writePromptToFile 
+    writePromptToFile,
+    appendFilenameFormat
 } = require('./serviceUtils');
 const axios = require('axios');
 const OpenAI = require('openai');
@@ -58,7 +59,7 @@ class ManualService {
             .map(tag => tag.name)
             .join(', ');
         const model = process.env.OPENAI_MODEL;
-        const systemPrompt = process.env.SYSTEM_PROMPT;
+        const systemPrompt = appendFilenameFormat(process.env.SYSTEM_PROMPT);
         await writePromptToFile(systemPrompt, content);
         const response = await this.openai.chat.completions.create({
             model: model,
@@ -106,7 +107,7 @@ class ManualService {
             .map(tag => tag.name)
             .join(', ');
     
-        const systemPrompt = process.env.SYSTEM_PROMPT;
+        const systemPrompt = appendFilenameFormat(process.env.SYSTEM_PROMPT);
         await writePromptToFile(systemPrompt, content);
         const response = await this.openai.chat.completions.create({
             model: process.env.AZURE_DEPLOYMENT_NAME,
@@ -154,7 +155,7 @@ class ManualService {
                 .map(tag => tag.name)
                 .join(', ');
         
-            const systemPrompt = process.env.SYSTEM_PROMPT;
+            const systemPrompt = appendFilenameFormat(process.env.SYSTEM_PROMPT);
             const model = config.custom.model;
             const response = await this.openai.chat.completions.create({
                 model: model,
@@ -189,7 +190,7 @@ class ManualService {
     
     async _analyzeOllama(content, existingTags) {
         try {
-        const prompt = process.env.SYSTEM_PROMPT;
+        const prompt = appendFilenameFormat(process.env.SYSTEM_PROMPT);
 
         const getAvailableMemory = async () => {
             const totalMemory = os.totalmem();

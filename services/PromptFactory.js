@@ -1,5 +1,6 @@
 const config = require('../config/config');
 const RestrictionPromptService = require('./restrictionPromptService');
+const { appendFilenameFormat } = require('./serviceUtils');
 
 /**
  * Centralizes prompt construction for text, vision, and medical extraction flows.
@@ -65,13 +66,15 @@ class PromptFactory {
 
     buildTextPrompt(content, fields = {}, options = {}) {
         const customFieldsStr = this._generateCustomFieldsTemplate();
-        const systemPrompt = this.buildBaseTemplate('text').replace('%CUSTOMFIELDS%', customFieldsStr);
+        const baseSystemPrompt = appendFilenameFormat(
+            this.buildBaseTemplate('text').replace('%CUSTOMFIELDS%', customFieldsStr)
+        );
 
         if (options.customPrompt) {
             const prompt = options.customPrompt + '\n\n'
                 + config.mustHavePrompt.replace('%CUSTOMFIELDS%', customFieldsStr)
                 + "\n\n" + JSON.stringify(content);
-            return { prompt, systemPrompt, customFieldsStr };
+            return { prompt, systemPrompt: baseSystemPrompt, customFieldsStr };
         }
 
         const existingTags = Array.isArray(fields.existingTags) ? fields.existingTags : [];
@@ -131,9 +134,10 @@ class PromptFactory {
             ` + config.specialPromptPreDefinedTags;
         }
 
-        const prompt = `${promptSystem}
-        ${JSON.stringify(content)}
-        `;
+        promptSystem = appendFilenameFormat(promptSystem);
+
+        const prompt = JSON.stringify(content);
+        const systemPrompt = promptSystem;
 
         return { prompt, systemPrompt, customFieldsStr };
     }
