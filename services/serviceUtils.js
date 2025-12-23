@@ -188,9 +188,17 @@ async function writePromptToFile(systemPrompt, truncatedContent, filePath = './l
     }
 }
 
+function appendFilenameFormat(prompt, format = process.env.PAPERLESS_FILENAME_FORMAT) {
+    if (!prompt) return prompt || '';
+    if (!format) return prompt;
+    if (prompt.includes('Filename format:')) return prompt;
+    return `${prompt}\n\nFilename format: ${format}\nUse this format when generating title and correspondent values.`;
+}
+
 module.exports = {
     calculateTokens,
     calculateTotalPromptTokens,
     truncateToTokenLimit,
-    writePromptToFile
+    writePromptToFile,
+    appendFilenameFormat
 };

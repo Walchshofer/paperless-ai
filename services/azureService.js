@@ -2,7 +2,8 @@ const {
   calculateTokens,
   calculateTotalPromptTokens,
   truncateToTokenLimit,
-  writePromptToFile
+  writePromptToFile,
+  appendFilenameFormat
 } = require('./serviceUtils');
 const OpenAI = require('openai');
 const AzureOpenAI = require('openai').AzureOpenAI;
@@ -139,6 +140,8 @@ class AzureOpenAIService {
         console.log('[DEBUG] Replace system prompt with custom prompt via WebHook');
         systemPrompt = customPrompt + '\n\n' + config.mustHavePrompt;
       }
+
+      systemPrompt = appendFilenameFormat(systemPrompt);
 
       // Calculate tokens AFTER all prompt modifications are complete
       const totalPromptTokens = await calculateTotalPromptTokens(

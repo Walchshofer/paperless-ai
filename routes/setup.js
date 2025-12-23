@@ -1977,7 +1977,7 @@ router.get('/setup', async (req, res) => {
       OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
       OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-4o-mini',
       OLLAMA_API_URL: process.env.OLLAMA_API_URL || 'http://localhost:11434',
-      OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'llama3.2',
+      OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b',
       SCAN_INTERVAL: process.env.SCAN_INTERVAL || '*/30 * * * *',
       SYSTEM_PROMPT: process.env.SYSTEM_PROMPT || '',
       PROCESS_PREDEFINED_DOCUMENTS: process.env.PROCESS_PREDEFINED_DOCUMENTS || 'no',
@@ -2804,7 +2804,7 @@ router.get('/settings', async (req, res) => {
     OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
     OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-4o-mini',
     OLLAMA_API_URL: process.env.OLLAMA_API_URL || 'http://localhost:11434',
-    OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'llama3.2',
+    OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b',
     EXPERT_PIPELINE_ENABLED: process.env.EXPERT_PIPELINE_ENABLED || 'yes',
     MEDICAL_VISION_MODEL: process.env.MEDICAL_VISION_MODEL || 'qwen3-vl:8b',
     MEDICAL_ANALYSIS_MODEL: process.env.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3',
@@ -3590,7 +3590,7 @@ router.get('/health', async (req, res) => {
  *               ollamaModel:
  *                 type: string
  *                 description: Ollama model to use for analysis
- *                 example: "llama2"
+ *                 example: "sauerkraut-llama3.1:8b"
  *               customApiKey:
  *                 type: string
  *                 description: API key for custom LLM provider
@@ -3895,7 +3895,7 @@ router.post('/setup', express.json(), async (req, res) => {
         });
       }
       config.OLLAMA_API_URL = ollamaUrl || 'http://localhost:11434';
-      config.OLLAMA_MODEL = ollamaModel || 'llama3.2';
+      config.OLLAMA_MODEL = ollamaModel || 'sauerkraut-llama3.1:8b';
     } else if (aiProvider === 'custom') {
       const isCustomValid = await setupService.validateCustomConfig(customBaseUrl, customApiKey, customModel);
       if (!isCustomValid) {
@@ -3995,7 +3995,7 @@ router.post('/setup', express.json(), async (req, res) => {
  *               ollamaModel:
  *                 type: string
  *                 description: Ollama model to use for analysis
- *                 example: "llama2"
+ *                 example: "sauerkraut-llama3.1:8b"
  *               customApiKey:
  *                 type: string
  *                 description: API key for custom LLM provider

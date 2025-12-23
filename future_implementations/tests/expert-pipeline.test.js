@@ -1,0 +1,1062 @@
+/* eslint-env mocha */
+/**
+ * expert-pipeline.test.js
+ * 
+ * Comprehensive Unit Tests for Expert Model Pipeline System
+ * 
+ * Test Coverage:
+ * - PromptRegistry: Registration, retrieval, message building
+ * - ExpertRegistry: Pipeline registration, routing, execution
+ * - ExpertPipelineExecutor: Full pipeline execution, error handling
+ * - DocumentProcessor: Integration, fallback, result merging
+ * - ImagePreparator: Image loading, format detection
+ * - ResultMerger: Merge strategies, paperless format conversion
+ * 
+ * Run: npm test -- --grep "Expert Pipeline"
+ * Run specific: npm test -- --grep "PromptRegistry"
+ */
+
+const assert = require('assert');
+
+// ============================================================================
+// TEST UTILITIES
+// ============================================================================
+
+/**
+ * Mock Ollama Service for testing
+ */
+class MockOllamaService {
+    constructor(options = {}) {
+        this.responses = options.responses || {};
+        this.calls = [];
+        this.defaultResponse = options.defaultResponse || {
+            message: {
+                content: JSON.stringify({
+                    primary_domain: 'General',
+                    document_type: 'correspondence',
+                    confidence: 0.85
+                })
+            }
+        };
+        this.shouldFail = options.shouldFail || false;
+        this.failureMessage = options.failureMessage || 'Mock failure';
+    }
+    
+    async chat(request) {
+        this.calls.push(request);
+        
+        if (this.shouldFail) {
+            throw new Error(this.failureMessage);
+        }
+        
+        const model = request.model;
+        if (this.responses[model]) {
+            return this.responses[model];
+        }
+        
+        return this.defaultResponse;
+    }
+    
+    getCallCount() {
+        return this.calls.length;
+    }
+    
+    getLastCall() {
+        return this.calls[this.calls.length - 1];
+    }
+    
+    reset() {
+        this.calls = [];
+    }
+}
+
+/**
+ * Sample test documents
+ */
+const TestDocuments = {
+    medicalLabReport: {
+        id: 'test-doc-001',
+        filename: 'lab_results_2024.pdf',
+        content: `
+            LABORATORY REPORT
+            Patient: John Smith
+            DOB: 01/15/1980
+            Date of Service: 03/15/2024
+            
+            Complete Blood Count (CBC):
+            WBC: 7.5 x10^9/L (Normal: 4.5-11.0)
+            RBC: 4.8 x10^12/L (Normal: 4.5-5.5)
+            Hemoglobin: 14.2 g/dL (Normal: 13.5-17.5)
+            Hematocrit: 42% (Normal: 38-50%)
+            Platelets: 250 x10^9/L (Normal: 150-400)
+            
+            Metabolic Panel:
+            Glucose: 105 mg/dL (Normal: 70-100) HIGH
+            Creatinine: 1.1 mg/dL (Normal: 0.7-1.3)
+            
+            Ordering Physician: Dr. Sarah Johnson
+            Memorial Hospital Laboratory
+        `,
+        image_data: null
+    },
+    
+    financialInvoice: {
+        id: 'test-doc-002',
+        filename: 'invoice_12345.pdf',
+        content: `
+            INVOICE #12345
+            
+            From: ABC Services LLC
+            To: XYZ Corporation
+            
+            Date: March 20, 2024
+            Due Date: April 20, 2024
+            
+            Description: Consulting Services - Q1 2024
+            Amount: $5,000.00
+            
+            Tax (8%): $400.00
+            Total Due: $5,400.00
+            
+            Payment Terms: Net 30
+        `,
+        image_data: null
+    },
+    
+    generalCorrespondence: {
+        id: 'test-doc-003',
+        filename: 'letter.pdf',
+        content: `
+            Dear Mr. Johnson,
+            
+            Thank you for your inquiry regarding our services.
+            We would be happy to schedule a meeting to discuss
+            your requirements in more detail.
+            
+            Please let us know your availability.
+            
+            Best regards,
+            Jane Smith
+            Customer Service Manager
+        `,
+        image_data: null
+    }
+};
+
+/**
+ * Create a base64 test image (1x1 red PNG)
+ */
+function createTestImageBase64() {
+    // Minimal valid PNG (1x1 red pixel)
+    const pngBytes = Buffer.from([
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+        0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR chunk
+        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+        0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53,
+        0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, // IDAT chunk
+        0x54, 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00,
+        0x00, 0x00, 0x03, 0x00, 0x01, 0x00, 0x18, 0xDD,
+        0x8D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, // IEND chunk
+        0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
+    ]);
+    return pngBytes.toString('base64');
+}
+
+// ============================================================================
+// PROMPT REGISTRY TESTS
+// ============================================================================
+
+describe('Expert Pipeline', function() {
+    describe('PromptRegistry', function() {
+        const { PromptRegistry, DomainType, ModelType, PromptCategory } = require('../services/prompts/PromptRegistry');
+        
+        let registry;
+        
+        beforeEach(function() {
+            registry = new PromptRegistry();
+        });
+        
+        describe('Registration', function() {
+            it('should register a valid prompt', function() {
+                const prompt = {
+                    id: 'TEST_PROMPT_V1',
+                    version: '1.0.0',
+                    domain: DomainType.GENERAL,
+                    model: ModelType.TEXT,
+                    category: PromptCategory.EXTRACTION,
+                    systemPrompt: 'You are a test assistant.',
+                    userPromptTemplate: 'Process this: {{content}}'
+                };
+                
+                registry.register(prompt);
+                
+                const retrieved = registry.get('TEST_PROMPT_V1');
+                assert.strictEqual(retrieved.id, 'TEST_PROMPT_V1');
+                assert.strictEqual(retrieved.version, '1.0.0');
+            });
+            
+            it('should throw on duplicate registration', function() {
+                const prompt = {
+                    id: 'DUPLICATE_TEST',
+                    version: '1.0.0',
+                    domain: DomainType.GENERAL,
+                    model: ModelType.TEXT,
+                    category: PromptCategory.EXTRACTION,
+                    systemPrompt: 'Test',
+                    userPromptTemplate: 'Test {{content}}'
+                };
+                
+                registry.register(prompt);
+                
+                assert.throws(() => {
+                    registry.register(prompt);
+                }, /already registered/);
+            });
+            
+            it('should allow overwrite with force flag', function() {
+                const prompt1 = {
+                    id: 'OVERWRITE_TEST',
+                    version: '1.0.0',
+                    domain: DomainType.GENERAL,
+                    model: ModelType.TEXT,
+                    category: PromptCategory.EXTRACTION,
+                    systemPrompt: 'Original',
+                    userPromptTemplate: 'Original {{content}}'
+                };
+                
+                const prompt2 = {
+                    ...prompt1,
+                    version: '2.0.0',
+                    systemPrompt: 'Updated'
+                };
+                
+                registry.register(prompt1);
+                registry.register(prompt2, { overwrite: true });
+                
+                const retrieved = registry.get('OVERWRITE_TEST');
+                assert.strictEqual(retrieved.version, '2.0.0');
+                assert.strictEqual(retrieved.systemPrompt, 'Updated');
+            });
+            
+            it('should validate required fields', function() {
+                assert.throws(() => {
+                    registry.register({
+                        id: 'INVALID',
+                        // Missing required fields
+                    });
+                }, /Missing required field/);
+            });
+        });
+        
+        describe('Retrieval', function() {
+            beforeEach(function() {
+                registry.register({
+                    id: 'MEDICAL_EXTRACT_V1',
+                    version: '1.0.0',
+                    domain: DomainType.MEDICAL,
+                    model: ModelType.TEXT,
+                    category: PromptCategory.EXTRACTION,
+                    systemPrompt: 'Medical extraction prompt',
+                    userPromptTemplate: 'Extract from: {{content}}'
+                });
+                
+                registry.register({
+                    id: 'GENERAL_CLASSIFY_V1',
+                    version: '1.0.0',
+                    domain: DomainType.GENERAL,
+                    model: ModelType.MULTIMODAL,
+                    category: PromptCategory.ROUTING,
+                    systemPrompt: 'Classification prompt',
+                    userPromptTemplate: 'Classify: {{content}}'
+                });
+            });
+            
+            it('should retrieve by ID', function() {
+                const prompt = registry.get('MEDICAL_EXTRACT_V1');
+                assert.strictEqual(prompt.domain, DomainType.MEDICAL);
+            });
+            
+            it('should throw on unknown ID', function() {
+                assert.throws(() => {
+                    registry.get('NONEXISTENT');
+                }, /not found/);
+            });
+            
+            it('should find by domain', function() {
+                const medical = registry.findByDomain(DomainType.MEDICAL);
+                assert.strictEqual(medical.length, 1);
+                assert.strictEqual(medical[0].id, 'MEDICAL_EXTRACT_V1');
+            });
+            
+            it('should find by model type', function() {
+                const multimodal = registry.findByModel(ModelType.MULTIMODAL);
+                assert.strictEqual(multimodal.length, 1);
+                assert.strictEqual(multimodal[0].id, 'GENERAL_CLASSIFY_V1');
+            });
+            
+            it('should find by category', function() {
+                const extraction = registry.findByCategory(PromptCategory.EXTRACTION);
+                assert.strictEqual(extraction.length, 1);
+            });
+            
+            it('should list all prompts', function() {
+                const all = registry.list();
+                assert.strictEqual(all.length, 2);
+            });
+        });
+        
+        describe('Message Building', function() {
+            beforeEach(function() {
+                registry.register({
+                    id: 'TEMPLATE_TEST_V1',
+                    version: '1.0.0',
+                    domain: DomainType.GENERAL,
+                    model: ModelType.TEXT,
+                    category: PromptCategory.EXTRACTION,
+                    systemPrompt: 'You are processing {{document_type}} documents.',
+                    userPromptTemplate: 'Document: {{filename}}\nContent: {{content}}'
+                });
+            });
+            
+            it('should build messages with variable substitution', function() {
+                const messages = registry.buildMessages('TEMPLATE_TEST_V1', {
+                    document_type: 'medical',
+                    filename: 'test.pdf',
+                    content: 'Test content here'
+                });
+                
+                assert.strictEqual(messages.length, 2);
+                assert.strictEqual(messages[0].role, 'system');
+                assert.ok(messages[0].content.includes('medical'));
+                assert.strictEqual(messages[1].role, 'user');
+                assert.ok(messages[1].content.includes('test.pdf'));
+            });
+            
+            it('should include image for multimodal prompts', function() {
+                registry.register({
+                    id: 'MULTIMODAL_TEST_V1',
+                    version: '1.0.0',
+                    domain: DomainType.GENERAL,
+                    model: ModelType.MULTIMODAL,
+                    category: PromptCategory.ROUTING,
+                    systemPrompt: 'Analyze images',
+                    userPromptTemplate: 'Describe: {{description}}'
+                });
+                
+                const testImage = createTestImageBase64();
+                const messages = registry.buildMessages('MULTIMODAL_TEST_V1', {
+                    description: 'test image'
+                }, testImage);
+                
+                assert.ok(messages[1].images);
+                assert.strictEqual(messages[1].images.length, 1);
+            });
+            
+            it('should handle missing variables gracefully', function() {
+                const messages = registry.buildMessages('TEMPLATE_TEST_V1', {
+                    filename: 'test.pdf'
+                    // Missing content and document_type
+                });
+                
+                // Should still build messages, with empty substitutions
+                assert.strictEqual(messages.length, 2);
+            });
+        });
+    });
+
+    // ============================================================================
+    // MEDICAL PROMPTS TESTS
+    // ============================================================================
+    
+    describe('MedicalPrompts', function() {
+        const { PromptRegistry, DomainType } = require('../services/prompts/PromptRegistry');
+        const { registerMedicalPrompts, MedicalDocumentTypes } = require('../services/prompts/MedicalPrompts');
+        
+        let registry;
+        
+        beforeEach(function() {
+            registry = new PromptRegistry();
+            registerMedicalPrompts(registry);
+        });
+        
+        it('should register all medical prompts', function() {
+            const prompts = registry.list();
+            assert.ok(prompts.length >= 4, 'Should register at least 4 prompts');
+            
+            // Check for key prompts
+            assert.ok(registry.has('SYS_ROUTER_V1'), 'Should have router prompt');
+            assert.ok(registry.has('MED_IMAGING_EXTRACT_V1'), 'Should have imaging extraction');
+            assert.ok(registry.has('MED_TEXT_EXTRACT_V1'), 'Should have text extraction');
+            assert.ok(registry.has('MED_INTEGRATE_V1'), 'Should have integration prompt');
+        });
+        
+        it('should have valid medical document types', function() {
+            assert.ok(MedicalDocumentTypes.LAB_RESULT);
+            assert.ok(MedicalDocumentTypes.RADIOLOGY);
+            assert.ok(MedicalDocumentTypes.PRESCRIPTION);
+        });
+        
+        it('should build router messages correctly', function() {
+            const messages = registry.buildMessages('SYS_ROUTER_V1', {
+                source_system: 'paperless-ngx',
+                filename: 'lab_report.pdf',
+                resolution: '300dpi',
+                file_size: '2MB'
+            }, createTestImageBase64());
+            
+            assert.strictEqual(messages.length, 2);
+            assert.ok(messages[0].content.includes('classifier'));
+            assert.ok(messages[1].images);
+        });
+        
+        it('should tag medical prompts with correct domain', function() {
+            const medicalPrompts = registry.findByDomain(DomainType.MEDICAL);
+            assert.ok(medicalPrompts.length >= 2);
+        });
+    });
+
+    // ============================================================================
+    // EXPERT REGISTRY TESTS
+    // ============================================================================
+    
+    describe('ExpertRegistry', function() {
+        const { ExpertRegistry } = require('../services/experts/ExpertRegistry');
+        const { DomainType } = require('../services/prompts/PromptRegistry');
+        
+        let registry;
+        
+        beforeEach(function() {
+            registry = new ExpertRegistry();
+        });
+        
+        describe('Pipeline Registration', function() {
+            it('should register a valid pipeline', function() {
+                const pipeline = {
+                    id: 'test-pipeline',
+                    name: 'Test Pipeline',
+                    domain: DomainType.GENERAL,
+                    version: '1.0.0',
+                    stages: [
+                        {
+                            id: 'extract',
+                            type: 'extraction',
+                            model: 'llama3.2:latest',
+                            promptId: 'TEST_EXTRACT_V1'
+                        }
+                    ],
+                    routing: {
+                        conditions: [{ field: 'domain', equals: 'General' }]
+                    }
+                };
+                
+                registry.register(pipeline);
+                
+                const retrieved = registry.get('test-pipeline');
+                assert.strictEqual(retrieved.name, 'Test Pipeline');
+            });
+            
+            it('should require at least one stage', function() {
+                assert.throws(() => {
+                    registry.register({
+                        id: 'empty-pipeline',
+                        name: 'Empty',
+                        domain: DomainType.GENERAL,
+                        stages: [],
+                        routing: {}
+                    });
+                }, /at least one stage/);
+            });
+        });
+        
+        describe('Routing', function() {
+            beforeEach(function() {
+                registry.register({
+                    id: 'medical-pipeline',
+                    name: 'Medical Pipeline',
+                    domain: DomainType.MEDICAL,
+                    version: '1.0.0',
+                    priority: 100,
+                    stages: [{ id: 's1', type: 'extraction', model: 'test', promptId: 'test' }],
+                    routing: {
+                        conditions: [
+                            { field: 'primary_domain', equals: 'Medical' }
+                        ]
+                    }
+                });
+                
+                registry.register({
+                    id: 'general-pipeline',
+                    name: 'General Pipeline',
+                    domain: DomainType.GENERAL,
+                    version: '1.0.0',
+                    priority: 50,
+                    stages: [{ id: 's1', type: 'extraction', model: 'test', promptId: 'test' }],
+                    routing: {
+                        conditions: [],
+                        isDefault: true
+                    }
+                });
+            });
+            
+            it('should route to medical pipeline for medical documents', function() {
+                const classification = {
+                    primary_domain: 'Medical',
+                    document_type: 'lab_result',
+                    confidence: 0.9
+                };
+                
+                const { pipeline } = registry.route(classification);
+                assert.strictEqual(pipeline.id, 'medical-pipeline');
+            });
+            
+            it('should route to general pipeline by default', function() {
+                const classification = {
+                    primary_domain: 'General',
+                    document_type: 'correspondence',
+                    confidence: 0.8
+                };
+                
+                const { pipeline } = registry.route(classification);
+                assert.strictEqual(pipeline.id, 'general-pipeline');
+            });
+            
+            it('should include routing metadata', function() {
+                const classification = { primary_domain: 'Medical' };
+                const { routingMetadata } = registry.route(classification);
+                
+                assert.ok(routingMetadata.matchedConditions);
+                assert.ok(routingMetadata.evaluatedPipelines);
+            });
+        });
+    });
+
+    // ============================================================================
+    // EXPERT PIPELINE EXECUTOR TESTS
+    // ============================================================================
+    
+    describe('ExpertPipelineExecutor', function() {
+        const { ExpertPipelineExecutor } = require('../services/experts/ExpertPipelineExecutor');
+        const { promptRegistry } = require('../services/prompts/PromptRegistry');
+        const { registerMedicalPrompts } = require('../services/prompts/MedicalPrompts');
+        
+        let executor;
+        let mockOllama;
+        
+        beforeEach(function() {
+            // Register prompts
+            registerMedicalPrompts(promptRegistry);
+            
+            // Create mock Ollama with medical response
+            mockOllama = new MockOllamaService({
+                responses: {
+                    'qwen3-vl:8B': {
+                        message: {
+                            content: JSON.stringify({
+                                primary_domain: 'Medical',
+                                document_type: 'lab_result',
+                                confidence: 0.92,
+                                metadata_hints: {
+                                    detected_entities: ['John Smith', 'Memorial Hospital']
+                                }
+                            })
+                        }
+                    },
+                    'medtext-llama3:latest': {
+                        message: {
+                            content: JSON.stringify({
+                                patient_info: { name: 'John Smith' },
+                                conditions: [{ condition: 'Hyperglycemia', normalized: 'E11.65' }],
+                                medications: [],
+                                lab_values: [
+                                    { test: 'Glucose', value: 105, unit: 'mg/dL', flag: 'HIGH' }
+                                ]
+                            })
+                        }
+                    }
+                }
+            });
+            
+            executor = new ExpertPipelineExecutor(mockOllama, {
+                defaultTimeout: 5000,
+                maxRetries: 1
+            });
+        });
+        
+        it('should execute a pipeline successfully', async function() {
+            this.timeout(10000);
+            
+            const result = await executor.execute(
+                'medical-text',
+                TestDocuments.medicalLabReport
+            );
+            
+            assert.strictEqual(result.success, true);
+            assert.ok(result.pipeline_id);
+            assert.ok(result.result);
+        });
+        
+        it('should track execution metrics', async function() {
+            await executor.execute('medical-text', TestDocuments.medicalLabReport);
+            
+            const stats = executor.getStats();
+            assert.strictEqual(stats.totalExecutions, 1);
+            assert.ok(stats.successfulExecutions >= 0);
+        });
+        
+        it('should handle pipeline not found', async function() {
+            const result = await executor.execute(
+                'nonexistent-pipeline',
+                TestDocuments.medicalLabReport
+            );
+            
+            assert.strictEqual(result.success, false);
+            assert.ok(result.error.includes('not found'));
+        });
+        
+        it('should handle model failures with retry', async function() {
+            this.timeout(15000);
+            
+            const failingOllama = new MockOllamaService({
+                shouldFail: true,
+                failureMessage: 'Connection refused'
+            });
+            
+            const failingExecutor = new ExpertPipelineExecutor(failingOllama, {
+                maxRetries: 2,
+                defaultTimeout: 1000
+            });
+            
+            const result = await failingExecutor.execute(
+                'medical-text',
+                TestDocuments.medicalLabReport
+            );
+            
+            assert.strictEqual(result.success, false);
+            // Should have retried
+            assert.ok(failingOllama.getCallCount() >= 1);
+        });
+    });
+
+    // ============================================================================
+    // IMAGE PREPARATOR TESTS
+    // ============================================================================
+    
+    describe('ImagePreparator', function() {
+        const { ImagePreparator } = require('../services/integration/DocumentProcessor');
+        
+        it('should prepare image from base64', async function() {
+            const base64 = createTestImageBase64();
+            const dataUrl = `data:image/png;base64,${base64}`;
+            
+            const result = await ImagePreparator.prepare(dataUrl);
+            
+            assert.ok(result.base64);
+            assert.strictEqual(result.metadata.source, 'base64');
+            assert.strictEqual(result.metadata.format, 'png');
+        });
+        
+        it('should prepare image from buffer', async function() {
+            const buffer = Buffer.from(createTestImageBase64(), 'base64');
+            
+            const result = await ImagePreparator.prepare(buffer);
+            
+            assert.ok(result.base64);
+            assert.strictEqual(result.metadata.source, 'buffer');
+        });
+        
+        it('should detect PNG format', async function() {
+            const pngBuffer = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+            const format = ImagePreparator._detectImageFormat(pngBuffer);
+            assert.strictEqual(format, 'png');
+        });
+        
+        it('should detect JPEG format', async function() {
+            const jpegBuffer = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0]);
+            const format = ImagePreparator._detectImageFormat(jpegBuffer);
+            assert.strictEqual(format, 'jpeg');
+        });
+        
+        it('should handle invalid source', async function() {
+            await assert.rejects(async () => {
+                await ImagePreparator.prepare(12345); // Invalid type
+            }, /Invalid image source/);
+        });
+    });
+
+    // ============================================================================
+    // RESULT MERGER TESTS
+    // ============================================================================
+    
+    describe('ResultMerger', function() {
+        const { ResultMerger } = require('../services/integration/DocumentProcessor');
+        
+        const expertResult = {
+            result: {
+                primary_output: {
+                    entities: {
+                        conditions: [
+                            { condition: 'Diabetes', normalized: 'E11' }
+                        ],
+                        medications: [
+                            { drug_name: 'Metformin', dosage: '500mg' }
+                        ]
+                    },
+                    summary: { brief: 'Lab results showing elevated glucose' }
+                },
+                classification: {
+                    primary_domain: 'Medical',
+                    document_type: 'lab_result'
+                }
+            },
+            metadata: { confidence: 0.85 },
+            pipeline_id: 'medical-text'
+        };
+        
+        const legacyResult = {
+            entities: {
+                conditions: [
+                    { condition: 'High blood sugar' }
+                ],
+                people: [
+                    { name: 'John Smith' }
+                ]
+            },
+            summary: 'Patient lab results',
+            confidence: 0.7
+        };
+        
+        it('should merge with expert priority', function() {
+            const merged = ResultMerger.merge(expertResult, legacyResult, {
+                strategy: 'expert_priority'
+            });
+            
+            assert.strictEqual(merged._merge_strategy, 'expert_priority');
+            assert.ok(merged.expert_extraction);
+            assert.ok(merged.entities.conditions);
+        });
+        
+        it('should merge with legacy priority', function() {
+            const merged = ResultMerger.merge(expertResult, legacyResult, {
+                strategy: 'legacy_priority'
+            });
+            
+            assert.strictEqual(merged._merge_strategy, 'legacy_priority');
+            assert.ok(merged.expert_supplement);
+        });
+        
+        it('should merge with confidence weighting', function() {
+            const merged = ResultMerger.merge(expertResult, legacyResult, {
+                strategy: 'confidence_weighted'
+            });
+            
+            // Expert has higher confidence (0.85 vs 0.7)
+            assert.strictEqual(merged._merge_strategy, 'expert_priority');
+        });
+        
+        it('should deduplicate entities', function() {
+            const merged = ResultMerger.merge(expertResult, legacyResult, {
+                strategy: 'expert_priority'
+            });
+            
+            // Should have merged conditions without exact duplicates
+            const conditions = merged.entities?.conditions || [];
+            assert.ok(conditions.length >= 1);
+        });
+        
+        it('should convert to paperless format', function() {
+            const merged = ResultMerger.merge(expertResult, legacyResult);
+            const paperless = ResultMerger.toPaperlessFormat(merged, 'doc-123');
+            
+            assert.strictEqual(paperless.document_id, 'doc-123');
+            assert.ok(paperless.tags);
+            assert.ok(paperless._processed_at);
+            assert.ok(paperless.custom_fields);
+        });
+        
+        it('should extract tags from classification', function() {
+            const merged = ResultMerger.merge(expertResult, legacyResult);
+            const paperless = ResultMerger.toPaperlessFormat(merged, 'doc-123');
+            
+            assert.ok(paperless.tags.includes('medical'));
+        });
+    });
+
+    // ============================================================================
+    // DOCUMENT PROCESSOR TESTS
+    // ============================================================================
+    
+    describe('DocumentProcessor', function() {
+        const { DocumentProcessor, ProcessorConfig } = require('../services/integration/DocumentProcessor');
+        
+        let processor;
+        let mockOllama;
+        
+        beforeEach(function() {
+            mockOllama = new MockOllamaService({
+                responses: {
+                    'qwen3-vl:8B': {
+                        message: {
+                            content: JSON.stringify({
+                                primary_domain: 'Medical',
+                                document_type: 'lab_result',
+                                confidence: 0.9
+                            })
+                        }
+                    },
+                    'medtext-llama3:latest': {
+                        message: {
+                            content: JSON.stringify({
+                                patient_info: { name: 'Test Patient' },
+                                conditions: [],
+                                medications: []
+                            })
+                        }
+                    }
+                }
+            });
+            
+            processor = new DocumentProcessor(mockOllama, {
+                features: {
+                    enableExpertPipeline: true,
+                    enableMedicalPipeline: true,
+                    enableFallbackToLegacy: false // Disable for unit tests
+                }
+            });
+        });
+        
+        it('should process document in expert mode', async function() {
+            this.timeout(10000);
+            
+            const result = await processor.process(
+                TestDocuments.medicalLabReport,
+                { mode: ProcessorConfig.modes.EXPERT_PIPELINE }
+            );
+            
+            assert.strictEqual(result.success, true);
+            assert.ok(result.result);
+            assert.ok(result.paperless);
+            assert.ok(result.metadata);
+        });
+        
+        it('should classify document', async function() {
+            this.timeout(5000);
+            
+            const classification = await processor.classify(
+                TestDocuments.medicalLabReport
+            );
+            
+            assert.ok(classification.primary_domain);
+        });
+        
+        it('should recommend pipeline', async function() {
+            this.timeout(5000);
+            
+            const recommendation = await processor.recommendPipeline(
+                TestDocuments.medicalLabReport
+            );
+            
+            assert.ok(recommendation.classification);
+            assert.ok(recommendation.recommendedPipeline);
+        });
+        
+        it('should return statistics', function() {
+            const stats = processor.getStats();
+            
+            assert.ok(typeof stats.totalProcessed === 'number');
+            assert.ok(typeof stats.registeredPipelines === 'number');
+            assert.ok(typeof stats.registeredPrompts === 'number');
+        });
+        
+        it('should handle processing errors gracefully', async function() {
+            this.timeout(5000);
+            
+            const failingOllama = new MockOllamaService({
+                shouldFail: true,
+                failureMessage: 'Model not available'
+            });
+            
+            const failingProcessor = new DocumentProcessor(failingOllama, {
+                features: {
+                    enableFallbackToLegacy: false
+                }
+            });
+            
+            const result = await failingProcessor.process(
+                TestDocuments.medicalLabReport,
+                { mode: ProcessorConfig.modes.EXPERT_PIPELINE }
+            );
+            
+            assert.strictEqual(result.success, false);
+            assert.ok(result.error);
+        });
+    });
+
+    // ============================================================================
+    // SERVICE INDEX TESTS
+    // ============================================================================
+    
+    describe('Service Index', function() {
+        const services = require('../services');
+        
+        it('should export all required components', function() {
+            // Prompt system
+            assert.ok(services.PromptRegistry);
+            assert.ok(services.promptRegistry);
+            assert.ok(services.DomainType);
+            assert.ok(services.ModelType);
+            
+            // Expert system
+            assert.ok(services.ExpertRegistry);
+            assert.ok(services.expertRegistry);
+            assert.ok(services.ExpertPipelineExecutor);
+            
+            // Integration
+            assert.ok(services.DocumentProcessor);
+            assert.ok(services.ImagePreparator);
+            assert.ok(services.ResultMerger);
+            
+            // Factory functions
+            assert.ok(services.createDocumentProcessor);
+            assert.ok(services.createServiceContainer);
+            assert.ok(services.initializeExpertPipeline);
+        });
+        
+        it('should initialize expert pipeline', function() {
+            const result = services.initializeExpertPipeline({
+                enableMedical: true
+            });
+            
+            assert.ok(result.promptCount > 0);
+            assert.ok(result.pipelineCount > 0);
+            assert.ok(result.initializationTime >= 0);
+        });
+        
+        it('should create service container', function() {
+            const mockOllama = new MockOllamaService();
+            const container = services.createServiceContainer(mockOllama);
+            
+            assert.ok(container.documentProcessor);
+            assert.ok(container.pipelineExecutor);
+            assert.ok(container.promptRegistry);
+            assert.ok(container.initialized);
+            assert.ok(typeof container.process === 'function');
+            assert.ok(typeof container.classify === 'function');
+        });
+    });
+
+    // ============================================================================
+    // INTEGRATION TESTS
+    // ============================================================================
+    
+    describe('Integration', function() {
+        const services = require('../services');
+        
+        it('should process medical document end-to-end', async function() {
+            this.timeout(15000);
+            
+            const mockOllama = new MockOllamaService({
+                responses: {
+                    'qwen3-vl:8B': {
+                        message: {
+                            content: JSON.stringify({
+                                primary_domain: 'Medical',
+                                document_type: 'lab_result',
+                                confidence: 0.95,
+                                reasoning: 'Contains lab values and patient info',
+                                metadata_hints: {
+                                    detected_entities: ['John Smith', 'Dr. Johnson'],
+                                    detected_date: '2024-03-15'
+                                }
+                            })
+                        }
+                    },
+                    'medtext-llama3:latest': {
+                        message: {
+                            content: JSON.stringify({
+                                patient_info: {
+                                    name: 'John Smith',
+                                    dob: '1980-01-15'
+                                },
+                                conditions: [
+                                    {
+                                        condition: 'Hyperglycemia',
+                                        normalized: 'R73.9',
+                                        status: 'active'
+                                    }
+                                ],
+                                medications: [],
+                                lab_values: [
+                                    {
+                                        test: 'Glucose',
+                                        value: 105,
+                                        unit: 'mg/dL',
+                                        reference_range: '70-100',
+                                        flag: 'HIGH'
+                                    }
+                                ],
+                                providers: [
+                                    {
+                                        name: 'Dr. Sarah Johnson',
+                                        role: 'Ordering Physician'
+                                    }
+                                ]
+                            })
+                        }
+                    }
+                }
+            });
+            
+            const container = services.createServiceContainer(mockOllama);
+            
+            const result = await container.process(TestDocuments.medicalLabReport);
+            
+            assert.strictEqual(result.success, true);
+            assert.ok(result.paperless);
+            assert.ok(result.paperless.tags.length > 0);
+            assert.strictEqual(result.paperless.document_id, 'test-doc-001');
+        });
+        
+        it('should handle financial document routing', async function() {
+            this.timeout(10000);
+            
+            const mockOllama = new MockOllamaService({
+                defaultResponse: {
+                    message: {
+                        content: JSON.stringify({
+                            primary_domain: 'Financial',
+                            document_type: 'invoice',
+                            confidence: 0.88
+                        })
+                    }
+                }
+            });
+            
+            const container = services.createServiceContainer(mockOllama);
+            
+            const recommendation = await container.documentProcessor.recommendPipeline(
+                TestDocuments.financialInvoice
+            );
+            
+            assert.ok(recommendation.classification);
+            assert.strictEqual(recommendation.classification.primary_domain, 'Financial');
+        });
+    });
+});
+
+// ============================================================================
+// RUN TESTS IF EXECUTED DIRECTLY
+// ============================================================================
+
+if (require.main === module) {
+    const Mocha = require('mocha');
+    const mocha = new Mocha({
+        timeout: 30000,
+        reporter: 'spec'
+    });
+    
+    mocha.addFile(__filename);
+    
+    mocha.run(failures => {
+        process.exitCode = failures ? 1 : 0;
+    });
+}

@@ -14,6 +14,20 @@ export default [
       },
     },
   },
+  {
+    files: [
+      "**/*.test.js",
+      "**/*.spec.js",
+      "future_implementations/tests/**/*.js",
+    ],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+        ...globals.mocha,
+      },
+    },
+  },
   pluginJs.configs.recommended,
   prettier, // Prettier integriert
 ];

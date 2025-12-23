@@ -75,7 +75,7 @@ module.exports = {
   },
   ollama: {
     apiUrl: process.env.OLLAMA_API_URL || 'http://localhost:11434',
-    model: process.env.OLLAMA_MODEL || 'llama3.2',
+    model: process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b',
     visionModel: process.env.OLLAMA_VISION_MODEL || 'qwen3-vl:8b',
     visionKeepAlive: process.env.VISION_KEEP_ALIVE || '5m',
     textKeepAlive: process.env.TEXT_KEEP_ALIVE || '2m'

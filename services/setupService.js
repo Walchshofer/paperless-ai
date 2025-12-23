@@ -115,7 +115,7 @@ class SetupService {
   async validateOllamaConfig(url, model) {
     try {
       const response = await axios.post(`${url}/api/generate`, {
-        model: model || 'llama3.2',
+        model: model || 'sauerkraut-llama3.1:8b',
         prompt: 'Test',
         stream: false
       });
