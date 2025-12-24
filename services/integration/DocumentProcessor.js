@@ -25,12 +25,12 @@
  * │                              ▼                    ▼                        │
  * │                       ┌──────────────────────────────────┐                │
  * │                       │         Ollama Service           │                │
- * │                       │  qwen3-vl:8B | llava-med | medtext│               │
+ * │                       │  qwen3-vl:8b | llava-med | medtext│               │
  * │                       └──────────────────────────────────┘                │
  * └─────────────────────────────────────────────────────────────────────────────┘
  * 
  * Model Configuration:
- * - Router: qwen3-vl:8B (multimodal)
+ * - Router: qwen3-vl:8b (multimodal)
  * - Medical Imaging: llava-med-v1.5:latest (multimodal)
  * - Medical Text: medtext-llama3:latest (text-only)
  * - General: sauerkraut-llama3.1:8b (text-only)

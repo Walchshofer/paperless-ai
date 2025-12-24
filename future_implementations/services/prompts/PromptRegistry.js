@@ -14,6 +14,11 @@
  * - Finance Reasoning: fino1-8b (text-only)
  * - Finance General: llm-pro-finance-8b (text-only)
  * - Fallback: llama3.2:latest (text-only)
+ *
+ * NOTE: This is an experimental/future implementation copy. It currently contains
+ * model name variants (e.g., `qwen3-vl:8B`) and other structural experiments.
+ * The canonical and authoritative implementation is `services/prompts/PromptRegistry.js`
+ * which standardizes model names to lowercase (e.g., `qwen3-vl:8b`).
  */
 
 const logger = require('../logger');

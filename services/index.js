@@ -57,6 +57,10 @@ const config = require('../config/config');
 // PROMPT SYSTEM
 // ============================================================================
 
+// NOTE: PromptRegistry is the authoritative prompt management API. PromptFactory
+// is intentionally excluded from exports and not re-exported here. PromptFactory
+// remains in the repo for legacy Ollama compatibility but should not be used by
+// new or migrated code.
 const { 
     PromptRegistry, 
     promptRegistry,

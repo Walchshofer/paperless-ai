@@ -40,7 +40,7 @@ The Expert Model Pipeline is a domain-specialized document processing system des
 
 | Model | Size | Purpose | VRAM Usage |
 |-------|------|---------|------------|
-| qwen3-vl:8B | ~16GB | Router/Classifier | ~10GB |
+| qwen3-vl:8b | ~16GB | Router/Classifier | ~10GB |
 | llava-med-v1.5 | ~14GB | Medical Imaging | ~9GB |
 | medtext-llama3 | ~8GB | Medical Text | ~6GB |
 | fino1-8b | ~8GB | Financial Reasoning (math-heavy) | ~6GB |
@@ -59,7 +59,7 @@ The Expert Model Pipeline is a domain-specialized document processing system des
 │ │
 │ ┌──────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────┐ │
 │ │ Document │────▶│ Router │────▶│ Expert │────▶│ Result │ │
-│ │ Input │ │ qwen3-vl:8B │ │ Pipeline │ │ Output │ │
+│ │ Input │ │ qwen3-vl:8b │ │ Pipeline │ │ Output │ │
 │ └──────────┘ └──────────────┘ └──────────────┘ └──────────┘ │
 │ │ │ │ │ │
 │ │ ▼ ▼ ▼ │
@@ -116,7 +116,7 @@ npm test -- --grep "Expert Pipeline"
 Step 2: Pull Required Models
 bash
 # Pull router model (multimodal classifier)
-ollama pull qwen3-vl:8B
+ollama pull qwen3-vl:8b
 
 # Pull medical imaging model
 ollama pull llava-med-v1.5:latest
@@ -169,7 +169,7 @@ bash
 OLLAMA_HOST=http://localhost:11434
 
 # Model names (customize if using different models)
-ROUTER_MODEL=qwen3-vl:8B
+ROUTER_MODEL=qwen3-vl:8b
 MEDICAL_IMAGING_MODEL=llava-med-v1.5:latest
 MEDICAL_TEXT_MODEL=medtext-llama3:latest
 GENERAL_MODEL=llama3.2:latest
@@ -218,7 +218,7 @@ Configuration Object
 javascript
 const config = {
     models: {
-        router: 'qwen3-vl:8B',
+        router: 'qwen3-vl:8b',
         medicalImaging: 'llava-med-v1.5:latest',
         medicalText: 'medtext-llama3:latest',
         general: 'llama3.2:latest',
@@ -788,7 +788,7 @@ Performance Tuning
 Model Loading Optimization
 bash
 # Pre-load models into memory
-ollama run qwen3-vl:8B &
+ollama run qwen3-vl:8b &
 ollama run llava-med-v1.5:latest &
 ollama run medtext-llama3:latest &
 
@@ -890,8 +890,33 @@ class PromptRegistry {
     
     // Build messages for Ollama
     buildMessages(promptId: string, variables: object, image?: string): Message[];
-    
-    // List all prompts
+
+## Prompt System: Migration & Conventions ✅
+
+This project consolidates prompt management under `PromptRegistry` (the authoritative API). `PromptFactory` is deprecated and kept for legacy compatibility only.
+
+### Migration Mapping
+
+| PromptFactory (legacy) | PromptRegistry (modern) | Notes |
+| --- | --- | --- |
+| `buildTextPrompt(content, fields, options)` | `promptRegistry.get(promptId)` + `promptRegistry.buildMessages(promptId, variables)` | Use `getOptions()` for model call settings |
+| `buildVisionPrompt(...)` | `promptRegistry.getByDomain(DomainType, ...)` + `buildMessages()` | Vision prompts accept `image` in `buildMessages` |
+| `buildMedicalAnalysisPrompt(...)` | Register and use medical prompts via `registerMedicalPrompts()` | Use `DomainType.MEDICAL` prompts |
+
+### Conventions
+
+- Model names are case-insensitive in docs but canonicalized to **lowercase** in code (e.g., `qwen3-vl:8b`).
+- Template variables use the `{{variable_name}}` syntax and are substituted by `buildMessages()`.
+- For multimodal prompts, pass image data as the third argument to `buildMessages()`.
+
+### Example
+
+```javascript
+// Build router messages and call model
+const messages = promptRegistry.buildMessages('SYS_ROUTER_V1', { filename: 'invoice.pdf' }, imageBuffer);
+const options = promptRegistry.getOptions('SYS_ROUTER_V1');
+const response = await ollama.callModel(options.model, messages, options);
+```
     list(): PromptDefinition[];
 }
 
