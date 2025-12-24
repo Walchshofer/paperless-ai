@@ -535,9 +535,9 @@ describe('Expert Pipeline', function() {
     // ============================================================================
     
     describe('ExpertPipelineExecutor', function() {
-        const { ExpertPipelineExecutor } = require('../services/experts/ExpertPipelineExecutor');
-        const { promptRegistry } = require('../services/prompts/PromptRegistry');
-        const { registerMedicalPrompts } = require('../services/prompts/MedicalPrompts');
+        const { ExpertPipelineExecutor } = require('../../services/experts/ExpertPipelineExecutor');
+        const { promptRegistry } = require('../../services/prompts/PromptRegistry');
+        const { registerMedicalPrompts } = require('../../services/prompts/MedicalPrompts');
         
         let executor;
         let mockOllama;
@@ -549,7 +549,7 @@ describe('Expert Pipeline', function() {
             // Create mock Ollama with medical response
             mockOllama = new MockOllamaService({
                 responses: {
-                    'qwen3-vl:8B': {
+                    'qwen3-vl:8b': {
                         message: {
                             content: JSON.stringify({
                                 primary_domain: 'Medical',
@@ -786,7 +786,7 @@ describe('Expert Pipeline', function() {
     // ============================================================================
     
     describe('DocumentProcessor', function() {
-        const { DocumentProcessor, ProcessorConfig } = require('../services/integration/DocumentProcessor');
+        const { DocumentProcessor, ProcessorConfig } = require('../../services/integration/DocumentProcessor');
         
         let processor;
         let mockOllama;
@@ -794,7 +794,7 @@ describe('Expert Pipeline', function() {
         beforeEach(function() {
             mockOllama = new MockOllamaService({
                 responses: {
-                    'qwen3-vl:8B': {
+                    'qwen3-vl:8b': {
                         message: {
                             content: JSON.stringify({
                                 primary_domain: 'Medical',
@@ -896,7 +896,7 @@ describe('Expert Pipeline', function() {
     // ============================================================================
     
     describe('Service Index', function() {
-        const services = require('../services');
+        const services = require('../../services');
         
         it('should export all required components', function() {
             // Prompt system
@@ -949,14 +949,14 @@ describe('Expert Pipeline', function() {
     // ============================================================================
     
     describe('Integration', function() {
-        const services = require('../services');
+        const services = require('../../services');
         
         it('should process medical document end-to-end', async function() {
             this.timeout(15000);
             
             const mockOllama = new MockOllamaService({
                 responses: {
-                    'qwen3-vl:8B': {
+                    'qwen3-vl:8b': {
                         message: {
                             content: JSON.stringify({
                                 primary_domain: 'Medical',

@@ -12,7 +12,7 @@
  * │                         DOCUMENT INGESTION                              │
  * │                              ▼                                          │
  * │                    ┌─────────────────┐                                  │
- * │                    │  SYS_ROUTER_V1  │ (qwen3-vl:8B)                   │
+ * │                    │  SYS_ROUTER_V1  │ (qwen3-vl:8b)                   │
  * │                    │  Classification │                                  │
  * │                    └────────┬────────┘                                  │
  * │                             │                                           │
@@ -25,7 +25,7 @@
  * └─────────────────────────────────────────────────────────────────────────┘
  * 
  * Model Configuration:
- * - Router: qwen3-vl:8B (multimodal)
+ * - Router: qwen3-vl:8b (multimodal)
  * - Medical Imaging: llava-med-v1.5:latest (multimodal)
  * - Medical Text: medtext-llama3:latest (text-only)
  * - Finance Reasoning: fino1-8b (text-only)

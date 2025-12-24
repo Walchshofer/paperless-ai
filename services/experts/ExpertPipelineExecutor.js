@@ -26,7 +26,7 @@
  * └─────────────────────────────────────────────────────────────────────────────┘
  * 
  * Model Configuration:
- * - Router: qwen3-vl:8B (multimodal)
+ * - Router: qwen3-vl:8b (multimodal)
  * - Medical Imaging: llava-med-v1.5:latest (multimodal)
  * - Medical Text: medtext-llama3:latest (text-only)
  * - General Fallback: sauerkraut-llama3.1:8b (text-only)
@@ -35,7 +35,7 @@
 const axios = require('axios');
 const logger = require('../logger');
 const { promptRegistry, ModelType } = require('../prompts/PromptRegistry');
-const { expertRegistry, StageType, ExecutionMode } = require('./ExpertRegistry');
+const { expertRegistry, StageType, ExecutionMode, MODEL_NAMES } = require('./ExpertRegistry');
 
 // ============================================================================
 // EXECUTION CONTEXT
@@ -932,14 +932,14 @@ async function processDocument(document, ollamaService, options = {}) {
     let classificationResult;
     try {
         const routerResponse = await executor._callOllama(
-            'qwen3-vl:8B',
+            MODEL_NAMES.router,
             routerMessages,
             promptRegistry.getOptions('SYS_ROUTER_V1')
         );
         
         classificationResult = executor._parseResponse(routerResponse, {
             id: 'router',
-            model: 'qwen3-vl:8B'
+            model: MODEL_NAMES.router
         });
         
     } catch (error) {

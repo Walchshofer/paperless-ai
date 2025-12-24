@@ -1,19 +1,30 @@
 /**
  * PromptRegistry.js
- * 
- * Centralized prompt management for the Expert Model Pipeline.
- * Extends the existing PromptFactory pattern with domain-specific expert prompts.
- * 
+ *
+ * Authoritative Prompt Management for the Expert Model Pipeline (PRIMARY SOURCE OF TRUTH)
+ * -------------------------------------------------------------------------------
+ * This module is the canonical prompt registry used by the Expert Pipeline.
+ * All new code should use PromptRegistry from `services/prompts/PromptRegistry.js`.
+ * PromptFactory is deprecated and preserved only for legacy backward compatibility
+ * with the Ollama-based extraction flow (see also `services/PromptFactory.js`).
+ *
  * Architecture Reference: Expert Model Pipeline Design
  * Hardware Target: NVIDIA RTX 3090 Ti (24GB VRAM)
- * 
- * Model Configuration:
- * - Router/Visual: qwen3-vl:8B (multimodal)
- * - Medical Radiology: llava-med-v1.5:latest (multimodal)  
- * - Medical General: medtext-llama3:latest (text-only)
+ *
+ * Model Configuration (use lowercase identifiers consistently):
+ * - Router/Visual: qwen3-vl:8b (multimodal)
+ * - Medical Radiology: llava-med-v1.5 (multimodal)
+ * - Medical General: medtext-llama3 (text-only)
  * - Finance Reasoning: fino1-8b (text-only)
  * - Finance General: llm-pro-finance-8b (text-only)
  * - Fallback: sauerkraut-llama3.1:8b (text-only)
+ *
+ * Conventions & Usage:
+ * - Enums: Use DomainType, ModelType, PromptCategory for prompt registration and
+ *   querying.
+ * - Template variables: use double-brace syntax `{{variable_name}}` for string
+ *   substitution. Images are passed separately (see `buildMessages(promptId, variables, images)`).
+ * - Model names should be referenced via `MODEL_NAMES` constants (not hardcoded strings).
  */
 
 const logger = require('../logger');
@@ -114,7 +125,7 @@ const ModelRegistry = Object.freeze({
  * SYS_ROUTER_V1: Visual Document Classification Router
  * 
  * Purpose: First-stage document classification to route to appropriate expert pipeline.
- * Model: qwen3-vl:8B (multimodal)
+ * Model: qwen3-vl:8b (multimodal)
  * 
  * Classification Strategy:
  * 1. Visual Layout Analysis (letterhead, forms, imaging)
@@ -1048,6 +1059,16 @@ class PromptRegistry {
 
     /**
      * Build a complete message array for Ollama API
+     *
+     * Example:
+     *   // Retrieve prompt and build messages for a multimodal router
+     *   const messages = promptRegistry.buildMessages('SYS_ROUTER_V1', {
+     *       source_system: 'paperless-ngx',
+     *       filename: 'invoice-123.pdf'
+     *   }, imageBuffer);
+     *
+     *   // Then call the model with options
+     *   const options = promptRegistry.getOptions('SYS_ROUTER_V1');
      */
     buildMessages(promptId, variables = {}, imageData = null) {
         const prompt = this.get(promptId);

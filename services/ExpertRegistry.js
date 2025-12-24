@@ -1,8 +1,18 @@
 const config = require('../config/config');
 
 /**
- * Centralized registry for domain expert pipelines.
- * Experts are additive to the general extraction flow.
+ * DEPRECATED: Transitional ExpertRegistry
+ * --------------------------------------
+ * DEPRECATED: This file is a transitional/orphaned implementation kept for
+ * backward compatibility. New code should use the canonical ExpertRegistry
+ * at `services/experts/ExpertRegistry.js` which is exported from the
+ * services index and used by the expert pipeline.
+ *
+ * Notes:
+ * - Functionality preserved here: simple domain registration and pipeline
+ *   stage enumeration used historically by legacy integrations. If any unique
+ *   behavior is required, consider migrating it into the canonical registry
+ *   and deprecate this file entirely in Phase 2.
  */
 class ExpertRegistry {
     constructor() {

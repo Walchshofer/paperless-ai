@@ -3,7 +3,19 @@ const RestrictionPromptService = require('./restrictionPromptService');
 const { appendFilenameFormat } = require('./serviceUtils');
 
 /**
- * Centralizes prompt construction for text, vision, and medical extraction flows.
+ * DEPRECATED: PromptFactory
+ * ---------------------------------
+ * DEPRECATED: Legacy prompt construction helpers kept for backward compatibility
+ * with the Ollama-based extraction flows. New code MUST use the canonical
+ * `PromptRegistry` (services/prompts/PromptRegistry.js).
+ *
+ * Migration hints:
+ * - buildTextPrompt(content, fields, options)  -> PromptRegistry.getPrompt(promptId) + buildMessages()
+ * - buildVisionPrompt(...)                   -> PromptRegistry.getByDomain(DomainType, ...) + buildMessages()
+ * - buildMedicalAnalysisPrompt(...)          -> Use medical prompts registered via registerMedicalPrompts()
+ *
+ * This file should not be exported from `services/index.js` and will be removed
+ * in a future major update once the Ollama integration is migrated.
  */
 class PromptFactory {
     constructor(fieldProfiler) {
