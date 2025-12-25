@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Expert UI utilities */
+.expert-message-container {
+  @apply border-l-4 p-4 rounded-r-lg;
+}
+
+.risk-badge {
+  @apply px-3 py-1 rounded-full text-sm font-medium;
+}
+
+.bounding-box {
+  @apply absolute border-2 border-yellow-500 bg-yellow-200 bg-opacity-25 hover:bg-opacity-40 transition-colors;
+}
+
+.orchestrator-status {
+  @apply bg-blue-50 border-l-4 border-blue-400 p-3 rounded-r-lg mb-3 animate-pulse;
+}

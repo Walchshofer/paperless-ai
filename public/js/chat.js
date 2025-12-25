@@ -1,6 +1,12 @@
 let currentDocumentId = null;
 let currentModel = null;
 
+// Component globals (attached in views via script tags)
+const ExpertMessage = window.ExpertMessage;
+const DocumentOverlay = window.DocumentOverlay;
+const ThinkingAccordion = window.ThinkingAccordion;
+const OrchestratorStatus = window.OrchestratorStatus; 
+
 // Initialize marked with options for code highlighting
 marked.setOptions({
     highlight: function(code, lang) {
@@ -103,6 +109,11 @@ async function sendMessage(message) {
                             const chatHistory = document.getElementById('chatHistory');
                             chatHistory.scrollTop = chatHistory.scrollHeight;
                         }
+
+                        // If the stream includes structured metadata/expert payloads, handle them
+                        if (parsed.metadata || parsed.expert || parsed.expert_response) {
+                            try { handleExpertResponse(parsed); } catch (err) { console.error('handleExpertResponse failed', err); }
+                        }
                     } catch (e) {
                         console.error('Error parsing SSE data:', e);
                     }
@@ -158,6 +169,70 @@ function showError(message) {
         </div>
     `;
     document.getElementById('chatHistory').appendChild(errorDiv);
+}
+
+// Handle specialized expert responses and UI integrations
+function handleExpertResponse(parsed) {
+    try {
+        const chatHistory = document.getElementById('chatHistory');
+
+        // Render ExpertMessage if available
+        if (typeof ExpertMessage !== 'undefined' && parsed) {
+            const em = new ExpertMessage(parsed);
+            const wrapper = document.createElement('div');
+            wrapper.className = 'message-container assistant';
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message assistant';
+            messageDiv.appendChild(em.render());
+            wrapper.appendChild(messageDiv);
+            chatHistory.appendChild(wrapper);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        // Render thinking blocks if present
+        const text = parsed.reply || parsed.message || parsed.content || '';
+        if (text && typeof ThinkingAccordion !== 'undefined') {
+            const acc = ThinkingAccordion.renderFromText(text);
+            if (acc) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'message-container assistant';
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message assistant';
+                messageDiv.appendChild(acc);
+                wrapper.appendChild(messageDiv);
+                chatHistory.appendChild(wrapper);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+        }
+
+        // Visual grounding
+        if (parsed.metadata && parsed.metadata.visual_grounding && typeof DocumentOverlay !== 'undefined') {
+            try {
+                // attach to document preview if present
+                const preview = document.getElementById('documentPreview');
+                if (preview) {
+                    const ov = new DocumentOverlay(preview);
+                    ov.render(parsed.metadata.visual_grounding);
+                }
+            } catch (e) {
+                console.error('DocumentOverlay error:', e);
+            }
+        }
+
+        // Orchestrator status updates (e.g., model swap)
+        if (parsed.metadata && (Array.isArray(parsed.metadata.stages_executed) && parsed.metadata.stages_executed.includes('model_swap'))
+            || (parsed.metadata && parsed.metadata.model_swap)) {
+            if (typeof OrchestratorStatus !== 'undefined') {
+                const orch = new OrchestratorStatus();
+                orch.show('Consulting Legal Expert...');
+                // hide after a short timeout if nothing else
+                setTimeout(() => orch.hide(), 8000);
+            }
+        }
+
+    } catch (e) {
+        console.error('handleExpertResponse error:', e);
+    }
 }
 
 function escapeHtml(unsafe) {
