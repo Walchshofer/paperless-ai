@@ -9,6 +9,7 @@ const OpenAI = require('openai');
 const config = require('../config/config');
 const tiktoken = require('tiktoken');
 const paperlessService = require('./paperlessService');
+const logger = require('./logger');
 const fs = require('fs').promises;
 const path = require('path');
 const RestrictionPromptService = require('./restrictionPromptService');
@@ -42,9 +43,9 @@ class CustomOpenAIService {
       // Handle thumbnail caching
       try {
         await fs.access(cachePath);
-        console.log('[DEBUG] Thumbnail already cached');
+        logger.debug('Thumbnail already cached');
       } catch (err) {
-        console.log('Thumbnail not cached, fetching from Paperless');
+        logger.debug('Thumbnail not cached, fetching from Paperless');
 
         const thumbnailData = await paperlessService.getThumbnailImage(id);
 
@@ -66,7 +67,7 @@ class CustomOpenAIService {
       if (externalApiData) {
         try {
           validatedExternalApiData = await this._validateAndTruncateExternalApiData(externalApiData);
-          console.log('[DEBUG] External API data validated and included');
+          logger.debug('External API data validated and included');
         } catch (error) {
           console.warn('[WARNING] External API data validation failed:', error.message);
           validatedExternalApiData = null;
@@ -138,7 +139,7 @@ class CustomOpenAIService {
 
       // Custom prompt override if provided
       if (customPrompt) {
-        console.log('[DEBUG] Replace system prompt with custom prompt');
+        logger.debug('Replace system prompt with custom prompt');
         systemPrompt = customPrompt + '\n\n' + config.mustHavePrompt;
       }
 
@@ -161,9 +162,9 @@ class CustomOpenAIService {
         throw new Error('Token limit exceeded: prompt too large for available token limit');
       }
 
-      console.log(`[DEBUG] Token calculation - Prompt: ${totalPromptTokens}, Reserved: ${reservedTokens}, Available: ${availableTokens}`);
-      console.log(`[DEBUG] Use existing data: ${config.useExistingData}, Restrictions applied based on useExistingData setting`);
-      console.log(`[DEBUG] External API data: ${validatedExternalApiData ? 'included' : 'none'}`);
+      logger.debug('Token calculation - Prompt: %d, Reserved: %d, Available: %d', totalPromptTokens, reservedTokens, availableTokens);
+      logger.debug('Use existing data: %s, Restrictions applied based on useExistingData setting', config.useExistingData);
+      logger.debug('External API data: %s', validatedExternalApiData ? 'included' : 'none');
 
       const truncatedContent = await truncateToTokenLimit(content, availableTokens, model);
 
@@ -203,8 +204,8 @@ class CustomOpenAIService {
       }
 
       // Log token usage
-      console.log(`[DEBUG] [${timestamp}] Custom OpenAI request sent`);
-      console.log(`[DEBUG] [${timestamp}] Total tokens: ${response.usage.total_tokens}`);
+      logger.info(`[CUSTOM] [${timestamp}] Custom OpenAI request sent`);
+      logger.debug(`[CUSTOM] [${timestamp}] Total tokens: %d`, response.usage.total_tokens);
 
       const usage = response.usage;
       const mappedUsage = {
@@ -348,8 +349,8 @@ class CustomOpenAIService {
       }
 
       // Log token usage
-      console.log(`[DEBUG] [${timestamp}] Custom OpenAI request sent`);
-      console.log(`[DEBUG] [${timestamp}] Total tokens: ${response.usage.total_tokens}`);
+      logger.info(`[CUSTOM] [${timestamp}] Custom OpenAI request sent`);
+      logger.debug(`[CUSTOM] [${timestamp}] Total tokens: %d`, response.usage.total_tokens);
 
       const usage = response.usage;
       const mappedUsage = {

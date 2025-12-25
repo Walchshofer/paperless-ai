@@ -395,8 +395,14 @@ class ExpertPipelineExecutor {
         try {
             pipeline = expertRegistry.get(pipelineId);
         } catch (error) {
-            logger.error(`Pipeline not found: ${pipelineId}`);
-            return this._buildErrorResult(pipelineId, error, startTime);
+            // Try to find a pipeline by stage id (backwards compatibility)
+            try {
+                pipeline = expertRegistry.findPipelineByStageId(pipelineId);
+                logger.info(`Resolved stage id ${pipelineId} to pipeline ${pipeline.id}`);
+            } catch (stageErr) {
+                logger.error(`Pipeline not found: ${pipelineId}`);
+                return this._buildErrorResult(pipelineId, error, startTime);
+            }
         }
         
         // Create execution context
@@ -826,6 +832,7 @@ class ExpertPipelineExecutor {
         }
         
         return {
+            success: status === 'success',
             pipeline_id: pipeline.id,
             pipeline_name: pipeline.name,
             pipeline_version: pipeline.version,
@@ -872,6 +879,8 @@ class ExpertPipelineExecutor {
         this.stats.failedExecutions++;
         
         return {
+            success: false,
+            error: error.message,
             pipeline_id: pipelineId,
             status: 'failed',
             result: null,
@@ -1063,10 +1072,15 @@ async function processDocument(document, ollamaService, options = {}) {
 // EXPORTS
 // ============================================================================
 
+function createPipelineExecutor(ollamaService, options = {}) {
+    return new ExpertPipelineExecutor(ollamaService, options);
+}
+
 module.exports = {
     ExpertPipelineExecutor,
     ExecutionContext,
     ConditionEvaluator,
     ValidationEngine,
-    processDocument
+    processDocument,
+    createPipelineExecutor
 };

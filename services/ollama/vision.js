@@ -417,9 +417,9 @@ module.exports = {
                     ? response.response
                     : JSON.stringify(response?.response);
                 if (rawResponse) {
-                    logger.debug(`[PLANNER] Raw response: ${rawResponse.substring(0, 200)}...`);
+                    // Raw response logging removed to avoid verbose logs and potential PII leakage
                 } else {
-                    logger.debug('[PLANNER] Raw response: <empty>');
+                    // Raw response empty, continue
                 }
 
                 let parsedResponse = null;
@@ -429,10 +429,9 @@ module.exports = {
                     parsedResponse = extractJsonFromResponse(response?.response);
                 }
 
-                logger.debug(`[PLANNER] Classification result: ${JSON.stringify(parsedResponse)}`);
+                // Remove high-cardinality parsed response logs
 
                 const validation = this._validatePlannerResponse(parsedResponse);
-                logger.debug(`[PLANNER] Validation: ${validation.valid ? 'passed' : 'failed'}`);
 
                 if (validation.valid) {
                     if (!parsedResponse.modality) {
@@ -536,13 +535,9 @@ module.exports = {
      */
     async _callOllamaVisionAPI(prompt, base64Image, options = {}) {
         try {
-            logger.debug('[DEBUG] Calling Ollama Vision API');
-            logger.debug('[DEBUG] Vision model:', config.ollama.visionModel);
-            logger.debug('[DEBUG] Prompt length:', prompt.length);
+            // Debug logs removed for CI cleanliness; rely on higher-level info logs when needed
             const imageList = Array.isArray(base64Image) ? base64Image.filter(Boolean) : [base64Image];
             const imageBytes = imageList.reduce((total, img) => total + (img ? img.length : 0), 0);
-            logger.debug('[DEBUG] Image count:', imageList.length);
-            logger.debug('[DEBUG] Image size:', imageBytes, 'bytes');
 
             const visionOptions = {
                 num_ctx: options.num_ctx || 32768,

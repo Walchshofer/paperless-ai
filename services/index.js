@@ -138,11 +138,19 @@ try {
  * @param {Object} options - Initialization options
  * @returns {Object} Initialized service references
  */
+
+
 function initializeExpertPipeline(options = {}) {
     const initStart = Date.now();
     
     logger.info('Initializing Expert Pipeline services...');
     
+    // Register builtin prompts unless explicitly disabled
+    if (options.registerBuiltinPrompts !== false) {
+        promptRegistry._registerBuiltinPrompts();
+        logger.info(`Built-in prompts registered: ${promptRegistry.list().length}`);
+    }
+
     // Register medical prompts if enabled
     if (options.enableMedical !== false) {
         registerMedicalPrompts(promptRegistry);
@@ -157,7 +165,7 @@ function initializeExpertPipeline(options = {}) {
     for (const pipeline of pipelines) {
         logger.debug(`Pipeline ${pipeline.id}:`, {
             name: pipeline.name,
-            stages: pipeline.stages.length,
+            stages: pipeline.stageCount,
             domain: pipeline.domain
         });
     }

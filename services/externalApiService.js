@@ -1,5 +1,6 @@
 const axios = require('axios');
 const config = require('../config/config');
+const logger = require('./logger');
 
 /**
  * Service for fetching data from external APIs to enrich AI prompts
@@ -13,7 +14,7 @@ class ExternalApiService {
     try {
       // Check if external API integration is enabled
       if (!config.externalApiConfig || config.externalApiConfig.enabled !== 'yes') {
-        console.log('[DEBUG] External API integration is disabled');
+        logger.debug('External API integration is disabled');
         return null;
       }
 
@@ -78,7 +79,7 @@ class ExternalApiService {
           // Create a safe transform function
           const transformFn = new Function('data', transform);
           data = transformFn(data);
-          console.log('[DEBUG] Successfully transformed external API data');
+          logger.debug('Successfully transformed external API data');
         } catch (error) {
           console.error('[ERROR] Failed to execute transform function:', error.message);
         }

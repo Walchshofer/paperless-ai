@@ -471,6 +471,9 @@ class ResultMerger {
             merged.expert_extraction = expertData;
             merged.pipeline_id = expertResult.pipeline_id;
             merged.confidence = expertResult.metadata?.confidence || 0;
+
+            // Propagate classification if provided by expert
+            merged.classification = expertResult.result?.classification || expertResult.classification || merged.classification;
         }
         
         merged._merge_strategy = 'expert_priority';
@@ -490,6 +493,9 @@ class ResultMerger {
             merged.expert_supplement = expertResult.result.primary_output;
             merged.expert_confidence = expertResult.metadata?.confidence || 0;
         }
+
+        // Propagate classification if provided
+        merged.classification = expertResult.result?.classification || expertResult.classification || merged.classification;
         
         merged._merge_strategy = 'legacy_priority';
         merged._merge_timestamp = new Date().toISOString();
@@ -803,6 +809,33 @@ class DocumentProcessor {
                     break;
             }
             
+            // If pipeline did not complete successfully, decide whether to error or fallback
+            // _processExpertPipeline returns a simplified object; the full execution result is wrapped in _expert_result
+            const executorResult = result._expert_result || result;
+            console.log('DEBUG: executorResult status ->', executorResult && executorResult.status);
+            console.log('DEBUG: pipeline result keys ->', result && Object.keys(result || {}), 'pipeline_id:', result && result.pipeline_id);
+            if (executorResult.status !== 'success') {
+                // If fallback allowed, let the outer catch block handle it
+                if (this.config.features.enableFallbackToLegacy) {
+                    throw new Error('Pipeline did not complete successfully');
+                }
+
+                // Otherwise return a failure
+                const errMsg = executorResult.quality?.errors?.[0]?.error || 'Pipeline failed';
+                logger.error('Pipeline processing failed', { error: errMsg, pipelineId: executorResult.pipeline_id });
+                return {
+                    success: false,
+                    error: errMsg,
+                    result: result,
+                    metadata: {
+                        processingMode: processingMode,
+                        pipelineId: executorResult.pipeline_id,
+                        confidence: result.confidence,
+                        processingTimeMs: Date.now() - startTime
+                    }
+                };
+            }
+
             // Convert to paperless format
             const paperlessResult = ResultMerger.toPaperlessFormat(
                 result,

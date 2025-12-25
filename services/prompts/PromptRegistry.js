@@ -80,12 +80,12 @@ const MODEL_NAMES = Object.freeze({
     // Legal expert mapping -> Dragon finance reasoning model
     legalExpert: process.env.LEGAL_EXPERT_MODEL || 'dragon-finance:latest',
 
-    // Advanced tier - Reasoning models (default to dragon-finance)
-    dragon: process.env.DRAGON_MODEL || 'dragon-finance:latest',
+    // Advanced tier - Reasoning models (no default; configurable)
+    dragon: process.env.DRAGON_MODEL || null,
     gptOss: process.env.GPT_OSS_MODEL || null,
 
-    // Infrastructure tier - Orchestration and embeddings
-    orchestrator: process.env.ORCHESTRATOR_MODEL || 'nemotron-manager:latest',
+    // Infrastructure tier - Orchestration and embeddings (no default)
+    orchestrator: process.env.ORCHESTRATOR_MODEL || null,
     embeddingModel: process.env.EMBEDDING_MODEL || 'nomic-embed-text-v1.5',
     visualRetrieval: process.env.VISUAL_RETRIEVAL_MODEL || null,
 
@@ -162,7 +162,7 @@ const SYS_ROUTER_V1 = {
     modelType: ModelType.MULTIMODAL,
     
     systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-You are an expert Document Classification System. Your role is to analyze document images and determine their domain, type, and appropriate processing pipeline.
+You are an expert document classifier. Your role is to analyze document images and determine their domain, type, and appropriate processing pipeline.
 
 CLASSIFICATION DOMAINS:
 - Medical: Clinical documents, prescriptions, lab results, imaging studies, insurance claims
@@ -1053,9 +1053,6 @@ class PromptRegistry {
     constructor() {
         this.prompts = new Map();
         this.modelRegistry = ModelRegistry;
-        
-        // Register all built-in prompts
-        this._registerBuiltinPrompts();
     }
     
     _registerBuiltinPrompts() {
@@ -1074,18 +1071,69 @@ class PromptRegistry {
     /**
      * Register a new prompt template
      */
-    register(prompt) {
-        const userTemplate = prompt.userTemplate || prompt.userPromptTemplate;
-        if (!prompt.id || !prompt.systemPrompt || !userTemplate) {
-            throw new Error(`Invalid prompt registration: missing required fields`);
+    register(prompt, opts = {}) {
+        const userTemplate = prompt && (prompt.userTemplate || prompt.userPromptTemplate);
+        if (!prompt || !prompt.id || !prompt.systemPrompt || !userTemplate) {
+            throw new Error('Missing required field');
         }
+
+        // If prompt already exists, handle according to overwrite flag and content equality
+        if (this.prompts.has(prompt.id)) {
+            const existing = this.prompts.get(prompt.id);
+
+            // Normalization helper for user templates
+            const _normalize = (t) => (t || '').replace(/\r\n/g, '\n').replace(/\s+/g, ' ').trim();
+
+            // Build canonical representations (exclude registeredAt)
+            const canonicalize = (obj) => {
+                // Deep clone via JSON to avoid mutating originals
+                const copy = JSON.parse(JSON.stringify(obj));
+                if (copy.userTemplate) copy.userTemplate = _normalize(copy.userTemplate);
+                if (copy.userPromptTemplate) copy.userPromptTemplate = _normalize(copy.userPromptTemplate);
+                delete copy.registeredAt;
+
+                // Recursively sort keys to make stringify deterministic
+                const sortKeys = (v) => {
+                    if (Array.isArray(v)) return v.map(sortKeys);
+                    if (v && typeof v === 'object') {
+                        return Object.keys(v).sort().reduce((acc, k) => {
+                            acc[k] = sortKeys(v[k]);
+                            return acc;
+                        }, {});
+                    }
+                    return v;
+                };
+
+                return JSON.stringify(sortKeys(copy));
+            };
+
+            const existingCanonical = canonicalize(existing);
+
+            // Ensure new prompt uses normalized userTemplate for comparison
+            const newPromptForCompare = Object.assign({}, prompt, { userTemplate: _normalize(userTemplate) });
+            const newCanonical = canonicalize(newPromptForCompare);
+
+            if (existingCanonical === newCanonical) {
+                // Identical (ignoring registeredAt) -> idempotent: skip re-registration
+                logger.debug(`Prompt ${prompt.id} already registered with identical properties; skipping`);
+                return;
+            }
+
+            if (!opts.overwrite) {
+                throw new Error(`Prompt with id ${prompt.id} already registered`);
+            }
+            // else allow overwrite to proceed
+        }
+
+        // Store normalized userTemplate for consistency
+        const normalizedTemplate = (userTemplate || '').replace(/\r\n/g, '\n').replace(/\s+/g, ' ').trim();
 
         this.prompts.set(prompt.id, {
             ...prompt,
-            userTemplate,
+            userTemplate: normalizedTemplate,
             registeredAt: Date.now()
         });
-        
+
         logger.debug(`Registered prompt: ${prompt.id} (${prompt.domain})`);
     }
     
@@ -1171,12 +1219,20 @@ class PromptRegistry {
         const prompt = this.get(promptId);
         const messages = [];
         
-        // System message
+        // System message with variable substitution
+        let systemContent = prompt.systemPrompt || '';
+        for (const [key, value] of Object.entries(variables)) {
+            const placeholder = `{{${key}}}`;
+            systemContent = systemContent.replace(new RegExp(placeholder, 'g'), String(value));
+        }
+        // Handle any unsubstituted variables in system prompt
+        systemContent = systemContent.replace(/\{\{[^}]+\}\}/g, 'N/A');
+
         messages.push({
             role: 'system',
-            content: prompt.systemPrompt
+            content: systemContent
         });
-        
+
         // User message with variable substitution
         let userContent = prompt.userTemplate || prompt.userPromptTemplate || '';
         for (const [key, value] of Object.entries(variables)) {
@@ -1192,8 +1248,9 @@ class PromptRegistry {
             content: userContent
         };
         
-        // Add image for multimodal prompts
-        if (prompt.modelType === ModelType.MULTIMODAL && imageData) {
+        // Add image for multimodal prompts (accept either modelType or model alias)
+        const isMultimodal = (prompt.modelType === ModelType.MULTIMODAL) || (prompt.model === ModelType.MULTIMODAL);
+        if (isMultimodal && imageData) {
             userMessage.images = Array.isArray(imageData) ? imageData : [imageData];
         }
         

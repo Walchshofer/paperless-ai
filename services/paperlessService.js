@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { parse, isValid, parseISO, format } = require('date-fns');
 const FieldMatcher = require('./FieldMatcher');
+const logger = require('./logger');
 
 class PaperlessService {
   constructor() {
@@ -40,7 +41,7 @@ class PaperlessService {
         return Buffer.from(response.data);
       }
       
-      console.warn(`[DEBUG] No thumbnail data for document ${documentId}`);
+      logger.warn(`No thumbnail data for document ${documentId}`);
       return null;
     } catch (error) {
       console.error(`[ERROR] fetching thumbnail for document ${documentId}:`, error.message);
@@ -232,7 +233,7 @@ class PaperlessService {
   // Lädt alle existierenden Tags
   async refreshTagCache() {
       try {
-        console.log('[DEBUG] Refreshing tag cache...');
+        logger.debug('Refreshing tag cache...');
         this.tagCache.clear();
         let nextUrl = '/tags/';
         while (nextUrl) {
@@ -266,7 +267,7 @@ class PaperlessService {
               }
 
               nextUrl = relativePath + nextUrlObj.search;
-              console.log('[DEBUG] Next page URL:', nextUrl);
+              logger.debug(`Next page URL: ${nextUrl}`);
             } catch (e) {
               console.error('[ERROR] Failed to parse next URL:', e.message);
               nextUrl = null;
@@ -276,7 +277,7 @@ class PaperlessService {
           }
         }
         this.lastTagRefresh = Date.now();
-        console.log(`[DEBUG] Tag cache refreshed. Found ${this.tagCache.size} tags.`);
+        logger.debug(`Tag cache refreshed. Found ${this.tagCache.size} tags.`);
       } catch (error) {
         console.error('[ERROR] refreshing tag cache:', error.message);
         throw error;
@@ -314,7 +315,7 @@ class PaperlessService {
         }
       });
       const newField = response.data;
-      console.log(`[DEBUG] Successfully created custom field "${fieldName}" with ID ${newField.id}`);
+      logger.debug(`Successfully created custom field "${fieldName}" with ID ${newField.id}`);
       this.customFieldCache.set(fieldName.toLowerCase(), newField);
       this._refreshFieldMatcher();
       return newField;
@@ -333,7 +334,7 @@ class PaperlessService {
   async getExistingCustomFields(documentId) {
     try {
       const response = await this.client.get(`/documents/${documentId}/`);
-      console.log('[DEBUG] Document response custom fields:', response.data.custom_fields);
+      logger.debug(`Document response custom fields: ${JSON.stringify(response.data.custom_fields)}`);
       return response.data.custom_fields || [];
     } catch (error) {
       console.error(`[ERROR] fetching document ${documentId}:`, error.message);
@@ -348,7 +349,7 @@ class PaperlessService {
     
     const cachedField = this.customFieldCache.get(normalizedName);
     if (cachedField) {
-      console.log(`[DEBUG] Found custom field "${fieldName}" in cache with ID ${cachedField.id}`);
+      logger.debug(`Found custom field "${fieldName}" in cache with ID ${cachedField.id}`);
       return cachedField;
     }
 
@@ -370,7 +371,7 @@ class PaperlessService {
 
   async refreshCustomFieldCache() {
       try {
-        console.log('[DEBUG] Refreshing custom field cache...');
+        logger.debug('Refreshing custom field cache...');
         this.customFieldCache.clear();
         let nextUrl = '/custom_fields/';
         while (nextUrl) {
@@ -404,7 +405,7 @@ class PaperlessService {
               }
 
               nextUrl = relativePath + nextUrlObj.search;
-              console.log('[DEBUG] Next page URL:', nextUrl);
+              logger.debug(`Next page URL: ${nextUrl}`);
             } catch (e) {
               console.error('[ERROR] Failed to parse next URL:', e.message);
               nextUrl = null;
@@ -415,7 +416,7 @@ class PaperlessService {
         }
         this._refreshFieldMatcher();
         this.lastCustomFieldRefresh = Date.now();
-        console.log(`[DEBUG] Custom field cache refreshed. Found ${this.customFieldCache.size} fields.`);
+        logger.debug(`Custom field cache refreshed. Found ${this.customFieldCache.size} fields.`);
       } catch (error) {
         console.error('[ERROR] refreshing custom field cache:', error.message);
         throw error;
@@ -429,7 +430,7 @@ class PaperlessService {
     // 1. Zuerst im Cache suchen
     const cachedTag = this.tagCache.get(normalizedName);
     if (cachedTag) {
-      console.log(`[DEBUG] Found tag "${tagName}" in cache with ID ${cachedTag.id}`);
+      logger.debug(`Found tag "${tagName}" in cache with ID ${cachedTag.id}`);
       return cachedTag;
     }
 
@@ -443,7 +444,7 @@ class PaperlessService {
 
       if (response.data.results.length > 0) {
         const foundTag = response.data.results[0];
-        console.log(`[DEBUG] Found existing tag "${tagName}" via API with ID ${foundTag.id}`);
+        logger.debug(`Found existing tag "${tagName}" via API with ID ${foundTag.id}`);
         this.tagCache.set(normalizedName, foundTag);
         return foundTag;
       }
@@ -461,7 +462,7 @@ class PaperlessService {
       // Versuche zuerst, den Tag zu erstellen
       const response = await this.client.post('/tags/', { name: tagName });
       const newTag = response.data;
-      console.log(`[DEBUG] Successfully created tag "${tagName}" with ID ${newTag.id}`);
+      logger.debug(`Successfully created tag "${tagName}" with ID ${newTag.id}`);
       this.tagCache.set(normalizedName, newTag);
       return newTag;
     } catch (error) {
@@ -828,11 +829,11 @@ class PaperlessService {
       }
       
       if (tagIds.length === 0) {
-        console.warn('[DEBUG] None of the specified tags were found');
+        logger.warn('None of the specified tags were found');
         return [];
       }
       
-      console.log('[DEBUG] Filtering documents for tag IDs:', tagIds);
+      logger.debug('Filtering documents for tag IDs: %o', tagIds);
     }
 
     while (hasMore) {
@@ -855,7 +856,7 @@ class PaperlessService {
         const response = await this.client.get('/documents/', { params });
         
         if (!response?.data?.results || !Array.isArray(response.data.results)) {
-          console.error(`[DEBUG] Invalid API response on page ${page}`);
+          logger.error(`Invalid API response on page ${page}`);
           break;
         }
 
@@ -863,24 +864,21 @@ class PaperlessService {
         hasMore = response.data.next !== null;
         page++;
 
-        console.log(
-          `[DEBUG] Fetched page ${page-1}, got ${response.data.results.length} documents. ` +
-          `[DEBUG] Total so far: ${documents.length}`
-        );
+        logger.debug(`Fetched page ${page-1}, got ${response.data.results.length} documents. Total so far: ${documents.length}`);
 
         // Kleine Verzögerung um die API nicht zu überlasten
         await new Promise(resolve => setTimeout(resolve, 100));
 
       } catch (error) {
-        console.error(`[ERROR]  fetching documents page ${page}:`, error.message);
+        logger.error(`Error fetching documents page ${page}: ${error.message}`);
         if (error.response) {
-          console.error('[ERROR] Response status:', error.response.status);
+          logger.error('Response status: %s', error.response.status);
         }
         break;
       }
     }
 
-    console.log(`[DEBUG] Finished fetching. Found ${documents.length} documents.`);
+    logger.debug(`Finished fetching. Found ${documents.length} documents.`);
     return documents;
 }
 
@@ -947,11 +945,11 @@ class PaperlessService {
       }
       
       if (tagIds.length === 0) {
-        console.warn('[DEBUG] None of the specified tags were found');
+        logger.warn('None of the specified tags were found');
         return [];
       }
       
-      console.log('[DEBUG] Filtering documents for tag IDs:', tagIds);
+      logger.debug('Filtering documents for tag IDs: %o', tagIds);
     }
 
     while (hasMore) {
@@ -965,7 +963,7 @@ class PaperlessService {
         const response = await this.client.get('/documents/', { params });
         
         if (!response?.data?.results || !Array.isArray(response.data.results)) {
-          console.error(`[ERROR] Invalid API response on page ${page}`);
+          logger.error(`Invalid API response on page ${page}`);
           break;
         }
 
@@ -973,10 +971,7 @@ class PaperlessService {
         hasMore = response.data.next !== null;
         page++;
 
-        console.log(
-          `[DEBUG] Fetched page ${page-1}, got ${response.data.results.length} documents. ` +
-          `[DEBUG] Total so far: ${documents.length}`
-        );
+        logger.debug(`Fetched page ${page-1}, got ${response.data.results.length} documents. Total so far: ${documents.length}`);
 
         // Kleine Verzögerung um die API nicht zu überlasten
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -1342,7 +1337,7 @@ async getOrCreateDocumentType(name) {
     if (!this.client) return;
   
     try {
-      console.log(`[DEBUG] Removing unused tags from document ${documentId}, keeping tags:`, keepTagIds);
+      logger.debug('Removing unused tags from document %s, keeping tags: %o', documentId, keepTagIds);
       
       // Hole aktuelles Dokument
       const currentDoc = await this.getDocument(documentId);
@@ -1351,7 +1346,7 @@ async getOrCreateDocumentType(name) {
       const tagsToRemove = currentDoc.tags.filter(tagId => !keepTagIds.includes(tagId));
       
       if (tagsToRemove.length === 0) {
-        console.log('[DEBUG] No tags to remove');
+        logger.debug('No tags to remove');
         return currentDoc;
       }
   
@@ -1362,7 +1357,7 @@ async getOrCreateDocumentType(name) {
   
       // Führe das Update durch
       await this.client.patch(`/documents/${documentId}/`, updateData);
-      console.log(`[DEBUG] Successfully removed ${tagsToRemove.length} tags from document ${documentId}`);
+      logger.debug('Successfully removed %d tags from document %s', tagsToRemove.length, documentId);
       
       return await this.getDocument(documentId);
     } catch (error) {
@@ -1397,7 +1392,7 @@ async getOrCreateDocumentType(name) {
             //filter for username by process.env.PAPERLESS_USERNAME
             const user = userInfo.find(user => user.username === process.env.PAPERLESS_USERNAME);
             if (user) {
-                console.log(`[DEBUG] Found own user ID: ${user.id}`);
+                logger.debug('Found own user ID: %s', user.id);
                 return user.id;
             }
         }
@@ -1439,19 +1434,19 @@ async getOrCreateDocumentType(name) {
       const currentDoc = await this.getDocument(documentId);
       
       if (updates.tags) {
-        console.log(`[DEBUG] Current tags for document ${documentId}:`, currentDoc.tags);
-        console.log(`[DEBUG] Adding new tags:`, updates.tags);
-        console.log(`[DEBUG] Current correspondent:`, currentDoc.correspondent);
-        console.log(`[DEBUG] New correspondent:`, updates.correspondent);
+        logger.debug('Current tags for document %s: %o', documentId, currentDoc.tags);
+        logger.debug('Adding new tags: %o', updates.tags);
+        logger.debug('Current correspondent: %o', currentDoc.correspondent);
+        logger.debug('New correspondent: %o', updates.correspondent);
                 
         const combinedTags = [...new Set([...currentDoc.tags, ...updates.tags])];
         updates.tags = combinedTags;
         
-        console.log(`[DEBUG] Combined tags:`, combinedTags);
+        logger.debug('Combined tags: %o', combinedTags);
       }
 
       if (currentDoc.correspondent && updates.correspondent) {
-        console.log('[DEBUG] Document already has a correspondent, keeping existing one:', currentDoc.correspondent);
+        logger.debug('Document already has a correspondent, keeping existing one: %o', currentDoc.correspondent);
         delete updates.correspondent;
       }
 
@@ -1510,13 +1505,13 @@ async getOrCreateDocumentType(name) {
         console.warn(`[WARN] Title truncated to 128 characters for document ${documentId}`);
       }
       
-      console.log('[DEBUG] Final update data:', updateData);
+      logger.debug('Final update data: %o', updateData);
       await this.client.patch(`/documents/${documentId}/`, updateData);
-      console.log(`[SUCCESS] Updated document ${documentId} with:`, updateData);
+      logger.info('Updated document %s with: %o', documentId, updateData);
       return await this.getDocument(documentId);
     } catch (error) {
-      console.log(error);
-      console.error(`[ERROR] updating document ${documentId}:`, error.message);
+      logger.error(error);
+      logger.error(`Error updating document ${documentId}: %s`, error.message);
       return null;
     }
   }
