@@ -222,9 +222,14 @@ module.exports = {
     },
 
     _sanitizeRepairText(rawText) {
-        let cleaned = rawText;
-        cleaned = cleaned.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+        let cleaned = rawText || '';
+        // Strip Dragon/Claude/other reasoning tags and their contents
+        cleaned = cleaned.replace(/<\s*(think|thinking|reasoning)[^>]*>[\s\S]*?<\/\s*(think|thinking|reasoning)\s*>/gi, '');
+        // Replace known large arrays in JSON-like text
         cleaned = cleaned.replace(/"(context|embedding|embeddings)"\s*:\s*\[[\s\S]*?\]/gi, '"$1":"[OMITTED_ARRAY]"');
+        // Heuristic: replace very large arrays anywhere with a placeholder
+        cleaned = cleaned.replace(/\[[\s\S]{200,}\]/g, '[OMITTED_ARRAY]');
+        // Numeric arrays with many elements get a special placeholder
         cleaned = cleaned.replace(/\[(?:\s*-?\d+(?:\.\d+)?\s*,){50,}\s*-?\d+(?:\.\d+)?\s*\]/g, '[OMITTED_NUMERIC_ARRAY]');
         if (cleaned.length > 12000) {
             cleaned = `${cleaned.substring(0, 12000)}... [truncated ${cleaned.length} chars]`;

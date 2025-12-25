@@ -413,8 +413,9 @@ RULES:
     buildJsonRepairPrompt(rawText) {
         return `Extract the valid JSON object from the text below.
 Rules:
-- Ignore any <thinking> blocks or non-JSON content.
+- Ignore any <thinking>, <think>, or <reasoning> blocks or non-JSON content.
 - Return ONLY the JSON object (no markdown, no commentary).
+- Do NOT include Markdown code fences (```json or ```) in your output; provide raw JSON only.
 - If multiple JSON objects appear, return the most complete one.
 
 TEXT:
