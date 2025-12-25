@@ -38,7 +38,8 @@ const config = require('../../config/config');
 const { DomainType, ModelType } = require('../prompts/PromptRegistry');
 
 const MODEL_NAMES = Object.freeze({
-    router: process.env.ROUTER_MODEL || config.ollama?.visionModel || 'qwen3-vl:8b',
+    // Primary orchestration/router model
+    router: process.env.ROUTER_MODEL || config.ollama?.visionModel || 'nemotron-manager:latest',
 
     // Medical models: prefer explicit MEDICAL_* env vars, then config.expertModels entries, then ollama defaults
     medicalImaging: process.env.MEDICAL_VISION_MODEL || config.expertModels?.medical?.vision || config.ollama?.visionModel || 'llava-med-v1.5',
@@ -46,16 +47,19 @@ const MODEL_NAMES = Object.freeze({
     medicalRadiology: process.env.MEDICAL_RADIOLOGY_MODEL || config.expertModels?.medical?.radiology || config.ollama?.visionModel || 'llava-med-v1.5',
 
     // Financial models: prefer FINANCIAL_* env vars, then config.expertModels entries, then finance defaults, then ollama defaults
-    financeReasoning: process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || 'fino1-8b' || config.ollama?.model,
-    financeGeneral: process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || 'llm-pro-finance-8b' || config.ollama?.visionModel,
-    vatExpert: process.env.VAT_EXPERT_MODEL || process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || 'llm-pro-finance-8b' || config.ollama?.visionModel,
+    financeReasoning: process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || config.ollama?.model || 'fino1-8b',
+    financeGeneral: process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || config.ollama?.visionModel || 'llm-pro-finance-8b',
+    vatExpert: process.env.VAT_EXPERT_MODEL || process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || config.ollama?.visionModel || 'dragon-finance:latest',
 
-    // Advanced tier - Reasoning models (optional, feature-flagged)
-    dragon: process.env.DRAGON_MODEL || null,
+    // Legal expert mapping -> Dragon finance reasoning model
+    legalExpert: process.env.LEGAL_EXPERT_MODEL || 'dragon-finance:latest',
+
+    // Advanced tier - Reasoning models
+    dragon: process.env.DRAGON_MODEL || 'dragon-finance:latest',
     gptOss: process.env.GPT_OSS_MODEL || null,
 
     // Infrastructure tier - Orchestration and embeddings
-    orchestrator: process.env.ORCHESTRATOR_MODEL || null,
+    orchestrator: process.env.ORCHESTRATOR_MODEL || 'nemotron-manager:latest',
     embeddingModel: process.env.EMBEDDING_MODEL || 'nomic-embed-text-v1.5',
     visualRetrieval: process.env.VISUAL_RETRIEVAL_MODEL || null,
 
@@ -356,9 +360,11 @@ const FinancialPipeline = {
             modelType: ModelType.TEXT_ONLY,
             executionMode: ExecutionMode.CONDITIONAL,
             condition: {
-                field: 'context.vat_context',
-                operator: 'not_empty'
+                field: 'context.vat_complex',
+                operator: 'equals',
+                value: true
             },
+            injectVatContext: true,
             inputMapping: {
                 vat_context: 'context.vat_context',
                 text_chunk: 'document.ocr_text'
@@ -367,6 +373,8 @@ const FinancialPipeline = {
             timeout: 45000,
             retryCount: 1
         },
+
+
         {
             id: 'financial_validation',
             name: 'Financial Validation',
@@ -432,13 +440,32 @@ const LegalPipeline = {
     
     stages: [
         {
+            id: 'legal_orchestrator',
+            name: 'Legal Orchestrator',
+            type: StageType.CLASSIFICATION,
+            promptId: 'LEGAL_ORCHESTRATOR_V1',
+            model: MODEL_NAMES.router,
+            modelType: ModelType.TEXT_ONLY,
+            executionMode: ExecutionMode.SEQUENTIAL,
+            inputMapping: {
+                text_chunk: 'document.ocr_text',
+                filename: 'document.filename',
+                source_system: 'document.source'
+            },
+            outputKey: 'legal_orchestration',
+            timeout: 15000,
+            retryCount: 1,
+            unloadAfter: true
+        },
+        {
             id: 'legal_extraction',
             name: 'Legal Text Extraction',
             type: StageType.TEXT_EXTRACTION,
-            promptId: 'GEN_FALLBACK_V1',  // TODO: Replace with LEGAL_EXTRACTOR_V1
-            model: MODEL_NAMES.general,
+            promptId: 'LEGAL_EXTRACTOR_V1',
+            model: MODEL_NAMES.legalExpert,
             modelType: ModelType.TEXT_ONLY,
             executionMode: ExecutionMode.SEQUENTIAL,
+            injectLegalContext: true,
             inputMapping: {
                 text_chunk: 'document.ocr_text',
                 filename: 'document.filename',
