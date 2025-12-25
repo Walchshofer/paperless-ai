@@ -76,26 +76,33 @@ module.exports = {
   ollama: {
     apiUrl: process.env.OLLAMA_API_URL || 'http://localhost:11434',
     model: process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b',
+    repairModel: process.env.OLLAMA_REPAIR_MODEL || 'sauerkraut-llama3.1:8b',
     visionModel: process.env.OLLAMA_VISION_MODEL || 'qwen3-vl:8b',
     visionKeepAlive: process.env.VISION_KEEP_ALIVE || '5m',
-    textKeepAlive: process.env.TEXT_KEEP_ALIVE || '2m'
+    textKeepAlive: process.env.TEXT_KEEP_ALIVE || '2m',
+    routerKeepAlive: process.env.ROUTER_KEEP_ALIVE || '5m'
   },
   expertModels: {
     medical: {
-      vision: process.env.MEDICAL_VISION_MODEL || 'qwen3-vl:8b',
-      analysis: process.env.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3',
-      radiology: process.env.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.5'
+      vision: process.env.MEDICAL_VISION_MODEL || 'llava-med-v1.5',
+      analysis: process.env.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3'
     },
     financial: {
-      vision: process.env.FINANCIAL_VISION_MODEL || 'llm-pro-finance-8b',
-      analysis: process.env.FINANCIAL_ANALYSIS_MODEL || 'fino1-8b'
+      analysis: process.env.FINANCIAL_ANALYSIS_MODEL || 'fino1-8b',
+      vatExpert: process.env.FINANCIAL_VAT_EXPERT || 'dragon-finance:latest'
     },
     legal: {
-      vision: process.env.LEGAL_VISION_MODEL || '',
-      analysis: process.env.LEGAL_ANALYSIS_MODEL || ''
+      analysis: process.env.LEGAL_ANALYSIS_MODEL || 'dragon-finance:latest',
+      orchestrator: process.env.LEGAL_ORCHESTRATOR_MODEL || 'nemotron-manager:latest'
     }
   },
   expertPipelineEnabled: parseEnvBoolean(process.env.EXPERT_PIPELINE_ENABLED, 'yes'),
+  vatRag: {
+    corpusPath: path.join(currentDir, 'data', 'austrian_vat')
+  },
+  legalRag: {
+    corpusPath: path.join(currentDir, 'data', 'legal_corpus')
+  },
   custom: {
     apiUrl: process.env.CUSTOM_BASE_URL || '',
     apiKey: process.env.CUSTOM_API_KEY || '',
