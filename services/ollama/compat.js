@@ -1,4 +1,5 @@
 const { calculateTokens, truncateToTokenLimit, writePromptToFile } = require('./utils');
+const logger = require('../logger');
 
 module.exports = {
     // Legacy compatibility stubs
@@ -18,6 +19,7 @@ module.exports = {
             return response.data;
         } catch (error) {
             if (error?.response?.status !== 404) {
+                logger.error('Ollama chat API error', { error: error.message });
                 throw error;
             }
 

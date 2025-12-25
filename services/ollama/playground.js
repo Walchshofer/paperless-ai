@@ -1,4 +1,5 @@
 const { calculateTokens } = require('./utils');
+const logger = require('../logger');
 
 module.exports = {
     async analyzePlayground(content, prompt) {
@@ -23,7 +24,7 @@ module.exports = {
 
             // Check for missing data
             if (parsedResponse.tags.length === 0 && parsedResponse.correspondent === null) {
-                console.warn('No tags or correspondent found in response from Ollama. Review your prompt or switch to OpenAI.');
+                logger.warn('No tags or correspondent found in response from Ollama. Review your prompt or switch to OpenAI.');
             }
 
             // Return results in consistent format
@@ -37,7 +38,7 @@ module.exports = {
                 truncated: false
             };
         } catch (error) {
-            console.error('Error analyzing document with Ollama:', error);
+            logger.error('Error analyzing document with Ollama:', error);
             return {
                 document: this._emptyDocument(),
                 metrics: null,
@@ -75,7 +76,7 @@ module.exports = {
 
             return response.data.response;
         } catch (error) {
-            console.error('Error generating text with Ollama:', error);
+            logger.error('Error generating text with Ollama:', error);
             throw error;
         }
     }

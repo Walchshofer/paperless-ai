@@ -4,7 +4,7 @@
   "description": "AI based Tag, correspondent and meta data generation",
   "main": "server.js",
   "scripts": {
-    "test": "nodemon server.js"
+    "test": "mocha test/**/*.test.js --timeout 30000 --reporter spec"
   },
   "keywords": [
     "paperless-ngx",
@@ -58,6 +58,7 @@
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-jsdoc": "^50.6.3",
     "globals": "^16.0.0",
+    "mocha": "^11.7.5",
     "prettier": "^3.5.3"
   },
   "pnpm": {

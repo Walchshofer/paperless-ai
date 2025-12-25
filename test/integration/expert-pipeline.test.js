@@ -440,7 +440,7 @@ describe('Expert Pipeline', function() {
                         {
                             id: 'extract',
                             type: 'extraction',
-                            model: 'llama3.2:latest',
+                            model: 'sauerkraut-llama3.1:8b',
                             promptId: 'TEST_EXTRACT_V1'
                         }
                     ],

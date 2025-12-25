@@ -20,9 +20,16 @@ const cookieParser = require('cookie-parser');
 const { authenticateJWT, isAuthenticated } = require('./auth.js');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const customService = require('../services/customService.js');
-const expertRegistry = require('../services/ExpertRegistry');
+const { expertRegistry } = require('../services/experts/ExpertRegistry');
 const config = require('../config/config.js');
 require('dotenv').config({ path: '../data/.env' });
+
+// Simple in-memory cache for expert models to avoid frequent registry scans
+const _expertModelsCache = {
+  models: null,
+  ts: 0
+};
+const EXPERT_MODELS_CACHE_TTL_MS = parseInt(process.env.EXPERT_MODELS_CACHE_TTL_MS, 10) || 10000; // 10s default
 
 /**
  * @swagger
@@ -1016,16 +1023,42 @@ router.get('/api/ollama/models', async (req, res) => {
     }
 
     const models = await ollamaService.listModels();
-    const expertModels = expertRegistry.getActiveExperts().flatMap(expert => (
-      Object.entries(expert.models || {})
-        .filter(([, model]) => model)
-        .map(([stage, model]) => ({
+
+    // Build expert models list from canonical registry (pipeline-centric)
+    let expertModels = null;
+    const now = Date.now();
+
+    if (_expertModelsCache.models && (now - _expertModelsCache.ts) < EXPERT_MODELS_CACHE_TTL_MS) {
+      expertModels = _expertModelsCache.models;
+    } else {
+      const activePipelines = expertRegistry.list();
+
+      // Create entries per (pipeline, model)
+      const entries = activePipelines.flatMap(pipeline => {
+        const requiredModels = expertRegistry.getRequiredModels(pipeline.id);
+        return requiredModels.map(model => ({
           model,
-          label: `${expert.domain} ${stage}`,
-          domain: expert.domain,
-          stage
-        }))
-    ));
+          label: `${pipeline.domain} extraction`,
+          domain: pipeline.domain,
+          stage: 'extraction',
+          pipelineId: pipeline.id,
+          pipelineName: pipeline.name
+        }));
+      });
+
+      // Deduplicate by model string while preserving first-seen order
+      const seen = new Set();
+      expertModels = [];
+      for (const e of entries) {
+        if (!seen.has(e.model)) {
+          seen.add(e.model);
+          expertModels.push(e);
+        }
+      }
+
+      _expertModelsCache.models = expertModels;
+      _expertModelsCache.ts = now;
+    }
 
     res.json({
       provider,

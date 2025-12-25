@@ -711,7 +711,7 @@ app.get('/api/duplicates/check/:documentId', (req, res) => {
 });
 
 app.get('/api/experts/status', (req, res) => {
-  const expertRegistry = require('./services/ExpertRegistry');
+  const { expertRegistry } = require('./services/experts/ExpertRegistry');
   res.json(expertRegistry.getStatus());
 });
 

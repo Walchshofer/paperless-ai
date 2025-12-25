@@ -87,8 +87,8 @@ module.exports = {
       radiology: process.env.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.5'
     },
     financial: {
-      vision: process.env.FINANCIAL_VISION_MODEL || '',
-      analysis: process.env.FINANCIAL_ANALYSIS_MODEL || ''
+      vision: process.env.FINANCIAL_VISION_MODEL || 'llm-pro-finance-8b',
+      analysis: process.env.FINANCIAL_ANALYSIS_MODEL || 'fino1-8b'
     },
     legal: {
       vision: process.env.LEGAL_VISION_MODEL || '',
@@ -169,4 +169,41 @@ module.exports = {
     "language": "en/de/es/...",
     %CUSTOMFIELDS%
   }`,
+  // Model aliases for backward compatibility and flexibility
+  modelAliases: {
+    // Production tier - Medical models
+    'llava-med': 'llava-med-v1.5',
+    'llava-med-v1.5:latest': 'llava-med-v1.5',
+    'medtext': 'medtext-llama3',
+    'medtext-llama3:latest': 'medtext-llama3',
+    
+    // Production tier - Financial models
+    'fino1': 'fino1-8b',
+    'fino1-8b-q8': 'fino1-8b',
+    'llm-pro-finance': 'llm-pro-finance-8b',
+    
+    // Production tier - General models
+    'sauerkraut': 'sauerkraut-llama3.1:8b',
+    'llama3': 'llama3.2:latest',
+    'llama3.2': 'llama3.2:latest',
+    'llama3.1': 'sauerkraut-llama3.1:8b',
+    
+    // Production tier - Router
+    'qwen3-vl': 'qwen3-vl:8b',
+    'qwen3-vl:8B': 'qwen3-vl:8b',  // Case normalization
+    
+    // Advanced tier - Reasoning models
+    'dragon': 'dragon-finance',
+    'dragon-llm': 'dragon-finance',
+    'gpt-oss-20b': 'gpt-oss',
+    
+    // Infrastructure tier - Orchestration
+    'nemotron': 'nemotron-orchestrator:8b',
+    'orchestrator': 'nemotron-orchestrator:8b',
+    
+    // Infrastructure tier - Embeddings
+    'nomic-embed': 'nomic-embed-text-v1.5',
+    'tomoro': 'tomoro-colqwen3-embed-8b',
+    'colqwen3': 'tomoro-colqwen3-embed-8b'
+  }
 };

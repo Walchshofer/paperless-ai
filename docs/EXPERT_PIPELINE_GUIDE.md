@@ -45,7 +45,9 @@ The Expert Model Pipeline is a domain-specialized document processing system des
 | medtext-llama3 | ~8GB | Medical Text | ~6GB |
 | fino1-8b | ~8GB | Financial Reasoning (math-heavy) | ~6GB |
 | llm-pro-finance-8b | ~8GB | Financial Extraction (multilingual) | ~6GB |
-| llama3.2:latest | ~8GB | General Processing | ~6GB |
+| sauerkraut-llama3.1:8b | ~8GB | General Processing (German) | ~6GB |
+
+**Note:** For complete model specifications, aliases, tiers, and configuration, see [`docs/MODEL_INVENTORY.md`](MODEL_INVENTORY.md), [`docs/ENVIRONMENT_VARIABLES.md`](ENVIRONMENT_VARIABLES.md), and [`docs/MODEL_MIGRATION_GUIDE.md`](MODEL_MIGRATION_GUIDE.md).
 
 ---
 
@@ -75,7 +77,7 @@ The Expert Model Pipeline is a domain-specialized document processing system des
 │ │ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ │ │
 │ │ │ Medical │ │ Medical │ │ Financial │ │ General │ │ │
 │ │ │ Imaging │ │ Text │ │ Pipeline │ │ Pipeline │ │ │
-│ │ │ llava-med │ │ medtext │ │ llama3 │ │ llama3 │ │ │
+│ │ │ llava-med │ │ medtext │ │ sauerkraut │ │ sauerkraut │ │ │
 │ │ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ │ │
 │ └──────────────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -95,6 +97,8 @@ services/
 └── integration/
 └── DocumentProcessor.js # Main integration layer
 
+> **Note:** Deprecated root-level implementations `services/ExpertRegistry.js` and `services/ExpertPipelineExecutor.js` have been removed to avoid import shadowing. Use the canonical implementations under `services/experts/`. Reference implementations live in `future_implementations/services/experts/` for documentation and comparison purposes.
+
 yaml
 
 ---
@@ -104,14 +108,19 @@ yaml
 ### Step 1: Install Dependencies
 
 ```bash
-# Navigate to AI service directory
-cd paperless-ngx/ai-service
+# Navigate to project root
+cd paperless-ai
 
 # Install Node.js dependencies
 npm install
 
 # Verify installation
-npm test -- --grep "Expert Pipeline"
+npm test
+
+# Run specific test suites
+npm test -- --grep "PromptRegistry"    # Test prompt management
+npm test -- --grep "Model Resolution"  # Test model alias system
+npm test -- --grep "ExpertPipelineExecutor"  # Test pipeline execution
 
 Step 2: Pull Required Models
 bash
@@ -122,11 +131,11 @@ ollama pull qwen3-vl:8b
 ollama pull llava-med-v1.5:latest
 
 # Pull medical text model (if available, or use alternative)
-ollama pull medtext-llama3:latest
-# Alternative: ollama pull llama3.2:latest
+ollama pull medtext-llama3
+# Alternative: ollama pull sauerkraut-llama3.1:8b
 
 # Pull general model
-ollama pull llama3.2:latest
+ollama pull sauerkraut-llama3.1:8b
 
 # Verify models
 ollama list
@@ -170,12 +179,12 @@ OLLAMA_HOST=http://localhost:11434
 
 # Model names (customize if using different models)
 ROUTER_MODEL=qwen3-vl:8b
-MEDICAL_IMAGING_MODEL=llava-med-v1.5:latest
-MEDICAL_TEXT_MODEL=medtext-llama3:latest
-GENERAL_MODEL=llama3.2:latest
-FINANCE_REASONING_MODEL=fino1-8b
-FINANCE_GENERAL_MODEL=llm-pro-finance-8b
-VAT_EXPERT_MODEL=llm-pro-finance-8b
+MEDICAL_VISION_MODEL=llava-med-v1.5:latest
+MEDICAL_ANALYSIS_MODEL=medtext-llama3
+MEDICAL_RADIOLOGY_MODEL=llava-med-v1.5
+GENERAL_MODEL=sauerkraut-llama3.1:8b
+FINANCIAL_VISION_MODEL=llm-pro-finance-8b
+FINANCIAL_ANALYSIS_MODEL=fino1-8b
 
 # ============================================================================
 # PROCESSING CONFIGURATION
@@ -195,6 +204,36 @@ ENABLE_VAT_RAG=true
 VAT_RAG_DIR=./data/austrian_vat
 VAT_RAG_MAX_RESULTS=3
 VAT_RAG_MAX_EXCERPT_CHARS=800
+
+---
+
+## Configuration Reference
+
+| Category | Config Key | Environment Variable | Default | Description |
+|----------|------------|----------------------|---------|-------------|
+| **Expert Pipeline** | `expertPipelineEnabled` | `EXPERT_PIPELINE_ENABLED` | `'yes'` | Enable/disable expert pipeline |
+| **Medical Models** | `expertModels.medical.vision` | `MEDICAL_VISION_MODEL` | `'qwen3-vl:8b'` | Medical imaging analysis model |
+|  | `expertModels.medical.analysis` | `MEDICAL_ANALYSIS_MODEL` | `'medtext-llama3'` | Medical text analysis model |
+|  | `expertModels.medical.radiology` | `MEDICAL_RADIOLOGY_MODEL` | `'llava-med-v1.5'` | Radiology imaging model |
+| **Financial Models** | `expertModels.financial.vision` | `FINANCIAL_VISION_MODEL` | `'llm-pro-finance-8b'` | Financial document vision model |
+|  | `expertModels.financial.analysis` | `FINANCIAL_ANALYSIS_MODEL` | `'fino1-8b'` | Financial analysis model |
+| **Legal Models** | `expertModels.legal.vision` | `LEGAL_VISION_MODEL` | `''` | Legal document vision model |
+|  | `expertModels.legal.analysis` | `LEGAL_ANALYSIS_MODEL` | `''` | Legal analysis model |
+| **Ollama Service** | `ollama.apiUrl` | `OLLAMA_API_URL` | `'http://localhost:11434'` | Ollama API endpoint |
+|  | `ollama.model` | `OLLAMA_MODEL` | `'sauerkraut-llama3.1:8b'` | Default text model |
+|  | `ollama.visionModel` | `OLLAMA_VISION_MODEL` | `'qwen3-vl:8b'` | Default vision model |
+|  | `ollama.visionKeepAlive` | `VISION_KEEP_ALIVE` | `'5m'` | Vision model keep-alive duration |
+|  | `ollama.textKeepAlive` | `TEXT_KEEP_ALIVE` | `'2m'` | Text model keep-alive duration |
+
+**Note:** Model names support aliases for convenience. See `config.modelAliases` for the complete mapping. For complete environment variable documentation, see [`docs/ENVIRONMENT_VARIABLES.md`](ENVIRONMENT_VARIABLES.md).
+
+---
+
+*Notes*: This reference focuses on keys relevant to the expert pipeline. For full configuration, see `config/config.js` and the individual `routes/setup.js` defaults.
+
+### Model Ecosystem
+
+This is a summary of the three-tier model architecture. For the authoritative model inventory with all aliases, config keys, and usage locations, refer to [`docs/MODEL_INVENTORY.md`](MODEL_INVENTORY.md). For planned advanced tier integrations, see [`docs/MODEL_INTEGRATION_ROADMAP.md`](MODEL_INTEGRATION_ROADMAP.md).
 
 # ============================================================================
 # PERFORMANCE TUNING
@@ -220,8 +259,8 @@ const config = {
     models: {
         router: 'qwen3-vl:8b',
         medicalImaging: 'llava-med-v1.5:latest',
-        medicalText: 'medtext-llama3:latest',
-        general: 'llama3.2:latest',
+        medicalText: 'medtext-llama3',
+        general: 'sauerkraut-llama3.1:8b',
         financeReasoning: 'fino1-8b',
         financeGeneral: 'llm-pro-finance-8b',
         vatExpert: 'llm-pro-finance-8b'
@@ -417,7 +456,7 @@ Measurements
 Medical Text Pipeline (medical-text)
 Purpose: Process text-heavy medical documents (clinical notes, prescriptions, discharge summaries)
 
-Model: medtext-llama3:latest
+Model: medtext-llama3
 
 Stages:
 
@@ -439,7 +478,7 @@ Providers
 Financial Pipeline (financial)
 Purpose: Process financial documents (invoices, statements, tax forms)
 
-Model: llama3.2:latest
+Model: fino1-8b, llm-pro-finance-8b
 
 Routing Conditions:
 
@@ -454,7 +493,7 @@ Line items
 General Pipeline (general)
 Purpose: Fallback for unclassified or general documents
 
-Model: llama3.2:latest
+Model: sauerkraut-llama3.1:8b
 
 Routing Conditions:
 
@@ -569,7 +608,7 @@ _registerFinancialPipeline() {
             {
                 id: 'extract',
                 type: 'extraction',
-                model: 'llama3.2:latest',
+                model: 'llm-pro-finance-8b',
                 promptId: 'FIN_EXTRACT_V1',
                 timeout: 45000,
                 required: true
@@ -646,7 +685,7 @@ expertRegistry.register({
         {
             id: 'preprocess',
             type: 'extraction',
-            model: 'llama3.2:latest',
+            model: 'sauerkraut-llama3.1:8b',
             promptId: 'CUSTOM_PREPROCESS_V1',
             timeout: 20000,
             required: true
@@ -654,7 +693,7 @@ expertRegistry.register({
         {
             id: 'extract',
             type: 'extraction',
-            model: 'llama3.2:latest',
+            model: 'sauerkraut-llama3.1:8b',
             promptId: 'CUSTOM_EXTRACT_V1',
             timeout: 30000,
             required: true,
@@ -663,7 +702,7 @@ expertRegistry.register({
         {
             id: 'validate',
             type: 'integration',
-            model: 'llama3.2:latest',
+            model: 'sauerkraut-llama3.1:8b',
             promptId: 'CUSTOM_VALIDATE_V1',
             timeout: 15000,
             required: false  // Optional validation step
@@ -713,7 +752,7 @@ Upgrade GPU or use CPU fallback
 bash
 # Use smaller models
 export ROUTER_MODEL=qwen3:4B
-export MEDICAL_TEXT_MODEL=llama3.2:latest
+export MEDICAL_ANALYSIS_MODEL=sauerkraut-llama3.1:8b
 
 Issue: Slow Processing
 Diagnosis:
@@ -790,7 +829,7 @@ bash
 # Pre-load models into memory
 ollama run qwen3-vl:8b &
 ollama run llava-med-v1.5:latest &
-ollama run medtext-llama3:latest &
+ollama run medtext-llama3 &
 
 # Keep models loaded
 export OLLAMA_KEEP_ALIVE=24h
@@ -920,6 +959,19 @@ const response = await ollama.callModel(options.model, messages, options);
     list(): PromptDefinition[];
 }
 
+ModelResolver
+typescript
+class ModelResolver {
+    // Resolve model name with aliases
+    resolveModelName(modelName: string): string;
+    
+    // Get model tier (production|advanced|infrastructure)
+    getModelTier(modelName: string): string;
+    
+    // Check if model is available
+    isModelAvailable(modelName: string): boolean;
+}
+
 ExpertRegistry
 typescript
 class ExpertRegistry {
@@ -983,7 +1035,37 @@ interface PaperlessFormat {
     custom_fields: object;
 }
 
-Changelog
+# ============================================================================
+# DEVELOPMENT AND TESTING
+# ============================================================================
+
+## Reference Implementations
+
+The `future_implementations/` directory contains reference implementations that demonstrate experimental features and alternative approaches. These are **not production code** and should not be imported directly.
+
+### Relationship to Production Code
+
+- **Purpose**: `future_implementations/` serves as a development sandbox for testing new features before integration
+- **Import Policy**: Always import from `services/`, never from `future_implementations/`
+- **Migration Path**: Features proven in `future_implementations/` should be merged into `services/` following testing requirements
+- **Documentation**: See `future_implementations/README.md` for current experimental features
+
+### Contributing Improvements
+
+1. **Develop** new features in `future_implementations/`
+2. **Test** thoroughly with `npm test`
+3. **Document** changes in relevant guides
+4. **Merge** into `services/` only after peer review
+5. **Update** this guide and cross-references
+
+### Testing Requirements
+
+- All new features must pass `npm test`
+- Integration tests must cover error conditions
+- Performance benchmarks required for model changes
+- Documentation updates mandatory for API changes
+
+## Changelog
 Version 1.0.0 (Initial Release)
 PromptRegistry with domain and model type support
 ExpertRegistry with condition-based routing

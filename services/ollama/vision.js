@@ -3,9 +3,10 @@ const path = require('path');
 const config = require('../../config/config');
 const paperlessService = require('../paperlessService');
 const TelemetryCollector = require('../TelemetryCollector');
-const expertRegistry = require('../ExpertRegistry');
-const ExpertPipelineExecutor = require('../ExpertPipelineExecutor');
+const { expertRegistry } = require('../experts/ExpertRegistry');
+const { ExpertPipelineExecutor } = require('../experts/ExpertPipelineExecutor');
 const { extractJsonFromResponse } = require('./utils');
+const logger = require('../logger');
 
 module.exports = {
     /**
@@ -21,7 +22,7 @@ module.exports = {
         let fallbackTriggered = false;
         let fallbackReason = null;
         try {
-            console.log(`[VISION] Starting vision analysis for document ${documentId}`);
+            logger.info(`[VISION] Starting vision analysis for document ${documentId}`);
 
             let plannerResult;
             const plannerStage = telemetry.startStage('planner', config.ollama.visionModel);
@@ -30,7 +31,7 @@ module.exports = {
                 telemetry.endStage(plannerStage, true);
             } catch (error) {
                 telemetry.endStage(plannerStage, false);
-                console.warn('[VISION] Planner failed, using default profile');
+                logger.warn('[VISION] Planner failed, using default profile');
                 plannerResult = {
                     category: 'general',
                     doc_type_hint: null,
@@ -42,12 +43,12 @@ module.exports = {
                 plannerResult.routing = this._buildRoutingMetadata(plannerResult);
             }
 
-            console.log('[VISION] Final classification:', JSON.stringify(plannerResult));
+            logger.info('[VISION] Final classification: ' + JSON.stringify(plannerResult));
 
             // Load thumbnail
             const base64Image = await this._loadThumbnailAsBase64(documentId);
             if (!base64Image) {
-                console.log('[VISION] Fallback to text: no thumbnail available');
+                logger.info('[VISION] Fallback to text: no thumbnail available');
                 const fallbackStage = telemetry.startStage('fallback', this.model);
                 const textResult = await this._analyzeDocumentText(
                     content,
@@ -72,7 +73,7 @@ module.exports = {
                     fallbackReason
                 );
                 const telemetryPayload = telemetry.finalize();
-                console.log('[TELEMETRY]', JSON.stringify(telemetryPayload));
+                logger.info('[TELEMETRY] ' + JSON.stringify(telemetryPayload));
                 return { ...textResult, _planner: plannerResult, _telemetry: telemetryPayload };
             }
 
@@ -81,8 +82,8 @@ module.exports = {
 
             // Select profile based on classification
             const profileId = this.fieldProfiler.selectProfile(plannerResult);
-            console.log(`[VISION] Using profile: ${profileId}`);
-            console.log(`[PLANNER] Selected profile: ${profileId} (confidence: ${plannerResult.confidence})`);
+            logger.info(`[VISION] Using profile: ${profileId}`);
+            logger.info(`[PLANNER] Selected profile: ${profileId} (confidence: ${plannerResult.confidence})`);
             const fieldSet = this.fieldProfiler.getFieldSet(profileId);
 
             const renderDpi = config.visualRag.visionRenderDpi;
@@ -97,12 +98,12 @@ module.exports = {
                         pagesToRender.push(pageCount);
                     }
                 } catch (error) {
-                    console.warn(`[VISION] Failed to fetch page count for ${documentId}: ${error.message}`);
+                    logger.warn(`[VISION] Failed to fetch page count for ${documentId}: ${error.message}`);
                 }
             }
 
             pagesToRender = [...new Set(pagesToRender)].slice(0, maxVisionPages);
-            console.log(`[VISION] Rendering pages: ${pagesToRender.join(', ')} at ${renderDpi} DPI`);
+            logger.info(`[VISION] Rendering pages: ${pagesToRender.join(', ')} at ${renderDpi} DPI`);
 
             const renderedImages = [];
             for (const page of pagesToRender) {
@@ -122,7 +123,7 @@ module.exports = {
             for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
                 const prompt = this.promptFactory.buildVisionPrompt(fieldSet, fieldSet.profileName, { strict: attempt > 0 });
                 if (attempt > 0) {
-                    console.warn(`[VISION] Extraction retry ${attempt}/${maxRetries}`);
+                    logger.warn(`[VISION] Extraction retry ${attempt}/${maxRetries}`);
                 }
 
                 const response = await this._callOllamaVisionAPI(prompt, extractionImages);
@@ -130,16 +131,16 @@ module.exports = {
                 try {
                     parsedResponse = this._processOllamaResponse(response);
                 } catch (error) {
-                    console.warn(`[VISION] Failed to parse response: ${error.message}`);
+                    logger.warn(`[VISION] Failed to parse response: ${error.message}`);
                     if (attempt < maxRetries) {
                         continue;
                     }
                     if (rawText) {
                         try {
-                            console.warn('[VISION] Attempting repair with text model');
+                            logger.warn('[VISION] Attempting repair with text model');
                             parsedResponse = await this._repairJsonWithTextModel(rawText);
                         } catch (repairError) {
-                            console.error(`[VISION] Repair failed: ${repairError.message}`);
+                            logger.error(`[VISION] Repair failed: ${repairError.message}`);
                             parsedResponse = this._buildUserReviewFallback();
                             validation = this.fieldProfiler.validateResult(parsedResponse, profileId);
                             break;
@@ -158,12 +159,12 @@ module.exports = {
                     break;
                 }
 
-                console.warn(`[VISION] Extraction validation failed: ${validation.errors.join(', ')}`);
+                logger.warn(`[VISION] Extraction validation failed: ${validation.errors.join(', ')}`);
             }
 
             telemetry.endStage(visionStage, validation.valid);
             if (!validation.valid) {
-                console.warn('[VISION] Extraction invalid after retries, falling back to text-only');
+                logger.warn('[VISION] Extraction invalid after retries, falling back to text-only');
                 const fallbackStage = telemetry.startStage('fallback', this.model);
                 const textResult = await this._analyzeDocumentText(
                     content,
@@ -188,7 +189,7 @@ module.exports = {
                     fallbackReason
                 );
                 const telemetryPayload = telemetry.finalize();
-                console.log('[TELEMETRY]', JSON.stringify(telemetryPayload));
+                logger.info('[TELEMETRY] ' + JSON.stringify(telemetryPayload));
                 return { ...textResult, _planner: plannerResult, _telemetry: telemetryPayload };
             }
 
@@ -230,9 +231,21 @@ module.exports = {
             telemetry.setValidation(extractionValidation.score, extractionValidation.isValid);
 
             if (config.expertPipelineEnabled === 'yes') {
-                const expertMatch = expertRegistry.matchExpert(plannerResult);
-                if (expertMatch && plannerResult.routing?.expertPipeline) {
-                    console.log(`[VISION] Triggering expert pipeline: ${expertMatch.domain}`);
+                // Build a structured classification object expected by ExpertRegistry.route
+                const classificationResult = {
+                    classification: {
+                        primary_domain: plannerResult?.category || 'general',
+                        document_type: plannerResult?.doc_type_hint || null,
+                        confidence: typeof plannerResult?.confidence === 'number' ? plannerResult.confidence : 0,
+                        metadata_hints: {
+                            modality: plannerResult?.modality || 'unknown'
+                        }
+                    }
+                };
+
+                const { pipeline, routingMetadata } = expertRegistry.route(classificationResult);
+                if (pipeline && plannerResult.routing?.expertPipeline) {
+                    logger.info(`[VISION] Triggering expert pipeline: ${pipeline.domain} (${pipeline.id})`);
 
                     const expertContext = {
                         documentId,
@@ -244,11 +257,13 @@ module.exports = {
                         missingFields: extractionValidation.missingFields
                     };
 
-                    const expertExecutor = new ExpertPipelineExecutor(this.promptFactory, this.client);
+                    // Pass the Ollama service instance (this) and configuration options
+                    const expertExecutor = new ExpertPipelineExecutor(this, { defaultTimeout: config.expertPipelineTimeout || 60000 });
                     const expertResult = await expertExecutor.execute(
-                        expertMatch.domain,
+                        pipeline.id,
                         expertContext,
-                        telemetry
+                        plannerResult,
+                        { telemetry }
                     );
 
                     if (expertResult) {
@@ -256,7 +271,7 @@ module.exports = {
                             { document: parsedResponse },
                             { document: expertResult }
                         ).document;
-                        console.log(`[VISION] Expert pipeline merged ${Object.keys(expertResult).length} fields`);
+                        logger.info(`[VISION] Expert pipeline merged ${Object.keys(expertResult).length} fields`);
                     }
                 }
             }
@@ -264,7 +279,7 @@ module.exports = {
             this._persistHealthMetrics(documentId, parsedResponse, plannerResult);
 
             if (extractionValidation.shouldFallback && fallbackEnabled) {
-                console.log(`[FALLBACK] Triggering fallback for doc ${documentId}`);
+                logger.info(`[FALLBACK] Triggering fallback for doc ${documentId}`);
                 const fallbackStage = telemetry.startStage('fallback', this.model);
                 const fallbackResult = await this._analyzeDocumentText(
                     content,
@@ -293,7 +308,7 @@ module.exports = {
                     fallbackReason
                 );
                 const telemetryPayload = telemetry.finalize();
-                console.log('[TELEMETRY]', JSON.stringify(telemetryPayload));
+                logger.info('[TELEMETRY] ' + JSON.stringify(telemetryPayload));
                 return {
                     ...mergedResult,
                     _analysisMode: 'VISION_WITH_FALLBACK',
@@ -308,7 +323,7 @@ module.exports = {
                 };
             }
 
-            console.log(`[VISION] Analysis completed in ${visionElapsedTime}s`);
+            logger.info(`[VISION] Analysis completed in ${visionElapsedTime}s`);
             telemetry.setRouting(
                 {
                     category: plannerResult.category,
@@ -320,7 +335,7 @@ module.exports = {
                 fallbackReason
             );
             const telemetryPayload = telemetry.finalize();
-            console.log('[TELEMETRY]', JSON.stringify(telemetryPayload));
+            logger.info('[TELEMETRY] ' + JSON.stringify(telemetryPayload));
             return {
                 ...visionResult,
                 _extractionMode: 'VISION_ONLY',
@@ -331,7 +346,7 @@ module.exports = {
                 _telemetry: telemetryPayload
             };
         } catch (error) {
-            console.error(`[VISION] Analysis failed: ${error.message}`);
+            logger.error(`[VISION] Analysis failed: ${error.message}`);
             return {
                 document: this._emptyDocument(),
                 metrics: null,
@@ -371,25 +386,25 @@ module.exports = {
         });
 
         try {
-            console.log(`[PLANNER] Starting classification for document ${documentId}`);
+            logger.info(`[PLANNER] Starting classification for document ${documentId}`);
 
             const base64Image = await this._loadThumbnailAsBase64(documentId);
             if (!base64Image) {
-                console.log('[PLANNER] No thumbnail available, using default classification');
+                logger.info('[PLANNER] No thumbnail available, using default classification');
                 return applyRouting(defaultClassification);
             }
 
-            console.log(`[PLANNER] Thumbnail loaded: ${base64Image.length} bytes`);
+            logger.info(`[PLANNER] Thumbnail loaded: ${base64Image.length} bytes`);
 
             const maxRetries = config.visualRag.maxRetriesPlanner;
 
             for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
                 const prompt = this.promptFactory.buildPlannerPrompt(attempt > 0);
                 if (attempt > 0) {
-                    console.warn(`[PLANNER] Retry ${attempt}/${maxRetries}`);
+                    logger.warn(`[PLANNER] Retry ${attempt}/${maxRetries}`);
                 }
 
-                console.log('[PLANNER] Calling vision API with planning prompt');
+                logger.debug('[PLANNER] Calling vision API with planning prompt');
 
                 const response = await this._callOllamaVisionAPI(prompt, base64Image, {
                     keep_alive: config.ollama.visionKeepAlive,
@@ -402,9 +417,9 @@ module.exports = {
                     ? response.response
                     : JSON.stringify(response?.response);
                 if (rawResponse) {
-                    console.log(`[PLANNER] Raw response: ${rawResponse.substring(0, 200)}...`);
+                    logger.debug(`[PLANNER] Raw response: ${rawResponse.substring(0, 200)}...`);
                 } else {
-                    console.log('[PLANNER] Raw response: <empty>');
+                    logger.debug('[PLANNER] Raw response: <empty>');
                 }
 
                 let parsedResponse = null;
@@ -414,10 +429,10 @@ module.exports = {
                     parsedResponse = extractJsonFromResponse(response?.response);
                 }
 
-                console.log(`[PLANNER] Classification result: ${JSON.stringify(parsedResponse)}`);
+                logger.debug(`[PLANNER] Classification result: ${JSON.stringify(parsedResponse)}`);
 
                 const validation = this._validatePlannerResponse(parsedResponse);
-                console.log(`[PLANNER] Validation: ${validation.valid ? 'passed' : 'failed'}`);
+                logger.debug(`[PLANNER] Validation: ${validation.valid ? 'passed' : 'failed'}`);
 
                 if (validation.valid) {
                     if (!parsedResponse.modality) {
@@ -426,12 +441,12 @@ module.exports = {
                     return applyRouting(parsedResponse);
                 }
 
-                console.warn(`[PLANNER] Invalid response structure: ${validation.errors.join(', ')}`);
+                logger.warn(`[PLANNER] Invalid response structure: ${validation.errors.join(', ')}`);
             }
 
             return applyRouting(defaultClassification);
         } catch (error) {
-            console.error(`[PLANNER] Failed: ${error.message}`);
+            logger.error(`[PLANNER] Failed: ${error.message}`);
             return applyRouting(defaultClassification);
         }
     },
@@ -461,7 +476,7 @@ module.exports = {
             const buffer = await fs.readFile(thumbnailPath);
             return buffer.toString('base64');
         } catch (e) {
-            console.log(`[VISION] No thumbnail for doc ${documentId}`);
+            logger.debug(`[VISION] No thumbnail for doc ${documentId}`);
             return null;
         }
     },
@@ -491,7 +506,7 @@ module.exports = {
             }
 
             if (!paperlessService.client) {
-                console.warn('[VISION] Paperless client not initialized for render');
+                logger.warn('[VISION] Paperless client not initialized for render');
             } else {
                 const response = await paperlessService.client.get(`/documents/${documentId}/thumb/`, {
                     responseType: 'arraybuffer',
@@ -505,10 +520,10 @@ module.exports = {
                 }
             }
         } catch (error) {
-            console.warn(`[VISION] Render fetch failed for doc ${documentId} page ${page}: ${error.message}`);
+            logger.warn(`[VISION] Render fetch failed for doc ${documentId} page ${page}: ${error.message}`);
         }
 
-        console.warn('[VISION] Rendered page unavailable, using thumbnail (degraded fidelity)');
+        logger.warn('[VISION] Rendered page unavailable, using thumbnail (degraded fidelity)');
         return this._loadThumbnailAsBase64(documentId);
     },
 
@@ -521,13 +536,13 @@ module.exports = {
      */
     async _callOllamaVisionAPI(prompt, base64Image, options = {}) {
         try {
-            console.log('[DEBUG] Calling Ollama Vision API');
-            console.log('[DEBUG] Vision model:', config.ollama.visionModel);
-            console.log('[DEBUG] Prompt length:', prompt.length);
+            logger.debug('[DEBUG] Calling Ollama Vision API');
+            logger.debug('[DEBUG] Vision model:', config.ollama.visionModel);
+            logger.debug('[DEBUG] Prompt length:', prompt.length);
             const imageList = Array.isArray(base64Image) ? base64Image.filter(Boolean) : [base64Image];
             const imageBytes = imageList.reduce((total, img) => total + (img ? img.length : 0), 0);
-            console.log('[DEBUG] Image count:', imageList.length);
-            console.log('[DEBUG] Image size:', imageBytes, 'bytes');
+            logger.debug('[DEBUG] Image count:', imageList.length);
+            logger.debug('[DEBUG] Image size:', imageBytes, 'bytes');
 
             const visionOptions = {
                 num_ctx: options.num_ctx || 32768,
@@ -544,9 +559,9 @@ module.exports = {
                 options: visionOptions
             });
 
-            console.log('[DEBUG] Vision API response - status:', response.status);
-            console.log('[DEBUG] Vision API response - has data:', !!response.data);
-            console.log('[DEBUG] Vision API response - data type:', typeof response.data);
+            logger.debug('[DEBUG] Vision API response - status:', response.status);
+            logger.debug('[DEBUG] Vision API response - has data:', !!response.data);
+            logger.debug('[DEBUG] Vision API response - data type:', typeof response.data);
             this._logOllamaResponse('Vision API response - raw data:', response.data);
 
             if (response.status !== 200) throw new Error(`Ollama Vision Status: ${response.status}`);
@@ -558,7 +573,7 @@ module.exports = {
             if (error.code === 'ECONNABORTED') {
                 throw new Error(`Vision API timeout (${this.timeout}ms). Model loading?`);
             }
-            console.error('[ERROR] Vision API call failed:', error.message);
+            logger.error('[ERROR] Vision API call failed:', error.message);
             throw error;
         }
     }

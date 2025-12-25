@@ -25,7 +25,7 @@ async analyzeDocument(content, existingTags = [], existingCorrespondentList = []
 
 ### Key Characteristics
 - **Text-only analysis**: Uses only OCR text content
-- **Single model**: Uses configured `OLLAMA_MODEL` (typically llama3.2 or gpt-oss)
+- **Single model**: Uses configured `OLLAMA_MODEL` (typically sauerkraut-llama3.1:8b or gpt-oss)
 - **No vision analysis**: Thumbnails downloaded but not used for analysis
 - **JSON output**: Extracts: title, correspondent, tags, document_type, document_date, language, custom_fields
 - **Timeout**: 600000ms (10 minutes) default
@@ -35,7 +35,7 @@ async analyzeDocument(content, existingTags = [], existingCorrespondentList = []
 ```javascript
 ollama: {
   apiUrl: process.env.OLLAMA_API_URL || 'http://localhost:11434',
-  model: process.env.OLLAMA_MODEL || 'llama3.2'
+  model: process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b'
 }
 ```
 

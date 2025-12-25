@@ -7,7 +7,8 @@ module.exports = {
                 : [];
             return models;
         } catch (error) {
-            console.error('Error fetching Ollama models:', error);
+            const logger = require('../logger');
+            logger.error('Error fetching Ollama models:', error);
             return [];
         }
     },
@@ -25,11 +26,13 @@ module.exports = {
                 const modelName = loadedModels.length > 0
                     ? loadedModels.join(', ')
                     : null;
-                console.log('Ollama loaded models:', modelName || 'none');
+                const logger = require('../logger');
+                logger.info('Ollama loaded models:', modelName || 'none');
                 return { status: 'ok', model: modelName, loadedModels };
             }
         } catch (error) {
-            console.error('Error checking Ollama service status:', error);
+            const logger = require('../logger');
+            logger.error('Error checking Ollama service status:', error);
         }
         return { status: 'error' };
     }
