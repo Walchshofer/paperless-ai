@@ -63,7 +63,8 @@ const PromptCategory = Object.freeze({
  * Configured for RTX 3090 Ti (24GB VRAM) constraints.
  */
 const MODEL_NAMES = Object.freeze({
-    router: process.env.ROUTER_MODEL || config.ollama?.visionModel || 'qwen3-vl:8b',
+    // Primary orchestration/router model (Nemotron manager)
+    router: process.env.ROUTER_MODEL || config.ollama?.visionModel || 'nemotron-manager:latest',
 
     // Medical models - prefer MEDICAL_* env vars, then config.expertModels entries, then ollama defaults
     medicalImaging: process.env.MEDICAL_VISION_MODEL || config.expertModels?.medical?.vision || config.ollama?.visionModel || 'llava-med-v1.5',
@@ -71,19 +72,24 @@ const MODEL_NAMES = Object.freeze({
     medicalRadiology: process.env.MEDICAL_RADIOLOGY_MODEL || config.expertModels?.medical?.radiology || config.ollama?.visionModel || 'llava-med-v1.5',
 
     // Financial models - prefer FINANCIAL_* env vars, then config.expertModels entries, then finance defaults, then ollama defaults
-    financeReasoning: process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || 'fino1-8b' || config.ollama?.model,
-    financeGeneral: process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || 'llm-pro-finance-8b' || config.ollama?.visionModel,
-    vatExpert: process.env.VAT_EXPERT_MODEL || process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || 'llm-pro-finance-8b' || config.ollama?.visionModel,
+    financeReasoning: process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || config.ollama?.model || 'fino1-8b',
+    financeGeneral: process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || config.ollama?.visionModel || 'llm-pro-finance-8b',
+    // VAT expert should use the Dragon finance reasoning model by default (fallback)
+    vatExpert: process.env.VAT_EXPERT_MODEL || process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || config.ollama?.visionModel || 'dragon-finance:latest',
 
-    // Advanced tier - Reasoning models (optional, feature-flagged)
-    dragon: process.env.DRAGON_MODEL || null,
+    // Legal expert mapping -> Dragon finance reasoning model
+    legalExpert: process.env.LEGAL_EXPERT_MODEL || 'dragon-finance:latest',
+
+    // Advanced tier - Reasoning models (default to dragon-finance)
+    dragon: process.env.DRAGON_MODEL || 'dragon-finance:latest',
     gptOss: process.env.GPT_OSS_MODEL || null,
 
     // Infrastructure tier - Orchestration and embeddings
-    orchestrator: process.env.ORCHESTRATOR_MODEL || null,
+    orchestrator: process.env.ORCHESTRATOR_MODEL || 'nemotron-manager:latest',
     embeddingModel: process.env.EMBEDDING_MODEL || 'nomic-embed-text-v1.5',
     visualRetrieval: process.env.VISUAL_RETRIEVAL_MODEL || null,
 
+    // General fallback
     general: process.env.GENERAL_MODEL || config.ollama?.model || 'sauerkraut-llama3.1:8b'
 });
 
@@ -901,6 +907,82 @@ Respond with this exact JSON structure:
 };
 
 /**
+ * LEGAL_ORCHESTRATOR_V1: Legal Document Orchestration & Complexity Classification
+ *
+ * Purpose: Classify legal document complexity and recommend routing to specialized pipelines
+ * Model: nemotron-manager (orchestrator)
+ */
+const LEGAL_ORCHESTRATOR_V1 = {
+    id: 'LEGAL_ORCHESTRATOR_V1',
+    version: '1.0.0',
+    domain: DomainType.LEGAL,
+    model: MODEL_NAMES.router,
+    modelType: ModelType.TEXT_ONLY,
+
+    systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+You are an Orchestrator for legal documents. Classify the document's complexity (low|medium|high), identify whether specialized legal extraction is required, and recommend the pipeline or stages to run.
+Provide only valid JSON as the output.
+<|eot_id|>`,
+
+    userTemplate: `<|start_header_id|>user<|end_header_id|>
+Classify the following document's legal complexity and recommend routing.
+
+DOCUMENT:
+---
+{{text_chunk}}
+---
+
+Respond with this exact JSON structure:
+{
+  "complexity": "low|medium|high",
+  "recommended_pipeline": "<pipeline id>",
+  "recommendations": ["<short reasons>"],
+  "confidence": <0.0-1.0>
+}
+<|eot_id|>`,
+
+    config: { temperature: 0.0, maxTokens: 256 }
+};
+
+
+/**
+ * LEGAL_EXTRACTOR_V1: Legal Extraction and Risk Analysis
+ *
+ * Purpose: Extract legal clauses, identify risks, and cite sections from internal legal knowledge base
+ * Model: dragon-finance (reasoning)
+ * Variables: accepts {{legal_context}}
+ * System Prompt: Senior Legal Analyst with <think> tags
+ */
+const LEGAL_EXTRACTOR_V1 = {
+    id: 'LEGAL_EXTRACTOR_V1',
+    version: '1.0.0',
+    domain: DomainType.LEGAL,
+    model: MODEL_NAMES.legalExpert,
+    modelType: ModelType.TEXT_ONLY,
+
+    systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+You are a Senior Legal Analyst. Use <think> tags to reason about risks. Cite specific sections from the Internal Legal Knowledge Base provided in context. Provide clear, concise legal extractions and risk assessments. Return ONLY valid JSON.
+<|eot_id|>`,
+
+    userTemplate: `<|start_header_id|>user<|end_header_id|>
+Apply the internal legal context to extract clauses and assess risks for the document below.
+
+INTERNAL LEGAL CONTEXT (DO NOT DISCLOSE):
+{{legal_context}}
+
+DOCUMENT TEXT:
+---
+{{text_chunk}}
+---
+
+Respond with JSON including at minimum: extracted_clauses, risks, citations, and confidence.
+<|eot_id|>`,
+
+    config: { temperature: 0.1, maxTokens: 2048, topK: 40 }
+};
+
+
+/**
  * FIN_VAT_EXPERT_V1: VAT Compliance & Interpretation
  *
  * Purpose: Apply internal VAT knowledge to document interpretation
@@ -1177,5 +1259,7 @@ module.exports = {
     FIN_EXTRACT_V1,
     FIN_REASONER_V1,
     FIN_VAT_EXPERT_V1,
+    LEGAL_ORCHESTRATOR_V1,
+    LEGAL_EXTRACTOR_V1,
     GEN_FALLBACK_V1
 };
