@@ -36,6 +36,9 @@ const axios = require('axios');
 const logger = require('../logger');
 const config = require('../../config/config');
 const { promptRegistry, ModelType, MODEL_NAMES } = require('../prompts/PromptRegistry');
+const internalVatRag = require('../rag/InternalVatRag');
+const internalLegalRag = require('../rag/InternalLegalRag');
+const JsonRepairService = require('../rag/JsonRepairService');
 const { expertRegistry, StageType, ExecutionMode } = require('./ExpertRegistry');
 
 // ============================================================================
@@ -362,6 +365,9 @@ class ExpertPipelineExecutor {
             failedExecutions: 0,
             averageExecutionTimeMs: 0
         };
+
+        // JSON repair helper (uses Ollama 'sauerkraut' model)
+        this.jsonRepairService = new JsonRepairService(this.ollamaService);
     }
     
     /**
@@ -409,6 +415,15 @@ class ExpertPipelineExecutor {
                 if (stageResult.abort) {
                     finalStatus = 'failed';
                     break;
+                }
+                
+                // Unload model after stage if requested (for model swaps)
+                if (stage.unloadAfter) {
+                    try {
+                        await this._unloadModel(stage.unloadModelName || stage.model);
+                    } catch (err) {
+                        logger.warn({ event: 'model_unload_error', stageId: stage.id, error: err.message });
+                    }
                 }
                 
                 // Check for partial success scenarios
@@ -552,11 +567,33 @@ class ExpertPipelineExecutor {
             });
         }
 
-        // Build messages
+        // Build variables and image data
         const variables = this._flattenInput(input);
         const imageData = stage.modelType === ModelType.MULTIMODAL ? 
                           input.image || context.document.image_data : null;
-        
+
+        // Local context injection: choose a reasonable text source
+        const textForContext = input && (input.text || input.question || input.body) || variables.text || context.document?.text || context.document?.ocr_text || Object.values(variables).join(' ');
+
+        if (stage.injectLegalContext) {
+            try {
+                const legalCtx = await internalLegalRag.retrieve(textForContext);
+                if (legalCtx) variables.legal_context = legalCtx;
+            } catch (err) {
+                logger.warn({ event: 'legal_context_injection_failed', stageId: stage.id, error: err.message });
+            }
+        }
+
+        if (stage.injectVatContext) {
+            try {
+                const vatCtx = await internalVatRag.retrieve(textForContext);
+                if (vatCtx) variables.vat_context = vatCtx;
+            } catch (err) {
+                logger.warn({ event: 'vat_context_injection_failed', stageId: stage.id, error: err.message });
+            }
+        }
+
+        // Build messages
         const messages = promptRegistry.buildMessages(
             stage.promptId,
             variables,
@@ -576,8 +613,8 @@ class ExpertPipelineExecutor {
             timeout
         );
         
-        // Parse response
-        const parsed = this._parseResponse(response, stage);
+        // Parse response via JSON repair
+        const parsed = await this._parseResponse(response, stage);
         
         return parsed;
     }
@@ -693,53 +730,68 @@ class ExpertPipelineExecutor {
     }
     
     /**
-     * Parse LLM response, attempting JSON extraction
+     * Parse LLM response, attempting JSON extraction using JsonRepairService
      */
-    _parseResponse(response, stage) {
+    async _parseResponse(response, stage) {
         // Handle Ollama response format
-        const content = typeof response === 'string' ? 
-                        response : 
+        const content = typeof response === 'string' ?
+                        response :
                         (response.message?.content || response.response || '');
-        
-        // Attempt JSON parsing
+
         try {
-            // Handle ```json blocks
-            let jsonStr = content;
-            
-            if (content.includes('```json')) {
-                const start = content.indexOf('```json') + 7;
-                const end = content.indexOf('```', start);
-                if (end > start) {
-                    jsonStr = content.substring(start, end);
-                }
-            } else if (content.includes('```')) {
-                const start = content.indexOf('```') + 3;
-                const end = content.indexOf('```', start);
-                if (end > start) {
-                    jsonStr = content.substring(start, end);
-                }
+            // Delegate extraction + repair logic to JsonRepairService
+            const extracted = await this.jsonRepairService.extractWithRepair(content);
+
+            if (extracted && (typeof extracted === 'object' || Array.isArray(extracted))) {
+                return {
+                    ...extracted,
+                    _meta: {
+                        parsed: true,
+                        stageId: stage.id,
+                        model: stage.model,
+                        rawLength: content.length
+                    }
+                };
             }
-            
-            const parsed = JSON.parse(jsonStr.trim());
-            
+
+            if (typeof extracted === 'string') {
+                try {
+                    const parsed = JSON.parse(extracted);
+                    return {
+                        ...parsed,
+                        _meta: {
+                            parsed: true,
+                            stageId: stage.id,
+                            model: stage.model,
+                            rawLength: content.length
+                        }
+                    };
+                } catch (err) { void err; /* fallthrough */ }
+            }
+
+            logger.warn({
+                event: 'response_parse_warning',
+                stageId: stage.id,
+                error: 'no_json_extracted'
+            });
+
             return {
-                ...parsed,
                 _meta: {
-                    parsed: true,
+                    parsed: false,
+                    parseError: 'no_json_extracted',
                     stageId: stage.id,
-                    model: stage.model,
-                    rawLength: content.length
-                }
+                    model: stage.model
+                },
+                raw_content: content,
+                extraction_failed: true
             };
-            
         } catch (error) {
-            // Return structured error with raw content
             logger.warn({
                 event: 'response_parse_warning',
                 stageId: stage.id,
                 error: error.message
             });
-            
+
             return {
                 _meta: {
                     parsed: false,
@@ -864,6 +916,32 @@ class ExpertPipelineExecutor {
     _delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
+
+    /**
+     * Unload a model via Ollama to free VRAM (use keep_alive: 0).
+     * Attempts to use provided ollamaService.chat or generate.
+     */
+    async _unloadModel(modelName) {
+        if (!modelName || !this.ollamaService) return;
+        try {
+            if (typeof this.ollamaService.chat === 'function') {
+                await this.ollamaService.chat({
+                    model: modelName,
+                    messages: [{ role: 'system', content: 'model_unload' }],
+                    options: { keep_alive: 0 },
+                    stream: false
+                });
+            } else if (typeof this.ollamaService.generate === 'function') {
+                await this.ollamaService.generate({
+                    model: modelName,
+                    options: { keep_alive: 0 }
+                });
+            }
+            logger.debug({ event: 'model_unloaded', model: modelName });
+        } catch (err) {
+            logger.warn({ event: 'model_unload_failed', model: modelName, error: err.message });
+        }
+    }
     
     /**
      * Get executor statistics
@@ -936,7 +1014,7 @@ async function processDocument(document, ollamaService, options = {}) {
             promptRegistry.getOptions('SYS_ROUTER_V1')
         );
         
-        classificationResult = executor._parseResponse(routerResponse, {
+        classificationResult = await executor._parseResponse(routerResponse, {
             id: 'router',
             model: MODEL_NAMES.router
         });

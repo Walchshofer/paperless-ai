@@ -1083,7 +1083,7 @@ class DocumentProcessor {
         );
         
         // Parse classification
-        const classification = this.pipelineExecutor._parseResponse(response, {
+        const classification = await this.pipelineExecutor._parseResponse(response, {
             id: 'router',
             model: this.config.models.router
         });
