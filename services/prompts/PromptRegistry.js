@@ -64,12 +64,27 @@ const PromptCategory = Object.freeze({
  */
 const MODEL_NAMES = Object.freeze({
     router: process.env.ROUTER_MODEL || config.ollama?.visionModel || 'qwen3-vl:8b',
-    medicalImaging: process.env.MEDICAL_IMAGING_MODEL || config.expertModels?.medical?.radiology || 'llava-med-v1.5',
-    medicalText: process.env.MEDICAL_TEXT_MODEL || config.expertModels?.medical?.analysis || 'medtext-llama3',
-    general: process.env.GENERAL_MODEL || config.ollama?.model || 'sauerkraut-llama3.1:8b',
-    financeReasoning: process.env.FINANCE_REASONING_MODEL || 'fino1-8b',
-    financeGeneral: process.env.FINANCE_GENERAL_MODEL || 'llm-pro-finance-8b',
-    vatExpert: process.env.VAT_EXPERT_MODEL || process.env.FINANCE_GENERAL_MODEL || 'llm-pro-finance-8b'
+
+    // Medical models - prefer MEDICAL_* env vars, then config.expertModels entries, then ollama defaults
+    medicalImaging: process.env.MEDICAL_VISION_MODEL || config.expertModels?.medical?.vision || config.ollama?.visionModel || 'llava-med-v1.5',
+    medicalText: process.env.MEDICAL_ANALYSIS_MODEL || config.expertModels?.medical?.analysis || config.ollama?.model || 'medtext-llama3',
+    medicalRadiology: process.env.MEDICAL_RADIOLOGY_MODEL || config.expertModels?.medical?.radiology || config.ollama?.visionModel || 'llava-med-v1.5',
+
+    // Financial models - prefer FINANCIAL_* env vars, then config.expertModels entries, then finance defaults, then ollama defaults
+    financeReasoning: process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || 'fino1-8b' || config.ollama?.model,
+    financeGeneral: process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || 'llm-pro-finance-8b' || config.ollama?.visionModel,
+    vatExpert: process.env.VAT_EXPERT_MODEL || process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || 'llm-pro-finance-8b' || config.ollama?.visionModel,
+
+    // Advanced tier - Reasoning models (optional, feature-flagged)
+    dragon: process.env.DRAGON_MODEL || null,
+    gptOss: process.env.GPT_OSS_MODEL || null,
+
+    // Infrastructure tier - Orchestration and embeddings
+    orchestrator: process.env.ORCHESTRATOR_MODEL || null,
+    embeddingModel: process.env.EMBEDDING_MODEL || 'nomic-embed-text-v1.5',
+    visualRetrieval: process.env.VISUAL_RETRIEVAL_MODEL || null,
+
+    general: process.env.GENERAL_MODEL || config.ollama?.model || 'sauerkraut-llama3.1:8b'
 });
 
 const ModelRegistry = Object.freeze({
@@ -1153,6 +1168,7 @@ module.exports = {
     ModelType,
     PromptCategory,
     ModelRegistry,
+    MODEL_NAMES,
     // Export individual prompts for direct access
     SYS_ROUTER_V1,
     MED_RADIOLOGY_V1,

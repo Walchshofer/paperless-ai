@@ -34,8 +34,9 @@
 
 const axios = require('axios');
 const logger = require('../logger');
-const { promptRegistry, ModelType } = require('../prompts/PromptRegistry');
-const { expertRegistry, StageType, ExecutionMode, MODEL_NAMES } = require('./ExpertRegistry');
+const config = require('../../config/config');
+const { promptRegistry, ModelType, MODEL_NAMES } = require('../prompts/PromptRegistry');
+const { expertRegistry, StageType, ExecutionMode } = require('./ExpertRegistry');
 
 // ============================================================================
 // EXECUTION CONTEXT
@@ -679,9 +680,7 @@ class ExpertPipelineExecutor {
         }
         
         // Fallback: Direct HTTP call to Ollama
-        const ollamaHost = process.env.OLLAMA_API_URL
-            || process.env.OLLAMA_HOST
-            || 'http://localhost:11434';
+        const ollamaHost = config.ollama.apiUrl || process.env.OLLAMA_HOST || 'http://localhost:11434';
         const response = await axios.post(`${ollamaHost}/api/chat`, {
             model,
             messages,

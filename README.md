@@ -128,7 +128,7 @@ The system automatically selects the appropriate profile based on document class
 
 - Ollama installation with vision model support
 - Recommended: `qwen3-vl:8b` (6.1GB) - install with `ollama pull qwen3-vl:8b`
-- Text model: Any Ollama model (llama3.2, mistral, etc.)
+- Text model: Any Ollama model (sauerkraut-llama3.1:8b, mistral, etc.)
 
 ### Performance Notes
 

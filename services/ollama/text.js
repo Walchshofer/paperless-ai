@@ -6,6 +6,7 @@ const {
     writePromptToFile,
     extractJsonFromResponse
 } = require('./utils');
+const logger = require('../logger');
 
 module.exports = {
     /**
@@ -23,7 +24,7 @@ module.exports = {
         try {
             // Determine analysis mode based on content quality and configuration
             const mode = this._determineAnalysisMode(content);
-            console.log(`[ANALYSIS] Document ${id} - Mode: ${mode}`);
+            logger.info(`[ANALYSIS] Document ${id} - Mode: ${mode}`);
 
             // Store options for nested calls
             const enrichedOptions = {
@@ -44,7 +45,7 @@ module.exports = {
                     return await this._analyzeDocumentText(content, existingTags, existingCorrespondentList, existingDocumentTypesList, id, customPrompt, options);
             }
         } catch (error) {
-            console.error(`[ANALYSIS] Failed for document ${id}: ${error.message}`);
+            logger.error(`[ANALYSIS] Failed for document ${id}: ${error.message}`);
             return {
                 document: this._emptyDocument(),
                 metrics: null,
@@ -60,16 +61,16 @@ module.exports = {
     async _analyzeDocumentText(content, existingTags = [], existingCorrespondentList = [], existingDocumentTypesList = [], id, customPrompt = null, options = {}) {
         const startTime = Date.now();
         try {
-            console.log(`[TEXT] Starting text-only analysis for ID: ${id}`);
+            logger.info(`[TEXT] Starting text-only analysis for ID: ${id}`);
 
             // 1. Validation
             const validation = validateDocumentContent(content);
             if (!validation.valid) {
-                console.warn(`[WARN] Content validation: ${validation.reason}. Proceeding anyway.`);
+                logger.warn(`[WARN] Content validation: ${validation.reason}. Proceeding anyway.`);
             }
 
             // 2. Truncate
-            const maxTokens = parseInt(process.env.TOKEN_LIMIT || '16384', 10);
+            const maxTokens = parseInt(config.tokenLimit || '16384', 10);
             const contentTokenLimit = Math.max(1000, maxTokens - 1500);
             content = truncateToTokenLimit(content, contentTokenLimit);
 
@@ -79,9 +80,9 @@ module.exports = {
             if (options.externalApiData) {
                 try {
                     validatedExternalApiData = await this._validateAndTruncateExternalApiData(options.externalApiData);
-                    console.log('[DEBUG] External API data validated and included');
+                    logger.debug('[DEBUG] External API data validated and included');
                 } catch (error) {
-                    console.warn('[WARNING] External API data validation failed:', error.message);
+                    logger.warn(`[WARNING] External API data validation failed: ${error.message}`);
                     validatedExternalApiData = null;
                 }
             }
@@ -100,7 +101,7 @@ module.exports = {
             );
 
             if (customPrompt) {
-                console.log('[DEBUG] Ollama Service started with custom prompt');
+                logger.debug('[DEBUG] Ollama Service started with custom prompt');
             }
 
             const { prompt, systemPrompt } = promptResult;
@@ -112,8 +113,8 @@ module.exports = {
             const expectedResponseTokens = 2048; // Matches num_predict for full JSON with custom_fields
             const numCtx = this._calculateNumCtx(totalInputTokens, expectedResponseTokens);
 
-            console.log(`[DEBUG] Tokens: ${totalInputTokens} (system: ${systemPromptTokens}, prompt: ${promptTokenCount}), Context: ${numCtx}, Model: ${this.model}`);
-            console.log(`[DEBUG] Use existing data: ${config.useExistingData}, External API: ${validatedExternalApiData ? 'included' : 'none'}`);
+            logger.debug(`[DEBUG] Tokens: ${totalInputTokens} (system: ${systemPromptTokens}, prompt: ${promptTokenCount}), Context: ${numCtx}, Model: ${this.model}`);
+            logger.debug(`[DEBUG] Use existing data: ${config.useExistingData}, External API: ${validatedExternalApiData ? 'included' : 'none'}`);
 
             // 5. Call API
             const response = await this._callOllamaAPI(prompt, systemPrompt, numCtx, this.documentAnalysisSchema);
@@ -123,13 +124,13 @@ module.exports = {
 
             // Check for missing data
             if (parsedResponse.tags.length === 0 && parsedResponse.correspondent === null) {
-                console.warn('No tags or correspondent found in response from Ollama. Review your prompt or switch to OpenAI.');
+                logger.warn('No tags or correspondent found in response from Ollama. Review your prompt or switch to OpenAI.');
             }
 
             await writePromptToFile(prompt + "\n\nRESPONSE:\n" + JSON.stringify(parsedResponse));
 
             const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
-            console.log(`[SUCCESS] Analysis completed in ${elapsedTime}s`);
+            logger.info(`[SUCCESS] Analysis completed in ${elapsedTime}s`);
 
             return {
                 document: parsedResponse,
@@ -137,7 +138,7 @@ module.exports = {
                 truncated: false
             };
         } catch (error) {
-            console.error(`[ERROR] Analysis failed: ${error.message}`);
+            logger.error(`[ERROR] Analysis failed: ${error.message}`);
             return {
                 document: this._emptyDocument(),
                 metrics: null,
@@ -149,9 +150,9 @@ module.exports = {
     async _callOllamaAPI(prompt, systemPrompt, numCtx, schema) {
         try {
             // DEBUG: Log request details
-            console.log('[DEBUG] Ollama API request - system prompt length:', systemPrompt.length);
-            console.log('[DEBUG] Ollama API request - prompt length:', prompt.length);
-            console.log('[DEBUG] Ollama API request - numCtx:', numCtx);
+            logger.debug('[DEBUG] Ollama API request - system prompt length:', systemPrompt.length);
+            logger.debug('[DEBUG] Ollama API request - prompt length:', prompt.length);
+            logger.debug('[DEBUG] Ollama API request - numCtx:', numCtx);
 
             // NOTE: gpt-oss doesn't support the 'format' parameter for JSON schema
             // JSON output is requested via the system prompt instead
@@ -172,9 +173,9 @@ module.exports = {
                 }
             });
 
-            console.log('[DEBUG] Ollama API response - status:', res.status);
-            console.log('[DEBUG] Ollama API response - has data:', !!res.data);
-            console.log('[DEBUG] Ollama API response - response length:', res.data?.response?.length || 0);
+            logger.debug('[DEBUG] Ollama API response - status:', res.status);
+            logger.debug('[DEBUG] Ollama API response - has data:', !!res.data);
+            logger.debug('[DEBUG] Ollama API response - response length:', res.data?.response?.length || 0);
 
             if (res.status !== 200) throw new Error(`Ollama Status: ${res.status}`);
             if (!res.data) throw new Error('No data in Ollama response');
@@ -192,7 +193,7 @@ module.exports = {
         this._logOllamaResponse('Raw Ollama response (full):', responseData);
 
         if (responseData?.error) {
-            console.error('[ERROR] Ollama returned error:', responseData.error);
+            logger.error('[ERROR] Ollama returned error:', responseData.error);
             throw new Error(`Ollama error: ${responseData.error}`);
         }
 
@@ -215,7 +216,7 @@ module.exports = {
             try {
                 return this._normalize(JSON.parse(rawText));
             } catch (e) {
-                console.error('[ERROR] Failed to parse JSON. Response was:', rawText);
+                logger.error('[ERROR] Failed to parse JSON. Response was:', rawText);
                 throw new Error('Could not parse JSON from response');
             }
         }
@@ -255,7 +256,7 @@ ${cleaned}`;
         try {
             return this._normalize(JSON.parse(rawTextResponse));
         } catch (error) {
-            console.error('[ERROR] Repair model failed to return JSON:', rawTextResponse);
+            logger.error('[ERROR] Repair model failed to return JSON:', rawTextResponse);
             throw new Error('Repair model failed to return JSON');
         }
     },
@@ -270,11 +271,11 @@ ${cleaned}`;
         const dataTokens = calculateTokens(dataString);
 
         if (dataTokens > maxTokens) {
-            console.warn(`[WARNING] External API data (${dataTokens} tokens) exceeds limit (${maxTokens}), truncating`);
+            logger.warn(`[WARNING] External API data (${dataTokens} tokens) exceeds limit (${maxTokens}), truncating`);
             return truncateToTokenLimit(dataString, maxTokens);
         }
 
-        console.log(`[DEBUG] External API data validated: ${dataTokens} tokens`);
+        logger.debug(`[DEBUG] External API data validated: ${dataTokens} tokens`);
         return dataString;
     }
 };

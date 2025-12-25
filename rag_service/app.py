@@ -150,7 +150,7 @@ async def get_status():
 
     status_dict = global_state.system_status.dict()
     status_dict["ai_status"] = "ok"
-    status_dict["ai_model"] = "llama3.2:latest"
+    status_dict["ai_model"] = "sauerkraut-llama3.1:8b"
 
     return status_dict
 

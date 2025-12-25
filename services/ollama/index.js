@@ -11,6 +11,7 @@ const sequential = require('./sequential');
 const playground = require('./playground');
 const status = require('./status');
 const compat = require('./compat');
+const logger = require('../logger');
 
 class OllamaService {
     constructor() {
@@ -21,7 +22,7 @@ class OllamaService {
         const timeoutMs = parseInt(process.env.AXIOS_TIMEOUT, 10);
         this.timeout = (!isNaN(timeoutMs) && timeoutMs >= 5000) ? timeoutMs : 600000;
 
-        console.log(`[INFO] Ollama Service initialized. Model: ${this.model}, Timeout: ${this.timeout}ms`);
+        logger.info(`[INFO] Ollama Service initialized. Model: ${this.model}, Timeout: ${this.timeout}ms`);
 
         this.client = axios.create({
             timeout: this.timeout

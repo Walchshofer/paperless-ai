@@ -1,6 +1,7 @@
 const config = require('../../config/config');
 const routingConfig = require('../../config/routing');
 const healthMetricsService = require('../HealthMetricsService');
+const logger = require('../logger');
 
 module.exports = {
     /**
@@ -106,10 +107,10 @@ module.exports = {
             });
 
             if (summary.inserted > 0) {
-                console.log(`[HEALTH_METRICS] Stored ${summary.inserted} biomarkers for doc ${documentId}`);
+                logger.info(`[HEALTH_METRICS] Stored ${summary.inserted} biomarkers for doc ${documentId}`);
             }
         } catch (error) {
-            console.error(`[HEALTH_METRICS] Failed to store metrics for doc ${documentId}: ${error.message}`);
+            logger.error(`[HEALTH_METRICS] Failed to store metrics for doc ${documentId}: ${error.message}`);
         }
     },
 
@@ -160,7 +161,7 @@ module.exports = {
 
     _calculateNumCtx(promptTokenCount, responseTokens) {
         const total = promptTokenCount + responseTokens;
-        const maxLimit = parseInt(process.env.TOKEN_LIMIT || '16384', 10);
+        const maxLimit = parseInt(config.tokenLimit || '16384', 10);
         // Use 90% if GPT-OSS, else 80%
         const factor = this.isGptOss ? 0.90 : 0.80;
         const safeLimit = Math.floor(maxLimit * factor);
@@ -204,7 +205,7 @@ module.exports = {
 
     _logOllamaResponse(prefix, data) {
         const dump = this._safeStringify(data);
-        console.log(`[DEBUG] ${prefix} ${dump}`);
+        logger.debug(`[DEBUG] ${prefix} ${dump}`);
     },
 
     _extractRawOllamaText(responseData) {
@@ -404,7 +405,7 @@ module.exports = {
         const quality = this._assessTextQuality(content);
         const complexity = this._detectVisualComplexity(content);
 
-        console.log(`[ANALYSIS] Text quality: ${quality}, Complexity flags: ${complexity.join(', ') || 'none'}`);
+        logger.debug(`[ANALYSIS] Text quality: ${quality}, Complexity flags: ${complexity.join(', ') || 'none'}`);
 
         // Very low quality - go straight to vision
         if (quality < 40) {

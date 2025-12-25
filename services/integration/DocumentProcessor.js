@@ -60,19 +60,13 @@ const ProcessorConfig = {
     // Model selection
     models: {
         router: process.env.ROUTER_MODEL || config.ollama?.visionModel || 'qwen3-vl:8b',
-        medicalImaging: process.env.MEDICAL_IMAGING_MODEL
-            || config.expertModels?.medical?.radiology
-            || 'llava-med-v1.5',
-        medicalText: process.env.MEDICAL_TEXT_MODEL
-            || config.expertModels?.medical?.analysis
-            || 'medtext-llama3',
+        medicalImaging: process.env.MEDICAL_VISION_MODEL || config.expertModels?.medical?.vision || config.ollama?.visionModel || 'llava-med-v1.5',
+        medicalText: process.env.MEDICAL_ANALYSIS_MODEL || config.expertModels?.medical?.analysis || config.ollama?.model || 'medtext-llama3',
         general: process.env.GENERAL_MODEL || config.ollama?.model || 'sauerkraut-llama3.1:8b',
-        financeReasoning: process.env.FINANCE_REASONING_MODEL || 'fino1-8b',
-        financeGeneral: process.env.FINANCE_GENERAL_MODEL || 'llm-pro-finance-8b',
-        vatExpert: process.env.VAT_EXPERT_MODEL ||
-            process.env.FINANCE_GENERAL_MODEL ||
-            'llm-pro-finance-8b'
+        financeReasoning: process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || 'fino1-8b',
+        financeGeneral: process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || 'llm-pro-finance-8b'
     },
+
     
     // Processing modes
     modes: {
@@ -1151,9 +1145,7 @@ class DocumentProcessor {
         
         // Check Ollama connectivity
         try {
-            const ollamaHost = process.env.OLLAMA_API_URL
-                || process.env.OLLAMA_HOST
-                || 'http://localhost:11434';
+            const ollamaHost = config.ollama.apiUrl || process.env.OLLAMA_HOST || 'http://localhost:11434';
             const response = await axios.get(`${ollamaHost}/api/tags`, { timeout: 5000 });
             const data = response.data;
 
