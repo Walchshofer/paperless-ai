@@ -18,6 +18,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const cookieParser = require('cookie-parser');
 const { authenticateJWT, isAuthenticated } = require('./auth.js');
+const logger = require('../services/logger');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const customService = require('../services/customService.js');
 const { expertRegistry } = require('../services/experts/ExpertRegistry');
@@ -1712,7 +1713,7 @@ async function processDocument(doc, existingTags, existingCorrespondentList, exi
       const externalData = await externalApiService.fetchData();
       if (externalData) {
         options.externalApiData = externalData;
-        console.log('[DEBUG] Retrieved external API data for prompt enrichment');
+        logger.debug('Retrieved external API data for prompt enrichment');
       }
     } catch (error) {
       console.error('[ERROR] Failed to fetch external API data:', error.message);
@@ -1722,12 +1723,12 @@ async function processDocument(doc, existingTags, existingCorrespondentList, exi
   const aiService = AIServiceFactory.getService();
   let analysis;
   if(customPrompt) {
-    console.log('[DEBUG] Starting document analysis with custom prompt');
+    logger.debug('Starting document analysis with custom prompt');
     analysis = await aiService.analyzeDocument(content, existingTags, existingCorrespondentList, existingDocumentTypesList, doc.id, customPrompt, options);
   }else{
     analysis = await aiService.analyzeDocument(content, existingTags, existingCorrespondentList, existingDocumentTypesList, doc.id, null, options);
   }
-  console.log('Repsonse from AI service:', analysis);
+  logger.debug('Response from AI service: %o', analysis);
   if (analysis.error) {
     throw new Error(`[ERROR] Document analysis failed: ${analysis.error}`);
   }
@@ -1744,7 +1745,7 @@ async function buildUpdateData(analysis, doc) {
     restrictToExistingCorrespondents: config.restrictToExistingCorrespondents === 'yes' ? true : false
   };
 
-  console.log(`[DEBUG] Building update data with restrictions: tags=${options.restrictToExistingTags}, correspondents=${options.restrictToExistingCorrespondents}`);
+  logger.debug('Building update data with restrictions: tags=%s, correspondents=%s', options.restrictToExistingTags, options.restrictToExistingCorrespondents);
 
   // Only process tags if tagging is activated
   if (config.limitFunctions?.activateTagging !== 'no') {
@@ -1756,14 +1757,14 @@ async function buildUpdateData(analysis, doc) {
   } else if (config.limitFunctions?.activateTagging === 'no' && config.addAIProcessedTag === 'yes') {
     // Add AI processed tags to the document (processTags function awaits a tags array)
     // get tags from .env file and split them by comma and make an array
-    console.log('[DEBUG] Tagging is deactivated but AI processed tag will be added');
+    logger.debug('Tagging is deactivated but AI processed tag will be added');
     const tags = config.addAIProcessedTags.split(',');
     const { tagIds, errors } = await paperlessService.processTags(tags, options);
     if (errors.length > 0) {
-      console.warn('[ERROR] Some tags could not be processed:', errors);
+      logger.warn('Some tags could not be processed: %o', errors);
     }
     updateData.tags = tagIds;
-    console.log('[DEBUG] Tagging is deactivated');
+    logger.debug('Tagging is deactivated');
   }
 
   // Only process title if title generation is activated
@@ -2665,7 +2666,7 @@ router.post('/api/webhook/document', async (req, res) => {
       documentQueue.push(document);
       if (prompt) {
         usePrompt = true;
-        console.log('[DEBUG] Using custom prompt:', prompt);
+        logger.debug('Using custom prompt: %s', prompt);
         await processQueue(prompt);
       } else {
         await processQueue();

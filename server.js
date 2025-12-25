@@ -18,6 +18,7 @@ process.env.RAG_SERVICE_ENABLED = process.env.RAG_SERVICE_ENABLED || 'true';
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const Logger = require('./services/loggerService');
+const logger = require('./services/logger');
 const { max } = require('date-fns');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
@@ -363,26 +364,26 @@ async function buildUpdateData(analysis, doc) {
     }
   }
 
-  console.log('TEST: ', config.addAIProcessedTag)
-  console.log('TEST 2: ', config.addAIProcessedTags)
+  logger.debug('config.addAIProcessedTag: %o', config.addAIProcessedTag);
+  logger.debug('config.addAIProcessedTags: %o', config.addAIProcessedTags);
   // Only process tags if tagging is activated
   if (config.limitFunctions?.activateTagging !== 'no') {
     const { tagIds, errors } = await paperlessService.processTags(analysis.document.tags);
     if (errors.length > 0) {
-      console.warn('[ERROR] Some tags could not be processed:', errors);
+      logger.warn('Some tags could not be processed: %o', errors);
     }
     updateData.tags = tagIds;
   } else if (config.limitFunctions?.activateTagging === 'no' && config.addAIProcessedTag === 'yes') {
     // Add AI processed tags to the document (processTags function awaits a tags array)
     // get tags from .env file and split them by comma and make an array
-    console.log('[DEBUG] Tagging is deactivated but AI processed tag will be added');
+    logger.debug('Tagging is deactivated but AI processed tag will be added');
     const tags = config.addAIProcessedTags.split(',');
     const { tagIds, errors } = await paperlessService.processTags(tags);
     if (errors.length > 0) {
-      console.warn('[ERROR] Some tags could not be processed:', errors);
+      logger.warn('Some tags could not be processed: %o', errors);
     }
     updateData.tags = tagIds;
-    console.log('[DEBUG] Tagging is deactivated');
+    logger.debug('Tagging is deactivated');
   }
 
   // Only process title if title generation is activated
@@ -422,7 +423,7 @@ async function buildUpdateData(analysis, doc) {
       const customField = customFields[key];
 
       if (!customField || !customField.field_name) {
-        console.log('[DEBUG] Skipping null/invalid custom field');
+        logger.debug('Skipping null/invalid custom field');
         continue;
       }
 
@@ -431,7 +432,7 @@ async function buildUpdateData(analysis, doc) {
         : null;
 
       if (!trimmedValue) {
-        console.log(`[DEBUG] Skipping empty/invalid custom field`);
+        logger.debug('Skipping empty/invalid custom field');
         continue;
       }
 
@@ -536,7 +537,7 @@ async function scanInitial() {
 
 async function scanDocuments() {
   if (runningTask) {
-    console.log('[DEBUG] Task already running');
+    logger.warn('Task already running');
     return;
   }
 
@@ -789,14 +790,14 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 async function gracefulShutdown(signal) {
-  console.log(`[DEBUG] Received ${signal} signal. Starting graceful shutdown...`);
+  logger.info('Received %s signal. Starting graceful shutdown...', signal);
   try {
-    console.log('[DEBUG] Closing database...');
+    logger.info('Closing database...');
     await documentModel.closeDatabase();
-    console.log('[DEBUG] Database closed successfully');
+    logger.info('Database closed successfully');
     process.exit(0);
   } catch (error) {
-    console.error(`[ERROR] during ${signal} shutdown:`, error);
+    logger.error(`Error during ${signal} shutdown: %o`, error);
     process.exit(1);
   }
 }
