@@ -1744,6 +1744,7 @@ async getOrCreateDocumentType(name) {
         };
       }
 
+<<<<<<< HEAD
       // Handle custom fields update (safe, idempotent)
       if (updateData.custom_fields) {
         logger.debug('Custom fields update detected', { documentId });
