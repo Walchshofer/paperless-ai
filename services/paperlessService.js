@@ -1487,10 +1487,10 @@ async getOrCreateDocumentType(name) {
 
       // // Handle custom fields update
       // if (updateData.custom_fields) {
-      //   console.log('[DEBUG] Custom fields update detected');
+      //   logger.debug('Custom fields update detected');
       //   try {
       //     // First, delete existing custom fields
-      //     console.log(`[DEBUG] Deleting existing custom fields for document ${documentId}`);
+      //     logger.debug('Deleting existing custom fields for document %s', documentId);
       //     await this.client.delete(`/documents/${documentId}/custom_fields/`);
       //   } catch (error) {
       //     // If deletion fails, try updating with empty array first
