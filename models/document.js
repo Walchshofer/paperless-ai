@@ -3,6 +3,7 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 const { get } = require('http');
+const logger = require('../services/logger');
 
 // Ensure data directory exists
 const dataDir = path.join(process.cwd(), 'data');
@@ -336,11 +337,11 @@ module.exports = {
   async deleteAllDocuments() {
     try {
       db.prepare('DELETE FROM processed_documents').run();
-      console.log('[DEBUG] All processed_documents deleted');
+      logger.debug('All processed_documents deleted');
       db.prepare('DELETE FROM history_documents').run();
-      console.log('[DEBUG] All history_documents deleted');
+      logger.debug('All history_documents deleted');
       db.prepare('DELETE FROM original_documents').run();
-      console.log('[DEBUG] All original_documents deleted');
+      logger.debug('All original_documents deleted');
       return true;
     } catch (error) {
       console.error('[ERROR] deleting documents:', error);
@@ -350,12 +351,12 @@ module.exports = {
 
   async deleteDocumentsIdList(idList) {
     try {
-      console.log('[DEBUG] Received idList:', idList);
+      logger.debug('Received idList: %o', idList);
   
       const ids = Array.isArray(idList) ? idList : (idList?.ids || []);
   
       if (!Array.isArray(ids) || ids.length === 0) {
-        console.error('[ERROR] Invalid input: must provide an array of ids');
+        logger.error('Invalid input: must provide an array of ids');
         return false;
       }
   
@@ -366,10 +367,10 @@ module.exports = {
       const query = `DELETE FROM processed_documents WHERE document_id IN (${placeholders})`;
       const query2 = `DELETE FROM history_documents WHERE document_id IN (${placeholders})`;
       const query3 = `DELETE FROM original_documents WHERE document_id IN (${placeholders})`;
-      console.log('[DEBUG] Executing SQL query:', query);
-      console.log('[DEBUG] Executing SQL query:', query2);
-      console.log('[DEBUG] Executing SQL query:', query3);
-      console.log('[DEBUG] With parameters:', numericIds);
+      logger.debug('Executing SQL query: %s', query);
+      logger.debug('Executing SQL query: %s', query2);
+      logger.debug('Executing SQL query: %s', query3);
+      logger.debug('With parameters: %o', numericIds);
   
       const stmt = db.prepare(query);
       const stmt2 = db.prepare(query2);
@@ -378,10 +379,10 @@ module.exports = {
       const result2 = stmt2.run(numericIds);
       const result3 = stmt3.run(numericIds);
 
-      console.log('[DEBUG] SQL result:', result);
-      console.log('[DEBUG] SQL result:', result2);
-      console.log('[DEBUG] SQL result:', result3);
-      console.log(`[DEBUG] Documents with IDs ${numericIds.join(', ')} deleted`);
+      logger.debug('SQL result: %o', result);
+      logger.debug('SQL result: %o', result2);
+      logger.debug('SQL result: %o', result3);
+      logger.info('Documents with IDs %s deleted', numericIds.join(', '));
       return true;
     } catch (error) {
       console.error('[ERROR] deleting documents:', error);
@@ -550,10 +551,10 @@ async getCurrentProcessingStatus() {
     return new Promise((resolve, reject) => {
       try {
         db.close();
-        console.log('[DEBUG] Database closed successfully');
+        logger.info('Database closed successfully');
         resolve();
       } catch (error) {
-        console.error('[ERROR] closing database:', error);
+        logger.error('Error closing database: %o', error);
         reject(error);
       }
     });
