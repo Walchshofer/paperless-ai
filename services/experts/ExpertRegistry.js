@@ -55,11 +55,11 @@ const MODEL_NAMES = Object.freeze({
     legalExpert: process.env.LEGAL_EXPERT_MODEL || 'dragon-finance:latest',
 
     // Advanced tier - Reasoning models
-    dragon: process.env.DRAGON_MODEL || 'dragon-finance:latest',
+    dragon: process.env.DRAGON_MODEL || null,
     gptOss: process.env.GPT_OSS_MODEL || null,
 
     // Infrastructure tier - Orchestration and embeddings
-    orchestrator: process.env.ORCHESTRATOR_MODEL || 'nemotron-manager:latest',
+    orchestrator: process.env.ORCHESTRATOR_MODEL || null,
     embeddingModel: process.env.EMBEDDING_MODEL || 'nomic-embed-text-v1.5',
     visualRetrieval: process.env.VISUAL_RETRIEVAL_MODEL || null,
 
@@ -612,13 +612,29 @@ class ExpertRegistry {
         
         logger.info(`ExpertRegistry initialized with ${this.pipelines.size} pipelines`);
     }
+
+    /**
+     * Find a pipeline that contains a stage with the specified stage id
+     * @param {string} stageId
+     * @returns {Object} pipeline
+     */
+    findPipelineByStageId(stageId) {
+        const normalize = (s) => String(s || '').replace(/[-_]/g, '-');
+        const target = normalize(stageId);
+        for (const pipeline of this.pipelines.values()) {
+            if ((pipeline.stages || []).some(s => normalize(s.id) === target)) {
+                return pipeline;
+            }
+        }
+        throw new Error(`Pipeline not found for stage: ${stageId}`);
+    }
     
     /**
      * Register a pipeline
      */
     register(pipeline) {
-        if (!pipeline.id || !pipeline.domain || !pipeline.stages) {
-            throw new Error('Invalid pipeline registration: missing required fields');
+        if (!pipeline.id || !pipeline.domain || !pipeline.stages || !Array.isArray(pipeline.stages) || pipeline.stages.length === 0) {
+            throw new Error('Invalid pipeline registration: missing required fields or at least one stage required');
         }
         
         // Store pipeline
@@ -632,9 +648,15 @@ class ExpertRegistry {
             this.documentTypeIndex.set(docType.toLowerCase(), pipeline.id);
         }
         
-        // Index by domain
+        // Index by domain and sort by priority (descending)
         const domainPipelines = this.domainIndex.get(pipeline.domain) || [];
         domainPipelines.push(pipeline.id);
+        // Sort pipelines by priority (higher priority first)
+        domainPipelines.sort((a, b) => {
+            const pa = this.pipelines.get(a)?.priority || 0;
+            const pb = this.pipelines.get(b)?.priority || 0;
+            return pb - pa;
+        });
         this.domainIndex.set(pipeline.domain, domainPipelines);
         
         logger.debug(`Registered pipeline: ${pipeline.id} (${pipeline.domain})`);
@@ -658,32 +680,42 @@ class ExpertRegistry {
      * @returns {Object} Selected pipeline and routing metadata
      */
     route(classificationResult) {
-        const { classification, routing, quality_assessment } = classificationResult;
-        
+        // Support being called with either a wrapper ({ classification }) or the classification object directly
+        const classification = classificationResult.classification || classificationResult;
+        const routing = classificationResult.routing;
+        const quality_assessment = classificationResult.quality_assessment;
+
         // Extract routing signals
         const domain = classification?.primary_domain || 'General';
-        const documentType = classification?.document_type?.toLowerCase() || 'unknown';
+        const documentType = (classification?.document_type || classification?.document_type === 0) ? String(classification.document_type).toLowerCase() : 'unknown';
         const confidence = classification?.confidence || 0;
         
         let selectedPipeline = null;
         let routingReason = '';
+        let matchedConditions = [];
+        let evaluatedPipelines = [];
         
         // Strategy 1: Direct document type match
         if (this.documentTypeIndex.has(documentType)) {
             const pipelineId = this.documentTypeIndex.get(documentType);
+            evaluatedPipelines.push(pipelineId);
             selectedPipeline = this.get(pipelineId);
             routingReason = `Direct document type match: ${documentType}`;
+            matchedConditions.push({ type: 'document_type', value: documentType, pipelineId });
         }
         
         // Strategy 2: Domain-based routing
         if (!selectedPipeline) {
             const domainEnum = this._mapDomainString(domain);
             const domainPipelines = this.domainIndex.get(domainEnum) || [];
+            evaluatedPipelines = evaluatedPipelines.concat(domainPipelines);
+            logger.debug(`Domain-based pipelines for ${domainEnum}: ${JSON.stringify(domainPipelines)}`);
             
             if (domainPipelines.length > 0) {
-                // Select first matching domain pipeline
+                // Select first matching domain pipeline (sorted by priority)
                 selectedPipeline = this.get(domainPipelines[0]);
                 routingReason = `Domain-based routing: ${domain}`;
+                matchedConditions.push({ type: 'domain', value: domain, pipelineIds: domainPipelines });
             }
         }
         
@@ -717,6 +749,8 @@ class ExpertRegistry {
                 requiresVisualAnalysis: requiresVisual,
                 documentType: documentType,
                 domain: domain,
+                matchedConditions,
+                evaluatedPipelines,
                 timestamp: Date.now()
             }
         };

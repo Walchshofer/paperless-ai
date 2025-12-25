@@ -12,6 +12,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const { model } = require('./ollamaService');
 const RestrictionPromptService = require('./restrictionPromptService');
+const logger = require('./logger');
 
 class OpenAIService {
   constructor() {
@@ -52,9 +53,9 @@ class OpenAIService {
       // Handle thumbnail caching
       try {
         await fs.access(cachePath);
-        console.log('[DEBUG] Thumbnail already cached');
+        logger.debug('Thumbnail already cached');
       } catch (err) {
-        console.log('Thumbnail not cached, fetching from Paperless');
+        logger.debug('Thumbnail not cached, fetching from Paperless');
 
         const thumbnailData = await paperlessService.getThumbnailImage(id);
 
@@ -76,7 +77,7 @@ class OpenAIService {
       if (externalApiData) {
         try {
           validatedExternalApiData = await this._validateAndTruncateExternalApiData(externalApiData);
-          console.log('[DEBUG] External API data validated and included');
+          logger.debug('External API data validated and included');
         } catch (error) {
           console.warn('[WARNING] External API data validation failed:', error.message);
           validatedExternalApiData = null;
@@ -146,7 +147,7 @@ class OpenAIService {
       }
 
       if (customPrompt) {
-        console.log('[DEBUG] Replace system prompt with custom prompt via WebHook');
+        logger.debug('Replace system prompt with custom prompt via WebHook');
         systemPrompt = customPrompt + '\n\n' + config.mustHavePrompt;
       }
 
@@ -169,9 +170,9 @@ class OpenAIService {
         throw new Error('Token limit exceeded: prompt too large for available token limit');
       }
 
-      console.log(`[DEBUG] Token calculation - Prompt: ${totalPromptTokens}, Reserved: ${reservedTokens}, Available: ${availableTokens}`);
-      console.log(`[DEBUG] Use existing data: ${config.useExistingData}, Restrictions applied based on useExistingData setting`);
-      console.log(`[DEBUG] External API data: ${validatedExternalApiData ? 'included' : 'none'}`);
+      logger.debug(`Token calculation - Prompt: ${totalPromptTokens}, Reserved: ${reservedTokens}, Available: ${availableTokens}`);
+      logger.debug(`Use existing data: ${config.useExistingData}, Restrictions applied based on useExistingData setting`);
+      logger.debug(`External API data: ${validatedExternalApiData ? 'included' : 'none'}`);
 
       const truncatedContent = await truncateToTokenLimit(content, availableTokens, model);
 

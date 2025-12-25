@@ -195,7 +195,7 @@ describe('Expert Pipeline', function() {
                 assert.strictEqual(retrieved.version, '1.0.0');
             });
             
-            it('should throw on duplicate registration', function() {
+            it('should be idempotent on identical duplicate registration', function() {
                 const prompt = {
                     id: 'DUPLICATE_TEST',
                     version: '1.0.0',
@@ -205,11 +205,36 @@ describe('Expert Pipeline', function() {
                     systemPrompt: 'Test',
                     userPromptTemplate: 'Test {{content}}'
                 };
-                
+
                 registry.register(prompt);
-                
+
+                // Registering the same prompt again should be idempotent and not throw
+                registry.register(prompt);
+
+                const retrieved = registry.get('DUPLICATE_TEST');
+                assert.strictEqual(retrieved.id, 'DUPLICATE_TEST');
+            });
+
+            it('should throw on conflicting duplicate registration', function() {
+                const prompt = {
+                    id: 'CONFLICT_TEST',
+                    version: '1.0.0',
+                    domain: DomainType.GENERAL,
+                    model: ModelType.TEXT,
+                    category: PromptCategory.EXTRACTION,
+                    systemPrompt: 'Original',
+                    userPromptTemplate: 'Original {{content}}'
+                };
+
+                const conflicting = {
+                    ...prompt,
+                    systemPrompt: 'Modified'
+                };
+
+                registry.register(prompt);
+
                 assert.throws(() => {
-                    registry.register(prompt);
+                    registry.register(conflicting);
                 }, /already registered/);
             });
             
@@ -544,6 +569,11 @@ describe('Expert Pipeline', function() {
             assert.strictEqual(resolveModelName('medtext'), 'medtext-llama3');
             assert.strictEqual(resolveModelName('dragon'), 'dragon-finance');
             assert.strictEqual(resolveModelName('nemotron'), 'nemotron-orchestrator:8b');
+
+            // New tests for suffix stripping and exact base handling
+            assert.strictEqual(resolveModelName('dragon-finance:latest'), 'dragon-finance');
+            assert.strictEqual(resolveModelName('dragon-finance'), 'dragon-finance');
+            assert.strictEqual(resolveModelName('llava-med-v1.5:latest'), 'llava-med-v1.5');
         });
 
         it('should identify model tiers', function() {

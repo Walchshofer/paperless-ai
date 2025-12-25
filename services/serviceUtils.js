@@ -1,6 +1,7 @@
 const tiktoken = require('tiktoken');
 const fs = require('fs').promises;
 const path = require('path');
+const logger = require('./logger');
 
 // Map non-OpenAI models to compatible OpenAI encodings or use estimation
 function getCompatibleModel(model) {
@@ -53,7 +54,7 @@ async function calculateTokens(text, model = process.env.OPENAI_MODEL || "gpt-4o
         
         if (!compatibleModel) {
             // Non-OpenAI model - use character-based estimation
-            console.log(`[DEBUG] Using character-based token estimation for model: ${model}`);
+            logger.debug(`Using character-based token estimation for model: ${model}`);
             return estimateTokensForNonOpenAI(text);
         }
         
@@ -99,7 +100,7 @@ async function truncateToTokenLimit(text, maxTokens, model = process.env.OPENAI_
         
         if (!compatibleModel) {
             // Non-OpenAI model - use character-based estimation
-            console.log(`[DEBUG] Using character-based truncation for model: ${model}`);
+            logger.debug(`Using character-based truncation for model: ${model}`);
             
             const estimatedTokens = estimateTokensForNonOpenAI(text);
             
@@ -170,7 +171,7 @@ async function writePromptToFile(systemPrompt, truncatedContent, filePath = './l
             const stats = await fs.stat(filePath);
             if (stats.size > maxSize) {
                 await fs.unlink(filePath); // Delete the file if it exceeds max size
-                console.log(`[DEBUG] Cleared log file ${filePath} due to size limit`);
+                logger.debug(`Cleared log file ${filePath} due to size limit`);
             }
         } catch (error) {
             if (error.code !== 'ENOENT') {

@@ -4,6 +4,7 @@ const axios = require('axios');
 const { OpenAI } = require('openai');
 const config = require('../config/config');
 const AzureOpenAI = require('openai').AzureOpenAI;
+const logger = require('./logger');
 
 class SetupService {
   constructor() {

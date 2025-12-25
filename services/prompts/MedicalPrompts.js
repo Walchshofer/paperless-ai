@@ -1111,6 +1111,47 @@ Respond with this JSON structure:
     }
 };
 
+// === Additional Medical Extraction & Integration Prompts ===
+const MED_IMAGING_EXTRACT_V1 = {
+    id: 'MED_IMAGING_EXTRACT_V1',
+    version: '1.0.0',
+    domain: DomainType.MEDICAL,
+    model: 'llava-med-v1.5:latest',
+    modelType: ModelType.MULTIMODAL,
+    systemPrompt: 'Classify the imaging modality and extract key imaging metadata and findings.',
+    userTemplate: 'Process the provided image and return modality, study descriptions and structured findings: {{image}}',
+    config: { temperature: 0.15, maxTokens: 2048, topK: 20, topP: 0.9 }
+};
+
+const MED_TEXT_EXTRACT_V1 = {
+    id: 'MED_TEXT_EXTRACT_V1',
+    version: '1.0.0',
+    domain: DomainType.MEDICAL,
+    model: 'medtext-llama3:latest',
+    modelType: ModelType.TEXT_ONLY,
+    systemPrompt: 'Extract structured clinical information from the provided text (labs, meds, diagnoses).',
+    userTemplate: 'Extract structured fields from the following clinical text: {{text_chunk}}',
+    config: { temperature: 0.1, maxTokens: 2048, topK: 20, topP: 0.9 }
+};
+
+const MED_INTEGRATE_V1 = {
+    id: 'MED_INTEGRATE_V1',
+    version: '1.0.0',
+    domain: DomainType.MEDICAL,
+    model: 'sauerkraut-llama3.1:8b',
+    modelType: ModelType.TEXT,
+    systemPrompt: 'Integrate imaging and text extractions into a unified structured summary for downstream processing.',
+    userTemplate: 'Given imaging findings: {{imaging}} and clinical text extractions: {{text}}, produce a consolidated structured summary and confidence scores.',
+    config: { temperature: 0.2, maxTokens: 2048, topK: 20, topP: 0.9 }
+};
+
+// Document type constants used by the expert pipeline
+const MedicalDocumentTypes = {
+    LAB_RESULT: 'lab_result',
+    RADIOLOGY: 'radiology',
+    PRESCRIPTION: 'prescription'
+};
+
 // ============================================================================
 // PROMPT REGISTRATION HELPER
 // ============================================================================
@@ -1120,6 +1161,14 @@ Respond with this JSON structure:
  * @param {PromptRegistry} registry - The prompt registry instance
  */
 function registerMedicalPrompts(registry) {
+    // Ensure built-in/system prompts are registered so medical prompts
+    // can assume required routing/system templates are present.
+    if (!registry.has || !registry.has('SYS_ROUTER_V1')) {
+        if (registry._registerBuiltinPrompts) {
+            registry._registerBuiltinPrompts();
+        }
+    }
+
     const prompts = [
         MED_XRAY_CHEST_V1,
         MED_PATHOLOGY_V1,
@@ -1127,7 +1176,10 @@ function registerMedicalPrompts(registry) {
         MED_LAB_RESULTS_V1,
         MED_DISCHARGE_V1,
         MED_CLINICAL_NOTE_V1,
-        MED_INSURANCE_V1
+        MED_INSURANCE_V1,
+        MED_IMAGING_EXTRACT_V1,
+        MED_TEXT_EXTRACT_V1,
+        MED_INTEGRATE_V1
     ];
     
     for (const prompt of prompts) {
@@ -1150,9 +1202,15 @@ module.exports = {
     MED_DISCHARGE_V1,
     MED_CLINICAL_NOTE_V1,
     MED_INSURANCE_V1,
+    MED_IMAGING_EXTRACT_V1,
+    MED_TEXT_EXTRACT_V1,
+    MED_INTEGRATE_V1,
     
     // Registration helper
     registerMedicalPrompts,
+
+    // Document type constants
+    MedicalDocumentTypes,
     
     // Prompt list for introspection
     MEDICAL_PROMPTS: [
@@ -1162,6 +1220,9 @@ module.exports = {
         'MED_LAB_RESULTS_V1',
         'MED_DISCHARGE_V1',
         'MED_CLINICAL_NOTE_V1',
-        'MED_INSURANCE_V1'
+        'MED_INSURANCE_V1',
+        'MED_IMAGING_EXTRACT_V1',
+        'MED_TEXT_EXTRACT_V1',
+        'MED_INTEGRATE_V1'
     ]
 };

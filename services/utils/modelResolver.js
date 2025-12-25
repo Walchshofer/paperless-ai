@@ -23,16 +23,44 @@ const config = require('../../config/config');
 function resolveModelName(modelName) {
   if (!modelName) return null;
 
-  // Normalize to lowercase for consistent processing
-  const normalized = modelName.toLowerCase().trim();
+  const input = modelName.trim();
+  const lowerInput = input.toLowerCase();
 
-  // Check aliases first (highest priority)
-  if (config.modelAliases && config.modelAliases[normalized]) {
-    return config.modelAliases[normalized];
+  // Build a lowercase alias map for case-insensitive lookup
+  const aliasLowerMap = {};
+  if (config.modelAliases) {
+    for (const [alias, target] of Object.entries(config.modelAliases)) {
+      aliasLowerMap[alias.toLowerCase()] = target;
+    }
   }
 
-  // Return normalized name if no alias found
-  return normalized;
+  // 1) Exact alias match (case-insensitive)
+  if (aliasLowerMap[lowerInput]) {
+    return aliasLowerMap[lowerInput];
+  }
+
+  // 2) Direct known model match (case-insensitive)
+  const allModels = Object.values(listModelsByTier()).flat();
+  const allModelsLower = new Set(allModels.map(m => m.toLowerCase()));
+  if (allModelsLower.has(lowerInput)) {
+    return lowerInput;
+  }
+
+  // 3) Strip suffix after ':' and retry alias lookup or known-model match
+  const base = input.split(':')[0];
+  const lowerBase = base.toLowerCase();
+
+  if (aliasLowerMap[lowerBase]) {
+    return aliasLowerMap[lowerBase];
+  }
+
+  if (allModelsLower.has(lowerBase)) {
+    // Return the base model name (normalized to lowercase for consistency)
+    return lowerBase;
+  }
+
+  // Fallback: return lowercased input
+  return lowerInput;
 }
 
 /**
