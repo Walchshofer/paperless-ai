@@ -2,6 +2,7 @@
 -- Migration: Create storage for visual overlays and enable vector extension
 -- Purpose: Link Visual Retrieval (Tomoro/Byaldi) overlays with Paperless-NGX documents
 -- Date: 2025-12-25
+-- Updated: 2025-12-26 - Removed FK constraint for standalone operation
 
 -- Enable pgvector (used for vector/text fallbacks where applicable)
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -9,11 +10,17 @@ CREATE EXTENSION IF NOT EXISTS vector;
 -- Create visual_overlays table
 -- Stores bounding boxes / labels produced by qwen3-vl / Tomoro visual pipelines
 -- Example overlay_data: {"label": "signature", "box": [ymin, xmin, ymax, xmax]}
+--
+-- NOTE: doc_id logically references paperless-ngx documents(id) but we do NOT
+-- enforce FK constraint because:
+-- 1. paperless-ai runs as a separate application
+-- 2. May not have direct access to enforce FK on paperless-ngx database
+-- 3. Application layer handles document lifecycle and cleanup
 
 CREATE TABLE IF NOT EXISTS visual_overlays (
     id BIGSERIAL PRIMARY KEY,
-    -- FK to Paperless-NGX documents table (assumes documents.id is BIGINT/INT)
-    doc_id BIGINT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    -- Logical reference to Paperless-NGX document ID (no FK constraint)
+    doc_id BIGINT NOT NULL,
     page_number INTEGER NOT NULL,
     overlay_data JSONB NOT NULL,
     semantic_label VARCHAR(255),
@@ -42,7 +49,8 @@ ALTER TABLE visual_overlays
     NOT VALID;
 
 -- NOTE:
--- - This migration expects the Paperless-NGX `documents` table to exist with primary key `id` (integer/bigint).
+-- - doc_id values should match Paperless-NGX document IDs for proper cross-referencing.
+-- - No FK constraint means orphaned overlays won't auto-delete; use deleteByDocId() when documents are removed.
 -- - If your Tomoro indexer uses a different ID format (for example including prefixes or different separators),
 --   adjust the expression index above accordingly (or add a dedicated `tomoro_doc_id` column).
 
