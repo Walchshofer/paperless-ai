@@ -145,28 +145,39 @@ function initializeExpertPipeline(options = {}) {
     
     logger.info('Initializing Expert Pipeline services...');
     
+    // Ensure registries return sensible defaults to avoid TypeErrors
+    const safePromptList = (promptRegistry && typeof promptRegistry.list === 'function') ? promptRegistry.list() || [] : [];
+    const safePipelines = (expertRegistry && typeof expertRegistry.list === 'function') ? expertRegistry.list() || [] : [];
+
     // Register builtin prompts unless explicitly disabled
-    if (options.registerBuiltinPrompts !== false) {
-        promptRegistry._registerBuiltinPrompts();
-        logger.info(`Built-in prompts registered: ${promptRegistry.list().length}`);
+    if (options.registerBuiltinPrompts !== false && promptRegistry && typeof promptRegistry._registerBuiltinPrompts === 'function') {
+        try {
+            promptRegistry._registerBuiltinPrompts();
+        } catch (err) {
+            logger.warn('Failed to register built-in prompts:', err);
+        }
+        logger.info(`Built-in prompts registered: ${safePromptList.length}`);
     }
 
     // Register medical prompts if enabled
-    if (options.enableMedical !== false) {
-        registerMedicalPrompts(promptRegistry);
-        logger.info(`Registered ${promptRegistry.list().length} prompts`);
+    if (options.enableMedical !== false && typeof registerMedicalPrompts === 'function') {
+        try {
+            registerMedicalPrompts(promptRegistry);
+        } catch (err) {
+            logger.warn('Failed to register medical prompts:', err);
+        }
+        logger.info(`Registered ${safePromptList.length} prompts`);
     }
     
     // Log registered pipelines
-    const pipelines = expertRegistry.list();
-    logger.info(`Available pipelines: ${pipelines.map(p => p.id).join(', ')}`);
+    logger.info(`Available pipelines: ${safePipelines.map(p => p && p.id).filter(Boolean).join(', ')}`);
     
     // Log pipeline details
-    for (const pipeline of pipelines) {
-        logger.debug(`Pipeline ${pipeline.id}:`, {
-            name: pipeline.name,
-            stages: pipeline.stageCount,
-            domain: pipeline.domain
+    for (const pipeline of safePipelines) {
+        logger.debug(`Pipeline ${pipeline && pipeline.id}:`, {
+            name: pipeline && pipeline.name,
+            stages: pipeline && pipeline.stageCount,
+            domain: pipeline && pipeline.domain
         });
     }
     
@@ -177,8 +188,8 @@ function initializeExpertPipeline(options = {}) {
         promptRegistry,
         expertRegistry,
         initializationTime: initTime,
-        promptCount: promptRegistry.list().length,
-        pipelineCount: pipelines.length
+        promptCount: safePromptList.length,
+        pipelineCount: safePipelines.length
     };
 }
 

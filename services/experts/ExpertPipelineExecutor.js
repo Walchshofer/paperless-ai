@@ -382,87 +382,98 @@ class ExpertPipelineExecutor {
     async execute(pipelineId, document, classificationResult, options = {}) {
         const startTime = Date.now();
         this.stats.totalExecutions++;
-        
-        logger.info({
-            event: 'pipeline_execution_start',
-            pipelineId,
-            documentId: document.id || document.filename,
-            classification: classificationResult?.classification?.primary_domain
-        });
-        
-        // Get pipeline definition
-        let pipeline;
+
         try {
-            pipeline = expertRegistry.get(pipelineId);
-        } catch (error) {
-            // Try to find a pipeline by stage id (backwards compatibility)
+            logger.info({
+                event: 'pipeline_execution_start',
+                pipelineId,
+                documentId: document.id || document.filename,
+                classification: classificationResult?.classification?.primary_domain
+            });
+            
+            // Get pipeline definition
+            let pipeline;
             try {
-                pipeline = expertRegistry.findPipelineByStageId(pipelineId);
-                logger.info(`Resolved stage id ${pipelineId} to pipeline ${pipeline.id}`);
-            } catch (stageErr) {
-                logger.error(`Pipeline not found: ${pipelineId}`);
-                return this._buildErrorResult(pipelineId, error, startTime);
-            }
-        }
-        
-        // Create execution context
-        const context = new ExecutionContext(document, classificationResult, {
-            ...options,
-            pipelineId
-        });
-        
-        // Execute stages
-        let finalStatus = 'success';
-        try {
-            for (const stage of pipeline.stages) {
-                const stageResult = await this._executeStage(stage, context, pipeline);
-                
-                // Check if we need to abort
-                if (stageResult.abort) {
-                    finalStatus = 'failed';
-                    break;
+                pipeline = expertRegistry.get(pipelineId);
+            } catch (error) {
+                // Try to find a pipeline by stage id (backwards compatibility)
+                try {
+                    pipeline = expertRegistry.findPipelineByStageId(pipelineId);
+                    logger.info(`Resolved stage id ${pipelineId} to pipeline ${pipeline.id}`);
+                } catch (stageErr) {
+                    logger.error(`Pipeline not found: ${pipelineId}`);
+                    return this._buildErrorResult(pipelineId, error, startTime);
                 }
-                
-                // Unload model after stage if requested (for model swaps)
-                if (stage.unloadAfter) {
-                    try {
-                        await this._unloadModel(stage.unloadModelName || stage.model);
-                    } catch (err) {
-                        logger.warn({ event: 'model_unload_error', stageId: stage.id, error: err.message });
+            }
+            
+            // Create execution context
+            const context = new ExecutionContext(document, classificationResult, {
+                ...options,
+                pipelineId
+            });
+            
+            // Execute stages
+            let finalStatus = 'success';
+            try {
+                for (const stage of (pipeline && pipeline.stages) || []) {
+                    const stageResult = await this._executeStage(stage, context, pipeline);
+                    
+                    // Check if we need to abort
+                    if (stageResult.abort) {
+                        finalStatus = 'failed';
+                        break;
+                    }
+                    
+                    // Unload model after stage if requested (for model swaps)
+                    if (stage.unloadAfter) {
+                        try {
+                            await this._unloadModel(stage.unloadModelName || stage.model);
+                        } catch (err) {
+                            logger.warn({ event: 'model_unload_error', stageId: stage.id, error: err.message });
+                        }
+                    }
+                    
+                    // Check for partial success scenarios
+                    if (stageResult.status === 'error' && stage.type !== StageType.RECOVERY) {
+                        finalStatus = 'partial';
                     }
                 }
-                
-                // Check for partial success scenarios
-                if (stageResult.status === 'error' && stage.type !== StageType.RECOVERY) {
-                    finalStatus = 'partial';
-                }
+            } catch (error) {
+                logger.error({
+                    event: 'pipeline_execution_error',
+                    pipelineId,
+                    error: error.message
+                });
+                finalStatus = 'failed';
+                context.addError('pipeline', error);
             }
-        } catch (error) {
-            logger.error({
-                event: 'pipeline_execution_error',
+            
+            // Build final result
+            const result = this._buildResult(pipeline, context, finalStatus, startTime);
+            
+            // Update statistics
+            this._updateStats(result);
+            
+            // Log completion
+            logger.info({
+                event: 'pipeline_execution_complete',
                 pipelineId,
-                error: error.message
+                status: finalStatus,
+                executionTimeMs: result.metadata.execution_time_ms,
+                stagesExecuted: context.stagesExecuted.length
             });
-            finalStatus = 'failed';
-            context.addError('pipeline', error);
+            
+            return result;
+        } catch (err) {
+            logger.error({
+                event: 'pipeline_execution_unexpected_error',
+                pipelineId,
+                error: err.message
+            });
+
+            // Ensure a consistent error object is returned (tests expect this shape)
+            return this._buildErrorResult(pipelineId, err, startTime);
         }
-        
-        // Build final result
-        const result = this._buildResult(pipeline, context, finalStatus, startTime);
-        
-        // Update statistics
-        this._updateStats(result);
-        
-        // Log completion
-        logger.info({
-            event: 'pipeline_execution_complete',
-            pipelineId,
-            status: finalStatus,
-            executionTimeMs: result.metadata.execution_time_ms,
-            stagesExecuted: context.stagesExecuted.length
-        });
-        
-        return result;
     }
     
     /**

@@ -1,0 +1,49 @@
+-- init_council_storage.sql
+-- Migration: Create storage for visual overlays and enable vector extension
+-- Purpose: Link Visual Retrieval (Tomoro/Byaldi) overlays with Paperless-NGX documents
+-- Date: 2025-12-25
+
+-- Enable pgvector (used for vector/text fallbacks where applicable)
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Create visual_overlays table
+-- Stores bounding boxes / labels produced by qwen3-vl / Tomoro visual pipelines
+-- Example overlay_data: {"label": "signature", "box": [ymin, xmin, ymax, xmax]}
+
+CREATE TABLE IF NOT EXISTS visual_overlays (
+    id BIGSERIAL PRIMARY KEY,
+    -- FK to Paperless-NGX documents table (assumes documents.id is BIGINT/INT)
+    doc_id BIGINT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    page_number INTEGER NOT NULL,
+    overlay_data JSONB NOT NULL,
+    semantic_label VARCHAR(255),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Indexes
+-- Composite index for quick lookup by document and page (typical access pattern)
+CREATE INDEX IF NOT EXISTS idx_visual_overlays_doc_page ON visual_overlays (doc_id, page_number);
+
+-- GIN index to speed up JSONB containment/lookup on overlay_data
+CREATE INDEX IF NOT EXISTS idx_visual_overlays_overlay_data_gin ON visual_overlays USING gin (overlay_data jsonb_path_ops);
+
+-- Index on semantic_label to support semantic categorization and lookups
+CREATE INDEX IF NOT EXISTS idx_visual_overlays_semantic_label ON visual_overlays (semantic_label);
+
+-- Tomoro indexer compatibility: many visual indexers identify items by a string combining document id and page,
+-- e.g. "<doc_id>:<page_number>". Provide an expression index that supports that lookup format.
+CREATE INDEX IF NOT EXISTS idx_visual_overlays_tomoro_id ON visual_overlays ((doc_id::text || ':' || page_number::text));
+
+-- Optional: small integrity check to ensure overlay JSON has expected keys when present
+-- (keeps migrations non-strict; remove or tighten if you want stricter validation)
+ALTER TABLE visual_overlays
+    ADD CONSTRAINT visual_overlays_overlay_keys_check
+    CHECK (overlay_data ? 'label' AND overlay_data ? 'box')
+    NOT VALID;
+
+-- NOTE:
+-- - This migration expects the Paperless-NGX `documents` table to exist with primary key `id` (integer/bigint).
+-- - If your Tomoro indexer uses a different ID format (for example including prefixes or different separators),
+--   adjust the expression index above accordingly (or add a dedicated `tomoro_doc_id` column).
+
+-- End of migration

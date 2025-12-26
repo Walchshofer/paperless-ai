@@ -48,6 +48,8 @@ surya_models.py
 !.gitignore
 !/.github/
 !/.github/**
+!/.planning/
+!/.planning/**
 
 # Ignore repository `prompts/` folder (non-hidden) and all its contents
 /prompts/
