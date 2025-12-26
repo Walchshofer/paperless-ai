@@ -6,7 +6,7 @@ Building on Visual RAG v1.0 foundation (PDF rendering, overlay extraction, pipel
 
 ## Phases
 
-- [ ] **Phase 1: Storage Infrastructure** - PostgreSQL overlay storage working end-to-end
+- [x] **Phase 1: Storage Infrastructure** - PostgreSQL overlay storage working end-to-end ✅
 - [ ] **Phase 2: Hybrid Embeddings** - OCR-enhanced search combining text + visual
 - [ ] **Phase 3: Domain Expert Integration** - Expert-guided overlay interpretation
 - [ ] **Phase 4: Batch Ingestion** - Process existing document library
@@ -20,8 +20,8 @@ Building on Visual RAG v1.0 foundation (PDF rendering, overlay extraction, pipel
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: Fix PostgreSQL connectivity and schema migration
-- [ ] 01-02: Implement overlay CRUD operations with tests
+- [x] 01-01: Fix PostgreSQL connectivity and schema migration ✅
+- [x] 01-02: Implement overlay CRUD operations with tests ✅
 
 ### Phase 2: Hybrid Embeddings
 **Goal**: Combine visual embeddings with OCR text from paperless-ngx for better retrieval
@@ -76,10 +76,11 @@ Plans:
 
 | Phase | Plans | Tasks | Status | Completed |
 |-------|-------|-------|--------|-----------|
-| 1. Storage Infrastructure | 0/2 | 0/6 | Planned | - |
+| 1. Storage Infrastructure | 2/2 | 6/6 | **Complete** | 2025-12-26 |
 | 2. Hybrid Embeddings | 0/2 | 0/6 | Planned | - |
 | 3. Domain Expert Integration | 0/2 | 0/6 | Planned | - |
 | 4. Batch Ingestion | 0/2 | 0/6 | Planned | - |
 | 5. UI Enhancement | 0/3 | 0/9 | Planned | - |
 
 **Total: 11 plans, 33 tasks across 5 phases**
+**Completed: 2 plans, 6 tasks (Phase 1)**
