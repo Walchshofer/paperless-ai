@@ -51,28 +51,35 @@ Plans:
 - [ ] 04-02: Add progress tracking, error handling, and retry logic
 
 ### Phase 5: UI Enhancement
-**Goal**: Display bounding box overlays on existing Tailwind pages
+**Goal**: Display color-coded bounding box overlays mapped to paperless-ngx fields
 **Depends on**: Phase 4
 **Plans**: 3 plans
 
 Target pages:
-- `/manual` - Manual document processing
-- `/chat` - Chat interface
-- `/rag` - RAG interface
-- `/playground` - Testing playground
-- `/history` - Reanalyze buttons per document row
+- `/manual` - Manual document processing with overlay preview
+- `/chat` - Chat interface with document overlays
+- `/rag` - RAG interface with document overlays
+- `/history` - Overlay badges and reanalyze integration
+
+Domain color scheme:
+- 🟧 Financial: Oranges (#FFF7ED → #9A3412)
+- 🟩 Medical: Greens/Teals (#BBF7D0 → #065F46)
+- 🟪 Legal: Purples (#E9D5FF → #581C87)
+- 🟦 General: Blues (#93C5FD → #1D4ED8)
 
 Plans:
-- [ ] 05-01: Create overlay visualization component (yellow boxes)
-- [ ] 05-02: Integrate overlays into manual, chat, rag pages
-- [ ] 05-03: Add overlay display to history page with reanalyze integration
+- [ ] 05-01: Update OverlayExtractor with new format and domain field specs
+- [ ] 05-02: Create OverlayViewer and OverlayLegend UI components
+- [ ] 05-03: Integrate into manual, chat, rag, history pages
 
 ## Progress
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Storage Infrastructure | 0/2 | Not started | - |
-| 2. Hybrid Embeddings | 0/2 | Not started | - |
-| 3. Domain Expert Integration | 0/2 | Not started | - |
-| 4. Batch Ingestion | 0/2 | Not started | - |
-| 5. UI Enhancement | 0/3 | Not started | - |
+| Phase | Plans | Tasks | Status | Completed |
+|-------|-------|-------|--------|-----------|
+| 1. Storage Infrastructure | 0/2 | 0/6 | Planned | - |
+| 2. Hybrid Embeddings | 0/2 | 0/6 | Planned | - |
+| 3. Domain Expert Integration | 0/2 | 0/6 | Planned | - |
+| 4. Batch Ingestion | 0/2 | 0/6 | Planned | - |
+| 5. UI Enhancement | 0/3 | 0/9 | Planned | - |
+
+**Total: 11 plans, 33 tasks across 5 phases**
