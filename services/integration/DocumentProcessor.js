@@ -811,26 +811,29 @@ class DocumentProcessor {
             
             // If pipeline did not complete successfully, decide whether to error or fallback
             // _processExpertPipeline returns a simplified object; the full execution result is wrapped in _expert_result
-            const executorResult = result._expert_result || result;
-            console.log('DEBUG: executorResult status ->', executorResult && executorResult.status);
-            console.log('DEBUG: pipeline result keys ->', result && Object.keys(result || {}), 'pipeline_id:', result && result.pipeline_id);
-            if (executorResult.status !== 'success') {
+            const executorResult = result && (result._expert_result || result) || null;
+            logger.debug('executorResult status ->', executorResult && executorResult.status);
+            logger.debug('pipeline result keys ->', result && Object.keys(result || {}), 'pipeline_id:', result && result.pipeline_id);
+
+            if (!(executorResult && executorResult.status === 'success')) {
                 // If fallback allowed, let the outer catch block handle it
                 if (this.config.features.enableFallbackToLegacy) {
                     throw new Error('Pipeline did not complete successfully');
                 }
 
                 // Otherwise return a failure
-                const errMsg = executorResult.quality?.errors?.[0]?.error || 'Pipeline failed';
-                logger.error('Pipeline processing failed', { error: errMsg, pipelineId: executorResult.pipeline_id });
+                const errMsg = executorResult?.quality?.errors?.[0]?.error || 'Pipeline failed';
+                const pipelineId = executorResult?.pipeline_id || result?.pipeline_id || null;
+
+                logger.error('Pipeline processing failed', { error: errMsg, pipelineId });
                 return {
                     success: false,
                     error: errMsg,
                     result: result,
                     metadata: {
                         processingMode: processingMode,
-                        pipelineId: executorResult.pipeline_id,
-                        confidence: result.confidence,
+                        pipelineId: pipelineId,
+                        confidence: result?.confidence || 0,
                         processingTimeMs: Date.now() - startTime
                     }
                 };
