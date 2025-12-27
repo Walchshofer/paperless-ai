@@ -584,6 +584,10 @@ async function scanDocuments() {
 app.use('/', setupRoutes);
 const authRoutes = require('./routes/auth');
 const ragRoutes = require('./routes/rag');
+const visualRagRoutes = require('./routes/api/visual-rag');
+
+// Mount Visual RAG routes (always enabled - provides hybrid search)
+app.use('/api/visual-rag', visualRagRoutes);
 
 // Mount RAG routes if enabled
 if (process.env.RAG_SERVICE_ENABLED === 'true') {

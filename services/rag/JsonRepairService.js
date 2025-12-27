@@ -45,7 +45,7 @@ class JsonRepairService {
         };
 
         const response = await this.ollamaService.chat({
-            model: 'sauerkraut',
+            model: 'sauerkraut-llama3.1:8b',
             messages: [systemMsg, userMsg],
             options: { keep_alive: '1m' }
         });

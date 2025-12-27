@@ -128,6 +128,22 @@ module.exports = {
     maxRetriesPlanner: parseInt(process.env.VISUAL_RAG_MAX_RETRIES_PLANNER || '1', 10),
     maxRetriesExtractor: parseInt(process.env.VISUAL_RAG_MAX_RETRIES_EXTRACTOR || '1', 10)
   },
+  // Visual RAG Sidecar configuration (Tomoro/ColQwen2)
+  visualRagSidecar: {
+    enabled: parseEnvBoolean(process.env.ENABLE_VISUAL_RAG_SIDECAR, 'no'),
+    url: process.env.VISUAL_RAG_URL || 'http://visual-rag:8001',
+    timeout: parseInt(process.env.VISUAL_RAG_TIMEOUT || '30000', 10),
+    enableOverlayExtraction: parseEnvBoolean(process.env.ENABLE_OVERLAY_EXTRACTION, 'yes'),
+    parallelIngestion: parseEnvBoolean(process.env.VISUAL_RAG_PARALLEL_INGESTION, 'yes')
+  },
+  // PostgreSQL configuration for visual overlays
+  postgres: {
+    host: process.env.POSTGRES_HOST || process.env.PAPERLESS_DBHOST || 'db',
+    port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
+    database: process.env.POSTGRES_DB || 'paperless',
+    user: process.env.POSTGRES_USER || 'paperless',
+    password: process.env.POSTGRES_PASSWORD || ''
+  },
   duplicateDetection: {
     enabled: parseEnvBoolean(process.env.DUPLICATE_DETECTION_ENABLED, 'yes'),
     similarityThreshold: parseFloat(process.env.DUPLICATE_SIMILARITY_THRESHOLD || '0.95'),

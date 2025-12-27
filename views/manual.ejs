@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com/3.4.16"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.0/css/all.min.css">
     <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/overlay-viewer.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
 </head>
 <body class="h-full">
@@ -114,7 +115,17 @@
                 <div class="card-grid">
                     <!-- Document Preview Card -->
                     <div class="material-card col-span-2">
-                        <h2 class="card-title">Document Preview</h2>
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="card-title mb-0">Document Preview</h2>
+                            <div class="flex gap-2">
+                                <button id="viewTextBtn" class="px-3 py-1 text-sm bg-accent-primary text-white rounded hover:bg-accent-secondary transition-colors">
+                                    <i class="fas fa-file-alt mr-1"></i> Text
+                                </button>
+                                <button id="viewVisualBtn" class="px-3 py-1 text-sm bg-bg-secondary text-text-primary border border-border-color rounded hover:bg-hover-bg transition-colors">
+                                    <i class="fas fa-image mr-1"></i> Visual
+                                </button>
+                            </div>
+                        </div>
                         <!-- Correspondent Info -->
                         <div id="correspondentInfo" class="stat-box mb-4 hidden">
                             <h3 class="text-sm font-medium">Correspondent:</h3>
@@ -124,9 +135,27 @@
                             <h3 class="text-sm font-medium">Title:</h3>
                             <p id="titleName"></p>
                         </div>
-                        <div class="stat-box">
+
+                        <!-- Text Preview (default) -->
+                        <div id="textPreviewSection" class="stat-box">
                             <div id="documentPreview" class="min-h-[600px] bg-bg-primary rounded border border-border-color p-4">
                                 <div id="contentPreview" class="h-[600px] overflow-y-auto font-mono text-sm whitespace-pre-wrap"></div>
+                            </div>
+                        </div>
+
+                        <!-- Visual Preview with Overlays (hidden by default) -->
+                        <div id="visualPreviewSection" class="stat-box hidden">
+                            <div class="flex flex-col lg:flex-row gap-4">
+                                <div id="overlayContainer" class="flex-1 min-h-[600px] bg-bg-primary rounded border border-border-color p-4 overflow-auto">
+                                    <div id="overlayLoading" class="flex items-center justify-center h-[400px] text-text-secondary">
+                                        <i class="fas fa-spinner fa-spin mr-2"></i> Loading visual preview...
+                                    </div>
+                                </div>
+                                <div id="overlayLegendContainer" class="lg:w-64 flex-shrink-0"></div>
+                            </div>
+                            <div id="overlayStats" class="mt-3 text-sm text-text-secondary hidden">
+                                <span id="overlayCount">0</span> fields detected
+                                <span id="mandatoryCount" class="ml-2 text-orange-500"></span>
                             </div>
                         </div>
                     </div>
@@ -705,5 +734,168 @@ return object;
         });
     </script>
     <script src="js/dashboard.js"></script>
+    <script src="js/components/OverlayViewer.js"></script>
+    <script src="js/components/OverlayLegend.js"></script>
+    <script>
+        // Overlay Viewer Integration
+        let overlayViewer = null;
+        let overlayLegend = null;
+        let overlaysLoaded = false;
+        let currentViewMode = 'text'; // 'text' or 'visual'
+
+        // View toggle buttons
+        document.getElementById('viewTextBtn').addEventListener('click', () => switchView('text'));
+        document.getElementById('viewVisualBtn').addEventListener('click', () => switchView('visual'));
+
+        function switchView(mode) {
+            currentViewMode = mode;
+            const textSection = document.getElementById('textPreviewSection');
+            const visualSection = document.getElementById('visualPreviewSection');
+            const textBtn = document.getElementById('viewTextBtn');
+            const visualBtn = document.getElementById('viewVisualBtn');
+
+            if (mode === 'text') {
+                textSection.classList.remove('hidden');
+                visualSection.classList.add('hidden');
+                textBtn.classList.add('bg-accent-primary', 'text-white');
+                textBtn.classList.remove('bg-bg-secondary', 'text-text-primary', 'border', 'border-border-color');
+                visualBtn.classList.remove('bg-accent-primary', 'text-white');
+                visualBtn.classList.add('bg-bg-secondary', 'text-text-primary', 'border', 'border-border-color');
+            } else {
+                textSection.classList.add('hidden');
+                visualSection.classList.remove('hidden');
+                visualBtn.classList.add('bg-accent-primary', 'text-white');
+                visualBtn.classList.remove('bg-bg-secondary', 'text-text-primary', 'border', 'border-border-color');
+                textBtn.classList.remove('bg-accent-primary', 'text-white');
+                textBtn.classList.add('bg-bg-secondary', 'text-text-primary', 'border', 'border-border-color');
+
+                // Load overlays if not already loaded and document is selected
+                if (!overlaysLoaded && currentDocument) {
+                    loadVisualOverlays(currentDocument);
+                }
+            }
+        }
+
+        async function loadVisualOverlays(docId) {
+            if (!docId) return;
+
+            const container = document.getElementById('overlayContainer');
+            const loading = document.getElementById('overlayLoading');
+            const legendContainer = document.getElementById('overlayLegendContainer');
+            const statsEl = document.getElementById('overlayStats');
+
+            loading.classList.remove('hidden');
+
+            try {
+                // Load thumbnail image
+                const img = new Image();
+                img.src = `/thumb/${docId}`;
+                img.style.maxWidth = '100%';
+                img.style.height = 'auto';
+
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = () => reject(new Error('Failed to load image'));
+                });
+
+                // Fetch overlays from API
+                const response = await fetch(`/api/visual-rag/overlays/${docId}`);
+                const data = await response.json();
+
+                loading.classList.add('hidden');
+
+                // Clear container and add image
+                container.innerHTML = '';
+                container.appendChild(img);
+
+                // Initialize overlay viewer
+                if (overlayViewer) {
+                    overlayViewer.destroy();
+                }
+
+                overlayViewer = new OverlayViewer(container, {
+                    onOverlayClick: (overlay) => {
+                        console.log('Clicked overlay:', overlay);
+                        // Could auto-fill fields here
+                    },
+                    onOverlayHover: (overlay) => {
+                        if (overlay && overlayLegend) {
+                            overlayLegend.highlightField(overlay.label.toLowerCase().replace(/\s+/g, '_'));
+                        } else if (overlayLegend) {
+                            overlayLegend.clearHighlights();
+                        }
+                    }
+                });
+
+                overlayViewer.setImage(img);
+
+                if (data.overlays && data.overlays.length > 0) {
+                    const domain = data.overlays[0]?.domain || 'GENERAL';
+                    overlayViewer.setOverlays(data.overlays, domain);
+
+                    // Initialize legend
+                    if (overlayLegend) {
+                        overlayLegend.destroy();
+                    }
+                    overlayLegend = new OverlayLegend(legendContainer, {
+                        domain: domain,
+                        onFilterChange: ({ mandatoryOnly }) => {
+                            overlayViewer.toggleMandatoryOnly(mandatoryOnly);
+                        }
+                    });
+
+                    // Show stats
+                    const stats = overlayViewer.getStats();
+                    document.getElementById('overlayCount').textContent = stats.total;
+                    const mandatoryEl = document.getElementById('mandatoryCount');
+                    if (stats.mandatory > 0) {
+                        mandatoryEl.textContent = `(${stats.mandatory} mandatory)`;
+                    } else {
+                        mandatoryEl.textContent = '';
+                    }
+                    statsEl.classList.remove('hidden');
+                } else {
+                    container.innerHTML = '<div class="text-center text-text-secondary py-8">No visual overlays detected for this document.</div>';
+                    container.appendChild(img);
+                    legendContainer.innerHTML = '';
+                    statsEl.classList.add('hidden');
+                }
+
+                overlaysLoaded = true;
+            } catch (error) {
+                console.error('Failed to load visual overlays:', error);
+                loading.classList.add('hidden');
+                container.innerHTML = `<div class="text-center text-red-500 py-8">Failed to load visual preview: ${error.message}</div>`;
+            }
+        }
+
+        // Reset overlays when document changes
+        const originalHandleDocumentSelection = handleDocumentSelection;
+        handleDocumentSelection = async function(documentId) {
+            overlaysLoaded = false;
+            if (overlayViewer) {
+                overlayViewer.destroy();
+                overlayViewer = null;
+            }
+            if (overlayLegend) {
+                overlayLegend.destroy();
+                overlayLegend = null;
+            }
+            document.getElementById('overlayContainer').innerHTML = `
+                <div id="overlayLoading" class="flex items-center justify-center h-[400px] text-text-secondary">
+                    <i class="fas fa-spinner fa-spin mr-2"></i> Loading visual preview...
+                </div>
+            `;
+            document.getElementById('overlayLegendContainer').innerHTML = '';
+            document.getElementById('overlayStats').classList.add('hidden');
+
+            await originalHandleDocumentSelection(documentId);
+
+            // Auto-load visual if in visual mode
+            if (currentViewMode === 'visual' && documentId) {
+                loadVisualOverlays(documentId);
+            }
+        };
+    </script>
 </body>
 </html>

@@ -1,0 +1,32 @@
+# Visual RAG Sidecar Dependencies
+# ================================
+
+# Core Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+
+# Byaldi - ColPali/ColQwen2 wrapper
+# Provides multi-modal document retrieval
+byaldi>=0.0.5
+
+# PyTorch with CUDA support
+# Note: Install separately with proper CUDA version
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+torch>=2.1.0
+torchvision>=0.16.0
+
+# Transformers for model loading
+transformers>=4.36.0
+
+# PDF processing (pdf2image)
+pdf2image>=1.16.3
+Pillow>=10.0.0
+
+# Optional: Flash Attention for better performance
+# Uncomment if your GPU supports it (Ampere or newer)
+# flash-attn>=2.4.0
+
+# Utilities
+python-dotenv>=1.0.0
+numpy>=1.24.0

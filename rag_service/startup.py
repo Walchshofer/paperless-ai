@@ -307,8 +307,7 @@ async def startup_event():
         logger.error("Error during startup: %s", str(exc))
         logger.error(traceback.format_exc())
         global_state.system_status.server_up = True
-        global_state.indexing_status.message = f"Error during startup: {
-            str(exc)}"
+        global_state.indexing_status.message = f"Error during startup: {str(exc)}"
         global_state.save_state()
 
         if not global_state.data_manager:

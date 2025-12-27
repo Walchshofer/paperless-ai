@@ -39,6 +39,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const axios = require('axios');
+const { parse, parseISO, isValid, format } = require('date-fns');
 const logger = require('../logger');
 const config = require('../../config/config');
 
@@ -584,21 +585,38 @@ class ResultMerger {
      * Convert merged result to paperless-ngx format
      */
     static toPaperlessFormat(mergedResult, documentId) {
-        return {
+        const result = {
             document_id: documentId,
-            title: mergedResult.title || mergedResult.document_info?.subject || null,
-            content: mergedResult.summary || mergedResult.content || null,
-            tags: this._extractTags(mergedResult),
-            correspondent: this._extractCorrespondent(mergedResult),
-            document_type: this._extractDocumentType(mergedResult),
-            created_date: this._extractDate(mergedResult),
-            custom_fields: this._extractCustomFields(mergedResult),
-            
-            // Metadata
+            // Metadata (internal use, not sent to API)
             _extraction_confidence: mergedResult.confidence || 0,
             _pipeline_id: mergedResult.pipeline_id || null,
             _processed_at: new Date().toISOString()
         };
+
+        // Only add fields that have valid values (avoid null/undefined)
+        const title = mergedResult.title || mergedResult.document_info?.subject;
+        if (title) result.title = title;
+
+        const content = mergedResult.summary || mergedResult.content;
+        if (content) result.content = content;
+
+        const tags = this._extractTags(mergedResult);
+        if (tags && tags.length > 0) result.tags = tags;
+
+        const correspondent = this._extractCorrespondent(mergedResult);
+        if (correspondent) result.correspondent = correspondent;
+
+        const documentType = this._extractDocumentType(mergedResult);
+        if (documentType) result.document_type = documentType;
+
+        // Use 'created' field (ISO format) - this is what Paperless-ngx expects
+        const created = this._extractDate(mergedResult);
+        if (created) result.created = created;
+
+        const customFields = this._extractCustomFields(mergedResult);
+        if (customFields && customFields.length > 0) result.custom_fields = customFields;
+
+        return result;
     }
     
     /**
@@ -668,24 +686,70 @@ class ResultMerger {
     }
     
     /**
-     * Extract date from result
+     * Extract date from result and normalize to ISO format (YYYY-MM-DD)
      */
     static _extractDate(result) {
+        let rawDate = null;
+
         // From temporal info
         if (result.temporal_info?.document_date) {
-            return result.temporal_info.document_date;
+            rawDate = result.temporal_info.document_date;
         }
-        
         // From classification hints
-        if (result.classification?.metadata_hints?.detected_date) {
-            return result.classification.metadata_hints.detected_date;
+        else if (result.classification?.metadata_hints?.detected_date) {
+            rawDate = result.classification.metadata_hints.detected_date;
         }
-        
         // From entities
-        if (result.entities?.dates?.[0]?.normalized) {
-            return result.entities.dates[0].normalized;
+        else if (result.entities?.dates?.[0]?.normalized) {
+            rawDate = result.entities.dates[0].normalized;
         }
-        
+
+        if (!rawDate) return null;
+
+        // Normalize to ISO format (YYYY-MM-DD)
+        return this._normalizeDate(rawDate);
+    }
+
+    /**
+     * Normalize date string to ISO format (YYYY-MM-DD)
+     * Handles various input formats: dd.MM.yyyy, dd-MM-yyyy, yyyy-MM-dd, etc.
+     */
+    static _normalizeDate(dateString) {
+        if (!dateString) return null;
+
+        let dateObject;
+
+        // Try ISO format first
+        dateObject = parseISO(dateString);
+        if (isValid(dateObject)) {
+            return format(dateObject, 'yyyy-MM-dd');
+        }
+
+        // Try dd.MM.yyyy (German format)
+        dateObject = parse(dateString, 'dd.MM.yyyy', new Date());
+        if (isValid(dateObject)) {
+            return format(dateObject, 'yyyy-MM-dd');
+        }
+
+        // Try dd-MM-yyyy
+        dateObject = parse(dateString, 'dd-MM-yyyy', new Date());
+        if (isValid(dateObject)) {
+            return format(dateObject, 'yyyy-MM-dd');
+        }
+
+        // Try MM/dd/yyyy (US format)
+        dateObject = parse(dateString, 'MM/dd/yyyy', new Date());
+        if (isValid(dateObject)) {
+            return format(dateObject, 'yyyy-MM-dd');
+        }
+
+        // Try dd/MM/yyyy
+        dateObject = parse(dateString, 'dd/MM/yyyy', new Date());
+        if (isValid(dateObject)) {
+            return format(dateObject, 'yyyy-MM-dd');
+        }
+
+        logger.warn(`[DocumentProcessor] Could not parse date: ${dateString}`);
         return null;
     }
     
@@ -919,10 +983,12 @@ class DocumentProcessor {
     async _processExpertPipeline(document, options) {
         // Prepare image if available
         let preparedImage = null;
+        let preparedImages = [];
         if (document.image_path || document.image_data) {
             const imageSource = document.image_data || document.image_path;
             const prepared = await ImagePreparator.prepare(imageSource);
             preparedImage = prepared.base64;
+            preparedImages = [prepared.base64];
             document.image_data = preparedImage;
         }
 
@@ -950,28 +1016,59 @@ class DocumentProcessor {
                 }
             }
         );
-        
+
+        // Trigger Visual RAG ingestion if images available and enabled
+        if (preparedImages.length > 0 && document.id && config.visualRagSidecar?.enabled === 'yes') {
+            try {
+                const domain = result.result?.classification?.classification?.primary_domain?.toLowerCase();
+                const ingestionResult = await this.pipelineExecutor.ingestDocument(
+                    document.id,
+                    document.pdf_path || document.filename,
+                    {
+                        domain,
+                        base64Images: preparedImages,
+                        metadata: {
+                            filename: document.filename,
+                            classification: result.result?.classification
+                        }
+                    }
+                );
+                logger.debug({
+                    event: 'visual_rag_ingestion_triggered',
+                    docId: document.id,
+                    success: ingestionResult.success,
+                    overlayCount: ingestionResult.overlayExtraction?.overlayCount || 0
+                });
+            } catch (ingestionError) {
+                logger.warn({
+                    event: 'visual_rag_ingestion_error',
+                    docId: document.id,
+                    error: ingestionError.message
+                });
+                // Non-fatal: continue with result
+            }
+        }
+
         this.stats.expertPipelineUsed++;
-        
+
         // Extract primary output
         const primaryOutput = result.result?.primary_output || result.result?.outputs || {};
-        
+
         return {
             ...primaryOutput,
             classification: result.result?.classification,
             pipeline_id: result.pipeline_id,
             confidence: result.metadata?.confidence || 0,
+            visual: result.visual,  // Include visual overlays from pipeline
             _expert_result: result
         };
     }
     
     /**
-     * Process using legacy vision flow (existing vision.js)
+     * Process using legacy vision flow (existing vision.js via ollamaService)
      */
     async _processLegacyVision(document, options) {
-        // Import legacy vision processing
-        // This integrates with the existing vision.js flow
-        const vision = require('../ollama/vision');
+        // Use ollamaService which has all vision methods properly bound
         const content = document.ocr_text || document.content || '';
         const legacyOptions = {
             ...options,
@@ -980,8 +1077,8 @@ class DocumentProcessor {
             existingDocumentTypesList: options.existingDocumentTypesList || []
         };
 
-        // Call existing vision processing
-        const result = await vision.analyzeDocumentWithVision(
+        // Call via ollamaService to ensure proper method binding
+        const result = await this.ollamaService.analyzeDocumentWithVision(
             document.id,
             content,
             legacyOptions
@@ -996,18 +1093,17 @@ class DocumentProcessor {
     }
     
     /**
-     * Process using legacy text flow (existing text.js)
+     * Process using legacy text flow (existing text.js via ollamaService)
      */
     async _processLegacyText(document, options) {
-        // Import legacy text processing
-        const text = require('../ollama/text');
+        // Use ollamaService which has all text methods properly bound
         const content = document.ocr_text || document.content || '';
         const existingTags = options.existingTags || [];
         const existingCorrespondentList = options.existingCorrespondentList || [];
         const existingDocumentTypesList = options.existingDocumentTypesList || [];
 
-        // Call existing text processing
-        const result = await text.analyzeDocument(
+        // Call via ollamaService to ensure proper method binding
+        const result = await this.ollamaService.analyzeDocument(
             content,
             existingTags,
             existingCorrespondentList,
@@ -1159,6 +1255,25 @@ class DocumentProcessor {
     }
     
     /**
+     * Perform visual search across indexed documents
+     * @param {string} query - Search query
+     * @param {Object} options - Search options
+     * @returns {Promise<Object>} Search results with overlays
+     */
+    async visualSearch(query, options = {}) {
+        return this.pipelineExecutor.visualSearch(query, options);
+    }
+
+    /**
+     * Get visual overlays for a specific document
+     * @param {number} docId - Paperless document ID
+     * @returns {Promise<Array<Object>>} Overlay records
+     */
+    async getVisualOverlays(docId) {
+        return this.pipelineExecutor.getVisualOverlays(docId);
+    }
+
+    /**
      * Get processing statistics
      */
     getStats() {
@@ -1178,7 +1293,7 @@ class DocumentProcessor {
             status: 'healthy',
             components: {}
         };
-        
+
         // Check Ollama connectivity
         try {
             const ollamaHost = config.ollama.apiUrl || process.env.OLLAMA_HOST || 'http://localhost:11434';
@@ -1204,11 +1319,48 @@ class DocumentProcessor {
             health.components.ollama = { status: 'unhealthy', error: error.message };
             health.status = 'unhealthy';
         }
-        
+
+        // Check Visual RAG sidecar if enabled
+        if (config.visualRagSidecar?.enabled === 'yes') {
+            try {
+                const visualRagUrl = config.visualRagSidecar?.url || 'http://visual-rag:8001';
+                const sidecarResponse = await axios.get(`${visualRagUrl}/health`, { timeout: 5000 });
+                health.components.visualRagSidecar = {
+                    status: sidecarResponse.data?.status === 'healthy' ? 'healthy' : 'degraded',
+                    model: sidecarResponse.data?.model,
+                    indexedDocuments: sidecarResponse.data?.documents_indexed
+                };
+            } catch (error) {
+                health.components.visualRagSidecar = {
+                    status: 'unhealthy',
+                    error: error.message
+                };
+                // Non-fatal: visual RAG is optional
+            }
+
+            // Check PostgreSQL for overlays
+            try {
+                const visualRagModules = require('../visual-rag');
+                if (visualRagModules?.visualOverlayRepository) {
+                    const pgAvailable = await visualRagModules.visualOverlayRepository.isAvailable();
+                    health.components.visualOverlayRepository = {
+                        status: pgAvailable ? 'healthy' : 'unavailable'
+                    };
+                }
+            } catch (error) {
+                health.components.visualOverlayRepository = {
+                    status: 'unavailable',
+                    error: error.message
+                };
+            }
+        } else {
+            health.components.visualRagSidecar = { status: 'disabled' };
+        }
+
         // Component counts
         health.components.pipelines = expertRegistry.list().length;
         health.components.prompts = promptRegistry.list().length;
-        
+
         return health;
     }
 }
