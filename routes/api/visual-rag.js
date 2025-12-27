@@ -15,6 +15,7 @@ const { ingestionManager, BatchIngestionJob, visualOverlayRepository, pdfRendere
 const { getLegendForDomain, DOMAIN_FIELD_SPECS } = require('../../services/visual-rag/overlayConfig');
 const logger = require('../../services/logger');
 const paperlessService = require('../../services/paperlessService');
+const config = require('../../config/config');
 
 // Store active batch jobs (in production, consider using Redis or database)
 const activeJobs = new Map();
@@ -610,7 +611,7 @@ router.post('/ingest/:docId', async (req, res) => {
         }
 
         // Render PDF to images
-        const images = await pdfRenderer.renderBuffer(pdfBuffer, { dpi: 200, docId });
+        const images = await pdfRenderer.renderBuffer(pdfBuffer, { dpi: config.visualRag.visionRenderDpi, docId });
 
         // Delete existing overlays if re-ingesting
         if (force) {

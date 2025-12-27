@@ -313,6 +313,11 @@ function switchChatTab(targetId) {
     tabPanels.forEach((panel) => {
         panel.classList.toggle('hidden', panel.id !== targetId);
     });
+
+    // Load visual preview when switching to visual tab
+    if (targetId === 'visualTab' && currentDocumentId && !chatVisualLoaded) {
+        loadChatVisualPreview(currentDocumentId);
+    }
 }
 
 function setupModelSelector() {
@@ -466,10 +471,12 @@ document.getElementById('documentSelect').addEventListener('change', function() 
     const documentId = this.value;
     if (documentId) {
         currentModel = getSelectedModel();
+        resetChatVisualPreview(); // Reset visual preview when document changes
         initializeChat(documentId);
     } else {
         currentDocumentId = null;
         resetDocumentPreview();
+        resetChatVisualPreview();
     }
 });
 
@@ -516,3 +523,206 @@ async function submitForm() {
         showError('Failed to send message');
     }
 }
+
+// Visual Preview State
+let chatVisualLoaded = false;
+let chatCurrentPage = 1;
+let chatTotalPages = 1;
+let chatOverlayViewer = null;
+let chatOverlayLegend = null;
+
+async function loadChatVisualPreview(documentId) {
+    const previewEmpty = document.getElementById('visualPreviewEmpty');
+    const preview = document.getElementById('chatVisualPreview');
+    const container = document.getElementById('chatOverlayContainer');
+    const loading = document.getElementById('chatOverlayLoading');
+    const pageNav = document.getElementById('chatPageNav');
+
+    if (!previewEmpty || !preview || !container) return;
+
+    if (!documentId) {
+        resetChatVisualPreview();
+        return;
+    }
+
+    previewEmpty.classList.add('hidden');
+    preview.classList.remove('hidden');
+    loading.classList.remove('hidden');
+    container.innerHTML = '';
+    container.appendChild(loading);
+
+    try {
+        // Get page count first
+        const infoRes = await fetch(`/api/document/${documentId}/page-count`);
+        if (infoRes.ok) {
+            const info = await infoRes.json();
+            chatTotalPages = info.pageCount || 1;
+        } else {
+            chatTotalPages = 1;
+        }
+
+        chatCurrentPage = 1;
+
+        // Load first page
+        await loadChatVisualPage(documentId, 1);
+        updateChatPageNav();
+        chatVisualLoaded = true;
+
+    } catch (error) {
+        console.error('Failed to load visual preview:', error);
+        loading.classList.add('hidden');
+        container.innerHTML = `<div class="text-center text-red-500 py-8">Failed to load visual preview: ${error.message}</div>`;
+    }
+}
+
+async function loadChatVisualPage(documentId, page) {
+    const container = document.getElementById('chatOverlayContainer');
+    const loading = document.getElementById('chatOverlayLoading');
+    const legendContainer = document.getElementById('chatLegendContainer');
+    const statsEl = document.getElementById('chatOverlayStats');
+
+    loading.classList.remove('hidden');
+
+    try {
+        // Render high-res image
+        const renderRes = await fetch(`/api/document/${documentId}/render?page=${page}&dpi=300`);
+        if (!renderRes.ok) throw new Error('Failed to render page');
+
+        const renderData = await renderRes.json();
+
+        // Create image from base64
+        const img = new Image();
+        img.src = `data:image/png;base64,${renderData.image}`;
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+
+        await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = () => reject(new Error('Failed to load rendered image'));
+        });
+
+        // Update total pages if provided
+        if (renderData.totalPages) {
+            chatTotalPages = renderData.totalPages;
+        }
+
+        // Fetch overlays for this page
+        const overlayRes = await fetch(`/api/visual-rag/overlays/${documentId}?page=${page}`);
+        const data = await overlayRes.json();
+
+        loading.classList.add('hidden');
+
+        // Clear container and add image
+        container.innerHTML = '';
+        container.appendChild(img);
+
+        // Initialize overlay viewer
+        if (chatOverlayViewer) {
+            chatOverlayViewer.destroy();
+        }
+
+        chatOverlayViewer = new OverlayViewer(container, {
+            onOverlayClick: (overlay) => {
+                console.log('Clicked overlay:', overlay);
+            },
+            onOverlayHover: (overlay) => {
+                if (overlay && chatOverlayLegend) {
+                    chatOverlayLegend.highlightField(overlay.label.toLowerCase().replace(/\s+/g, '_'));
+                } else if (chatOverlayLegend) {
+                    chatOverlayLegend.clearHighlights();
+                }
+            }
+        });
+
+        chatOverlayViewer.setImage(img);
+
+        if (data.overlays && data.overlays.length > 0) {
+            const domain = data.overlays[0]?.domain || 'GENERAL';
+            chatOverlayViewer.setOverlays(data.overlays, domain);
+
+            // Initialize legend
+            if (chatOverlayLegend) {
+                chatOverlayLegend.destroy();
+            }
+            chatOverlayLegend = new OverlayLegend(legendContainer, {
+                domain: domain,
+                onFilterChange: ({ mandatoryOnly }) => {
+                    chatOverlayViewer.toggleMandatoryOnly(mandatoryOnly);
+                }
+            });
+
+            // Show stats
+            const stats = chatOverlayViewer.getStats();
+            document.getElementById('chatOverlayCount').textContent = stats.total;
+            statsEl.classList.remove('hidden');
+        } else {
+            legendContainer.innerHTML = '';
+            statsEl.classList.add('hidden');
+        }
+    } catch (error) {
+        console.error('Failed to load page:', error);
+        loading.classList.add('hidden');
+        container.innerHTML = `<div class="text-center text-red-500 py-8">Failed to load page: ${error.message}</div>`;
+    }
+}
+
+function updateChatPageNav() {
+    const pageNav = document.getElementById('chatPageNav');
+    const pageIndicator = document.getElementById('chatPageIndicator');
+    const prevBtn = document.getElementById('chatPrevPage');
+    const nextBtn = document.getElementById('chatNextPage');
+
+    if (chatTotalPages > 1) {
+        pageNav.classList.remove('hidden');
+        pageIndicator.textContent = `Page ${chatCurrentPage} of ${chatTotalPages}`;
+        prevBtn.disabled = chatCurrentPage <= 1;
+        nextBtn.disabled = chatCurrentPage >= chatTotalPages;
+    } else {
+        pageNav.classList.add('hidden');
+    }
+}
+
+function resetChatVisualPreview() {
+    const previewEmpty = document.getElementById('visualPreviewEmpty');
+    const preview = document.getElementById('chatVisualPreview');
+
+    if (previewEmpty) {
+        previewEmpty.textContent = 'Select a document to view its visual preview with overlays.';
+        previewEmpty.classList.remove('hidden');
+    }
+    if (preview) {
+        preview.classList.add('hidden');
+    }
+
+    chatVisualLoaded = false;
+    chatCurrentPage = 1;
+    chatTotalPages = 1;
+
+    if (chatOverlayViewer) {
+        chatOverlayViewer.destroy();
+        chatOverlayViewer = null;
+    }
+    if (chatOverlayLegend) {
+        chatOverlayLegend.destroy();
+        chatOverlayLegend = null;
+    }
+}
+
+// Page navigation event listeners
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('chatPrevPage')?.addEventListener('click', async () => {
+        if (chatCurrentPage > 1 && currentDocumentId) {
+            chatCurrentPage--;
+            await loadChatVisualPage(currentDocumentId, chatCurrentPage);
+            updateChatPageNav();
+        }
+    });
+
+    document.getElementById('chatNextPage')?.addEventListener('click', async () => {
+        if (chatCurrentPage < chatTotalPages && currentDocumentId) {
+            chatCurrentPage++;
+            await loadChatVisualPage(currentDocumentId, chatCurrentPage);
+            updateChatPageNav();
+        }
+    });
+});

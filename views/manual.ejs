@@ -145,10 +145,21 @@
 
                         <!-- Visual Preview with Overlays (hidden by default) -->
                         <div id="visualPreviewSection" class="stat-box hidden">
+                            <!-- Page Navigation -->
+                            <div id="pageNavigation" class="flex items-center justify-center gap-4 mb-3 hidden">
+                                <button id="prevPage" class="px-3 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <span id="pageIndicator" class="text-sm text-text-secondary">Page 1 of 1</span>
+                                <button id="nextPage" class="px-3 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                                <span class="text-xs text-text-secondary ml-2">@ 300 DPI</span>
+                            </div>
                             <div class="flex flex-col lg:flex-row gap-4">
                                 <div id="overlayContainer" class="flex-1 min-h-[600px] bg-bg-primary rounded border border-border-color p-4 overflow-auto">
                                     <div id="overlayLoading" class="flex items-center justify-center h-[400px] text-text-secondary">
-                                        <i class="fas fa-spinner fa-spin mr-2"></i> Loading visual preview...
+                                        <i class="fas fa-spinner fa-spin mr-2"></i> Rendering high-resolution preview...
                                     </div>
                                 </div>
                                 <div id="overlayLegendContainer" class="lg:w-64 flex-shrink-0"></div>
@@ -171,11 +182,17 @@
                                     <i class="fas fa-robot mr-2"></i>
                                     Analyze with AI
                             </button>
-                            <button id="chatBtn" 
-                                    class="mt-2 w-full flex justify-center items-center px-4 py-2 border border-border-color rounded-md shadow-sm text-sm font-medium text-text-primary bg-bg-primary hover:bg-hover-bg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-primary transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" 
+                            <button id="chatBtn"
+                                    class="mt-2 w-full flex justify-center items-center px-4 py-2 border border-border-color rounded-md shadow-sm text-sm font-medium text-text-primary bg-bg-primary hover:bg-hover-bg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-primary transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                     disabled>
                                     <i class="fas fa-comment mr-2"></i>
                                     Chat with AI (Beta)
+                            </button>
+                            <button id="analyzeVisualBtn"
+                                    class="mt-2 w-full flex justify-center items-center px-4 py-2 border border-accent-primary rounded-md shadow-sm text-sm font-medium text-accent-primary bg-bg-primary hover:bg-accent-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-primary transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled>
+                                    <i class="fas fa-eye mr-2"></i>
+                                    Visual Analysis (Expert Pipeline)
                             </button>
                             <div id="aiStatus" class="mt-4 hidden">
                                 <div class="flex items-center">
@@ -423,6 +440,7 @@ async function handleDocumentSelection(documentId) {
     if (!documentId) {
         document.getElementById('analyzeBtn').disabled = true;
         document.getElementById('chatBtn').disabled = true;
+        document.getElementById('analyzeVisualBtn').disabled = true;
         document.getElementById('contentPreview').textContent = '';
         document.getElementById('currentTags').innerHTML = '';
         document.getElementById('suggestedTags').innerHTML = '';
@@ -433,6 +451,7 @@ async function handleDocumentSelection(documentId) {
     currentDocument = documentId;
     document.getElementById('analyzeBtn').disabled = false;
     document.getElementById('chatBtn').disabled = false;
+    document.getElementById('analyzeVisualBtn').disabled = false;
     
     try {
         const response = await fetch(`/manual/preview/${documentId}`);
@@ -743,6 +762,11 @@ return object;
         let overlaysLoaded = false;
         let currentViewMode = 'text'; // 'text' or 'visual'
 
+        // Page navigation state
+        let currentPage = 1;
+        let totalPages = 1;
+        let cachedPageCount = null;
+
         // View toggle buttons
         document.getElementById('viewTextBtn').addEventListener('click', () => switchView('text'));
         document.getElementById('viewVisualBtn').addEventListener('click', () => switchView('visual'));
@@ -783,24 +807,79 @@ return object;
             const loading = document.getElementById('overlayLoading');
             const legendContainer = document.getElementById('overlayLegendContainer');
             const statsEl = document.getElementById('overlayStats');
+            const pageNav = document.getElementById('pageNavigation');
 
+            loading.classList.remove('hidden');
+            container.innerHTML = '';
+            container.appendChild(loading);
+
+            try {
+                // Get page count first
+                if (cachedPageCount === null) {
+                    const infoRes = await fetch(`/api/document/${docId}/page-count`);
+                    if (infoRes.ok) {
+                        const info = await infoRes.json();
+                        totalPages = info.pageCount || 1;
+                        cachedPageCount = totalPages;
+                    } else {
+                        totalPages = 1;
+                        cachedPageCount = 1;
+                    }
+                } else {
+                    totalPages = cachedPageCount;
+                }
+
+                currentPage = 1;
+
+                // Load the first page at high resolution
+                await loadPageImage(docId, currentPage);
+
+                // Update page navigation
+                updatePageNavigation();
+
+                overlaysLoaded = true;
+            } catch (error) {
+                console.error('Failed to load visual overlays:', error);
+                loading.classList.add('hidden');
+                container.innerHTML = `<div class="text-center text-red-500 py-8">Failed to load visual preview: ${error.message}</div>`;
+            }
+        }
+
+        async function loadPageImage(docId, page) {
+            const container = document.getElementById('overlayContainer');
+            const loading = document.getElementById('overlayLoading');
+            const legendContainer = document.getElementById('overlayLegendContainer');
+            const statsEl = document.getElementById('overlayStats');
+
+            // Show loading
             loading.classList.remove('hidden');
 
             try {
-                // Load thumbnail image
+                // Render high-res image for this page
+                const renderRes = await fetch(`/api/document/${docId}/render?page=${page}&dpi=300`);
+                if (!renderRes.ok) throw new Error('Failed to render page');
+
+                const renderData = await renderRes.json();
+
+                // Create image from base64
                 const img = new Image();
-                img.src = `/thumb/${docId}`;
+                img.src = `data:image/png;base64,${renderData.image}`;
                 img.style.maxWidth = '100%';
                 img.style.height = 'auto';
 
                 await new Promise((resolve, reject) => {
                     img.onload = resolve;
-                    img.onerror = () => reject(new Error('Failed to load image'));
+                    img.onerror = () => reject(new Error('Failed to load rendered image'));
                 });
 
-                // Fetch overlays from API
-                const response = await fetch(`/api/visual-rag/overlays/${docId}`);
-                const data = await response.json();
+                // Update total pages if provided
+                if (renderData.totalPages) {
+                    totalPages = renderData.totalPages;
+                }
+
+                // Fetch overlays for this page
+                const overlayRes = await fetch(`/api/visual-rag/overlays/${docId}?page=${page}`);
+                const data = await overlayRes.json();
 
                 loading.classList.add('hidden');
 
@@ -816,7 +895,6 @@ return object;
                 overlayViewer = new OverlayViewer(container, {
                     onOverlayClick: (overlay) => {
                         console.log('Clicked overlay:', overlay);
-                        // Could auto-fill fields here
                     },
                     onOverlayHover: (overlay) => {
                         if (overlay && overlayLegend) {
@@ -855,24 +933,57 @@ return object;
                     }
                     statsEl.classList.remove('hidden');
                 } else {
-                    container.innerHTML = '<div class="text-center text-text-secondary py-8">No visual overlays detected for this document.</div>';
-                    container.appendChild(img);
                     legendContainer.innerHTML = '';
                     statsEl.classList.add('hidden');
                 }
-
-                overlaysLoaded = true;
             } catch (error) {
-                console.error('Failed to load visual overlays:', error);
+                console.error('Failed to load page:', error);
                 loading.classList.add('hidden');
-                container.innerHTML = `<div class="text-center text-red-500 py-8">Failed to load visual preview: ${error.message}</div>`;
+                container.innerHTML = `<div class="text-center text-red-500 py-8">Failed to load page: ${error.message}</div>`;
             }
         }
+
+        function updatePageNavigation() {
+            const pageNav = document.getElementById('pageNavigation');
+            const pageIndicator = document.getElementById('pageIndicator');
+            const prevBtn = document.getElementById('prevPage');
+            const nextBtn = document.getElementById('nextPage');
+
+            if (totalPages > 1) {
+                pageNav.classList.remove('hidden');
+                pageIndicator.textContent = `Page ${currentPage} of ${totalPages}`;
+                prevBtn.disabled = currentPage <= 1;
+                nextBtn.disabled = currentPage >= totalPages;
+            } else {
+                pageNav.classList.add('hidden');
+            }
+        }
+
+        // Page navigation handlers
+        document.getElementById('prevPage').addEventListener('click', async () => {
+            if (currentPage > 1 && currentDocument) {
+                currentPage--;
+                await loadPageImage(currentDocument, currentPage);
+                updatePageNavigation();
+            }
+        });
+
+        document.getElementById('nextPage').addEventListener('click', async () => {
+            if (currentPage < totalPages && currentDocument) {
+                currentPage++;
+                await loadPageImage(currentDocument, currentPage);
+                updatePageNavigation();
+            }
+        });
 
         // Reset overlays when document changes
         const originalHandleDocumentSelection = handleDocumentSelection;
         handleDocumentSelection = async function(documentId) {
             overlaysLoaded = false;
+            cachedPageCount = null; // Reset page count cache
+            currentPage = 1;
+            totalPages = 1;
+
             if (overlayViewer) {
                 overlayViewer.destroy();
                 overlayViewer = null;
@@ -883,11 +994,12 @@ return object;
             }
             document.getElementById('overlayContainer').innerHTML = `
                 <div id="overlayLoading" class="flex items-center justify-center h-[400px] text-text-secondary">
-                    <i class="fas fa-spinner fa-spin mr-2"></i> Loading visual preview...
+                    <i class="fas fa-spinner fa-spin mr-2"></i> Rendering high-resolution preview...
                 </div>
             `;
             document.getElementById('overlayLegendContainer').innerHTML = '';
             document.getElementById('overlayStats').classList.add('hidden');
+            document.getElementById('pageNavigation').classList.add('hidden');
 
             await originalHandleDocumentSelection(documentId);
 
@@ -896,6 +1008,71 @@ return object;
                 loadVisualOverlays(documentId);
             }
         };
+
+        // Visual Analysis button handler
+        document.getElementById('analyzeVisualBtn').addEventListener('click', async () => {
+            if (!currentDocument) return;
+
+            const btn = document.getElementById('analyzeVisualBtn');
+            const status = document.getElementById('aiStatus');
+            const statusText = status.querySelector('.text-sm');
+
+            btn.disabled = true;
+            status.classList.remove('hidden');
+            statusText.textContent = 'Running Visual Analysis (Expert Pipeline)...';
+
+            try {
+                const response = await fetch('/manual/analyze-visual', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ docId: currentDocument })
+                });
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Visual analysis failed');
+                }
+
+                // Update suggested tags
+                const suggestedTagsContainer = document.getElementById('suggestedTags');
+                if (data.result.tags && Array.isArray(data.result.tags)) {
+                    const tagHtml = data.result.tags.map(tag =>
+                        `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent-primary/10 text-accent-primary cursor-pointer hover:bg-accent-primary hover:text-white transition-colors" onclick="addSuggestedTag(this, '${tag}')">${tag}</span>`
+                    ).join('');
+                    suggestedTagsContainer.innerHTML = tagHtml;
+                }
+
+                // Show correspondent suggestion
+                if (data.result.correspondent) {
+                    const correspondentDisplay = document.getElementById('correspondentDisplay');
+                    if (correspondentDisplay) {
+                        correspondentDisplay.textContent = `Suggested: ${data.result.correspondent}`;
+                    }
+                }
+
+                // Reload overlays if in visual mode
+                if (currentViewMode === 'visual') {
+                    overlaysLoaded = false;
+                    cachedPageCount = null;
+                    await loadVisualOverlays(currentDocument);
+                }
+
+                statusText.textContent = `Visual analysis complete! Domain: ${data.result.domain || 'general'}, Overlays: ${data.overlayCount}`;
+                setTimeout(() => {
+                    status.classList.add('hidden');
+                    btn.disabled = false;
+                }, 3000);
+
+            } catch (error) {
+                console.error('Visual analysis error:', error);
+                statusText.textContent = `Error: ${error.message}`;
+                setTimeout(() => {
+                    status.classList.add('hidden');
+                    btn.disabled = false;
+                }, 5000);
+            }
+        });
     </script>
 </body>
 </html>

@@ -663,6 +663,160 @@ router.get('/thumb/:documentId', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/document/{docId}/render:
+ *   get:
+ *     summary: Render document page at high resolution
+ *     description: Downloads PDF from Paperless-ngx and renders a specific page at the requested DPI (default 300)
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: docId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The document ID
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number to render (1-indexed)
+ *       - in: query
+ *         name: dpi
+ *         schema:
+ *           type: integer
+ *           default: 300
+ *         description: DPI resolution for rendering
+ *     responses:
+ *       200:
+ *         description: Rendered page image
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 image:
+ *                   type: string
+ *                   description: Base64-encoded PNG image
+ *                 page:
+ *                   type: integer
+ *                 totalPages:
+ *                   type: integer
+ *                 width:
+ *                   type: integer
+ *                 height:
+ *                   type: integer
+ *                 dpi:
+ *                   type: integer
+ *       404:
+ *         description: Document not found
+ *       500:
+ *         description: Server error
+ */
+router.get('/api/document/:docId/render', async (req, res) => {
+  const docId = parseInt(req.params.docId, 10);
+  const page = parseInt(req.query.page || '1', 10);
+  const dpi = parseInt(req.query.dpi || '300', 10);
+
+  try {
+    // Download PDF from Paperless-ngx
+    const pdfBuffer = await paperlessService.downloadDocument(docId);
+    if (!pdfBuffer) {
+      return res.status(404).json({ success: false, error: 'Document not found' });
+    }
+
+    // Render the specific page
+    const images = await pdfRenderer.renderBuffer(pdfBuffer, {
+      dpi,
+      docId,
+      maxPages: page // Render up to the requested page
+    });
+
+    if (!images || images.length < page) {
+      return res.status(404).json({ success: false, error: `Page ${page} not found` });
+    }
+
+    const pageImage = images[page - 1];
+
+    res.json({
+      success: true,
+      image: pageImage.base64,
+      page,
+      totalPages: images.length,
+      width: pageImage.width || 0,
+      height: pageImage.height || 0,
+      dpi
+    });
+
+  } catch (error) {
+    logger.error('Error rendering document %s page %s: %s', docId, page, error.message);
+    res.status(500).json({ success: false, error: 'Failed to render document' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/document/{docId}/page-count:
+ *   get:
+ *     summary: Get document page count
+ *     description: Returns the number of pages in a PDF document without full rendering
+ *     tags:
+ *       - Documents
+ *     parameters:
+ *       - in: path
+ *         name: docId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The document ID
+ *     responses:
+ *       200:
+ *         description: Page count
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 docId:
+ *                   type: integer
+ *                 pageCount:
+ *                   type: integer
+ *       404:
+ *         description: Document not found
+ *       500:
+ *         description: Server error
+ */
+router.get('/api/document/:docId/page-count', async (req, res) => {
+  const docId = parseInt(req.params.docId, 10);
+
+  try {
+    // Download PDF from Paperless-ngx
+    const pdfBuffer = await paperlessService.downloadDocument(docId);
+    if (!pdfBuffer) {
+      return res.status(404).json({ success: false, error: 'Document not found' });
+    }
+
+    // Use pdf-lib to get page count without full rendering
+    const { PDFDocument } = require('pdf-lib');
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+    const pageCount = pdfDoc.getPageCount();
+
+    res.json({
+      docId,
+      pageCount
+    });
+
+  } catch (error) {
+    logger.error('Error getting page count for document %s: %s', docId, error.message);
+    res.status(500).json({ success: false, error: 'Failed to get page count' });
+  }
+});
+
 // Hauptseite mit Dokumentenliste
 /**
  * @swagger
@@ -3374,6 +3528,151 @@ router.post('/manual/analyze', express.json(), async (req, res) => {
   } catch (error) {
     console.error('Analysis error:', error);
     return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /manual/analyze-visual:
+ *   post:
+ *     summary: Analyze document using Visual Expert Pipeline
+ *     description: |
+ *       Renders the document at 300 DPI and processes it through the Expert Pipeline
+ *       with vision capabilities. This uses the router model (qwen3-vl:8b) to classify
+ *       the document and extract visual overlays.
+ *     tags:
+ *       - Documents
+ *       - API
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - docId
+ *             properties:
+ *               docId:
+ *                 type: integer
+ *                 description: The document ID from Paperless-ngx
+ *     responses:
+ *       200:
+ *         description: Visual analysis results from Expert Pipeline
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 result:
+ *                   type: object
+ *                   description: Expert Pipeline analysis result
+ *                 overlayCount:
+ *                   type: integer
+ *                   description: Number of overlays extracted
+ *       400:
+ *         description: Invalid request parameters
+ *       404:
+ *         description: Document not found
+ *       500:
+ *         description: Server error or PDF rendering failed
+ */
+router.post('/manual/analyze-visual', express.json(), async (req, res) => {
+  try {
+    const { docId } = req.body;
+
+    if (!docId) {
+      return res.status(400).json({ success: false, error: 'docId is required' });
+    }
+
+    logger.info('[Visual Analysis] Starting for document %s', docId);
+
+    // Step 1: Download PDF from Paperless-ngx
+    const pdfBuffer = await paperlessService.downloadDocument(docId);
+    if (!pdfBuffer) {
+      return res.status(404).json({ success: false, error: 'Document not found' });
+    }
+
+    // Step 2: Get document metadata
+    const doc = await paperlessService.getDocument(docId);
+    if (!doc) {
+      return res.status(404).json({ success: false, error: 'Document metadata not found' });
+    }
+
+    // Step 3: Render PDF at 300 DPI
+    const dpi = config.visualRag?.visionRenderDpi || 300;
+    const images = await pdfRenderer.renderBuffer(pdfBuffer, {
+      dpi,
+      docId,
+      maxPages: 4 // Limit for Expert Pipeline processing
+    });
+
+    if (!images || images.length === 0) {
+      return res.status(500).json({ success: false, error: 'Failed to render PDF' });
+    }
+
+    logger.info('[Visual Analysis] Rendered %d pages at %d DPI', images.length, dpi);
+
+    // Step 4: Prepare document with image data in data URL format
+    const preparedDoc = {
+      id: docId,
+      title: doc.title,
+      filename: doc.original_file_name || `document-${docId}.pdf`,
+      content: doc.content || '',
+      ocr_text: doc.content || '',
+      image_data: `data:image/png;base64,${images[0].base64}`,
+      base64Images: images.map(img => `data:image/png;base64,${img.base64}`)
+    };
+
+    // Step 5: Process with Expert Pipeline
+    const processor = new DocumentProcessor(ollamaService);
+    const result = await processor.process(preparedDoc, { forceExpertPipeline: true });
+
+    // Step 6: Extract and save overlays if overlay extraction is enabled
+    let overlayCount = 0;
+    if (config.visualRagSidecar?.enableOverlayExtraction && result.overlays) {
+      const { visualOverlayRepository } = require('../services/visual-rag');
+      // Delete existing overlays for this document
+      await visualOverlayRepository.deleteByDocId(docId);
+      // Save new overlays
+      for (const overlay of result.overlays) {
+        await visualOverlayRepository.save({
+          doc_id: docId,
+          page_number: overlay.page || 1,
+          field_type: overlay.field_type || 'unknown',
+          bbox: overlay.bbox,
+          raw_value: overlay.raw_value || '',
+          normalized_value: overlay.normalized_value || '',
+          confidence: overlay.confidence || 0,
+          domain: result.domain || 'general',
+          extraction_model: 'expert-pipeline'
+        });
+        overlayCount++;
+      }
+      logger.info('[Visual Analysis] Saved %d overlays for document %s', overlayCount, docId);
+    }
+
+    res.json({
+      success: true,
+      result: {
+        title: result.title,
+        tags: result.tags,
+        correspondent: result.correspondent,
+        document_type: result.document_type,
+        created: result.created,
+        domain: result.domain,
+        confidence: result.confidence
+      },
+      overlayCount
+    });
+
+  } catch (error) {
+    logger.error('[Visual Analysis] Error: %s', error.message);
+    console.error('[Visual Analysis] Stack:', error.stack);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
