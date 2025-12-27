@@ -123,7 +123,7 @@ module.exports = {
     enabled: parseEnvBoolean(process.env.ENABLE_VISUAL_RAG, 'no'),
     textQualityThreshold: parseInt(process.env.TEXT_QUALITY_THRESHOLD || '60', 10),
     forceVision: parseEnvBoolean(process.env.FORCE_VISUAL_RAG, 'no'),
-    visionRenderDpi: parseInt(process.env.VISION_RENDER_DPI || '150', 10),
+    visionRenderDpi: parseInt(process.env.VISION_RENDER_DPI || '300', 10),
     maxVisionPages: parseInt(process.env.MAX_VISION_PAGES || '4', 10),
     maxRetriesPlanner: parseInt(process.env.VISUAL_RAG_MAX_RETRIES_PLANNER || '1', 10),
     maxRetriesExtractor: parseInt(process.env.VISUAL_RAG_MAX_RETRIES_EXTRACTOR || '1', 10)

@@ -42,6 +42,7 @@ class HistoryManager {
         this.initializeResetButtons();
         this.initializeFilters();
         this.initializeSelectAll();
+        this.initializeVisualViewer();
     }
 
     initializeDataTable() {
@@ -108,6 +109,10 @@ class HistoryManager {
                                 <i class="fa-solid fa-eye"></i>
                                 <span class="hidden sm:inline ml-1">View</span>
                             </button>
+                            <button onclick="window.historyManager.openVisualViewer(${data.document_id})" class="px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors" aria-label="Visual Preview" title="Visual Preview with Overlays">
+                                <i class="fa-solid fa-layer-group"></i>
+                                <span class="hidden sm:inline ml-1">Visual</span>
+                            </button>
                             <button onclick="window.open('/chat?open=${data.document_id}')" class="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors" aria-label="Chat about document" title="Chat about document">
                                 <i class="fa-solid fa-comment"></i>
                                 <span class="hidden sm:inline ml-1">Chat</span>
@@ -119,7 +124,7 @@ class HistoryManager {
                         </div>
                     `,
                     orderable: false,
-                    width: '210px'
+                    width: '280px'
                 }
             ],
             order: [[2, 'desc']],
@@ -408,6 +413,210 @@ class HistoryManager {
                 badge.innerHTML = '<span class="text-gray-400">-</span>';
             }
         }
+    }
+
+    // Visual Viewer Modal
+    async openVisualViewer(docId) {
+        const modal = document.getElementById('visualViewerModal');
+        const container = document.getElementById('historyOverlayContainer');
+        const loading = document.getElementById('historyOverlayLoading');
+        const pageNav = document.getElementById('historyPageNav');
+
+        if (!modal) return;
+
+        // Show modal
+        modal.classList.remove('hidden');
+        modal.classList.add('show');
+
+        // Reset loading state
+        container.innerHTML = '';
+        container.appendChild(loading);
+        loading.classList.remove('hidden');
+
+        // Store current doc in the class
+        this.visualDocId = docId;
+        this.visualCurrentPage = 1;
+        this.visualTotalPages = 1;
+
+        try {
+            // Get page count first
+            const infoRes = await fetch(`/api/document/${docId}/page-count`);
+            if (infoRes.ok) {
+                const info = await infoRes.json();
+                this.visualTotalPages = info.pageCount || 1;
+            }
+
+            // Load first page
+            await this.loadVisualPage(docId, 1);
+            this.updateVisualPageNav();
+
+        } catch (error) {
+            console.error('Failed to load visual viewer:', error);
+            loading.classList.add('hidden');
+            container.innerHTML = `<div class="text-center text-red-500 py-8">Failed to load visual preview: ${error.message}</div>`;
+        }
+    }
+
+    async loadVisualPage(docId, page) {
+        const container = document.getElementById('historyOverlayContainer');
+        const loading = document.getElementById('historyOverlayLoading');
+        const legendContainer = document.getElementById('historyLegendContainer');
+        const statsEl = document.getElementById('historyOverlayStats');
+
+        loading.classList.remove('hidden');
+
+        try {
+            // Render high-res image
+            const renderRes = await fetch(`/api/document/${docId}/render?page=${page}&dpi=300`);
+            if (!renderRes.ok) throw new Error('Failed to render page');
+
+            const renderData = await renderRes.json();
+
+            // Create image from base64
+            const img = new Image();
+            img.src = `data:image/png;base64,${renderData.image}`;
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = () => reject(new Error('Failed to load rendered image'));
+            });
+
+            // Update total pages if provided
+            if (renderData.totalPages) {
+                this.visualTotalPages = renderData.totalPages;
+            }
+
+            // Fetch overlays for this page
+            const overlayRes = await fetch(`/api/visual-rag/overlays/${docId}?page=${page}`);
+            const data = await overlayRes.json();
+
+            loading.classList.add('hidden');
+
+            // Clear container and add image
+            container.innerHTML = '';
+            container.appendChild(img);
+
+            // Initialize overlay viewer
+            if (this.historyOverlayViewer) {
+                this.historyOverlayViewer.destroy();
+            }
+
+            this.historyOverlayViewer = new OverlayViewer(container, {
+                onOverlayClick: (overlay) => {
+                    console.log('Clicked overlay:', overlay);
+                },
+                onOverlayHover: (overlay) => {
+                    if (overlay && this.historyOverlayLegend) {
+                        this.historyOverlayLegend.highlightField(overlay.label.toLowerCase().replace(/\s+/g, '_'));
+                    } else if (this.historyOverlayLegend) {
+                        this.historyOverlayLegend.clearHighlights();
+                    }
+                }
+            });
+
+            this.historyOverlayViewer.setImage(img);
+
+            if (data.overlays && data.overlays.length > 0) {
+                const domain = data.overlays[0]?.domain || 'GENERAL';
+                this.historyOverlayViewer.setOverlays(data.overlays, domain);
+
+                // Initialize legend
+                if (this.historyOverlayLegend) {
+                    this.historyOverlayLegend.destroy();
+                }
+                this.historyOverlayLegend = new OverlayLegend(legendContainer, {
+                    domain: domain,
+                    onFilterChange: ({ mandatoryOnly }) => {
+                        this.historyOverlayViewer.toggleMandatoryOnly(mandatoryOnly);
+                    }
+                });
+
+                // Show stats
+                const stats = this.historyOverlayViewer.getStats();
+                document.getElementById('historyOverlayCount').textContent = stats.total;
+                statsEl.classList.remove('hidden');
+            } else {
+                legendContainer.innerHTML = '';
+                statsEl.classList.add('hidden');
+            }
+        } catch (error) {
+            console.error('Failed to load page:', error);
+            loading.classList.add('hidden');
+            container.innerHTML = `<div class="text-center text-red-500 py-8">Failed to load page: ${error.message}</div>`;
+        }
+    }
+
+    updateVisualPageNav() {
+        const pageNav = document.getElementById('historyPageNav');
+        const pageIndicator = document.getElementById('historyPageIndicator');
+        const prevBtn = document.getElementById('historyPrevPage');
+        const nextBtn = document.getElementById('historyNextPage');
+
+        if (this.visualTotalPages > 1) {
+            pageNav.classList.remove('hidden');
+            pageIndicator.textContent = `Page ${this.visualCurrentPage} of ${this.visualTotalPages}`;
+            prevBtn.disabled = this.visualCurrentPage <= 1;
+            nextBtn.disabled = this.visualCurrentPage >= this.visualTotalPages;
+        } else {
+            pageNav.classList.add('hidden');
+        }
+    }
+
+    closeVisualViewer() {
+        const modal = document.getElementById('visualViewerModal');
+        if (modal) {
+            modal.classList.remove('show');
+            modal.classList.add('hidden');
+        }
+
+        if (this.historyOverlayViewer) {
+            this.historyOverlayViewer.destroy();
+            this.historyOverlayViewer = null;
+        }
+        if (this.historyOverlayLegend) {
+            this.historyOverlayLegend.destroy();
+            this.historyOverlayLegend = null;
+        }
+    }
+
+    initializeVisualViewer() {
+        // Close button
+        document.getElementById('closeVisualModal')?.addEventListener('click', () => {
+            this.closeVisualViewer();
+        });
+
+        // Close on clicking outside modal
+        document.getElementById('visualViewerModal')?.addEventListener('click', (e) => {
+            if (e.target.id === 'visualViewerModal') {
+                this.closeVisualViewer();
+            }
+        });
+
+        // Close on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.closeVisualViewer();
+            }
+        });
+
+        // Page navigation
+        document.getElementById('historyPrevPage')?.addEventListener('click', async () => {
+            if (this.visualCurrentPage > 1 && this.visualDocId) {
+                this.visualCurrentPage--;
+                await this.loadVisualPage(this.visualDocId, this.visualCurrentPage);
+                this.updateVisualPageNav();
+            }
+        });
+
+        document.getElementById('historyNextPage')?.addEventListener('click', async () => {
+            if (this.visualCurrentPage < this.visualTotalPages && this.visualDocId) {
+                this.visualCurrentPage++;
+                await this.loadVisualPage(this.visualDocId, this.visualCurrentPage);
+                this.updateVisualPageNav();
+            }
+        });
     }
 }
 
