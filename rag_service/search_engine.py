@@ -5,6 +5,7 @@ import traceback
 from typing import List
 
 import numpy as np
+from tqdm import tqdm
 from rank_bm25 import BM25Okapi
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
@@ -328,10 +329,7 @@ class SearchEngine:
                     doc = documents_by_id[doc_id]
 
                     # Tokenize the document
-                    text = f"{
-                        doc['title']} {
-                        doc['correspondent']} {
-                        doc['content']}"
+                    text = f"{doc['title']} {doc['correspondent']} {doc['content']}"
                     tokens = word_tokenize(text.lower())
                     filtered_tokens = [
                         token for token in tokens if token not in stop_words
@@ -397,11 +395,7 @@ class SearchEngine:
             self.documents
         ):
             logger.error(
-                f"Invalid BM25 scores: {
-                    type(scores)}, length {
-                    len(scores) if hasattr(
-                        scores,
-                        '__len__') else 'unknown'}"
+                f"Invalid BM25 scores: {type(scores)}, length {len(scores) if hasattr(scores, '__len__') else 'unknown'}"
             )
             raise Exception("BM25 returned invalid scores")
 
@@ -432,10 +426,7 @@ class SearchEngine:
                         len(self.documents) - 1,
                     )
                 except Exception as e:
-                    logger.error(
-                        f"Error processing document at index {i}: {
-                            str(e)}"
-                    )
+                    logger.error(f"Error processing document at index {i}: {str(e)}")
 
         logger.info(f"Keyword search found {len(results)} results")
         return results
@@ -501,10 +492,7 @@ class SearchEngine:
                             }
                         )
                 except Exception as e:
-                    logger.error(
-                        f"Error processing document with ID {doc_id}: {
-                            str(e)}"
-                    )
+                    logger.error(f"Error processing document with ID {doc_id}: {str(e)}")
 
             logger.info(f"Semantic search found {len(documents)} results")
             return documents
@@ -646,11 +634,7 @@ class SearchEngine:
                 cross_scores
             ) != len(results):
                 logger.error(
-                    f"Invalid cross-encoder scores: got {
-                        len(cross_scores) if hasattr(
-                            cross_scores,
-                            '__len__') else 'invalid'} scores for {
-                        len(results)} results"
+                    f"Invalid cross-encoder scores: got {len(cross_scores) if hasattr(cross_scores, '__len__') else 'invalid'} scores for {len(results)} results"
                 )
                 for result in results:
                     result["cross_score"] = 0.5  # Default score
@@ -817,10 +801,7 @@ class SearchEngine:
                         )
                     )
                 except Exception as item_e:
-                    logger.error(
-                        f"Error formatting search result: {
-                            str(item_e)}"
-                    )
+                    logger.error(f"Error formatting search result: {str(item_e)}")
 
             logger.info(f"Returning {len(formatted_results)} search results")
             return formatted_results
@@ -830,8 +811,7 @@ class SearchEngine:
             logger.error(traceback.format_exc())
             raise HTTPException(
                 status_code=500,
-                detail=f"Search failed: {
-                    str(e)}",
+                detail=f"Search failed: {str(e)}",
             )
 
 

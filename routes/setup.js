@@ -22,6 +22,9 @@ const logger = require('../services/logger');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const customService = require('../services/customService.js');
 const { expertRegistry } = require('../services/experts/ExpertRegistry');
+const { DocumentProcessor } = require('../services/integration/DocumentProcessor');
+const { pdfRenderer } = require('../services/visual-rag/PDFRenderer');
+const axios = require('axios');
 const config = require('../config/config.js');
 require('dotenv').config({ path: '../data/.env' });
 
@@ -148,7 +151,8 @@ let PUBLIC_ROUTES = [
   '/health',
   '/login',
   '/logout',
-  '/setup'
+  '/setup',
+  '/api/visual-rag'
 ];
 
 // Combined middleware to check authentication and setup
@@ -709,7 +713,8 @@ router.get('/thumb/:documentId', async (req, res) => {
 router.get('/chat', async (req, res) => {
   try {
       const {open} = req.query;
-      const documents = await paperlessService.getDocuments();
+      // Use unfiltered documents for UI dropdown - tag filtering is only for automatic processing
+      const documents = await paperlessService.getAllDocumentsUnfiltered();
       const version = configFile.PAPERLESS_AI_VERSION || ' ';
       res.render('chat', {
         documents,
@@ -2334,7 +2339,8 @@ router.get('/manual/tags', async (req, res) => {
  *               $ref: '#/components/schemas/Error'
  */
 router.get('/manual/documents', async (req, res) => {
-  const getDocuments = await paperlessService.getDocuments();
+  // Use unfiltered documents for UI dropdown - tag filtering is only for automatic processing
+  const getDocuments = await paperlessService.getAllDocumentsUnfiltered();
   res.json(getDocuments);
 });
 
@@ -2468,6 +2474,7 @@ router.post('/api/history/reanalyze/:id', async (req, res) => {
       return res.status(400).json({ error: 'Invalid document ID' });
     }
 
+    // Remove from processed list so it can be reprocessed
     await documentModel.deleteDocumentsIdList([documentId]);
 
     const document = await paperlessService.getDocument(documentId);
@@ -2475,21 +2482,162 @@ router.post('/api/history/reanalyze/:id', async (req, res) => {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    documentQueue.push(document);
-    processQueue().catch((error) => {
-      console.error('[ERROR] Re-analysis queue failed:', error);
-    });
+    // Check if Expert Pipeline is enabled - use full DocumentProcessor if so
+    const useExpertPipeline = config.expertPipelineEnabled === true || config.expertPipelineEnabled === 'yes';
 
-    return res.status(202).json({
-      message: 'Document queued for re-analysis',
-      documentId,
-      queuePosition: documentQueue.length
-    });
+    if (useExpertPipeline) {
+      // Use DocumentProcessor with Expert Pipeline + Visual RAG
+      logger.info(`[Reanalyze] Using Expert Pipeline for document ${documentId}`);
+
+      // Process asynchronously with full pipeline
+      (async () => {
+        try {
+          // Step 1: Prepare document with image data for vision router
+          const preparedDocument = await prepareDocumentForExpertPipeline(document, documentId);
+
+          const processor = new DocumentProcessor(ollamaService, {
+            mode: 'hybrid', // Uses expert pipeline with legacy fallback
+            enableVisualRAG: true
+          });
+
+          const result = await processor.process(preparedDocument, {
+            mode: 'expert_pipeline',
+            triggerVisualIngestion: true
+          });
+
+          if (result.success && result.paperless) {
+            // Apply the results to Paperless-ngx
+            await paperlessService.updateDocument(documentId, result.paperless);
+            await documentModel.setProcessingStatus(documentId, document.title, 'complete');
+            logger.info(`[Reanalyze] Expert Pipeline completed for document ${documentId}`, {
+              pipelineId: result.metadata?.pipelineId,
+              confidence: result.metadata?.confidence
+            });
+          } else {
+            logger.error(`[Reanalyze] Expert Pipeline failed for document ${documentId}:`, result.error);
+            await documentModel.setProcessingStatus(documentId, document.title, 'error');
+          }
+        } catch (pipelineError) {
+          logger.error(`[Reanalyze] Expert Pipeline error for document ${documentId}:`, pipelineError);
+          await documentModel.setProcessingStatus(documentId, document.title, 'error');
+        }
+      })();
+
+      return res.status(202).json({
+        message: 'Document queued for re-analysis with Expert Pipeline + Visual RAG',
+        documentId,
+        pipeline: 'expert'
+      });
+    } else {
+      // Fall back to legacy queue-based processing
+      documentQueue.push(document);
+      processQueue().catch((error) => {
+        console.error('[ERROR] Re-analysis queue failed:', error);
+      });
+
+      return res.status(202).json({
+        message: 'Document queued for re-analysis (legacy mode)',
+        documentId,
+        queuePosition: documentQueue.length,
+        pipeline: 'legacy'
+      });
+    }
   } catch (error) {
     console.error('[ERROR] re-analysing document:', error);
     return res.status(500).json({ error: 'Failed to queue document' });
   }
 });
+
+/**
+ * Prepare a Paperless document for the Expert Pipeline by:
+ * 1. Downloading the PDF from Paperless-ngx
+ * 2. Rendering it to images using PDFRenderer
+ * 3. Fetching OCR text content
+ * 4. Creating a document object with image_data for vision models
+ *
+ * @param {Object} document - Paperless document object
+ * @param {number} documentId - Document ID
+ * @returns {Promise<Object>} Prepared document with image_data
+ */
+async function prepareDocumentForExpertPipeline(document, documentId) {
+  logger.info(`[Reanalyze] Preparing document ${documentId} for Expert Pipeline`);
+
+  // Start with base document properties
+  const preparedDoc = {
+    id: documentId,
+    title: document.title,
+    filename: document.original_file_name || `document-${documentId}.pdf`,
+    content: document.content || '',
+    tags: document.tags,
+    correspondent: document.correspondent,
+    document_type: document.document_type,
+    created: document.created
+  };
+
+  // Step 1: Try to get OCR text from Paperless-ngx
+  try {
+    const ocrText = await paperlessService.getDocumentContent(documentId);
+    if (ocrText && typeof ocrText === 'string' && ocrText.length > 0) {
+      preparedDoc.ocr_text = ocrText;
+      preparedDoc.content = ocrText;
+      logger.debug(`[Reanalyze] Fetched OCR text for doc ${documentId}: ${ocrText.length} chars`);
+    }
+  } catch (ocrError) {
+    logger.warn(`[Reanalyze] Could not fetch OCR text for doc ${documentId}: ${ocrError.message}`);
+  }
+
+  // Step 2: Download PDF and render to images for vision models
+  const isPdf = document.mime_type === 'application/pdf' ||
+                (document.original_file_name && document.original_file_name.toLowerCase().endsWith('.pdf'));
+
+  if (isPdf && pdfRenderer.isAvailable()) {
+    try {
+      // Download PDF from Paperless-ngx
+      const apiUrl = config.paperless?.apiUrl || process.env.PAPERLESS_API_URL;
+      const apiToken = config.paperless?.apiToken || process.env.PAPERLESS_API_TOKEN;
+
+      logger.debug(`[Reanalyze] Downloading PDF for doc ${documentId}`);
+      const pdfResponse = await axios.get(
+        `${apiUrl}/documents/${documentId}/download/`,
+        {
+          headers: { 'Authorization': `Token ${apiToken}` },
+          responseType: 'arraybuffer',
+          timeout: 60000 // 60 second timeout for large PDFs
+        }
+      );
+      const pdfBuffer = Buffer.from(pdfResponse.data);
+
+      // Render PDF to images (first few pages at 300 DPI)
+      logger.debug(`[Reanalyze] Rendering PDF to images for doc ${documentId}`);
+      const images = await pdfRenderer.renderBuffer(pdfBuffer, {
+        dpi: 300,
+        maxPages: 4,
+        docId: documentId
+      });
+
+      if (images && images.length > 0) {
+        // Wrap base64 in data URL format (ImagePreparator expects this)
+        const imageFormat = images[0].format || 'png';
+        preparedDoc.image_data = `data:image/${imageFormat};base64,${images[0].base64}`;
+        preparedDoc.base64Images = images.map(img => `data:image/${img.format || 'png'};base64,${img.base64}`);
+        preparedDoc.pdf_path = document.original_file_name || `doc-${documentId}.pdf`;
+
+        logger.info(`[Reanalyze] Rendered ${images.length} pages for doc ${documentId}, first page: ${images[0].size} bytes`);
+      }
+    } catch (pdfError) {
+      logger.warn(`[Reanalyze] Could not render PDF for doc ${documentId}: ${pdfError.message}`);
+      // Continue without image data - pipeline will fall back to text-only processing
+    }
+  } else if (!isPdf) {
+    logger.debug(`[Reanalyze] Document ${documentId} is not a PDF, skipping image rendering`);
+  } else {
+    logger.warn(`[Reanalyze] PDFRenderer not available, skipping image rendering for doc ${documentId}`);
+  }
+
+  logger.info(`[Reanalyze] Document ${documentId} prepared: hasImage=${!!preparedDoc.image_data}, hasOcr=${!!preparedDoc.ocr_text}`);
+
+  return preparedDoc;
+}
 
 function extractDocumentId(url) {
   const match = url.match(/\/documents\/(\d+)\//);

@@ -62,7 +62,7 @@ class HistoryManager {
                     orderable: false,
                     width: '40px'
                 },
-                { 
+                {
                     data: 'document_id',
                     width: '60px'
                 },
@@ -83,7 +83,7 @@ class HistoryManager {
                     render: (data, type) => {
                         if (type === 'display') {
                             if (!data?.length) return '<span class="text-gray-400 text-sm">No tags</span>';
-                            return data.map(tag => 
+                            return data.map(tag =>
                                 `<span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs" data-tag-id="${tag.id}">${tag.name}</span>`
                             ).join(' ');
                         }
@@ -91,6 +91,15 @@ class HistoryManager {
                     }
                 },
                 { data: 'correspondent' },
+                {
+                    data: 'document_id',
+                    title: 'Overlays',
+                    render: (docId) => {
+                        return `<span id="overlay-badge-${docId}" class="overlay-badges text-xs text-gray-400">Loading...</span>`;
+                    },
+                    orderable: false,
+                    width: '120px'
+                },
                 {
                     data: null,
                     render: (data) => `
@@ -128,6 +137,8 @@ class HistoryManager {
                 this.updateSelectAllState();
                 // Reattach event listeners to checkboxes
                 this.attachCheckboxListeners();
+                // Load overlay badges
+                this.loadOverlayBadges();
             }
         });
     }
@@ -326,6 +337,76 @@ class HistoryManager {
             console.error('Error resetting all documents:', error);
             alert('Failed to reset all documents. Please try again.');
             return false;
+        }
+    }
+
+    // Overlay badge helpers
+    getDomainColor(domain) {
+        const colors = {
+            FINANCIAL: '#F97316',
+            MEDICAL: '#22C55E',
+            LEGAL: '#A855F7',
+            GENERAL: '#3B82F6'
+        };
+        return colors[domain] || '#6B7280';
+    }
+
+    getDomainIcon(domain) {
+        const icons = {
+            FINANCIAL: '&#x1F7E7;',
+            MEDICAL: '&#x1F7E9;',
+            LEGAL: '&#x1F7EA;',
+            GENERAL: '&#x1F7E6;'
+        };
+        return icons[domain] || '&#x1F4C4;';
+    }
+
+    async loadOverlayBadges() {
+        const badges = document.querySelectorAll('[id^="overlay-badge-"]');
+
+        for (const badge of badges) {
+            const docId = badge.id.replace('overlay-badge-', '');
+
+            try {
+                const response = await fetch(`/api/visual-rag/overlays/${docId}`);
+                if (!response.ok) {
+                    badge.innerHTML = '<span class="text-gray-400">-</span>';
+                    continue;
+                }
+
+                const { overlays, count } = await response.json();
+
+                if (count === 0) {
+                    badge.innerHTML = '<span class="text-gray-400">None</span>';
+                    continue;
+                }
+
+                // Group by domain
+                const domainCounts = {};
+                let mandatoryCount = 0;
+                overlays.forEach(o => {
+                    const d = o.domain || 'GENERAL';
+                    domainCounts[d] = (domainCounts[d] || 0) + 1;
+                    if (o.isMandatory) mandatoryCount++;
+                });
+
+                // Build badge HTML
+                let html = Object.entries(domainCounts).map(([domain, cnt]) => {
+                    const color = this.getDomainColor(domain);
+                    return `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium mr-1"
+                                  style="background-color: ${color}20; color: ${color}">
+                        ${this.getDomainIcon(domain)} ${cnt}
+                    </span>`;
+                }).join('');
+
+                if (mandatoryCount > 0) {
+                    html += `<span class="text-orange-500 text-xs" title="${mandatoryCount} mandatory">*${mandatoryCount}</span>`;
+                }
+
+                badge.innerHTML = html;
+            } catch (e) {
+                badge.innerHTML = '<span class="text-gray-400">-</span>';
+            }
         }
     }
 }

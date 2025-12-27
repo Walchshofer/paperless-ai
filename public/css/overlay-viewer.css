@@ -1,0 +1,301 @@
+/**
+ * Overlay Viewer Styles
+ *
+ * Styles for OverlayViewer and OverlayLegend components.
+ * Uses CSS custom properties for domain-specific theming.
+ */
+
+/* ==========================================================================
+   Overlay Viewer
+   ========================================================================== */
+
+.overlay-viewer-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.overlay-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: auto;
+}
+
+.overlay-tooltip {
+  max-width: 280px;
+  pointer-events: none;
+  z-index: 100;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* ==========================================================================
+   Overlay Legend
+   ========================================================================== */
+
+.overlay-legend {
+  background-color: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  min-width: 200px;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+}
+
+/* Dark mode */
+.dark .overlay-legend,
+[data-theme="dark"] .overlay-legend {
+  background-color: #1f2937;
+  border-color: #374151;
+}
+
+.overlay-legend-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.dark .overlay-legend-header,
+[data-theme="dark"] .overlay-legend-header {
+  border-color: #374151;
+}
+
+.overlay-legend-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.dark .overlay-legend-toggle,
+[data-theme="dark"] .overlay-legend-toggle {
+  color: #d1d5db;
+}
+
+.overlay-legend-toggle:hover {
+  color: #111827;
+}
+
+.dark .overlay-legend-toggle:hover,
+[data-theme="dark"] .overlay-legend-toggle:hover {
+  color: #f3f4f6;
+}
+
+.legend-icon {
+  font-size: 14px;
+}
+
+.legend-chevron {
+  font-size: 10px;
+  color: #9ca3af;
+  margin-left: auto;
+}
+
+.legend-stats {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.dark .legend-stats,
+[data-theme="dark"] .legend-stats {
+  color: #9ca3af;
+}
+
+.overlay-legend-body {
+  padding: 12px;
+}
+
+.legend-fields {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+/* Single column on small containers */
+@media (max-width: 300px) {
+  .legend-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+.legend-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.legend-field:hover,
+.legend-field.hovered {
+  background-color: #e5e7eb;
+}
+
+.dark .legend-field:hover,
+.dark .legend-field.hovered,
+[data-theme="dark"] .legend-field:hover,
+[data-theme="dark"] .legend-field.hovered {
+  background-color: #374151;
+}
+
+.legend-field.highlighted {
+  background-color: #dbeafe;
+  outline: 2px solid #3b82f6;
+  outline-offset: -1px;
+}
+
+.dark .legend-field.highlighted,
+[data-theme="dark"] .legend-field.highlighted {
+  background-color: #1e3a5f;
+}
+
+.field-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.field-label {
+  font-size: 12px;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dark .field-label,
+[data-theme="dark"] .field-label {
+  color: #d1d5db;
+}
+
+.legend-field.is-mandatory .field-label {
+  font-weight: 600;
+}
+
+.mandatory-star {
+  color: #f97316;
+  font-weight: bold;
+  margin-left: auto;
+}
+
+.legend-controls {
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.dark .legend-controls,
+[data-theme="dark"] .legend-controls {
+  border-color: #374151;
+}
+
+.legend-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.dark .legend-checkbox,
+[data-theme="dark"] .legend-checkbox {
+  color: #9ca3af;
+}
+
+.legend-checkbox input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  accent-color: #3b82f6;
+}
+
+/* ==========================================================================
+   Domain Color Themes
+   ========================================================================== */
+
+.domain-financial {
+  --domain-color: #F97316;
+  --domain-color-light: #FED7AA;
+  --domain-color-dark: #9A3412;
+}
+
+.domain-medical {
+  --domain-color: #22C55E;
+  --domain-color-light: #BBF7D0;
+  --domain-color-dark: #065F46;
+}
+
+.domain-legal {
+  --domain-color: #A855F7;
+  --domain-color-light: #E9D5FF;
+  --domain-color-dark: #581C87;
+}
+
+.domain-general {
+  --domain-color: #3B82F6;
+  --domain-color-light: #BFDBFE;
+  --domain-color-dark: #1D4ED8;
+}
+
+/* ==========================================================================
+   Utility Classes
+   ========================================================================== */
+
+.mandatory-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: var(--domain-color, #f97316);
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+/* Collapsed state */
+.overlay-legend.collapsed .overlay-legend-header {
+  border-bottom: none;
+}
+
+/* Error state */
+.overlay-legend.error {
+  border-color: #fca5a5;
+  background-color: #fef2f2;
+}
+
+.dark .overlay-legend.error,
+[data-theme="dark"] .overlay-legend.error {
+  border-color: #7f1d1d;
+  background-color: #450a0a;
+}
+
+/* ==========================================================================
+   Responsive Adjustments
+   ========================================================================== */
+
+@media (max-width: 640px) {
+  .overlay-legend {
+    min-width: 160px;
+  }
+
+  .legend-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .field-label {
+    font-size: 11px;
+  }
+}

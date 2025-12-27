@@ -41,6 +41,20 @@ const internalLegalRag = require('../rag/InternalLegalRag');
 const JsonRepairService = require('../rag/JsonRepairService');
 const { expertRegistry, StageType, ExecutionMode } = require('./ExpertRegistry');
 
+// Visual RAG components (lazy-loaded to allow graceful degradation)
+let visualRagModules = null;
+function getVisualRagModules() {
+    if (visualRagModules === null) {
+        try {
+            visualRagModules = require('../visual-rag');
+        } catch (err) {
+            logger.warn('[ExpertPipelineExecutor] Visual RAG modules not available:', err.message);
+            visualRagModules = false;
+        }
+    }
+    return visualRagModules || null;
+}
+
 // ============================================================================
 // EXECUTION CONTEXT
 // ============================================================================
@@ -355,9 +369,11 @@ class ExpertPipelineExecutor {
             maxRetries: options.maxRetries || 2,
             logLevel: options.logLevel || 'info',
             enableMetrics: options.enableMetrics !== false,
+            enableVisualRag: options.enableVisualRag ?? config.visualRagSidecar?.enabled === 'yes',
+            includeOverlaysInResult: options.includeOverlaysInResult ?? true,
             ...options
         };
-        
+
         // Execution statistics
         this.stats = {
             totalExecutions: 0,
@@ -368,6 +384,27 @@ class ExpertPipelineExecutor {
 
         // JSON repair helper (uses Ollama 'sauerkraut' model)
         this.jsonRepairService = new JsonRepairService(this.ollamaService);
+
+        // Visual RAG components (lazy-initialized)
+        this._visualRagInitialized = false;
+        this._ingestionManager = null;
+        this._visualOverlayRepository = null;
+    }
+
+    /**
+     * Initialize Visual RAG components lazily
+     * @private
+     */
+    _initVisualRag() {
+        if (this._visualRagInitialized) return;
+        this._visualRagInitialized = true;
+
+        const modules = getVisualRagModules();
+        if (modules) {
+            this._ingestionManager = modules.ingestionManager;
+            this._visualOverlayRepository = modules.visualOverlayRepository;
+            logger.debug('[ExpertPipelineExecutor] Visual RAG components initialized');
+        }
     }
     
     /**
@@ -449,20 +486,26 @@ class ExpertPipelineExecutor {
             }
             
             // Build final result
-            const result = this._buildResult(pipeline, context, finalStatus, startTime);
-            
+            let result = this._buildResult(pipeline, context, finalStatus, startTime);
+
+            // Enrich with visual overlays if available
+            if (this.options.enableVisualRag) {
+                result = await this._enrichWithVisualOverlays(result, context);
+            }
+
             // Update statistics
             this._updateStats(result);
-            
+
             // Log completion
             logger.info({
                 event: 'pipeline_execution_complete',
                 pipelineId,
                 status: finalStatus,
                 executionTimeMs: result.metadata.execution_time_ms,
-                stagesExecuted: context.stagesExecuted.length
+                stagesExecuted: context.stagesExecuted.length,
+                hasVisualData: result.visual?.hasVisualData || false
             });
-            
+
             return result;
         } catch (err) {
             logger.error({
@@ -914,6 +957,147 @@ class ExpertPipelineExecutor {
     }
     
     /**
+     * Get visual overlays for a document from PostgreSQL
+     * @param {number} docId - Paperless document ID
+     * @returns {Promise<Array<Object>>} Array of overlay objects
+     */
+    async getVisualOverlays(docId) {
+        this._initVisualRag();
+
+        if (!this._visualOverlayRepository) {
+            return [];
+        }
+
+        try {
+            const available = await this._visualOverlayRepository.isAvailable();
+            if (!available) {
+                return [];
+            }
+
+            return await this._visualOverlayRepository.getByDocId(docId);
+        } catch (error) {
+            logger.warn({
+                event: 'visual_overlay_fetch_failed',
+                docId,
+                error: error.message
+            });
+            return [];
+        }
+    }
+
+    /**
+     * Ingest a document into the Visual RAG system (dual-path)
+     * Should be called during document processing when images are available.
+     *
+     * @param {number} docId - Paperless document ID
+     * @param {string} pdfPath - Path to PDF file (relative to /media/paperless)
+     * @param {Object} options - Ingestion options
+     * @param {string} options.domain - Document domain (medical, financial, legal)
+     * @param {Array<string>} options.base64Images - Pre-rendered page images
+     * @returns {Promise<Object>} Ingestion result
+     */
+    async ingestDocument(docId, pdfPath, options = {}) {
+        this._initVisualRag();
+
+        if (!this._ingestionManager) {
+            logger.debug('[ExpertPipelineExecutor] Visual RAG not available, skipping ingestion');
+            return { success: false, skipped: true, reason: 'Visual RAG not available' };
+        }
+
+        try {
+            const result = await this._ingestionManager.ingestDocument(docId, pdfPath, options);
+
+            logger.info({
+                event: 'visual_rag_ingestion_complete',
+                docId,
+                visualIndexSuccess: result.visualIndex?.success,
+                overlayCount: result.overlayExtraction?.overlayCount || 0
+            });
+
+            return result;
+        } catch (error) {
+            logger.error({
+                event: 'visual_rag_ingestion_failed',
+                docId,
+                error: error.message
+            });
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Perform visual search across indexed documents
+     * @param {string} query - Search query
+     * @param {Object} options - Search options
+     * @returns {Promise<Object>} Search results with overlays
+     */
+    async visualSearch(query, options = {}) {
+        this._initVisualRag();
+
+        if (!this._ingestionManager) {
+            return { query, results: [], totalResults: 0, available: false };
+        }
+
+        try {
+            return await this._ingestionManager.visualSearch(query, options);
+        } catch (error) {
+            logger.warn({
+                event: 'visual_search_failed',
+                query,
+                error: error.message
+            });
+            return { query, results: [], totalResults: 0, error: error.message };
+        }
+    }
+
+    /**
+     * Enrich pipeline result with visual overlays
+     * @private
+     */
+    async _enrichWithVisualOverlays(result, context) {
+        if (!this.options.enableVisualRag || !this.options.includeOverlaysInResult) {
+            return result;
+        }
+
+        const docId = context.document?.id;
+        if (!docId) {
+            return result;
+        }
+
+        try {
+            const overlays = await this.getVisualOverlays(docId);
+
+            if (overlays.length > 0) {
+                result.visual = {
+                    overlays: overlays.map(o => ({
+                        pageNumber: o.pageNumber,
+                        label: o.label,
+                        box: o.box,
+                        confidence: o.confidence,
+                        text: o.overlayData?.text
+                    })),
+                    overlayCount: overlays.length,
+                    hasVisualData: true
+                };
+
+                logger.debug({
+                    event: 'visual_overlays_enriched',
+                    docId,
+                    overlayCount: overlays.length
+                });
+            }
+        } catch (error) {
+            logger.warn({
+                event: 'visual_overlay_enrichment_failed',
+                docId,
+                error: error.message
+            });
+        }
+
+        return result;
+    }
+
+    /**
      * Update execution statistics
      */
     _updateStats(result) {
@@ -922,7 +1106,7 @@ class ExpertPipelineExecutor {
         } else {
             this.stats.failedExecutions++;
         }
-        
+
         // Update running average
         const n = this.stats.totalExecutions;
         const currentAvg = this.stats.averageExecutionTimeMs;
@@ -963,6 +1147,84 @@ class ExpertPipelineExecutor {
         }
     }
     
+    /**
+     * Classify a document without running the full pipeline.
+     * Returns domain and routing information for use by DomainResolver.
+     *
+     * @param {Object} document - Document to classify (image_data, ocr_text, filename, etc.)
+     * @param {Object} options - Classification options
+     * @returns {Promise<Object>} Classification result with domain info
+     */
+    async classifyDocument(document, options = {}) {
+        try {
+            // Build router messages
+            const routerMessages = promptRegistry.buildMessages(
+                'SYS_ROUTER_V1',
+                {
+                    source_system: document.source || 'paperless-ngx',
+                    filename: document.filename || 'unknown',
+                    resolution: document.resolution || 'standard',
+                    file_size: document.file_size || 'unknown'
+                },
+                document.image_data
+            );
+
+            // Call router model
+            const routerResponse = await this._callOllamaWithTimeout(
+                MODEL_NAMES.router,
+                routerMessages,
+                promptRegistry.getOptions('SYS_ROUTER_V1'),
+                options.timeout || 30000
+            );
+
+            const classificationResult = await this._parseResponse(routerResponse, {
+                id: 'router',
+                model: MODEL_NAMES.router
+            });
+
+            // Extract and normalize domain
+            const domain = classificationResult?.classification?.primary_domain ||
+                          classificationResult?.domain ||
+                          'General';
+
+            const documentType = classificationResult?.classification?.document_type ||
+                                classificationResult?.document_type ||
+                                'unknown';
+
+            const confidence = classificationResult?.classification?.confidence ||
+                              classificationResult?.confidence ||
+                              0;
+
+            // Get routing recommendation
+            const { pipeline, routingMetadata } = expertRegistry.route(classificationResult);
+
+            return {
+                domain: domain.toLowerCase(),
+                document_type: documentType,
+                confidence: confidence,
+                selected_pipeline: pipeline.id,
+                routing: routingMetadata,
+                raw_classification: classificationResult
+            };
+        } catch (error) {
+            logger.warn({
+                event: 'classify_document_failed',
+                documentId: document.id || document.filename,
+                error: error.message
+            });
+
+            // Return fallback classification
+            return {
+                domain: 'general',
+                document_type: 'unknown',
+                confidence: 0,
+                selected_pipeline: 'PIPELINE_GENERAL_V1',
+                routing: null,
+                error: error.message
+            };
+        }
+    }
+
     /**
      * Get executor statistics
      */
@@ -1028,15 +1290,44 @@ async function processDocument(document, ollamaService, options = {}) {
     // Call router model
     let classificationResult;
     try {
+        logger.info({
+            event: 'router_call_start',
+            model: MODEL_NAMES.router,
+            hasImageData: !!document.image_data,
+            imageDataLength: document.image_data?.length || 0,
+            filename: document.filename
+        });
+
         const routerResponse = await executor._callOllama(
             MODEL_NAMES.router,
             routerMessages,
             promptRegistry.getOptions('SYS_ROUTER_V1')
         );
-        
+
+        // Log raw router response for debugging
+        const rawContent = typeof routerResponse === 'string'
+            ? routerResponse
+            : (routerResponse?.message?.content || routerResponse?.response || JSON.stringify(routerResponse));
+
+        logger.info({
+            event: 'router_raw_response',
+            model: MODEL_NAMES.router,
+            responseLength: rawContent?.length || 0,
+            responsePreview: rawContent?.substring(0, 500) || 'empty',
+            responseType: typeof routerResponse
+        });
+
         classificationResult = await executor._parseResponse(routerResponse, {
             id: 'router',
             model: MODEL_NAMES.router
+        });
+
+        logger.info({
+            event: 'router_parsed_result',
+            parsed: !!classificationResult?._meta?.parsed,
+            domain: classificationResult?.classification?.primary_domain,
+            confidence: classificationResult?.classification?.confidence,
+            extractionFailed: classificationResult?.extraction_failed
         });
         
     } catch (error) {

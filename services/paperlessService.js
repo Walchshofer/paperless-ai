@@ -880,7 +880,59 @@ class PaperlessService {
 
     logger.debug(`Finished fetching. Found ${documents.length} documents.`);
     return documents;
-}
+  }
+
+  /**
+   * Get all documents WITHOUT tag filtering.
+   * Used for UI dropdowns where users should see all available documents.
+   *
+   * @returns {Promise<Array>} Array of all documents
+   */
+  async getAllDocumentsUnfiltered() {
+    this.initialize();
+    if (!this.client) {
+      console.error('[DEBUG] Client not initialized');
+      return [];
+    }
+
+    let documents = [];
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+      try {
+        const params = {
+          page,
+          page_size: 100,
+          fields: 'id,title,created,created_date,added,tags,correspondent'
+        };
+
+        const response = await this.client.get('/documents/', { params });
+
+        if (!response?.data?.results || !Array.isArray(response.data.results)) {
+          logger.error(`Invalid API response on page ${page}`);
+          break;
+        }
+
+        documents = documents.concat(response.data.results);
+        hasMore = response.data.next !== null;
+        page++;
+
+        // Small delay to avoid overloading the API
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+      } catch (error) {
+        logger.error(`Error fetching documents page ${page}: ${error.message}`);
+        if (error.response) {
+          logger.error('Response status: %s', error.response.status);
+        }
+        break;
+      }
+    }
+
+    logger.debug(`Fetched all documents unfiltered. Found ${documents.length} documents.`);
+    return documents;
+  }
 
   async getAllDocumentIds() {
     /**
@@ -1504,14 +1556,28 @@ async getOrCreateDocumentType(name) {
         updateData.title = updateData.title.substring(0, 124) + '…';
         console.warn(`[WARN] Title truncated to 128 characters for document ${documentId}`);
       }
-      
-      logger.debug('Final update data: %o', updateData);
-      await this.client.patch(`/documents/${documentId}/`, updateData);
+
+      // Filter out internal metadata fields (starting with _) and document_id
+      const apiPayload = {};
+      for (const [key, value] of Object.entries(updateData)) {
+        if (!key.startsWith('_') && key !== 'document_id' && value !== null && value !== undefined) {
+          apiPayload[key] = value;
+        }
+      }
+
+      logger.debug('Final update data: %o', apiPayload);
+      await this.client.patch(`/documents/${documentId}/`, apiPayload);
       logger.info('Updated document %s with: %o', documentId, updateData);
       return await this.getDocument(documentId);
     } catch (error) {
-      logger.error(error);
-      logger.error(`Error updating document ${documentId}: %s`, error.message);
+      // Log concise error info instead of entire Axios error object
+      const errorDetails = {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message
+      };
+      logger.error('Error updating document %s: %o', documentId, errorDetails);
       return null;
     }
   }
