@@ -4,7 +4,8 @@
   "description": "AI based Tag, correspondent and meta data generation",
   "main": "server.js",
   "scripts": {
-    "test": "mocha test/**/*.test.js --timeout 30000 --reporter spec"
+    "test": "mocha --require test/setup-env.js test/**/*.test.js --timeout 30000 --reporter spec",
+    "test:integration": "cross-env GUIDANCE_ENABLED=true GUIDANCE_SERVICE_ENABLED=yes RAG_SERVICE_ENABLED=true mocha --require test/setup-env.js test/**/*.test.js --timeout 60000 --reporter spec"
   },
   "keywords": [
     "paperless-ngx",
@@ -56,6 +57,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",
+    "cross-env": "^7.0.3",
     "eslint": "^9.22.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-jsdoc": "^50.6.3",

@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document Preview - Paperless-AI</title>
     <script src="https://cdn.tailwindcss.com/3.4.16"></script>
-    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/css/dashboard.css">
 </head>
 <body class="bg-gray-50 text-gray-900">
     <main class="max-w-5xl mx-auto p-6">
@@ -15,9 +16,20 @@
                 <h1 class="text-2xl font-bold"><%= title %></h1>
             </div>
             <div class="flex flex-wrap gap-2">
-                <a href="/history" class="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100">Back to History</a>
+                <button
+                    onclick="feedbackForm.show({ documentId: '<%= documentId %>' })"
+                    class="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 text-gray-700"
+                    title="Provide feedback on extraction accuracy"
+                >
+                    <i class="fas fa-thumbs-up mr-1"></i> Feedback
+                </button>
+                <a href="/history" class="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100">
+                    <i class="fas fa-arrow-left mr-1"></i> Back to History
+                </a>
                 <% if (paperlessUrl) { %>
-                    <a href="<%= paperlessUrl %>/documents/<%= documentId %>/" target="_blank" rel="noopener" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Open in Paperless</a>
+                    <a href="<%= paperlessUrl %>/documents/<%= documentId %>/" target="_blank" rel="noopener" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        <i class="fas fa-external-link-alt mr-1"></i> Open in Paperless
+                    </a>
                 <% } %>
             </div>
         </div>
@@ -33,5 +45,11 @@
             <pre class="whitespace-pre-wrap text-sm leading-relaxed text-gray-800"><%= content %></pre>
         </div>
     </main>
+
+    <!-- Feedback Modal -->
+    <%- include('partials/feedback-modal') %>
+
+    <!-- Feedback Form Component -->
+    <script src="/js/components/FeedbackForm.js"></script>
 </body>
 </html>

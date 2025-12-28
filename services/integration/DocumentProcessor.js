@@ -614,7 +614,9 @@ class ResultMerger {
         if (created) result.created = created;
 
         const customFields = this._extractCustomFields(mergedResult);
-        if (customFields && customFields.length > 0) result.custom_fields = customFields;
+        if (customFields && Object.keys(customFields).length > 0) {
+            result.custom_fields = customFields;
+        }
 
         return result;
     }

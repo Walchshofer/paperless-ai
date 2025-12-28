@@ -75,10 +75,19 @@ const MODEL_NAMES = Object.freeze({
     financeReasoning: process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || config.ollama?.model || 'fino1-8b',
     financeGeneral: process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || config.ollama?.visionModel || 'llm-pro-finance-8b',
     // VAT expert should use the Dragon finance reasoning model by default (fallback)
-    vatExpert: process.env.VAT_EXPERT_MODEL || process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || config.ollama?.visionModel || 'dragon-finance:latest',
+    vatExpert: process.env.VAT_EXPERT_MODEL ||
+               process.env.FINANCIAL_VAT_EXPERT ||
+               config.expertModels?.financial?.vatExpert ||
+               process.env.FINANCIAL_VISION_MODEL ||
+               config.expertModels?.financial?.vision ||
+               config.ollama?.visionModel ||
+               'dragon-finance:latest',
 
     // Legal expert mapping -> Dragon finance reasoning model
-    legalExpert: process.env.LEGAL_EXPERT_MODEL || 'dragon-finance:latest',
+    legalExpert: process.env.LEGAL_EXPERT_MODEL ||
+                 process.env.LEGAL_ANALYSIS_MODEL ||
+                 config.expertModels?.legal?.analysis ||
+                 'dragon-finance:latest',
 
     // Advanced tier - Reasoning models (no default; configurable)
     dragon: process.env.DRAGON_MODEL || null,
@@ -227,6 +236,63 @@ Respond with this exact JSON structure:
     config: {
         temperature: 0.2,  // Low temp for consistent classification
         maxTokens: 1024,
+        topK: 40,
+        topP: 0.9
+    }
+};
+
+/**
+ * VIS_OCR_V1: Visual OCR Text Extraction
+ *
+ * Purpose: High-precision text extraction from document images using vision model.
+ * Model: qwen3-vl:8b (multimodal) - same as router for VRAM efficiency
+ *
+ * Features:
+ * - Preserves reading order (top-to-bottom, left-to-right)
+ * - Maintains line breaks and paragraph structure
+ * - Handles tables with column/row separators
+ * - Best-effort handwriting transcription with [unclear] markers
+ *
+ * Usage: Called after router classification, before domain-specific extraction.
+ * Output: Plain text (no JSON) for direct use by downstream stages.
+ */
+const VIS_OCR_V1 = {
+    id: 'VIS_OCR_V1',
+    version: '1.0.0',
+    domain: DomainType.SYSTEM,
+    category: PromptCategory.EXTRACTION,
+    model: MODEL_NAMES.router,  // qwen3-vl:8b - reuse router model
+    modelType: ModelType.MULTIMODAL,
+
+    systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+You are a high-precision OCR engine. Your sole task is to extract ALL text visible in the document image.
+
+EXTRACTION RULES:
+1. Preserve reading order: top to bottom, left to right
+2. Maintain line breaks and paragraph structure exactly as shown
+3. For tables: use | as column separator, - as row separator
+4. Preserve special characters, numbers, and symbols exactly as they appear
+5. For handwritten text: transcribe best-effort, use [unclear] for illegible parts
+6. Preserve original indentation where visible
+
+OUTPUT FORMAT:
+- Output ONLY the extracted text
+- NO JSON, NO markdown, NO explanatory text
+- Do NOT add content that is not visible in the image
+- Do NOT summarize or interpret - just extract what you see
+<|eot_id|>`,
+
+    userTemplate: `<|start_header_id|>user<|end_header_id|>
+Extract all text from this document image.
+
+Page {{page_number}} of {{total_pages}}
+
+Output the complete text content, preserving structure:
+<|eot_id|>`,
+
+    config: {
+        temperature: 0.1,   // Very low for consistent, deterministic extraction
+        maxTokens: 4096,    // Allow full page content
         topK: 40,
         topP: 0.9
     }
@@ -1053,16 +1119,20 @@ class PromptRegistry {
     constructor() {
         this.prompts = new Map();
         this.modelRegistry = ModelRegistry;
+        this._registerBuiltinPrompts();
     }
-    
+
     _registerBuiltinPrompts() {
         this.register(SYS_ROUTER_V1);
+        this.register(VIS_OCR_V1);
         this.register(MED_RADIOLOGY_V1);
         this.register(MED_DOCTOR_V1);
         this.register(MED_INTEGRATOR_V1);
         this.register(FIN_EXTRACT_V1);
         this.register(FIN_REASONER_V1);
         this.register(FIN_VAT_EXPERT_V1);
+        this.register(LEGAL_ORCHESTRATOR_V1);
+        this.register(LEGAL_EXTRACTOR_V1);
         this.register(GEN_FALLBACK_V1);
 
         logger.info(`PromptRegistry initialized with ${this.prompts.size} prompts`);
@@ -1310,6 +1380,7 @@ module.exports = {
     MODEL_NAMES,
     // Export individual prompts for direct access
     SYS_ROUTER_V1,
+    VIS_OCR_V1,
     MED_RADIOLOGY_V1,
     MED_DOCTOR_V1,
     MED_INTEGRATOR_V1,

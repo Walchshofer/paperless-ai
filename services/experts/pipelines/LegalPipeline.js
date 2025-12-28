@@ -1,13 +1,6 @@
 /**
  * Legal Document Processing Pipeline
- *
- * Handles:
- * - Contracts and agreements
- * - Legal correspondence
- * - Court documents
- * - Regulatory filings
- *
- * Note: Uses general-purpose models until specialized legal models added
+ * REFINED: Added guidanceTemplate strings for structured extraction.
  */
 
 const { DomainType, ModelType } = require('../../prompts/PromptRegistry');
@@ -27,7 +20,7 @@ const LegalPipeline = {
         'power_of_attorney', 'will', 'trust', 'regulatory_filing'
     ],
 
-    confidenceThreshold: 0.8,  // Higher threshold for legal accuracy
+    confidenceThreshold: 0.8,
     timeoutMs: 90000,
 
     stages: [
@@ -35,43 +28,37 @@ const LegalPipeline = {
             id: 'legal_orchestrator',
             name: 'Legal Orchestrator',
             type: StageType.CLASSIFICATION,
+            guidanceTemplate: 'legal_classifier',
             promptId: 'LEGAL_ORCHESTRATOR_V1',
             model: MODEL_NAMES.router,
             modelType: ModelType.TEXT_ONLY,
             executionMode: ExecutionMode.SEQUENTIAL,
             inputMapping: {
-                text_chunk: 'document.ocr_text',
-                filename: 'document.filename',
-                source_system: 'document.source'
+                text_chunk: 'document.enhanced_ocr_text'
             },
-            outputKey: 'legal_orchestration',
-            timeout: 15000,
-            retryCount: 1,
-            unloadAfter: true
+            outputKey: 'legal_orchestration'
         },
         {
             id: 'legal_extraction',
-            name: 'Legal Text Extraction',
+            name: 'Legal Extraction',
             type: StageType.TEXT_EXTRACTION,
+            guidanceTemplate: 'legal_extractor',
             promptId: 'LEGAL_EXTRACTOR_V1',
             model: MODEL_NAMES.legalExpert,
             modelType: ModelType.TEXT_ONLY,
             executionMode: ExecutionMode.SEQUENTIAL,
             injectLegalContext: true,
             inputMapping: {
-                text_chunk: 'document.ocr_text',
-                filename: 'document.filename',
-                source_system: 'document.source',
-                ocr_quality: 'document.ocr_quality'
+                text_chunk: 'document.enhanced_ocr_text'
             },
             outputKey: 'legal_extraction',
-            timeout: 60000,
-            retryCount: 2
+            timeout: 60000
         },
         {
             id: 'legal_validation',
             name: 'Legal Validation',
             type: StageType.VALIDATION,
+            guidanceTemplate: 'legal_validator',
             promptId: null,
             model: null,
             executionMode: ExecutionMode.SEQUENTIAL,
@@ -86,17 +73,7 @@ const LegalPipeline = {
             outputKey: 'validation_result',
             timeout: 5000
         }
-    ],
-
-    outputSchema: {
-        type: 'object',
-        required: ['pipeline_id', 'status', 'result'],
-        properties: {
-            pipeline_id: { type: 'string' },
-            status: { type: 'string', enum: ['success', 'partial', 'failed'] },
-            result: { type: 'object' }
-        }
-    }
+    ]
 };
 
 module.exports = { LegalPipeline };

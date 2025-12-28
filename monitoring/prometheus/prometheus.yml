@@ -1,0 +1,46 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files:
+  - "alerts.yml"
+
+scrape_configs:
+  # Guidance Service (Python Flask)
+  - job_name: 'guidance-service'
+    static_configs:
+      - targets: ['guidance-service:8002']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Paperless-AI Orchestration (Node.js)
+  - job_name: 'paperless-ai'
+    static_configs:
+      - targets: ['paperless-ai:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # Visual RAG Sidecar
+  - job_name: 'visual-rag'
+    static_configs:
+      - targets: ['visual-rag:8001']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Ollama (if metrics exposed)
+  - job_name: 'ollama'
+    static_configs:
+      - targets: ['host.docker.internal:11434']
+    metrics_path: '/api/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

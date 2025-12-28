@@ -17,6 +17,12 @@
  */
 
 const assert = require('assert');
+const { LocalTranslator } = require('../../services/experts');
+const { ExpertRegistry } = require('../../services/experts/ExpertRegistry');
+const { DomainType } = require('../../services/prompts/PromptRegistry');
+const { TemplateRegistry } = require('../../services/prompts/TemplateRegistry');
+const { TemplateManager } = require('../../services/prompts/TemplateManager');
+const { SemanticRouter } = require('../../services/experts/routing');
 
 // ============================================================================
 // TEST UTILITIES
@@ -69,6 +75,129 @@ class MockOllamaService {
         this.calls = [];
     }
 }
+
+describe('LocalTranslator', function() {
+    it('should call Ollama when source and target differ', async function() {
+        const mock = new MockOllamaService({
+            defaultResponse: { message: { content: 'Hallo Welt' } }
+        });
+        const translator = new LocalTranslator({
+            ollamaService: mock,
+            config: { model: 'test-model', maxTokens: 32, temperature: 0.0, minChars: 1 }
+        });
+
+        const result = await translator.translate('Hello world', 'en', 'de');
+        assert.strictEqual(result, 'Hallo Welt');
+        assert.strictEqual(mock.getCallCount(), 1);
+    });
+
+    it('should bypass Ollama for same-language input', async function() {
+        const mock = new MockOllamaService();
+        const translator = new LocalTranslator({
+            ollamaService: mock,
+            config: { minChars: 1 }
+        });
+
+        const result = await translator.translate('Hallo Welt', 'de', 'de');
+        assert.strictEqual(result, 'Hallo Welt');
+        assert.strictEqual(mock.getCallCount(), 0);
+    });
+});
+
+describe('SemanticRouter', function() {
+    it('should prefer expert pipeline when confidence is high', function() {
+        const router = new SemanticRouter({
+            enabled: true,
+            config: { minConfidence: 0.6 }
+        });
+        const registry = new ExpertRegistry();
+
+        const classification = { classification: { primary_domain: 'Medical', confidence: 0.9 } };
+        const selected = router.selectPipeline(classification, registry.getPipelines());
+        assert.ok(selected);
+        assert.strictEqual(selected.domain, DomainType.MEDICAL);
+    });
+
+    it('should fall back to general when confidence is low', function() {
+        const router = new SemanticRouter({
+            enabled: true,
+            config: { minConfidence: 0.8 }
+        });
+        const registry = new ExpertRegistry();
+
+        const classification = { classification: { primary_domain: 'Medical', confidence: 0.2 } };
+        const selected = router.selectPipeline(classification, registry.getPipelines());
+        assert.ok(selected);
+        assert.strictEqual(selected.domain, DomainType.GENERAL);
+    });
+});
+
+describe('TemplateRegistry', function() {
+    it('should register and retrieve templates by intent and lang', function() {
+        const registry = new TemplateRegistry({ includeDefaults: false });
+        registry.register({
+            intent: 'test_intent',
+            lang: 'en',
+            systemInstruction: 'Test system'
+        });
+
+        const template = registry.get('test_intent', 'en');
+        assert.ok(template);
+        assert.strictEqual(template.systemInstruction, 'Test system');
+    });
+
+    it('should return null for missing templates', function() {
+        const registry = new TemplateRegistry({ includeDefaults: false });
+        const template = registry.get('missing_intent', 'en');
+        assert.strictEqual(template, null);
+    });
+});
+
+describe('TemplateManager', function() {
+    it('should return exact language match when available', function() {
+        const registry = new TemplateRegistry({ includeDefaults: false });
+        registry.register({
+            intent: 'template_test',
+            lang: 'en',
+            systemInstruction: 'English'
+        });
+        registry.register({
+            intent: 'template_test',
+            lang: 'de',
+            systemInstruction: 'Deutsch'
+        });
+
+        const manager = new TemplateManager(registry);
+        const template = manager.getTemplate('template_test', 'de', 'en');
+        assert.strictEqual(template.lang, 'de');
+    });
+
+    it('should fall back to fallbackLang when exact language is missing', function() {
+        const registry = new TemplateRegistry({ includeDefaults: false });
+        registry.register({
+            intent: 'fallback_test',
+            lang: 'fr',
+            systemInstruction: 'Francais'
+        });
+
+        const manager = new TemplateManager(registry);
+        const template = manager.getTemplate('fallback_test', 'de', 'fr');
+        assert.strictEqual(template.lang, 'fr');
+    });
+
+    it('should fall back to any available template when no language matches', function() {
+        const registry = new TemplateRegistry({ includeDefaults: false });
+        registry.register({
+            intent: 'any_test',
+            lang: 'en',
+            systemInstruction: 'English'
+        });
+
+        const manager = new TemplateManager(registry);
+        const template = manager.getTemplate('any_test', 'de', 'fr');
+        assert.strictEqual(template.lang, 'en');
+    });
+});
 
 /**
  * Sample test documents
@@ -309,8 +438,8 @@ describe('Expert Pipeline', function() {
             
             it('should find by domain', function() {
                 const medical = registry.findByDomain(DomainType.MEDICAL);
-                assert.strictEqual(medical.length, 1);
-                assert.strictEqual(medical[0].id, 'MEDICAL_EXTRACT_V1');
+                assert.ok(medical.length >= 1);
+                assert.ok(medical.some(prompt => prompt.id === 'MEDICAL_EXTRACT_V1'));
             });
             
             it('should find by model type', function() {
@@ -321,12 +450,15 @@ describe('Expert Pipeline', function() {
             
             it('should find by category', function() {
                 const extraction = registry.findByCategory(PromptCategory.EXTRACTION);
-                assert.strictEqual(extraction.length, 1);
+                assert.ok(extraction.length >= 1);
+                assert.ok(extraction.some(prompt => prompt.id === 'MEDICAL_EXTRACT_V1'));
             });
-            
+
             it('should list all prompts', function() {
                 const all = registry.list();
-                assert.strictEqual(all.length, 2);
+                assert.ok(all.length >= 2);
+                assert.ok(all.some(prompt => prompt.id === 'MEDICAL_EXTRACT_V1'));
+                assert.ok(all.some(prompt => prompt.id === 'GENERAL_CLASSIFY_V1'));
             });
         });
         

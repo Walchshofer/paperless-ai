@@ -1,0 +1,400 @@
+/**
+ * GuidanceClient.js
+ *
+ * HTTP client for the Python Guidance service.
+ * Bridges Node.js pipeline execution with deterministic JSON extraction.
+ *
+ * The Guidance service provides:
+ * - 100% JSON validity via constrained generation
+ * - Domain-specific templates (medical, financial, legal, general)
+ * - Built-in validation and caching
+ * - Prometheus metrics
+ *
+ * Usage:
+ *   const client = new GuidanceClient();
+ *   const result = await client.generate('medical_extractor', {
+ *     medical_text: 'Patient: Max Mustermann...'
+ *   });
+ */
+
+const axios = require('axios');
+const logger = require('../logger');
+const config = require('../../config/config');
+
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+
+const GUIDANCE_CONFIG = {
+    // Service URL - can be overridden via environment
+    baseUrl: process.env.GUIDANCE_SERVICE_URL ||
+             config.guidanceService?.url ||
+             'http://localhost:8002',
+
+    // Default model for Guidance templates
+    defaultModel: process.env.GUIDANCE_MODEL ||
+                  config.guidanceService?.model ||
+                  'sauerkraut-llama3.1:8b',
+
+    // Timeout for Guidance requests (templates can be slow)
+    timeout: parseInt(process.env.GUIDANCE_TIMEOUT || '90000', 10),
+
+    // Enable/disable Guidance integration
+    enabled: process.env.GUIDANCE_ENABLED !== 'false' &&
+             (config.guidanceService?.enabled ?? true),
+
+    // Retry configuration
+    maxRetries: parseInt(process.env.GUIDANCE_MAX_RETRIES || '2', 10),
+    retryDelay: parseInt(process.env.GUIDANCE_RETRY_DELAY || '1000', 10),
+
+    // Cache configuration
+    useCache: process.env.GUIDANCE_USE_CACHE !== 'false'
+};
+
+// ============================================================================
+// GUIDANCE CLIENT
+// ============================================================================
+
+class GuidanceClient {
+    constructor(options = {}) {
+        this.config = { ...GUIDANCE_CONFIG, ...options };
+        this.httpClient = axios.create({
+            baseURL: this.config.baseUrl,
+            timeout: this.config.timeout,
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        this._available = null;  // Cached availability status
+
+        logger.info({
+            event: 'guidance_client_initialized',
+            baseUrl: this.config.baseUrl,
+            enabled: this.config.enabled,
+            model: this.config.defaultModel
+        });
+    }
+
+    /**
+     * Check if Guidance service is available
+     * @returns {Promise<boolean>}
+     */
+    async isAvailable() {
+        if (!this.config.enabled) return false;
+
+        if (this._available !== null) {
+            return this._available;
+        }
+
+        try {
+            const response = await this.httpClient.get('/health', {
+                timeout: 5000
+            });
+            this._available = response.data?.status === 'ok';
+            return this._available;
+        } catch (error) {
+            logger.warn({
+                event: 'guidance_service_unavailable',
+                url: this.config.baseUrl,
+                error: error.message
+            });
+            this._available = false;
+            return false;
+        }
+    }
+
+    /**
+     * Reset availability cache (call after service restart)
+     */
+    resetAvailabilityCache() {
+        this._available = null;
+    }
+
+    /**
+     * Get list of available templates
+     * @returns {Promise<string[]>}
+     */
+    async listTemplates() {
+        try {
+            const response = await this.httpClient.get('/templates');
+            return response.data?.templates || [];
+        } catch (error) {
+            logger.error({
+                event: 'guidance_list_templates_error',
+                error: error.message
+            });
+            return [];
+        }
+    }
+
+    /**
+     * Generate structured output using a Guidance template
+     *
+     * @param {string} template - Template name (e.g., 'medical_extractor')
+     * @param {Object} variables - Template variables
+     * @param {Object} options - Optional settings
+     * @returns {Promise<Object>} Generated output with validation
+     */
+    async generate(template, variables, options = {}) {
+        const model = options.model || this.config.defaultModel;
+        const temperature = options.temperature ?? 0.1;
+        const useCache = options.useCache ?? this.config.useCache;
+
+        const startTime = Date.now();
+
+        logger.debug({
+            event: 'guidance_generate_start',
+            template,
+            model,
+            variableKeys: Object.keys(variables)
+        });
+
+        // Check availability
+        if (!await this.isAvailable()) {
+            throw new GuidanceError(
+                'Guidance service is not available',
+                'SERVICE_UNAVAILABLE',
+                { baseUrl: this.config.baseUrl }
+            );
+        }
+
+        // Execute with retry logic
+        let lastError = null;
+        for (let attempt = 1; attempt <= this.config.maxRetries; attempt++) {
+            try {
+                const response = await this.httpClient.post('/generate', {
+                    template,
+                    model,
+                    variables,
+                    temperature,
+                    use_cache: useCache
+                });
+
+                const result = response.data;
+
+                // Log success
+                logger.info({
+                    event: 'guidance_generate_success',
+                    template,
+                    model,
+                    source: result.source,  // 'cache' or 'generated'
+                    valid: result.validation?.valid,
+                    durationMs: Date.now() - startTime
+                });
+
+                return {
+                    success: true,
+                    generated: result.generated,
+                    validation: result.validation,
+                    source: result.source,
+                    metadata: {
+                        template,
+                        model,
+                        durationMs: Date.now() - startTime
+                    }
+                };
+
+            } catch (error) {
+                lastError = error;
+
+                logger.warn({
+                    event: 'guidance_generate_retry',
+                    template,
+                    attempt,
+                    maxRetries: this.config.maxRetries,
+                    error: error.message
+                });
+
+                if (attempt < this.config.maxRetries) {
+                    await this._delay(this.config.retryDelay * attempt);
+                }
+            }
+        }
+
+        // All retries failed
+        const errorDetails = this._extractErrorDetails(lastError);
+
+        logger.error({
+            event: 'guidance_generate_failed',
+            template,
+            model,
+            durationMs: Date.now() - startTime,
+            error: errorDetails.message,
+            code: errorDetails.code
+        });
+
+        throw new GuidanceError(
+            errorDetails.message,
+            errorDetails.code,
+            { template, model, originalError: lastError }
+        );
+    }
+
+    /**
+     * Generate with fallback to raw Ollama if Guidance fails
+     *
+     * @param {string} template - Guidance template name
+     * @param {Object} variables - Template variables
+     * @param {Function} fallbackFn - Fallback function returning Promise<Object>
+     * @param {Object} options - Optional settings
+     * @returns {Promise<Object>}
+     */
+    async generateWithFallback(template, variables, fallbackFn, options = {}) {
+        try {
+            return await this.generate(template, variables, options);
+        } catch (error) {
+            logger.warn({
+                event: 'guidance_fallback_triggered',
+                template,
+                error: error.message
+            });
+
+            if (typeof fallbackFn === 'function') {
+                const fallbackResult = await fallbackFn();
+                return {
+                    success: true,
+                    generated: fallbackResult,
+                    validation: { valid: true, source: 'fallback' },
+                    source: 'fallback',
+                    metadata: {
+                        template,
+                        fallbackReason: error.message
+                    }
+                };
+            }
+
+            throw error;
+        }
+    }
+
+    /**
+     * Batch generate multiple templates
+     *
+     * @param {Array<{template: string, variables: Object}>} requests
+     * @param {Object} options
+     * @returns {Promise<Array<Object>>}
+     */
+    async batchGenerate(requests, options = {}) {
+        const results = await Promise.allSettled(
+            requests.map(req =>
+                this.generate(req.template, req.variables, {
+                    ...options,
+                    ...req.options
+                })
+            )
+        );
+
+        return results.map((result, index) => {
+            if (result.status === 'fulfilled') {
+                return result.value;
+            }
+            return {
+                success: false,
+                error: result.reason.message,
+                template: requests[index].template
+            };
+        });
+    }
+
+    // ========================================================================
+    // PRIVATE HELPERS
+    // ========================================================================
+
+    _delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    _extractErrorDetails(error) {
+        if (error.response) {
+            // HTTP error from Guidance service
+            const data = error.response.data || {};
+            return {
+                message: data.error || error.message,
+                code: `HTTP_${error.response.status}`
+            };
+        }
+
+        if (error.code === 'ECONNREFUSED') {
+            return {
+                message: 'Guidance service connection refused',
+                code: 'CONNECTION_REFUSED'
+            };
+        }
+
+        if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
+            return {
+                message: 'Guidance service request timed out',
+                code: 'TIMEOUT'
+            };
+        }
+
+        return {
+            message: error.message || 'Unknown Guidance error',
+            code: 'UNKNOWN'
+        };
+    }
+}
+
+// ============================================================================
+// ERROR CLASS
+// ============================================================================
+
+class GuidanceError extends Error {
+    constructor(message, code, details = {}) {
+        super(message);
+        this.name = 'GuidanceError';
+        this.code = code;
+        this.details = details;
+    }
+}
+
+// ============================================================================
+// TEMPLATE MAPPING
+// ============================================================================
+
+/**
+ * Maps pipeline stage guidance templates to prompt IDs for fallback
+ */
+const TEMPLATE_TO_PROMPT_FALLBACK = {
+    // Medical
+    'medical_classifier': 'MED_RADIOLOGY_V1',
+    'medical_extractor': 'MED_DOCTOR_V1',
+    'medical_integrator': 'MED_INTEGRATOR_V1',
+
+    // Financial
+    'financial_extractor': 'FIN_EXTRACT_V1',
+    'financial_reasoner': 'FIN_REASONER_V1',
+    'vat_expert_analyzer': 'FIN_VAT_EXPERT_V1',
+
+    // Legal
+    'legal_classifier': 'LEGAL_ORCHESTRATOR_V1',
+    'legal_extractor': 'LEGAL_EXTRACTOR_V1',
+    'legal_validator': 'LEGAL_EXTRACTOR_V1',
+
+    // General
+    'general_classifier': 'GEN_FALLBACK_V1',
+    'general_extractor': 'GEN_FALLBACK_V1',
+    'cross_pipeline_router': 'SYS_ROUTER_V1'
+};
+
+/**
+ * Get fallback prompt ID for a Guidance template
+ */
+function getFallbackPromptId(guidanceTemplate) {
+    return TEMPLATE_TO_PROMPT_FALLBACK[guidanceTemplate] || null;
+}
+
+// ============================================================================
+// SINGLETON EXPORT
+// ============================================================================
+
+const guidanceClient = new GuidanceClient();
+
+module.exports = {
+    GuidanceClient,
+    GuidanceError,
+    guidanceClient,
+    getFallbackPromptId,
+    GUIDANCE_CONFIG
+};

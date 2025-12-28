@@ -46,6 +46,9 @@ const { ExecutionContext } = require('./context');
 const { ConditionEvaluator, ValidationEngine } = require('./evaluation');
 const { getVisualRagModules } = require('./utils');
 
+// Import Guidance client for deterministic extraction
+const { guidanceClient, getFallbackPromptId } = require('../guidance');
+
 // ============================================================================
 // PIPELINE EXECUTOR
 // ============================================================================
@@ -76,6 +79,8 @@ class ExpertPipelineExecutor {
             includeOverlaysInResult: options.includeOverlaysInResult ?? true,
             ...options
         };
+        this.translator = options.translator || null;
+        this.semanticRouter = options.semanticRouter || null;
 
         // Execution statistics
         this.stats = {
@@ -320,28 +325,22 @@ class ExpertPipelineExecutor {
 
     /**
      * Execute an LLM-based stage
+     *
+     * Uses Guidance service for deterministic extraction when guidanceTemplate is defined.
+     * Falls back to direct Ollama calls via PromptRegistry when Guidance is unavailable.
      */
     async _executeLLMStage(stage, input, context) {
-        // Get prompt template
-        const prompt = promptRegistry.get(stage.promptId);
-        if (prompt.model && stage.model && prompt.model !== stage.model) {
-            logger.warn({
-                event: 'stage_model_mismatch',
-                stageId: stage.id,
-                promptId: stage.promptId,
-                stageModel: stage.model,
-                promptModel: prompt.model
-            });
-        }
-
-        // Build variables and image data
+        // Build variables from input
         const variables = this._flattenInput(input);
-        const imageData = stage.modelType === ModelType.MULTIMODAL ?
-                          input.image || context.document.image_data : null;
 
-        // Local context injection: choose a reasonable text source
-        const textForContext = input && (input.text || input.question || input.body) || variables.text || context.document?.text || context.document?.ocr_text || Object.values(variables).join(' ');
+        // Text context for RAG injection
+        const textForContext = input && (input.text || input.question || input.body) ||
+                               variables.text ||
+                               context.document?.text ||
+                               context.document?.ocr_text ||
+                               Object.values(variables).join(' ');
 
+        // Inject legal context if requested
         if (stage.injectLegalContext) {
             try {
                 const legalCtx = await internalLegalRag.retrieve(textForContext);
@@ -351,6 +350,7 @@ class ExpertPipelineExecutor {
             }
         }
 
+        // Inject VAT context if requested
         if (stage.injectVatContext) {
             try {
                 const vatCtx = await internalVatRag.retrieve(textForContext);
@@ -360,15 +360,85 @@ class ExpertPipelineExecutor {
             }
         }
 
+        // =================================================================
+        // GUIDANCE PATH: Use Python Guidance service for deterministic JSON
+        // =================================================================
+        if (stage.guidanceTemplate && await guidanceClient.isAvailable()) {
+            logger.debug({
+                event: 'stage_using_guidance',
+                stageId: stage.id,
+                template: stage.guidanceTemplate
+            });
+
+            try {
+                const guidanceResult = await guidanceClient.generate(
+                    stage.guidanceTemplate,
+                    variables,
+                    {
+                        model: stage.model || config.ollama?.model,
+                        temperature: 0.1
+                    }
+                );
+
+                if (guidanceResult.success) {
+                    logger.info({
+                        event: 'guidance_extraction_success',
+                        stageId: stage.id,
+                        template: stage.guidanceTemplate,
+                        valid: guidanceResult.validation?.valid,
+                        source: guidanceResult.source
+                    });
+
+                    return guidanceResult.generated;
+                }
+            } catch (guidanceError) {
+                logger.warn({
+                    event: 'guidance_extraction_fallback',
+                    stageId: stage.id,
+                    template: stage.guidanceTemplate,
+                    error: guidanceError.message
+                });
+                // Fall through to PromptRegistry path
+            }
+        }
+
+        // =================================================================
+        // FALLBACK PATH: Use PromptRegistry + direct Ollama calls
+        // =================================================================
+
+        // Determine promptId - use stage.promptId or derive from guidanceTemplate
+        const promptId = stage.promptId ||
+                         (stage.guidanceTemplate ? getFallbackPromptId(stage.guidanceTemplate) : null);
+
+        if (!promptId) {
+            throw new Error(`Stage ${stage.id} has no promptId or guidanceTemplate configured`);
+        }
+
+        // Get prompt template
+        const prompt = promptRegistry.get(promptId);
+        if (prompt.model && stage.model && prompt.model !== stage.model) {
+            logger.warn({
+                event: 'stage_model_mismatch',
+                stageId: stage.id,
+                promptId: promptId,
+                stageModel: stage.model,
+                promptModel: prompt.model
+            });
+        }
+
+        // Build image data for multimodal stages
+        const imageData = stage.modelType === ModelType.MULTIMODAL ?
+                          input.image || context.document.image_data : null;
+
         // Build messages
         const messages = promptRegistry.buildMessages(
-            stage.promptId,
+            promptId,
             variables,
             imageData
         );
 
         // Get model options
-        const options = promptRegistry.getOptions(stage.promptId);
+        const options = promptRegistry.getOptions(promptId);
 
         // Execute LLM call with timeout
         const timeout = stage.timeout || this.options.defaultTimeout;
@@ -854,6 +924,203 @@ class ExpertPipelineExecutor {
         }
     }
 
+    // ========================================================================
+    // VISUAL OCR METHODS
+    // ========================================================================
+
+    /**
+     * Execute visual OCR to extract text from document images using vision model.
+     * Uses VIS_OCR_V1 prompt with qwen3-vl:8b for high-precision text extraction.
+     *
+     * @param {Object} document - Document with base64Images array
+     * @param {Object} options - OCR options
+     * @returns {Promise<Object>} OCR result with text and metadata
+     */
+    async _executeVisualOCR(document, options = {}) {
+        const base64Images = document.base64Images || [];
+
+        if (base64Images.length === 0) {
+            logger.debug('[VisualOCR] No images available, using Paperless OCR');
+            return {
+                text: document.ocr_text || '',
+                metadata: { source: 'paperless', pages: 0 }
+            };
+        }
+
+        const maxPages = config.visualOCR?.maxPages || 20;
+        const timeout = config.visualOCR?.timeout || 60000;
+        const pageTexts = [];
+
+        logger.info({
+            event: 'visual_ocr_start',
+            documentId: document.id || document.filename,
+            totalPages: base64Images.length,
+            processingPages: Math.min(base64Images.length, maxPages)
+        });
+
+        for (let i = 0; i < Math.min(base64Images.length, maxPages); i++) {
+            try {
+                const pageText = await this._extractTextFromPage(
+                    base64Images[i],
+                    i + 1,
+                    base64Images.length,
+                    timeout
+                );
+                pageTexts.push(`--- Page ${i + 1} ---\n${pageText}`);
+            } catch (error) {
+                // Log warning but continue with other pages
+                logger.warn({
+                    event: 'page_ocr_failed',
+                    page: i + 1,
+                    documentId: document.id || document.filename,
+                    error: error.message
+                });
+                pageTexts.push(`--- Page ${i + 1} (fallback) ---\n[OCR failed for this page]`);
+            }
+        }
+
+        const visualText = pageTexts.join('\n\n');
+
+        // Merge with Paperless OCR using semantic quality scoring
+        const mergedResult = await this._mergeOcrResults(
+            visualText,
+            document.ocr_text || '',
+            options
+        );
+
+        logger.info({
+            event: 'visual_ocr_complete',
+            documentId: document.id || document.filename,
+            pagesProcessed: pageTexts.length,
+            source: mergedResult.source,
+            qualityScore: mergedResult.quality_score
+        });
+
+        return mergedResult;
+    }
+
+    /**
+     * Extract text from a single page image using VIS_OCR_V1 prompt.
+     *
+     * @param {string} base64Image - Base64-encoded page image
+     * @param {number} pageNumber - Current page number (1-indexed)
+     * @param {number} totalPages - Total number of pages
+     * @param {number} timeout - Timeout in milliseconds
+     * @returns {Promise<string>} Extracted text
+     */
+    async _extractTextFromPage(base64Image, pageNumber, totalPages, timeout = 60000) {
+        const messages = promptRegistry.buildMessages(
+            'VIS_OCR_V1',
+            { page_number: pageNumber, total_pages: totalPages },
+            base64Image
+        );
+
+        const response = await this._callOllamaWithTimeout(
+            MODEL_NAMES.router,  // VIS_OCR_V1 uses same model as router
+            messages,
+            promptRegistry.getOptions('VIS_OCR_V1'),
+            timeout
+        );
+
+        // Extract text content - VIS_OCR_V1 returns plain text, not JSON
+        const content = typeof response === 'string'
+            ? response
+            : (response.message?.content || response.response || '');
+
+        return content.trim();
+    }
+
+    /**
+     * Merge visual OCR results with Paperless OCR using semantic quality scoring.
+     * Uses intelligent fallback based on quality metrics, not just length.
+     *
+     * @param {string} visualOcrText - Text extracted by vision model
+     * @param {string} paperlessOcrText - Text from Paperless-ngx Tesseract
+     * @param {Object} options - Merge options
+     * @returns {Promise<Object>} Merged result with source attribution
+     */
+    async _mergeOcrResults(visualOcrText, paperlessOcrText, options = {}) {
+        const qualityScore = this._scoreOcrQuality(visualOcrText, paperlessOcrText);
+        const minQuality = config.visualOCR?.minQuality || 0.6;
+
+        if (qualityScore < minQuality) {
+            logger.warn({
+                event: 'visual_ocr_low_quality',
+                score: qualityScore,
+                threshold: minQuality,
+                fallback: 'paperless'
+            });
+
+            return {
+                text: paperlessOcrText,
+                source: 'paperless_fallback',
+                quality_score: qualityScore,
+                metadata: {
+                    reason: 'quality_below_threshold',
+                    visual_length: visualOcrText.length,
+                    paperless_length: paperlessOcrText.length
+                }
+            };
+        }
+
+        return {
+            text: visualOcrText,
+            source: 'visual_ocr',
+            quality_score: qualityScore,
+            metadata: {
+                visual_length: visualOcrText.length,
+                paperless_length: paperlessOcrText.length
+            }
+        };
+    }
+
+    /**
+     * Score OCR quality using semantic metrics.
+     * Evaluates length ratio, word count, structure, and character validity.
+     *
+     * @param {string} visualText - Text from visual OCR
+     * @param {string} paperlessText - Text from Paperless
+     * @returns {number} Quality score (0.0 - 1.0)
+     */
+    _scoreOcrQuality(visualText, paperlessText) {
+        if (!visualText || visualText.length === 0) {
+            return 0;
+        }
+
+        const metrics = {
+            // Length ratio - visual should capture reasonable portion
+            lengthRatio: visualText.length / Math.max(paperlessText.length, 1),
+            // Word count - should have meaningful content
+            wordCount: (visualText.match(/\s+/g) || []).length + 1,
+            // Has structure - line breaks indicate preserved layout
+            hasStructure: /\n.*\n/.test(visualText),
+            // No garbage - check for non-printable characters (excluding common ones)
+            noGarbage: !/[^\x20-\x7E\n\r\t\xC0-\xFF]/.test(visualText.substring(0, 500)),
+            // Has alphanumeric content
+            hasAlphanumeric: /[a-zA-Z0-9]/.test(visualText)
+        };
+
+        // Weighted quality score
+        let score = 0;
+
+        // Length ratio contribution (0.3)
+        if (metrics.lengthRatio > 0.3) score += 0.15;
+        if (metrics.lengthRatio > 0.5) score += 0.15;
+
+        // Word count contribution (0.3)
+        if (metrics.wordCount > 20) score += 0.15;
+        if (metrics.wordCount > 50) score += 0.15;
+
+        // Structure contribution (0.2)
+        if (metrics.hasStructure) score += 0.2;
+
+        // Character quality contribution (0.2)
+        if (metrics.noGarbage) score += 0.1;
+        if (metrics.hasAlphanumeric) score += 0.1;
+
+        return Math.min(score, 1.0);
+    }
+
     /**
      * Classify a document without running the full pipeline.
      * Returns domain and routing information for use by DomainResolver.
@@ -1055,6 +1322,37 @@ async function processDocument(document, ollamaService, options = {}) {
                 requires_expert_model: false
             }
         };
+    }
+
+    // Step 1.5: Visual OCR Enhancement Stage
+    // Extract enhanced text using vision model before pipeline execution
+    if (document.base64Images?.length > 0 && config.visualOCR?.enabled !== false) {
+        try {
+            const ocrResult = await executor._executeVisualOCR(document, options);
+            document.enhanced_ocr_text = ocrResult.text;
+            document._ocr_metadata = ocrResult.metadata;
+
+            logger.info({
+                event: 'visual_ocr_enhanced',
+                documentId: document.id || document.filename,
+                source: ocrResult.source,
+                qualityScore: ocrResult.quality_score,
+                textLength: ocrResult.text?.length || 0
+            });
+        } catch (error) {
+            logger.warn({
+                event: 'visual_ocr_failed',
+                documentId: document.id || document.filename,
+                error: error.message
+            });
+            // Fallback to Paperless OCR
+            document.enhanced_ocr_text = document.ocr_text;
+            document._ocr_metadata = { source: 'paperless_error_fallback' };
+        }
+    } else {
+        // No images available or OCR disabled - use Paperless OCR directly
+        document.enhanced_ocr_text = document.ocr_text;
+        document._ocr_metadata = { source: 'paperless' };
     }
 
     // Step 2: Route to appropriate pipeline

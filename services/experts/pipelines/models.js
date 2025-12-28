@@ -7,8 +7,11 @@
 const config = require('../../../config/config');
 
 const MODEL_NAMES = Object.freeze({
-    // Primary orchestration/router model
-    router: process.env.ROUTER_MODEL || config.ollama?.visionModel || 'nemotron-manager:latest',
+    // Primary orchestration/router model (Nemotron for intelligent routing)
+    router: process.env.ROUTER_MODEL || config.expertModels?.legal?.orchestrator || 'nemotron-manager:latest',
+
+    // Vision model for visual analysis (qwen3-vl for multimodal)
+    vision: process.env.OLLAMA_VISION_MODEL || config.ollama?.visionModel || 'qwen3-vl:8b',
 
     // Medical models: prefer explicit MEDICAL_* env vars, then config.expertModels entries, then ollama defaults
     medicalImaging: process.env.MEDICAL_VISION_MODEL || config.expertModels?.medical?.vision || config.ollama?.visionModel || 'llava-med-v1.5',
@@ -18,10 +21,19 @@ const MODEL_NAMES = Object.freeze({
     // Financial models: prefer FINANCIAL_* env vars, then config.expertModels entries, then finance defaults, then ollama defaults
     financeReasoning: process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || config.ollama?.model || 'fino1-8b',
     financeGeneral: process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || config.ollama?.visionModel || 'llm-pro-finance-8b',
-    vatExpert: process.env.VAT_EXPERT_MODEL || process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || config.ollama?.visionModel || 'dragon-finance:latest',
+    vatExpert: process.env.VAT_EXPERT_MODEL ||
+               process.env.FINANCIAL_VAT_EXPERT ||
+               config.expertModels?.financial?.vatExpert ||
+               process.env.FINANCIAL_VISION_MODEL ||
+               config.expertModels?.financial?.vision ||
+               config.ollama?.visionModel ||
+               'dragon-finance:latest',
 
     // Legal expert mapping -> Dragon finance reasoning model
-    legalExpert: process.env.LEGAL_EXPERT_MODEL || 'dragon-finance:latest',
+    legalExpert: process.env.LEGAL_EXPERT_MODEL ||
+                 process.env.LEGAL_ANALYSIS_MODEL ||
+                 config.expertModels?.legal?.analysis ||
+                 'dragon-finance:latest',
 
     // Advanced tier - Reasoning models
     dragon: process.env.DRAGON_MODEL || null,

@@ -443,6 +443,241 @@ class VisualOverlayRepository {
     }
 
     // =========================================================================
+    // Expert Knowledge Storage (MoE Integration)
+    // =========================================================================
+
+    /**
+     * Ensure the enhanced schema columns exist for expert metadata
+     * Adds columns: enhanced_ocr_text, expert_metadata, domain_view, domain_signals, retrieval_quality_score
+     * @returns {Promise<boolean>} True if schema is ready
+     */
+    async ensureEnhancedSchema() {
+        if (!this.pool) {
+            return false;
+        }
+
+        const columns = [
+            { name: 'enhanced_ocr_text', type: 'TEXT' },
+            { name: 'expert_metadata', type: 'JSONB DEFAULT \'{}\'' },
+            { name: 'domain_view', type: 'JSONB DEFAULT \'{}\'' },
+            { name: 'domain_signals', type: 'JSONB DEFAULT \'[]\'' },
+            { name: 'retrieval_quality_score', type: 'FLOAT DEFAULT 0.0' },
+            { name: 'expert_routing_weights', type: 'JSONB DEFAULT \'{}\'' }
+        ];
+
+        try {
+            for (const col of columns) {
+                await this.pool.query(`
+                    ALTER TABLE visual_overlays
+                    ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}
+                `);
+            }
+
+            // Create index on domain_signals for MoE filtering
+            await this.pool.query(`
+                CREATE INDEX IF NOT EXISTS idx_visual_overlays_domain_signals
+                ON visual_overlays USING GIN (domain_signals)
+            `);
+
+            // Create index on quality score for filtering low-quality chunks
+            await this.pool.query(`
+                CREATE INDEX IF NOT EXISTS idx_visual_overlays_quality
+                ON visual_overlays (retrieval_quality_score)
+                WHERE retrieval_quality_score >= 0.7
+            `);
+
+            logger.info('[VisualOverlayRepository] Enhanced schema columns verified');
+            return true;
+        } catch (error) {
+            logger.warn('[VisualOverlayRepository] Failed to ensure enhanced schema:', error.message);
+            return false;
+        }
+    }
+
+    /**
+     * Save expert knowledge for a document
+     * @param {number} docId - Paperless document ID
+     * @param {Object} expertKnowledge - Expert knowledge data
+     * @param {string} expertKnowledge.enhancedOcrText - Full extracted text
+     * @param {Object} expertKnowledge.expertMetadata - Structured expert analysis
+     * @param {Object} expertKnowledge.domainView - Task-oriented domain view
+     * @returns {Promise<boolean>} Success status
+     */
+    async saveExpertKnowledge(docId, expertKnowledge) {
+        if (!this.pool) {
+            throw new Error('PostgreSQL not available');
+        }
+
+        const {
+            enhancedOcrText,
+            expertMetadata = {},
+            domainView = {},
+            domainSignals = [],
+            qualityScore = 0.0,
+            routingWeights = {}
+        } = expertKnowledge;
+
+        // Use upsert pattern - update if exists, insert if not
+        const query = `
+            INSERT INTO visual_overlays (doc_id, page_number, overlay_data, semantic_label,
+                enhanced_ocr_text, expert_metadata, domain_view, domain_signals,
+                retrieval_quality_score, expert_routing_weights)
+            VALUES ($1, 0, '{}', 'expert_knowledge', $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (doc_id, page_number) WHERE page_number = 0 AND semantic_label = 'expert_knowledge'
+            DO UPDATE SET
+                enhanced_ocr_text = EXCLUDED.enhanced_ocr_text,
+                expert_metadata = EXCLUDED.expert_metadata,
+                domain_view = EXCLUDED.domain_view,
+                domain_signals = EXCLUDED.domain_signals,
+                retrieval_quality_score = EXCLUDED.retrieval_quality_score,
+                expert_routing_weights = EXCLUDED.expert_routing_weights
+            RETURNING id
+        `;
+
+        try {
+            await this.pool.query(query, [
+                docId,
+                enhancedOcrText || '',
+                JSON.stringify(expertMetadata),
+                JSON.stringify(domainView),
+                JSON.stringify(domainSignals),
+                qualityScore,
+                JSON.stringify(routingWeights)
+            ]);
+
+            logger.debug(`[VisualOverlayRepository] Saved expert knowledge for doc ${docId}`);
+            return true;
+        } catch (error) {
+            // If conflict detection fails, try simple insert
+            if (error.code === '23505') {
+                logger.debug('[VisualOverlayRepository] Conflict on insert, trying update');
+                return this._updateExpertKnowledge(docId, expertKnowledge);
+            }
+            throw this._wrapError('Failed to save expert knowledge', error);
+        }
+    }
+
+    /**
+     * Update expert knowledge (fallback for upsert)
+     * @private
+     */
+    async _updateExpertKnowledge(docId, expertKnowledge) {
+        const {
+            enhancedOcrText,
+            expertMetadata = {},
+            domainView = {},
+            domainSignals = [],
+            qualityScore = 0.0,
+            routingWeights = {}
+        } = expertKnowledge;
+
+        const query = `
+            UPDATE visual_overlays SET
+                enhanced_ocr_text = $2,
+                expert_metadata = $3,
+                domain_view = $4,
+                domain_signals = $5,
+                retrieval_quality_score = $6,
+                expert_routing_weights = $7
+            WHERE doc_id = $1 AND page_number = 0 AND semantic_label = 'expert_knowledge'
+        `;
+
+        try {
+            await this.pool.query(query, [
+                docId,
+                enhancedOcrText || '',
+                JSON.stringify(expertMetadata),
+                JSON.stringify(domainView),
+                JSON.stringify(domainSignals),
+                qualityScore,
+                JSON.stringify(routingWeights)
+            ]);
+            return true;
+        } catch (error) {
+            throw this._wrapError('Failed to update expert knowledge', error);
+        }
+    }
+
+    /**
+     * Get expert knowledge for a document
+     * @param {number} docId - Paperless document ID
+     * @returns {Promise<Object|null>} Expert knowledge or null
+     */
+    async getExpertKnowledge(docId) {
+        if (!this.pool) {
+            return null;
+        }
+
+        const query = `
+            SELECT enhanced_ocr_text, expert_metadata, domain_view,
+                   domain_signals, retrieval_quality_score, expert_routing_weights
+            FROM visual_overlays
+            WHERE doc_id = $1 AND page_number = 0 AND semantic_label = 'expert_knowledge'
+        `;
+
+        try {
+            const result = await this.pool.query(query, [docId]);
+            if (result.rows.length === 0) {
+                return null;
+            }
+
+            const row = result.rows[0];
+            return {
+                enhancedOcrText: row.enhanced_ocr_text,
+                expertMetadata: row.expert_metadata || {},
+                domainView: row.domain_view || {},
+                domainSignals: row.domain_signals || [],
+                qualityScore: row.retrieval_quality_score || 0,
+                routingWeights: row.expert_routing_weights || {}
+            };
+        } catch (error) {
+            logger.warn('[VisualOverlayRepository] Failed to get expert knowledge:', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Find documents by domain signals (MoE filtering)
+     * @param {Array<string>} signals - Domain signals to match
+     * @param {Object} options - Query options
+     * @returns {Promise<Array<Object>>} Matching documents with expert knowledge
+     */
+    async findByDomainSignals(signals, options = {}) {
+        if (!this.pool || !signals || signals.length === 0) {
+            return [];
+        }
+
+        const { limit = 50, minQuality = 0.7 } = options;
+
+        const query = `
+            SELECT doc_id, enhanced_ocr_text, expert_metadata, domain_view,
+                   domain_signals, retrieval_quality_score, expert_routing_weights
+            FROM visual_overlays
+            WHERE semantic_label = 'expert_knowledge'
+              AND domain_signals ?| $1
+              AND retrieval_quality_score >= $2
+            ORDER BY retrieval_quality_score DESC
+            LIMIT $3
+        `;
+
+        try {
+            const result = await this.pool.query(query, [signals, minQuality, limit]);
+            return result.rows.map(row => ({
+                docId: row.doc_id,
+                enhancedOcrText: row.enhanced_ocr_text,
+                expertMetadata: row.expert_metadata || {},
+                domainView: row.domain_view || {},
+                domainSignals: row.domain_signals || [],
+                qualityScore: row.retrieval_quality_score || 0,
+                routingWeights: row.expert_routing_weights || {}
+            }));
+        } catch (error) {
+            logger.warn('[VisualOverlayRepository] Failed to find by domain signals:', error.message);
+            return [];
+        }
+    }
+
+    // =========================================================================
     // Helpers
     // =========================================================================
 

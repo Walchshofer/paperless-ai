@@ -1,52 +1,23 @@
-# Visual RAG v1.1
+# paperless-ai
 
-## Current State (Updated: 2024-12-26)
+**One-liner**: Local-first document intelligence for paperless-ngx using MOE routing, localized templates, and deterministic extraction.
 
-**Shipped:** v1.0 Visual RAG Foundation (2024-12-26)
-**Status:** Development / Internal testing
-**Codebase:**
-- ~17,000 lines of JavaScript
-- Node.js + Express backend
-- Ollama (Qwen3-VL, qwen2.5:14b), PostgreSQL, Docker
-- Integrates with paperless-ngx document management
+## Problem
+The current pipeline lacks a unified localization strategy for prompts and routing across expert models. This leads to inconsistent responses, higher costs, and degraded output quality when model and prompt languages are misaligned.
 
-**Working Components:**
-- PDFRenderer.js - 300 DPI PDF-to-image conversion
-- OverlayExtractor.js - Qwen3-VL bounding box detection
-- ExpertPipelineExecutor.js - Visual RAG integration
-- DocumentProcessor.js - Ingestion trigger
+## Success Criteria
+How we know it worked:
+- [ ] Template registry supports EN/DE variants for key intents with deterministic selection by expert native language.
+- [ ] Router + translator flow consistently produces aligned prompts (content and template language match model).
+- [ ] Evaluation harness and A/B tests confirm improved quality for expert models with EN prompts + EN context.
 
-**Known Issues:**
-- Visual Sidecar (ColQwen2) not fully integrated
-- PostgreSQL overlay storage not accessible from Windows host
-- No batch document ingestion
-- No UI overlay visualization
+## Constraints
 
-## v1.1 Goals
+- Local-first stack (Ollama, Docker Compose) remains the default runtime.
+- Must integrate with existing paperless-ngx workflows and guidance-service.
+- Avoid breaking existing ingestion and extraction pipelines.
 
-**Vision:** Enhance Visual RAG with hybrid text+visual retrieval and domain expert guidance.
+## Out of Scope
 
-**Motivation:**
-- Paperless-ngx OCR text is underutilized for visual retrieval
-- Domain experts (medical, financial, legal) can improve overlay interpretation
-- Need production-ready storage and UI visualization
-
-**Scope (v1.1):**
-- Complete PostgreSQL overlay storage integration
-- Implement OCR-enhanced hybrid embeddings (visual + text)
-- Domain expert overlay interpretation pipeline
-- Batch document ingestion for existing library
-- UI overlay visualization ("yellow box" feature)
-
-**Success Criteria:**
-- [ ] Overlays stored and retrieved from PostgreSQL
-- [ ] Hybrid search returns better results than vision-only
-- [ ] Domain experts can refine overlay labels/confidence
-- [ ] Batch process ingests 100+ documents without manual intervention
-- [ ] UI displays bounding boxes on document preview
-
-**Out of Scope:**
-- Training custom vision models
-- Real-time document scanning
-- Multi-tenant support
-- Mobile UI
+- Replacing OCR engines or core paperless-ngx ingestion.
+- Full UI redesign or new front-end flows.
