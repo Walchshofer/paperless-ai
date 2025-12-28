@@ -45,7 +45,6 @@ This document catalogs all identified issues from the comprehensive model audit,
 **Description**: High-value models documented but not wired into pipelines:
 - `dragon-finance` (9GB VRAM) - Advanced reasoning for complex analysis
 - `gpt-oss` (13GB VRAM) - Reasoning model for agentic tasks
-- `nemotron-orchestrator:8b` (8GB) - System 2 router for expert delegation
 **Impact**: Missing advanced capabilities for complex document analysis.
 **Recommendation**: Create integration roadmap with feature flags for gradual rollout.
 
@@ -69,6 +68,7 @@ This document catalogs all identified issues from the comprehensive model audit,
 **Description**: `nemotron-orchestrator` designed as System 2 router but no entry point in processing pipeline.
 **Impact**: No intelligent expert routing based on query complexity.
 **Recommendation**: Add optional orchestrator mode to DocumentProcessor for expert delegation.
+**Status**: Resolved (SYS_ORCHESTRATOR_V1 + ExpertPipelineExecutor orchestration gating)
 
 ## Resolution Status
 
@@ -81,7 +81,7 @@ This document catalogs all identified issues from the comprehensive model audit,
 | Advanced Models Integration | Planned | Phase 2 roadmap implementation | Q2 2025 |
 | Visual Retrieval Integration | Planned | Phase 3 infrastructure integration | Q3 2025 |
 | Embedding Model Config | Pending | Add EMBEDDING_MODEL env var | Immediate |
-| Orchestrator Integration | Planned | Add to DocumentProcessor | Q2 2025 |
+| Orchestrator Integration | Resolved | Implemented SYS_ORCHESTRATOR_V1 + routing/sidecar/guidance gating | Completed |
 
 ## Testing Requirements
 

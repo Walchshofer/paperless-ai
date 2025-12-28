@@ -317,14 +317,6 @@
                                             class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                     </div>
                                     
-                                    <div class="space-y-2">
-                                        <label for="ollamaModel" class="text-sm font-medium">Ollama Model</label>
-                                        <input type="text" 
-                                            id="ollamaModel" 
-                                            name="ollamaModel"
-                                            value="<%= config.OLLAMA_MODEL %>"
-                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                    </div>
                                 </div>
 
                                 <!-- Expert Models Section (Ollama Only) -->
@@ -334,6 +326,178 @@
                                         Expert Models (Ollama)
                                     </h3>
                                     <p class="text-sm text-gray-500 mb-4">Configure specialized models for domain-specific document analysis. Leave empty to use defaults.</p>
+
+                                    <!-- General Model Settings -->
+                                    <div class="space-y-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                        <h4 class="font-medium flex items-center gap-2">
+                                            <i class="fas fa-brain text-indigo-500"></i>
+                                            General Model
+                                        </h4>
+                                        <div class="space-y-2">
+                                            <label for="ollamaModel" class="text-sm font-medium">Ollama Model</label>
+                                            <input type="text"
+                                                id="ollamaModel"
+                                                name="ollamaModel"
+                                                value="<%= config.OLLAMA_MODEL %>"
+                                                class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                        </div>
+
+                                        <div class="space-y-4 border-t pt-4">
+                                            <h4 class="text-sm font-semibold text-gray-700">Ollama Token Limits</h4>
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div class="space-y-2">
+                                                    <label for="ollamaContextWindow" class="text-sm font-medium">Text Context Window</label>
+                                                    <input type="number"
+                                                        id="ollamaContextWindow"
+                                                        name="ollamaContextWindow"
+                                                        value="<%= config.OLLAMA_CONTEXT_WINDOW %>"
+                                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        placeholder="8192">
+                                                </div>
+
+                                                <div class="space-y-2">
+                                                    <label for="ollamaMaxResponseTokens" class="text-sm font-medium">Text Max Response Tokens</label>
+                                                    <input type="number"
+                                                        id="ollamaMaxResponseTokens"
+                                                        name="ollamaMaxResponseTokens"
+                                                        value="<%= config.OLLAMA_MAX_RESPONSE_TOKENS %>"
+                                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        placeholder="2048">
+                                                </div>
+
+                                                <div class="space-y-2">
+                                                    <label for="ollamaVisionContextWindow" class="text-sm font-medium">Vision Context Window</label>
+                                                    <input type="number"
+                                                        id="ollamaVisionContextWindow"
+                                                        name="ollamaVisionContextWindow"
+                                                        value="<%= config.OLLAMA_VISION_CONTEXT_WINDOW %>"
+                                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        placeholder="16384">
+                                                </div>
+
+                                                <div class="space-y-2">
+                                                    <label for="ollamaVisionMaxResponseTokens" class="text-sm font-medium">Vision Max Response Tokens</label>
+                                                    <input type="number"
+                                                        id="ollamaVisionMaxResponseTokens"
+                                                        name="ollamaVisionMaxResponseTokens"
+                                                        value="<%= config.OLLAMA_VISION_MAX_RESPONSE_TOKENS %>"
+                                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        placeholder="2048">
+                                                </div>
+
+                                                <div class="space-y-2">
+                                                    <label for="ollamaExpertContextWindow" class="text-sm font-medium">Expert Context Window</label>
+                                                    <input type="number"
+                                                        id="ollamaExpertContextWindow"
+                                                        name="ollamaExpertContextWindow"
+                                                        value="<%= config.OLLAMA_EXPERT_CONTEXT_WINDOW %>"
+                                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        placeholder="8192">
+                                                </div>
+
+                                                <div class="space-y-2">
+                                                    <label for="ollamaExpertMaxResponseTokens" class="text-sm font-medium">Expert Max Response Tokens</label>
+                                                    <input type="number"
+                                                        id="ollamaExpertMaxResponseTokens"
+                                                        name="ollamaExpertMaxResponseTokens"
+                                                        value="<%= config.OLLAMA_EXPERT_MAX_RESPONSE_TOKENS %>"
+                                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        placeholder="2048">
+                                                </div>
+
+                                                <div class="space-y-2">
+                                                    <label for="translationContextWindow" class="text-sm font-medium">Translation Context Window</label>
+                                                    <input type="number"
+                                                        id="translationContextWindow"
+                                                        name="translationContextWindow"
+                                                        value="<%= config.TRANSLATION_CONTEXT_WINDOW %>"
+                                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        placeholder="8192">
+                                                </div>
+
+                                                <div class="space-y-2">
+                                                    <label for="translationMaxTokens" class="text-sm font-medium">Translation Max Response Tokens</label>
+                                                    <input type="number"
+                                                        id="translationMaxTokens"
+                                                        name="translationMaxTokens"
+                                                        value="<%= config.TRANSLATION_MAX_TOKENS %>"
+                                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        placeholder="512">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Routing Models -->
+                                    <div class="space-y-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                        <h4 class="font-medium flex items-center gap-2">
+                                            <i class="fas fa-route text-emerald-600"></i>
+                                            Routing Models
+                                        </h4>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div class="space-y-2">
+                                                <label for="plannerModel" class="text-sm font-medium">Planner Model (Vision)</label>
+                                                <input type="text"
+                                                    id="plannerModel"
+                                                    name="plannerModel"
+                                                    value="<%= config.PLANNER_MODEL || 'qwen3-vl:8b' %>"
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                    placeholder="qwen3-vl:8b">
+                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                    <div class="space-y-1">
+                                                        <label for="plannerContextWindow" class="text-xs font-medium text-gray-600">Context Window</label>
+                                                        <input type="number"
+                                                            id="plannerContextWindow"
+                                                            name="plannerContextWindow"
+                                                            value="<%= config.PLANNER_CONTEXT_WINDOW %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="16384">
+                                                    </div>
+                                                    <div class="space-y-1">
+                                                        <label for="plannerMaxResponseTokens" class="text-xs font-medium text-gray-600">Max Response Tokens</label>
+                                                        <input type="number"
+                                                            id="plannerMaxResponseTokens"
+                                                            name="plannerMaxResponseTokens"
+                                                            value="<%= config.PLANNER_MAX_RESPONSE_TOKENS %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="700">
+                                                    </div>
+                                                </div>
+                                                <p class="text-xs text-gray-500">Classifies documents using rendered PNGs</p>
+                                            </div>
+
+                                            <div class="space-y-2">
+                                                <label for="routerModel" class="text-sm font-medium">Router Model</label>
+                                                <input type="text"
+                                                    id="routerModel"
+                                                    name="routerModel"
+                                                    value="<%= config.ROUTER_MODEL || 'qwen3-vl:8b' %>"
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                    placeholder="qwen3-vl:8b">
+                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                    <div class="space-y-1">
+                                                        <label for="routerContextWindow" class="text-xs font-medium text-gray-600">Context Window</label>
+                                                        <input type="number"
+                                                            id="routerContextWindow"
+                                                            name="routerContextWindow"
+                                                            value="<%= config.ROUTER_CONTEXT_WINDOW %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="8192">
+                                                    </div>
+                                                    <div class="space-y-1">
+                                                        <label for="routerMaxResponseTokens" class="text-xs font-medium text-gray-600">Max Response Tokens</label>
+                                                        <input type="number"
+                                                            id="routerMaxResponseTokens"
+                                                            name="routerMaxResponseTokens"
+                                                            value="<%= config.ROUTER_MAX_RESPONSE_TOKENS %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="2048">
+                                                    </div>
+                                                </div>
+                                                <p class="text-xs text-gray-500">Routes expert pipelines vs. general fallback</p>
+                                            </div>
+                                        </div>
+                                    </div>
 
                                     <!-- Expert Pipeline Toggle -->
                                     <div class="border border-gray-200 shadow-sm rounded-lg hover:border-blue-500 transition-colors duration-200 mb-4">
@@ -348,7 +512,7 @@
                                                     <i class="fas fa-flask mr-2 text-blue-500"></i>
                                                     Enable Expert Pipeline
                                                 </div>
-                                                <p class="text-sm text-gray-500 mt-1">Activate domain-specific expert models for enhanced extraction (Medical active, Financial/Legal planned)</p>
+                                                <p class="text-sm text-gray-500 mt-1">Activate domain-specific expert models for enhanced extraction (Medical, Financial, Legal active)</p>
                                             </div>
                                         </label>
                                     </div>
@@ -370,6 +534,26 @@
                                                     value="<%= config.MEDICAL_VISION_MODEL || 'qwen3-vl:8b' %>"
                                                     class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                                     placeholder="qwen3-vl:8b">
+                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                    <div class="space-y-1">
+                                                        <label for="medicalVisionContextWindow" class="text-xs font-medium text-gray-600">Context Window</label>
+                                                        <input type="number"
+                                                            id="medicalVisionContextWindow"
+                                                            name="medicalVisionContextWindow"
+                                                            value="<%= config.MEDICAL_VISION_CONTEXT_WINDOW %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="16384">
+                                                    </div>
+                                                    <div class="space-y-1">
+                                                        <label for="medicalVisionMaxResponseTokens" class="text-xs font-medium text-gray-600">Max Response Tokens</label>
+                                                        <input type="number"
+                                                            id="medicalVisionMaxResponseTokens"
+                                                            name="medicalVisionMaxResponseTokens"
+                                                            value="<%= config.MEDICAL_VISION_MAX_RESPONSE_TOKENS %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="2048">
+                                                    </div>
+                                                </div>
                                                 <p class="text-xs text-gray-500">For OCR and document transcription</p>
                                             </div>
 
@@ -381,6 +565,26 @@
                                                     value="<%= config.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3' %>"
                                                     class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                                     placeholder="medtext-llama3">
+                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                    <div class="space-y-1">
+                                                        <label for="medicalAnalysisContextWindow" class="text-xs font-medium text-gray-600">Context Window</label>
+                                                        <input type="number"
+                                                            id="medicalAnalysisContextWindow"
+                                                            name="medicalAnalysisContextWindow"
+                                                            value="<%= config.MEDICAL_ANALYSIS_CONTEXT_WINDOW %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="8192">
+                                                    </div>
+                                                    <div class="space-y-1">
+                                                        <label for="medicalAnalysisMaxResponseTokens" class="text-xs font-medium text-gray-600">Max Response Tokens</label>
+                                                        <input type="number"
+                                                            id="medicalAnalysisMaxResponseTokens"
+                                                            name="medicalAnalysisMaxResponseTokens"
+                                                            value="<%= config.MEDICAL_ANALYSIS_MAX_RESPONSE_TOKENS %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="2048">
+                                                    </div>
+                                                </div>
                                                 <p class="text-xs text-gray-500">For lab value analysis and normalization</p>
                                             </div>
 
@@ -392,29 +596,237 @@
                                                     value="<%= config.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.5' %>"
                                                     class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                                     placeholder="llava-med-v1.5">
+                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                    <div class="space-y-1">
+                                                        <label for="medicalRadiologyContextWindow" class="text-xs font-medium text-gray-600">Context Window</label>
+                                                        <input type="number"
+                                                            id="medicalRadiologyContextWindow"
+                                                            name="medicalRadiologyContextWindow"
+                                                            value="<%= config.MEDICAL_RADIOLOGY_CONTEXT_WINDOW %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="16384">
+                                                    </div>
+                                                    <div class="space-y-1">
+                                                        <label for="medicalRadiologyMaxResponseTokens" class="text-xs font-medium text-gray-600">Max Response Tokens</label>
+                                                        <input type="number"
+                                                            id="medicalRadiologyMaxResponseTokens"
+                                                            name="medicalRadiologyMaxResponseTokens"
+                                                            value="<%= config.MEDICAL_RADIOLOGY_MAX_RESPONSE_TOKENS %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="2048">
+                                                    </div>
+                                                </div>
                                                 <p class="text-xs text-gray-500">For X-ray, CT, MRT analysis</p>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <!-- Financial Expert Models (Planned) -->
-                                    <div class="space-y-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg opacity-60">
+                                    <!-- Financial Expert Models -->
+                                    <div id="financialExpertSettings" class="space-y-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                                         <h4 class="font-medium flex items-center gap-2">
                                             <i class="fas fa-coins text-yellow-500"></i>
                                             Financial Expert Models
-                                            <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">Planned</span>
+                                            <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Active</span>
                                         </h4>
-                                        <p class="text-sm text-gray-500">Financial document analysis models will be available in a future update.</p>
+
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div class="space-y-2">
+                                                <label for="financialVisionModel" class="text-sm font-medium">Vision/OCR Model</label>
+                                                <input type="text"
+                                                    id="financialVisionModel"
+                                                    name="financialVisionModel"
+                                                    value="<%= config.FINANCIAL_VISION_MODEL || 'llm-pro-finance-8b' %>"
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                    placeholder="llm-pro-finance-8b">
+                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                    <div class="space-y-1">
+                                                        <label for="financialVisionContextWindow" class="text-xs font-medium text-gray-600">Context Window</label>
+                                                        <input type="number"
+                                                            id="financialVisionContextWindow"
+                                                            name="financialVisionContextWindow"
+                                                            value="<%= config.FINANCIAL_VISION_CONTEXT_WINDOW %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="16384">
+                                                    </div>
+                                                    <div class="space-y-1">
+                                                        <label for="financialVisionMaxResponseTokens" class="text-xs font-medium text-gray-600">Max Response Tokens</label>
+                                                        <input type="number"
+                                                            id="financialVisionMaxResponseTokens"
+                                                            name="financialVisionMaxResponseTokens"
+                                                            value="<%= config.FINANCIAL_VISION_MAX_RESPONSE_TOKENS %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="2048">
+                                                    </div>
+                                                </div>
+                                                <p class="text-xs text-gray-500">For OCR and statement extraction</p>
+                                            </div>
+
+                                            <div class="space-y-2">
+                                                <label for="financialAnalysisModel" class="text-sm font-medium">Analysis Model</label>
+                                                <input type="text"
+                                                    id="financialAnalysisModel"
+                                                    name="financialAnalysisModel"
+                                                    value="<%= config.FINANCIAL_ANALYSIS_MODEL || 'fino1-8b' %>"
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                    placeholder="fino1-8b">
+                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                    <div class="space-y-1">
+                                                        <label for="financialAnalysisContextWindow" class="text-xs font-medium text-gray-600">Context Window</label>
+                                                        <input type="number"
+                                                            id="financialAnalysisContextWindow"
+                                                            name="financialAnalysisContextWindow"
+                                                            value="<%= config.FINANCIAL_ANALYSIS_CONTEXT_WINDOW %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="8192">
+                                                    </div>
+                                                    <div class="space-y-1">
+                                                        <label for="financialAnalysisMaxResponseTokens" class="text-xs font-medium text-gray-600">Max Response Tokens</label>
+                                                        <input type="number"
+                                                            id="financialAnalysisMaxResponseTokens"
+                                                            name="financialAnalysisMaxResponseTokens"
+                                                            value="<%= config.FINANCIAL_ANALYSIS_MAX_RESPONSE_TOKENS %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="2048">
+                                                    </div>
+                                                </div>
+                                                <p class="text-xs text-gray-500">For invoice and receipt analysis</p>
+                                            </div>
+
+                                            <div class="space-y-2">
+                                                <label for="financialVatExpertModel" class="text-sm font-medium">VAT Expert Model</label>
+                                                <input type="text"
+                                                    id="financialVatExpertModel"
+                                                    name="financialVatExpertModel"
+                                                    value="<%= config.FINANCIAL_VAT_EXPERT || 'dragon-finance:latest' %>"
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                    placeholder="dragon-finance:latest">
+                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                    <div class="space-y-1">
+                                                        <label for="financialVatExpertContextWindow" class="text-xs font-medium text-gray-600">Context Window</label>
+                                                        <input type="number"
+                                                            id="financialVatExpertContextWindow"
+                                                            name="financialVatExpertContextWindow"
+                                                            value="<%= config.FINANCIAL_VAT_EXPERT_CONTEXT_WINDOW %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="8192">
+                                                    </div>
+                                                    <div class="space-y-1">
+                                                        <label for="financialVatExpertMaxResponseTokens" class="text-xs font-medium text-gray-600">Max Response Tokens</label>
+                                                        <input type="number"
+                                                            id="financialVatExpertMaxResponseTokens"
+                                                            name="financialVatExpertMaxResponseTokens"
+                                                            value="<%= config.FINANCIAL_VAT_EXPERT_MAX_RESPONSE_TOKENS %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="2048">
+                                                    </div>
+                                                </div>
+                                                <p class="text-xs text-gray-500">For VAT and tax rules extraction</p>
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <!-- Legal Expert Models (Planned) -->
-                                    <div class="space-y-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg opacity-60">
+                                    <!-- Legal Expert Models -->
+                                    <div id="legalExpertSettings" class="space-y-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                                         <h4 class="font-medium flex items-center gap-2">
                                             <i class="fas fa-gavel text-purple-500"></i>
                                             Legal Expert Models
-                                            <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">Planned</span>
+                                            <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Active</span>
                                         </h4>
-                                        <p class="text-sm text-gray-500">Legal document analysis models will be available in a future update.</p>
+
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div class="space-y-2">
+                                                <label for="legalVisionModel" class="text-sm font-medium">Vision/OCR Model</label>
+                                                <input type="text"
+                                                    id="legalVisionModel"
+                                                    name="legalVisionModel"
+                                                    value="<%= config.LEGAL_VISION_MODEL || 'qwen3-vl:8b' %>"
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                    placeholder="qwen3-vl:8b">
+                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                    <div class="space-y-1">
+                                                        <label for="legalVisionContextWindow" class="text-xs font-medium text-gray-600">Context Window</label>
+                                                        <input type="number"
+                                                            id="legalVisionContextWindow"
+                                                            name="legalVisionContextWindow"
+                                                            value="<%= config.LEGAL_VISION_CONTEXT_WINDOW %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="16384">
+                                                    </div>
+                                                    <div class="space-y-1">
+                                                        <label for="legalVisionMaxResponseTokens" class="text-xs font-medium text-gray-600">Max Response Tokens</label>
+                                                        <input type="number"
+                                                            id="legalVisionMaxResponseTokens"
+                                                            name="legalVisionMaxResponseTokens"
+                                                            value="<%= config.LEGAL_VISION_MAX_RESPONSE_TOKENS %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="2048">
+                                                    </div>
+                                                </div>
+                                                <p class="text-xs text-gray-500">For OCR and scanned contract extraction</p>
+                                            </div>
+
+                                            <div class="space-y-2">
+                                                <label for="legalAnalysisModel" class="text-sm font-medium">Analysis Model</label>
+                                                <input type="text"
+                                                    id="legalAnalysisModel"
+                                                    name="legalAnalysisModel"
+                                                    value="<%= config.LEGAL_ANALYSIS_MODEL || 'dragon-finance:latest' %>"
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                    placeholder="dragon-finance:latest">
+                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                    <div class="space-y-1">
+                                                        <label for="legalAnalysisContextWindow" class="text-xs font-medium text-gray-600">Context Window</label>
+                                                        <input type="number"
+                                                            id="legalAnalysisContextWindow"
+                                                            name="legalAnalysisContextWindow"
+                                                            value="<%= config.LEGAL_ANALYSIS_CONTEXT_WINDOW %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="8192">
+                                                    </div>
+                                                    <div class="space-y-1">
+                                                        <label for="legalAnalysisMaxResponseTokens" class="text-xs font-medium text-gray-600">Max Response Tokens</label>
+                                                        <input type="number"
+                                                            id="legalAnalysisMaxResponseTokens"
+                                                            name="legalAnalysisMaxResponseTokens"
+                                                            value="<%= config.LEGAL_ANALYSIS_MAX_RESPONSE_TOKENS %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="2048">
+                                                    </div>
+                                                </div>
+                                                <p class="text-xs text-gray-500">For clause extraction and risk analysis</p>
+                                            </div>
+
+                                            <div class="space-y-2">
+                                                <label for="orchestratorModel" class="text-sm font-medium">Orchestrator Model (Nemotron)</label>
+                                                <input type="text"
+                                                    id="orchestratorModel"
+                                                    name="orchestratorModel"
+                                                    value="<%= config.ORCHESTRATOR_MODEL || 'nemotron-orchestrator:8b' %>"
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                    placeholder="nemotron-orchestrator:8b">
+                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                    <div class="space-y-1">
+                                                        <label for="orchestratorContextWindow" class="text-xs font-medium text-gray-600">Context Window</label>
+                                                        <input type="number"
+                                                            id="orchestratorContextWindow"
+                                                            name="orchestratorContextWindow"
+                                                            value="<%= config.ORCHESTRATOR_CONTEXT_WINDOW %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="8192">
+                                                    </div>
+                                                    <div class="space-y-1">
+                                                        <label for="orchestratorMaxResponseTokens" class="text-xs font-medium text-gray-600">Max Response Tokens</label>
+                                                        <input type="number"
+                                                            id="orchestratorMaxResponseTokens"
+                                                            name="orchestratorMaxResponseTokens"
+                                                            value="<%= config.ORCHESTRATOR_MAX_RESPONSE_TOKENS %>"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                            placeholder="2048">
+                                                    </div>
+                                                </div>
+                                                <p class="text-xs text-gray-500">For complexity routing and pipeline selection</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 

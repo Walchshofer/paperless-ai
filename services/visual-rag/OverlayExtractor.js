@@ -30,6 +30,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 const logger = require('../logger');
 const config = require('../../config/config');
+const { jsonrepair } = require('jsonrepair');
 const {
     DOMAIN_FIELD_SPECS,
     getColorForLabel,
@@ -236,7 +237,13 @@ class OverlayExtractor {
         logger.debug(`[OverlayExtractor] Found JSON: ${jsonMatch[0].substring(0, 100)}...`);
 
         try {
-            const overlays = JSON.parse(jsonMatch[0]);
+            let jsonPayload = jsonMatch[0];
+            try {
+                jsonPayload = jsonrepair(jsonPayload);
+            } catch (repairError) {
+                logger.debug(`[OverlayExtractor] JSON repair skipped: ${repairError.message}`);
+            }
+            const overlays = JSON.parse(jsonPayload);
 
             if (!Array.isArray(overlays)) {
                 logger.debug('[OverlayExtractor] Parsed result is not an array');

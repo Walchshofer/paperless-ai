@@ -10,6 +10,127 @@ const parseEnvBoolean = (value, defaultValue = 'yes') => {
   return value.toLowerCase() === 'true' || value === '1' || value.toLowerCase() === 'yes' ? 'yes' : 'no';
 };
 
+const parseEnvInt = (value, fallback) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const parseEnvJson = (value, fallback) => {
+  if (!value) return fallback;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed : fallback;
+  } catch (error) {
+    console.warn('[WARN] Failed to parse JSON env var:', error.message);
+    return fallback;
+  }
+};
+
+const mergeModelLimitEntries = (baseEntry, overrideEntry) => {
+  const merged = baseEntry && typeof baseEntry === 'object' ? { ...baseEntry } : {};
+  if (!overrideEntry || typeof overrideEntry !== 'object') return merged;
+  for (const [key, value] of Object.entries(overrideEntry)) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      merged[key] = { ...(merged[key] || {}), ...value };
+    } else {
+      merged[key] = value;
+    }
+  }
+  return merged;
+};
+
+const mergeModelLimits = (defaults, overrides) => {
+  const merged = { ...(defaults || {}) };
+  if (!overrides || typeof overrides !== 'object') return merged;
+  for (const [model, entry] of Object.entries(overrides)) {
+    merged[model] = mergeModelLimitEntries(merged[model], entry);
+  }
+  return merged;
+};
+
+const setModelLimit = (target, modelName, kind, limits) => {
+  if (!modelName || !kind || !limits) return;
+  const trimmed = String(modelName).trim();
+  if (!trimmed) return;
+  if (!target[trimmed]) target[trimmed] = {};
+  target[trimmed][kind] = {
+    contextWindow: limits.contextWindow,
+    maxResponseTokens: limits.maxResponseTokens
+  };
+};
+
+const ollamaModel = process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b';
+const ollamaVisionModel = process.env.OLLAMA_VISION_MODEL || 'qwen3-vl:8b';
+const plannerModel = process.env.PLANNER_MODEL ||
+  process.env.OLLAMA_PLANNER_MODEL ||
+  ollamaVisionModel ||
+  'qwen3-vl:8b';
+const routerModel = process.env.ROUTER_MODEL ||
+  process.env.OLLAMA_ROUTER_MODEL ||
+  plannerModel ||
+  ollamaVisionModel ||
+  'qwen3-vl:8b';
+const orchestratorModel = process.env.ORCHESTRATOR_MODEL || 'nemotron-orchestrator:8b';
+const generalModel = process.env.GENERAL_MODEL || ollamaModel;
+const medicalVisionModel = process.env.MEDICAL_VISION_MODEL || 'llava-med-v1.5';
+const medicalAnalysisModel = process.env.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3';
+const medicalRadiologyModel = process.env.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.5';
+const financialAnalysisModel = process.env.FINANCIAL_ANALYSIS_MODEL || 'fino1-8b';
+const financialVisionModel = process.env.FINANCIAL_VISION_MODEL || 'llm-pro-finance-8b';
+const financialVatExpertModel = process.env.FINANCIAL_VAT_EXPERT || 'dragon-finance:latest';
+const legalVisionModel = process.env.LEGAL_VISION_MODEL || ollamaVisionModel;
+const legalAnalysisModel = process.env.LEGAL_ANALYSIS_MODEL || 'dragon-finance:latest';
+const legalOrchestratorModel = process.env.LEGAL_ORCHESTRATOR_MODEL || orchestratorModel;
+
+const baseTokenLimit = parseEnvInt(process.env.TOKEN_LIMIT, 128000);
+const baseResponseTokens = parseEnvInt(process.env.RESPONSE_TOKENS, 4096);
+const ollamaTextContextWindow = parseEnvInt(process.env.OLLAMA_CONTEXT_WINDOW, baseTokenLimit);
+const ollamaTextMaxResponseTokens = parseEnvInt(process.env.OLLAMA_MAX_RESPONSE_TOKENS, baseResponseTokens);
+const ollamaVisionContextWindow = parseEnvInt(process.env.OLLAMA_VISION_CONTEXT_WINDOW, ollamaTextContextWindow);
+const ollamaVisionMaxResponseTokens = parseEnvInt(process.env.OLLAMA_VISION_MAX_RESPONSE_TOKENS, 2048);
+const ollamaPlannerContextWindow = parseEnvInt(process.env.OLLAMA_PLANNER_CONTEXT_WINDOW, ollamaVisionContextWindow);
+const ollamaPlannerMaxResponseTokens = parseEnvInt(process.env.OLLAMA_PLANNER_MAX_RESPONSE_TOKENS, 700);
+const ollamaExpertContextWindow = parseEnvInt(process.env.OLLAMA_EXPERT_CONTEXT_WINDOW, ollamaTextContextWindow);
+const ollamaExpertMaxResponseTokens = parseEnvInt(process.env.OLLAMA_EXPERT_MAX_RESPONSE_TOKENS, ollamaTextMaxResponseTokens);
+const ollamaVisionImageTokenOverhead = parseEnvInt(process.env.OLLAMA_VISION_IMAGE_TOKENS, 1024);
+const translationContextWindow = parseEnvInt(process.env.TRANSLATION_CONTEXT_WINDOW, ollamaTextContextWindow);
+const ollamaModelLimitsOverrides = parseEnvJson(process.env.OLLAMA_MODEL_LIMITS_JSON, {});
+const defaultOllamaModelLimits = {};
+const defaultTextLimits = {
+  contextWindow: ollamaTextContextWindow,
+  maxResponseTokens: ollamaTextMaxResponseTokens
+};
+const defaultVisionLimits = {
+  contextWindow: ollamaVisionContextWindow,
+  maxResponseTokens: ollamaVisionMaxResponseTokens
+};
+const defaultPlannerLimits = {
+  contextWindow: ollamaPlannerContextWindow,
+  maxResponseTokens: ollamaPlannerMaxResponseTokens
+};
+const defaultExpertLimits = {
+  contextWindow: ollamaExpertContextWindow,
+  maxResponseTokens: ollamaExpertMaxResponseTokens
+};
+
+setModelLimit(defaultOllamaModelLimits, ollamaModel, 'text', defaultTextLimits);
+setModelLimit(defaultOllamaModelLimits, generalModel, 'text', defaultTextLimits);
+setModelLimit(defaultOllamaModelLimits, ollamaVisionModel, 'vision', defaultVisionLimits);
+setModelLimit(defaultOllamaModelLimits, plannerModel, 'planner', defaultPlannerLimits);
+setModelLimit(defaultOllamaModelLimits, routerModel, 'expert', defaultExpertLimits);
+setModelLimit(defaultOllamaModelLimits, orchestratorModel, 'expert', defaultExpertLimits);
+setModelLimit(defaultOllamaModelLimits, medicalVisionModel, 'vision', defaultVisionLimits);
+setModelLimit(defaultOllamaModelLimits, medicalAnalysisModel, 'expert', defaultExpertLimits);
+setModelLimit(defaultOllamaModelLimits, medicalRadiologyModel, 'vision', defaultVisionLimits);
+setModelLimit(defaultOllamaModelLimits, financialVisionModel, 'vision', defaultVisionLimits);
+setModelLimit(defaultOllamaModelLimits, financialAnalysisModel, 'expert', defaultExpertLimits);
+setModelLimit(defaultOllamaModelLimits, financialVatExpertModel, 'expert', defaultExpertLimits);
+setModelLimit(defaultOllamaModelLimits, legalVisionModel, 'vision', defaultVisionLimits);
+setModelLimit(defaultOllamaModelLimits, legalAnalysisModel, 'expert', defaultExpertLimits);
+setModelLimit(defaultOllamaModelLimits, legalOrchestratorModel, 'expert', defaultExpertLimits);
+const ollamaModelLimits = mergeModelLimits(defaultOllamaModelLimits, ollamaModelLimitsOverrides);
+
 // Initialize limit functions with defaults
 const limitFunctions = {
   activateTagging: parseEnvBoolean(process.env.ACTIVATE_TAGGING, 'yes'),
@@ -56,8 +177,8 @@ module.exports = {
   CONFIGURED: false,
   disableAutomaticProcessing: process.env.DISABLE_AUTOMATIC_PROCESSING || 'no',
   predefinedMode: process.env.PROCESS_PREDEFINED_DOCUMENTS,
-  tokenLimit: process.env.TOKEN_LIMIT || 128000,
-  responseTokens: process.env.RESPONSE_TOKENS || 1000,
+  tokenLimit: baseTokenLimit,
+  responseTokens: baseResponseTokens,
   addAIProcessedTag: process.env.ADD_AI_PROCESSED_TAG || 'no',
   addAIProcessedTags: process.env.AI_PROCESSED_TAG_NAME || 'ai-processed',
   // AI restrictions config
@@ -75,25 +196,51 @@ module.exports = {
   },
   ollama: {
     apiUrl: process.env.OLLAMA_API_URL || 'http://localhost:11434',
-    model: process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b',
-    repairModel: process.env.OLLAMA_REPAIR_MODEL || 'sauerkraut-llama3.1:8b',
-    visionModel: process.env.OLLAMA_VISION_MODEL || 'qwen3-vl:8b',
+    model: ollamaModel,
+    repairModel: process.env.OLLAMA_REPAIR_MODEL || ollamaModel,
+    visionModel: ollamaVisionModel,
+    plannerModel,
+    routerModel,
+    orchestratorModel,
     visionKeepAlive: process.env.VISION_KEEP_ALIVE || '5m',
     textKeepAlive: process.env.TEXT_KEEP_ALIVE || '2m',
-    routerKeepAlive: process.env.ROUTER_KEEP_ALIVE || '5m'
+    routerKeepAlive: process.env.ROUTER_KEEP_ALIVE || '5m',
+    limits: {
+      text: {
+        contextWindow: ollamaTextContextWindow,
+        maxResponseTokens: ollamaTextMaxResponseTokens
+      },
+      vision: {
+        contextWindow: ollamaVisionContextWindow,
+        maxResponseTokens: ollamaVisionMaxResponseTokens
+      },
+      planner: {
+        contextWindow: ollamaPlannerContextWindow,
+        maxResponseTokens: ollamaPlannerMaxResponseTokens
+      },
+      expert: {
+        contextWindow: ollamaExpertContextWindow,
+        maxResponseTokens: ollamaExpertMaxResponseTokens
+      },
+      imageTokenOverhead: ollamaVisionImageTokenOverhead
+    },
+    modelLimits: ollamaModelLimits
   },
   expertModels: {
     medical: {
-      vision: process.env.MEDICAL_VISION_MODEL || 'llava-med-v1.5',
-      analysis: process.env.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3'
+      vision: medicalVisionModel,
+      analysis: medicalAnalysisModel,
+      radiology: medicalRadiologyModel
     },
     financial: {
-      analysis: process.env.FINANCIAL_ANALYSIS_MODEL || 'fino1-8b',
-      vatExpert: process.env.FINANCIAL_VAT_EXPERT || 'dragon-finance:latest'
+      analysis: financialAnalysisModel,
+      vision: financialVisionModel,
+      vatExpert: financialVatExpertModel
     },
     legal: {
-      analysis: process.env.LEGAL_ANALYSIS_MODEL || 'dragon-finance:latest',
-      orchestrator: process.env.LEGAL_ORCHESTRATOR_MODEL || 'nemotron-manager:latest'
+      vision: legalVisionModel,
+      analysis: legalAnalysisModel,
+      orchestrator: legalOrchestratorModel
     }
   },
   expertPipelineEnabled: parseEnvBoolean(process.env.EXPERT_PIPELINE_ENABLED, 'yes'),
@@ -169,7 +316,20 @@ module.exports = {
     timeout: parseInt(process.env.TRANSLATION_TIMEOUT || '60000', 10),
     maxTokens: parseInt(process.env.TRANSLATION_MAX_TOKENS || '512', 10),
     temperature: parseFloat(process.env.TRANSLATION_TEMPERATURE || '0.1'),
-    minChars: parseInt(process.env.TRANSLATION_MIN_CHARS || '3', 10)
+    minChars: parseInt(process.env.TRANSLATION_MIN_CHARS || '3', 10),
+    contextWindow: translationContextWindow
+  },
+  ocrCheckpoint: {
+    enabled: parseEnvBoolean(process.env.OCR_CHECKPOINT_ENABLED, 'yes'),
+    includeTranslations: parseEnvBoolean(process.env.OCR_CHECKPOINT_TRANSLATIONS_ENABLED, 'yes')
+  },
+  summaryFallback: {
+    enabled: parseEnvBoolean(process.env.SUMMARY_FALLBACK_ENABLED, 'yes'),
+    maxInputTokens: parseInt(process.env.SUMMARY_FALLBACK_MAX_INPUT_TOKENS || '4000', 10),
+    maxSummaryTokens: parseInt(process.env.SUMMARY_FALLBACK_MAX_SUMMARY_TOKENS || '512', 10),
+    timeout: parseInt(process.env.SUMMARY_FALLBACK_TIMEOUT || '60000', 10),
+    temperature: parseFloat(process.env.SUMMARY_FALLBACK_TEMPERATURE || '0.1'),
+    model: process.env.SUMMARY_FALLBACK_MODEL || process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b'
   },
   semanticRouter: {
     enabled: parseEnvBoolean(process.env.SEMANTIC_ROUTER_ENABLED, 'no'),

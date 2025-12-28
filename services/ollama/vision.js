@@ -2,13 +2,31 @@ const fs = require('fs').promises;
 const path = require('path');
 const config = require('../../config/config');
 const paperlessService = require('../paperlessService');
+const { pdfRenderer } = require('../visual-rag/PDFRenderer');
 const TelemetryCollector = require('../TelemetryCollector');
 const { expertRegistry } = require('../experts/ExpertRegistry');
 const { ExpertPipelineExecutor } = require('../experts/ExpertPipelineExecutor');
-const { extractJsonFromResponse } = require('./utils');
+const { calculateTokens, extractJsonFromResponse } = require('./utils');
 const logger = require('../logger');
 
 module.exports = {
+    _looksLikePdf(buffer) {
+        if (!buffer || buffer.length < 5) return false;
+        return buffer.slice(0, 5).toString('utf8') === '%PDF-';
+    },
+
+    _looksLikeImage(buffer) {
+        if (!buffer || buffer.length < 4) return false;
+        const b0 = buffer[0];
+        const b1 = buffer[1];
+        const b2 = buffer[2];
+        const b3 = buffer[3];
+        const isPng = b0 === 0x89 && b1 === 0x50 && b2 === 0x4e && b3 === 0x47;
+        const isJpeg = b0 === 0xff && b1 === 0xd8;
+        const isTiff = (b0 === 0x49 && b1 === 0x49 && b2 === 0x2a && b3 === 0x00)
+            || (b0 === 0x4d && b1 === 0x4d && b2 === 0x00 && b3 === 0x2a);
+        return isPng || isJpeg || isTiff;
+    },
     /**
      * Analyze document using vision model
      * @param {number|string} documentId - Document ID
@@ -25,7 +43,7 @@ module.exports = {
             logger.info(`[VISION] Starting vision analysis for document ${documentId}`);
 
             let plannerResult;
-            const plannerStage = telemetry.startStage('planner', config.ollama.visionModel);
+            const plannerStage = telemetry.startStage('planner', config.ollama.plannerModel || config.ollama.visionModel);
             try {
                 plannerResult = await this.analyzeDocumentPlannerVision(documentId);
                 telemetry.endStage(plannerStage, true);
@@ -45,10 +63,10 @@ module.exports = {
 
             logger.info('[VISION] Final classification: ' + JSON.stringify(plannerResult));
 
-            // Load thumbnail
-            const base64Image = await this._loadThumbnailAsBase64(documentId);
+            const plannerRenderDpi = config.visualRag?.visionRenderDpi || 300;
+            const base64Image = await this._loadPlannerImageAsBase64(documentId, plannerRenderDpi);
             if (!base64Image) {
-                logger.info('[VISION] Fallback to text: no thumbnail available');
+                logger.info('[VISION] Fallback to text: no render or thumbnail available');
                 const fallbackStage = telemetry.startStage('fallback', this.model);
                 const textResult = await this._analyzeDocumentText(
                     content,
@@ -86,7 +104,7 @@ module.exports = {
             logger.info(`[PLANNER] Selected profile: ${profileId} (confidence: ${plannerResult.confidence})`);
             const fieldSet = this.fieldProfiler.getFieldSet(profileId);
 
-            const renderDpi = config.visualRag.visionRenderDpi;
+            const renderDpi = config.visualRag?.visionRenderDpi || 300;
             const maxVisionPages = config.visualRag.maxVisionPages;
             let pagesToRender = [1];
 
@@ -119,6 +137,20 @@ module.exports = {
             let parsedResponse = null;
             let validation = { valid: false, errors: [] };
             const visionStage = telemetry.startStage('vision', config.ollama.visionModel);
+            const visionLimits = this._resolveOllamaLimits('vision', config.ollama.visionModel);
+            logger.info({
+                event: 'prompt_template_selected',
+                stage: 'vision_extraction',
+                model: config.ollama.visionModel,
+                profileId,
+                strict: false,
+                renderDpi,
+                pagesRendered: renderedImages.length,
+                responseTokens: visionLimits.maxResponseTokens,
+                contextWindow: visionLimits.contextWindow,
+                limitsSource: visionLimits.source,
+                modelKey: visionLimits.modelKey
+            });
 
             for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
                 const prompt = this.promptFactory.buildVisionPrompt(fieldSet, fieldSet.profileName, { strict: attempt > 0 });
@@ -388,13 +420,14 @@ module.exports = {
         try {
             logger.info(`[PLANNER] Starting classification for document ${documentId}`);
 
-            const base64Image = await this._loadThumbnailAsBase64(documentId);
+            const renderDpi = config.visualRag?.visionRenderDpi || 300;
+            const base64Image = await this._loadPlannerImageAsBase64(documentId, renderDpi);
             if (!base64Image) {
-                logger.info('[PLANNER] No thumbnail available, using default classification');
+                logger.info('[PLANNER] No render or thumbnail available, using default classification');
                 return applyRouting(defaultClassification);
             }
 
-            logger.info(`[PLANNER] Thumbnail loaded: ${base64Image.length} bytes`);
+            logger.info(`[PLANNER] Planner image loaded: ${base64Image.length} bytes at ${renderDpi} DPI`);
 
             const maxRetries = config.visualRag.maxRetriesPlanner;
 
@@ -406,12 +439,27 @@ module.exports = {
 
                 logger.debug('[PLANNER] Calling vision API with planning prompt');
 
-                const response = await this._callOllamaVisionAPI(prompt, base64Image, {
-                    keep_alive: config.ollama.visionKeepAlive,
-                    num_predict: 700,
-                    temperature: 0.2,
-                    num_ctx: 8192
-                });
+            const plannerModel = config.ollama.plannerModel || config.ollama.visionModel;
+            const plannerLimits = this._resolveOllamaLimits('planner', plannerModel);
+            const templateMeta = this.promptFactory.getPlannerTemplateMeta(attempt > 0);
+            logger.info({
+                event: 'prompt_template_selected',
+                stage: 'planner',
+                model: plannerModel,
+                template: templateMeta,
+                responseTokens: plannerLimits.maxResponseTokens,
+                contextWindow: plannerLimits.contextWindow,
+                limitsSource: plannerLimits.source,
+                modelKey: plannerLimits.modelKey
+            });
+            const response = await this._callOllamaVisionAPI(prompt, base64Image, {
+                model: plannerModel,
+                kind: 'planner',
+                keep_alive: config.ollama.visionKeepAlive,
+                num_predict: plannerLimits.maxResponseTokens,
+                temperature: 0.2,
+                num_ctx: plannerLimits.contextWindow
+            });
 
                 const rawResponse = typeof response?.response === 'string'
                     ? response.response
@@ -464,6 +512,14 @@ module.exports = {
         } catch (e) {}
     },
 
+    async _loadPlannerImageAsBase64(documentId, dpi = 300) {
+        const rendered = await this._loadRenderedPageAsBase64(documentId, 1, dpi);
+        if (rendered) {
+            return rendered;
+        }
+        return this._loadThumbnailAsBase64(documentId);
+    },
+
     /**
      * Load thumbnail image as base64 for vision analysis
      * @param {number|string} documentId - Document ID
@@ -475,9 +531,22 @@ module.exports = {
             const buffer = await fs.readFile(thumbnailPath);
             return buffer.toString('base64');
         } catch (e) {
-            logger.debug(`[VISION] No thumbnail for doc ${documentId}`);
-            return null;
+            // Cache miss, attempt to fetch from Paperless
         }
+
+        try {
+            const data = await paperlessService.getThumbnailImage(documentId);
+            if (data) {
+                await fs.mkdir(path.dirname(thumbnailPath), { recursive: true });
+                await fs.writeFile(thumbnailPath, data);
+                return Buffer.from(data).toString('base64');
+            }
+        } catch (error) {
+            logger.debug(`[VISION] Thumbnail fetch failed for doc ${documentId}: ${error.message}`);
+        }
+
+        logger.debug(`[VISION] No thumbnail for doc ${documentId}`);
+        return null;
     },
 
     /**
@@ -488,7 +557,7 @@ module.exports = {
      * @param {number} dpi - Render DPI
      * @returns {Promise<string|null>} Base64 encoded image or null
      */
-    async _loadRenderedPageAsBase64(documentId, page = 1, dpi = 150) {
+    async _loadRenderedPageAsBase64(documentId, page = 1, dpi = (config.visualRag?.visionRenderDpi || 300)) {
         const renderDir = path.join(process.cwd(), 'public', 'images', 'rendered');
         const renderPath = path.join(renderDir, `${documentId}_p${page}_${dpi}.png`);
 
@@ -500,26 +569,35 @@ module.exports = {
         }
 
         try {
-            if (typeof paperlessService.initialize === 'function') {
-                paperlessService.initialize();
-            }
-
-            if (!paperlessService.client) {
-                logger.warn('[VISION] Paperless client not initialized for render');
-            } else {
-                const response = await paperlessService.client.get(`/documents/${documentId}/thumb/`, {
-                    responseType: 'arraybuffer',
-                    params: { page, dpi }
-                });
-
-                if (response?.data?.byteLength > 0) {
-                    await fs.mkdir(renderDir, { recursive: true });
-                    await fs.writeFile(renderPath, response.data);
-                    return Buffer.from(response.data).toString('base64');
+            const pdfBuffer = await paperlessService.downloadOriginalDocument(documentId);
+            if (pdfBuffer && pdfBuffer.length > 0) {
+                if (!this._looksLikePdf(pdfBuffer)) {
+                    if (this._looksLikeImage(pdfBuffer)) {
+                        logger.info(`[VISION] Using original image for doc ${documentId} (non-PDF)`);
+                        return pdfBuffer.toString('base64');
+                    }
+                    logger.warn(`[VISION] Original file is not a PDF for doc ${documentId}, skipping render`);
+                    return null;
+                }
+                const canRender = await pdfRenderer.isAvailableAsync();
+                if (canRender) {
+                    const images = await pdfRenderer.renderBuffer(pdfBuffer, {
+                        dpi,
+                        docId: documentId,
+                        maxPages: page
+                    });
+                    const target = images.find(img => img.page === page) || images[page - 1];
+                    if (target?.base64) {
+                        await fs.mkdir(renderDir, { recursive: true });
+                        await fs.writeFile(renderPath, Buffer.from(target.base64, 'base64'));
+                        return target.base64;
+                    }
+                } else {
+                    logger.warn('[VISION] PDF renderer unavailable, skipping 300 DPI render');
                 }
             }
         } catch (error) {
-            logger.warn(`[VISION] Render fetch failed for doc ${documentId} page ${page}: ${error.message}`);
+            logger.warn(`[VISION] Render failed for doc ${documentId} page ${page} at ${dpi} DPI: ${error.message}`);
         }
 
         logger.warn('[VISION] Rendered page unavailable, using thumbnail (degraded fidelity)');
@@ -539,14 +617,58 @@ module.exports = {
             const imageList = Array.isArray(base64Image) ? base64Image.filter(Boolean) : [base64Image];
             const imageBytes = imageList.reduce((total, img) => total + (img ? img.length : 0), 0);
 
+            const model = options.model || config.ollama.visionModel;
+            const limitKind = options.kind || 'vision';
+            const visionLimits = this._resolveOllamaLimits(limitKind, model);
+            const imageTokenOverhead = config.ollama?.limits?.imageTokenOverhead || 1024;
+            const promptTokens = calculateTokens(prompt);
+            const imageTokens = imageList.length * imageTokenOverhead;
+            let numCtx = Number.isFinite(options.num_ctx)
+                ? options.num_ctx
+                : visionLimits.contextWindow;
+            let numPredict = Number.isFinite(options.num_predict)
+                ? options.num_predict
+                : visionLimits.maxResponseTokens;
+            const temperature = Number.isFinite(options.temperature)
+                ? options.temperature
+                : 0.3;
+            if (!Number.isFinite(numCtx) || numCtx <= 0) {
+                numCtx = visionLimits.contextWindow;
+            }
+            if (!Number.isFinite(numPredict) || numPredict < 0) {
+                numPredict = visionLimits.maxResponseTokens;
+            }
+            const maxInputTokens = Math.max(0, numCtx - numPredict);
+            const totalInputTokens = promptTokens + imageTokens;
+            if (totalInputTokens > maxInputTokens) {
+                const availableResponseTokens = Math.max(0, numCtx - totalInputTokens);
+                if (availableResponseTokens < numPredict) {
+                    logger.warn({
+                        event: 'prompt_truncated',
+                        stage: limitKind,
+                        model,
+                        reason: 'context_window',
+                        promptTokens,
+                        imageTokens,
+                        totalInputTokens,
+                        maxInputTokens,
+                        numCtx,
+                        numPredict,
+                        adjustedNumPredict: availableResponseTokens,
+                        limitsSource: visionLimits.source,
+                        modelKey: visionLimits.modelKey
+                    });
+                    numPredict = availableResponseTokens;
+                }
+            }
             const visionOptions = {
-                num_ctx: options.num_ctx || 32768,
-                num_predict: options.num_predict || 1600,
-                temperature: options.temperature || 0.3
+                num_ctx: numCtx,
+                num_predict: numPredict,
+                temperature
             };
 
             const response = await this.client.post(`${this.apiUrl}/api/generate`, {
-                model: config.ollama.visionModel,
+                model,
                 prompt: prompt,
                 images: imageList,
                 keep_alive: options.keep_alive || config.ollama.visionKeepAlive,
@@ -562,6 +684,21 @@ module.exports = {
             if (response.status !== 200) throw new Error(`Ollama Vision Status: ${response.status}`);
             if (!response.data) throw new Error('No data in Ollama vision response');
             if (response.data.response === undefined) throw new Error('No response field in Ollama vision data');
+            const doneReason = response.data?.done_reason;
+            const evalCount = response.data?.eval_count;
+            if (doneReason === 'length' || (Number.isFinite(evalCount) && Number.isFinite(numPredict) && evalCount >= numPredict)) {
+                logger.warn({
+                    event: 'response_truncated',
+                    stage: limitKind,
+                    model,
+                    doneReason: doneReason || null,
+                    evalCount: Number.isFinite(evalCount) ? evalCount : null,
+                    numPredict,
+                    numCtx,
+                    limitsSource: visionLimits.source,
+                    modelKey: visionLimits.modelKey
+                });
+            }
 
             return response.data;
         } catch (error) {

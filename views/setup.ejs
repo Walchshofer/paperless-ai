@@ -260,6 +260,86 @@
                                                    value="<%= config.OLLAMA_MODEL %>"
                                                    class="modern-input">
                                         </div>
+
+                                        <div class="form-group">
+                                            <label for="ollamaContextWindow">Text Context Window</label>
+                                            <input type="number"
+                                                   id="ollamaContextWindow"
+                                                   name="ollamaContextWindow"
+                                                   value="<%= config.OLLAMA_CONTEXT_WINDOW %>"
+                                                   class="modern-input"
+                                                   placeholder="8192">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="ollamaMaxResponseTokens">Text Max Response Tokens</label>
+                                            <input type="number"
+                                                   id="ollamaMaxResponseTokens"
+                                                   name="ollamaMaxResponseTokens"
+                                                   value="<%= config.OLLAMA_MAX_RESPONSE_TOKENS %>"
+                                                   class="modern-input"
+                                                   placeholder="2048">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="ollamaVisionContextWindow">Vision Context Window</label>
+                                            <input type="number"
+                                                   id="ollamaVisionContextWindow"
+                                                   name="ollamaVisionContextWindow"
+                                                   value="<%= config.OLLAMA_VISION_CONTEXT_WINDOW %>"
+                                                   class="modern-input"
+                                                   placeholder="16384">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="ollamaVisionMaxResponseTokens">Vision Max Response Tokens</label>
+                                            <input type="number"
+                                                   id="ollamaVisionMaxResponseTokens"
+                                                   name="ollamaVisionMaxResponseTokens"
+                                                   value="<%= config.OLLAMA_VISION_MAX_RESPONSE_TOKENS %>"
+                                                   class="modern-input"
+                                                   placeholder="2048">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="ollamaExpertContextWindow">Expert Context Window</label>
+                                            <input type="number"
+                                                   id="ollamaExpertContextWindow"
+                                                   name="ollamaExpertContextWindow"
+                                                   value="<%= config.OLLAMA_EXPERT_CONTEXT_WINDOW %>"
+                                                   class="modern-input"
+                                                   placeholder="8192">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="ollamaExpertMaxResponseTokens">Expert Max Response Tokens</label>
+                                            <input type="number"
+                                                   id="ollamaExpertMaxResponseTokens"
+                                                   name="ollamaExpertMaxResponseTokens"
+                                                   value="<%= config.OLLAMA_EXPERT_MAX_RESPONSE_TOKENS %>"
+                                                   class="modern-input"
+                                                   placeholder="2048">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="translationContextWindow">Translation Context Window</label>
+                                            <input type="number"
+                                                   id="translationContextWindow"
+                                                   name="translationContextWindow"
+                                                   value="<%= config.TRANSLATION_CONTEXT_WINDOW %>"
+                                                   class="modern-input"
+                                                   placeholder="8192">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="translationMaxTokens">Translation Max Response Tokens</label>
+                                            <input type="number"
+                                                   id="translationMaxTokens"
+                                                   name="translationMaxTokens"
+                                                   value="<%= config.TRANSLATION_MAX_TOKENS %>"
+                                                   class="modern-input"
+                                                   placeholder="512">
+                                        </div>
                                     </div>
 
                                     <!-- Custom Provider Settings -->

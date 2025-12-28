@@ -159,12 +159,55 @@ module.exports = {
         };
     },
 
-    _calculateNumCtx(promptTokenCount, responseTokens) {
-        const total = promptTokenCount + responseTokens;
-        const maxLimit = parseInt(config.tokenLimit || '16384', 10);
-        // Use 90% if GPT-OSS, else 80%
+    _resolveOllamaLimits(kind = 'text', modelName = null) {
+        const limits = config.ollama?.limits || {};
+        const base = limits.text || {};
+        const selected = limits[kind] || {};
+        const modelLimits = config.ollama?.modelLimits || {};
+        let modelOverride = null;
+        let modelKey = null;
+        if (modelName && typeof modelLimits === 'object') {
+            const normalized = String(modelName).toLowerCase();
+            modelKey = Object.keys(modelLimits).find((key) => key.toLowerCase() === normalized);
+            if (modelKey) {
+                const candidate = modelLimits[modelKey];
+                if (candidate && typeof candidate === 'object') {
+                    modelOverride = candidate[kind] || candidate;
+                }
+            }
+        }
+
+        const contextWindow = Number.isFinite(modelOverride?.contextWindow)
+            ? modelOverride.contextWindow
+            : (Number.isFinite(selected.contextWindow)
+                ? selected.contextWindow
+                : (Number.isFinite(base.contextWindow)
+                    ? base.contextWindow
+                    : parseInt(config.tokenLimit || '16384', 10)));
+        const maxResponseTokens = Number.isFinite(modelOverride?.maxResponseTokens)
+            ? modelOverride.maxResponseTokens
+            : (Number.isFinite(selected.maxResponseTokens)
+                ? selected.maxResponseTokens
+                : (Number.isFinite(base.maxResponseTokens)
+                    ? base.maxResponseTokens
+                    : 0));
+        return {
+            contextWindow,
+            maxResponseTokens,
+            source: modelOverride ? 'model_limits' : 'defaults',
+            modelKey
+        };
+    },
+
+    _getEffectiveContextWindow(contextWindowOverride) {
+        const maxLimit = parseInt(contextWindowOverride || config.tokenLimit || '16384', 10);
         const factor = this.isGptOss ? 0.90 : 0.80;
-        const safeLimit = Math.floor(maxLimit * factor);
+        return Math.floor(maxLimit * factor);
+    },
+
+    _calculateNumCtx(promptTokenCount, responseTokens, contextWindowOverride) {
+        const total = promptTokenCount + responseTokens;
+        const safeLimit = this._getEffectiveContextWindow(contextWindowOverride);
         return Math.min(total, safeLimit);
     },
 

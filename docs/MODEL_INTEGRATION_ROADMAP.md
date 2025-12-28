@@ -41,15 +41,14 @@ Integration of high-value reasoning models for complex analysis scenarios.
 **Timeline**: Q3 2025
 **Hardware Requirements**: RTX 4090 (24GB VRAM)
 
-### Nemotron-Orchestrator Integration
+### Nemotron-Orchestrator Integration (Completed)
 **Model**: `nemotron-orchestrator:8b` (8GB VRAM)
 **Role**: Task delegation, tool selection, planning, intelligent expert routing
 **Integration Points**:
-- System 2 router for complex query analysis and expert selection
-- Optional mode in DocumentProcessor: `orchestrator: true`
-- Feature flag: `ENABLE_ORCHESTRATOR=yes`
+- System orchestrator for pipeline selection and service gating
+- Prompt: `SYS_ORCHESTRATOR_V1` (ExpertPipelineExecutor)
 - Environment variable: `ORCHESTRATOR_MODEL=nemotron-orchestrator:8b`
-**Timeline**: Q2 2025
+**Timeline**: Completed
 **Hardware Requirements**: RTX 3090 Ti (24GB VRAM)
 
 ## Phase 3: Infrastructure Tier Integration (Planned Q3 2025)

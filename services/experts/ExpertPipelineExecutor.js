@@ -35,11 +35,14 @@
 const axios = require('axios');
 const logger = require('../logger');
 const config = require('../../config/config');
+const { calculateTokens, truncateToTokenLimit } = require('../ollama/utils');
 const { promptRegistry, ModelType, MODEL_NAMES } = require('../prompts/PromptRegistry');
 const internalVatRag = require('../rag/InternalVatRag');
 const internalLegalRag = require('../rag/InternalLegalRag');
 const JsonRepairService = require('../rag/JsonRepairService');
 const { expertRegistry, StageType, ExecutionMode } = require('./ExpertRegistry');
+const LocalTranslator = require('./translation/LocalTranslator');
+const paperlessService = require('../paperlessService');
 
 // Import extracted modules
 const { ExecutionContext } = require('./context');
@@ -48,6 +51,80 @@ const { getVisualRagModules } = require('./utils');
 
 // Import Guidance client for deterministic extraction
 const { guidanceClient, getFallbackPromptId } = require('../guidance');
+
+const OCR_CUSTOM_FIELD_BASE = 'vis_ocr_text';
+
+function normalizeLanguageHint(value) {
+    if (!value) return null;
+    const normalized = String(value).trim().toLowerCase();
+    if (!normalized) return null;
+    if (normalized.startsWith('de') || normalized.includes('german') || normalized.includes('deutsch')) {
+        return 'de';
+    }
+    if (normalized.startsWith('en') || normalized.includes('english')) {
+        return 'en';
+    }
+    return null;
+}
+
+function normalizeBoolean(value, fallback) {
+    if (value === undefined || value === null) return fallback;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (['true', 'yes', '1'].includes(normalized)) return true;
+        if (['false', 'no', '0'].includes(normalized)) return false;
+    }
+    return fallback;
+}
+
+async function buildVisOcrMetadata(text, languageHint, translator, options = {}) {
+    const rawText = typeof text === 'string' ? text : '';
+    const sourceLang = normalizeLanguageHint(languageHint) || 'de';
+    const includeTranslations = options.includeTranslations !== false;
+    if (!rawText) {
+        return {
+            sourceLang,
+            vis_ocr_text: '',
+            vis_ocr_text_de: '',
+            vis_ocr_text_en: ''
+        };
+    }
+
+    let visOcrDe = rawText;
+    let visOcrEn = rawText;
+    if (includeTranslations && translator) {
+        if (sourceLang === 'de') {
+            visOcrEn = await translator.translate(rawText, 'de', 'en', options.translationOptions);
+        } else if (sourceLang === 'en') {
+            visOcrDe = await translator.translate(rawText, 'en', 'de', options.translationOptions);
+        } else {
+            visOcrDe = await translator.translate(rawText, sourceLang, 'de', options.translationOptions);
+            visOcrEn = await translator.translate(rawText, sourceLang, 'en', options.translationOptions);
+        }
+    }
+
+    return {
+        sourceLang,
+        vis_ocr_text: rawText,
+        vis_ocr_text_de: visOcrDe,
+        vis_ocr_text_en: visOcrEn
+    };
+}
+
+async function ensureOcrCustomFields() {
+    paperlessService.initialize();
+    if (!paperlessService.client) return false;
+    const fields = [
+        OCR_CUSTOM_FIELD_BASE,
+        `${OCR_CUSTOM_FIELD_BASE}_de`,
+        `${OCR_CUSTOM_FIELD_BASE}_en`
+    ];
+    for (const field of fields) {
+        await paperlessService.createCustomFieldSafely(field, 'text');
+    }
+    return true;
+}
 
 // ============================================================================
 // PIPELINE EXECUTOR
@@ -77,6 +154,7 @@ class ExpertPipelineExecutor {
             enableMetrics: options.enableMetrics !== false,
             enableVisualRag: options.enableVisualRag ?? config.visualRagSidecar?.enabled === 'yes',
             includeOverlaysInResult: options.includeOverlaysInResult ?? true,
+            embeddingModel: options.embeddingModel || 'nomic-embed-text',
             ...options
         };
         this.translator = options.translator || null;
@@ -201,7 +279,9 @@ class ExpertPipelineExecutor {
             let result = this._buildResult(pipeline, context, finalStatus, startTime);
 
             // Enrich with visual overlays if available
-            if (this.options.enableVisualRag) {
+            const enableVisualRag =
+                context.options?.enableVisualRag ?? this.options.enableVisualRag;
+            if (enableVisualRag) {
                 result = await this._enrichWithVisualOverlays(result, context);
             }
 
@@ -363,7 +443,12 @@ class ExpertPipelineExecutor {
         // =================================================================
         // GUIDANCE PATH: Use Python Guidance service for deterministic JSON
         // =================================================================
-        if (stage.guidanceTemplate && await guidanceClient.isAvailable()) {
+        const guidanceEnabled =
+            normalizeBoolean(context?.options?.guidanceEnabled, true) &&
+            normalizeBoolean(context?.options?.orchestration?.use_guidance, true) &&
+            normalizeBoolean(context?.options?.orchestration?.useGuidance, true);
+
+        if (stage.guidanceTemplate && guidanceEnabled && await guidanceClient.isAvailable()) {
             logger.debug({
                 event: 'stage_using_guidance',
                 stageId: stage.id,
@@ -425,6 +510,15 @@ class ExpertPipelineExecutor {
                 promptModel: prompt.model
             });
         }
+        logger.info({
+            event: 'prompt_template_selected',
+            stage: stage.id,
+            promptId,
+            promptVersion: prompt.version,
+            promptModel: prompt.model,
+            stageModel: stage.model,
+            modelType: stage.modelType
+        });
 
         // Build image data for multimodal stages
         const imageData = stage.modelType === ModelType.MULTIMODAL ?
@@ -520,6 +614,57 @@ class ExpertPipelineExecutor {
         return result;
     }
 
+    _extractTextResponse(response) {
+        if (typeof response?.message?.content === 'string') {
+            return response.message.content;
+        }
+        if (typeof response?.response === 'string') {
+            return response.response;
+        }
+        if (typeof response === 'string') {
+            return response;
+        }
+        return '';
+    }
+
+    async _summarizeTextForExtraction(text, options = {}) {
+        if (!text || typeof text !== 'string') {
+            return '';
+        }
+        const summaryConfig = options || {};
+        const maxInputTokens = parseInt(summaryConfig.maxInputTokens || 4000, 10);
+        const maxSummaryTokens = parseInt(summaryConfig.maxSummaryTokens || 512, 10);
+        const temperature = summaryConfig.temperature ?? 0.1;
+        const timeout = summaryConfig.timeout || 60000;
+        const model = summaryConfig.model || config.ollama?.model || MODEL_NAMES.general;
+        const trimmedText = truncateToTokenLimit(text, maxInputTokens);
+        const messages = [
+            {
+                role: 'system',
+                content: 'Summarize the document for downstream extraction. Preserve key entities, dates, amounts, and terms. Return plain text only.'
+            },
+            {
+                role: 'user',
+                content: trimmedText
+            }
+        ];
+
+        try {
+            const response = await this._callOllamaWithTimeout(
+                model,
+                messages,
+                { temperature, num_predict: maxSummaryTokens },
+                timeout
+            );
+            return this._extractTextResponse(response).trim();
+        } catch (error) {
+            logger.warn('[ExpertPipelineExecutor] Summary fallback failed', {
+                error: error.message
+            });
+            return '';
+        }
+    }
+
     /**
      * Call Ollama API with timeout
      */
@@ -543,12 +688,13 @@ class ExpertPipelineExecutor {
      * This integrates with the existing ollamaService pattern in the codebase
      */
     async _callOllama(model, messages, options) {
+        const resolvedOptions = this._applyOllamaLimits(model, messages, options);
         // If ollamaService is provided, use it
         if (this.ollamaService && typeof this.ollamaService.chat === 'function') {
             return await this.ollamaService.chat({
                 model,
                 messages,
-                options,
+                options: resolvedOptions,
                 stream: false
             });
         }
@@ -558,12 +704,77 @@ class ExpertPipelineExecutor {
         const response = await axios.post(`${ollamaHost}/api/chat`, {
             model,
             messages,
-            options,
+            options: resolvedOptions,
             stream: false
         });
 
         const result = response.data;
         return result.message?.content || result.response || '';
+    }
+
+    _applyOllamaLimits(model, messages, options = {}) {
+        const resolved = this.ollamaService?._resolveOllamaLimits
+            ? this.ollamaService._resolveOllamaLimits('expert', model)
+            : { contextWindow: null, maxResponseTokens: null };
+        const contextWindow = Number.isFinite(resolved.contextWindow)
+            ? resolved.contextWindow
+            : config.ollama?.limits?.text?.contextWindow;
+        if (resolved.source === 'model_limits') {
+            logger.info({
+                event: 'model_limits_applied',
+                stage: 'expert',
+                model,
+                contextWindow: resolved.contextWindow,
+                maxResponseTokens: resolved.maxResponseTokens,
+                modelKey: resolved.modelKey
+            });
+        }
+        let responseTokens = Number.isFinite(resolved.maxResponseTokens)
+            ? resolved.maxResponseTokens
+            : options.num_predict;
+        if (!Number.isFinite(responseTokens)) {
+            responseTokens = config.ollama?.limits?.text?.maxResponseTokens || 0;
+        }
+        const messageTokens = Array.isArray(messages)
+            ? messages.reduce((sum, msg) => sum + calculateTokens(msg?.content || ''), 0)
+            : 0;
+        const imageCount = Array.isArray(messages)
+            ? messages.reduce((sum, msg) => sum + (Array.isArray(msg?.images) ? msg.images.length : 0), 0)
+            : 0;
+        const imageTokenOverhead = config.ollama?.limits?.imageTokenOverhead || 1024;
+        const totalInputTokens = messageTokens + (imageCount * imageTokenOverhead);
+        const effectiveContextWindow = this.ollamaService?._getEffectiveContextWindow
+            ? this.ollamaService._getEffectiveContextWindow(contextWindow)
+            : contextWindow;
+        const maxInputTokens = Math.max(0, (effectiveContextWindow || 0) - responseTokens);
+        if (Number.isFinite(effectiveContextWindow) && totalInputTokens > maxInputTokens) {
+            const availableResponseTokens = Math.max(0, effectiveContextWindow - totalInputTokens);
+            if (availableResponseTokens < responseTokens) {
+                logger.warn({
+                    event: 'prompt_truncated',
+                    stage: 'expert',
+                    model,
+                    reason: 'context_window',
+                    totalInputTokens,
+                    maxInputTokens,
+                    responseTokens,
+                    adjustedResponseTokens: availableResponseTokens,
+                    contextWindow,
+                    effectiveContextWindow,
+                    limitsSource: resolved.source,
+                    modelKey: resolved.modelKey
+                });
+                responseTokens = availableResponseTokens;
+            }
+        }
+        const numCtx = this.ollamaService?._calculateNumCtx
+            ? this.ollamaService._calculateNumCtx(totalInputTokens, responseTokens, contextWindow)
+            : effectiveContextWindow;
+        return {
+            ...options,
+            num_predict: responseTokens,
+            num_ctx: numCtx
+        };
     }
 
     /**
@@ -681,7 +892,8 @@ class ExpertPipelineExecutor {
                 stages_skipped: context.stagesSkipped.map(s => s.stageId),
                 stage_timings: Object.fromEntries(context.stageTimings),
                 confidence: overallConfidence,
-                recovery_attempts: context.recoveryAttempts
+                recovery_attempts: context.recoveryAttempts,
+                orchestration: context.options?.orchestration || null
             },
 
             quality: {
@@ -782,7 +994,10 @@ class ExpertPipelineExecutor {
         }
 
         try {
-            const result = await this._ingestionManager.ingestDocument(docId, pdfPath, options);
+            const result = await this._ingestionManager.ingestDocument(docId, pdfPath, {
+                embeddingModel: this.options.embeddingModel,
+                ...options
+            });
 
             logger.info({
                 event: 'visual_rag_ingestion_complete',
@@ -832,7 +1047,13 @@ class ExpertPipelineExecutor {
      * @private
      */
     async _enrichWithVisualOverlays(result, context) {
-        if (!this.options.enableVisualRag || !this.options.includeOverlaysInResult) {
+        const orchestration = context?.options?.orchestration || {};
+        const enableVisualRag = context?.options?.enableVisualRag ?? this.options.enableVisualRag;
+        const allowRetrieval =
+            normalizeBoolean(orchestration.use_visual_rag_retrieval, true) &&
+            normalizeBoolean(orchestration.useVisualRagRetrieval, true);
+
+        if (!enableVisualRag || !this.options.includeOverlaysInResult || !allowRetrieval) {
             return result;
         }
 
@@ -980,6 +1201,7 @@ class ExpertPipelineExecutor {
         }
 
         const visualText = pageTexts.join('\n\n');
+        const rawPages = pageTexts.slice();
 
         // Merge with Paperless OCR using semantic quality scoring
         const mergedResult = await this._mergeOcrResults(
@@ -987,6 +1209,11 @@ class ExpertPipelineExecutor {
             document.ocr_text || '',
             options
         );
+        mergedResult.metadata = {
+            ...(mergedResult.metadata || {}),
+            raw_visual_text: visualText,
+            raw_pages: rawPages
+        };
 
         logger.info({
             event: 'visual_ocr_complete',
@@ -1324,9 +1551,97 @@ async function processDocument(document, ollamaService, options = {}) {
         };
     }
 
+    const hasImage = !!(document.image_data || document.base64Images?.length);
+    let orchestrationPlan = null;
+    if (MODEL_NAMES.orchestrator) {
+        try {
+            const pipelineCatalog = expertRegistry.list().map(p => ({
+                id: p.id,
+                name: p.name,
+                domain: p.domain,
+                documentTypes: p.documentTypes
+            }));
+
+            const docStats = {
+                id: document.id || null,
+                filename: document.filename || null,
+                source: document.source || null,
+                file_size: document.file_size || null,
+                has_image: hasImage,
+                ocr_length: (document.ocr_text || document.content || '').length,
+                visual_rag_sidecar_enabled: config.visualRagSidecar?.enabled === 'yes',
+                guidance_enabled: config.guidanceService?.enabled === 'yes'
+            };
+
+            const orchestrationMessages = promptRegistry.buildMessages(
+                'SYS_ORCHESTRATOR_V1',
+                {
+                    classification_json: JSON.stringify(classificationResult?.classification || {}, null, 0),
+                    routing_json: JSON.stringify(classificationResult?.routing || {}, null, 0),
+                    quality_json: JSON.stringify(classificationResult?.quality_assessment || {}, null, 0),
+                    doc_stats: JSON.stringify(docStats, null, 0),
+                    pipelines: JSON.stringify(pipelineCatalog, null, 0)
+                }
+            );
+
+            const orchestrationResponse = await executor._callOllamaWithTimeout(
+                MODEL_NAMES.orchestrator,
+                orchestrationMessages,
+                promptRegistry.getOptions('SYS_ORCHESTRATOR_V1'),
+                options.timeout || 30000
+            );
+
+            orchestrationPlan = await executor._parseResponse(orchestrationResponse, {
+                id: 'system_orchestrator',
+                model: MODEL_NAMES.orchestrator
+            });
+        } catch (error) {
+            logger.warn({
+                event: 'orchestrator_call_failed',
+                error: error.message
+            });
+        }
+    }
+
+    const requiresVisual = normalizeBoolean(
+        orchestrationPlan?.requires_visual_analysis,
+        normalizeBoolean(classificationResult?.routing?.requires_visual_analysis, hasImage)
+    );
+    const useVisualOcr = normalizeBoolean(orchestrationPlan?.use_visual_ocr, requiresVisual);
+    const useGuidance = normalizeBoolean(orchestrationPlan?.use_guidance, true);
+    const useVisualRagIngestion = normalizeBoolean(
+        orchestrationPlan?.use_visual_rag_ingestion,
+        config.visualRagSidecar?.enabled === 'yes'
+    );
+    const useVisualRagRetrieval = normalizeBoolean(
+        orchestrationPlan?.use_visual_rag_retrieval,
+        config.visualRagSidecar?.enabled === 'yes'
+    );
+
+    if (orchestrationPlan && !orchestrationPlan.extraction_failed) {
+        orchestrationPlan = {
+            ...orchestrationPlan,
+            requires_visual_analysis: requiresVisual,
+            use_visual_ocr: useVisualOcr,
+            use_guidance: useGuidance,
+            use_visual_rag_ingestion: useVisualRagIngestion,
+            use_visual_rag_retrieval: useVisualRagRetrieval
+        };
+    }
+
+    classificationResult.routing = {
+        ...(classificationResult.routing || {}),
+        requires_visual_analysis: requiresVisual
+    };
+    const recommendedPipeline = orchestrationPlan?.selected_pipeline || orchestrationPlan?.selectedPipeline;
+    if (recommendedPipeline) {
+        classificationResult.routing.recommended_pipeline = recommendedPipeline;
+    }
+    classificationResult.orchestration = orchestrationPlan;
+
     // Step 1.5: Visual OCR Enhancement Stage
     // Extract enhanced text using vision model before pipeline execution
-    if (document.base64Images?.length > 0 && config.visualOCR?.enabled !== false) {
+    if (useVisualOcr && document.base64Images?.length > 0 && config.visualOCR?.enabled !== false) {
         try {
             const ocrResult = await executor._executeVisualOCR(document, options);
             document.enhanced_ocr_text = ocrResult.text;
@@ -1350,9 +1665,73 @@ async function processDocument(document, ollamaService, options = {}) {
             document._ocr_metadata = { source: 'paperless_error_fallback' };
         }
     } else {
-        // No images available or OCR disabled - use Paperless OCR directly
+        // No images available or OCR disabled - use Paperless OCR directly     
         document.enhanced_ocr_text = document.ocr_text;
         document._ocr_metadata = { source: 'paperless' };
+    }
+
+    const ocrText = document.enhanced_ocr_text || document.ocr_text || '';
+    const ocrLanguageHint = classificationResult?.classification?.metadata_hints?.language ||
+        classificationResult?.metadata_hints?.language ||
+        classificationResult?.language ||
+        document.language;
+
+    const translationConfig = config.translation || {};
+    const translator = new LocalTranslator({ ollamaService });
+    const ocrMetadata = await buildVisOcrMetadata(ocrText, ocrLanguageHint, translator, {
+        includeTranslations: config.ocrCheckpoint?.includeTranslations !== 'no',
+        translationOptions: {
+            maxTokens: translationConfig.maxTokens,
+            temperature: translationConfig.temperature,
+            contextWindow: translationConfig.contextWindow
+        }
+    });
+    document._vis_ocr_metadata = ocrMetadata;
+
+    if (document.id && config.ocrCheckpoint?.enabled === 'yes') {
+        try {
+            const hasPaperless = await ensureOcrCustomFields();
+            if (hasPaperless) {
+                const customFields = {};
+                if (ocrMetadata.vis_ocr_text) {
+                    customFields[OCR_CUSTOM_FIELD_BASE] = ocrMetadata.vis_ocr_text;
+                }
+                if (ocrMetadata.vis_ocr_text_de) {
+                    customFields[`${OCR_CUSTOM_FIELD_BASE}_de`] = ocrMetadata.vis_ocr_text_de;
+                }
+                if (ocrMetadata.vis_ocr_text_en) {
+                    customFields[`${OCR_CUSTOM_FIELD_BASE}_en`] = ocrMetadata.vis_ocr_text_en;
+                }
+                if (Object.keys(customFields).length > 0) {
+                    await paperlessService.updateDocument(document.id, {
+                        custom_fields: customFields
+                    });
+                }
+            }
+        } catch (error) {
+            logger.warn('[ExpertPipelineExecutor] OCR checkpoint update failed', {
+                docId: document.id,
+                error: error.message
+            });
+        }
+    }
+
+    const summaryConfig = config.summaryFallback || {};
+    if (summaryConfig.enabled === 'yes' && ocrText) {
+        const tokenCount = calculateTokens(ocrText);
+        const maxInputTokens = parseInt(summaryConfig.maxInputTokens || 4000, 10);
+        if (tokenCount > maxInputTokens) {
+            const summary = await executor._summarizeTextForExtraction(ocrText, summaryConfig);
+            if (summary) {
+                document.summary_text = summary;
+                document.extraction_text = summary;
+                document._summary_metadata = {
+                    source: 'summary_fallback',
+                    original_tokens: tokenCount,
+                    truncated_input_tokens: maxInputTokens
+                };
+            }
+        }
     }
 
     // Step 2: Route to appropriate pipeline
@@ -1365,7 +1744,10 @@ async function processDocument(document, ollamaService, options = {}) {
         classificationResult,
         {
             ...options,
-            routingMetadata
+            routingMetadata,
+            guidanceEnabled: useGuidance,
+            enableVisualRag: useVisualRagRetrieval,
+            orchestration: orchestrationPlan
         }
     );
 

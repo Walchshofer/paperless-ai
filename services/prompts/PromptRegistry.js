@@ -12,7 +12,7 @@
  * Hardware Target: NVIDIA RTX 3090 Ti (24GB VRAM)
  *
  * Model Configuration (use lowercase identifiers consistently):
- * - Router/Visual: qwen3-vl:8b (multimodal)
+ * - Router/Planner: qwen3-vl:8b (multimodal)
  * - Medical Radiology: llava-med-v1.5 (multimodal)
  * - Medical General: medtext-llama3 (text-only)
  * - Finance Reasoning: fino1-8b (text-only)
@@ -63,8 +63,8 @@ const PromptCategory = Object.freeze({
  * Configured for RTX 3090 Ti (24GB VRAM) constraints.
  */
 const MODEL_NAMES = Object.freeze({
-    // Primary orchestration/router model (Nemotron manager)
-    router: process.env.ROUTER_MODEL || config.ollama?.visionModel || 'nemotron-manager:latest',
+    // Primary router/classifier model (multimodal)
+    router: config.ollama?.routerModel || config.ollama?.visionModel || 'qwen3-vl:8b',
 
     // Medical models - prefer MEDICAL_* env vars, then config.expertModels entries, then ollama defaults
     medicalImaging: process.env.MEDICAL_VISION_MODEL || config.expertModels?.medical?.vision || config.ollama?.visionModel || 'llava-med-v1.5',
@@ -94,7 +94,10 @@ const MODEL_NAMES = Object.freeze({
     gptOss: process.env.GPT_OSS_MODEL || null,
 
     // Infrastructure tier - Orchestration and embeddings (no default)
-    orchestrator: process.env.ORCHESTRATOR_MODEL || null,
+    orchestrator: process.env.ORCHESTRATOR_MODEL ||
+        config.ollama?.orchestratorModel ||
+        config.expertModels?.legal?.orchestrator ||
+        null,
     embeddingModel: process.env.EMBEDDING_MODEL || 'nomic-embed-text-v1.5',
     visualRetrieval: process.env.VISUAL_RETRIEVAL_MODEL || null,
 
@@ -109,6 +112,13 @@ const ModelRegistry = Object.freeze({
         vramRequirement: '8GB',
         capabilities: ['document_classification', 'visual_extraction', 'layout_analysis'],
         domains: [DomainType.SYSTEM, DomainType.GENERAL]
+    },
+    // System orchestrator - handles routing decisions across pipelines
+    [MODEL_NAMES.orchestrator]: {
+        type: ModelType.TEXT_ONLY,
+        vramRequirement: '8GB',
+        capabilities: ['pipeline_routing', 'service_orchestration'],
+        domains: [DomainType.SYSTEM]
     },
     // Medical radiology specialist - X-rays, CT, MRI interpretation
     [MODEL_NAMES.medicalImaging]: {
@@ -236,6 +246,72 @@ Respond with this exact JSON structure:
     config: {
         temperature: 0.2,  // Low temp for consistent classification
         maxTokens: 1024,
+        topK: 40,
+        topP: 0.9
+    }
+};
+
+/**
+ * SYS_ORCHESTRATOR_V1: System-level orchestration and routing controller
+ *
+ * Purpose: Decide pipeline selection, visual vs. text processing, and
+ * downstream service usage (Guidance, Visual RAG sidecar).
+ * Model: nemotron-orchestrator:8b (text-only)
+ */
+const SYS_ORCHESTRATOR_V1 = {
+    id: 'SYS_ORCHESTRATOR_V1',
+    version: '1.0.0',
+    domain: DomainType.SYSTEM,
+    category: PromptCategory.ROUTING,
+    model: MODEL_NAMES.orchestrator || MODEL_NAMES.general || MODEL_NAMES.router,
+    modelType: ModelType.TEXT_ONLY,
+
+    systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+You are the pipeline Orchestrator. Your task is to route documents to the best
+pipeline and decide whether to use visual analysis, the Guidance service, and
+the Visual RAG sidecar. Use ONLY the provided inputs. Do not invent pipelines.
+
+OUTPUT REQUIREMENTS:
+- Return ONLY valid JSON
+- Choose one pipeline id from the provided list
+- Provide booleans for each decision field
+- Provide a confidence score 0.0-1.0 and short reasons
+<|eot_id|>`,
+
+    userTemplate: `<|start_header_id|>user<|end_header_id|>
+Decide orchestration for this document.
+
+CLASSIFICATION_JSON:
+{{classification_json}}
+
+ROUTING_JSON:
+{{routing_json}}
+
+QUALITY_JSON:
+{{quality_json}}
+
+DOC_STATS:
+{{doc_stats}}
+
+PIPELINES:
+{{pipelines}}
+
+Return this exact JSON structure:
+{
+  "selected_pipeline": "<pipeline id>",
+  "requires_visual_analysis": true|false,
+  "use_visual_ocr": true|false,
+  "use_guidance": true|false,
+  "use_visual_rag_ingestion": true|false,
+  "use_visual_rag_retrieval": true|false,
+  "confidence": <0.0-1.0>,
+  "reasons": ["<short reason>"]
+}
+<|eot_id|>`,
+
+    config: {
+        temperature: 0.1,
+        maxTokens: 512,
         topK: 40,
         topP: 0.9
     }
@@ -976,13 +1052,13 @@ Respond with this exact JSON structure:
  * LEGAL_ORCHESTRATOR_V1: Legal Document Orchestration & Complexity Classification
  *
  * Purpose: Classify legal document complexity and recommend routing to specialized pipelines
- * Model: nemotron-manager (orchestrator)
+ * Model: nemotron-orchestrator:8b (orchestrator)
  */
 const LEGAL_ORCHESTRATOR_V1 = {
     id: 'LEGAL_ORCHESTRATOR_V1',
     version: '1.0.0',
     domain: DomainType.LEGAL,
-    model: MODEL_NAMES.router,
+    model: MODEL_NAMES.orchestrator || MODEL_NAMES.router,
     modelType: ModelType.TEXT_ONLY,
 
     systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
@@ -1124,6 +1200,7 @@ class PromptRegistry {
 
     _registerBuiltinPrompts() {
         this.register(SYS_ROUTER_V1);
+        this.register(SYS_ORCHESTRATOR_V1);
         this.register(VIS_OCR_V1);
         this.register(MED_RADIOLOGY_V1);
         this.register(MED_DOCTOR_V1);
@@ -1380,6 +1457,7 @@ module.exports = {
     MODEL_NAMES,
     // Export individual prompts for direct access
     SYS_ROUTER_V1,
+    SYS_ORCHESTRATOR_V1,
     VIS_OCR_V1,
     MED_RADIOLOGY_V1,
     MED_DOCTOR_V1,

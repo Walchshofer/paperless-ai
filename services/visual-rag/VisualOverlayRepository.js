@@ -204,27 +204,30 @@ class VisualOverlayRepository {
      * @param {number} pageNumber - Page number (1-indexed)
      * @param {Object} overlayData - Overlay data with label, box, confidence
      * @param {string} semanticLabel - Optional semantic label for quick filtering
+     * @param {Array<number>} embedding - Optional vector embedding
      * @returns {Promise<Object>} Created overlay record
      */
-    async saveOverlay(docId, pageNumber, overlayData, semanticLabel = null) {
+    async saveOverlay(docId, pageNumber, overlayData, semanticLabel = null, embedding = null) {
         if (!this.pool) {
             throw new Error('PostgreSQL not available');
         }
 
         const query = `
-            INSERT INTO visual_overlays (doc_id, page_number, overlay_data, semantic_label)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO visual_overlays (doc_id, page_number, overlay_data, semantic_label, embedding)
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING id, doc_id, page_number, overlay_data, semantic_label, created_at
         `;
 
         const label = semanticLabel || overlayData.label || null;
+        const embeddingVal = Array.isArray(embedding) ? JSON.stringify(embedding) : (embedding || null);
 
         try {
             const result = await this.pool.query(query, [
                 docId,
                 pageNumber,
                 JSON.stringify(overlayData),
-                label
+                label,
+                embeddingVal
             ]);
 
             logger.debug(`[VisualOverlayRepository] Saved overlay for doc ${docId} page ${pageNumber}: ${label}`);
@@ -258,12 +261,13 @@ class VisualOverlayRepository {
             const results = [];
 
             for (const overlay of overlays) {
-                const { pageNumber, overlayData, semanticLabel } = overlay;
+                const { pageNumber, overlayData, semanticLabel, embedding } = overlay;
                 const label = semanticLabel || overlayData.label || null;
+                const embeddingVal = Array.isArray(embedding) ? JSON.stringify(embedding) : (embedding || null);
 
                 const query = `
-                    INSERT INTO visual_overlays (doc_id, page_number, overlay_data, semantic_label)
-                    VALUES ($1, $2, $3, $4)
+                    INSERT INTO visual_overlays (doc_id, page_number, overlay_data, semantic_label, embedding)
+                    VALUES ($1, $2, $3, $4, $5)
                     RETURNING id, doc_id, page_number, overlay_data, semantic_label, created_at
                 `;
 
@@ -271,7 +275,8 @@ class VisualOverlayRepository {
                     docId,
                     pageNumber,
                     JSON.stringify(overlayData),
-                    label
+                    label,
+                    embeddingVal
                 ]);
 
                 results.push(this._mapRow(result.rows[0]));
@@ -422,6 +427,40 @@ class VisualOverlayRepository {
     }
 
     /**
+     * Search overlays by vector embedding similarity
+     * @param {Array<number>} embedding - Vector embedding
+     * @param {number} limit - Max results
+     * @param {number} threshold - Similarity threshold (0-1)
+     * @returns {Promise<Array<Object>>} Matching overlay records with similarity score
+     */
+    async searchByEmbedding(embedding, limit = 10, threshold = 0.7) {
+        if (!this.pool) {
+            throw new Error('PostgreSQL not available');
+        }
+
+        const embeddingVal = Array.isArray(embedding) ? JSON.stringify(embedding) : embedding;
+
+        const query = `
+            SELECT id, doc_id, page_number, overlay_data, semantic_label, created_at,
+                   1 - (embedding <=> $1) as similarity
+            FROM visual_overlays
+            WHERE 1 - (embedding <=> $1) > $2
+            ORDER BY similarity DESC
+            LIMIT $3
+        `;
+
+        try {
+            const result = await this.pool.query(query, [embeddingVal, threshold, limit]);
+            return result.rows.map(row => ({
+                ...this._mapRow(row),
+                similarity: row.similarity
+            }));
+        } catch (error) {
+            throw this._wrapError('Failed to search by embedding', error);
+        }
+    }
+
+    /**
      * Check if a document has overlays
      * @param {number} docId - Paperless document ID
      * @returns {Promise<boolean>}
@@ -456,13 +495,21 @@ class VisualOverlayRepository {
             return false;
         }
 
+        try {
+            // Enable pgvector extension
+            await this.pool.query('CREATE EXTENSION IF NOT EXISTS vector');
+        } catch (error) {
+            logger.warn('[VisualOverlayRepository] Failed to enable vector extension:', error.message);
+        }
+
         const columns = [
             { name: 'enhanced_ocr_text', type: 'TEXT' },
             { name: 'expert_metadata', type: 'JSONB DEFAULT \'{}\'' },
             { name: 'domain_view', type: 'JSONB DEFAULT \'{}\'' },
             { name: 'domain_signals', type: 'JSONB DEFAULT \'[]\'' },
             { name: 'retrieval_quality_score', type: 'FLOAT DEFAULT 0.0' },
-            { name: 'expert_routing_weights', type: 'JSONB DEFAULT \'{}\'' }
+            { name: 'expert_routing_weights', type: 'JSONB DEFAULT \'{}\'' },
+            { name: 'embedding', type: 'vector(768)' }
         ];
 
         try {
@@ -484,6 +531,12 @@ class VisualOverlayRepository {
                 CREATE INDEX IF NOT EXISTS idx_visual_overlays_quality
                 ON visual_overlays (retrieval_quality_score)
                 WHERE retrieval_quality_score >= 0.7
+            `);
+
+            // Create HNSW index for vector search
+            await this.pool.query(`
+                CREATE INDEX IF NOT EXISTS idx_visual_overlays_embedding 
+                ON visual_overlays USING hnsw (embedding vector_cosine_ops)
             `);
 
             logger.info('[VisualOverlayRepository] Enhanced schema columns verified');

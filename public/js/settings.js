@@ -186,6 +186,8 @@ class FormManager {
     toggleExpertSettings() {
         const expertSettings = document.getElementById('expertModelsSettings');
         const medicalSettings = document.getElementById('medicalExpertSettings');
+        const financialSettings = document.getElementById('financialExpertSettings');
+        const legalSettings = document.getElementById('legalExpertSettings');
         const provider = this.aiProvider.value;
 
         if (provider !== 'ollama') {
@@ -195,10 +197,15 @@ class FormManager {
 
         expertSettings?.classList.remove('hidden');
 
+        const expertSections = [medicalSettings, financialSettings, legalSettings].filter(Boolean);
         if (this.expertPipelineEnabled?.checked) {
-            medicalSettings?.classList.remove('opacity-50', 'pointer-events-none');
+            expertSections.forEach((section) => {
+                section.classList.remove('opacity-50', 'pointer-events-none');
+            });
         } else {
-            medicalSettings?.classList.add('opacity-50', 'pointer-events-none');
+            expertSections.forEach((section) => {
+                section.classList.add('opacity-50', 'pointer-events-none');
+            });
         }
     }
 

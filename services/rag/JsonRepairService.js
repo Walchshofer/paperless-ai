@@ -1,3 +1,5 @@
+const { calculateTokens } = require('../ollama/utils');
+
 class JsonRepairService {
     constructor(ollamaService) {
         this.ollamaService = ollamaService;
@@ -44,10 +46,40 @@ class JsonRepairService {
             content: `Please repair the following JSON so that it is valid. Preserve keys and values where possible. If fields are ambiguous, make sensible corrections. Return raw JSON only (no markdown code fences):\n\n${brokenJson}`
         };
 
+        const repairModel = 'sauerkraut-llama3.1:8b';
+        const fallbackLimits = this.ollamaService?._resolveOllamaLimits
+            ? this.ollamaService._resolveOllamaLimits('text', repairModel)
+            : {};
+        const limits = this.ollamaService?._resolveOllamaLimits
+            ? this.ollamaService._resolveOllamaLimits('expert', repairModel)
+            : fallbackLimits;
+        const contextWindow = Number.isFinite(limits?.contextWindow)
+            ? limits.contextWindow
+            : fallbackLimits?.contextWindow;
+        const baseResponseTokens = Number.isFinite(limits?.maxResponseTokens)
+            ? limits.maxResponseTokens
+            : fallbackLimits?.maxResponseTokens;
+        const repairPromptTokens = calculateTokens(systemMsg.content)
+            + calculateTokens(userMsg.content);
+        const desiredResponseTokens = Math.max(baseResponseTokens || 0, calculateTokens(brokenJson || ''));
+        const numCtx = this.ollamaService?._calculateNumCtx
+            ? this.ollamaService._calculateNumCtx(repairPromptTokens, desiredResponseTokens, contextWindow)
+            : contextWindow;
+        const responseTokens = Number.isFinite(numCtx)
+            ? Math.min(desiredResponseTokens, numCtx)
+            : desiredResponseTokens;
+        const options = { keep_alive: '1m' };
+        if (Number.isFinite(responseTokens)) {
+            options.num_predict = responseTokens;
+        }
+        if (Number.isFinite(numCtx)) {
+            options.num_ctx = numCtx;
+        }
+
         const response = await this.ollamaService.chat({
-            model: 'sauerkraut-llama3.1:8b',
+            model: repairModel,
             messages: [systemMsg, userMsg],
-            options: { keep_alive: '1m' }
+            options
         });
 
         const content = (typeof response === 'string') ? response : (response.message?.content || response.response || '');

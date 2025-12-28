@@ -24,6 +24,9 @@ class LocalTranslator {
         const model = options.model || this.config.model || config.ollama?.model;
         const maxTokens = options.maxTokens || this.config.maxTokens || 512;
         const temperature = options.temperature ?? this.config.temperature ?? 0.1;
+        const contextWindow = Number.isFinite(Number(options.contextWindow))
+            ? Number(options.contextWindow)
+            : this.config.contextWindow;
 
         const systemPrompt = [
             'You are a translation engine.',
@@ -41,7 +44,8 @@ class LocalTranslator {
                 ],
                 options: {
                     temperature,
-                    num_predict: maxTokens
+                    num_predict: maxTokens,
+                    ...(Number.isFinite(contextWindow) ? { num_ctx: contextWindow } : {})
                 },
                 stream: false
             });

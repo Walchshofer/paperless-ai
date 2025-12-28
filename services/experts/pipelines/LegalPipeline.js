@@ -30,7 +30,7 @@ const LegalPipeline = {
             type: StageType.CLASSIFICATION,
             guidanceTemplate: 'legal_classifier',
             promptId: 'LEGAL_ORCHESTRATOR_V1',
-            model: MODEL_NAMES.router,
+            model: MODEL_NAMES.orchestrator || MODEL_NAMES.router,
             modelType: ModelType.TEXT_ONLY,
             executionMode: ExecutionMode.SEQUENTIAL,
             inputMapping: {

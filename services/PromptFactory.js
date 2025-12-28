@@ -103,8 +103,28 @@ class PromptFactory {
         return basePrompt;
     }
 
+
+    getPlannerTemplateMeta(strict = false) {
+        const intent = strict ? 'router_classifier_strict' : 'router_classifier';
+        const template = this._getTemplate(intent, 'de', 'en');
+        return {
+            intent,
+            lang: template?.lang || 'de',
+            version: template?.version || 'unknown',
+            source: template ? 'template_manager' : 'fallback',
+            strict: !!strict
+        };
+    }
+
     buildTextPrompt(content, fields = {}, options = {}) {
         const customFieldsStr = this._generateCustomFieldsTemplate();
+        const template = this._getTemplate('financial_extraction', 'en');
+        const templateMeta = {
+            intent: 'financial_extraction',
+            lang: template?.lang || 'en',
+            version: template?.version || 'unknown',
+            source: template ? 'template_manager' : 'fallback'
+        };
         const baseSystemPrompt = appendFilenameFormat(
             this.buildBaseTemplate('text').replace('%CUSTOMFIELDS%', customFieldsStr)
         );
@@ -113,7 +133,12 @@ class PromptFactory {
             const prompt = options.customPrompt + '\n\n'
                 + config.mustHavePrompt.replace('%CUSTOMFIELDS%', customFieldsStr)
                 + "\n\n" + JSON.stringify(content);
-            return { prompt, systemPrompt: baseSystemPrompt, customFieldsStr };
+            return {
+                prompt,
+                systemPrompt: baseSystemPrompt,
+                customFieldsStr,
+                templateMeta: { ...templateMeta, customPrompt: true }
+            };
         }
 
         const existingTags = Array.isArray(fields.existingTags) ? fields.existingTags : [];
@@ -178,7 +203,7 @@ class PromptFactory {
         const prompt = JSON.stringify(content);
         const systemPrompt = promptSystem;
 
-        return { prompt, systemPrompt, customFieldsStr };
+        return { prompt, systemPrompt, customFieldsStr, templateMeta };
     }
 
     buildVisionPrompt(fieldSet, docType, options = {}) {

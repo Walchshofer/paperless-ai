@@ -70,8 +70,14 @@ module.exports = {
             }
 
             // 2. Truncate
-            const maxTokens = parseInt(config.tokenLimit || '16384', 10);
-            const contentTokenLimit = Math.max(1000, maxTokens - 1500);
+            const limits = this._resolveOllamaLimits('text', this.model);
+            const responseTokens = Number.isFinite(Number(options.maxResponseTokens))
+                ? Number(options.maxResponseTokens)
+                : limits.maxResponseTokens;
+            const contextWindow = Number.isFinite(Number(options.contextWindow))
+                ? Number(options.contextWindow)
+                : limits.contextWindow;
+            const contentTokenLimit = Math.max(1000, contextWindow - 1500);
             content = truncateToTokenLimit(content, contentTokenLimit);
 
             await this._handleThumbnailCaching(id);
@@ -87,7 +93,7 @@ module.exports = {
                 }
             }
 
-            const promptResult = this.promptFactory.buildTextPrompt(
+            let promptResult = this.promptFactory.buildTextPrompt(
                 content,
                 {
                     existingTags,
@@ -104,20 +110,108 @@ module.exports = {
                 logger.debug('[DEBUG] Ollama Service started with custom prompt');
             }
 
-            const { prompt, systemPrompt } = promptResult;
+            let { prompt, systemPrompt } = promptResult;
+            const promptMeta = promptResult.templateMeta || { intent: 'legacy_text' };
+            logger.info({
+                event: 'prompt_template_selected',
+                stage: 'text',
+                model: this.model,
+                template: promptMeta,
+                limitsSource: limits.source,
+                modelKey: limits.modelKey
+            });
 
             // 4. Calculate Context - MUST include both system prompt AND user prompt
-            const systemPromptTokens = calculateTokens(systemPrompt);
-            const promptTokenCount = calculateTokens(prompt);
-            const totalInputTokens = systemPromptTokens + promptTokenCount;
-            const expectedResponseTokens = 2048; // Matches num_predict for full JSON with custom_fields
-            const numCtx = this._calculateNumCtx(totalInputTokens, expectedResponseTokens);
+            let systemPromptTokens = calculateTokens(systemPrompt);
+            let promptTokenCount = calculateTokens(prompt);
+            let totalInputTokens = systemPromptTokens + promptTokenCount;
+            const effectiveContextWindow = this._getEffectiveContextWindow(contextWindow);
+            const maxInputTokens = Math.max(0, effectiveContextWindow - responseTokens);
+            if (totalInputTokens > maxInputTokens) {
+                const contentTokens = calculateTokens(content);
+                const excessTokens = totalInputTokens - maxInputTokens;
+                const targetContentTokens = Math.max(0, contentTokens - excessTokens);
+                if (targetContentTokens < contentTokens) {
+                    logger.warn({
+                        event: 'prompt_truncated',
+                        stage: 'text',
+                        model: this.model,
+                        template: promptMeta,
+                        reason: 'context_window',
+                        contentTokens,
+                        targetContentTokens,
+                        totalInputTokens,
+                        maxInputTokens,
+                        responseTokens,
+                        contextWindow,
+                        effectiveContextWindow,
+                        limitsSource: limits.source,
+                        modelKey: limits.modelKey
+                    });
+                    content = truncateToTokenLimit(content, targetContentTokens);
+                    promptResult = this.promptFactory.buildTextPrompt(
+                        content,
+                        {
+                            existingTags,
+                            existingCorrespondentList,
+                            existingDocumentTypesList
+                        },
+                        {
+                            customPrompt,
+                            validatedExternalApiData
+                        }
+                    );
+                    ({ prompt, systemPrompt } = promptResult);
+                    systemPromptTokens = calculateTokens(systemPrompt);
+                    promptTokenCount = calculateTokens(prompt);
+                    totalInputTokens = systemPromptTokens + promptTokenCount;
+                }
+            }
+            const numCtx = this._calculateNumCtx(totalInputTokens, responseTokens, contextWindow);
 
-            logger.debug(`[DEBUG] Tokens: ${totalInputTokens} (system: ${systemPromptTokens}, prompt: ${promptTokenCount}), Context: ${numCtx}, Model: ${this.model}`);
+            logger.info({
+                event: 'prompt_token_budget',
+                stage: 'text',
+                model: this.model,
+                template: promptMeta,
+                systemTokens: systemPromptTokens,
+                promptTokens: promptTokenCount,
+                totalInputTokens,
+                responseTokens,
+                contextWindow,
+                effectiveContextWindow,
+                numCtx,
+                limitsSource: limits.source,
+                modelKey: limits.modelKey
+            });
+
+            logger.debug(`[DEBUG] Tokens: ${totalInputTokens} (system: ${systemPromptTokens}, prompt: ${promptTokenCount}), Context: ${numCtx}, Response: ${responseTokens}, Model: ${this.model}`);
             logger.debug(`[DEBUG] Use existing data: ${config.useExistingData}, External API: ${validatedExternalApiData ? 'included' : 'none'}`);
 
             // 5. Call API
-            const response = await this._callOllamaAPI(prompt, systemPrompt, numCtx, this.documentAnalysisSchema);
+            const response = await this._callOllamaAPI(
+                prompt,
+                systemPrompt,
+                numCtx,
+                responseTokens,
+                this.documentAnalysisSchema
+            );
+            const doneReason = response?.done_reason;
+            const evalCount = response?.eval_count;
+            if (doneReason === 'length' || (Number.isFinite(evalCount) && Number.isFinite(responseTokens) && evalCount >= responseTokens)) {
+                logger.warn({
+                    event: 'response_truncated',
+                    stage: 'text',
+                    model: this.model,
+                    template: promptMeta,
+                    doneReason: doneReason || null,
+                    evalCount: Number.isFinite(evalCount) ? evalCount : null,
+                    numPredict: responseTokens,
+                    numCtx,
+                    limitsSource: limits.source,
+                    modelKey: limits.modelKey
+                });
+            }
 
             // 6. Process Response
             const parsedResponse = this._processOllamaResponse(response);
@@ -147,12 +241,13 @@ module.exports = {
         }
     },
 
-    async _callOllamaAPI(prompt, systemPrompt, numCtx, schema) {
+    async _callOllamaAPI(prompt, systemPrompt, numCtx, numPredict, schema) {
         try {
             // DEBUG: Log request details
             logger.debug('[DEBUG] Ollama API request - system prompt length:', systemPrompt.length);
             logger.debug('[DEBUG] Ollama API request - prompt length:', prompt.length);
             logger.debug('[DEBUG] Ollama API request - numCtx:', numCtx);
+            logger.debug('[DEBUG] Ollama API request - numPredict:', numPredict);
 
             // NOTE: gpt-oss doesn't support the 'format' parameter for JSON schema
             // JSON output is requested via the system prompt instead
@@ -168,7 +263,7 @@ module.exports = {
                     top_p: 0.9,
                     repeat_penalty: 1.1,
                     top_k: 7,
-                    num_predict: 2048, // Increased to allow full JSON response with custom_fields
+                    num_predict: numPredict,
                     num_ctx: numCtx
                 }
             });
@@ -236,14 +331,20 @@ Rules:
 TEXT:
 ${cleaned}`;
 
+        const limits = this._resolveOllamaLimits('text', this.model);
+        const contextWindow = limits.contextWindow;
+        const repairPromptTokens = calculateTokens(repairPrompt);
+        const desiredResponseTokens = Math.max(limits.maxResponseTokens, calculateTokens(cleaned));
+        const numCtx = this._calculateNumCtx(repairPromptTokens, desiredResponseTokens, contextWindow);
+        const responseTokens = Math.min(desiredResponseTokens, numCtx);
         const response = await this.client.post(`${this.apiUrl}/api/generate`, {
             model: this.model,
             prompt: repairPrompt,
             stream: false,
             options: {
                 temperature: 0,
-                num_predict: 2048,
-                num_ctx: 8192
+                num_predict: responseTokens,
+                num_ctx: numCtx
             }
         });
 

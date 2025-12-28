@@ -8,7 +8,7 @@ These models are fully integrated and production-ready:
 
 | Canonical Name | Aliases | Role | Domain | Type | VRAM | Status | Config Keys | Used In |
 |---|---|---|---|---|---|---|---|---|
-| `qwen3-vl:8b` | `qwen3-vl`, `qwen3-vl:8B` | Document classification, visual routing, OCR, handwriting recognition | System/General | Multimodal | 10GB | Active | `ROUTER_MODEL`, `ollama.visionModel` | SYS_ROUTER_V1, ExpertRegistry, PromptRegistry |
+| `qwen3-vl:8b` | `qwen3-vl`, `qwen3-vl:8B` | Document classification, visual routing, OCR, handwriting recognition | System/General | Multimodal | 10GB | Active | `PLANNER_MODEL`, `ROUTER_MODEL`, `ollama.visionModel`, `ollama.plannerModel`, `ollama.routerModel` | SYS_ROUTER_V1, ExpertRegistry, PromptRegistry |
 | `llava-med-v1.5` | `llava-med`, `llava-med-v1.5:latest` | Medical imaging analysis (X-ray, CT, MRI, ultrasound, microscopy) | Medical | Multimodal | 9GB | Active | `MEDICAL_VISION_MODEL`, `MEDICAL_RADIOLOGY_MODEL` | MED_RADIOLOGY_V1, ExpertRegistry |
 | `medtext-llama3` | `medtext`, `medtext-llama3:latest` | Clinical text extraction, medical coding (ICD-10), entity recognition | Medical | Text | 6GB | Active | `MEDICAL_ANALYSIS_MODEL` | MED_DOCTOR_V1, MED_INTEGRATOR_V1, ExpertRegistry |
 | `fino1-8b` | `fino1`, `fino1-8b-q8` | Financial reasoning, mathematical validation, table extraction, OCR correction | Financial | Text | 6GB | Active | `FINANCIAL_ANALYSIS_MODEL` | FIN_REASONER_V1, ExpertRegistry |
@@ -16,7 +16,7 @@ These models are fully integrated and production-ready:
 | `sauerkraut-llama3.1:8b` | `sauerkraut`, `llama3.1` | German language general purpose, polite correspondence, fallback | General | Text | 6GB | Active | `OLLAMA_MODEL`, `GENERAL_MODEL` | GEN_FALLBACK_V1, config.js default |
 | `llama3.2:latest` | `llama3.2`, `llama3` | General document processing fallback (alternative to sauerkraut) | General | Text | 6GB | Legacy | Alternative for general model | Tests, future implementations |
 
-## Advanced Tier (Documented, Planned Integration)
+## Advanced Tier (Active/Optional Reasoning Models)
 
 High-value reasoning models for complex analysis:
 
@@ -24,7 +24,7 @@ High-value reasoning models for complex analysis:
 |---|---|---|---|---|---|---|---|---|
 | `dragon-finance` | `dragon`, `dragon-llm` | Advanced multilingual reasoning, medical-financial analysis, summarization, implication checking | Financial/Medical | Text (Reasoning) | 9GB | Documented | `DRAGON_MODEL` | `docs/model/dragon-finance.md` |
 | `gpt-oss` | `gpt-oss-20b` | Complex reasoning, chain-of-thought, agentic tool use, coding | General | Text (Reasoning) | 13GB | Documented | `GPT_OSS_MODEL` | `docs/model/gpt-oss.md` |
-| `nemotron-orchestrator:8b` | `nemotron`, `orchestrator` | Task delegation, tool selection, planning, expert routing | System | Text | 8GB | Documented | `ORCHESTRATOR_MODEL` | `docs/model/nemotron-orchestrator.md` |
+| `nemotron-orchestrator:8b` | `nemotron`, `orchestrator` | Task delegation, tool selection, planning, expert routing | System | Text | 8GB | Active | `ORCHESTRATOR_MODEL` | `docs/model/nemotron-orchestrator.md` |
 
 ## Infrastructure Tier (Embedding & Retrieval)
 

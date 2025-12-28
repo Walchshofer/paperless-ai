@@ -35,6 +35,77 @@ const _expertModelsCache = {
 };
 const EXPERT_MODELS_CACHE_TTL_MS = parseInt(process.env.EXPERT_MODELS_CACHE_TTL_MS, 10) || 10000; // 10s default
 
+const parseOllamaModelLimits = (value) => {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (error) {
+    logger.warn('[SETTINGS] Failed to parse OLLAMA_MODEL_LIMITS_JSON', { error: error.message });
+    return {};
+  }
+};
+
+const findModelLimitKey = (limits, modelName) => {
+  if (!limits || !modelName) return null;
+  const normalized = String(modelName).toLowerCase();
+  return Object.keys(limits).find((key) => key.toLowerCase() === normalized) || null;
+};
+
+const resolveModelLimit = (limits, modelName, kind) => {
+  const key = findModelLimitKey(limits, modelName);
+  if (!key) return {};
+  const entry = limits[key];
+  if (!entry || typeof entry !== 'object') return {};
+  const candidate = entry[kind] && typeof entry[kind] === 'object' ? entry[kind] : entry;
+  return candidate && typeof candidate === 'object' ? candidate : {};
+};
+
+const parseLimitInput = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const upsertModelLimit = (limits, modelName, kind, contextWindowInput, maxResponseTokensInput) => {
+  if (!limits || !modelName || !kind) return;
+  const trimmed = String(modelName).trim();
+  if (!trimmed) return;
+
+  const existingKey = findModelLimitKey(limits, trimmed);
+  const key = existingKey || trimmed;
+  const existingEntry = limits[key];
+  const nextEntry = existingEntry && typeof existingEntry === 'object' ? { ...existingEntry } : {};
+  const kindEntry = nextEntry[kind] && typeof nextEntry[kind] === 'object' ? { ...nextEntry[kind] } : {};
+
+  const contextWindow = parseLimitInput(contextWindowInput);
+  const maxResponseTokens = parseLimitInput(maxResponseTokensInput);
+
+  if (contextWindow === null) {
+    delete kindEntry.contextWindow;
+  } else {
+    kindEntry.contextWindow = contextWindow;
+  }
+
+  if (maxResponseTokens === null) {
+    delete kindEntry.maxResponseTokens;
+  } else {
+    kindEntry.maxResponseTokens = maxResponseTokens;
+  }
+
+  if (Object.keys(kindEntry).length === 0) {
+    delete nextEntry[kind];
+  } else {
+    nextEntry[kind] = kindEntry;
+  }
+
+  if (Object.keys(nextEntry).length === 0) {
+    delete limits[key];
+  } else {
+    limits[key] = nextEntry;
+  }
+};
+
 /**
  * @swagger
  * tags:
@@ -2171,6 +2242,14 @@ router.get('/setup', async (req, res) => {
       OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-4o-mini',
       OLLAMA_API_URL: process.env.OLLAMA_API_URL || 'http://localhost:11434',
       OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b',
+      OLLAMA_CONTEXT_WINDOW: process.env.OLLAMA_CONTEXT_WINDOW || '',
+      OLLAMA_MAX_RESPONSE_TOKENS: process.env.OLLAMA_MAX_RESPONSE_TOKENS || '',
+      OLLAMA_VISION_CONTEXT_WINDOW: process.env.OLLAMA_VISION_CONTEXT_WINDOW || '',
+      OLLAMA_VISION_MAX_RESPONSE_TOKENS: process.env.OLLAMA_VISION_MAX_RESPONSE_TOKENS || '',
+      OLLAMA_EXPERT_CONTEXT_WINDOW: process.env.OLLAMA_EXPERT_CONTEXT_WINDOW || '',
+      OLLAMA_EXPERT_MAX_RESPONSE_TOKENS: process.env.OLLAMA_EXPERT_MAX_RESPONSE_TOKENS || '',
+      TRANSLATION_CONTEXT_WINDOW: process.env.TRANSLATION_CONTEXT_WINDOW || '',
+      TRANSLATION_MAX_TOKENS: process.env.TRANSLATION_MAX_TOKENS || '',
       SCAN_INTERVAL: process.env.SCAN_INTERVAL || '*/30 * * * *',
       SYSTEM_PROMPT: process.env.SYSTEM_PROMPT || '',
       PROCESS_PREDEFINED_DOCUMENTS: process.env.PROCESS_PREDEFINED_DOCUMENTS || 'no',
@@ -3132,6 +3211,33 @@ router.get('/settings', async (req, res) => {
   if(!isConfigured && process.env.PAPERLESS_AI_INITIAL_SETUP === 'yes') {
     showErrorCheckSettings = true;
   }
+  const modelLimits = (config?.ollama?.modelLimits && typeof config.ollama.modelLimits === 'object')
+    ? config.ollama.modelLimits
+    : parseOllamaModelLimits(process.env.OLLAMA_MODEL_LIMITS_JSON);
+  const resolveLimitValue = (modelName, kind, field) => {
+    const resolved = resolveModelLimit(modelLimits, modelName, kind);
+    const value = resolved ? resolved[field] : undefined;
+    return value === undefined || value === null ? '' : value;
+  };
+
+  const medicalVisionModel = process.env.MEDICAL_VISION_MODEL || 'qwen3-vl:8b';
+  const medicalAnalysisModel = process.env.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3';
+  const medicalRadiologyModel = process.env.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.5';
+  const plannerModel = process.env.PLANNER_MODEL ||
+    process.env.OLLAMA_PLANNER_MODEL ||
+    process.env.OLLAMA_VISION_MODEL ||
+    'qwen3-vl:8b';
+  const routerModel = process.env.ROUTER_MODEL ||
+    process.env.OLLAMA_ROUTER_MODEL ||
+    plannerModel ||
+    'qwen3-vl:8b';
+  const orchestratorModel = process.env.ORCHESTRATOR_MODEL || 'nemotron-orchestrator:8b';
+  const financialVisionModel = process.env.FINANCIAL_VISION_MODEL || 'llm-pro-finance-8b';
+  const financialAnalysisModel = process.env.FINANCIAL_ANALYSIS_MODEL || 'fino1-8b';
+  const financialVatExpertModel = process.env.FINANCIAL_VAT_EXPERT || 'dragon-finance:latest';
+  const legalVisionModel = process.env.LEGAL_VISION_MODEL || 'qwen3-vl:8b';
+  const legalAnalysisModel = process.env.LEGAL_ANALYSIS_MODEL || 'dragon-finance:latest';
+  const legalOrchestratorModel = process.env.LEGAL_ORCHESTRATOR_MODEL || orchestratorModel;
   let config = {
     PAPERLESS_API_URL: (process.env.PAPERLESS_API_URL || 'http://localhost:8000').replace(/\/api$/, ''),
     PAPERLESS_API_TOKEN: process.env.PAPERLESS_API_TOKEN || '',
@@ -3139,16 +3245,53 @@ router.get('/settings', async (req, res) => {
     AI_PROVIDER: process.env.AI_PROVIDER || 'openai',
     OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
     OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-    OLLAMA_API_URL: process.env.OLLAMA_API_URL || 'http://localhost:11434',
+    OLLAMA_API_URL: process.env.OLLAMA_API_URL || 'http://localhost:11434',     
     OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b',
+    OLLAMA_CONTEXT_WINDOW: process.env.OLLAMA_CONTEXT_WINDOW || '',
+    OLLAMA_MAX_RESPONSE_TOKENS: process.env.OLLAMA_MAX_RESPONSE_TOKENS || '',
+    OLLAMA_VISION_CONTEXT_WINDOW: process.env.OLLAMA_VISION_CONTEXT_WINDOW || '',
+    OLLAMA_VISION_MAX_RESPONSE_TOKENS: process.env.OLLAMA_VISION_MAX_RESPONSE_TOKENS || '',
+    OLLAMA_EXPERT_CONTEXT_WINDOW: process.env.OLLAMA_EXPERT_CONTEXT_WINDOW || '',
+    OLLAMA_EXPERT_MAX_RESPONSE_TOKENS: process.env.OLLAMA_EXPERT_MAX_RESPONSE_TOKENS || '',
+    TRANSLATION_CONTEXT_WINDOW: process.env.TRANSLATION_CONTEXT_WINDOW || '',
+    TRANSLATION_MAX_TOKENS: process.env.TRANSLATION_MAX_TOKENS || '',
     EXPERT_PIPELINE_ENABLED: process.env.EXPERT_PIPELINE_ENABLED || 'yes',
-    MEDICAL_VISION_MODEL: process.env.MEDICAL_VISION_MODEL || 'qwen3-vl:8b',
-    MEDICAL_ANALYSIS_MODEL: process.env.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3',
-    MEDICAL_RADIOLOGY_MODEL: process.env.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.5',
-    FINANCIAL_VISION_MODEL: process.env.FINANCIAL_VISION_MODEL || '',
-    FINANCIAL_ANALYSIS_MODEL: process.env.FINANCIAL_ANALYSIS_MODEL || '',
-    LEGAL_VISION_MODEL: process.env.LEGAL_VISION_MODEL || '',
-    LEGAL_ANALYSIS_MODEL: process.env.LEGAL_ANALYSIS_MODEL || '',
+    MEDICAL_VISION_MODEL: medicalVisionModel,
+    MEDICAL_ANALYSIS_MODEL: medicalAnalysisModel,
+    MEDICAL_RADIOLOGY_MODEL: medicalRadiologyModel,
+    PLANNER_MODEL: plannerModel,
+    ROUTER_MODEL: routerModel,
+    ORCHESTRATOR_MODEL: orchestratorModel,
+    FINANCIAL_VISION_MODEL: financialVisionModel,
+    FINANCIAL_ANALYSIS_MODEL: financialAnalysisModel,
+    FINANCIAL_VAT_EXPERT: financialVatExpertModel,
+    LEGAL_VISION_MODEL: legalVisionModel,
+    LEGAL_ANALYSIS_MODEL: legalAnalysisModel,
+    LEGAL_ORCHESTRATOR_MODEL: legalOrchestratorModel,
+    PLANNER_CONTEXT_WINDOW: resolveLimitValue(plannerModel, 'planner', 'contextWindow'),
+    PLANNER_MAX_RESPONSE_TOKENS: resolveLimitValue(plannerModel, 'planner', 'maxResponseTokens'),
+    ROUTER_CONTEXT_WINDOW: resolveLimitValue(routerModel, 'expert', 'contextWindow'),
+    ROUTER_MAX_RESPONSE_TOKENS: resolveLimitValue(routerModel, 'expert', 'maxResponseTokens'),
+    ORCHESTRATOR_CONTEXT_WINDOW: resolveLimitValue(orchestratorModel, 'expert', 'contextWindow'),
+    ORCHESTRATOR_MAX_RESPONSE_TOKENS: resolveLimitValue(orchestratorModel, 'expert', 'maxResponseTokens'),
+    MEDICAL_VISION_CONTEXT_WINDOW: resolveLimitValue(medicalVisionModel, 'vision', 'contextWindow'),
+    MEDICAL_VISION_MAX_RESPONSE_TOKENS: resolveLimitValue(medicalVisionModel, 'vision', 'maxResponseTokens'),
+    MEDICAL_ANALYSIS_CONTEXT_WINDOW: resolveLimitValue(medicalAnalysisModel, 'expert', 'contextWindow'),
+    MEDICAL_ANALYSIS_MAX_RESPONSE_TOKENS: resolveLimitValue(medicalAnalysisModel, 'expert', 'maxResponseTokens'),
+    MEDICAL_RADIOLOGY_CONTEXT_WINDOW: resolveLimitValue(medicalRadiologyModel, 'vision', 'contextWindow'),
+    MEDICAL_RADIOLOGY_MAX_RESPONSE_TOKENS: resolveLimitValue(medicalRadiologyModel, 'vision', 'maxResponseTokens'),
+    FINANCIAL_VISION_CONTEXT_WINDOW: resolveLimitValue(financialVisionModel, 'vision', 'contextWindow'),
+    FINANCIAL_VISION_MAX_RESPONSE_TOKENS: resolveLimitValue(financialVisionModel, 'vision', 'maxResponseTokens'),
+    FINANCIAL_ANALYSIS_CONTEXT_WINDOW: resolveLimitValue(financialAnalysisModel, 'expert', 'contextWindow'),
+    FINANCIAL_ANALYSIS_MAX_RESPONSE_TOKENS: resolveLimitValue(financialAnalysisModel, 'expert', 'maxResponseTokens'),
+    FINANCIAL_VAT_EXPERT_CONTEXT_WINDOW: resolveLimitValue(financialVatExpertModel, 'expert', 'contextWindow'),
+    FINANCIAL_VAT_EXPERT_MAX_RESPONSE_TOKENS: resolveLimitValue(financialVatExpertModel, 'expert', 'maxResponseTokens'),
+    LEGAL_VISION_CONTEXT_WINDOW: resolveLimitValue(legalVisionModel, 'vision', 'contextWindow'),
+    LEGAL_VISION_MAX_RESPONSE_TOKENS: resolveLimitValue(legalVisionModel, 'vision', 'maxResponseTokens'),
+    LEGAL_ANALYSIS_CONTEXT_WINDOW: resolveLimitValue(legalAnalysisModel, 'expert', 'contextWindow'),
+    LEGAL_ANALYSIS_MAX_RESPONSE_TOKENS: resolveLimitValue(legalAnalysisModel, 'expert', 'maxResponseTokens'),
+    LEGAL_ORCHESTRATOR_CONTEXT_WINDOW: resolveLimitValue(legalOrchestratorModel, 'expert', 'contextWindow'),
+    LEGAL_ORCHESTRATOR_MAX_RESPONSE_TOKENS: resolveLimitValue(legalOrchestratorModel, 'expert', 'maxResponseTokens'),
     SCAN_INTERVAL: process.env.SCAN_INTERVAL || '*/30 * * * *',
     SYSTEM_PROMPT: process.env.SYSTEM_PROMPT || '',
     PROCESS_PREDEFINED_DOCUMENTS: process.env.PROCESS_PREDEFINED_DOCUMENTS || 'no',
@@ -4203,10 +4346,48 @@ router.post('/setup', express.json(), async (req, res) => {
       openaiModel,
       ollamaUrl,
       ollamaModel,
+      ollamaContextWindow,
+      ollamaMaxResponseTokens,
+      ollamaVisionContextWindow,
+      ollamaVisionMaxResponseTokens,
+      ollamaExpertContextWindow,
+      ollamaExpertMaxResponseTokens,
+      translationContextWindow,
+      translationMaxTokens,
       expertPipelineEnabled,
       medicalVisionModel,
       medicalAnalysisModel,
       medicalRadiologyModel,
+      medicalVisionContextWindow,
+      medicalVisionMaxResponseTokens,
+      medicalAnalysisContextWindow,
+      medicalAnalysisMaxResponseTokens,
+      medicalRadiologyContextWindow,
+      medicalRadiologyMaxResponseTokens,
+      plannerModel,
+      routerModel,
+      plannerContextWindow,
+      plannerMaxResponseTokens,
+      routerContextWindow,
+      routerMaxResponseTokens,
+      financialVisionModel,
+      financialAnalysisModel,
+      financialVatExpertModel,
+      financialVisionContextWindow,
+      financialVisionMaxResponseTokens,
+      financialAnalysisContextWindow,
+      financialAnalysisMaxResponseTokens,
+      financialVatExpertContextWindow,
+      financialVatExpertMaxResponseTokens,
+      legalVisionModel,
+      legalAnalysisModel,
+      legalOrchestratorModel,
+      legalVisionContextWindow,
+      legalVisionMaxResponseTokens,
+      legalAnalysisContextWindow,
+      legalAnalysisMaxResponseTokens,
+      legalOrchestratorContextWindow,
+      legalOrchestratorMaxResponseTokens,
       scanInterval,
       systemPrompt,
       showTags,
@@ -4331,6 +4512,14 @@ router.post('/setup', express.json(), async (req, res) => {
       PROCESS_PREDEFINED_DOCUMENTS: showTags || 'no',
       TOKEN_LIMIT: tokenLimit || 128000,
       RESPONSE_TOKENS: responseTokens || 1000,
+      OLLAMA_CONTEXT_WINDOW: ollamaContextWindow || '',
+      OLLAMA_MAX_RESPONSE_TOKENS: ollamaMaxResponseTokens || '',
+      OLLAMA_VISION_CONTEXT_WINDOW: ollamaVisionContextWindow || '',
+      OLLAMA_VISION_MAX_RESPONSE_TOKENS: ollamaVisionMaxResponseTokens || '',
+      OLLAMA_EXPERT_CONTEXT_WINDOW: ollamaExpertContextWindow || '',
+      OLLAMA_EXPERT_MAX_RESPONSE_TOKENS: ollamaExpertMaxResponseTokens || '',
+      TRANSLATION_CONTEXT_WINDOW: translationContextWindow || '',
+      TRANSLATION_MAX_TOKENS: translationMaxTokens || '',
       TAGS: normalizeArray(tags),
       ADD_AI_PROCESSED_TAG: aiProcessedTag || 'no',
       AI_PROCESSED_TAG_NAME: aiTagName || 'ai-processed',
@@ -4615,10 +4804,21 @@ router.post('/settings', express.json(), async (req, res) => {
       openaiModel,
       ollamaUrl,
       ollamaModel,
+      ollamaContextWindow,
+      ollamaMaxResponseTokens,
+      ollamaVisionContextWindow,
+      ollamaVisionMaxResponseTokens,
+      ollamaExpertContextWindow,
+      ollamaExpertMaxResponseTokens,
+      translationContextWindow,
+      translationMaxTokens,
       expertPipelineEnabled,
       medicalVisionModel,
       medicalAnalysisModel,
       medicalRadiologyModel,
+      orchestratorModel,
+      orchestratorContextWindow,
+      orchestratorMaxResponseTokens,
       scanInterval,
       systemPrompt,
       showTags,
@@ -4662,14 +4862,28 @@ router.post('/settings', express.json(), async (req, res) => {
       OPENAI_MODEL: process.env.OPENAI_MODEL || '',
       OLLAMA_API_URL: process.env.OLLAMA_API_URL || '',
       OLLAMA_MODEL: process.env.OLLAMA_MODEL || '',
+      OLLAMA_CONTEXT_WINDOW: process.env.OLLAMA_CONTEXT_WINDOW || '',
+      OLLAMA_MAX_RESPONSE_TOKENS: process.env.OLLAMA_MAX_RESPONSE_TOKENS || '',
+      OLLAMA_VISION_CONTEXT_WINDOW: process.env.OLLAMA_VISION_CONTEXT_WINDOW || '',
+      OLLAMA_VISION_MAX_RESPONSE_TOKENS: process.env.OLLAMA_VISION_MAX_RESPONSE_TOKENS || '',
+      OLLAMA_EXPERT_CONTEXT_WINDOW: process.env.OLLAMA_EXPERT_CONTEXT_WINDOW || '',
+      OLLAMA_EXPERT_MAX_RESPONSE_TOKENS: process.env.OLLAMA_EXPERT_MAX_RESPONSE_TOKENS || '',
+      TRANSLATION_CONTEXT_WINDOW: process.env.TRANSLATION_CONTEXT_WINDOW || '',
+      TRANSLATION_MAX_TOKENS: process.env.TRANSLATION_MAX_TOKENS || '',
+      OLLAMA_MODEL_LIMITS_JSON: process.env.OLLAMA_MODEL_LIMITS_JSON || '',
       EXPERT_PIPELINE_ENABLED: process.env.EXPERT_PIPELINE_ENABLED || 'yes',
       MEDICAL_VISION_MODEL: process.env.MEDICAL_VISION_MODEL || 'qwen3-vl:8b',
       MEDICAL_ANALYSIS_MODEL: process.env.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3',
       MEDICAL_RADIOLOGY_MODEL: process.env.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.5',
+      PLANNER_MODEL: process.env.PLANNER_MODEL || '',
+      ROUTER_MODEL: process.env.ROUTER_MODEL || '',
+      ORCHESTRATOR_MODEL: process.env.ORCHESTRATOR_MODEL || '',
       FINANCIAL_VISION_MODEL: process.env.FINANCIAL_VISION_MODEL || '',
       FINANCIAL_ANALYSIS_MODEL: process.env.FINANCIAL_ANALYSIS_MODEL || '',
+      FINANCIAL_VAT_EXPERT: process.env.FINANCIAL_VAT_EXPERT || '',
       LEGAL_VISION_MODEL: process.env.LEGAL_VISION_MODEL || '',
       LEGAL_ANALYSIS_MODEL: process.env.LEGAL_ANALYSIS_MODEL || '',
+      LEGAL_ORCHESTRATOR_MODEL: process.env.LEGAL_ORCHESTRATOR_MODEL || '',
       SCAN_INTERVAL: process.env.SCAN_INTERVAL || '*/30 * * * *',
       SYSTEM_PROMPT: process.env.SYSTEM_PROMPT || '',
       PROCESS_PREDEFINED_DOCUMENTS: process.env.PROCESS_PREDEFINED_DOCUMENTS || 'no',
@@ -4815,9 +5029,17 @@ router.post('/settings', express.json(), async (req, res) => {
     // Update general settings
     if (scanInterval) updatedConfig.SCAN_INTERVAL = scanInterval;
     if (systemPrompt) updatedConfig.SYSTEM_PROMPT = processedPrompt.replace(/\r\n/g, '\n').replace(/\n/g, '\\n');
-    if (showTags) updatedConfig.PROCESS_PREDEFINED_DOCUMENTS = showTags;
+    if (showTags) updatedConfig.PROCESS_PREDEFINED_DOCUMENTS = showTags;        
     if (tokenLimit) updatedConfig.TOKEN_LIMIT = tokenLimit;
     if (responseTokens) updatedConfig.RESPONSE_TOKENS = responseTokens;
+    if (ollamaContextWindow !== undefined) updatedConfig.OLLAMA_CONTEXT_WINDOW = ollamaContextWindow;
+    if (ollamaMaxResponseTokens !== undefined) updatedConfig.OLLAMA_MAX_RESPONSE_TOKENS = ollamaMaxResponseTokens;
+    if (ollamaVisionContextWindow !== undefined) updatedConfig.OLLAMA_VISION_CONTEXT_WINDOW = ollamaVisionContextWindow;
+    if (ollamaVisionMaxResponseTokens !== undefined) updatedConfig.OLLAMA_VISION_MAX_RESPONSE_TOKENS = ollamaVisionMaxResponseTokens;
+    if (ollamaExpertContextWindow !== undefined) updatedConfig.OLLAMA_EXPERT_CONTEXT_WINDOW = ollamaExpertContextWindow;
+    if (ollamaExpertMaxResponseTokens !== undefined) updatedConfig.OLLAMA_EXPERT_MAX_RESPONSE_TOKENS = ollamaExpertMaxResponseTokens;
+    if (translationContextWindow !== undefined) updatedConfig.TRANSLATION_CONTEXT_WINDOW = translationContextWindow;
+    if (translationMaxTokens !== undefined) updatedConfig.TRANSLATION_MAX_TOKENS = translationMaxTokens;
     if (tags !== undefined) updatedConfig.TAGS = normalizeArray(tags);
     if (aiProcessedTag) updatedConfig.ADD_AI_PROCESSED_TAG = aiProcessedTag;
     if (aiTagName) updatedConfig.AI_PROCESSED_TAG_NAME = aiTagName;
@@ -4829,9 +5051,48 @@ router.post('/settings', express.json(), async (req, res) => {
     if (customModel) updatedConfig.CUSTOM_MODEL = customModel;
     if (disableAutomaticProcessing) updatedConfig.DISABLE_AUTOMATIC_PROCESSING = disableAutomaticProcessing;
     updatedConfig.EXPERT_PIPELINE_ENABLED = (expertPipelineEnabled === 'on' || expertPipelineEnabled === 'yes') ? 'yes' : 'no';
-    updatedConfig.MEDICAL_VISION_MODEL = medicalVisionModel || 'qwen3-vl:8b';
-    updatedConfig.MEDICAL_ANALYSIS_MODEL = medicalAnalysisModel || 'medtext-llama3';
-    updatedConfig.MEDICAL_RADIOLOGY_MODEL = medicalRadiologyModel || 'llava-med-v1.5';
+    const resolvedMedicalVisionModel = medicalVisionModel || 'qwen3-vl:8b';
+    const resolvedMedicalAnalysisModel = medicalAnalysisModel || 'medtext-llama3';
+    const resolvedMedicalRadiologyModel = medicalRadiologyModel || 'llava-med-v1.5';
+    const resolvedPlannerModel = plannerModel || 'qwen3-vl:8b';
+    const resolvedRouterModel = routerModel || resolvedPlannerModel || 'qwen3-vl:8b';
+    const resolvedOrchestratorModel = orchestratorModel || 'nemotron-orchestrator:8b';
+    const resolvedFinancialVisionModel = financialVisionModel || 'llm-pro-finance-8b';
+    const resolvedFinancialAnalysisModel = financialAnalysisModel || 'fino1-8b';
+    const resolvedFinancialVatExpertModel = financialVatExpertModel || 'dragon-finance:latest';
+    const resolvedLegalVisionModel = legalVisionModel || 'qwen3-vl:8b';
+    const resolvedLegalAnalysisModel = legalAnalysisModel || 'dragon-finance:latest';
+    const resolvedLegalOrchestratorModel = legalOrchestratorModel || resolvedOrchestratorModel;
+
+    updatedConfig.MEDICAL_VISION_MODEL = resolvedMedicalVisionModel;
+    updatedConfig.MEDICAL_ANALYSIS_MODEL = resolvedMedicalAnalysisModel;
+    updatedConfig.MEDICAL_RADIOLOGY_MODEL = resolvedMedicalRadiologyModel;
+    updatedConfig.PLANNER_MODEL = resolvedPlannerModel;
+    updatedConfig.ROUTER_MODEL = resolvedRouterModel;
+    updatedConfig.ORCHESTRATOR_MODEL = resolvedOrchestratorModel;
+    updatedConfig.FINANCIAL_VISION_MODEL = resolvedFinancialVisionModel;
+    updatedConfig.FINANCIAL_ANALYSIS_MODEL = resolvedFinancialAnalysisModel;
+    updatedConfig.FINANCIAL_VAT_EXPERT = resolvedFinancialVatExpertModel;
+    updatedConfig.LEGAL_VISION_MODEL = resolvedLegalVisionModel;
+    updatedConfig.LEGAL_ANALYSIS_MODEL = resolvedLegalAnalysisModel;
+    updatedConfig.LEGAL_ORCHESTRATOR_MODEL = resolvedLegalOrchestratorModel;
+
+    const modelLimits = parseOllamaModelLimits(currentConfig.OLLAMA_MODEL_LIMITS_JSON);
+    upsertModelLimit(modelLimits, resolvedPlannerModel, 'planner', plannerContextWindow, plannerMaxResponseTokens);
+    upsertModelLimit(modelLimits, resolvedRouterModel, 'expert', routerContextWindow, routerMaxResponseTokens);
+    upsertModelLimit(modelLimits, resolvedOrchestratorModel, 'expert', orchestratorContextWindow, orchestratorMaxResponseTokens);
+    upsertModelLimit(modelLimits, resolvedMedicalVisionModel, 'vision', medicalVisionContextWindow, medicalVisionMaxResponseTokens);
+    upsertModelLimit(modelLimits, resolvedMedicalAnalysisModel, 'expert', medicalAnalysisContextWindow, medicalAnalysisMaxResponseTokens);
+    upsertModelLimit(modelLimits, resolvedMedicalRadiologyModel, 'vision', medicalRadiologyContextWindow, medicalRadiologyMaxResponseTokens);
+    upsertModelLimit(modelLimits, resolvedFinancialVisionModel, 'vision', financialVisionContextWindow, financialVisionMaxResponseTokens);
+    upsertModelLimit(modelLimits, resolvedFinancialAnalysisModel, 'expert', financialAnalysisContextWindow, financialAnalysisMaxResponseTokens);
+    upsertModelLimit(modelLimits, resolvedFinancialVatExpertModel, 'expert', financialVatExpertContextWindow, financialVatExpertMaxResponseTokens);
+    upsertModelLimit(modelLimits, resolvedLegalVisionModel, 'vision', legalVisionContextWindow, legalVisionMaxResponseTokens);
+    upsertModelLimit(modelLimits, resolvedLegalAnalysisModel, 'expert', legalAnalysisContextWindow, legalAnalysisMaxResponseTokens);
+    upsertModelLimit(modelLimits, resolvedLegalOrchestratorModel, 'expert', legalOrchestratorContextWindow, legalOrchestratorMaxResponseTokens);
+    updatedConfig.OLLAMA_MODEL_LIMITS_JSON = Object.keys(modelLimits).length > 0
+      ? JSON.stringify(modelLimits)
+      : '';
 
     // Update custom fields
     if (processedCustomFields.length > 0 || customFields) {
