@@ -47,6 +47,7 @@ const MedicalPipeline = {
             id: 'medical_visual',
             name: 'Medical Visual Analysis',
             type: StageType.VISUAL_ANALYSIS,
+            guidanceTemplate: 'medical_classifier',
             promptId: 'MED_RADIOLOGY_V1',
             model: MODEL_NAMES.medicalImaging,
             modelType: ModelType.MULTIMODAL,
@@ -71,12 +72,13 @@ const MedicalPipeline = {
             id: 'medical_text',
             name: 'Medical Text Extraction',
             type: StageType.TEXT_EXTRACTION,
+            guidanceTemplate: 'medical_extractor',
             promptId: 'MED_DOCTOR_V1',
             model: MODEL_NAMES.medicalText,
             modelType: ModelType.TEXT_ONLY,
             executionMode: ExecutionMode.SEQUENTIAL,
             inputMapping: {
-                text_chunk: 'document.ocr_text',
+                text_chunk: 'document.enhanced_ocr_text',
                 document_type: 'classification.document_type',
                 source_system: 'document.source',
                 document_date: 'classification.metadata_hints.detected_date'
@@ -89,6 +91,7 @@ const MedicalPipeline = {
             id: 'medical_integration',
             name: 'Medical Data Integration',
             type: StageType.INTEGRATION,
+            guidanceTemplate: 'medical_integrator',
             promptId: 'MED_INTEGRATOR_V1',
             model: MODEL_NAMES.medicalText,
             modelType: ModelType.TEXT_ONLY,
@@ -141,7 +144,7 @@ const MedicalPipeline = {
                 ]
             },
             inputMapping: {
-                text_chunk: 'document.ocr_text',
+                text_chunk: 'document.enhanced_ocr_text',
                 filename: 'document.filename',
                 source_system: 'document.source',
                 ocr_quality: 'document.ocr_quality'

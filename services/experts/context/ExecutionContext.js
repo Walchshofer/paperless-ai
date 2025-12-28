@@ -89,6 +89,12 @@ class ExecutionContext {
             return null;
         }
 
+        // Special handling for enhanced_ocr_text with Paperless OCR fallback
+        // This ensures downstream stages always get text even if visual OCR failed
+        if (path === 'document.enhanced_ocr_text') {
+            return this.document.enhanced_ocr_text || this.document.ocr_text || '';
+        }
+
         const parts = path.split('.');
         let current = null;
 

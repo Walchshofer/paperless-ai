@@ -1,11 +1,6 @@
 /**
  * General/Fallback Document Processing Pipeline
- *
- * Handles:
- * - Unclassified documents
- * - Personal correspondence
- * - Mixed-content documents
- * - Any document that doesn't match specialized pipelines
+ * REFINED: Added guidanceTemplate strings for structured extraction.
  */
 
 const { DomainType, ModelType } = require('../../prompts/PromptRegistry');
@@ -32,49 +27,35 @@ const GeneralPipeline = {
             id: 'general_extraction',
             name: 'General Extraction',
             type: StageType.TEXT_EXTRACTION,
+            guidanceTemplate: 'general_extractor',
             promptId: 'GEN_FALLBACK_V1',
             model: MODEL_NAMES.general,
             modelType: ModelType.TEXT_ONLY,
             executionMode: ExecutionMode.SEQUENTIAL,
             inputMapping: {
-                text_chunk: 'document.ocr_text',
-                filename: 'document.filename',
-                source_system: 'document.source',
-                ocr_quality: 'document.ocr_quality'
+                text_chunk: 'document.enhanced_ocr_text',
+                filename: 'document.filename'
             },
             outputKey: 'general_extraction',
             timeout: 45000,
             retryCount: 2
         },
         {
-            id: 'general_validation',
-            name: 'General Validation',
-            type: StageType.VALIDATION,
-            promptId: null,
-            model: null,
+            id: 'cross_pipeline_router',
+            name: 'Cross Pipeline Routing',
+            type: StageType.REASONING,
+            guidanceTemplate: 'cross_pipeline_router',
+            model: MODEL_NAMES.general,
+            modelType: ModelType.TEXT_ONLY,
             executionMode: ExecutionMode.SEQUENTIAL,
-            validationRules: [
-                {
-                    field: 'general_extraction.confidence.overall',
-                    operator: 'gte',
-                    value: 0.6,
-                    errorMessage: 'Extraction confidence below minimum threshold'
-                }
-            ],
-            outputKey: 'validation_result',
-            timeout: 5000
+            inputMapping: {
+                doc_type: 'stages.general_extraction.output.typ',
+                summary: 'stages.general_extraction.output.zusammenfassung'
+            },
+            outputKey: 'routing_recommendation',
+            timeout: 30000
         }
-    ],
-
-    outputSchema: {
-        type: 'object',
-        required: ['pipeline_id', 'status', 'result'],
-        properties: {
-            pipeline_id: { type: 'string' },
-            status: { type: 'string', enum: ['success', 'partial', 'failed'] },
-            result: { type: 'object' }
-        }
-    }
+    ]
 };
 
 module.exports = { GeneralPipeline };

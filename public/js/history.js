@@ -121,10 +121,14 @@ class HistoryManager {
                                 <i class="fa-solid fa-arrows-rotate"></i>
                                 <span class="hidden sm:inline ml-1">Re-analyse</span>
                             </button>
+                            <button onclick="feedbackForm.show({ documentId: '${data.document_id}' })" class="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors" aria-label="Provide feedback" title="Provide extraction feedback">
+                                <i class="fa-solid fa-thumbs-up"></i>
+                                <span class="hidden sm:inline ml-1">Feedback</span>
+                            </button>
                         </div>
                     `,
                     orderable: false,
-                    width: '280px'
+                    width: '340px'
                 }
             ],
             order: [[2, 'desc']],

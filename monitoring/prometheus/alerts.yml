@@ -1,0 +1,42 @@
+groups:
+  - name: guidance_alerts
+    rules:
+      # Alert if the service is down
+      - alert: GuidanceServiceDown
+        expr: up{job="guidance-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Guidance Service is down"
+          description: "The Guidance Service has been unreachable for more than 1 minute."
+
+      # Alert if latency is too high (P95 > 45s)
+      - alert: HighGuidanceLatency
+        expr: histogram_quantile(0.95, sum by (le, template) (rate(guidance_request_latency_seconds_bucket[5m]))) > 45
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High P95 Latency detected"
+          description: "P95 latency for template {{ $labels.template }} is over 45 seconds."
+
+      # Alert on high error rates
+      - alert: HighGuidanceErrorRate
+        expr: rate(guidance_requests_total{status="error"}[5m]) / rate(guidance_requests_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High Error Rate in Guidance Service"
+          description: "More than 10% of requests are failing for the last 2 minutes."
+
+      # Alert if validation fails consistently
+      - alert: GuidanceValidationFailureSpike
+        expr: rate(guidance_validation_total{valid="false"}[5m]) / rate(guidance_validation_total[5m]) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Extraction Validation Failures"
+          description: "Over 20% of extractions for {{ $labels.template }} failed schema validation."

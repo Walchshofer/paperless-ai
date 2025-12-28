@@ -156,6 +156,23 @@ class IngestionManager {
             }
         }
 
+        // Path 3: Expert Knowledge Storage (enhanced OCR + metadata)
+        if (options.enhancedOcrText || options.expertMetadata) {
+            try {
+                await this._storeExpertKnowledge(docId, {
+                    enhancedOcrText: options.enhancedOcrText,
+                    expertMetadata: options.expertMetadata,
+                    domain: domain,
+                    domainView: this._buildDomainView(options, domain)
+                });
+                result.expertKnowledge = { success: true };
+                logger.info(`[IngestionManager] Expert knowledge stored for doc ${docId}`);
+            } catch (error) {
+                result.expertKnowledge = { success: false, error: error.message };
+                logger.warn(`[IngestionManager] Expert knowledge storage failed: ${error.message}`);
+            }
+        }
+
         result.duration = Date.now() - startTime;
         this.stats.documentsIngested++;
 
@@ -297,6 +314,192 @@ class IngestionManager {
             logger.warn(`[IngestionManager] Failed to fetch OCR text for doc ${docId}: ${error.message}`);
             return null;
         }
+    }
+
+    /**
+     * Path 3: Store expert knowledge (enhanced OCR + metadata)
+     * @param {number} docId - Paperless document ID
+     * @param {Object} knowledge - Expert knowledge to store
+     * @private
+     */
+    async _storeExpertKnowledge(docId, knowledge) {
+        const repoAvailable = await this.overlayRepository.isAvailable();
+        if (!repoAvailable) {
+            throw new Error('PostgreSQL not available for expert knowledge storage');
+        }
+
+        // Ensure enhanced schema columns exist
+        await this.overlayRepository.ensureEnhancedSchema();
+
+        const { enhancedOcrText, expertMetadata = {}, domain, domainView = {} } = knowledge;
+
+        // Build domain signals from expert metadata
+        const domainSignals = this._extractDomainSignals(expertMetadata, domain);
+
+        // Calculate quality score based on content
+        const qualityScore = this._calculateQualityScore(enhancedOcrText, expertMetadata);
+
+        // Build routing weights for MoE
+        const routingWeights = this._buildRoutingWeights(domain, expertMetadata);
+
+        await this.overlayRepository.saveExpertKnowledge(docId, {
+            enhancedOcrText: enhancedOcrText || '',
+            expertMetadata,
+            domainView,
+            domainSignals,
+            qualityScore,
+            routingWeights
+        });
+    }
+
+    /**
+     * Build task-oriented domain view based on expert analysis
+     * @param {Object} options - Ingestion options with expert metadata
+     * @param {string} domain - Document domain
+     * @returns {Object} Domain view structure
+     * @private
+     */
+    _buildDomainView(options, domain) {
+        const expertMetadata = options.expertMetadata || {};
+
+        return {
+            domain,
+            viewType: `${domain}_analysis`,
+            keyFields: expertMetadata.key_entities || [],
+            searchableText: (options.enhancedOcrText || '').substring(0, 5000),
+            documentType: expertMetadata.document_type || 'unknown',
+            confidence: expertMetadata.confidence || 0,
+            extractionQuality: expertMetadata.extraction_quality || 'unknown'
+        };
+    }
+
+    /**
+     * Extract domain signals from expert metadata for MoE filtering
+     * @param {Object} expertMetadata - Expert analysis results
+     * @param {string} domain - Document domain
+     * @returns {Array<string>} Domain signals array
+     * @private
+     */
+    _extractDomainSignals(expertMetadata, domain) {
+        const signals = [domain];
+
+        // Add document type
+        if (expertMetadata.document_type) {
+            signals.push(`doctype:${expertMetadata.document_type}`);
+        }
+
+        // Add domain-specific signals
+        if (expertMetadata.domain_signals && Array.isArray(expertMetadata.domain_signals)) {
+            signals.push(...expertMetadata.domain_signals);
+        }
+
+        // Add key entities as signals
+        if (expertMetadata.key_entities && Array.isArray(expertMetadata.key_entities)) {
+            signals.push(...expertMetadata.key_entities.map(e => `entity:${e}`));
+        }
+
+        // Add quality signal
+        if (expertMetadata.extraction_quality === 'high') {
+            signals.push('high_quality');
+        }
+
+        // Add review flag
+        if (expertMetadata.requires_review) {
+            signals.push('needs_review');
+        }
+
+        return [...new Set(signals)]; // Deduplicate
+    }
+
+    /**
+     * Calculate quality score for retrieval filtering
+     * @param {string} enhancedOcrText - Extracted text
+     * @param {Object} expertMetadata - Expert metadata
+     * @returns {number} Quality score 0.0-1.0
+     * @private
+     */
+    _calculateQualityScore(enhancedOcrText, expertMetadata) {
+        let score = 0;
+
+        // Text content score (0.4 max)
+        const textLength = (enhancedOcrText || '').length;
+        if (textLength > 100) score += 0.1;
+        if (textLength > 500) score += 0.15;
+        if (textLength > 1000) score += 0.15;
+
+        // Confidence score (0.3 max)
+        const confidence = expertMetadata.confidence || 0;
+        score += confidence * 0.3;
+
+        // Extraction quality (0.2 max)
+        const quality = expertMetadata.extraction_quality;
+        if (quality === 'high') score += 0.2;
+        else if (quality === 'medium') score += 0.1;
+
+        // Completeness (0.1 max)
+        if (expertMetadata.key_entities && expertMetadata.key_entities.length > 0) {
+            score += 0.05;
+        }
+        if (expertMetadata.summary) {
+            score += 0.05;
+        }
+
+        return Math.min(score, 1.0);
+    }
+
+    /**
+     * Build expert routing weights for MoE reranking
+     * @param {string} domain - Document domain
+     * @param {Object} expertMetadata - Expert metadata
+     * @returns {Object} Routing weights by domain
+     * @private
+     */
+    _buildRoutingWeights(domain, expertMetadata) {
+        const weights = {
+            financial: 0.0,
+            medical: 0.0,
+            legal: 0.0,
+            general: 0.5  // Base weight for all
+        };
+
+        // Set primary domain weight based on confidence
+        const confidence = expertMetadata.confidence || 0.5;
+        if (weights.hasOwnProperty(domain)) {
+            weights[domain] = confidence;
+        }
+
+        // Boost weights for domain signals
+        const domainSignals = expertMetadata.domain_signals || [];
+        if (domainSignals.includes('VAT_applicable') || domainSignals.includes('invoice')) {
+            weights.financial = Math.max(weights.financial, 0.8);
+        }
+        if (domainSignals.includes('medical_record') || domainSignals.includes('prescription')) {
+            weights.medical = Math.max(weights.medical, 0.8);
+        }
+        if (domainSignals.includes('contract') || domainSignals.includes('legal_agreement')) {
+            weights.legal = Math.max(weights.legal, 0.8);
+        }
+
+        return weights;
+    }
+
+    /**
+     * Get expert knowledge for a document
+     * @param {number} docId - Paperless document ID
+     * @returns {Promise<Object|null>} Expert knowledge or null
+     */
+    async getExpertKnowledge(docId) {
+        return this.overlayRepository.getExpertKnowledge(docId);
+    }
+
+    /**
+     * Find documents by domain signals (MoE filtering)
+     * @param {Array<string>} signals - Domain signals to match
+     * @param {Object} options - Query options
+     * @returns {Promise<Array<Object>>} Matching documents
+     */
+    async findByDomainSignals(signals, options = {}) {
+        return this.overlayRepository.findByDomainSignals(signals, options);
     }
 
     /**

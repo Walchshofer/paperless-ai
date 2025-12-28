@@ -37,6 +37,8 @@ const {
     createPipelineExecutor
 } = require('./ExpertPipelineExecutor');
 
+const { LocalTranslator } = require('./translation');
+
 // Re-export everything for backwards compatibility
 module.exports = {
     // Registry
@@ -60,5 +62,8 @@ module.exports = {
     MedicalPipeline,
     FinancialPipeline,
     LegalPipeline,
-    GeneralPipeline
+    GeneralPipeline,
+
+    // Translation
+    LocalTranslator
 };

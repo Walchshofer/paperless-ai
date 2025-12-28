@@ -136,6 +136,50 @@ module.exports = {
     enableOverlayExtraction: parseEnvBoolean(process.env.ENABLE_OVERLAY_EXTRACTION, 'yes'),
     parallelIngestion: parseEnvBoolean(process.env.VISUAL_RAG_PARALLEL_INGESTION, 'yes')
   },
+  // Visual OCR configuration (qwen3-vl:8b text extraction)
+  visualOCR: {
+    enabled: parseEnvBoolean(process.env.VIS_OCR_ENABLED, 'yes'),
+    timeout: parseInt(process.env.VIS_OCR_TIMEOUT || '60000', 10),
+    maxPages: parseInt(process.env.VIS_OCR_MAX_PAGES || '20', 10),
+    minQuality: parseFloat(process.env.VIS_OCR_MIN_QUALITY || '0.6'),
+    embeddingModel: process.env.VIS_OCR_EMBEDDING_MODEL || 'nomic-embed-text-v1.5'
+  },
+  // MoE Retrieval configuration (Mixture of Experts routing)
+  moeRetrieval: {
+    enabled: parseEnvBoolean(process.env.MOE_RETRIEVAL_ENABLED, 'yes'),
+    minQualityScore: parseFloat(process.env.MOE_MIN_QUALITY || '0.7'),
+    expertWeights: {
+      financial: parseFloat(process.env.MOE_WEIGHT_FINANCIAL || '1.0'),
+      medical: parseFloat(process.env.MOE_WEIGHT_MEDICAL || '1.0'),
+      legal: parseFloat(process.env.MOE_WEIGHT_LEGAL || '1.0'),
+      general: parseFloat(process.env.MOE_WEIGHT_GENERAL || '0.8')
+    }
+  },
+  // Guidance Service configuration (deterministic JSON extraction)
+  guidanceService: {
+    enabled: parseEnvBoolean(process.env.GUIDANCE_SERVICE_ENABLED, 'yes'),      
+    url: process.env.GUIDANCE_SERVICE_URL || 'http://localhost:8002',
+    model: process.env.GUIDANCE_MODEL || 'sauerkraut-llama3.1:8b',
+    timeout: parseInt(process.env.GUIDANCE_TIMEOUT || '90000', 10),
+    useCache: parseEnvBoolean(process.env.GUIDANCE_USE_CACHE, 'yes'),
+    maxRetries: parseInt(process.env.GUIDANCE_MAX_RETRIES || '2', 10)
+  },
+  translation: {
+    model: process.env.TRANSLATION_MODEL || process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b',
+    timeout: parseInt(process.env.TRANSLATION_TIMEOUT || '60000', 10),
+    maxTokens: parseInt(process.env.TRANSLATION_MAX_TOKENS || '512', 10),
+    temperature: parseFloat(process.env.TRANSLATION_TEMPERATURE || '0.1'),
+    minChars: parseInt(process.env.TRANSLATION_MIN_CHARS || '3', 10)
+  },
+  semanticRouter: {
+    enabled: parseEnvBoolean(process.env.SEMANTIC_ROUTER_ENABLED, 'no'),
+    minConfidence: parseFloat(process.env.SEMANTIC_ROUTER_MIN_CONFIDENCE || '0.6'),
+    costWeights: {
+      expert: parseFloat(process.env.SEMANTIC_ROUTER_WEIGHT_EXPERT || '1.0'),
+      general: parseFloat(process.env.SEMANTIC_ROUTER_WEIGHT_GENERAL || '0.5'),
+      router: parseFloat(process.env.SEMANTIC_ROUTER_WEIGHT_ROUTER || '0.2')
+    }
+  },
   // PostgreSQL configuration for visual overlays
   postgres: {
     host: process.env.POSTGRES_HOST || process.env.PAPERLESS_DBHOST || 'db',

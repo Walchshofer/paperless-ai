@@ -1,6 +1,7 @@
 const config = require('../config/config');
 const RestrictionPromptService = require('./restrictionPromptService');
 const { appendFilenameFormat } = require('./serviceUtils');
+const { templateManager } = require('./prompts/TemplateManager');
 
 /**
  * DEPRECATED: PromptFactory
@@ -22,8 +23,29 @@ class PromptFactory {
         this.fieldProfiler = fieldProfiler;
     }
 
+    _getTemplate(intent, lang, fallbackLang) {
+        if (!templateManager || typeof templateManager.getTemplate !== 'function') {
+            return null;
+        }
+        return templateManager.getTemplate(intent, lang, fallbackLang);
+    }
+
+    _renderTemplate(template, variables = {}) {
+        if (!template || typeof template !== 'string') return template;
+        let output = template;
+        for (const [key, value] of Object.entries(variables)) {
+            const placeholder = `{{${key}}}`;
+            output = output.replace(new RegExp(placeholder, 'g'), String(value ?? ''));
+        }
+        return output;
+    }
+
     buildBaseTemplate(mode) {
         if (mode === 'text') {
+            const template = this._getTemplate('financial_extraction', 'en');
+            if (template?.systemInstruction) {
+                return template.systemInstruction;
+            }
             return `
             You are a document analyzer. Your task is to analyze documents and extract relevant information. You do not ask back questions.
             YOU MUSTNOT: Ask for additional information or clarification, or ask questions about the document, or ask for additional context.
@@ -69,8 +91,13 @@ class PromptFactory {
     }
 
     buildPlannerPrompt(strict = false) {
-        const basePrompt = 'AT/DE doc classifier. Choose ONE: financial, medical, legal, technical, personal, general. Hints: financial=Rechnung/Quittung/Honorarnote/Bank, medical=Befund/Rezept/Arztbrief, legal=Vertrag/Vereinbarung/GZ, technical=Anleitung/Datenblatt, personal=Brief/Mitteilung/Schreiben. If medical, set modality: lab|radiology|prescription|unknown. Modality hints: lab=Laborwerte/Blutbild/Befund tables, radiology=X-ray/CT/MRT/Roentgen, prescription=Rezept/Verordnung. Return ONLY JSON: {"category":"financial|medical|legal|technical|personal|general","doc_type_hint":"invoice|lab_report|contract|...","modality":"lab|radiology|prescription|unknown","confidence":0-1,"keywords":["..."],"needs_visual":true|false}. Rules: doc_type_hint specific; confidence>=0.8 clear, 0.5-0.8 maybe, <0.5 unsure; keywords 2-5 DE/EN; needs_visual true if tables/forms/stamps/complex layout.';
+        const baseTemplate = this._getTemplate('router_classifier', 'de', 'en');
+        const basePrompt = baseTemplate?.systemInstruction || 'AT/DE doc classifier. Choose ONE: financial, medical, legal, technical, personal, general. Hints: financial=Rechnung/Quittung/Honorarnote/Bank, medical=Befund/Rezept/Arztbrief, legal=Vertrag/Vereinbarung/GZ, technical=Anleitung/Datenblatt, personal=Brief/Mitteilung/Schreiben. If medical, set modality: lab|radiology|prescription|unknown. Modality hints: lab=Laborwerte/Blutbild/Befund tables, radiology=X-ray/CT/MRT/Roentgen, prescription=Rezept/Verordnung. Return ONLY JSON: {"category":"financial|medical|legal|technical|personal|general","doc_type_hint":"invoice|lab_report|contract|...","modality":"lab|radiology|prescription|unknown","confidence":0-1,"keywords":["..."],"needs_visual":true|false}. Rules: doc_type_hint specific; confidence>=0.8 clear, 0.5-0.8 maybe, <0.5 unsure; keywords 2-5 DE/EN; needs_visual true if tables/forms/stamps/complex layout.';
         if (strict) {
+            const strictTemplate = this._getTemplate('router_classifier_strict', 'de', 'en');
+            if (strictTemplate?.systemInstruction) {
+                return strictTemplate.systemInstruction;
+            }
             return `${basePrompt} STRICT MODE: JSON only, no extra keys.`;
         }
         return basePrompt;
@@ -424,6 +451,14 @@ ${rawText}`;
 
     buildMedicalExtractionPrompt(content, fields) {
         const fieldList = fields ? Object.keys(fields).join(', ') : 'title, correspondent, document_date, document_type, tags';
+
+        const template = this._getTemplate('medical_extraction', 'en');
+        if (template?.systemInstruction) {
+            return this._renderTemplate(template.systemInstruction, {
+                field_list: fieldList,
+                content
+            });
+        }
 
         return `You are a medical document analyzer.
 

@@ -35,6 +35,7 @@
 
 const logger = require('../logger');
 const { DomainType } = require('../prompts/PromptRegistry');
+const { SemanticRouter } = require('./routing');
 
 // Import pipeline definitions and constants from submodules
 const { StageType, ExecutionMode, MODEL_NAMES } = require('./pipelines/constants');
@@ -62,11 +63,20 @@ const { MODEL_NAMES: ModelNames } = require('./pipelines/models');
 class ExpertRegistry {
     constructor() {
         this.pipelines = new Map();
-        this.documentTypeIndex = new Map();  // documentType -> pipelineId
+        this.documentTypeIndex = new Map();  // documentType -> pipelineId      
         this.domainIndex = new Map();        // domain -> [pipelineIds]
+        this.semanticRouter = new SemanticRouter();
 
         // Register built-in pipelines
         this._registerBuiltinPipelines();
+    }
+
+    setSemanticRouter(router) {
+        this.semanticRouter = router || this.semanticRouter;
+    }
+
+    getPipelines() {
+        return Array.from(this.pipelines.values());
     }
 
     _registerBuiltinPipelines() {
@@ -159,6 +169,21 @@ class ExpertRegistry {
         let routingReason = '';
         let matchedConditions = [];
         let evaluatedPipelines = [];
+
+        if (this.semanticRouter.enabled) {
+            const candidatePipelines = this.getPipelines();
+            const routed = this.semanticRouter.selectPipeline(classificationResult, candidatePipelines);
+            if (routed) {
+                selectedPipeline = routed;
+                routingReason = 'Semantic routing selection';
+                evaluatedPipelines = candidatePipelines.map((p) => p.id);
+                matchedConditions.push({
+                    type: 'semantic',
+                    value: `${classification.primary_domain || 'General'}:${classification.confidence || 0}`,
+                    pipelineId: routed.id
+                });
+            }
+        }
 
         // Strategy 1: Direct document type match
         if (this.documentTypeIndex.has(documentType)) {
