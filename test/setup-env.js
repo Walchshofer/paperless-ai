@@ -1,4 +1,4 @@
-// Default to disabling Guidance for fast, deterministic unit tests.
+// Default to enabling Guidance to prevent JSON truncation issues.
 process.env.GUIDANCE_ENABLED = process.env.GUIDANCE_ENABLED || 'true';
 process.env.GUIDANCE_SERVICE_ENABLED = process.env.GUIDANCE_SERVICE_ENABLED || 'no';
 

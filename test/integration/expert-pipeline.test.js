@@ -23,6 +23,7 @@ const { DomainType } = require('../../services/prompts/PromptRegistry');
 const { TemplateRegistry } = require('../../services/prompts/TemplateRegistry');
 const { TemplateManager } = require('../../services/prompts/TemplateManager');
 const { SemanticRouter } = require('../../services/experts/routing');
+const { guidanceClient } = require('../../services/guidance');
 
 // ============================================================================
 // TEST UTILITIES
@@ -73,6 +74,16 @@ class MockOllamaService {
     
     reset() {
         this.calls = [];
+    }
+}
+
+async function withGuidanceDisabled(task) {
+    const originalIsAvailable = guidanceClient.isAvailable.bind(guidanceClient);
+    guidanceClient.isAvailable = async () => false;
+    try {
+        return await task();
+    } finally {
+        guidanceClient.isAvailable = originalIsAvailable;
     }
 }
 
@@ -817,25 +828,27 @@ describe('Expert Pipeline', function() {
         
         it('should handle model failures with retry', async function() {
             this.timeout(15000);
-            
-            const failingOllama = new MockOllamaService({
-                shouldFail: true,
-                failureMessage: 'Connection refused'
+
+            await withGuidanceDisabled(async () => {
+                const failingOllama = new MockOllamaService({
+                    shouldFail: true,
+                    failureMessage: 'Connection refused'
+                });
+
+                const failingExecutor = new ExpertPipelineExecutor(failingOllama, {
+                    maxRetries: 2,
+                    defaultTimeout: 1000
+                });
+
+                const result = await failingExecutor.execute(
+                    'medical-text',
+                    TestDocuments.medicalLabReport
+                );
+
+                assert.strictEqual(result.success, false);
+                // Should have retried
+                assert.ok(failingOllama.getCallCount() >= 1);
             });
-            
-            const failingExecutor = new ExpertPipelineExecutor(failingOllama, {
-                maxRetries: 2,
-                defaultTimeout: 1000
-            });
-            
-            const result = await failingExecutor.execute(
-                'medical-text',
-                TestDocuments.medicalLabReport
-            );
-            
-            assert.strictEqual(result.success, false);
-            // Should have retried
-            assert.ok(failingOllama.getCallCount() >= 1);
         });
     });
 
@@ -1071,25 +1084,27 @@ describe('Expert Pipeline', function() {
         
         it('should handle processing errors gracefully', async function() {
             this.timeout(5000);
-            
-            const failingOllama = new MockOllamaService({
-                shouldFail: true,
-                failureMessage: 'Model not available'
+
+            await withGuidanceDisabled(async () => {
+                const failingOllama = new MockOllamaService({
+                    shouldFail: true,
+                    failureMessage: 'Model not available'
+                });
+
+                const failingProcessor = new DocumentProcessor(failingOllama, {
+                    features: {
+                        enableFallbackToLegacy: false
+                    }
+                });
+
+                const result = await failingProcessor.process(
+                    TestDocuments.medicalLabReport,
+                    { mode: ProcessorConfig.modes.EXPERT_PIPELINE }
+                );
+
+                assert.strictEqual(result.success, false);
+                assert.ok(result.error);
             });
-            
-            const failingProcessor = new DocumentProcessor(failingOllama, {
-                features: {
-                    enableFallbackToLegacy: false
-                }
-            });
-            
-            const result = await failingProcessor.process(
-                TestDocuments.medicalLabReport,
-                { mode: ProcessorConfig.modes.EXPERT_PIPELINE }
-            );
-            
-            assert.strictEqual(result.success, false);
-            assert.ok(result.error);
         });
     });
 

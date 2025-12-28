@@ -23,10 +23,12 @@ You can now use shorter, more convenient aliases for models instead of full cano
 
 ```bash
 # Old way (still works):
+export PLANNER_MODEL=qwen3-vl:8b
 export ROUTER_MODEL=qwen3-vl:8b
 export MEDICAL_VISION_MODEL=llava-med-v1.5:latest
 
 # New way (recommended):
+export PLANNER_MODEL=qwen3-vl
 export ROUTER_MODEL=qwen3-vl
 export MEDICAL_VISION_MODEL=llava-med
 ```
@@ -65,9 +67,11 @@ Review your `.env` file and update any uppercase model names:
 
 ```bash
 # Change this:
+PLANNER_MODEL=qwen3-vl:8B
 ROUTER_MODEL=qwen3-vl:8B
 
 # To this:
+PLANNER_MODEL=qwen3-vl:8b
 ROUTER_MODEL=qwen3-vl:8b
 ```
 

@@ -170,7 +170,22 @@ class ExpertRegistry {
         let matchedConditions = [];
         let evaluatedPipelines = [];
 
-        if (this.semanticRouter.enabled) {
+        const recommendedPipelineId = routing?.recommended_pipeline ||
+            routing?.recommendedPipeline ||
+            routing?.selected_pipeline ||
+            routing?.selectedPipeline;
+        if (recommendedPipelineId && this.pipelines.has(recommendedPipelineId)) {
+            selectedPipeline = this.get(recommendedPipelineId);
+            routingReason = `Orchestrator override: ${recommendedPipelineId}`;
+            evaluatedPipelines.push(recommendedPipelineId);
+            matchedConditions.push({
+                type: 'orchestrator',
+                value: recommendedPipelineId,
+                pipelineId: recommendedPipelineId
+            });
+        }
+
+        if (!selectedPipeline && this.semanticRouter.enabled) {
             const candidatePipelines = this.getPipelines();
             const routed = this.semanticRouter.selectPipeline(classificationResult, candidatePipelines);
             if (routed) {
@@ -186,7 +201,7 @@ class ExpertRegistry {
         }
 
         // Strategy 1: Direct document type match
-        if (this.documentTypeIndex.has(documentType)) {
+        if (!selectedPipeline && this.documentTypeIndex.has(documentType)) {
             const pipelineId = this.documentTypeIndex.get(documentType);
             evaluatedPipelines.push(pipelineId);
             selectedPipeline = this.get(pipelineId);

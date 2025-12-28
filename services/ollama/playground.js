@@ -5,8 +5,10 @@ module.exports = {
     async analyzePlayground(content, prompt) {
         try {
             // Calculate context window size
+            const limits = this._resolveOllamaLimits('text', this.model);
+            const responseTokens = limits.maxResponseTokens;
             const promptTokenCount = calculateTokens(prompt);
-            const numCtx = this._calculateNumCtx(promptTokenCount, 512);
+            const numCtx = this._calculateNumCtx(promptTokenCount, responseTokens, limits.contextWindow);
 
             // Generate playground system prompt (simpler than full analysis)
             const systemPrompt = this.promptFactory.buildBaseTemplate('playground');
@@ -16,6 +18,7 @@ module.exports = {
                 prompt + "\n\n" + JSON.stringify(content),
                 systemPrompt,
                 numCtx,
+                responseTokens,
                 this.playgroundSchema
             );
 
@@ -50,8 +53,10 @@ module.exports = {
     async generateText(prompt) {
         try {
             // Calculate context window size based on prompt length
+            const limits = this._resolveOllamaLimits('text', this.model);
+            const responseTokens = limits.maxResponseTokens;
             const promptTokenCount = calculateTokens(prompt);
-            const numCtx = this._calculateNumCtx(promptTokenCount, 1024);
+            const numCtx = this._calculateNumCtx(promptTokenCount, responseTokens, limits.contextWindow);
 
             // Simple system prompt for text generation
             const systemPrompt = this.promptFactory.buildGenericAssistantPrompt();
@@ -65,7 +70,7 @@ module.exports = {
                 options: {
                     temperature: 0.7,
                     top_p: 0.9,
-                    num_predict: 1024,
+                    num_predict: responseTokens,
                     num_ctx: numCtx
                 }
             });

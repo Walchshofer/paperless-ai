@@ -30,7 +30,7 @@
  * └─────────────────────────────────────────────────────────────────────────────┘
  * 
  * Model Configuration:
- * - Router: qwen3-vl:8b (multimodal)
+ * - Planner/Router: qwen3-vl:8b (multimodal)
  * - Medical Imaging: llava-med-v1.5:latest (multimodal)
  * - Medical Text: medtext-llama3:latest (text-only)
  * - General: sauerkraut-llama3.1:8b (text-only)
@@ -60,12 +60,13 @@ const { ExpertPipelineExecutor, processDocument } = require('../experts/ExpertPi
 const ProcessorConfig = {
     // Model selection
     models: {
-        router: process.env.ROUTER_MODEL || config.ollama?.visionModel || 'qwen3-vl:8b',
+        router: config.ollama?.routerModel || config.ollama?.visionModel || 'qwen3-vl:8b',
         medicalImaging: process.env.MEDICAL_VISION_MODEL || config.expertModels?.medical?.vision || config.ollama?.visionModel || 'llava-med-v1.5',
         medicalText: process.env.MEDICAL_ANALYSIS_MODEL || config.expertModels?.medical?.analysis || config.ollama?.model || 'medtext-llama3',
         general: process.env.GENERAL_MODEL || config.ollama?.model || 'sauerkraut-llama3.1:8b',
         financeReasoning: process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || 'fino1-8b',
-        financeGeneral: process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || 'llm-pro-finance-8b'
+        financeGeneral: process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || 'llm-pro-finance-8b',
+        embedding: process.env.EMBEDDING_MODEL || config.ollama?.embeddingModel || 'nomic-embed-text'
     },
 
     
@@ -119,6 +120,17 @@ const ProcessorConfig = {
         maxResults: parseInt(process.env.VAT_RAG_MAX_RESULTS || '3', 10),
         maxExcerptChars: parseInt(process.env.VAT_RAG_MAX_EXCERPT_CHARS || '800', 10)
     }
+};
+
+const normalizeBoolean = (value, fallback) => {
+    if (value === undefined || value === null) return fallback;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (['true', 'yes', '1'].includes(normalized)) return true;
+        if (['false', 'no', '0'].includes(normalized)) return false;
+    }
+    return fallback;
 };
 
 // ============================================================================ 
@@ -760,11 +772,20 @@ class ResultMerger {
      */
     static _extractCustomFields(result) {
         const customFields = {};
-        
+
         // Add pipeline info
         customFields['ai_pipeline'] = result.pipeline_id || 'legacy';
         customFields['ai_confidence'] = result.confidence || 0;
-        
+        if (result.vis_ocr_text) {
+            customFields['vis_ocr_text'] = result.vis_ocr_text;
+        }
+        if (result.vis_ocr_text_de) {
+            customFields['vis_ocr_text_de'] = result.vis_ocr_text_de;
+        }
+        if (result.vis_ocr_text_en) {
+            customFields['vis_ocr_text_en'] = result.vis_ocr_text_en;
+        }
+
         // Add domain-specific fields
         if (result.classification?.primary_domain === 'Medical') {
             if (result.entities?.conditions?.length > 0) {
@@ -809,7 +830,8 @@ class DocumentProcessor {
         this.pipelineExecutor = new ExpertPipelineExecutor(ollamaService, {
             defaultTimeout: this.config.timeouts.extraction,
             maxRetries: 2,
-            enableMetrics: this.config.features.enableMetricsLogging
+            enableMetrics: this.config.features.enableMetricsLogging,
+            embeddingModel: this.config.models.embedding
         });
         
         // Register medical prompts if enabled
@@ -1020,7 +1042,13 @@ class DocumentProcessor {
         );
 
         // Trigger Visual RAG ingestion if images available and enabled
-        if (preparedImages.length > 0 && document.id && config.visualRagSidecar?.enabled === 'yes') {
+        const orchestration = result?.metadata?.orchestration;
+        const allowIngestion = normalizeBoolean(
+            orchestration?.use_visual_rag_ingestion,
+            config.visualRagSidecar?.enabled === 'yes'
+        );
+
+        if (preparedImages.length > 0 && document.id && allowIngestion && config.visualRagSidecar?.enabled === 'yes') {
             try {
                 const domain = result.result?.classification?.classification?.primary_domain?.toLowerCase();
                 const ingestionResult = await this.pipelineExecutor.ingestDocument(
@@ -1055,6 +1083,13 @@ class DocumentProcessor {
 
         // Extract primary output
         const primaryOutput = result.result?.primary_output || result.result?.outputs || {};
+        const ocrMetadata = document._vis_ocr_metadata;
+        if (ocrMetadata) {
+            primaryOutput.vis_ocr_text = ocrMetadata.vis_ocr_text;
+            primaryOutput.vis_ocr_text_de = ocrMetadata.vis_ocr_text_de;
+            primaryOutput.vis_ocr_text_en = ocrMetadata.vis_ocr_text_en;
+            primaryOutput.vis_ocr_source_lang = ocrMetadata.sourceLang;
+        }
 
         return {
             ...primaryOutput,

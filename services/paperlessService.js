@@ -30,6 +30,34 @@ class PaperlessService {
     }
   }
 
+  async downloadDocument(documentId) {
+    this.initialize();
+    if (!this.client) {
+      logger.warn('[PAPERLESS] Client not initialized for download');
+      return null;
+    }
+
+    try {
+      const response = await this.client.get(`/documents/${documentId}/download/`, {
+        responseType: 'arraybuffer'
+      });
+
+      if (!response?.data) {
+        logger.warn(`[PAPERLESS] Empty download for document ${documentId}`);
+        return null;
+      }
+
+      return Buffer.isBuffer(response.data) ? response.data : Buffer.from(response.data);
+    } catch (error) {
+      console.error(`[PAPERLESS] Error downloading document ${documentId}:`, error.message);
+      if (error.response) {
+        console.log('[PAPERLESS] status:', error.response.status);
+        console.log('[PAPERLESS] headers:', error.response.headers);
+      }
+      return null;
+    }
+  }
+
   async getThumbnailImage(documentId) {
     this.initialize();
     try { 
@@ -1479,7 +1507,7 @@ async getOrCreateDocumentType(name) {
   }
 
 
-  async updateDocument(documentId, updates) {
+  async updateDocument(documentId, updates, options = { triggerFilenameReprocess: true }) {
     this.initialize();
     if (!this.client) return;
     try {
@@ -1568,6 +1596,20 @@ async getOrCreateDocumentType(name) {
       logger.debug('Final update data: %o', apiPayload);
       await this.client.patch(`/documents/${documentId}/`, apiPayload);
       logger.info('Updated document %s with: %o', documentId, updateData);
+      if (options.triggerFilenameReprocess !== false &&
+          this._shouldTriggerFilenameReprocess(apiPayload)) {
+        try {
+          await this.reprocessDocuments([documentId]);
+          logger.debug('[PAPERLESS] Reprocess triggered for filename format', {
+            documentId
+          });
+        } catch (reprocessError) {
+          logger.warn('[PAPERLESS] Reprocess failed after update', {
+            documentId,
+            error: reprocessError.message
+          });
+        }
+      }
       return await this.getDocument(documentId);
     } catch (error) {
       // Log concise error info instead of entire Axios error object
@@ -1579,6 +1621,81 @@ async getOrCreateDocumentType(name) {
       };
       logger.error('Error updating document %s: %o', documentId, errorDetails);
       return null;
+    }
+  }
+
+  async downloadOriginalDocument(documentId) {
+    this.initialize();
+    if (!this.client) {
+      logger.warn('[PAPERLESS] Client not initialized for original download');
+      return null;
+    }
+
+    try {
+      const response = await this.client.get(`/documents/${documentId}/download/original/`, {
+        responseType: 'arraybuffer'
+      });
+
+      if (!response?.data) {
+        logger.warn(`[PAPERLESS] Empty original download for document ${documentId}`);
+        return null;
+      }
+
+      return Buffer.isBuffer(response.data) ? response.data : Buffer.from(response.data);
+    } catch (error) {
+      console.error(`[PAPERLESS] Error downloading original document ${documentId}:`, error.message);
+      if (error.response) {
+        console.log('[PAPERLESS] status:', error.response.status);
+        console.log('[PAPERLESS] headers:', error.response.headers);
+      }
+      return null;
+    }
+  }
+
+  _getFilenameFormatTokens(format) {
+    if (!format || typeof format !== 'string') return new Set();
+    const tokens = new Set();
+    const regex = /\{\{\s*([a-z0-9_]+)\s*\}\}/gi;
+    let match;
+    while ((match = regex.exec(format))) {
+      tokens.add(match[1].toLowerCase());
+    }
+    return tokens;
+  }
+
+  _shouldTriggerFilenameReprocess(apiPayload) {
+    const format = process.env.PAPERLESS_FILENAME_FORMAT;
+    if (!format || !apiPayload || typeof apiPayload !== 'object') return false;
+    const tokens = this._getFilenameFormatTokens(format);
+    if (tokens.size === 0) return false;
+
+    const hasKey = (key) => Object.prototype.hasOwnProperty.call(apiPayload, key);
+    const usesCreated = Array.from(tokens).some(token => token === 'created' || token.startsWith('created_'));
+
+    if (tokens.has('title') && hasKey('title')) return true;
+    if (tokens.has('correspondent') && hasKey('correspondent')) return true;
+    if (usesCreated && hasKey('created')) return true;
+    if (tokens.has('document_type') && hasKey('document_type')) return true;
+    if (tokens.has('tags') && hasKey('tags')) return true;
+
+    return false;
+  }
+
+  async reprocessDocuments(documentIds) {
+    this.initialize();
+    if (!this.client) return false;
+    const ids = Array.isArray(documentIds) ? documentIds : [documentIds];
+    const filtered = ids.filter(id => Number.isInteger(Number(id)));
+    if (filtered.length === 0) return false;
+    try {
+      await this.client.post('/documents/bulk_edit/', {
+        documents: filtered,
+        method: 'reprocess'
+      });
+      return true;
+    } catch (error) {
+      console.error('[PAPERLESS] Error reprocessing documents:', error.message);
+      return false;
     }
   }
 }

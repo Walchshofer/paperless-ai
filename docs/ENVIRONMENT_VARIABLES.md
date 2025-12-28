@@ -5,7 +5,8 @@ This document provides a complete reference for all environment variables used i
 ## Model Configuration Environment Variables
 
 ### Production Tier - Router/Classification
-- `ROUTER_MODEL` - Document classification model (default: `qwen3-vl:8b`)
+- `PLANNER_MODEL` - Multimodal planner for visual classification (default: `qwen3-vl:8b`)
+- `ROUTER_MODEL` - Expert pipeline router model (default: `qwen3-vl:8b`)
 - `OLLAMA_VISION_MODEL` - Default vision model for Ollama (default: `qwen3-vl:8b`)
 
 ### Production Tier - Medical Domain
@@ -28,7 +29,7 @@ This document provides a complete reference for all environment variables used i
 - `ENABLE_ADVANCED_REASONING` - Feature flag to enable advanced reasoning models (default: `no`)
 
 ### Infrastructure Tier - Orchestration & Embeddings
-- `ORCHESTRATOR_MODEL` - Expert routing and task delegation model (default: null, planned: `nemotron-orchestrator:8b`)
+- `ORCHESTRATOR_MODEL` - System orchestration and routing model (default: `nemotron-orchestrator:8b`)
 - `EMBEDDING_MODEL` - Semantic embedding model for RAG (default: `nomic-embed-text-v1.5`)
 - `VISUAL_RETRIEVAL_MODEL` - Visual document retrieval model (default: null, planned: `tomoro-colqwen3-embed-8b`)
 - `ENABLE_VISUAL_RETRIEVAL` - Feature flag for visual search capabilities (default: `no`)
@@ -51,6 +52,20 @@ This document provides a complete reference for all environment variables used i
 ### Connection Settings
 - `OLLAMA_HOST` - Ollama server host (default: `http://localhost:11434`)
 - `OLLAMA_TIMEOUT` - Request timeout in milliseconds (default: `300000`)
+
+### Context Window and Token Limits
+- `OLLAMA_CONTEXT_WINDOW` - Context window for text models (default: falls back to `TOKEN_LIMIT`)
+- `OLLAMA_MAX_RESPONSE_TOKENS` - Max response tokens for text models (default: falls back to `RESPONSE_TOKENS`)
+- `OLLAMA_VISION_CONTEXT_WINDOW` - Context window for vision models (default: falls back to `OLLAMA_CONTEXT_WINDOW`)
+- `OLLAMA_VISION_MAX_RESPONSE_TOKENS` - Max response tokens for vision models (default: `2048`)
+- `OLLAMA_PLANNER_CONTEXT_WINDOW` - Context window for planner/classifier models (default: falls back to `OLLAMA_VISION_CONTEXT_WINDOW`)
+- `OLLAMA_PLANNER_MAX_RESPONSE_TOKENS` - Max response tokens for planner/classifier models (default: `700`)
+- `OLLAMA_EXPERT_CONTEXT_WINDOW` - Context window for expert pipeline models (default: falls back to `OLLAMA_CONTEXT_WINDOW`)
+- `OLLAMA_EXPERT_MAX_RESPONSE_TOKENS` - Max response tokens for expert pipeline models (default: falls back to `OLLAMA_MAX_RESPONSE_TOKENS`)
+- `OLLAMA_VISION_IMAGE_TOKENS` - Token overhead per image for vision prompts (default: `1024`)
+- `OLLAMA_MODEL_LIMITS_JSON` - JSON map of per-model overrides for context/response tokens (default: `{}`)
+- `TRANSLATION_CONTEXT_WINDOW` - Context window for local translation (default: falls back to `OLLAMA_CONTEXT_WINDOW`)
+- `TRANSLATION_MAX_TOKENS` - Max response tokens for local translation (default: `512`)
 
 ### Model Loading
 - `OLLAMA_LOAD_MODELS` - Comma-separated list of models to preload on startup (optional)
@@ -109,7 +124,9 @@ This document provides a complete reference for all environment variables used i
 ### Minimal Production Configuration (.env)
 ```bash
 # Basic model configuration
+PLANNER_MODEL=qwen3-vl:8b
 ROUTER_MODEL=qwen3-vl:8b
+ORCHESTRATOR_MODEL=nemotron-orchestrator:8b
 OLLAMA_MODEL=sauerkraut-llama3.1:8b
 OLLAMA_VISION_MODEL=qwen3-vl:8b
 
@@ -123,7 +140,9 @@ JWT_SECRET=your-secret-key-here
 ### Full Production Configuration (.env)
 ```bash
 # Production tier models
+PLANNER_MODEL=qwen3-vl:8b
 ROUTER_MODEL=qwen3-vl:8b
+ORCHESTRATOR_MODEL=nemotron-orchestrator:8b
 MEDICAL_VISION_MODEL=llava-med-v1.5
 MEDICAL_ANALYSIS_MODEL=medtext-llama3
 FINANCIAL_ANALYSIS_MODEL=fino1-8b
@@ -165,11 +184,13 @@ The system supports model aliases for flexibility. Instead of canonical names, y
 
 ```bash
 # Using aliases
+PLANNER_MODEL=qwen3-vl
 ROUTER_MODEL=qwen3-vl
 MEDICAL_VISION_MODEL=llava-med
 FINANCIAL_ANALYSIS_MODEL=fino1
 
 # Equivalent to canonical names
+PLANNER_MODEL=qwen3-vl:8b
 ROUTER_MODEL=qwen3-vl:8b
 MEDICAL_VISION_MODEL=llava-med-v1.5
 FINANCIAL_ANALYSIS_MODEL=fino1-8b

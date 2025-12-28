@@ -7,8 +7,8 @@
 const config = require('../../../config/config');
 
 const MODEL_NAMES = Object.freeze({
-    // Primary orchestration/router model (Nemotron for intelligent routing)
-    router: process.env.ROUTER_MODEL || config.expertModels?.legal?.orchestrator || 'nemotron-manager:latest',
+    // Primary router/classifier model (multimodal)
+    router: config.ollama?.routerModel || config.ollama?.visionModel || 'qwen3-vl:8b',
 
     // Vision model for visual analysis (qwen3-vl for multimodal)
     vision: process.env.OLLAMA_VISION_MODEL || config.ollama?.visionModel || 'qwen3-vl:8b',
@@ -40,7 +40,10 @@ const MODEL_NAMES = Object.freeze({
     gptOss: process.env.GPT_OSS_MODEL || null,
 
     // Infrastructure tier - Orchestration and embeddings
-    orchestrator: process.env.ORCHESTRATOR_MODEL || null,
+    orchestrator: process.env.ORCHESTRATOR_MODEL ||
+        config.ollama?.orchestratorModel ||
+        config.expertModels?.legal?.orchestrator ||
+        null,
     embeddingModel: process.env.EMBEDDING_MODEL || 'nomic-embed-text-v1.5',
     visualRetrieval: process.env.VISUAL_RETRIEVAL_MODEL || null,
 

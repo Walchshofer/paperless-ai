@@ -40,7 +40,8 @@ The Expert Model Pipeline is a domain-specialized document processing system des
 
 | Model | Size | Purpose | VRAM Usage |
 |-------|------|---------|------------|
-| qwen3-vl:8b | ~16GB | Router/Classifier | ~10GB |
+| qwen3-vl:8b | ~16GB | Planner (visual) + Router (expert routing) | ~10GB |
+| nemotron-orchestrator:8b | ~8GB | System Orchestrator (routing + service gating) | ~6GB |
 | llava-med-v1.5 | ~14GB | Medical Imaging | ~9GB |
 | medtext-llama3 | ~8GB | Medical Text | ~6GB |
 | fino1-8b | ~8GB | Financial Reasoning (math-heavy) | ~6GB |
@@ -59,12 +60,12 @@ The Expert Model Pipeline is a domain-specialized document processing system des
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ DOCUMENT PROCESSING FLOW │
 │ │
-│ ┌──────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────┐ │
-│ │ Document │────▶│ Router │────▶│ Expert │────▶│ Result │ │
-│ │ Input │ │ qwen3-vl:8b │ │ Pipeline │ │ Output │ │
-│ └──────────┘ └──────────────┘ └──────────────┘ └──────────┘ │
-│ │ │ │ │ │
-│ │ ▼ ▼ ▼ │
+│ ┌──────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────┐ │
+│ │ Document │────▶│ Planner │────▶│ Router │────▶│ Orchestrator │────▶│ Expert │────▶│ Result │ │
+│ │ Input │ │ qwen3-vl:8b │ │ qwen3-vl:8b │ │ nemotron │ │ Pipeline │ │ Output │ │
+│ └──────────┘ └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘ └──────────┘ │
+│ │ │ │ │ │ │
+│ │ ▼ ▼ ▼ ▼ │
 │ │ ┌──────────────┐ ┌──────────────┐ ┌──────────┐ │
 │ │ │Classification│ │ Extraction │ │ Paperless│ │
 │ │ │ Result │ │ Stages │ │ Format │ │
@@ -81,6 +82,11 @@ The Expert Model Pipeline is a domain-specialized document processing system des
 │ │ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ │ │
 │ └──────────────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────────────┘
+
+Notes:
+- Planner uses rendered PNGs at configured DPI for visual classification (`PLANNER_MODEL`).
+- Router performs primary domain classification (`ROUTER_MODEL`).
+- Orchestrator finalizes pipeline selection and service gating (Guidance/Visual RAG) (`ORCHESTRATOR_MODEL`).
 
 
 ### Component Hierarchy
@@ -178,7 +184,9 @@ bash
 OLLAMA_HOST=http://localhost:11434
 
 # Model names (customize if using different models)
+PLANNER_MODEL=qwen3-vl:8b
 ROUTER_MODEL=qwen3-vl:8b
+ORCHESTRATOR_MODEL=nemotron-orchestrator:8b
 MEDICAL_VISION_MODEL=llava-med-v1.5:latest
 MEDICAL_ANALYSIS_MODEL=medtext-llama3
 MEDICAL_RADIOLOGY_MODEL=llava-med-v1.5
@@ -219,9 +227,11 @@ VAT_RAG_MAX_EXCERPT_CHARS=800
 |  | `expertModels.financial.analysis` | `FINANCIAL_ANALYSIS_MODEL` | `'fino1-8b'` | Financial analysis model |
 | **Legal Models** | `expertModels.legal.vision` | `LEGAL_VISION_MODEL` | `''` | Legal document vision model |
 |  | `expertModels.legal.analysis` | `LEGAL_ANALYSIS_MODEL` | `''` | Legal analysis model |
+|  | `expertModels.legal.orchestrator` | `LEGAL_ORCHESTRATOR_MODEL` | `ORCHESTRATOR_MODEL` | Legal pipeline orchestrator override |
 | **Ollama Service** | `ollama.apiUrl` | `OLLAMA_API_URL` | `'http://localhost:11434'` | Ollama API endpoint |
 |  | `ollama.model` | `OLLAMA_MODEL` | `'sauerkraut-llama3.1:8b'` | Default text model |
 |  | `ollama.visionModel` | `OLLAMA_VISION_MODEL` | `'qwen3-vl:8b'` | Default vision model |
+|  | `ollama.orchestratorModel` | `ORCHESTRATOR_MODEL` | `'nemotron-orchestrator:8b'` | System orchestration model |
 |  | `ollama.visionKeepAlive` | `VISION_KEEP_ALIVE` | `'5m'` | Vision model keep-alive duration |
 |  | `ollama.textKeepAlive` | `TEXT_KEEP_ALIVE` | `'2m'` | Text model keep-alive duration |
 
@@ -258,6 +268,7 @@ javascript
 const config = {
     models: {
         router: 'qwen3-vl:8b',
+        orchestrator: 'nemotron-orchestrator:8b',
         medicalImaging: 'llava-med-v1.5:latest',
         medicalText: 'medtext-llama3',
         general: 'sauerkraut-llama3.1:8b',
@@ -751,7 +762,9 @@ Reduce num_predict in prompt options
 Upgrade GPU or use CPU fallback
 bash
 # Use smaller models
+export PLANNER_MODEL=qwen3:4B
 export ROUTER_MODEL=qwen3:4B
+export ORCHESTRATOR_MODEL=nemotron-orchestrator:8b
 export MEDICAL_ANALYSIS_MODEL=sauerkraut-llama3.1:8b
 
 Issue: Slow Processing
