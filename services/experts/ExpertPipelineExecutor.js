@@ -440,6 +440,73 @@ class ExpertPipelineExecutor {
             }
         }
 
+        const rawDomain = context?.classification?.classification?.primary_domain ||
+            context?.classification?.domain ||
+            context?.classification?.classification?.domain ||
+            context?.options?.domain ||
+            '';
+        const domain = rawDomain ? String(rawDomain).trim().toLowerCase() : null;
+        const modelName = stage.model || config.ollama?.model || null;
+        const existingTagsRaw =
+            context?.options?.existingTags ||
+            context?.options?.existing_tags ||
+            context?.options?.existingTagNames ||
+            context?.options?.existingTagsList ||
+            context?.document?.tags ||
+            [];
+        let existingTags = Array.isArray(existingTagsRaw)
+            ? existingTagsRaw
+                .map(tag => {
+                    if (!tag) return null;
+                    if (typeof tag === 'string') return tag.trim();
+                    if (typeof tag === 'object' && tag.name) return String(tag.name).trim();
+                    return null;
+                })
+                .filter(Boolean)
+            : [];
+        const existingTagIds = Array.isArray(existingTagsRaw)
+            ? existingTagsRaw
+                .map(tag => {
+                    if (typeof tag === 'number' && Number.isFinite(tag)) return tag;
+                    if (tag && typeof tag === 'object' && typeof tag.id === 'number' && Number.isFinite(tag.id)) {
+                        return tag.id;
+                    }
+                    return null;
+                })
+                .filter(id => typeof id === 'number')
+            : [];
+        if (existingTags.length === 0 && existingTagIds.length > 0) {
+            if (Array.isArray(context._resolvedExistingTagNames)) {
+                existingTags = context._resolvedExistingTagNames;
+            } else {
+                try {
+                    if (paperlessService.client) {
+                        const resolved = await Promise.all(
+                            existingTagIds.map(tagId => paperlessService.getTagTextFromId(tagId))
+                        );
+                        existingTags = resolved.filter(Boolean);
+                        context._resolvedExistingTagNames = existingTags;
+                    }
+                } catch (error) {
+                    logger.warn({
+                        event: 'existing_tag_resolution_failed',
+                        stageId: stage.id,
+                        error: error.message
+                    });
+                }
+            }
+        }
+
+        if (domain && variables.domain === undefined) {
+            variables.domain = domain;
+        }
+        if (existingTags.length > 0 && variables.existing_tags === undefined) {
+            variables.existing_tags = existingTags;
+        }
+        if (modelName && variables.model === undefined) {
+            variables.model = modelName;
+        }
+
         // =================================================================
         // GUIDANCE PATH: Use Python Guidance service for deterministic JSON
         // =================================================================
@@ -456,12 +523,22 @@ class ExpertPipelineExecutor {
             });
 
             try {
+                const streamingThreshold = parseInt(
+                    process.env.GUIDANCE_STREAMING_THRESHOLD || '2000',
+                    10
+                );
+                const tokenCount = calculateTokens(textForContext || '');
+                const enableStreaming =
+                    Number.isFinite(streamingThreshold) &&
+                    tokenCount > streamingThreshold;
+
                 const guidanceResult = await guidanceClient.generate(
                     stage.guidanceTemplate,
                     variables,
                     {
-                        model: stage.model || config.ollama?.model,
-                        temperature: 0.1
+                        model: modelName,
+                        temperature: 0.1,
+                        stream: enableStreaming
                     }
                 );
 

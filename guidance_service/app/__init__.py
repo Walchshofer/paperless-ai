@@ -5,6 +5,7 @@ from guidance import models
 import json
 import os
 import logging
+import time
 from pythonjsonlogger import jsonlogger
 from cache.guidance_cache import GuidanceCacheManager
 
@@ -27,6 +28,7 @@ from metrics.guidance_metrics import (
     track_cache_operation,
     track_validation
 )
+from metrics.tag_metrics import record_tag_generation, extract_tag_lists
 
 CONFIDENCE_KEYS = ("vertrauen", "sicherheit", "routing_vertrauen")
 
@@ -67,9 +69,24 @@ def _normalize_confidence_fields(payload):
 
     for key in CONFIDENCE_KEYS:
         if key in payload:
-            payload[key] = _normalize_confidence_value(payload.get(key))
+            payload[key] = _normalize_confidence_value(payload.get(key))        
 
     return payload
+
+
+def _infer_domain(template_name: str) -> str:
+    if not template_name:
+        return "unknown"
+    lowered = template_name.lower()
+    if "medical" in lowered:
+        return "medical"
+    if "financial" in lowered or "vat" in lowered:
+        return "financial"
+    if "legal" in lowered:
+        return "legal"
+    if "general" in lowered or "cross_pipeline" in lowered:
+        return "general"
+    return "unknown"
 
 def create_app():
     app = Flask(__name__)
@@ -145,6 +162,9 @@ def create_app():
             try:
                 variables = data.get('variables', {})
                 temperature = data.get('temperature', 0.1)
+                template_latency_seconds = None
+                json_valid = None
+                has_tag_fields = False
 
                 if template_name not in templates:
                     tracker.set_status('error')
@@ -175,7 +195,9 @@ def create_app():
 
                 # 3. Execute Template
                 template_func = templates[template_name]
+                template_start = time.time()
                 result = lm + template_func(**variables)
+                template_latency_seconds = time.time() - template_start
 
                 # 4. Extract Variables
                 generated = {}
@@ -193,17 +215,36 @@ def create_app():
                 if output_payload is not None:
                     try:
                         if isinstance(output_payload, str):
+                            if '"suggested_tags"' in output_payload or '"missing_tags"' in output_payload:
+                                has_tag_fields = True
                             generated = json.loads(output_payload)
+                            json_valid = True
                         elif isinstance(output_payload, dict):
                             generated = output_payload
+                            if 'suggested_tags' in output_payload or 'missing_tags' in output_payload:
+                                has_tag_fields = True
+                            json_valid = True
                         else:
                             generated = {"output": output_payload}
+                            json_valid = False
                     except json.JSONDecodeError as exc:
                         app.logger.error(
                             "JSON parse failed for %s output (%s)",
                             template_name,
                             exc,
                         )
+                        json_valid = False
+                        if has_tag_fields:
+                            tag_info = extract_tag_lists({})
+                            record_tag_generation(
+                                template=template_name,
+                                domain=_infer_domain(template_name),
+                                json_valid=json_valid,
+                                latency_seconds=template_latency_seconds,
+                                suggested_tags=tag_info["suggested_tags"],
+                                missing_tags=tag_info["missing_tags"],
+                                logger=app.logger,
+                            )
                         tracker.set_status('error')
                         return jsonify({'error': 'Failed to parse JSON output'}), 500
                 else:
@@ -275,6 +316,23 @@ def create_app():
                             )
 
                 generated = _normalize_confidence_fields(generated)
+                tag_info = extract_tag_lists(generated)
+                has_tag_fields = has_tag_fields or (
+                    isinstance(generated, dict) and (
+                        'suggested_tags' in generated or 'missing_tags' in generated
+                    )
+                )
+                if has_tag_fields:
+                    json_valid_value = json_valid if json_valid is not None else True
+                    record_tag_generation(
+                        template=template_name,
+                        domain=_infer_domain(template_name),
+                        json_valid=json_valid_value,
+                        latency_seconds=template_latency_seconds,
+                        suggested_tags=tag_info["suggested_tags"],
+                        missing_tags=tag_info["missing_tags"],
+                        logger=app.logger,
+                    )
 
                 # 5. Validation Dispatch
                 validation = {'valid': True, 'errors': [], 'warnings': []}      

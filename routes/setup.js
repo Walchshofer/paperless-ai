@@ -2131,12 +2131,119 @@ async function saveDocumentChanges(docId, updateData, analysis, originalData) {
   ]);
 }
 
+async function applyPipelineTagGovernance(docId, updateData, analysis, originalTags = null) {
+  const hadTagField = Object.prototype.hasOwnProperty.call(updateData || {}, 'tags');
+  let tags = updateData?.tags || [];
+  if (typeof tags === 'string') {
+    tags = [tags];
+  }
+  const allowTagReplace = String(process.env.PIPELINE_TAG_REPLACE || '').toLowerCase() === 'yes';
+  const missingTags = new Set();
+  let combinedTagIds = [];
+
+  if (Array.isArray(tags) && tags.length > 0) {
+    const numericTagIds = [];
+    const nameTags = [];
+
+    tags.forEach(tag => {
+      if (typeof tag === 'number' && Number.isFinite(tag)) {
+        numericTagIds.push(tag);
+        return;
+      }
+      if (typeof tag === 'string') {
+        const trimmed = tag.trim();
+        if (trimmed) nameTags.push(trimmed);
+        return;
+      }
+      if (tag && typeof tag === 'object') {
+        if (typeof tag.id === 'number' && Number.isFinite(tag.id)) {
+          numericTagIds.push(tag.id);
+        }
+        if (typeof tag.name === 'string') {
+          const trimmed = tag.name.trim();
+          if (trimmed) nameTags.push(trimmed);
+        }
+      }
+    });
+
+    let resolvedTagIds = [];
+    if (nameTags.length > 0) {
+      const { tagIds, errors } = await paperlessService.processTags(nameTags, {
+        restrictToExistingTags: true
+      });
+      resolvedTagIds = tagIds;
+      if (Array.isArray(errors) && errors.length > 0) {
+        errors.forEach(err => {
+          if (err?.tagName) missingTags.add(String(err.tagName).trim());
+        });
+      }
+    }
+
+    combinedTagIds = [...new Set([...numericTagIds, ...resolvedTagIds])];
+  }
+
+  if (combinedTagIds.length > 0) {
+    tags = combinedTagIds;
+    updateData.tags = combinedTagIds;
+  } else if (hadTagField) {
+    if (allowTagReplace) {
+      tags = [];
+      updateData.tags = [];
+    } else {
+      if (Array.isArray(originalTags)) {
+        tags = originalTags;
+      }
+      if (updateData && Object.prototype.hasOwnProperty.call(updateData, 'tags')) {
+        delete updateData.tags;
+      }
+    }
+  }
+
+  if (Array.isArray(analysis?.missing_tags)) {
+    analysis.missing_tags.forEach(tag => {
+      if (tag) missingTags.add(String(tag).trim());
+    });
+  }
+
+  if (missingTags.size > 0) {
+    const stagedMissingTags = Array.from(missingTags).filter(Boolean);
+    let customFieldReady = true;
+    try {
+      await paperlessService.createCustomFieldSafely('ai_missing_tags', 'text');
+    } catch (error) {
+      customFieldReady = false;
+      logger.warn('[Pipeline] Failed to ensure ai_missing_tags field', {
+        docId,
+        error: error.message
+      });
+    }
+    if (customFieldReady) {
+      updateData.custom_fields = {
+        ...(updateData.custom_fields || {}),
+        ai_missing_tags: JSON.stringify(stagedMissingTags)
+      };
+    }
+    logger.warn('[Pipeline] Missing tags staged for review', {
+      docId,
+      missingTags: stagedMissingTags
+    });
+  }
+
+  return { tags, updateData };
+}
+
 async function savePipelineChanges(docId, updateData, analysis, originalData) {
   const original = originalData || {};
   const { tags: originalTags, correspondent: originalCorrespondent, title: originalTitle } = original;
   const title = updateData?.title || originalTitle || '';
   const correspondent = updateData?.correspondent || originalCorrespondent || null;
-  const tags = updateData?.tags || [];
+  const governanceResult = await applyPipelineTagGovernance(
+    docId,
+    updateData,
+    analysis,
+    originalTags
+  );
+  const tags = governanceResult.tags;
   const tasks = [
     documentModel.saveOriginalData(docId, originalTags, originalCorrespondent, originalTitle),
     paperlessService.updateDocument(docId, updateData),
@@ -2799,9 +2906,15 @@ router.post('/api/history/reanalyze/:id', async (req, res) => {
             triggerVisualIngestion: true
           });
 
-          if (result.success && result.paperless) {
-            // Apply the results to Paperless-ngx
-            await paperlessService.updateDocument(documentId, result.paperless);
+            if (result.success && result.paperless) {
+              // Apply the results to Paperless-ngx
+              const governanceResult = await applyPipelineTagGovernance(
+                documentId,
+                result.paperless,
+                result.result,
+                document.tags
+              );
+            await paperlessService.updateDocument(documentId, governanceResult.updateData);
             await documentModel.setProcessingStatus(documentId, document.title, 'complete');
             logger.info(`[Reanalyze] Expert Pipeline completed for document ${documentId}`, {
               pipelineId: result.metadata?.pipelineId,

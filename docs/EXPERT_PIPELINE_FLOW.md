@@ -56,6 +56,7 @@ Sources of truth:
    - Tools run after expert analysis to update Paperless metadata:
      tags, correspondents, document types, storage paths, custom fields.
    - Human-in-the-loop only if validation or policy requires it.
+   - Tag updates should follow governance rules (existing-only vs. review).
 
 8) **Visual RAG ingestion and overlays (conditional)**
    - Sidecar visual indexing + overlay extraction, based on orchestration gates.
@@ -129,6 +130,138 @@ flowchart LR
 - Fallback: use the configured default model if nemotron does not return a
   decision.
 
+## Guidance-assisted tag management (proposed)
+
+What to keep from the Guidance Engineer plan:
+
+- **Structured tag output**: Guidance templates can enforce JSON schemas for
+  tags (`suggested_tags`, `missing_tags`, `confidence`, `domain`, `source`),
+  keeping outputs machine-safe.
+- **Domain context**: templates can take `primary_domain`, `document_type`, and
+  existing tags to bias suggestions toward the correct taxonomy.
+- **Validation gate**: keep new tags separate from existing tags; only auto-
+  apply tags that already exist in Paperless unless a human review approves.
+- **Stats-aware hints**: lightweight frequency/co-occurrence hints can improve
+  precision without heavy ML dependencies.
+
+What to skip for now (overkill or mismatched to the current stack):
+
+- Large multi-expert consensus loops that require stateful orchestration across
+  multiple Guidance sessions.
+- Full statistical ML stacks (KMeans, Bayesian ranking, SciPy/NumPy) in the
+  core pipeline; these add heavy dependencies and operational cost.
+- Custom Docker services for tag statistics unless you explicitly want a
+  separate persistence layer.
+
+Suggested minimal Guidance template output:
+
+```json
+{
+  "suggested_tags": ["<existing tags only>"],
+  "missing_tags": ["<new tag candidates>"],
+  "confidence": { "overall": 0.0, "tags": { "tag": 0.0 } },
+  "domain": "medical|financial|legal|general",
+  "source": "guidance_tagger"
+}
+```
+
+Governance rules to manage tags over time:
+
+- **Existing-only auto-apply**: only auto-apply tags that already exist in      
+  Paperless (`RESTRICT_TO_EXISTING_TAGS=yes`).
+- **New tags queued**: treat `missing_tags` as review candidates (manual or     
+  scheduled approval).
+- **Pipeline staging**: when tags are missing, store them in the `ai_missing_tags` custom field and log the review queue entry.
+- **Normalization**: lowercase, trim, and map aliases before persistence.       
+- **Namespace**: reserve a prefix for AI-only tags (e.g., `ai:`) to support
+  pruning or replacement without touching user-managed tags.
+- **Confidence thresholds**: require a minimum confidence to auto-apply.
+
+### Guidance adoption plan audit (proposed)
+
+What to adopt now (low risk, aligned with current architecture):
+
+- **Tag-level metrics**: extend the Guidance metrics layer with tag events
+  (domain, template, JSON validity, latency, missing tags). Keep it passive.
+- **Failure ledger**: structured logging for Guidance exceptions, tied to
+  template name and model for fast triage.
+- **Baseline scripts**: document size distribution and tag set size; source data
+  should be fetched via Paperless API or existing service methods.
+- **Fallback mapping verification**: keep the verification checklist plus a
+  script for CI or manual checks.
+
+What to defer (requires additional support or risks complexity creep):
+
+- **Streaming generation**: only enable if the Guidance service exposes streaming
+  responses; otherwise document it as optional and keep non-streaming fallback.
+- **Stats-driven tag suggestions**: only after you have 500+ tagged documents
+  and a stable taxonomy; keep it hint-only at first.
+- **Canary rollout logic**: useful, but keep it optional until metrics confirm
+  improvements and there is a clear rollback plan.
+
+### Streaming policy (proposed)
+
+- Enable streaming only when Guidance service supports it and token counts are
+  high (example threshold: 2000 tokens).
+- Persist partial results only if you have a staging field or review queue;
+  otherwise keep streaming read-only for UX.
+
+### Canary policy (proposed)
+
+- Use a feature flag or rollout percentage per stage and per template version.
+- Gates: JSON validity rate >= 95% and error rate <= 2% on baseline metrics.
+
+### Guidance template composition for domains (proposed)
+
+Composable template parts reduce duplication across domains and keep tag
+schemas consistent:
+
+```python
+@guidance(stateless=True)
+def confidence_block(lm):
+    lm += '"confidence": ' + gen("conf", regex=r'0\.\d+|1\.0')
+    return lm
+
+@guidance(stateless=True)
+def tag_entry(lm, tag_str, domain):
+    lm += '{"tag": "' + tag_str + '", "domain": "' + domain + '", '
+    lm += confidence_block(lm)
+    lm += '}'
+    return lm
+```
+
+Each domain template can then reuse these components to assemble tag outputs
+without repeating JSON structure rules.
+
+### Guidance streaming for long documents
+
+Guidance calls enable streaming when token count exceeds `GUIDANCE_STREAMING_THRESHOLD`
+(default: 2000) and `GUIDANCE_STREAMING_ENABLED=yes` is set. If the service does
+not support streaming, the client falls back to non-streaming automatically.
+
+### Domain-aware template routing
+
+Guidance templates receive explicit domain context for biasing:
+
+- Executor injects `domain`, `existing_tags`, and `model` into Guidance variables.
+- Templates include the domain context in `system()` prompts to bias taxonomy and
+  reduce cross-domain contamination.
+
+### Guidance fallback template verification
+
+Maintain a tested mapping table for Guidance fallback templates and record the  
+last validation date. This keeps the fallback path auditable.
+
+Validation script: `scripts/verify-guidance-fallbacks.js`
+
+| Template | Fallback prompt | Last verified | Status |
+| --- | --- | --- | --- |
+| `medical_classifier` | `MED_RADIOLOGY_V1` | 2025-12-29 | ok |
+| `financial_extractor` | `FIN_EXTRACT_V1` | 2025-12-29 | ok |
+| `legal_classifier` | `LEGAL_ORCHESTRATOR_V1` | 2025-12-29 | ok |
+| `general_extractor` | `GEN_FALLBACK_V1` | 2025-12-29 | ok |
+| `cross_pipeline_router` | `SYS_ROUTER_V1` | 2025-12-29 | ok |
+
 ## Guidance enablement rules
 
 Guidance is used when **all** are true:
@@ -156,6 +289,10 @@ Fallback prompt IDs come from `services/guidance/GuidanceClient.js`:
 - `general_extractor` -> `GEN_FALLBACK_V1`
 - `cross_pipeline_router` -> `SYS_ROUTER_V1`
 
+Fallback verification checklist:
+- Run `node scripts/verify-guidance-fallbacks.js` after template or model changes.
+- Update the fallback verification table with date and status.
+
 ## Guidance templates registered
 
 Registered in `guidance_service/app/__init__.py`:
@@ -164,7 +301,7 @@ Registered in `guidance_service/app/__init__.py`:
 - `legal_classifier`, `legal_extractor`, `legal_validator`
 - `general_classifier`, `general_extractor`, `cross_pipeline_router`
 
-Note: `general_classifier` is registered but not used by the pipeline stages.
+Note: `general_classifier` is now executed in the General pipeline before extraction.
 
 ## Pipeline stage map (Guidance vs Prompt)
 
@@ -199,6 +336,7 @@ Note: `general_classifier` is registered but not used by the pipeline stages.
 
 | Stage | Type | Guidance template | Prompt fallback | Model | Notes |
 | --- | --- | --- | --- | --- | --- |
+| `general_classifier` | CLASSIFICATION | `general_classifier` | `GEN_FALLBACK_V1` | `sauerkraut-llama3.1:8b` | Pre-classification for routing |
 | `general_extraction` | TEXT_EXTRACTION | `general_extractor` | `GEN_FALLBACK_V1` | `sauerkraut-llama3.1:8b` | Guidance preferred |
 | `cross_pipeline_router` | REASONING | `cross_pipeline_router` | `SYS_ROUTER_V1` | `sauerkraut-llama3.1:8b` | Guidance preferred |
 
@@ -214,3 +352,11 @@ Note: `general_classifier` is registered but not used by the pipeline stages.
   scale run before visual OCR or Visual RAG ingestion.
 - **Overlay quality**: overlays only render if bounding boxes are stored as
   metadata and embeddings are available for retrieval.
+- **Tag governance**: limit auto-applied tags to the existing taxonomy and keep
+  new tag candidates for review to avoid tag sprawl.
+- **Guidance fast-forwarding**: predictable JSON tokens can be auto-completed by
+  the grammar without additional LLM passes (lower latency).
+- **Token healing**: grammar constraints can repair tokenization boundaries at
+  schema edges (reduces malformed key/value emission).
+- **KV cache reuse**: within a single stage, consecutive Guidance generations
+  can reuse caches to reduce repeated compute.

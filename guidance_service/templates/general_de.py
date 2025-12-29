@@ -3,20 +3,7 @@ from typing import List, Literal
 from guidance import guidance, system, user, assistant, json as gen_json
 from pydantic import BaseModel, Field
 
-
-def _pick_text(*values):
-    for value in values:
-        if value not in (None, "", "N/A"):
-            return value
-    return ""
-
-
-def _stringify(value):
-    if value in (None, "N/A"):
-        return ""
-    if isinstance(value, str):
-        return value
-    return str(value)
+from templates.components.common import build_domain_context, pick_text, stringify
 
 
 class GeneralClassifierOutput(BaseModel):
@@ -55,14 +42,29 @@ class GeneralTemplatesDE:
     def get_general_classifier():
         """Classify unstructured German documents (Stage 4.1 pre-processing)."""
         @guidance
-        def general_classifier(lm, document_text=None, text_chunk=None, **kwargs):
-            text = _pick_text(document_text, text_chunk)
+        def general_classifier(
+            lm,
+            document_text=None,
+            text_chunk=None,
+            domain=None,
+            existing_tags=None,
+            model=None,
+            **kwargs
+        ):
+            text = pick_text(document_text, text_chunk)
+            domain_context = build_domain_context(
+                domain or kwargs.get("domain"),
+                existing_tags or kwargs.get("existing_tags"),
+                model or kwargs.get("model"),
+            )
             with system():
                 lm += (
                     "Du bist ein Dokumentklassifizierer für deutschsprachige Allgemeindokumente.\n"
                     "Deine Aufgabe: Klassifiziere unstrukturierte oder gemischte Dokumente.\n"
                     "Erkenne: Dokumenttyp, Sprache, Wichtigste Entitäten, Vertrauensscore."
                 )
+                if domain_context:
+                    lm += f"\n{domain_context}"
             with user():
                 lm += "Dokument (erste 1000 Zeichen):\n"
                 lm += f"{text}\n"
@@ -81,13 +83,28 @@ class GeneralTemplatesDE:
     def get_general_extractor():
         """Extract metadata from general documents."""
         @guidance
-        def general_extractor(lm, document_text=None, text_chunk=None, **kwargs):
-            text = _pick_text(document_text, text_chunk)
+        def general_extractor(
+            lm,
+            document_text=None,
+            text_chunk=None,
+            domain=None,
+            existing_tags=None,
+            model=None,
+            **kwargs
+        ):
+            text = pick_text(document_text, text_chunk)
+            domain_context = build_domain_context(
+                domain or kwargs.get("domain"),
+                existing_tags or kwargs.get("existing_tags"),
+                model or kwargs.get("model"),
+            )
             with system():
                 lm += (
                     "Du bist ein Dokumentanalyst für deutschsprachige Allgemeindokumente. "
                     "Extrahiere Zusammenfassung, Schlüsselwörter und Entitäten."
                 )
+                if domain_context:
+                    lm += f"\n{domain_context}"
             with user():
                 lm += "Dokument:\n"
                 lm += f"{text}\n"
@@ -110,14 +127,76 @@ class GeneralTemplatesDE:
             has_financial=None,
             has_medical=None,
             has_legal=None,
+            has_personal=None,
+            classifier_output=None,
+            extractor_output=None,
+            domain=None,
+            existing_tags=None,
+            model=None,
             **kwargs
         ):
-            document_type = _pick_text(doc_type, kwargs.get("document_type"), kwargs.get("dokumenttyp"))
-            theme_text = _stringify(_pick_text(themes, kwargs.get("themata"), kwargs.get("themes")))
-            financial_text = _stringify(_pick_text(has_financial, kwargs.get("enthaelt_finanzen")))
-            medical_text = _stringify(_pick_text(has_medical, kwargs.get("enthaelt_medizin")))
-            legal_text = _stringify(_pick_text(has_legal, kwargs.get("enthaelt_recht")))
-            summary_text = _stringify(_pick_text(summary, kwargs.get("zusammenfassung"), kwargs.get("summary")))
+            classifier_output = classifier_output or kwargs.get("classifier_output") or {}
+            extractor_output = extractor_output or kwargs.get("extractor_output") or {}
+            if not isinstance(classifier_output, dict):
+                classifier_output = {}
+            if not isinstance(extractor_output, dict):
+                extractor_output = {}
+            classifier_doc_info = classifier_output.get("document_info")
+            if not isinstance(classifier_doc_info, dict):
+                classifier_doc_info = {}
+            extractor_doc_info = extractor_output.get("document_info")
+            if not isinstance(extractor_doc_info, dict):
+                extractor_doc_info = {}
+            extractor_summary = extractor_output.get("summary")
+            if not isinstance(extractor_summary, dict):
+                extractor_summary = {}
+
+            document_type = pick_text(
+                doc_type,
+                kwargs.get("document_type"),
+                kwargs.get("dokumenttyp"),
+                classifier_output.get("dokumenttyp"),
+                classifier_doc_info.get("detected_type"),
+                extractor_doc_info.get("detected_type")
+            )
+            theme_text = stringify(pick_text(
+                themes,
+                kwargs.get("themata"),
+                kwargs.get("themes"),
+                classifier_output.get("themata")
+            ))
+            financial_text = stringify(pick_text(
+                has_financial,
+                kwargs.get("enthaelt_finanzen"),
+                classifier_output.get("enthaelt_finanzen")
+            ))
+            medical_text = stringify(pick_text(
+                has_medical,
+                kwargs.get("enthaelt_medizin"),
+                classifier_output.get("enthaelt_medizin")
+            ))
+            legal_text = stringify(pick_text(
+                has_legal,
+                kwargs.get("enthaelt_recht"),
+                classifier_output.get("enthaelt_recht")
+            ))
+            personal_text = stringify(pick_text(
+                has_personal,
+                kwargs.get("enthaelt_personendaten"),
+                classifier_output.get("enthaelt_personendaten")
+            ))
+            summary_text = stringify(pick_text(
+                summary,
+                kwargs.get("zusammenfassung"),
+                kwargs.get("summary"),
+                extractor_output.get("zusammenfassung"),
+                extractor_summary.get("brief")
+            ))
+            domain_context = build_domain_context(
+                domain or kwargs.get("domain"),
+                existing_tags or kwargs.get("existing_tags"),
+                model or kwargs.get("model"),
+            )
             with system():
                 lm += (
                     "Du bist ein Dokumentrouter für die Paperless-AI Pipeline. "
@@ -125,6 +204,8 @@ class GeneralTemplatesDE:
                     "Sollte dieses Dokument zu Medical, Financial, Legal, oder General gehen? "
                     "Gib klare Empfehlung mit Begründung."
                 )
+                if domain_context:
+                    lm += f"\n{domain_context}"
             with user():
                 lm += "Klassifiziertes Dokument:\n"
                 lm += f"Dokumenttyp: {document_type}\n"
@@ -134,6 +215,8 @@ class GeneralTemplatesDE:
                 lm += f"Enthält finanzielle Daten: {financial_text}\n"
                 lm += f"Enthält medizinische Daten: {medical_text}\n"
                 lm += f"Enthält rechtliche Begriffe: {legal_text}\n"
+                if personal_text:
+                    lm += f"Enthält personenbezogene Daten: {personal_text}\n"
                 lm += "Welche Pipeline?"
             with assistant():
                 lm += gen_json(name="output", schema=CrossPipelineRouterOutput)
