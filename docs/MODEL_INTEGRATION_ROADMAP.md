@@ -7,7 +7,7 @@ This document outlines the phased integration plan for advanced and infrastructu
 All production tier models are fully integrated and operational:
 
 - ✅ `qwen3-vl:8b` - Document classification and routing
-- ✅ `llava-med-v1.5` - Medical imaging analysis
+- ✅ `llava-med-v1.6` - Medical imaging analysis
 - ✅ `medtext-llama3` - Clinical text extraction
 - ✅ `fino1-8b` - Financial reasoning
 - ✅ `llm-pro-finance-8b` - Financial extraction and VAT analysis
@@ -22,12 +22,12 @@ All production tier models are fully integrated and operational:
 Integration of high-value reasoning models for complex analysis scenarios.
 
 ### Dragon-Finance Integration
-**Model**: `dragon-finance` (9GB VRAM)
+**Model**: `llm-pro-finance-8b` (9GB VRAM)
 **Role**: Advanced multilingual reasoning, medical-financial analysis, summarization, implication checking
 **Integration Points**:
 - Optional stage in medical/financial pipelines for complex cases
 - Feature flag: `ENABLE_ADVANCED_REASONING=yes`
-- Environment variable: `DRAGON_MODEL=dragon-finance`
+- Environment variable: `DRAGON_MODEL=llm-pro-finance-8b`
 **Timeline**: Q2 2025
 **Hardware Requirements**: RTX 3090 Ti or RTX 4090 (24GB+ VRAM)
 

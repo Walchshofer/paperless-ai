@@ -1,8 +1,8 @@
 import json
-import os
-from pathlib import Path
-from datetime import datetime
 from collections import Counter, defaultdict
+from datetime import datetime
+from pathlib import Path
+
 
 class AccuracyTracker:
     """
@@ -16,7 +16,9 @@ class AccuracyTracker:
     def load_feedback(self):
         """Load all feedback files from the target directory."""
         if not self.feedback_path.exists():
-            print(f"Warning: Feedback directory {self.feedback_path} not found.")
+            print(
+                f"Warning: Feedback directory {self.feedback_path} not found."
+            )
             return
 
         for feedback_file in self.feedback_path.glob("*.json"):
@@ -33,11 +35,17 @@ class AccuracyTracker:
             return
 
         total_docs = len(self.results)
-        avg_rating = sum(r['rating'] for r in self.results) / total_docs
-        avg_accuracy = sum(r['accuracyScore'] for r in self.results) / total_docs
+        avg_rating = (
+            sum(r['rating'] for r in self.results) / total_docs
+        )
+        avg_accuracy = (
+            sum(r['accuracyScore'] for r in self.results) / total_docs
+        )
 
         # Breakdown by pipeline
-        pipeline_stats = defaultdict(lambda: {"total": 0, "acc_sum": 0, "rating_sum": 0})
+        pipeline_stats = defaultdict(
+            lambda: {"total": 0, "acc_sum": 0, "rating_sum": 0}
+        )
         corrections_counter = Counter()
 
         for r in self.results:
@@ -45,26 +53,35 @@ class AccuracyTracker:
             pipeline_stats[pid]["total"] += 1
             pipeline_stats[pid]["acc_sum"] += r.get('accuracyScore', 0)
             pipeline_stats[pid]["rating_sum"] += r.get('rating', 0)
-            
+
             for field in r.get('corrections', []):
                 corrections_counter[field] += 1
 
-        self._print_report(total_docs, avg_rating, avg_accuracy, pipeline_stats, corrections_counter)
+        self._print_report(
+            total_docs,
+            avg_rating,
+            avg_accuracy,
+            pipeline_stats,
+            corrections_counter,
+        )
 
     def _print_report(self, total, rating, acc, p_stats, corrections):
         print("="*60)
-        print(f"PAPERLESS-AI ACCURACY REPORT - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        print(f"PAPERLESS-AI ACCURACY REPORT - {timestamp}")
         print("="*60)
         print(f"Total Documents Reviewed: {total}")
         print(f"Overall User Rating:     {rating:.2f} / 5.0")
         print(f"Overall AI Accuracy:     {acc * 100:.2f}%")
         print("-" * 60)
-        
+
         print("PIPELINE PERFORMANCE:")
         for pid, stats in p_stats.items():
             p_acc = (stats["acc_sum"] / stats["total"]) * 100
             p_rat = stats["rating_sum"] / stats["total"]
-            print(f" -> {pid:25} | Accuracy: {p_acc:6.2f}% | Rating: {p_rat:.2f}")
+            print(
+                f" -> {pid:25} | Accuracy: {p_acc:6.2f}% | Rating: {p_rat:.2f}"
+            )
 
         print("-" * 60)
         print("TOP 5 FIELDS REQUIRING CORRECTION:")
@@ -72,9 +89,9 @@ class AccuracyTracker:
             print(f" -> {field:25} | Corrections: {count}")
         print("="*60)
 
+
 if __name__ == "__main__":
     # Ensure we are looking in the right place relative to the project root
     tracker = AccuracyTracker(feedback_dir="../data/feedback")
     tracker.load_feedback()
     tracker.calculate_metrics()
-    

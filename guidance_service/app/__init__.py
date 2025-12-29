@@ -108,6 +108,7 @@ def create_app():
         # Phase 3: Legal
         'legal_classifier': LegalTemplatesDE.get_legal_classifier(),
         'legal_extractor': LegalTemplatesDE.get_legal_extractor(),
+        'legal_validator': LegalTemplatesDE.get_legal_validator(),
         
         # Phase 4: General
         'general_classifier': GeneralTemplatesDE.get_general_classifier(),

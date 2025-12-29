@@ -9,7 +9,7 @@
  * 
  * Model Configuration:
  * - Router/Visual: qwen3-vl:8B (multimodal)
- * - Medical Radiology: llava-med-v1.5:latest (multimodal)  
+ * - Medical Radiology: llava-med-v1.6:latest (multimodal)  
  * - Medical General: medtext-llama3:latest (text-only)
  * - Finance Reasoning: fino1-8b (text-only)
  * - Finance General: llm-pro-finance-8b (text-only)
@@ -53,7 +53,7 @@ const ModelRegistry = Object.freeze({
         domains: [DomainType.SYSTEM, DomainType.GENERAL]
     },
     // Medical radiology specialist - X-rays, CT, MRI interpretation
-    'llava-med-v1.5:latest': {
+    'llava-med-v1.6:latest': {
         type: ModelType.MULTIMODAL,
         vramRequirement: '8GB',
         capabilities: ['radiology_analysis', 'medical_imaging', 'finding_extraction'],
@@ -187,7 +187,7 @@ Respond with this exact JSON structure:
  * MED_RADIOLOGY_V1: Medical Imaging Analysis Expert
  * 
  * Purpose: Analyze medical imaging (X-rays, CT, MRI, ultrasound)
- * Model: llava-med-v1.5:latest (multimodal, medical-trained)
+ * Model: llava-med-v1.6:latest (multimodal, medical-trained)
  * 
  * Capabilities:
  * - Anatomical structure identification
@@ -199,7 +199,7 @@ const MED_RADIOLOGY_V1 = {
     id: 'MED_RADIOLOGY_V1',
     version: '1.0.0',
     domain: DomainType.MEDICAL,
-    model: 'llava-med-v1.5:latest',
+    model: 'llava-med-v1.6:latest',
     modelType: ModelType.MULTIMODAL,
     
     systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
@@ -531,7 +531,7 @@ OUTPUT REQUIREMENTS:
     userTemplate: `<|start_header_id|>user<|end_header_id|>
 Integrate the following analysis outputs into a unified medical record.
 
-STAGE 1 - IMAGING ANALYSIS (from llava-med-v1.5):
+STAGE 1 - IMAGING ANALYSIS (from llava-med-v1.6):
 {{imaging_analysis}}
 
 STAGE 2 - TEXT EXTRACTION (from medtext-llama3):

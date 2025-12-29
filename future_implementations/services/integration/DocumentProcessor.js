@@ -31,7 +31,7 @@
  * 
  * Model Configuration:
  * - Router: qwen3-vl:8B (multimodal)
- * - Medical Imaging: llava-med-v1.5:latest (multimodal)
+ * - Medical Imaging: llava-med-v1.6:latest (multimodal)
  * - Medical Text: medtext-llama3:latest (text-only)
  * - General: llama3.2:latest (text-only)
  */
@@ -59,7 +59,7 @@ const ProcessorConfig = {
     // Model selection
     models: {
         router: process.env.ROUTER_MODEL || 'qwen3-vl:8B',
-        medicalImaging: process.env.MEDICAL_IMAGING_MODEL || 'llava-med-v1.5:latest',
+        medicalImaging: process.env.MEDICAL_IMAGING_MODEL || 'llava-med-v1.6:latest',
         medicalText: process.env.MEDICAL_TEXT_MODEL || 'medtext-llama3:latest',
         general: process.env.GENERAL_MODEL || 'llama3.2:latest',
         financeReasoning: process.env.FINANCE_REASONING_MODEL || 'fino1-8b',

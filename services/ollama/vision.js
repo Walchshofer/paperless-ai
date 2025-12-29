@@ -56,15 +56,35 @@ module.exports = {
                     modality: 'unknown',
                     confidence: 0.5,
                     keywords: [],
-                    needs_visual: true
+                    needs_visual: true,
+                    rotation_degrees: 0
                 };
                 plannerResult.routing = this._buildRoutingMetadata(plannerResult);
             }
 
             logger.info('[VISION] Final classification: ' + JSON.stringify(plannerResult));
 
+            const rotationDegrees = this._normalizeRotationDegrees(plannerResult?.rotation_degrees);
+            let rotationApplied = false;
+            if (rotationDegrees && rotationDegrees !== 0) {
+                logger.info(`[PLANNER] Rotation detected (${rotationDegrees} degrees) for document ${documentId}`);
+                const rotated = await paperlessService.rotateDocuments(documentId, rotationDegrees);
+                if (rotated) {
+                    rotationApplied = true;
+                    await this._clearVisionCache(documentId);
+                    await this._delay(1500);
+                    const refreshedPlanner = await this.analyzeDocumentPlannerVision(documentId);
+                    if (refreshedPlanner) {
+                        plannerResult = { ...refreshedPlanner, rotation_degrees: 0 };
+                        logger.info('[PLANNER] Classification refreshed after rotation');
+                    }
+                } else {
+                    logger.warn(`[PLANNER] Rotation request failed for document ${documentId}`);
+                }
+            }
+
             const plannerRenderDpi = config.visualRag?.visionRenderDpi || 300;
-            const base64Image = await this._loadPlannerImageAsBase64(documentId, plannerRenderDpi);
+            let base64Image = await this._loadPlannerImageAsBase64(documentId, plannerRenderDpi);
             if (!base64Image) {
                 logger.info('[VISION] Fallback to text: no render or thumbnail available');
                 const fallbackStage = telemetry.startStage('fallback', this.model);
@@ -185,7 +205,9 @@ module.exports = {
                 }
 
                 parsedResponse = this._applyNoteDefaults(parsedResponse);
+                parsedResponse = this._applyLegacyVisionFallbacks(parsedResponse, options);
                 validation = this.fieldProfiler.validateResult(parsedResponse, profileId);
+                validation = this._relaxVisionValidation(validation);
 
                 if (validation.valid) {
                     break;
@@ -410,7 +432,8 @@ module.exports = {
             modality: 'unknown',
             confidence: 0.5,
             keywords: [],
-            needs_visual: false
+            needs_visual: false,
+            rotation_degrees: 0
         };
         const applyRouting = (classification) => ({
             ...classification,
@@ -485,6 +508,9 @@ module.exports = {
                     if (!parsedResponse.modality) {
                         parsedResponse.modality = 'unknown';
                     }
+                    parsedResponse.rotation_degrees = this._normalizeRotationDegrees(
+                        parsedResponse.rotation_degrees
+                    );
                     return applyRouting(parsedResponse);
                 }
 
@@ -510,6 +536,57 @@ module.exports = {
                 }
             });
         } catch (e) {}
+    },
+
+    _normalizeRotationDegrees(value) {
+        const parsed = Number.parseInt(value, 10);
+        if ([0, 90, 180, 270].includes(parsed)) return parsed;
+        return 0;
+    },
+
+    _relaxVisionValidation(validation) {
+        if (!validation || validation.valid) return validation;
+        const relaxable = new Set(['title', 'correspondent']);
+        const errors = Array.isArray(validation.errors) ? validation.errors : [];
+        const remainingErrors = errors.filter((message) => {
+            const match = message.match(/Missing required field:\s*(.+)$/i);
+            if (!match) return true;
+            const field = match[1]?.trim();
+            return !relaxable.has(field);
+        });
+        if (remainingErrors.length === 0) {
+            return {
+                ...validation,
+                valid: true,
+                errors: remainingErrors,
+                warnings: [
+                    ...(validation.warnings || []),
+                    'Missing title/correspondent; using existing metadata'
+                ]
+            };
+        }
+        return validation;
+    },
+
+    async _clearVisionCache(documentId) {
+        if (!documentId) return;
+        const thumbnailPath = path.join(process.cwd(), 'public', 'images', `${documentId}.png`);
+        await fs.unlink(thumbnailPath).catch(() => {});
+
+        const renderDir = path.join(process.cwd(), 'public', 'images', 'rendered');
+        try {
+            const entries = await fs.readdir(renderDir);
+            const prefix = `${documentId}_p`;
+            await Promise.all(entries
+                .filter(entry => entry.startsWith(prefix))
+                .map(entry => fs.unlink(path.join(renderDir, entry)).catch(() => {})));
+        } catch (error) {
+            // Ignore cache clearing errors
+        }
+    },
+
+    _delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     },
 
     async _loadPlannerImageAsBase64(documentId, dpi = 300) {

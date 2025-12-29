@@ -9,7 +9,7 @@ These models are fully integrated and production-ready:
 | Canonical Name | Aliases | Role | Domain | Type | VRAM | Status | Config Keys | Used In |
 |---|---|---|---|---|---|---|---|---|
 | `qwen3-vl:8b` | `qwen3-vl`, `qwen3-vl:8B` | Document classification, visual routing, OCR, handwriting recognition | System/General | Multimodal | 10GB | Active | `PLANNER_MODEL`, `ROUTER_MODEL`, `ollama.visionModel`, `ollama.plannerModel`, `ollama.routerModel` | SYS_ROUTER_V1, ExpertRegistry, PromptRegistry |
-| `llava-med-v1.5` | `llava-med`, `llava-med-v1.5:latest` | Medical imaging analysis (X-ray, CT, MRI, ultrasound, microscopy) | Medical | Multimodal | 9GB | Active | `MEDICAL_VISION_MODEL`, `MEDICAL_RADIOLOGY_MODEL` | MED_RADIOLOGY_V1, ExpertRegistry |
+| `llava-med-v1.6` | `llava-med`, `llava-med-v1.6:latest` | Medical imaging analysis (X-ray, CT, MRI, ultrasound, microscopy) | Medical | Multimodal | 9GB | Active | `MEDICAL_VISION_MODEL`, `MEDICAL_RADIOLOGY_MODEL` | MED_RADIOLOGY_V1, ExpertRegistry |
 | `medtext-llama3` | `medtext`, `medtext-llama3:latest` | Clinical text extraction, medical coding (ICD-10), entity recognition | Medical | Text | 6GB | Active | `MEDICAL_ANALYSIS_MODEL` | MED_DOCTOR_V1, MED_INTEGRATOR_V1, ExpertRegistry |
 | `fino1-8b` | `fino1`, `fino1-8b-q8` | Financial reasoning, mathematical validation, table extraction, OCR correction | Financial | Text | 6GB | Active | `FINANCIAL_ANALYSIS_MODEL` | FIN_REASONER_V1, ExpertRegistry |
 | `llm-pro-finance-8b` | `llm-pro-finance` | Financial extraction, multilingual finance, regulatory analysis, VAT compliance | Financial | Text | 6GB | Active | `FINANCIAL_VISION_MODEL`, `VAT_EXPERT_MODEL` | FIN_EXTRACT_V1, FIN_VAT_EXPERT_V1, ExpertRegistry |
@@ -22,7 +22,7 @@ High-value reasoning models for complex analysis:
 
 | Canonical Name | Aliases | Role | Domain | Type | VRAM | Status | Config Keys | Documentation |
 |---|---|---|---|---|---|---|---|---|
-| `dragon-finance` | `dragon`, `dragon-llm` | Advanced multilingual reasoning, medical-financial analysis, summarization, implication checking | Financial/Medical | Text (Reasoning) | 9GB | Documented | `DRAGON_MODEL` | `docs/model/dragon-finance.md` |
+| `llm-pro-finance-8b` | `dragon`, `dragon-llm` | Advanced multilingual reasoning, medical-financial analysis, summarization, implication checking | Financial/Medical | Text (Reasoning) | 9GB | Documented | `DRAGON_MODEL` | `docs/model/llm-pro-finance-8b.md` |
 | `gpt-oss` | `gpt-oss-20b` | Complex reasoning, chain-of-thought, agentic tool use, coding | General | Text (Reasoning) | 13GB | Documented | `GPT_OSS_MODEL` | `docs/model/gpt-oss.md` |
 | `nemotron-orchestrator:8b` | `nemotron`, `orchestrator` | Task delegation, tool selection, planning, expert routing | System | Text | 8GB | Active | `ORCHESTRATOR_MODEL` | `docs/model/nemotron-orchestrator.md` |
 
@@ -58,8 +58,8 @@ Supporting models for RAG and vector search:
 
 | Domain | Production Models | Advanced Models | Infrastructure |
 |---|---|---|---|
-| Medical | llava-med-v1.5, medtext-llama3 | dragon-finance | nomic-embed-text-v1.5 |
-| Financial | fino1-8b, llm-pro-finance-8b | dragon-finance | nomic-embed-text-v1.5 |
+| Medical | llava-med-v1.6, medtext-llama3 | llm-pro-finance-8b | nomic-embed-text-v1.5 |
+| Financial | fino1-8b, llm-pro-finance-8b | llm-pro-finance-8b | nomic-embed-text-v1.5 |
 | General | sauerkraut-llama3.1:8b | gpt-oss | nomic-embed-text-v1.5 |
 | System | qwen3-vl:8b | nemotron-orchestrator:8b | tomoro-colqwen3-embed-8b |
 

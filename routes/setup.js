@@ -1880,12 +1880,16 @@ try {
     
         for (const doc of documents) {
           try {
-            const result = await processDocument(doc, existingTagNames, existingCorrespondentList, existingDocumentTypesList, ownUserId);
+          const result = await processDocument(doc, existingTagNames, existingCorrespondentList, existingDocumentTypesList, ownUserId);
             if (!result) continue;
-    
-            const { analysis, originalData } = result;
-            const updateData = await buildUpdateData(analysis, doc);
-            await saveDocumentChanges(doc.id, updateData, analysis, originalData);
+
+            if (result.updateData) {
+              await savePipelineChanges(doc.id, result.updateData, result.analysis, result.originalData);
+            } else {
+              const { analysis, originalData } = result;
+              const updateData = await buildUpdateData(analysis, doc);
+              await saveDocumentChanges(doc.id, updateData, analysis, originalData);
+            }
           } catch (error) {
             console.error(`[ERROR] processing document ${doc.id}:`, error);
           }
@@ -1916,10 +1920,39 @@ async function processDocument(doc, existingTags, existingCorrespondentList, exi
     console.log(`[DEBUG] Document ${doc.id} rights for AI User - processed`);
   }
 
-  let [content, originalData] = await Promise.all([
-    paperlessService.getDocumentContent(doc.id),
-    paperlessService.getDocument(doc.id)
-  ]);
+  const useExpertPipeline = config.expertPipelineEnabled === true || config.expertPipelineEnabled === 'yes';
+  const originalData = await paperlessService.getDocument(doc.id);
+  const sourceDocument = originalData || doc;
+  const documentCreated = sourceDocument?.created || sourceDocument?.added || doc.created || doc.added;
+
+  if (useExpertPipeline) {
+    const preparedDocument = await prepareDocumentForExpertPipeline(sourceDocument, doc.id);
+    const processor = new DocumentProcessor(ollamaService, {
+      mode: 'hybrid',
+      enableVisualRAG: true
+    });
+    const result = await processor.process(preparedDocument, {
+      mode: 'expert_pipeline',
+      triggerVisualIngestion: true,
+      existingTags: existingTags || [],
+      existingCorrespondentList: existingCorrespondentList || [],
+      existingDocumentTypesList: existingDocumentTypesList || [],
+      customPrompt,
+      documentCreated
+    });
+    if (!result.success || !result.paperless) {
+      throw new Error(`[ERROR] Expert pipeline failed: ${result.error || 'unknown error'}`);
+    }
+    await documentModel.setProcessingStatus(doc.id, doc.title, 'complete');
+    return {
+      updateData: result.paperless,
+      analysis: result.result,
+      originalData: sourceDocument,
+      pipeline: 'expert'
+    };
+  }
+
+  let content = await paperlessService.getDocumentContent(doc.id);
 
   if (!content || !content.length >= 10) {
     console.log(`[DEBUG] Document ${doc.id} has no content, skipping analysis`);
@@ -1933,7 +1966,8 @@ async function processDocument(doc, existingTags, existingCorrespondentList, exi
   // Prepare options for AI service
   const options = {
     restrictToExistingTags: config.restrictToExistingTags === 'yes',
-    restrictToExistingCorrespondents: config.restrictToExistingCorrespondents === 'yes'
+    restrictToExistingCorrespondents: config.restrictToExistingCorrespondents === 'yes',
+    documentCreated
   };
 
   // Get external API data if enabled
@@ -1963,7 +1997,7 @@ async function processDocument(doc, existingTags, existingCorrespondentList, exi
     throw new Error(`[ERROR] Document analysis failed: ${analysis.error}`);
   }
   await documentModel.setProcessingStatus(doc.id, doc.title, 'complete');
-  return { analysis, originalData };
+  return { analysis, originalData: sourceDocument };
 }
 
 async function buildUpdateData(analysis, doc) {
@@ -2082,19 +2116,46 @@ async function buildUpdateData(analysis, doc) {
 
 async function saveDocumentChanges(docId, updateData, analysis, originalData) {
   const { tags: originalTags, correspondent: originalCorrespondent, title: originalTitle } = originalData;
-  
+
   await Promise.all([
     documentModel.saveOriginalData(docId, originalTags, originalCorrespondent, originalTitle),
     paperlessService.updateDocument(docId, updateData),
     documentModel.addProcessedDocument(docId, updateData.title),
     documentModel.addOpenAIMetrics(
-      docId, 
+      docId,
       analysis.metrics.promptTokens,
       analysis.metrics.completionTokens,
       analysis.metrics.totalTokens
     ),
     documentModel.addToHistory(docId, updateData.tags, updateData.title, analysis.document.correspondent)
   ]);
+}
+
+async function savePipelineChanges(docId, updateData, analysis, originalData) {
+  const original = originalData || {};
+  const { tags: originalTags, correspondent: originalCorrespondent, title: originalTitle } = original;
+  const title = updateData?.title || originalTitle || '';
+  const correspondent = updateData?.correspondent || originalCorrespondent || null;
+  const tags = updateData?.tags || [];
+  const tasks = [
+    documentModel.saveOriginalData(docId, originalTags, originalCorrespondent, originalTitle),
+    paperlessService.updateDocument(docId, updateData),
+    documentModel.addProcessedDocument(docId, title),
+    documentModel.addToHistory(docId, tags, title, correspondent)
+  ];
+  const metrics = analysis?.metrics;
+  if (metrics &&
+      Number.isFinite(metrics.promptTokens) &&
+      Number.isFinite(metrics.completionTokens) &&
+      Number.isFinite(metrics.totalTokens)) {
+    tasks.push(documentModel.addOpenAIMetrics(
+      docId,
+      metrics.promptTokens,
+      metrics.completionTokens,
+      metrics.totalTokens
+    ));
+  }
+  await Promise.all(tasks);
 }
 
 /**
@@ -2840,11 +2901,18 @@ async function prepareDocumentForExpertPipeline(document, documentId) {
       );
       const pdfBuffer = Buffer.from(pdfResponse.data);
 
-      // Render PDF to images (first few pages at 300 DPI)
+      const renderDpi = Number.isFinite(config.visualRag?.visionRenderDpi)
+        ? config.visualRag.visionRenderDpi
+        : 300;
+      const maxPages = Number.isFinite(config.visualRag?.maxVisionPages)
+        ? config.visualRag.maxVisionPages
+        : 4;
+
+      // Render PDF to images (first few pages at configured DPI)
       logger.debug(`[Reanalyze] Rendering PDF to images for doc ${documentId}`);
       const images = await pdfRenderer.renderBuffer(pdfBuffer, {
-        dpi: 300,
-        maxPages: 4,
+        dpi: renderDpi,
+        maxPages: maxPages,
         docId: documentId
       });
 
@@ -2918,9 +2986,13 @@ async function processQueue(customPrompt) {
         const result = await processDocument(doc, existingTags, existingCorrespondentList, existingDocumentTypesList, ownUserId, customPrompt);
         if (!result) continue;
 
-        const { analysis, originalData } = result;
-        const updateData = await buildUpdateData(analysis, doc);
-        await saveDocumentChanges(doc.id, updateData, analysis, originalData);
+        if (result.updateData) {
+          await savePipelineChanges(doc.id, result.updateData, result.analysis, result.originalData);
+        } else {
+          const { analysis, originalData } = result;
+          const updateData = await buildUpdateData(analysis, doc);
+          await saveDocumentChanges(doc.id, updateData, analysis, originalData);
+        }
       } catch (error) {
         console.error(`[ERROR] Failed to process document ${doc.id}:`, error);
       }
@@ -3222,7 +3294,7 @@ router.get('/settings', async (req, res) => {
 
   const medicalVisionModel = process.env.MEDICAL_VISION_MODEL || 'qwen3-vl:8b';
   const medicalAnalysisModel = process.env.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3';
-  const medicalRadiologyModel = process.env.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.5';
+  const medicalRadiologyModel = process.env.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.6';
   const plannerModel = process.env.PLANNER_MODEL ||
     process.env.OLLAMA_PLANNER_MODEL ||
     process.env.OLLAMA_VISION_MODEL ||
@@ -3234,9 +3306,9 @@ router.get('/settings', async (req, res) => {
   const orchestratorModel = process.env.ORCHESTRATOR_MODEL || 'nemotron-orchestrator:8b';
   const financialVisionModel = process.env.FINANCIAL_VISION_MODEL || 'llm-pro-finance-8b';
   const financialAnalysisModel = process.env.FINANCIAL_ANALYSIS_MODEL || 'fino1-8b';
-  const financialVatExpertModel = process.env.FINANCIAL_VAT_EXPERT || 'dragon-finance:latest';
+  const financialVatExpertModel = process.env.FINANCIAL_VAT_EXPERT || 'llm-pro-finance-8b';
   const legalVisionModel = process.env.LEGAL_VISION_MODEL || 'qwen3-vl:8b';
-  const legalAnalysisModel = process.env.LEGAL_ANALYSIS_MODEL || 'dragon-finance:latest';
+  const legalAnalysisModel = process.env.LEGAL_ANALYSIS_MODEL || 'llm-pro-finance-8b';
   const legalOrchestratorModel = process.env.LEGAL_ORCHESTRATOR_MODEL || orchestratorModel;
   let config = {
     PAPERLESS_API_URL: (process.env.PAPERLESS_API_URL || 'http://localhost:8000').replace(/\/api$/, ''),
@@ -4874,7 +4946,7 @@ router.post('/settings', express.json(), async (req, res) => {
       EXPERT_PIPELINE_ENABLED: process.env.EXPERT_PIPELINE_ENABLED || 'yes',
       MEDICAL_VISION_MODEL: process.env.MEDICAL_VISION_MODEL || 'qwen3-vl:8b',
       MEDICAL_ANALYSIS_MODEL: process.env.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3',
-      MEDICAL_RADIOLOGY_MODEL: process.env.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.5',
+      MEDICAL_RADIOLOGY_MODEL: process.env.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.6',
       PLANNER_MODEL: process.env.PLANNER_MODEL || '',
       ROUTER_MODEL: process.env.ROUTER_MODEL || '',
       ORCHESTRATOR_MODEL: process.env.ORCHESTRATOR_MODEL || '',
@@ -5053,15 +5125,15 @@ router.post('/settings', express.json(), async (req, res) => {
     updatedConfig.EXPERT_PIPELINE_ENABLED = (expertPipelineEnabled === 'on' || expertPipelineEnabled === 'yes') ? 'yes' : 'no';
     const resolvedMedicalVisionModel = medicalVisionModel || 'qwen3-vl:8b';
     const resolvedMedicalAnalysisModel = medicalAnalysisModel || 'medtext-llama3';
-    const resolvedMedicalRadiologyModel = medicalRadiologyModel || 'llava-med-v1.5';
+    const resolvedMedicalRadiologyModel = medicalRadiologyModel || 'llava-med-v1.6';
     const resolvedPlannerModel = plannerModel || 'qwen3-vl:8b';
     const resolvedRouterModel = routerModel || resolvedPlannerModel || 'qwen3-vl:8b';
     const resolvedOrchestratorModel = orchestratorModel || 'nemotron-orchestrator:8b';
     const resolvedFinancialVisionModel = financialVisionModel || 'llm-pro-finance-8b';
     const resolvedFinancialAnalysisModel = financialAnalysisModel || 'fino1-8b';
-    const resolvedFinancialVatExpertModel = financialVatExpertModel || 'dragon-finance:latest';
+    const resolvedFinancialVatExpertModel = financialVatExpertModel || 'llm-pro-finance-8b';
     const resolvedLegalVisionModel = legalVisionModel || 'qwen3-vl:8b';
-    const resolvedLegalAnalysisModel = legalAnalysisModel || 'dragon-finance:latest';
+    const resolvedLegalAnalysisModel = legalAnalysisModel || 'llm-pro-finance-8b';
     const resolvedLegalOrchestratorModel = legalOrchestratorModel || resolvedOrchestratorModel;
 
     updatedConfig.MEDICAL_VISION_MODEL = resolvedMedicalVisionModel;

@@ -26,7 +26,7 @@
  * 
  * Model Configuration:
  * - Router: qwen3-vl:8B (multimodal)
- * - Medical Imaging: llava-med-v1.5:latest (multimodal)
+ * - Medical Imaging: llava-med-v1.6:latest (multimodal)
  * - Medical Text: medtext-llama3:latest (text-only)
  * - Finance Reasoning: fino1-8b (text-only)
  * - Finance General: llm-pro-finance-8b (text-only)
@@ -78,7 +78,7 @@ const ExecutionMode = Object.freeze({
  * - Insurance/billing documents with medical content
  * 
  * Pipeline Flow:
- * 1. Visual Analysis (if imaging) → llava-med-v1.5:latest
+ * 1. Visual Analysis (if imaging) → llava-med-v1.6:latest
  * 2. Text Extraction → medtext-llama3:latest
  * 3. Integration → medtext-llama3:latest
  * 4. Validation → confidence checks
@@ -113,7 +113,7 @@ const MedicalPipeline = {
             name: 'Medical Visual Analysis',
             type: StageType.VISUAL_ANALYSIS,
             promptId: 'MED_RADIOLOGY_V1',
-            model: 'llava-med-v1.5:latest',
+            model: 'llava-med-v1.6:latest',
             modelType: ModelType.MULTIMODAL,
             executionMode: ExecutionMode.CONDITIONAL,
             condition: {

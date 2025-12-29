@@ -1,6 +1,6 @@
 <model_profile>
-    <id>llava-med-v1.5:latest</id>
-    <name>LLaVA-Med v1.5 (Biomedical Specialist)</name>
+    <id>llava-med-v1.6:latest</id>
+    <name>LLaVA-Med v1.6 (Biomedical Specialist)</name>
     
     <technical_specs>
         <developer>Microsoft / Research</developer>

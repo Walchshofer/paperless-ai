@@ -8,7 +8,7 @@
  * - Insurance/billing documents with medical content
  *
  * Pipeline Flow:
- * 1. Visual Analysis (if imaging) → llava-med-v1.5:latest
+ * 1. Visual Analysis (if imaging) → llava-med-v1.6:latest
  * 2. Text Extraction → medtext-llama3:latest
  * 3. Integration → medtext-llama3:latest
  * 4. Validation → confidence checks

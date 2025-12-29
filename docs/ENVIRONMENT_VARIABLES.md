@@ -10,9 +10,9 @@ This document provides a complete reference for all environment variables used i
 - `OLLAMA_VISION_MODEL` - Default vision model for Ollama (default: `qwen3-vl:8b`)
 
 ### Production Tier - Medical Domain
-- `MEDICAL_VISION_MODEL` - Medical imaging analysis model (default: `llava-med-v1.5`)
+- `MEDICAL_VISION_MODEL` - Medical imaging analysis model (default: `llava-med-v1.6`)
 - `MEDICAL_ANALYSIS_MODEL` - Clinical text extraction model (default: `medtext-llama3`)
-- `MEDICAL_RADIOLOGY_MODEL` - Radiology imaging analysis model (default: `llava-med-v1.5`)
+- `MEDICAL_RADIOLOGY_MODEL` - Radiology imaging analysis model (default: `llava-med-v1.6`)
 
 ### Production Tier - Financial Domain
 - `FINANCIAL_ANALYSIS_MODEL` - Financial reasoning and math validation model (default: `fino1-8b`)
@@ -24,7 +24,7 @@ This document provides a complete reference for all environment variables used i
 - `OLLAMA_MODEL` - Default text model for Ollama (default: `sauerkraut-llama3.1:8b`)
 
 ### Advanced Tier - Reasoning Models (Optional, Feature-Flagged)
-- `DRAGON_MODEL` - Advanced multilingual reasoning model for complex analysis (default: null, planned: `dragon-finance`)
+- `DRAGON_MODEL` - Advanced multilingual reasoning model for complex analysis (default: null, planned: `llm-pro-finance-8b`)
 - `GPT_OSS_MODEL` - OpenAI-compatible reasoning model for agentic tasks (default: null, planned: `gpt-oss`)
 - `ENABLE_ADVANCED_REASONING` - Feature flag to enable advanced reasoning models (default: `no`)
 
@@ -143,7 +143,7 @@ JWT_SECRET=your-secret-key-here
 PLANNER_MODEL=qwen3-vl:8b
 ROUTER_MODEL=qwen3-vl:8b
 ORCHESTRATOR_MODEL=nemotron-orchestrator:8b
-MEDICAL_VISION_MODEL=llava-med-v1.5
+MEDICAL_VISION_MODEL=llava-med-v1.6
 MEDICAL_ANALYSIS_MODEL=medtext-llama3
 FINANCIAL_ANALYSIS_MODEL=fino1-8b
 FINANCIAL_VISION_MODEL=llm-pro-finance-8b
@@ -151,7 +151,7 @@ GENERAL_MODEL=sauerkraut-llama3.1:8b
 
 # Advanced tier (optional)
 ENABLE_ADVANCED_REASONING=yes
-DRAGON_MODEL=dragon-finance
+DRAGON_MODEL=llm-pro-finance-8b
 GPT_OSS_MODEL=gpt-oss
 
 # Infrastructure
@@ -192,7 +192,7 @@ FINANCIAL_ANALYSIS_MODEL=fino1
 # Equivalent to canonical names
 PLANNER_MODEL=qwen3-vl:8b
 ROUTER_MODEL=qwen3-vl:8b
-MEDICAL_VISION_MODEL=llava-med-v1.5
+MEDICAL_VISION_MODEL=llava-med-v1.6
 FINANCIAL_ANALYSIS_MODEL=fino1-8b
 ```
 

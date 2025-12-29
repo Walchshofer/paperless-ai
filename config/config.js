@@ -27,6 +27,32 @@ const parseEnvJson = (value, fallback) => {
   }
 };
 
+const resolveEnvAlias = (canonicalKey, aliases = []) => {
+  const canonicalValue = process.env[canonicalKey];
+  let aliasValue;
+  let aliasKey;
+  for (const alias of aliases) {
+    const value = process.env[alias];
+    if (value !== undefined && value !== '') {
+      aliasValue = value;
+      aliasKey = alias;
+      break;
+    }
+  }
+  if (canonicalValue && aliasValue && canonicalValue !== aliasValue) {
+    console.warn(`[WARN] ${canonicalKey} and ${aliasKey} are both set; using ${canonicalKey}.`);
+  }
+  if (!canonicalValue && aliasValue) {
+    process.env[canonicalKey] = aliasValue;
+    return aliasValue;
+  }
+  return canonicalValue;
+};
+
+resolveEnvAlias('ENABLE_VISUAL_RAG', ['VISUAL_RAG_ENABLED']);
+resolveEnvAlias('PAPERLESS_OCR_LANGUAGES', ['PAPERLESS_OCR_LANGUAGE']);
+const resolvedOllamaModel = resolveEnvAlias('OLLAMA_MODEL', ['AI_MODEL']);
+
 const mergeModelLimitEntries = (baseEntry, overrideEntry) => {
   const merged = baseEntry && typeof baseEntry === 'object' ? { ...baseEntry } : {};
   if (!overrideEntry || typeof overrideEntry !== 'object') return merged;
@@ -60,7 +86,7 @@ const setModelLimit = (target, modelName, kind, limits) => {
   };
 };
 
-const ollamaModel = process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b';
+const ollamaModel = resolvedOllamaModel || 'sauerkraut-llama3.1:8b';
 const ollamaVisionModel = process.env.OLLAMA_VISION_MODEL || 'qwen3-vl:8b';
 const plannerModel = process.env.PLANNER_MODEL ||
   process.env.OLLAMA_PLANNER_MODEL ||
@@ -73,14 +99,14 @@ const routerModel = process.env.ROUTER_MODEL ||
   'qwen3-vl:8b';
 const orchestratorModel = process.env.ORCHESTRATOR_MODEL || 'nemotron-orchestrator:8b';
 const generalModel = process.env.GENERAL_MODEL || ollamaModel;
-const medicalVisionModel = process.env.MEDICAL_VISION_MODEL || 'llava-med-v1.5';
+const medicalVisionModel = process.env.MEDICAL_VISION_MODEL || 'llava-med-v1.6';
 const medicalAnalysisModel = process.env.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3';
-const medicalRadiologyModel = process.env.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.5';
+const medicalRadiologyModel = process.env.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.6';
 const financialAnalysisModel = process.env.FINANCIAL_ANALYSIS_MODEL || 'fino1-8b';
 const financialVisionModel = process.env.FINANCIAL_VISION_MODEL || 'llm-pro-finance-8b';
-const financialVatExpertModel = process.env.FINANCIAL_VAT_EXPERT || 'dragon-finance:latest';
+const financialVatExpertModel = process.env.FINANCIAL_VAT_EXPERT || 'llm-pro-finance-8b';
 const legalVisionModel = process.env.LEGAL_VISION_MODEL || ollamaVisionModel;
-const legalAnalysisModel = process.env.LEGAL_ANALYSIS_MODEL || 'dragon-finance:latest';
+const legalAnalysisModel = process.env.LEGAL_ANALYSIS_MODEL || 'llm-pro-finance-8b';
 const legalOrchestratorModel = process.env.LEGAL_ORCHESTRATOR_MODEL || orchestratorModel;
 
 const baseTokenLimit = parseEnvInt(process.env.TOKEN_LIMIT, 128000);
@@ -399,15 +425,19 @@ module.exports = {
   // Model aliases for backward compatibility and flexibility
   modelAliases: {
     // Production tier - Medical models
-    'llava-med': 'llava-med-v1.5',
-    'llava-med-v1.5:latest': 'llava-med-v1.5',
+    'llava-med': 'llava-med-v1.6',
+    'llava-med-v1.6:latest': 'llava-med-v1.6',
+    'llava-med-v1.5': 'llava-med-v1.6',
+    'llava-med-v1.5:latest': 'llava-med-v1.6',
     'medtext': 'medtext-llama3',
     'medtext-llama3:latest': 'medtext-llama3',
     
     // Production tier - Financial models
     'fino1': 'fino1-8b',
     'fino1-8b-q8': 'fino1-8b',
+    'fino1-8b:latest': 'fino1-8b',
     'llm-pro-finance': 'llm-pro-finance-8b',
+    'llm-pro-finance-8b:latest': 'llm-pro-finance-8b',
     
     // Production tier - General models
     'sauerkraut': 'sauerkraut-llama3.1:8b',
@@ -420,8 +450,9 @@ module.exports = {
     'qwen3-vl:8B': 'qwen3-vl:8b',  // Case normalization
     
     // Advanced tier - Reasoning models
-    'dragon': 'dragon-finance',
-    'dragon-llm': 'dragon-finance',
+    'dragon': 'llm-pro-finance-8b',
+    'dragon-llm': 'llm-pro-finance-8b',
+    'gpt-oss:20b': 'gpt-oss',
     'gpt-oss-20b': 'gpt-oss',
     
     // Infrastructure tier - Orchestration

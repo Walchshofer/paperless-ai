@@ -13,7 +13,7 @@ This guide helps users migrate their existing model configurations to the new st
 ### Model Name Normalization
 **Impact**: All model names are now normalized to lowercase with explicit tags.
 **Before**: Mixed case usage (`qwen3-vl:8B`, `Llava-Med-v1.5`)
-**After**: Consistent lowercase (`qwen3-vl:8b`, `llava-med-v1.5`)
+**After**: Consistent lowercase (`qwen3-vl:8b`, `llava-med-v1.6`)
 **Action Required**: Update any custom scripts or configurations to use lowercase names
 
 ## New Features
@@ -25,7 +25,7 @@ You can now use shorter, more convenient aliases for models instead of full cano
 # Old way (still works):
 export PLANNER_MODEL=qwen3-vl:8b
 export ROUTER_MODEL=qwen3-vl:8b
-export MEDICAL_VISION_MODEL=llava-med-v1.5:latest
+export MEDICAL_VISION_MODEL=llava-med-v1.6:latest
 
 # New way (recommended):
 export PLANNER_MODEL=qwen3-vl
@@ -39,7 +39,7 @@ New reasoning models are available for complex analysis when hardware supports t
 ```bash
 # Enable advanced reasoning (requires RTX 3090 Ti or better)
 export ENABLE_ADVANCED_REASONING=yes
-export DRAGON_MODEL=dragon-finance  # 9GB VRAM
+export DRAGON_MODEL=llm-pro-finance-8b  # 9GB VRAM
 export GPT_OSS_MODEL=gpt-oss        # 13GB VRAM
 ```
 
@@ -88,7 +88,7 @@ Replace long model names with shorter aliases:
 
 ```bash
 # Before:
-MEDICAL_VISION_MODEL=llava-med-v1.5
+MEDICAL_VISION_MODEL=llava-med-v1.6
 MEDICAL_ANALYSIS_MODEL=medtext-llama3:latest
 FINANCIAL_ANALYSIS_MODEL=fino1-8b
 
@@ -103,7 +103,7 @@ If you have sufficient hardware (RTX 3090 Ti or RTX 4090), enable advanced reaso
 
 ```bash
 ENABLE_ADVANCED_REASONING=yes
-DRAGON_MODEL=dragon-finance
+DRAGON_MODEL=llm-pro-finance-8b
 ```
 
 ### Step 6: Test Configuration

@@ -31,7 +31,7 @@
  * 
  * Model Configuration:
  * - Planner/Router: qwen3-vl:8b (multimodal)
- * - Medical Imaging: llava-med-v1.5:latest (multimodal)
+ * - Medical Imaging: llava-med-v1.6:latest (multimodal)
  * - Medical Text: medtext-llama3:latest (text-only)
  * - General: sauerkraut-llama3.1:8b (text-only)
  */
@@ -61,7 +61,7 @@ const ProcessorConfig = {
     // Model selection
     models: {
         router: config.ollama?.routerModel || config.ollama?.visionModel || 'qwen3-vl:8b',
-        medicalImaging: process.env.MEDICAL_VISION_MODEL || config.expertModels?.medical?.vision || config.ollama?.visionModel || 'llava-med-v1.5',
+        medicalImaging: process.env.MEDICAL_VISION_MODEL || config.expertModels?.medical?.vision || config.ollama?.visionModel || 'llava-med-v1.6',
         medicalText: process.env.MEDICAL_ANALYSIS_MODEL || config.expertModels?.medical?.analysis || config.ollama?.model || 'medtext-llama3',
         general: process.env.GENERAL_MODEL || config.ollama?.model || 'sauerkraut-llama3.1:8b',
         financeReasoning: process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || 'fino1-8b',
@@ -1111,7 +1111,8 @@ class DocumentProcessor {
             ...options,
             existingTags: options.existingTags || [],
             existingCorrespondentList: options.existingCorrespondentList || [],
-            existingDocumentTypesList: options.existingDocumentTypesList || []
+            existingDocumentTypesList: options.existingDocumentTypesList || [],
+            documentCreated: options.documentCreated || document.created || document.added
         };
 
         // Call via ollamaService to ensure proper method binding

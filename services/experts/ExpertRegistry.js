@@ -26,7 +26,7 @@
  *
  * Model Configuration:
  * - Router: qwen3-vl:8b (multimodal)
- * - Medical Imaging: llava-med-v1.5:latest (multimodal)
+ * - Medical Imaging: llava-med-v1.6:latest (multimodal)
  * - Medical Text: medtext-llama3:latest (text-only)
  * - Finance Reasoning: fino1-8b (text-only)
  * - Finance General: llm-pro-finance-8b (text-only)
