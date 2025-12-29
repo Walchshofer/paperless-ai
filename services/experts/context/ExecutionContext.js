@@ -158,6 +158,7 @@ class ExecutionContext {
             'financial_reasoning': 'financial_reasoning',
             'financial_vat_expert': 'financial_vat_analysis',
             'legal_extraction': 'legal_extraction',
+            'general_classifier': 'general_classification',
             'general_extraction': 'general_extraction'
         };
         return conventions[stageId] || stageId;

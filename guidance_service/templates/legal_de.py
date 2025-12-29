@@ -3,20 +3,7 @@ from typing import List, Literal
 from guidance import guidance, system, user, assistant, json as gen_json
 from pydantic import BaseModel, Field
 
-
-def _pick_text(*values):
-    for value in values:
-        if value not in (None, "", "N/A"):
-            return value
-    return ""
-
-
-def _stringify(value):
-    if value in (None, "N/A"):
-        return ""
-    if isinstance(value, str):
-        return value
-    return str(value)
+from templates.components.common import build_domain_context, pick_text, stringify
 
 
 class LegalClassifierOutput(BaseModel):
@@ -86,14 +73,29 @@ class LegalTemplatesDE:
     def get_legal_classifier():
         """Classify legal document type and complexity (Stage 3.1)."""
         @guidance
-        def legal_classifier(lm, document_text=None, text_chunk=None, **kwargs):
-            text = _pick_text(document_text, text_chunk)
+        def legal_classifier(
+            lm,
+            document_text=None,
+            text_chunk=None,
+            domain=None,
+            existing_tags=None,
+            model=None,
+            **kwargs
+        ):
+            text = pick_text(document_text, text_chunk)
+            domain_context = build_domain_context(
+                domain or kwargs.get("domain"),
+                existing_tags or kwargs.get("existing_tags"),
+                model or kwargs.get("model"),
+            )
             with system():
                 lm += (
                     "Du bist ein Rechtsdokument-Klassifizierer spezialisiert auf deutschösterreichische "
                     "Verträge.\n"
                     "Klassifiziere das Dokument nach Typ, Komplexität und Jurisdiktion."
                 )
+                if domain_context:
+                    lm += f"\n{domain_context}"
             with user():
                 lm += "Rechtsdokument (erste 500 Zeichen):\n"
                 lm += f"{text}\n"
@@ -111,9 +113,23 @@ class LegalTemplatesDE:
     def get_legal_extractor():
         """Extract contract data with reasoning (Stage 3.2 - llm-pro-finance-8b)."""
         @guidance
-        def legal_extractor(lm, legal_text=None, legal_context=None, text_chunk=None, **kwargs):
-            text = _pick_text(legal_text, text_chunk)
-            context_text = _stringify(_pick_text(legal_context, kwargs.get("context")))
+        def legal_extractor(
+            lm,
+            legal_text=None,
+            legal_context=None,
+            text_chunk=None,
+            domain=None,
+            existing_tags=None,
+            model=None,
+            **kwargs
+        ):
+            text = pick_text(legal_text, text_chunk)
+            context_text = stringify(pick_text(legal_context, kwargs.get("context")))
+            domain_context = build_domain_context(
+                domain or kwargs.get("domain"),
+                existing_tags or kwargs.get("existing_tags"),
+                model or kwargs.get("model"),
+            )
             with system():
                 lm += (
                     "Du bist ein Rechtsanwalt und Vertragsspzialist für Österreich und Deutschland.\n"
@@ -121,6 +137,8 @@ class LegalTemplatesDE:
                     "Verwende den bereitgestellten Rechtskontext zur Interpretation zweifelhafter Klauseln.\n"
                     f"Rechtskontext: {context_text}"
                 )
+                if domain_context:
+                    lm += f"\n{domain_context}"
             with user():
                 lm += f"Österreichischer/deutscher Vertrag: {text}\n\n"
                 lm += "Extrahiere bitte:\n"
@@ -145,15 +163,23 @@ class LegalTemplatesDE:
             legal_text=None,
             text_chunk=None,
             extracted_data=None,
+            domain=None,
+            existing_tags=None,
+            model=None,
             **kwargs
         ):
-            text = _pick_text(legal_text, text_chunk)
-            extraction_text = _stringify(
-                _pick_text(
+            text = pick_text(legal_text, text_chunk)
+            extraction_text = stringify(
+                pick_text(
                     extracted_data,
                     kwargs.get("legal_extraction"),
                     kwargs.get("extraction"),
                 )
+            )
+            domain_context = build_domain_context(
+                domain or kwargs.get("domain"),
+                existing_tags or kwargs.get("existing_tags"),
+                model or kwargs.get("model"),
             )
             with system():
                 lm += (
@@ -161,6 +187,8 @@ class LegalTemplatesDE:
                     "Prüfe, ob die Extraktion vollständig und konsistent ist. "
                     "Antworte nur mit JSON."
                 )
+                if domain_context:
+                    lm += f"\n{domain_context}"
             with user():
                 lm += f"Vertragstext: {text}\n"
                 if extraction_text:

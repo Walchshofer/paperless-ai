@@ -48,7 +48,12 @@ const GUIDANCE_CONFIG = {
     retryDelay: parseInt(process.env.GUIDANCE_RETRY_DELAY || '1000', 10),
 
     // Cache configuration
-    useCache: process.env.GUIDANCE_USE_CACHE !== 'false'
+    useCache: process.env.GUIDANCE_USE_CACHE !== 'false',
+
+    // Streaming support (disabled by default until client implements parsing)
+    streamingEnabled: process.env.GUIDANCE_STREAMING_ENABLED === 'true' ||
+                      process.env.GUIDANCE_STREAMING_ENABLED === 'yes' ||
+                      (config.guidanceService?.streamingEnabled === true)
 };
 
 // ============================================================================
@@ -140,6 +145,15 @@ class GuidanceClient {
         const model = options.model || this.config.defaultModel;
         const temperature = options.temperature ?? 0.1;
         const useCache = options.useCache ?? this.config.useCache;
+        const requestedStream = options.stream === true;
+        let streamEnabled = requestedStream && this.config.streamingEnabled;
+        if (requestedStream && !streamEnabled) {
+            logger.debug({
+                event: 'guidance_streaming_disabled',
+                template,
+                model
+            });
+        }
 
         const startTime = Date.now();
 
@@ -147,7 +161,8 @@ class GuidanceClient {
             event: 'guidance_generate_start',
             template,
             model,
-            variableKeys: Object.keys(variables)
+            variableKeys: Object.keys(variables),
+            stream: streamEnabled
         });
 
         // Check availability
@@ -161,15 +176,19 @@ class GuidanceClient {
 
         // Execute with retry logic
         let lastError = null;
-        for (let attempt = 1; attempt <= this.config.maxRetries; attempt++) {
+        for (let attempt = 1; attempt <= this.config.maxRetries; attempt++) {   
             try {
-                const response = await this.httpClient.post('/generate', {
+                const payload = {
                     template,
                     model,
                     variables,
                     temperature,
                     use_cache: useCache
-                });
+                };
+                if (streamEnabled) {
+                    payload.stream = true;
+                }
+                const response = await this.httpClient.post('/generate', payload);
 
                 const result = response.data;
 
@@ -197,6 +216,17 @@ class GuidanceClient {
 
             } catch (error) {
                 lastError = error;
+
+                if (streamEnabled && this._isStreamingUnsupported(error)) {
+                    logger.warn({
+                        event: 'guidance_streaming_unsupported',
+                        template,
+                        model,
+                        error: error.message
+                    });
+                    streamEnabled = false;
+                    continue;
+                }
 
                 logger.warn({
                     event: 'guidance_generate_retry',
@@ -300,6 +330,14 @@ class GuidanceClient {
     // ========================================================================
     // PRIVATE HELPERS
     // ========================================================================
+
+    _isStreamingUnsupported(error) {
+        if (!error || !error.response) return false;
+        const status = error.response.status;
+        if (![400, 404, 405].includes(status)) return false;
+        const message = String(error.response.data?.error || error.message || '').toLowerCase();
+        return message.includes('stream') || message.includes('streaming') || message.includes('unknown');
+    }
 
     _delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));

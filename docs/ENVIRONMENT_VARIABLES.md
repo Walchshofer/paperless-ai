@@ -74,9 +74,12 @@ This document provides a complete reference for all environment variables used i
 ## System Configuration Variables
 
 ### Hardware and Performance
-- `MAX_CONCURRENT_REQUESTS` - Maximum concurrent model requests (default: `3`)
+- `MAX_CONCURRENT_REQUESTS` - Maximum concurrent model requests (default: `3`)  
 - `GPU_DEVICE` - GPU device ID for CUDA (default: `0`)
 - `ENABLE_GPU` - Enable GPU acceleration (default: `yes`)
+
+### Tag Governance
+- `PIPELINE_TAG_REPLACE` - Allow clearing all tags when no existing tags resolve (default: `no`)
 
 ### Logging and Monitoring
 - `LOG_LEVEL` - Logging level (default: `info`)

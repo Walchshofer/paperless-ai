@@ -3,20 +3,7 @@ from typing import List, Literal
 from guidance import guidance, system, user, assistant, json as gen_json
 from pydantic import BaseModel, Field
 
-
-def _pick_text(*values):
-    for value in values:
-        if value not in (None, "", "N/A"):
-            return value
-    return ""
-
-
-def _stringify(value):
-    if value in (None, "N/A"):
-        return ""
-    if isinstance(value, str):
-        return value
-    return str(value)
+from templates.components.common import build_domain_context, pick_text, stringify
 
 
 class MedicalClassifierOutput(BaseModel):
@@ -82,10 +69,25 @@ class MedicalTemplatesDE:
     @staticmethod
     def get_medical_classifier():
         @guidance
-        def medical_classifier(lm, document_text=None, text_chunk=None, **kwargs):
-            text = _pick_text(document_text, text_chunk, kwargs.get("medical_text"))
+        def medical_classifier(
+            lm,
+            document_text=None,
+            text_chunk=None,
+            domain=None,
+            existing_tags=None,
+            model=None,
+            **kwargs
+        ):
+            text = pick_text(document_text, text_chunk, kwargs.get("medical_text"))
+            domain_context = build_domain_context(
+                domain or kwargs.get("domain"),
+                existing_tags or kwargs.get("existing_tags"),
+                model or kwargs.get("model"),
+            )
             with system():
                 lm += "Du bist ein medizinischer Dokumentklassifizierer. Antworte nur mit JSON."
+                if domain_context:
+                    lm += f"\n{domain_context}"
             with user():
                 lm += f"Dokumenttext: {text}\n"
                 lm += "Klassifiziere in: Laborbefund, Radiologiebericht, Klinische Notiz, Krankenkassenbeleg, Sonstige"
@@ -98,13 +100,28 @@ class MedicalTemplatesDE:
     @staticmethod
     def get_medical_extractor():
         @guidance
-        def medical_extractor(lm, medical_text=None, text_chunk=None, **kwargs):
-            text = _pick_text(medical_text, text_chunk, kwargs.get("document_text"))
+        def medical_extractor(
+            lm,
+            medical_text=None,
+            text_chunk=None,
+            domain=None,
+            existing_tags=None,
+            model=None,
+            **kwargs
+        ):
+            text = pick_text(medical_text, text_chunk, kwargs.get("document_text"))
+            domain_context = build_domain_context(
+                domain or kwargs.get("domain"),
+                existing_tags or kwargs.get("existing_tags"),
+                model or kwargs.get("model"),
+            )
             with system():
                 lm += (
                     "Du bist ein medizinischer Datenextraktionist für deutschsprachige Dokumente. "
                     "Antworte nur mit JSON."
                 )
+                if domain_context:
+                    lm += f"\n{domain_context}"
             with user():
                 lm += f"Medizinischer Text: {text}\n"
                 lm += "Extrahiere: Patient, Diagnosen (ICD-10), Medikamente, Laborwerte."
@@ -117,12 +134,28 @@ class MedicalTemplatesDE:
     @staticmethod
     def get_medical_integrator():
         @guidance
-        def medical_integrator(lm, imaging_analysis=None, text_extraction=None, prior_context=None, **kwargs):
-            imaging_text = _stringify(_pick_text(imaging_analysis, kwargs.get("imaging")))
-            text_text = _stringify(_pick_text(text_extraction, kwargs.get("text")))
-            prior_text = _stringify(_pick_text(prior_context, kwargs.get("context")))
+        def medical_integrator(
+            lm,
+            imaging_analysis=None,
+            text_extraction=None,
+            prior_context=None,
+            domain=None,
+            existing_tags=None,
+            model=None,
+            **kwargs
+        ):
+            imaging_text = stringify(pick_text(imaging_analysis, kwargs.get("imaging")))
+            text_text = stringify(pick_text(text_extraction, kwargs.get("text")))
+            prior_text = stringify(pick_text(prior_context, kwargs.get("context")))
+            domain_context = build_domain_context(
+                domain or kwargs.get("domain"),
+                existing_tags or kwargs.get("existing_tags"),
+                model or kwargs.get("model"),
+            )
             with system():
                 lm += "Harmonisiere Bild- und Textdaten."
+                if domain_context:
+                    lm += f"\n{domain_context}"
             with user():
                 lm += f"Bild: {imaging_text} Text: {text_text}"
                 if prior_text:
