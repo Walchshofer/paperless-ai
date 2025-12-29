@@ -7,7 +7,7 @@ module.exports = {
       expertPipeline: 'medical',
       modalityRouting: {
         lab: { pipeline: 'lab_ocr_analysis', analysisModel: 'medtext-llama3' },
-        radiology: { pipeline: 'radiology_reasoning', analysisModel: 'llava-med-v1.5' },
+        radiology: { pipeline: 'radiology_reasoning', analysisModel: 'llava-med-v1.6' },
         prescription: { pipeline: 'standard', analysisModel: null }
       }
     },

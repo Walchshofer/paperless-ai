@@ -27,7 +27,7 @@
  *
  * Model Configuration:
  * - Router: qwen3-vl:8b (multimodal)
- * - Medical Imaging: llava-med-v1.5:latest (multimodal)
+ * - Medical Imaging: llava-med-v1.6:latest (multimodal)
  * - Medical Text: medtext-llama3:latest (text-only)
  * - General Fallback: sauerkraut-llama3.1:8b (text-only)
  */

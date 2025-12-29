@@ -27,7 +27,7 @@
  * 
  * Model Configuration:
  * - Router: qwen3-vl:8B (multimodal)
- * - Medical Imaging: llava-med-v1.5:latest (multimodal)
+ * - Medical Imaging: llava-med-v1.6:latest (multimodal)
  * - Medical Text: medtext-llama3:latest (text-only)
  * - General Fallback: llama3.2:latest (text-only)
  */

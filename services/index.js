@@ -105,6 +105,12 @@ const {
 } = require('./integration/DocumentProcessor');
 
 // ============================================================================
+// TOOLING
+// ============================================================================
+
+const { paperlessApiTools } = require('./tools');
+
+// ============================================================================
 // LEGACY SERVICES (existing)
 // ============================================================================
 
@@ -490,6 +496,11 @@ module.exports = {
     createProcessingMiddleware,
     createClassificationMiddleware,
     ProcessorConfig,
+
+    // ========================
+    // Tooling
+    // ========================
+    paperlessApiTools,
     
     // ========================
     // Factory Functions

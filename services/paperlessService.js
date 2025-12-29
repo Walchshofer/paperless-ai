@@ -226,6 +226,39 @@ class PaperlessService {
   }
 
   /**
+   * Rotate documents using Paperless bulk_edit.
+   * @param {number[]|number} documentIds - Documents to rotate
+   * @param {number} degrees - Rotation degrees (90, 180, 270)
+   * @returns {Promise<boolean>} Whether the rotate request succeeded
+   */
+  async rotateDocuments(documentIds, degrees) {
+    this.initialize();
+    if (!this.client) return false;
+    const ids = Array.isArray(documentIds) ? documentIds : [documentIds];
+    const filtered = ids.map(id => Number(id)).filter(id => Number.isInteger(id));
+    if (filtered.length === 0) return false;
+    const rotation = Number.parseInt(degrees, 10);
+    if (![0, 90, 180, 270].includes(rotation)) {
+      console.warn('[PAPERLESS] Invalid rotation degrees:', degrees);
+      return false;
+    }
+    if (rotation === 0) {
+      return true;
+    }
+    try {
+      await this.client.post('/documents/bulk_edit/', {
+        documents: filtered,
+        method: 'rotate',
+        parameters: { degrees: rotation }
+      });
+      return true;
+    } catch (error) {
+      console.error('[PAPERLESS] Error rotating documents:', error.message);
+      return false;
+    }
+  }
+
+  /**
    * Add a note to a document
    * @param {number} documentId - Document ID
    * @param {string} note - Note content

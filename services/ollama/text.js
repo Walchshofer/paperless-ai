@@ -214,7 +214,21 @@ module.exports = {
             }
 
             // 6. Process Response
-            const parsedResponse = this._processOllamaResponse(response);
+            let parsedResponse;
+            try {
+                parsedResponse = this._processOllamaResponse(response);
+            } catch (error) {
+                const rawText = this._extractRawOllamaText(response) || '';
+                if (!rawText) {
+                    throw error;
+                }
+                logger.warn('[WARN] Attempting JSON repair for text response');
+                try {
+                    parsedResponse = await this._repairJsonWithTextModel(rawText);
+                } catch (repairError) {
+                    throw error;
+                }
+            }
 
             // Check for missing data
             if (parsedResponse.tags.length === 0 && parsedResponse.correspondent === null) {

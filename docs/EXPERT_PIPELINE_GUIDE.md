@@ -42,7 +42,7 @@ The Expert Model Pipeline is a domain-specialized document processing system des
 |-------|------|---------|------------|
 | qwen3-vl:8b | ~16GB | Planner (visual) + Router (expert routing) | ~10GB |
 | nemotron-orchestrator:8b | ~8GB | System Orchestrator (routing + service gating) | ~6GB |
-| llava-med-v1.5 | ~14GB | Medical Imaging | ~9GB |
+| llava-med-v1.6 | ~14GB | Medical Imaging | ~9GB |
 | medtext-llama3 | ~8GB | Medical Text | ~6GB |
 | fino1-8b | ~8GB | Financial Reasoning (math-heavy) | ~6GB |
 | llm-pro-finance-8b | ~8GB | Financial Extraction (multilingual) | ~6GB |
@@ -134,7 +134,7 @@ bash
 ollama pull qwen3-vl:8b
 
 # Pull medical imaging model
-ollama pull llava-med-v1.5:latest
+ollama pull llava-med-v1.6:latest
 
 # Pull medical text model (if available, or use alternative)
 ollama pull medtext-llama3
@@ -187,9 +187,9 @@ OLLAMA_HOST=http://localhost:11434
 PLANNER_MODEL=qwen3-vl:8b
 ROUTER_MODEL=qwen3-vl:8b
 ORCHESTRATOR_MODEL=nemotron-orchestrator:8b
-MEDICAL_VISION_MODEL=llava-med-v1.5:latest
+MEDICAL_VISION_MODEL=llava-med-v1.6:latest
 MEDICAL_ANALYSIS_MODEL=medtext-llama3
-MEDICAL_RADIOLOGY_MODEL=llava-med-v1.5
+MEDICAL_RADIOLOGY_MODEL=llava-med-v1.6
 GENERAL_MODEL=sauerkraut-llama3.1:8b
 FINANCIAL_VISION_MODEL=llm-pro-finance-8b
 FINANCIAL_ANALYSIS_MODEL=fino1-8b
@@ -222,7 +222,7 @@ VAT_RAG_MAX_EXCERPT_CHARS=800
 | **Expert Pipeline** | `expertPipelineEnabled` | `EXPERT_PIPELINE_ENABLED` | `'yes'` | Enable/disable expert pipeline |
 | **Medical Models** | `expertModels.medical.vision` | `MEDICAL_VISION_MODEL` | `'qwen3-vl:8b'` | Medical imaging analysis model |
 |  | `expertModels.medical.analysis` | `MEDICAL_ANALYSIS_MODEL` | `'medtext-llama3'` | Medical text analysis model |
-|  | `expertModels.medical.radiology` | `MEDICAL_RADIOLOGY_MODEL` | `'llava-med-v1.5'` | Radiology imaging model |
+|  | `expertModels.medical.radiology` | `MEDICAL_RADIOLOGY_MODEL` | `'llava-med-v1.6'` | Radiology imaging model |
 | **Financial Models** | `expertModels.financial.vision` | `FINANCIAL_VISION_MODEL` | `'llm-pro-finance-8b'` | Financial document vision model |
 |  | `expertModels.financial.analysis` | `FINANCIAL_ANALYSIS_MODEL` | `'fino1-8b'` | Financial analysis model |
 | **Legal Models** | `expertModels.legal.vision` | `LEGAL_VISION_MODEL` | `''` | Legal document vision model |
@@ -269,7 +269,7 @@ const config = {
     models: {
         router: 'qwen3-vl:8b',
         orchestrator: 'nemotron-orchestrator:8b',
-        medicalImaging: 'llava-med-v1.5:latest',
+        medicalImaging: 'llava-med-v1.6:latest',
         medicalText: 'medtext-llama3',
         general: 'sauerkraut-llama3.1:8b',
         financeReasoning: 'fino1-8b',
@@ -447,7 +447,7 @@ Available Pipelines
 Medical Imaging Pipeline (medical-imaging)
 Purpose: Process medical documents with significant visual content (X-rays, MRIs, lab reports with charts)
 
-Model: llava-med-v1.5:latest
+Model: llava-med-v1.6:latest
 
 Stages:
 
@@ -736,7 +736,7 @@ Troubleshooting
 Common Issues
 Issue: "Model not found" Error
 subunit
-Error: Model 'llava-med-v1.5:latest' not found
+Error: Model 'llava-med-v1.6:latest' not found
 
 Solution:
 
@@ -745,7 +745,7 @@ bash
 ollama list
 
 # Pull missing model
-ollama pull llava-med-v1.5:latest
+ollama pull llava-med-v1.6:latest
 
 # Verify model is loaded
 curl http://localhost:11434/api/tags
@@ -841,7 +841,7 @@ Model Loading Optimization
 bash
 # Pre-load models into memory
 ollama run qwen3-vl:8b &
-ollama run llava-med-v1.5:latest &
+ollama run llava-med-v1.6:latest &
 ollama run medtext-llama3 &
 
 # Keep models loaded

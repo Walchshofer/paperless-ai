@@ -76,13 +76,12 @@ function getModelInfo(modelName) {
   // For now, return basic info based on known models
   const knownModels = {
     'qwen3-vl:8b': { type: 'multimodal', vram: '10GB', tier: 'production' },
-    'llava-med-v1.5': { type: 'multimodal', vram: '9GB', tier: 'production' },
+    'llava-med-v1.6': { type: 'multimodal', vram: '9GB', tier: 'production' },
     'medtext-llama3': { type: 'text', vram: '6GB', tier: 'production' },
     'fino1-8b': { type: 'text', vram: '6GB', tier: 'production' },
-    'llm-pro-finance-8b': { type: 'text', vram: '6GB', tier: 'production' },
     'sauerkraut-llama3.1:8b': { type: 'text', vram: '6GB', tier: 'production' },
     'llama3.2:latest': { type: 'text', vram: '6GB', tier: 'legacy' },
-    'dragon-finance': { type: 'text', vram: '9GB', tier: 'advanced' },
+    'llm-pro-finance-8b': { type: 'text', vram: '9GB', tier: 'advanced' },
     'gpt-oss': { type: 'text', vram: '13GB', tier: 'advanced' },
     'nemotron-orchestrator:8b': { type: 'text', vram: '8GB', tier: 'advanced' },
     'nomic-embed-text-v1.5': { type: 'embedding', vram: '2GB', tier: 'infrastructure' },
@@ -103,13 +102,13 @@ function getModelTier(modelName) {
 
   // Production tier - actively used in pipelines
   const productionModels = [
-    'qwen3-vl:8b', 'llava-med-v1.5', 'medtext-llama3',
-    'fino1-8b', 'llm-pro-finance-8b', 'sauerkraut-llama3.1:8b'
+    'qwen3-vl:8b', 'llava-med-v1.6', 'medtext-llama3',
+    'fino1-8b', 'sauerkraut-llama3.1:8b'
   ];
 
   // Advanced tier - documented but optional
   const advancedModels = [
-    'dragon-finance', 'gpt-oss', 'nemotron-orchestrator:8b'
+    'llm-pro-finance-8b', 'gpt-oss', 'nemotron-orchestrator:8b'
   ];
 
   // Infrastructure tier - embeddings and orchestration
@@ -161,11 +160,11 @@ function getModelAliases(canonicalName) {
 function listModelsByTier() {
   return {
     production: [
-      'qwen3-vl:8b', 'llava-med-v1.5', 'medtext-llama3',
-      'fino1-8b', 'llm-pro-finance-8b', 'sauerkraut-llama3.1:8b'
+      'qwen3-vl:8b', 'llava-med-v1.6', 'medtext-llama3',
+      'fino1-8b', 'sauerkraut-llama3.1:8b'
     ],
     advanced: [
-      'dragon-finance', 'gpt-oss', 'nemotron-orchestrator:8b'
+      'llm-pro-finance-8b', 'gpt-oss', 'nemotron-orchestrator:8b'
     ],
     infrastructure: [
       'nomic-embed-text-v1.5', 'tomoro-colqwen3-embed-8b'

@@ -36,6 +36,17 @@ def validate_legal_extraction(data: Dict[str, Any]) -> Dict[str, Any]:
         elif 'dokumenttyp' in data and 'komplexitaet' in data:
             # legal_classifier output
             errors.extend(_validate_classifier_output(data))
+        elif 'valid' in data and 'issues' in data:
+            # legal_validator output
+            if not isinstance(data.get('valid'), bool):
+                errors.append("Legal validator returned invalid valid flag")
+            elif not data.get('valid'):
+                errors.append("Legal validator marked output invalid")
+            issues = data.get('issues', [])
+            if isinstance(issues, list):
+                for issue in issues:
+                    if isinstance(issue, str) and issue:
+                        warnings.append(issue)
         else:
             # Unknown or minimal output
             warnings.append("Unable to determine legal template type - minimal validation applied")

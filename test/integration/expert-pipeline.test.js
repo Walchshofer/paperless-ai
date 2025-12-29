@@ -708,20 +708,20 @@ describe('Expert Pipeline', function() {
 
         it('should resolve model aliases', function() {
             assert.strictEqual(resolveModelName('qwen3-vl:8B'), 'qwen3-vl:8b');
-            assert.strictEqual(resolveModelName('llava-med'), 'llava-med-v1.5');
+            assert.strictEqual(resolveModelName('llava-med'), 'llava-med-v1.6');
             assert.strictEqual(resolveModelName('medtext'), 'medtext-llama3');
-            assert.strictEqual(resolveModelName('dragon'), 'dragon-finance');
+            assert.strictEqual(resolveModelName('dragon'), 'llm-pro-finance-8b');
             assert.strictEqual(resolveModelName('nemotron'), 'nemotron-orchestrator:8b');
 
             // New tests for suffix stripping and exact base handling
-            assert.strictEqual(resolveModelName('dragon-finance:latest'), 'dragon-finance');
-            assert.strictEqual(resolveModelName('dragon-finance'), 'dragon-finance');
-            assert.strictEqual(resolveModelName('llava-med-v1.5:latest'), 'llava-med-v1.5');
+            assert.strictEqual(resolveModelName('llm-pro-finance-8b'), 'llm-pro-finance-8b');
+            assert.strictEqual(resolveModelName('llm-pro-finance-8b'), 'llm-pro-finance-8b');
+            assert.strictEqual(resolveModelName('llava-med-v1.6:latest'), 'llava-med-v1.6');
         });
 
         it('should identify model tiers', function() {
             assert.strictEqual(getModelTier('qwen3-vl:8b'), 'production');
-            assert.strictEqual(getModelTier('dragon-finance'), 'advanced');
+            assert.strictEqual(getModelTier('llm-pro-finance-8b'), 'advanced');
             assert.strictEqual(getModelTier('nomic-embed-text-v1.5'), 'infrastructure');
         });
 

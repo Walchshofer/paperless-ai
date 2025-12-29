@@ -305,6 +305,65 @@ module.exports = {
         };
     },
 
+    _normalizeDateInput(value) {
+        if (!value) return null;
+        if (value instanceof Date && !Number.isNaN(value.valueOf())) {
+            return value.toISOString().slice(0, 10);
+        }
+        const raw = String(value).trim();
+        if (!raw) return null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+            return raw;
+        }
+        const dotMatch = raw.match(/^(\d{2})[.\-/](\d{2})[.\-/](\d{4})$/);
+        if (dotMatch) {
+            return `${dotMatch[3]}-${dotMatch[2]}-${dotMatch[1]}`;
+        }
+        const parsed = new Date(raw);
+        if (!Number.isNaN(parsed.valueOf())) {
+            return parsed.toISOString().slice(0, 10);
+        }
+        return null;
+    },
+
+    _applyLegacyVisionFallbacks(document, options = {}) {
+        if (!document || typeof document !== 'object') return document;
+
+        const updated = { ...document };
+        const documentType = typeof updated.document_type === 'string'
+            ? updated.document_type.trim()
+            : '';
+        if (!documentType) {
+            updated.document_type = 'Notiz';
+        }
+
+        if (!updated.document_date) {
+            const fallbackDate = this._normalizeDateInput(options.documentCreated)
+                || this._normalizeDateInput(new Date());
+            if (fallbackDate) {
+                updated.document_date = fallbackDate;
+            }
+        }
+
+        if (!updated.language) {
+            updated.language = 'de';
+        }
+
+        const title = typeof updated.title === 'string' ? updated.title.trim() : '';
+        if (title && title.toLowerCase() === 'notiz') {
+            const tags = Array.isArray(updated.tags) ? [...updated.tags] : [];
+            const hasVerificationTag = tags.some(tag =>
+                String(tag).trim().toLowerCase() === 'verification needed'
+            );
+            if (!hasVerificationTag) {
+                tags.push('Verification needed');
+            }
+            updated.tags = tags;
+        }
+
+        return updated;
+    },
+
     _normalize(data) {
         const normalizedData = (data && typeof data === 'object') ? data : {};
         const customFields = (normalizedData && typeof normalizedData.custom_fields === 'object' && !Array.isArray(normalizedData.custom_fields))
@@ -369,6 +428,14 @@ module.exports = {
 
         if (typeof response.needs_visual !== 'boolean') {
             errors.push('invalid needs_visual');
+        }
+
+        if ('rotation_degrees' in response) {
+            const degrees = Number(response.rotation_degrees);
+            const allowedRotations = [0, 90, 180, 270];
+            if (!Number.isFinite(degrees) || !allowedRotations.includes(degrees)) {
+                errors.push('invalid rotation_degrees');
+            }
         }
 
         if (response.category === 'medical') {

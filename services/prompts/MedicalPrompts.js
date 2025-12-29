@@ -8,7 +8,7 @@
  * Hardware Target: NVIDIA RTX 3090 Ti (24GB VRAM)
  * 
  * Model Configuration:
- * - Visual/Imaging: llava-med-v1.5:latest (multimodal)
+ * - Visual/Imaging: llava-med-v1.6:latest (multimodal)
  * - Clinical Text: medtext-llama3:latest (text-only)
  * - Fallback: sauerkraut-llama3.1:8b (text-only)
  * 
@@ -45,7 +45,7 @@ const { DomainType, ModelType } = require('./PromptRegistry');
  * MED_XRAY_CHEST_V1: Specialized Chest X-Ray Analysis
  * 
  * Purpose: Detailed chest radiograph interpretation
- * Model: llava-med-v1.5:latest (multimodal)
+ * Model: llava-med-v1.6:latest (multimodal)
  * 
  * Specialized for:
  * - PA/AP/Lateral chest views
@@ -58,7 +58,7 @@ const MED_XRAY_CHEST_V1 = {
     id: 'MED_XRAY_CHEST_V1',
     version: '1.0.0',
     domain: DomainType.MEDICAL,
-    model: 'llava-med-v1.5:latest',
+    model: 'llava-med-v1.6:latest',
     modelType: ModelType.MULTIMODAL,
     
     systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
@@ -219,13 +219,13 @@ Perform systematic analysis using the ABCDEFGHI approach and respond with this J
  * MED_PATHOLOGY_V1: Pathology Slide Analysis
  * 
  * Purpose: Histopathology and cytology image analysis
- * Model: llava-med-v1.5:latest (multimodal)
+ * Model: llava-med-v1.6:latest (multimodal)
  */
 const MED_PATHOLOGY_V1 = {
     id: 'MED_PATHOLOGY_V1',
     version: '1.0.0',
     domain: DomainType.MEDICAL,
-    model: 'llava-med-v1.5:latest',
+    model: 'llava-med-v1.6:latest',
     modelType: ModelType.MULTIMODAL,
     
     systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
@@ -1116,7 +1116,7 @@ const MED_IMAGING_EXTRACT_V1 = {
     id: 'MED_IMAGING_EXTRACT_V1',
     version: '1.0.0',
     domain: DomainType.MEDICAL,
-    model: 'llava-med-v1.5:latest',
+    model: 'llava-med-v1.6:latest',
     modelType: ModelType.MULTIMODAL,
     systemPrompt: 'Classify the imaging modality and extract key imaging metadata and findings.',
     userTemplate: 'Process the provided image and return modality, study descriptions and structured findings: {{image}}',

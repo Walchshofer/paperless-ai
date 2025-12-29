@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import List, Literal
 
 from guidance import guidance, system, user, assistant, json as gen_json
 from pydantic import BaseModel, Field
@@ -71,6 +71,14 @@ class LegalExtractorOutput(BaseModel):
     model_config = dict(extra="forbid")
 
 
+class LegalValidatorOutput(BaseModel):
+    valid: bool
+    issues: List[str]
+    vertrauen: float = Field(ge=0, le=1)
+
+    model_config = dict(extra="forbid")
+
+
 class LegalTemplatesDE:
     """German-language legal contract extraction templates."""
 
@@ -101,7 +109,7 @@ class LegalTemplatesDE:
 
     @staticmethod
     def get_legal_extractor():
-        """Extract contract data with reasoning (Stage 3.2 - dragon-finance)."""
+        """Extract contract data with reasoning (Stage 3.2 - llm-pro-finance-8b)."""
         @guidance
         def legal_extractor(lm, legal_text=None, legal_context=None, text_chunk=None, **kwargs):
             text = _pick_text(legal_text, text_chunk)
@@ -127,3 +135,42 @@ class LegalTemplatesDE:
             return lm
 
         return legal_extractor
+
+    @staticmethod
+    def get_legal_validator():
+        """Validate legal extraction output completeness and consistency."""
+        @guidance
+        def legal_validator(
+            lm,
+            legal_text=None,
+            text_chunk=None,
+            extracted_data=None,
+            **kwargs
+        ):
+            text = _pick_text(legal_text, text_chunk)
+            extraction_text = _stringify(
+                _pick_text(
+                    extracted_data,
+                    kwargs.get("legal_extraction"),
+                    kwargs.get("extraction"),
+                )
+            )
+            with system():
+                lm += (
+                    "Du bist ein juristischer Qualitätsprüfer. "
+                    "Prüfe, ob die Extraktion vollständig und konsistent ist. "
+                    "Antworte nur mit JSON."
+                )
+            with user():
+                lm += f"Vertragstext: {text}\n"
+                if extraction_text:
+                    lm += f"Extraktion: {extraction_text}\n"
+                lm += (
+                    "Bewerte: gültig (true/false), liste Probleme, "
+                    "und gib einen Vertrauensscore (0-1)."
+                )
+            with assistant():
+                lm += gen_json(name="output", schema=LegalValidatorOutput)
+            return lm
+
+        return legal_validator

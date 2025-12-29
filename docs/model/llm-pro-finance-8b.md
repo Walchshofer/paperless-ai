@@ -1,5 +1,5 @@
 <model_profile>
-    <id>dragon-finance</id>
+    <id>llm-pro-finance-8b</id>
     <name>DragonLLM Qwen Open Finance R (The Analyst)</name>
     
     <technical_specs>

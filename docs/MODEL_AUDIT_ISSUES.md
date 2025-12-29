@@ -24,7 +24,7 @@ This document catalogs all identified issues from the comprehensive model audit,
 **Severity**: Medium - Maintenance burden
 **Location**: Throughout codebase
 **Description**: Multiple variants exist for same models:
-- `llava-med-v1.5` vs `llava-med-v1.5:latest`
+- `llava-med-v1.6` vs `llava-med-v1.6:latest`
 - `medtext-llama3` vs `medtext-llama3:latest`
 - `qwen3-vl:8b` vs `qwen3-vl:8B`
 **Impact**: Code duplication, inconsistent references.
@@ -43,7 +43,7 @@ This document catalogs all identified issues from the comprehensive model audit,
 **Severity**: Medium - Feature limitation
 **Location**: Model documentation exists but no integration
 **Description**: High-value models documented but not wired into pipelines:
-- `dragon-finance` (9GB VRAM) - Advanced reasoning for complex analysis
+- `llm-pro-finance-8b` (9GB VRAM) - Advanced reasoning for complex analysis
 - `gpt-oss` (13GB VRAM) - Reasoning model for agentic tasks
 **Impact**: Missing advanced capabilities for complex document analysis.
 **Recommendation**: Create integration roadmap with feature flags for gradual rollout.

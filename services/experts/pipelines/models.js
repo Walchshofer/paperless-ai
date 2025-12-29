@@ -14,9 +14,9 @@ const MODEL_NAMES = Object.freeze({
     vision: process.env.OLLAMA_VISION_MODEL || config.ollama?.visionModel || 'qwen3-vl:8b',
 
     // Medical models: prefer explicit MEDICAL_* env vars, then config.expertModels entries, then ollama defaults
-    medicalImaging: process.env.MEDICAL_VISION_MODEL || config.expertModels?.medical?.vision || config.ollama?.visionModel || 'llava-med-v1.5',
+    medicalImaging: process.env.MEDICAL_VISION_MODEL || config.expertModels?.medical?.vision || config.ollama?.visionModel || 'llava-med-v1.6',
     medicalText: process.env.MEDICAL_ANALYSIS_MODEL || config.expertModels?.medical?.analysis || config.ollama?.model || 'medtext-llama3',
-    medicalRadiology: process.env.MEDICAL_RADIOLOGY_MODEL || config.expertModels?.medical?.radiology || config.ollama?.visionModel || 'llava-med-v1.5',
+    medicalRadiology: process.env.MEDICAL_RADIOLOGY_MODEL || config.expertModels?.medical?.radiology || config.ollama?.visionModel || 'llava-med-v1.6',
 
     // Financial models: prefer FINANCIAL_* env vars, then config.expertModels entries, then finance defaults, then ollama defaults
     financeReasoning: process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || config.ollama?.model || 'fino1-8b',
@@ -27,13 +27,13 @@ const MODEL_NAMES = Object.freeze({
                process.env.FINANCIAL_VISION_MODEL ||
                config.expertModels?.financial?.vision ||
                config.ollama?.visionModel ||
-               'dragon-finance:latest',
+               'llm-pro-finance-8b',
 
     // Legal expert mapping -> Dragon finance reasoning model
     legalExpert: process.env.LEGAL_EXPERT_MODEL ||
                  process.env.LEGAL_ANALYSIS_MODEL ||
                  config.expertModels?.legal?.analysis ||
-                 'dragon-finance:latest',
+                 'llm-pro-finance-8b',
 
     // Advanced tier - Reasoning models
     dragon: process.env.DRAGON_MODEL || null,
