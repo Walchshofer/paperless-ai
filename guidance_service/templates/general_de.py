@@ -1,9 +1,19 @@
 from typing import List, Literal
+import os
 
 from guidance import guidance, system, user, assistant, json as gen_json
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, create_model
 
-from templates.components.common import build_domain_context, pick_text, stringify
+from templates.components.common import (
+    build_domain_context,
+    pick_text,
+    stringify,
+    normalize_tags,
+)
+
+TAG_SELECT_MAX = int(os.getenv("GUIDANCE_TAG_SELECT_MAX", "50"))
+TAG_SUGGESTION_LIMIT = int(os.getenv("GUIDANCE_TAG_SUGGESTION_LIMIT", "5"))
+TAG_MISSING_LIMIT = int(os.getenv("GUIDANCE_TAG_MISSING_LIMIT", "5"))
 
 
 class GeneralClassifierOutput(BaseModel):
@@ -33,6 +43,52 @@ class CrossPipelineRouterOutput(BaseModel):
     sicherheit: float = Field(ge=0, le=1)
 
     model_config = dict(extra="forbid")
+
+
+class TaggingTagConfidence(BaseModel):
+    tag: str
+    confidence: float = Field(ge=0, le=1)
+
+    model_config = dict(extra="forbid")
+
+
+class TaggingConfidence(BaseModel):
+    overall: float = Field(ge=0, le=1)
+    tags: List[TaggingTagConfidence] = Field(default_factory=list)
+
+    model_config = dict(extra="forbid")
+
+
+class TaggingMetadata(BaseModel):
+    domain: str
+    source: str
+    confidence: TaggingConfidence
+
+    model_config = dict(extra="forbid")
+
+
+def _build_tagged_schema(base_model, existing_tags):
+    allowed_tags = list(dict.fromkeys(normalize_tags(existing_tags)))
+    use_select = allowed_tags and len(allowed_tags) <= TAG_SELECT_MAX
+    if use_select:
+        tag_literal = Literal[tuple(allowed_tags)]
+        suggested_type = List[tag_literal]
+    else:
+        suggested_type = List[str]
+
+    return create_model(
+        f"{base_model.__name__}Tagged",
+        suggested_tags=(
+            suggested_type,
+            Field(default_factory=list, max_items=TAG_SUGGESTION_LIMIT),
+        ),
+        missing_tags=(
+            List[str],
+            Field(default_factory=list, max_items=TAG_MISSING_LIMIT),
+        ),
+        tagging=(TaggingMetadata, ...),
+        __base__=base_model,
+    )
 
 
 class GeneralTemplatesDE:
@@ -110,10 +166,60 @@ class GeneralTemplatesDE:
                 lm += f"{text}\n"
                 lm += "Extrahiere: Zusammenfassung, Schlüsselwörter, Entitäten, Daten."
             with assistant():
-                lm += gen_json(name="output", schema=GeneralExtractorOutput)
+                lm += gen_json(name="output", schema=GeneralExtractorOutput)    
             return lm
 
         return general_extractor
+
+    @staticmethod
+    def get_general_extractor_v2():
+        """Extract metadata + tag suggestions from general documents (v2)."""
+        @guidance
+        def general_extractor_v2(
+            lm,
+            document_text=None,
+            text_chunk=None,
+            domain=None,
+            existing_tags=None,
+            model=None,
+            **kwargs
+        ):
+            text = pick_text(document_text, text_chunk)
+            existing_tag_list = normalize_tags(
+                existing_tags or kwargs.get("existing_tags")
+            )
+            tag_schema = _build_tagged_schema(
+                GeneralExtractorOutput,
+                existing_tag_list
+            )
+            domain_context = build_domain_context(
+                domain or kwargs.get("domain"),
+                existing_tag_list,
+                model or kwargs.get("model"),
+            )
+            with system():
+                lm += (
+                    "Du bist ein Dokumentanalyst für deutschsprachige Allgemeindokumente. "
+                    "Extrahiere Zusammenfassung, Schlüsselwörter und Entitäten. "
+                    "Zusätzlich: gib Tag-Vorschläge im Tagging-Schema zurück."
+                )
+                lm += (
+                    "\nTagging-Regeln: suggested_tags nur aus bestehenden Tags, "
+                    "missing_tags für neue Kandidaten. "
+                    "tagging.domain='general', tagging.source='guidance_tagger_v2', "
+                    "tagging.confidence.overall zwischen 0 und 1."
+                )
+                if domain_context:
+                    lm += f"\n{domain_context}"
+            with user():
+                lm += "Dokument:\n"
+                lm += f"{text}\n"
+                lm += "Extrahiere: Zusammenfassung, Schlüsselwörter, Entitäten, Daten."
+            with assistant():
+                lm += gen_json(name="output", schema=tag_schema)
+            return lm
+
+        return general_extractor_v2
 
     @staticmethod
     def get_cross_pipeline_router():

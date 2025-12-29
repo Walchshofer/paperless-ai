@@ -2204,6 +2204,11 @@ async function applyPipelineTagGovernance(docId, updateData, analysis, originalT
       if (tag) missingTags.add(String(tag).trim());
     });
   }
+  if (Array.isArray(analysis?.tagging?.missing_tags)) {
+    analysis.tagging.missing_tags.forEach(tag => {
+      if (tag) missingTags.add(String(tag).trim());
+    });
+  }
 
   if (missingTags.size > 0) {
     const stagedMissingTags = Array.from(missingTags).filter(Boolean);
@@ -2431,6 +2436,7 @@ router.get('/setup', async (req, res) => {
       PAPERLESS_AI_VERSION: configFile.PAPERLESS_AI_VERSION || ' ',
       PROCESS_ONLY_NEW_DOCUMENTS: process.env.PROCESS_ONLY_NEW_DOCUMENTS || 'yes',
       USE_EXISTING_DATA: process.env.USE_EXISTING_DATA || 'no',
+      PIPELINE_TAG_REPLACE: process.env.PIPELINE_TAG_REPLACE || 'no',
       DISABLE_AUTOMATIC_PROCESSING: process.env.DISABLE_AUTOMATIC_PROCESSING || 'no',
       AZURE_ENDPOINT: process.env.AZURE_ENDPOINT|| '',
       AZURE_API_KEY: process.env.AZURE_API_KEY || '',
@@ -3498,7 +3504,8 @@ router.get('/settings', async (req, res) => {
     AZURE_API_KEY: process.env.AZURE_API_KEY || '',
     AZURE_DEPLOYMENT_NAME: process.env.AZURE_DEPLOYMENT_NAME || '',
     AZURE_API_VERSION: process.env.AZURE_API_VERSION || '',
-    RESTRICT_TO_EXISTING_TAGS: process.env.RESTRICT_TO_EXISTING_TAGS || 'no',
+    RESTRICT_TO_EXISTING_TAGS: process.env.RESTRICT_TO_EXISTING_TAGS || 'no',   
+    PIPELINE_TAG_REPLACE: process.env.PIPELINE_TAG_REPLACE || 'no',
     RESTRICT_TO_EXISTING_CORRESPONDENTS: process.env.RESTRICT_TO_EXISTING_CORRESPONDENTS || 'no',
     RESTRICT_TO_EXISTING_DOCUMENT_TYPES: process.env.RESTRICT_TO_EXISTING_DOCUMENT_TYPES || 'no',
     EXTERNAL_API_ENABLED: process.env.EXTERNAL_API_ENABLED || 'no',
@@ -4586,6 +4593,7 @@ router.post('/setup', express.json(), async (req, res) => {
       username,
       password,
       useExistingData,
+      pipelineTagReplace,
       customApiKey,
       customBaseUrl,
       customModel,
@@ -4711,6 +4719,7 @@ router.post('/setup', express.json(), async (req, res) => {
       USE_PROMPT_TAGS: usePromptTags || 'no',
       PROMPT_TAGS: normalizeArray(promptTags),
       USE_EXISTING_DATA: useExistingData || 'no',
+      PIPELINE_TAG_REPLACE: pipelineTagReplace ? 'yes' : 'no',
       API_KEY: apiToken,
       JWT_SECRET: jwtToken,
       CUSTOM_API_KEY: customApiKey || '',
@@ -5143,6 +5152,7 @@ router.post('/settings', express.json(), async (req, res) => {
 
     // Extract tag and correspondent restriction settings with defaults
     const restrictToExistingTags = req.body.restrictToExistingTags === 'on' || req.body.restrictToExistingTags === 'yes';
+    const pipelineTagReplace = req.body.pipelineTagReplace === 'on' || req.body.pipelineTagReplace === 'yes';
     const restrictToExistingCorrespondents = req.body.restrictToExistingCorrespondents === 'on' || req.body.restrictToExistingCorrespondents === 'yes';
     const restrictToExistingDocumentTypes = req.body.restrictToExistingDocumentTypes === 'on' || req.body.restrictToExistingDocumentTypes === 'yes';
     
@@ -5295,6 +5305,7 @@ router.post('/settings', express.json(), async (req, res) => {
       
       // Handle tag and correspondent restrictions
       updatedConfig.RESTRICT_TO_EXISTING_TAGS = restrictToExistingTags ? 'yes' : 'no';
+      updatedConfig.PIPELINE_TAG_REPLACE = pipelineTagReplace ? 'yes' : 'no';
       updatedConfig.RESTRICT_TO_EXISTING_CORRESPONDENTS = restrictToExistingCorrespondents ? 'yes' : 'no';
       updatedConfig.RESTRICT_TO_EXISTING_DOCUMENT_TYPES = restrictToExistingDocumentTypes ? 'yes' : 'no';
       
