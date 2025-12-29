@@ -78,6 +78,29 @@ function normalizeBoolean(value, fallback) {
     return fallback;
 }
 
+const GUIDANCE_TAG_SCHEMA_VERSION = String(
+    process.env.GUIDANCE_TAG_SCHEMA_VERSION ||
+    config.guidanceService?.tagSchemaVersion ||
+    'v1'
+).toLowerCase();
+const USE_GUIDANCE_TAG_SCHEMA_V2 = ['v2', '2', 'true', 'yes'].includes(
+    GUIDANCE_TAG_SCHEMA_VERSION
+);
+const GUIDANCE_V2_TEMPLATE_MAP = {
+    medical_integrator: 'medical_integrator_v2',
+    financial_extractor: 'financial_extractor_v2',
+    financial_reasoner: 'financial_reasoner_v2',
+    legal_extractor: 'legal_extractor_v2',
+    general_extractor: 'general_extractor_v2'
+};
+
+function resolveGuidanceTemplateName(templateName) {
+    if (!templateName || !USE_GUIDANCE_TAG_SCHEMA_V2) {
+        return templateName;
+    }
+    return GUIDANCE_V2_TEMPLATE_MAP[templateName] || templateName;
+}
+
 async function buildVisOcrMetadata(text, languageHint, translator, options = {}) {
     const rawText = typeof text === 'string' ? text : '';
     const sourceLang = normalizeLanguageHint(languageHint) || 'de';
@@ -516,10 +539,13 @@ class ExpertPipelineExecutor {
             normalizeBoolean(context?.options?.orchestration?.useGuidance, true);
 
         if (stage.guidanceTemplate && guidanceEnabled && await guidanceClient.isAvailable()) {
+            const resolvedTemplate = resolveGuidanceTemplateName(stage.guidanceTemplate);
             logger.debug({
                 event: 'stage_using_guidance',
                 stageId: stage.id,
-                template: stage.guidanceTemplate
+                template: resolvedTemplate,
+                baseTemplate: stage.guidanceTemplate,
+                tagSchemaVersion: GUIDANCE_TAG_SCHEMA_VERSION
             });
 
             try {
@@ -533,7 +559,7 @@ class ExpertPipelineExecutor {
                     tokenCount > streamingThreshold;
 
                 const guidanceResult = await guidanceClient.generate(
-                    stage.guidanceTemplate,
+                    resolvedTemplate,
                     variables,
                     {
                         model: modelName,
@@ -546,7 +572,8 @@ class ExpertPipelineExecutor {
                     logger.info({
                         event: 'guidance_extraction_success',
                         stageId: stage.id,
-                        template: stage.guidanceTemplate,
+                        template: resolvedTemplate,
+                        baseTemplate: stage.guidanceTemplate,
                         valid: guidanceResult.validation?.valid,
                         source: guidanceResult.source
                     });
@@ -557,7 +584,8 @@ class ExpertPipelineExecutor {
                 logger.warn({
                     event: 'guidance_extraction_fallback',
                     stageId: stage.id,
-                    template: stage.guidanceTemplate,
+                    template: resolvedTemplate,
+                    baseTemplate: stage.guidanceTemplate,
                     error: guidanceError.message
                 });
                 // Fall through to PromptRegistry path

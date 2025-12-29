@@ -88,6 +88,112 @@ def _infer_domain(template_name: str) -> str:
         return "general"
     return "unknown"
 
+
+def _normalize_tag_list(value):
+    if value is None:
+        return []
+    if isinstance(value, list):
+        items = value
+    elif isinstance(value, tuple):
+        items = list(value)
+    elif isinstance(value, str):
+        items = [value]
+    else:
+        items = [str(value)]
+
+    cleaned = []
+    for item in items:
+        if item is None:
+            continue
+        text = str(item).strip()
+        if text:
+            cleaned.append(text)
+    return cleaned
+
+
+def _normalize_existing_tags(existing_tags):
+    if not existing_tags:
+        return []
+    if isinstance(existing_tags, (list, tuple)):
+        items = list(existing_tags)
+    elif isinstance(existing_tags, str):
+        items = [existing_tags]
+    else:
+        items = [existing_tags]
+
+    normalized = []
+    for tag in items:
+        if not tag:
+            continue
+        if isinstance(tag, str):
+            text = tag.strip()
+        elif isinstance(tag, dict) and tag.get("name"):
+            text = str(tag.get("name")).strip()
+        else:
+            text = str(tag).strip()
+        if text:
+            normalized.append(text)
+    return normalized
+
+
+def _dedupe_tags(tags):
+    seen = set()
+    deduped = []
+    for tag in tags:
+        key = str(tag).strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(str(tag).strip())
+    return deduped
+
+
+def _apply_tag_validation(generated, variables, template_name):
+    if not isinstance(generated, dict):
+        return generated
+    variables = variables or {}
+    existing_tags = _normalize_existing_tags(
+        variables.get("existing_tags")
+        or variables.get("existingTags")
+        or variables.get("existingTagNames")
+        or variables.get("existingTagsList")
+        or []
+    )
+    suggested_tags = _normalize_tag_list(generated.get("suggested_tags"))
+    missing_tags = _normalize_tag_list(generated.get("missing_tags"))
+
+    if existing_tags:
+        known = {tag.lower(): tag for tag in existing_tags}
+        filtered = []
+        extra_missing = []
+        for tag in suggested_tags:
+            key = str(tag).strip().lower()
+            if not key:
+                continue
+            if key in known:
+                filtered.append(known[key])
+            else:
+                extra_missing.append(str(tag).strip())
+        suggested_tags = filtered
+        missing_tags.extend(extra_missing)
+
+    suggested_tags = _dedupe_tags(suggested_tags)
+    missing_tags = _dedupe_tags(missing_tags)
+
+    if suggested_tags or missing_tags or isinstance(generated.get("tagging"), dict):
+        generated["suggested_tags"] = suggested_tags
+        generated["missing_tags"] = missing_tags
+
+    tagging = generated.get("tagging")
+    if isinstance(tagging, dict):
+        if not tagging.get("domain"):
+            tagging["domain"] = _infer_domain(template_name)
+        if not tagging.get("source"):
+            tagging["source"] = "guidance_tagger_v2" if "v2" in template_name else "guidance_tagger"
+        generated["tagging"] = tagging
+
+    return generated
+
 def create_app():
     app = Flask(__name__)
     CORS(app)
@@ -113,24 +219,29 @@ def create_app():
     # Register All Templates across all phases
     templates = {
         # Phase 1: Medical
-        'medical_classifier': MedicalTemplatesDE.get_medical_classifier(),
-        'medical_extractor': MedicalTemplatesDE.get_medical_extractor(),
-        'medical_integrator': MedicalTemplatesDE.get_medical_integrator(),
+        'medical_classifier': MedicalTemplatesDE.get_medical_classifier(),      
+        'medical_extractor': MedicalTemplatesDE.get_medical_extractor(),        
+        'medical_integrator': MedicalTemplatesDE.get_medical_integrator(),      
+        'medical_integrator_v2': MedicalTemplatesDE.get_medical_integrator_v2(),
         
         # Phase 2: Financial
-        'financial_extractor': FinancialTemplatesDE.get_financial_extractor(),
-        'financial_reasoner': FinancialTemplatesDE.get_financial_reasoner(),
-        'vat_expert_analyzer': FinancialTemplatesDE.get_vat_expert_analyzer(),
+        'financial_extractor': FinancialTemplatesDE.get_financial_extractor(),  
+        'financial_reasoner': FinancialTemplatesDE.get_financial_reasoner(),    
+        'vat_expert_analyzer': FinancialTemplatesDE.get_vat_expert_analyzer(),  
+        'financial_extractor_v2': FinancialTemplatesDE.get_financial_extractor_v2(),
+        'financial_reasoner_v2': FinancialTemplatesDE.get_financial_reasoner_v2(),
         
         # Phase 3: Legal
         'legal_classifier': LegalTemplatesDE.get_legal_classifier(),
         'legal_extractor': LegalTemplatesDE.get_legal_extractor(),
         'legal_validator': LegalTemplatesDE.get_legal_validator(),
+        'legal_extractor_v2': LegalTemplatesDE.get_legal_extractor_v2(),
         
         # Phase 4: General
-        'general_classifier': GeneralTemplatesDE.get_general_classifier(),
-        'general_extractor': GeneralTemplatesDE.get_general_extractor(),
-        'cross_pipeline_router': GeneralTemplatesDE.get_cross_pipeline_router()
+        'general_classifier': GeneralTemplatesDE.get_general_classifier(),      
+        'general_extractor': GeneralTemplatesDE.get_general_extractor(),        
+        'general_extractor_v2': GeneralTemplatesDE.get_general_extractor_v2(),
+        'cross_pipeline_router': GeneralTemplatesDE.get_cross_pipeline_router() 
     }
     
     # Initialize Prometheus metrics endpoint
@@ -316,6 +427,7 @@ def create_app():
                             )
 
                 generated = _normalize_confidence_fields(generated)
+                generated = _apply_tag_validation(generated, variables, template_name)
                 tag_info = extract_tag_lists(generated)
                 has_tag_fields = has_tag_fields or (
                     isinstance(generated, dict) and (

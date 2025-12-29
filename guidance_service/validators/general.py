@@ -53,6 +53,8 @@ def validate_general_extraction(data: Dict[str, Any]) -> Dict[str, Any]:
             except (ValueError, TypeError):
                 errors.append(f"Invalid confidence format: {confidence}")
 
+        _validate_tag_fields(data, warnings, errors, 'general')
+
         return {
             'valid': len(errors) == 0,
             'errors': errors,
@@ -111,6 +113,48 @@ def _validate_classifier_output(data: Dict[str, Any], warnings: List[str]) -> Li
                 errors.append(f"Field {bool_field} must be boolean")
 
     return errors
+
+
+def _validate_tag_fields(data: Dict[str, Any], warnings: List[str], errors: List[str], domain: str) -> None:
+    suggested = data.get('suggested_tags')
+    if suggested is not None and not isinstance(suggested, list):
+        errors.append("suggested_tags must be a list")
+    elif isinstance(suggested, list):
+        if any(not isinstance(tag, str) for tag in suggested):
+            warnings.append("suggested_tags contains non-string entries")
+
+    missing = data.get('missing_tags')
+    if missing is not None and not isinstance(missing, list):
+        errors.append("missing_tags must be a list")
+    elif isinstance(missing, list):
+        if any(not isinstance(tag, str) for tag in missing):
+            warnings.append("missing_tags contains non-string entries")
+
+    tagging = data.get('tagging')
+    if tagging is None:
+        return
+    if not isinstance(tagging, dict):
+        warnings.append("tagging must be an object")
+        return
+    tag_domain = tagging.get('domain')
+    if tag_domain and str(tag_domain).lower() != domain:
+        warnings.append(f"tagging.domain '{tag_domain}' does not match '{domain}'")
+    if not tagging.get('source'):
+        warnings.append("tagging.source is missing")
+    confidence = tagging.get('confidence')
+    if confidence is None:
+        return
+    if not isinstance(confidence, dict):
+        warnings.append("tagging.confidence must be an object")
+        return
+    overall = confidence.get('overall')
+    if overall is not None:
+        try:
+            value = float(overall)
+            if value < 0 or value > 1:
+                warnings.append(f"tagging.confidence.overall out of range: {overall}")
+        except (TypeError, ValueError):
+            warnings.append("tagging.confidence.overall is not a number")
 
 
 def _validate_legacy_extractor(data: Dict[str, Any], warnings: List[str]) -> List[str]:

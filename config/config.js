@@ -335,7 +335,8 @@ module.exports = {
     model: process.env.GUIDANCE_MODEL || 'sauerkraut-llama3.1:8b',
     timeout: parseInt(process.env.GUIDANCE_TIMEOUT || '90000', 10),
     useCache: parseEnvBoolean(process.env.GUIDANCE_USE_CACHE, 'yes'),
-    maxRetries: parseInt(process.env.GUIDANCE_MAX_RETRIES || '2', 10)
+    maxRetries: parseInt(process.env.GUIDANCE_MAX_RETRIES || '2', 10),
+    tagSchemaVersion: process.env.GUIDANCE_TAG_SCHEMA_VERSION || 'v1'
   },
   translation: {
     model: process.env.TRANSLATION_MODEL || process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b',

@@ -156,12 +156,13 @@ class GuidanceClient {
         }
 
         const startTime = Date.now();
+        const variableKeys = Object.keys(variables);
 
         logger.debug({
             event: 'guidance_generate_start',
             template,
             model,
-            variableKeys: Object.keys(variables),
+            variableKeys,
             stream: streamEnabled
         });
 
@@ -228,12 +229,20 @@ class GuidanceClient {
                     continue;
                 }
 
+                const errorDetails = this._extractErrorDetails(error);
+                const httpDetails = this._extractHttpDetails(error);
+
                 logger.warn({
                     event: 'guidance_generate_retry',
                     template,
+                    model,
                     attempt,
                     maxRetries: this.config.maxRetries,
-                    error: error.message
+                    durationMs: Date.now() - startTime,
+                    error: errorDetails.message,
+                    code: errorDetails.code,
+                    status: httpDetails.status,
+                    response: httpDetails.response
                 });
 
                 if (attempt < this.config.maxRetries) {
@@ -244,6 +253,7 @@ class GuidanceClient {
 
         // All retries failed
         const errorDetails = this._extractErrorDetails(lastError);
+        const httpDetails = this._extractHttpDetails(lastError);
 
         logger.error({
             event: 'guidance_generate_failed',
@@ -251,7 +261,11 @@ class GuidanceClient {
             model,
             durationMs: Date.now() - startTime,
             error: errorDetails.message,
-            code: errorDetails.code
+            code: errorDetails.code,
+            status: httpDetails.status,
+            response: httpDetails.response,
+            stream: streamEnabled,
+            baseUrl: this.config.baseUrl
         });
 
         throw new GuidanceError(
@@ -274,10 +288,17 @@ class GuidanceClient {
         try {
             return await this.generate(template, variables, options);
         } catch (error) {
+            const errorDetails = this._extractErrorDetails(error);
+            const httpDetails = this._extractHttpDetails(error);
+
             logger.warn({
                 event: 'guidance_fallback_triggered',
                 template,
-                error: error.message
+                model: options.model || this.config.defaultModel,
+                error: errorDetails.message,
+                code: errorDetails.code,
+                status: httpDetails.status,
+                response: httpDetails.response
             });
 
             if (typeof fallbackFn === 'function') {
@@ -343,6 +364,46 @@ class GuidanceClient {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    _summarizeResponseData(data) {
+        if (!data) return undefined;
+
+        if (typeof data === 'string') {
+            return data.length > 500 ? `${data.slice(0, 500)}...` : data;
+        }
+
+        if (typeof data === 'object') {
+            const summary = {};
+            const keys = ['error', 'detail', 'message', 'code', 'status'];
+            keys.forEach(key => {
+                if (data[key] !== undefined) {
+                    summary[key] = data[key];
+                }
+            });
+            if (Object.keys(summary).length > 0) {
+                return summary;
+            }
+            try {
+                return JSON.stringify(data).slice(0, 500);
+            } catch (error) {
+                return '[unserializable response]';
+            }
+        }
+
+        return String(data).slice(0, 500);
+    }
+
+    _extractHttpDetails(error) {
+        if (!error || !error.response) {
+            return {};
+        }
+
+        return {
+            status: error.response.status,
+            statusText: error.response.statusText,
+            response: this._summarizeResponseData(error.response.data)
+        };
+    }
+
     _extractErrorDetails(error) {
         if (error.response) {
             // HTTP error from Guidance service
@@ -399,20 +460,25 @@ const TEMPLATE_TO_PROMPT_FALLBACK = {
     'medical_classifier': 'MED_RADIOLOGY_V1',
     'medical_extractor': 'MED_DOCTOR_V1',
     'medical_integrator': 'MED_INTEGRATOR_V1',
+    'medical_integrator_v2': 'MED_INTEGRATOR_V1',
 
     // Financial
     'financial_extractor': 'FIN_EXTRACT_V1',
     'financial_reasoner': 'FIN_REASONER_V1',
     'vat_expert_analyzer': 'FIN_VAT_EXPERT_V1',
+    'financial_extractor_v2': 'FIN_EXTRACT_V1',
+    'financial_reasoner_v2': 'FIN_REASONER_V1',
 
     // Legal
     'legal_classifier': 'LEGAL_ORCHESTRATOR_V1',
     'legal_extractor': 'LEGAL_EXTRACTOR_V1',
     'legal_validator': 'LEGAL_EXTRACTOR_V1',
+    'legal_extractor_v2': 'LEGAL_EXTRACTOR_V1',
 
     // General
     'general_classifier': 'GEN_FALLBACK_V1',
     'general_extractor': 'GEN_FALLBACK_V1',
+    'general_extractor_v2': 'GEN_FALLBACK_V1',
     'cross_pipeline_router': 'SYS_ROUTER_V1'
 };
 
