@@ -8,6 +8,8 @@ import logging
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
+from metrics.tag_statistics import record_tag_stats
+
 _LOGGER = logging.getLogger("guidance.tag_metrics")
 _MAX_EVENTS = 1000
 _TAG_EVENTS: deque = deque(maxlen=_MAX_EVENTS)
@@ -72,6 +74,12 @@ def record_tag_generation(
         target_logger.info("tag_metrics", extra={"tag_metrics": event})
     except Exception:
         pass
+
+    record_tag_stats(
+        domain=domain,
+        suggested_tags=event["suggested_tags"],
+        missing_tags=event["missing_tags"],
+    )
 
     return event
 

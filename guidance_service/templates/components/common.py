@@ -34,7 +34,12 @@ def normalize_tags(existing_tags):
     return normalized
 
 
-def build_domain_context(domain=None, existing_tags=None, model_name=None):
+def build_domain_context(
+    domain=None,
+    existing_tags=None,
+    model_name=None,
+    stats_context=None,
+):
     parts = []
     if domain:
         parts.append(f"Domain: {domain}.")
@@ -43,6 +48,8 @@ def build_domain_context(domain=None, existing_tags=None, model_name=None):
         parts.append(f"Existing tags: {', '.join(tag_list)}.")
     if model_name:
         parts.append(f"Model: {model_name}.")
+    if stats_context:
+        parts.append(str(stats_context))
     return " ".join(parts)
 
 

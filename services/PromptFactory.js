@@ -90,24 +90,74 @@ class PromptFactory {
         return '';
     }
 
-    buildPlannerPrompt(strict = false) {
+    buildPlannerPrompt(strictOrOptions = false, maybeOptions = {}) {
+        let strict = false;
+        let options = {};
+        if (strictOrOptions && typeof strictOrOptions === 'object') {
+            options = strictOrOptions;
+            strict = !!options.strict;
+        } else {
+            strict = !!strictOrOptions;
+            options = maybeOptions || {};
+        }
+
+        const bounded = !!options.bounded;
+        const thinkingBudget = options.thinkingBudget;
+        const outputBudget = options.outputBudget;
+        const stopSequences = Array.isArray(options.stopSequences)
+            ? options.stopSequences
+            : [];
+
         const baseTemplate = this._getTemplate('router_classifier', 'de', 'en');
         const rotationInstruction = 'Also detect if the page is rotated. Set "rotation_degrees" to 0, 90, 180, or 270 (clockwise) to make text upright.';
         const basePrompt = baseTemplate?.systemInstruction
             ? `${baseTemplate.systemInstruction}\n${rotationInstruction}\nReturn ONLY JSON with keys: category, doc_type_hint, modality, confidence, keywords, needs_visual, rotation_degrees.`
             : 'AT/DE doc classifier. Choose ONE: financial, medical, legal, technical, personal, general. Hints: financial=Rechnung/Quittung/Honorarnote/Bank, medical=Befund/Rezept/Arztbrief, legal=Vertrag/Vereinbarung/GZ, technical=Anleitung/Datenblatt, personal=Brief/Mitteilung/Schreiben. If medical, set modality: lab|radiology|prescription|unknown. Modality hints: lab=Laborwerte/Blutbild/Befund tables, radiology=X-ray/CT/MRT/Roentgen, prescription=Rezept/Verordnung. Return ONLY JSON: {"category":"financial|medical|legal|technical|personal|general","doc_type_hint":"invoice|lab_report|contract|...","modality":"lab|radiology|prescription|unknown","confidence":0-1,"keywords":["..."],"needs_visual":true|false,"rotation_degrees":0|90|180|270}. Rules: doc_type_hint specific; confidence>=0.8 clear, 0.5-0.8 maybe, <0.5 unsure; keywords 2-5 DE/EN; needs_visual true if tables/forms/stamps/complex layout. Rotation: use rotation_degrees to make text upright.';
+
+        let prompt = basePrompt;
         if (strict) {
             const strictTemplate = this._getTemplate('router_classifier_strict', 'de', 'en');
             if (strictTemplate?.systemInstruction) {
-                return strictTemplate.systemInstruction;
+                prompt = `${strictTemplate.systemInstruction}\n${rotationInstruction}\nReturn ONLY JSON with keys: category, doc_type_hint, modality, confidence, keywords, needs_visual, rotation_degrees.`;
+            } else {
+                prompt = `${basePrompt} STRICT MODE: JSON only, no extra keys.`;
             }
-            return `${basePrompt} STRICT MODE: JSON only, no extra keys.`;
         }
-        return basePrompt;
+
+        if (bounded) {
+            const thinkingCap = Number.isFinite(thinkingBudget)
+                ? Math.max(0, Math.floor(thinkingBudget))
+                : null;
+            const outputCap = Number.isFinite(outputBudget)
+                ? Math.max(0, Math.floor(outputBudget))
+                : null;
+            const thinkingLabel = Number.isFinite(thinkingCap)
+                ? `${thinkingCap} tokens`
+                : 'a short budget';
+            const outputLabel = Number.isFinite(outputCap)
+                ? `${outputCap} tokens`
+                : 'a short budget';
+            const stopHint = stopSequences.length > 0
+                ? 'Stop after emitting the JSON; do not add any extra text after the closing brace.'
+                : 'Stop after emitting the JSON.';
+
+            prompt = `${prompt}\nBounded thinking: first emit <thinking>...</thinking> limited to ${thinkingLabel}. Then output ONLY the JSON object (<= ${outputLabel}). ${stopHint}`;
+        }
+
+        return prompt;
     }
 
 
-    getPlannerTemplateMeta(strict = false) {
+    getPlannerTemplateMeta(strictOrOptions = false, maybeOptions = {}) {
+        let strict = false;
+        let options = {};
+        if (strictOrOptions && typeof strictOrOptions === 'object') {
+            options = strictOrOptions;
+            strict = !!options.strict;
+        } else {
+            strict = !!strictOrOptions;
+            options = maybeOptions || {};
+        }
         const intent = strict ? 'router_classifier_strict' : 'router_classifier';
         const template = this._getTemplate(intent, 'de', 'en');
         return {
@@ -115,7 +165,10 @@ class PromptFactory {
             lang: template?.lang || 'de',
             version: template?.version || 'unknown',
             source: template ? 'template_manager' : 'fallback',
-            strict: !!strict
+            strict: !!strict,
+            bounded: !!options.bounded,
+            thinkingBudget: options.thinkingBudget,
+            outputBudget: options.outputBudget
         };
     }
 

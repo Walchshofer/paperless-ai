@@ -128,6 +128,9 @@ class FinancialTemplatesDE:
                 domain or kwargs.get("domain"),
                 existing_tags or kwargs.get("existing_tags"),
                 model or kwargs.get("model"),
+                stats_context=(
+                    kwargs.get("tag_stats_context") or kwargs.get("stats_context")
+                ),
             )
             with system():
                 lm += "Finanzextraktionist für AT/DE."
@@ -166,6 +169,9 @@ class FinancialTemplatesDE:
                 domain or kwargs.get("domain"),
                 existing_tag_list,
                 model or kwargs.get("model"),
+                stats_context=(
+                    kwargs.get("tag_stats_context") or kwargs.get("stats_context")
+                ),
             )
             with system():
                 lm += "Finanzextraktionist für AT/DE."
@@ -223,6 +229,9 @@ class FinancialTemplatesDE:
                 domain or kwargs.get("domain"),
                 existing_tags or kwargs.get("existing_tags"),
                 model or kwargs.get("model"),
+                stats_context=(
+                    kwargs.get("tag_stats_context") or kwargs.get("stats_context")
+                ),
             )
             with system():
                 lm += "Mathe-Prüfer."
@@ -282,6 +291,9 @@ class FinancialTemplatesDE:
                 domain or kwargs.get("domain"),
                 existing_tag_list,
                 model or kwargs.get("model"),
+                stats_context=(
+                    kwargs.get("tag_stats_context") or kwargs.get("stats_context")
+                ),
             )
             with system():
                 lm += "Mathe-Prüfer."
@@ -337,6 +349,9 @@ class FinancialTemplatesDE:
                 domain or kwargs.get("domain"),
                 existing_tags or kwargs.get("existing_tags"),
                 model or kwargs.get("model"),
+                stats_context=(
+                    kwargs.get("tag_stats_context") or kwargs.get("stats_context")
+                ),
             )
             with system():
                 lm += "UStG Experte (Österreich)."

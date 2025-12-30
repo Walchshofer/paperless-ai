@@ -28,7 +28,8 @@ from metrics.guidance_metrics import (
     track_cache_operation,
     track_validation
 )
-from metrics.tag_metrics import record_tag_generation, extract_tag_lists
+from metrics.tag_metrics import record_tag_generation, extract_tag_lists        
+from metrics.tag_statistics import build_tag_stats_context
 
 CONFIDENCE_KEYS = ("vertrauen", "sicherheit", "routing_vertrauen")
 
@@ -136,6 +137,17 @@ def _normalize_existing_tags(existing_tags):
     return normalized
 
 
+def _extract_existing_tags(variables):
+    variables = variables or {}
+    return _normalize_existing_tags(
+        variables.get("existing_tags")
+        or variables.get("existingTags")
+        or variables.get("existingTagNames")
+        or variables.get("existingTagsList")
+        or []
+    )
+
+
 def _dedupe_tags(tags):
     seen = set()
     deduped = []
@@ -151,14 +163,7 @@ def _dedupe_tags(tags):
 def _apply_tag_validation(generated, variables, template_name):
     if not isinstance(generated, dict):
         return generated
-    variables = variables or {}
-    existing_tags = _normalize_existing_tags(
-        variables.get("existing_tags")
-        or variables.get("existingTags")
-        or variables.get("existingTagNames")
-        or variables.get("existingTagsList")
-        or []
-    )
+    existing_tags = _extract_existing_tags(variables)
     suggested_tags = _normalize_tag_list(generated.get("suggested_tags"))
     missing_tags = _normalize_tag_list(generated.get("missing_tags"))
 
@@ -276,6 +281,17 @@ def create_app():
                 template_latency_seconds = None
                 json_valid = None
                 has_tag_fields = False
+
+                if not isinstance(variables, dict):
+                    variables = {}
+
+                stats_context = build_tag_stats_context(
+                    existing_tags=_extract_existing_tags(variables),
+                    domain=variables.get("domain") or _infer_domain(template_name),
+                )
+                if stats_context and "tag_stats_context" not in variables:
+                    variables = dict(variables)
+                    variables["tag_stats_context"] = stats_context
 
                 if template_name not in templates:
                     tracker.set_status('error')

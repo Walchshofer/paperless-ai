@@ -36,6 +36,7 @@ const axios = require('axios');
 const logger = require('../logger');
 const config = require('../../config/config');
 const { calculateTokens, truncateToTokenLimit } = require('../ollama/utils');
+const truncationMetrics = require('../ollama/truncationMetrics');
 const { promptRegistry, ModelType, MODEL_NAMES } = require('../prompts/PromptRegistry');
 const internalVatRag = require('../rag/InternalVatRag');
 const internalLegalRag = require('../rag/InternalLegalRag');
@@ -743,6 +744,9 @@ class ExpertPipelineExecutor {
         const timeout = summaryConfig.timeout || 60000;
         const model = summaryConfig.model || config.ollama?.model || MODEL_NAMES.general;
         const trimmedText = truncateToTokenLimit(text, maxInputTokens);
+        if (trimmedText.length < text.length) {
+            truncationMetrics.recordPromptTruncation('expert', model);
+        }
         const messages = [
             {
                 role: 'system',
@@ -794,14 +798,24 @@ class ExpertPipelineExecutor {
      */
     async _callOllama(model, messages, options) {
         const resolvedOptions = this._applyOllamaLimits(model, messages, options);
+        truncationMetrics.recordRequest('expert', model);
         // If ollamaService is provided, use it
         if (this.ollamaService && typeof this.ollamaService.chat === 'function') {
-            return await this.ollamaService.chat({
+            const response = await this.ollamaService.chat({
                 model,
                 messages,
                 options: resolvedOptions,
                 stream: false
             });
+            const doneReason = response?.done_reason;
+            const evalCount = response?.eval_count;
+            if (doneReason === 'length'
+                || (Number.isFinite(evalCount)
+                    && Number.isFinite(resolvedOptions?.num_predict)
+                    && evalCount >= resolvedOptions.num_predict)) {
+                truncationMetrics.recordResponseTruncation('expert', model);
+            }
+            return response;
         }
 
         // Fallback: Direct HTTP call to Ollama
@@ -814,6 +828,14 @@ class ExpertPipelineExecutor {
         });
 
         const result = response.data;
+        const doneReason = result?.done_reason;
+        const evalCount = result?.eval_count;
+        if (doneReason === 'length'
+            || (Number.isFinite(evalCount)
+                && Number.isFinite(resolvedOptions?.num_predict)
+                && evalCount >= resolvedOptions.num_predict)) {
+            truncationMetrics.recordResponseTruncation('expert', model);
+        }
         return result.message?.content || result.response || '';
     }
 
@@ -869,6 +891,7 @@ class ExpertPipelineExecutor {
                     limitsSource: resolved.source,
                     modelKey: resolved.modelKey
                 });
+                truncationMetrics.recordPromptTruncation('expert', model);
                 responseTokens = availableResponseTokens;
             }
         }

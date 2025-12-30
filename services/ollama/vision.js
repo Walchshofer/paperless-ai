@@ -7,6 +7,7 @@ const TelemetryCollector = require('../TelemetryCollector');
 const { expertRegistry } = require('../experts/ExpertRegistry');
 const { ExpertPipelineExecutor } = require('../experts/ExpertPipelineExecutor');
 const { calculateTokens, extractJsonFromResponse } = require('./utils');
+const truncationMetrics = require('./truncationMetrics');
 const logger = require('../logger');
 
 module.exports = {
@@ -453,36 +454,55 @@ module.exports = {
             logger.info(`[PLANNER] Planner image loaded: ${base64Image.length} bytes at ${renderDpi} DPI`);
 
             const maxRetries = config.visualRag.maxRetriesPlanner;
+            const plannerModel = config.ollama.plannerModel || config.ollama.visionModel;
+            const hardening = this._getQwenPlannerHardening(plannerModel);
 
             for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
-                const prompt = this.promptFactory.buildPlannerPrompt(attempt > 0);
+                const prompt = this.promptFactory.buildPlannerPrompt({
+                    strict: attempt > 0,
+                    bounded: hardening.enabled,
+                    thinkingBudget: hardening.thinkingBudget,
+                    outputBudget: hardening.outputBudget,
+                    stopSequences: hardening.stopSequences
+                });
                 if (attempt > 0) {
                     logger.warn(`[PLANNER] Retry ${attempt}/${maxRetries}`);
                 }
 
                 logger.debug('[PLANNER] Calling vision API with planning prompt');
 
-            const plannerModel = config.ollama.plannerModel || config.ollama.visionModel;
-            const plannerLimits = this._resolveOllamaLimits('planner', plannerModel);
-            const templateMeta = this.promptFactory.getPlannerTemplateMeta(attempt > 0);
-            logger.info({
-                event: 'prompt_template_selected',
-                stage: 'planner',
-                model: plannerModel,
-                template: templateMeta,
-                responseTokens: plannerLimits.maxResponseTokens,
-                contextWindow: plannerLimits.contextWindow,
-                limitsSource: plannerLimits.source,
-                modelKey: plannerLimits.modelKey
-            });
-            const response = await this._callOllamaVisionAPI(prompt, base64Image, {
-                model: plannerModel,
-                kind: 'planner',
-                keep_alive: config.ollama.visionKeepAlive,
-                num_predict: plannerLimits.maxResponseTokens,
-                temperature: 0.2,
-                num_ctx: plannerLimits.contextWindow
-            });
+                const plannerLimits = this._resolveOllamaLimits('planner', plannerModel);
+                const responseTokenBudget = hardening.enabled && hardening.responseTokens
+                    ? hardening.responseTokens
+                    : plannerLimits.maxResponseTokens;
+                const templateMeta = this.promptFactory.getPlannerTemplateMeta({
+                    strict: attempt > 0,
+                    bounded: hardening.enabled,
+                    thinkingBudget: hardening.thinkingBudget,
+                    outputBudget: hardening.outputBudget
+                });
+                logger.info({
+                    event: 'prompt_template_selected',
+                    stage: 'planner',
+                    model: plannerModel,
+                    template: templateMeta,
+                    responseTokens: responseTokenBudget,
+                    contextWindow: plannerLimits.contextWindow,
+                    bounded: hardening.enabled,
+                    thinkingBudget: hardening.thinkingBudget,
+                    outputBudget: hardening.outputBudget,
+                    limitsSource: plannerLimits.source,
+                    modelKey: plannerLimits.modelKey
+                });
+                const response = await this._callOllamaVisionAPI(prompt, base64Image, {
+                    model: plannerModel,
+                    kind: 'planner',
+                    keep_alive: config.ollama.visionKeepAlive,
+                    num_predict: responseTokenBudget,
+                    temperature: 0.2,
+                    num_ctx: plannerLimits.contextWindow,
+                    stop: hardening.enabled ? hardening.stopSequences : null
+                });
 
                 const rawResponse = typeof response?.response === 'string'
                     ? response.response
@@ -491,6 +511,21 @@ module.exports = {
                     // Raw response logging removed to avoid verbose logs and potential PII leakage
                 } else {
                     // Raw response empty, continue
+                }
+
+                const thinkingTokens = this._extractThinkingTokens(response);
+                if (thinkingTokens !== null) {
+                    truncationMetrics.recordThinkingTokens(
+                        'planner',
+                        plannerModel,
+                        thinkingTokens
+                    );
+                }
+
+                const responseTruncated = !!response?._truncated;
+                if (responseTruncated && attempt < maxRetries) {
+                    logger.warn('[PLANNER] Response truncated, retrying');
+                    continue;
                 }
 
                 let parsedResponse = null;
@@ -541,6 +576,72 @@ module.exports = {
     _normalizeRotationDegrees(value) {
         const parsed = Number.parseInt(value, 10);
         if ([0, 90, 180, 270].includes(parsed)) return parsed;
+        return 0;
+    },
+
+    _getQwenPlannerHardening(plannerModel) {
+        const hardening = config.ollama?.qwenRouterHardening || {};
+        const modelName = typeof plannerModel === 'string'
+            ? plannerModel.toLowerCase()
+            : '';
+        const enabledByConfig = hardening.enabled === 'yes'
+            && modelName.includes('qwen3-vl');
+        if (!enabledByConfig) {
+            return {
+                enabled: false,
+                responseTokens: null,
+                thinkingBudget: null,
+                outputBudget: null,
+                stopSequences: []
+            };
+        }
+
+        const stats = truncationMetrics.getStats();
+        const stageModelStats = stats.byStageModel?.planner?.[plannerModel];
+        const totalRequests = stageModelStats?.totalRequests || 0;
+        const truncations = (stageModelStats?.promptTruncations || 0)
+            + (stageModelStats?.responseTruncations || 0);
+        const truncationRate = totalRequests > 0 ? truncations / totalRequests : 0;
+        const threshold = Number.isFinite(hardening.truncationThreshold)
+            ? hardening.truncationThreshold
+            : 0.02;
+        const enabled = totalRequests > 0 && truncationRate > threshold;
+        const thinkingBudget = Number.isFinite(hardening.thinkingTokens)
+            ? hardening.thinkingTokens
+            : null;
+        const outputBudget = Number.isFinite(hardening.outputTokens)
+            ? hardening.outputTokens
+            : null;
+        const responseTokens = Number.isFinite(thinkingBudget) && Number.isFinite(outputBudget)
+            ? Math.max(1, thinkingBudget + outputBudget)
+            : null;
+        const stopSequences = Array.isArray(hardening.stopSequences)
+            ? hardening.stopSequences
+            : [];
+
+        return {
+            enabled,
+            responseTokens,
+            thinkingBudget,
+            outputBudget,
+            stopSequences
+        };
+    },
+
+    _extractThinkingTokens(response) {
+        if (!response) return null;
+        if (typeof response.thinking === 'string') {
+            return calculateTokens(response.thinking);
+        }
+        const rawText = typeof response.response === 'string'
+            ? response.response
+            : '';
+        if (!rawText) return 0;
+        const match = rawText.match(/<thinking>([\s\S]*?)<\/thinking>/i)
+            || rawText.match(/<analysis>([\s\S]*?)<\/analysis>/i);
+        if (match && match[1]) {
+            return calculateTokens(match[1]);
+        }
         return 0;
     },
 
@@ -715,6 +816,9 @@ module.exports = {
             if (!Number.isFinite(numPredict) || numPredict < 0) {
                 numPredict = visionLimits.maxResponseTokens;
             }
+            const stopSequences = Array.isArray(options.stop)
+                ? options.stop.filter(Boolean)
+                : [];
             const maxInputTokens = Math.max(0, numCtx - numPredict);
             const totalInputTokens = promptTokens + imageTokens;
             if (totalInputTokens > maxInputTokens) {
@@ -735,6 +839,7 @@ module.exports = {
                         limitsSource: visionLimits.source,
                         modelKey: visionLimits.modelKey
                     });
+                    truncationMetrics.recordPromptTruncation(limitKind, model);
                     numPredict = availableResponseTokens;
                 }
             }
@@ -743,7 +848,11 @@ module.exports = {
                 num_predict: numPredict,
                 temperature
             };
+            if (stopSequences.length > 0) {
+                visionOptions.stop = stopSequences;
+            }
 
+            truncationMetrics.recordRequest(limitKind, model);
             const response = await this.client.post(`${this.apiUrl}/api/generate`, {
                 model,
                 prompt: prompt,
@@ -763,7 +872,9 @@ module.exports = {
             if (response.data.response === undefined) throw new Error('No response field in Ollama vision data');
             const doneReason = response.data?.done_reason;
             const evalCount = response.data?.eval_count;
-            if (doneReason === 'length' || (Number.isFinite(evalCount) && Number.isFinite(numPredict) && evalCount >= numPredict)) {
+            const truncated = doneReason === 'length'
+                || (Number.isFinite(evalCount) && Number.isFinite(numPredict) && evalCount >= numPredict);
+            if (truncated) {
                 logger.warn({
                     event: 'response_truncated',
                     stage: limitKind,
@@ -775,7 +886,12 @@ module.exports = {
                     limitsSource: visionLimits.source,
                     modelKey: visionLimits.modelKey
                 });
+                truncationMetrics.recordResponseTruncation(limitKind, model);
             }
+
+            response.data._truncated = truncated;
+            response.data._num_predict = numPredict;
+            response.data._num_ctx = numCtx;
 
             return response.data;
         } catch (error) {

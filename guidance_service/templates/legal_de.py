@@ -143,6 +143,9 @@ class LegalTemplatesDE:
                 domain or kwargs.get("domain"),
                 existing_tags or kwargs.get("existing_tags"),
                 model or kwargs.get("model"),
+                stats_context=(
+                    kwargs.get("tag_stats_context") or kwargs.get("stats_context")
+                ),
             )
             with system():
                 lm += (
@@ -185,6 +188,9 @@ class LegalTemplatesDE:
                 domain or kwargs.get("domain"),
                 existing_tags or kwargs.get("existing_tags"),
                 model or kwargs.get("model"),
+                stats_context=(
+                    kwargs.get("tag_stats_context") or kwargs.get("stats_context")
+                ),
             )
             with system():
                 lm += (
@@ -237,6 +243,9 @@ class LegalTemplatesDE:
                 domain or kwargs.get("domain"),
                 existing_tag_list,
                 model or kwargs.get("model"),
+                stats_context=(
+                    kwargs.get("tag_stats_context") or kwargs.get("stats_context")
+                ),
             )
             with system():
                 lm += (
@@ -295,6 +304,9 @@ class LegalTemplatesDE:
                 domain or kwargs.get("domain"),
                 existing_tags or kwargs.get("existing_tags"),
                 model or kwargs.get("model"),
+                stats_context=(
+                    kwargs.get("tag_stats_context") or kwargs.get("stats_context")
+                ),
             )
             with system():
                 lm += (
