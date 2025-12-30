@@ -65,8 +65,12 @@ def _resolve_model_names():
     finance_general = os.getenv("FINANCIAL_VISION_MODEL", "llm-pro-finance-8b")
     # FINANCIAL_ANALYSIS_MODEL is repurposed as the calculator (fino)
     finance_calculator = os.getenv("FINANCIAL_ANALYSIS_MODEL", "fino1-8b")
-    # New: FINANCIAL_REASONING_MODEL for text reasoning; fall back to FINANCIAL_ANALYSIS_MODEL for backward compatibility
-    finance_reasoning = os.getenv("FINANCIAL_REASONING_MODEL", os.getenv("FINANCIAL_ANALYSIS_MODEL", "llm-pro-finance-8b"))
+    # FINANCIAL_REASONING_MODEL: used for text reasoning.
+    # Falls back to FINANCIAL_ANALYSIS_MODEL for backward compatibility
+    finance_reasoning = os.getenv(
+        "FINANCIAL_REASONING_MODEL",
+        os.getenv("FINANCIAL_ANALYSIS_MODEL", "llm-pro-finance-8b"),
+    )
     vat_expert = (
         os.getenv("VAT_EXPERT_MODEL")
         or os.getenv("FINANCIAL_VAT_EXPERT")
