@@ -22,6 +22,7 @@
  */
 
 const EventEmitter = require('events');
+const path = require('path');
 const axios = require('axios');
 const logger = require('../logger');
 const config = require('../../config/config');
@@ -29,6 +30,15 @@ const { ingestionManager } = require('./IngestionManager');
 const { visualOverlayRepository } = require('./VisualOverlayRepository');
 const { pdfRenderer } = require('./PDFRenderer');
 const paperlessService = require('../paperlessService');
+
+const resolveRelativePdfPath = (doc, docId) => {
+    const archiveFileName = doc.archive_file_name || doc.archive_filename || null;
+    const originalFileName = doc.original_file_name || `doc-${docId}.pdf`;
+    if (archiveFileName) {
+        return path.posix.join('documents', 'archive', archiveFileName);
+    }
+    return path.posix.join('documents', 'originals', originalFileName);
+};
 
 class BatchIngestionJob extends EventEmitter {
     constructor(options = {}) {
@@ -304,9 +314,10 @@ class BatchIngestionJob extends EventEmitter {
                     const base64Images = images.map(img => img.base64);
 
                     // Ingest through IngestionManager
+                    const pdfPath = resolveRelativePdfPath(doc, docId);
                     return await this.ingestionManager.ingestDocument(
                         docId,
-                        doc.original_file_name || `doc-${docId}.pdf`,
+                        pdfPath,
                         {
                             base64Images,
                             metadata: {

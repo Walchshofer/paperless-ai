@@ -2975,12 +2975,22 @@ router.post('/api/history/reanalyze/:id', async (req, res) => {
 async function prepareDocumentForExpertPipeline(document, documentId) {
   logger.info(`[Reanalyze] Preparing document ${documentId} for Expert Pipeline`);
 
+  const archiveFileName = document.archive_file_name || document.archive_filename || null;
+  const originalFileName = document.original_file_name || `doc-${documentId}.pdf`;
+  const relativePdfPath = archiveFileName
+    ? path.posix.join('documents', 'archive', archiveFileName)
+    : path.posix.join('documents', 'originals', originalFileName);
+  const mediaRoot = process.env.PAPERLESS_MEDIA_ROOT || '/usr/src/paperless/media';
+  const absolutePdfPath = path.posix.join(mediaRoot, relativePdfPath);
+
   // Start with base document properties
   const preparedDoc = {
     id: documentId,
     title: document.title,
     filename: document.original_file_name || `document-${documentId}.pdf`,
     content: document.content || '',
+    pdf_path: relativePdfPath,
+    pdf_path_abs: absolutePdfPath,
     tags: document.tags,
     correspondent: document.correspondent,
     document_type: document.document_type,
@@ -3040,7 +3050,6 @@ async function prepareDocumentForExpertPipeline(document, documentId) {
         const imageFormat = images[0].format || 'png';
         preparedDoc.image_data = `data:image/${imageFormat};base64,${images[0].base64}`;
         preparedDoc.base64Images = images.map(img => `data:image/${img.format || 'png'};base64,${img.base64}`);
-        preparedDoc.pdf_path = document.original_file_name || `doc-${documentId}.pdf`;
 
         logger.info(`[Reanalyze] Rendered ${images.length} pages for doc ${documentId}, first page: ${images[0].size} bytes`);
       }

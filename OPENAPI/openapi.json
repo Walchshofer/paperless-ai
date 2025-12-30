@@ -1038,6 +1038,132 @@
         }
       }
     },
+    "/api/document/{docId}/render": {
+      "get": {
+        "summary": "Render document page at high resolution",
+        "description": "Downloads PDF from Paperless-ngx and renders a specific page at the requested DPI (default 300)",
+        "tags": [
+          "Documents"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "docId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The document ID"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Page number to render (1-indexed)"
+          },
+          {
+            "in": "query",
+            "name": "dpi",
+            "schema": {
+              "type": "integer",
+              "default": 300
+            },
+            "description": "DPI resolution for rendering"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rendered page image",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "image": {
+                      "type": "string",
+                      "description": "Base64-encoded PNG image"
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "totalPages": {
+                      "type": "integer"
+                    },
+                    "width": {
+                      "type": "integer"
+                    },
+                    "height": {
+                      "type": "integer"
+                    },
+                    "dpi": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/document/{docId}/page-count": {
+      "get": {
+        "summary": "Get document page count",
+        "description": "Returns the number of pages in a PDF document without full rendering",
+        "tags": [
+          "Documents"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "docId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The document ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page count",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "docId": {
+                      "type": "integer"
+                    },
+                    "pageCount": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
     "/chat": {
       "get": {
         "summary": "Chat interface page",
@@ -3537,6 +3663,74 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/manual/analyze-visual": {
+      "post": {
+        "summary": "Analyze document using Visual Expert Pipeline",
+        "description": "Renders the document at 300 DPI and processes it through the Expert Pipeline\nwith vision capabilities. This uses the router model (qwen3-vl:8b) to classify\nthe document and extract visual overlays.\n",
+        "tags": [
+          "Documents",
+          "API"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "docId"
+                ],
+                "properties": {
+                  "docId": {
+                    "type": "integer",
+                    "description": "The document ID from Paperless-ngx"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Visual analysis results from Expert Pipeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "result": {
+                      "type": "object",
+                      "description": "Expert Pipeline analysis result"
+                    },
+                    "overlayCount": {
+                      "type": "integer",
+                      "description": "Number of overlays extracted"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters"
+          },
+          "404": {
+            "description": "Document not found"
+          },
+          "500": {
+            "description": "Server error or PDF rendering failed"
           }
         }
       }

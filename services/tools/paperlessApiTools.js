@@ -1,5 +1,6 @@
 const paperlessService = require('../paperlessService');
 const logger = require('../logger');
+const { ImageNormalizer } = require('../visual-rag/ImageNormalizer');
 
 const TOOL_DEFINITIONS = Object.freeze([
     {
@@ -169,20 +170,69 @@ const TOOL_DEFINITIONS = Object.freeze([
         }
     },
     {
-        name: 'paperless.rotate_documents',
-        description: 'Rotate one or more documents by 90/180/270 degrees.',
+        name: 'paperless.normalize_images',
+        description: 'Render and normalize document images (rotate, crop, scale, dpi) without mutating the original document.',
         parameters: {
             type: 'object',
             properties: {
-                document_ids: {
-                    oneOf: [
-                        { type: 'integer' },
-                        { type: 'array', items: { type: 'integer' } }
-                    ]
+                document_id: { type: 'integer', minimum: 1 },
+                actions: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            type: { type: 'string', enum: ['rotate', 'crop', 'scale', 'dpi'] },
+                            degrees: { type: 'integer' },
+                            box: {
+                                type: 'object',
+                                properties: {
+                                    x: { type: 'number' },
+                                    y: { type: 'number' },
+                                    width: { type: 'number' },
+                                    height: { type: 'number' },
+                                    unit: { type: 'string', enum: ['ratio', 'pixel'] }
+                                },
+                                required: ['x', 'y', 'width', 'height'],
+                                additionalProperties: false
+                            },
+                            width: { type: 'integer', minimum: 1 },
+                            height: { type: 'integer', minimum: 1 },
+                            max_width: { type: 'integer', minimum: 1 },
+                            max_height: { type: 'integer', minimum: 1 },
+                            scale: { type: 'number', minimum: 0.05 },
+                            target: { type: 'number', minimum: 50 }
+                        },
+                        required: ['type'],
+                        additionalProperties: false
+                    }
                 },
-                degrees: { type: 'integer', enum: [90, 180, 270] }
+                target_dpi: { type: 'number', minimum: 50 },
+                max_pages: { type: 'integer', minimum: 1 },
+                pages: { type: 'array', items: { type: 'integer', minimum: 1 } },
+                page_range: {
+                    type: 'object',
+                    properties: {
+                        start: { type: 'integer', minimum: 1 },
+                        end: { type: 'integer', minimum: 1 }
+                    },
+                    required: ['start', 'end'],
+                    additionalProperties: false
+                },
+                format: { type: 'string', enum: ['png', 'jpeg', 'jpg', 'webp'] }
             },
-            required: ['document_ids', 'degrees'],
+            required: ['document_id'],
+            additionalProperties: false
+        }
+    },
+    {
+        name: 'paperless.normalize_images_ai',
+        description: 'AI-driven document normalization: analyzes geometry, applies rotation/crop/scale, and re-ingests if needed.',
+        parameters: {
+            type: 'object',
+            properties: {
+                document_id: { type: 'integer', minimum: 1 }
+            },
+            required: ['document_id'],
             additionalProperties: false
         }
     },
@@ -358,16 +408,38 @@ async function listStoragePaths(input = {}) {
     return response.data;
 }
 
-async function rotateDocuments(input = {}) {
-    const documentIds = normalizeDocumentIds(input.document_ids);
-    if (documentIds.length === 0) {
-        throw new Error('document_ids is required');
+async function normalizeImages(input = {}) {
+    if (!input.document_id) {
+        throw new Error('document_id is required');
     }
-    if (!input.degrees) {
-        throw new Error('degrees is required');
+    const documentId = Number(input.document_id);
+    if (!Number.isInteger(documentId) || documentId <= 0) {
+        throw new Error('document_id must be a positive integer');
     }
-    const success = await paperlessService.rotateDocuments(documentIds, input.degrees);
-    return { success, document_ids: documentIds, degrees: input.degrees };
+
+    const pdfBuffer = await paperlessService.downloadOriginalDocument(documentId)
+        || await paperlessService.downloadDocument(documentId);
+    if (!pdfBuffer) {
+        throw new Error(`Unable to download document ${documentId}`);
+    }
+
+    const normalized = await ImageNormalizer.normalizeBuffer(pdfBuffer, {
+        actions: input.actions,
+        target_dpi: input.target_dpi,
+        max_pages: input.max_pages,
+        pages: input.pages,
+        page_range: input.page_range,
+        format: input.format,
+        docId: documentId,
+        documentId
+    });
+
+    return {
+        document_id: documentId,
+        metadata: normalized.metadata || null,
+        base64Images: normalized.base64Images || [],
+        image_data: normalized.base64Images?.[0] || null
+    };
 }
 
 async function reprocessDocuments(input = {}) {
@@ -408,7 +480,12 @@ const TOOL_HANDLERS = new Map([
     ['paperless.list_correspondents', listCorrespondents],
     ['paperless.list_document_types', listDocumentTypes],
     ['paperless.list_storage_paths', listStoragePaths],
-    ['paperless.rotate_documents', rotateDocuments],
+    ['paperless.normalize_images', normalizeImages],
+    ['paperless.normalize_images_ai', async (input) => {
+        // Lazy require to avoid circular dependency during module initialization
+        const { normalizeImagesAI } = require('../experts/normalization/tools');
+        return normalizeImagesAI(input);
+    }],
     ['paperless.reprocess_documents', reprocessDocuments],
     ['paperless.merge_documents', mergeDocuments]
 ]);

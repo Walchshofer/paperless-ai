@@ -43,6 +43,7 @@ const { parse, parseISO, isValid, format } = require('date-fns');
 const logger = require('../logger');
 const config = require('../../config/config');
 const truncationMetrics = require('../ollama/truncationMetrics');
+const { pdfRenderer } = require('../visual-rag/PDFRenderer');
 
 // Import Expert Pipeline components
 const { promptRegistry, DomainType, ModelType } = require('../prompts/PromptRegistry');
@@ -132,6 +133,36 @@ const normalizeBoolean = (value, fallback) => {
         if (['false', 'no', '0'].includes(normalized)) return false;
     }
     return fallback;
+};
+
+const PAPERLESS_MEDIA_ROOT = String(
+    process.env.PAPERLESS_MEDIA_ROOT || '/usr/src/paperless/media'
+).replace(/\\/g, '/');
+
+const normalizePdfPath = (pdfPath) => (
+    pdfPath ? String(pdfPath).replace(/\\/g, '/') : ''
+);
+
+const resolvePdfPathForRender = (pdfPath, absoluteOverride) => {
+    const normalizedOverride = normalizePdfPath(absoluteOverride);
+    if (normalizedOverride) {
+        return normalizedOverride;
+    }
+    const normalized = normalizePdfPath(pdfPath);
+    if (!normalized) return null;
+    if (path.posix.isAbsolute(normalized)) return normalized;
+    return path.posix.join(PAPERLESS_MEDIA_ROOT, normalized);
+};
+
+const resolvePdfPathForIngestion = (pdfPath, fallbackName) => {
+    const normalized = normalizePdfPath(pdfPath);
+    if (!normalized) return fallbackName || null;
+    if (!path.posix.isAbsolute(normalized)) return normalized;
+    const relative = path.posix.relative(PAPERLESS_MEDIA_ROOT, normalized);
+    if (!relative || relative.startsWith('..') || path.posix.isAbsolute(relative)) {
+        return fallbackName || normalized;
+    }
+    return relative;
 };
 
 // ============================================================================ 
@@ -412,9 +443,66 @@ class ImagePreparator {
      * Prepare multiple pages from a multi-page document
      */
     static async prepareMultiPage(source, options = {}) {
-        // For now, handle single image
-        // TODO: Implement PDF page extraction with pdf-lib or similar
-        const singlePage = await this.prepare(source, options);
+        const imageConfig = { ...ProcessorConfig.image, ...options };
+
+        let imageBuffer;
+        let metadata = {};
+
+        if (typeof source === 'string') {
+            if (source.startsWith('http://') || source.startsWith('https://')) {
+                imageBuffer = await this._loadFromUrl(source);
+                metadata.source = 'url';
+            } else if (source.startsWith('data:image')) {
+                imageBuffer = this._loadFromBase64(source);
+                metadata.source = 'base64';
+            } else {
+                imageBuffer = await this._loadFromFile(source);
+                metadata.source = 'file';
+                metadata.filename = path.basename(source);
+            }
+        } else if (Buffer.isBuffer(source)) {
+            imageBuffer = source;
+            metadata.source = 'buffer';
+        } else {
+            throw new Error('Invalid image source type');
+        }
+
+        metadata.size = imageBuffer.length;
+        metadata.format = this._detectImageFormat(imageBuffer);
+
+        if (metadata.format === 'pdf') {
+            const canRender = await pdfRenderer.isAvailableAsync();
+            if (!canRender) {
+                logger.warn('[ImagePreparator] PDF renderer unavailable, using single-page fallback');
+                const singlePage = await this.prepare(imageBuffer, options);
+                return [singlePage];
+            }
+            const dpi = options.dpi || imageConfig.targetDpi || 300;
+            const maxPages = options.maxPages
+                || imageConfig.maxPages
+                || config.visualRag?.maxVisionPages
+                || 4;
+            const docId = options.docId || Date.now();
+            const rendered = await pdfRenderer.renderBuffer(imageBuffer, {
+                dpi,
+                maxPages,
+                docId
+            });
+            return rendered.map(page => ({
+                base64: page.base64,
+                buffer: Buffer.from(page.base64, 'base64'),
+                metadata: {
+                    ...metadata,
+                    format: page.format || imageConfig.format || 'png',
+                    page: page.page,
+                    dpi,
+                    size: page.size
+                },
+                dataUrl: `data:image/${page.format || imageConfig.format || 'png'};base64,${page.base64}`
+            }));
+        }
+
+        const singlePage = await this.prepare(imageBuffer, options);
         return [singlePage];
     }
 }
@@ -1009,12 +1097,82 @@ class DocumentProcessor {
         // Prepare image if available
         let preparedImage = null;
         let preparedImages = [];
-        if (document.image_path || document.image_data) {
-            const imageSource = document.image_data || document.image_path;
+        const resolveImageSource = () => document.image_path || document.image_data || null;
+        const renderPdfImages = async (source) => {
+            const pdfPath = resolvePdfPathForRender(document.pdf_path, document.pdf_path_abs);
+            if (!pdfPath) return null;
+            try {
+                const available = await pdfRenderer.isAvailableAsync();
+                if (!available) {
+                    logger.warn({
+                        event: 'image_refresh_pdf_unavailable',
+                        documentId: document.id || document.filename,
+                        source,
+                        pdfPath: document.pdf_path
+                    });
+                    return null;
+                }
+                const dpi = config.visualRag?.visionRenderDpi || 300;
+                const maxPages = config.visualRag?.maxVisionPages || 4;
+                const docId = document.id || document.filename || Date.now();
+                const rendered = await pdfRenderer.renderFile(pdfPath, {
+                    dpi,
+                    maxPages,
+                    docId
+                });
+                const base64Images = rendered.map(page => page.base64).filter(Boolean);
+                if (base64Images.length === 0) {
+                    logger.warn({
+                        event: 'image_refresh_pdf_empty',
+                        documentId: document.id || document.filename,
+                        source
+                    });
+                    return null;
+                }
+                return base64Images;
+            } catch (error) {
+                logger.warn({
+                    event: 'image_refresh_pdf_failed',
+                    documentId: document.id || document.filename,
+                    source,
+                    error: error.message
+                });
+                return null;
+            }
+        };
+        const prepareImages = async (refreshOptions = {}) => {
+            if (refreshOptions.forcePdf && document.pdf_path) {
+                const pdfImages = await renderPdfImages('refresh');
+                if (pdfImages && pdfImages.length > 0) {
+                    document.base64Images = pdfImages;
+                    document.image_data = pdfImages[0];
+                    return { base64Images: pdfImages, image_data: pdfImages[0] };
+                }
+                const fallbackSource = resolveImageSource();
+                if (!fallbackSource) {
+                    return { base64Images: [], image_data: null };
+                }
+                logger.warn({
+                    event: 'image_refresh_pdf_fallback',
+                    documentId: document.id || document.filename,
+                    reason: 'pdf_render_unavailable'
+                });
+            }
+            const imageSource = resolveImageSource();
+            if (!imageSource) {
+                return { base64Images: [], image_data: null };
+            }
             const prepared = await ImagePreparator.prepare(imageSource);
-            preparedImage = prepared.base64;
-            preparedImages = [prepared.base64];
-            document.image_data = preparedImage;
+            const base64Image = prepared.base64;
+            const base64Images = [base64Image];
+            document.image_data = base64Image;
+            document.base64Images = base64Images;
+            return { base64Images, image_data: base64Image };
+        };
+        if (document.image_path || document.image_data) {
+            const prepared = await prepareImages();
+            preparedImage = prepared.image_data;
+            preparedImages = prepared.base64Images;
         }
 
         let vatContext = '';
@@ -1032,6 +1190,7 @@ class DocumentProcessor {
             this.ollamaService,
             {
                 ...options,
+                refreshImages: (refreshOptions) => prepareImages(refreshOptions),
                 context: {
                     source: 'paperless-ngx',
                     vat_context: vatContext,
@@ -1049,15 +1208,25 @@ class DocumentProcessor {
             config.visualRagSidecar?.enabled === 'yes'
         );
 
-        if (preparedImages.length > 0 && document.id && allowIngestion && config.visualRagSidecar?.enabled === 'yes') {
+        const ingestionImages = (document.normalized_base64Images
+            && document.normalized_base64Images.length > 0)
+            ? document.normalized_base64Images
+            : (document.base64Images && document.base64Images.length > 0)
+                ? document.base64Images
+                : preparedImages;
+        if (ingestionImages.length > 0 && document.id && allowIngestion && config.visualRagSidecar?.enabled === 'yes') {
             try {
                 const domain = result.result?.classification?.classification?.primary_domain?.toLowerCase();
+                const ingestionPdfPath = resolvePdfPathForIngestion(
+                    document.pdf_path,
+                    document.filename
+                );
                 const ingestionResult = await this.pipelineExecutor.ingestDocument(
                     document.id,
-                    document.pdf_path || document.filename,
+                    ingestionPdfPath || document.filename,
                     {
                         domain,
-                        base64Images: preparedImages,
+                        base64Images: ingestionImages,
                         metadata: {
                             filename: document.filename,
                             classification: result.result?.classification

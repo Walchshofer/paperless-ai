@@ -44,6 +44,7 @@ const JsonRepairService = require('../rag/JsonRepairService');
 const { expertRegistry, StageType, ExecutionMode } = require('./ExpertRegistry');
 const LocalTranslator = require('./translation/LocalTranslator');
 const paperlessService = require('../paperlessService');
+const { paperlessApiTools } = require('../tools');
 
 // Import extracted modules
 const { ExecutionContext } = require('./context');
@@ -77,6 +78,366 @@ function normalizeBoolean(value, fallback) {
         if (['false', 'no', '0'].includes(normalized)) return false;
     }
     return fallback;
+}
+
+function resolveDocumentImages(document) {
+    if (!document || typeof document !== 'object') {
+        return { base64Images: [], imageData: null, source: 'none' };
+    }
+    const normalizedImages = Array.isArray(document.normalized_base64Images)
+        && document.normalized_base64Images.length > 0
+        ? document.normalized_base64Images
+        : null;
+    const base64Images = normalizedImages || document.base64Images || [];
+    const imageData = normalizedImages
+        ? (document.normalized_image_data || normalizedImages[0])
+        : (document.image_data || base64Images[0] || null);
+    return {
+        base64Images,
+        imageData,
+        source: normalizedImages ? 'normalized' : 'original'
+    };
+}
+
+const ORCHESTRATOR_TOOL_PHASES = Object.freeze({
+    PRE_VISION: 'pre_vision',
+    POST_ANALYSIS: 'post_analysis'
+});
+
+const NORMALIZATION_TOOL_NAME = 'paperless.normalize_images';
+
+const DEFAULT_PRE_VISION_TOOL_ALLOWLIST = new Set([
+    NORMALIZATION_TOOL_NAME
+]);
+
+const DEFAULT_POST_ANALYSIS_TOOL_ALLOWLIST = new Set([
+    'paperless.update_document',
+    'paperless.bulk_edit_documents',
+    'paperless.resolve_tags',
+    'paperless.resolve_correspondent',
+    'paperless.resolve_document_type',
+    'paperless.list_tags',
+    'paperless.list_correspondents',
+    'paperless.list_document_types',
+    'paperless.list_storage_paths'
+]);
+
+const TOOL_DOCUMENT_ID_KEYS = new Map([
+    ['paperless.update_document', 'document_id'],
+    ['paperless.bulk_edit_documents', 'document_ids'],
+    [NORMALIZATION_TOOL_NAME, 'document_id']
+]);
+
+function resolveToolingConfig(options = {}) {
+    const orchestrationConfig = config.orchestration || {};
+    const enabled = normalizeBoolean(
+        options.orchestrationToolsEnabled,
+        normalizeBoolean(orchestrationConfig.toolsEnabled, false)
+    );
+    const preVisionEnabled = normalizeBoolean(
+        options.orchestrationPreVisionToolsEnabled,
+        normalizeBoolean(orchestrationConfig.preVisionToolsEnabled, enabled)
+    );
+    const postAnalysisEnabled = normalizeBoolean(
+        options.orchestrationPostAnalysisToolsEnabled,
+        normalizeBoolean(orchestrationConfig.postAnalysisToolsEnabled, enabled)
+    );
+    const preVisionNormalizationEnabled = normalizeBoolean(
+        options.orchestrationPreVisionNormalizationEnabled,
+        normalizeBoolean(orchestrationConfig.preVisionNormalizationEnabled, preVisionEnabled)
+    );
+    const failOnError = normalizeBoolean(
+        options.orchestrationFailOnToolError,
+        normalizeBoolean(orchestrationConfig.failOnToolError, false)
+    );
+    const allowlist = Array.isArray(orchestrationConfig.toolAllowlist)
+        ? orchestrationConfig.toolAllowlist
+        : null;
+    return {
+        enabled,
+        preVisionEnabled,
+        postAnalysisEnabled,
+        preVisionNormalizationEnabled,
+        failOnError,
+        allowlist
+    };
+}
+
+function resolveToolAllowlist(toolingConfig, phase) {
+    const baseAllowlist = phase === ORCHESTRATOR_TOOL_PHASES.PRE_VISION
+        ? DEFAULT_PRE_VISION_TOOL_ALLOWLIST
+        : DEFAULT_POST_ANALYSIS_TOOL_ALLOWLIST;
+    if (!Array.isArray(toolingConfig.allowlist) || toolingConfig.allowlist.length === 0) {
+        return new Set(baseAllowlist);
+    }
+    const configured = new Set(
+        toolingConfig.allowlist.map(name => String(name).trim()).filter(Boolean)
+    );
+    return new Set([...baseAllowlist].filter(name => configured.has(name)));
+}
+
+function getAllowedToolDefinitions(toolingConfig) {
+    const preVisionAllowlist = resolveToolAllowlist(
+        toolingConfig,
+        ORCHESTRATOR_TOOL_PHASES.PRE_VISION
+    );
+    const postAnalysisAllowlist = resolveToolAllowlist(
+        toolingConfig,
+        ORCHESTRATOR_TOOL_PHASES.POST_ANALYSIS
+    );
+    const combined = new Set([...preVisionAllowlist, ...postAnalysisAllowlist]);
+    return paperlessApiTools.listPaperlessTools().filter(tool => combined.has(tool.name));
+}
+
+function normalizeToolCalls(rawCalls) {
+    if (!Array.isArray(rawCalls)) return [];
+    return rawCalls.map(call => {
+        if (!call || typeof call !== 'object') return null;
+        const tool = String(call.tool || call.name || call.tool_name || '').trim();
+        if (!tool) return null;
+        const input = call.input && typeof call.input === 'object'
+            ? call.input
+            : call.arguments && typeof call.arguments === 'object'
+                ? call.arguments
+                : {};
+        const reason = call.reason || call.purpose || call.description || null;
+        return { tool, input, reason };
+    }).filter(Boolean);
+}
+
+function extractToolPlan(orchestrationPlan) {
+    if (!orchestrationPlan || typeof orchestrationPlan !== 'object') {
+        return { plan: { pre_vision: [], post_analysis: [] } };
+    }
+    const rawPlan = orchestrationPlan.tool_plan || orchestrationPlan.toolPlan || {};
+    const preVision = normalizeToolCalls(
+        rawPlan.pre_vision || rawPlan.preVision || orchestrationPlan.pre_vision || orchestrationPlan.preVision
+    );
+    const postAnalysis = normalizeToolCalls(
+        rawPlan.post_analysis || rawPlan.postAnalysis || orchestrationPlan.post_analysis || orchestrationPlan.postAnalysis
+    );
+    return { plan: { pre_vision: preVision, post_analysis: postAnalysis } };
+}
+
+function applyDocumentIdDefaults(toolName, input, document) {
+    const documentIdKey = TOOL_DOCUMENT_ID_KEYS.get(toolName);
+    const preparedInput = input && typeof input === 'object' ? { ...input } : {};
+    if (!documentIdKey) {
+        return { input: preparedInput, missingDocumentId: false };
+    }
+    if (preparedInput[documentIdKey] !== undefined && preparedInput[documentIdKey] !== null) {
+        return { input: preparedInput, missingDocumentId: false };
+    }
+    const docId = document?.id;
+    if (!docId) {
+        return { input: preparedInput, missingDocumentId: true };
+    }
+    preparedInput[documentIdKey] = docId;
+    return { input: preparedInput, missingDocumentId: false };
+}
+
+function buildNormalizationMetadata(summary) {
+    if (!summary || summary.phase !== ORCHESTRATOR_TOOL_PHASES.PRE_VISION) {
+        return null;
+    }
+    const actions = summary.results.map(result => ({
+        tool: result.tool,
+        ok: result.ok,
+        input: result.input,
+        data: result.data || null
+    }));
+    return {
+        requested: summary.requested,
+        executed: summary.executed,
+        succeeded: summary.results.filter(result => result.ok).length,
+        actions,
+        skipped: summary.skipped,
+        details: summary.normalizationMetadata || null,
+        normalization_is_final: summary.normalizationIsFinal
+    };
+}
+
+function attachToolingSummary(orchestrationPlan, summary) {
+    if (!orchestrationPlan || typeof orchestrationPlan !== 'object' || !summary) {
+        return orchestrationPlan;
+    }
+    const tooling = orchestrationPlan.tooling && typeof orchestrationPlan.tooling === 'object'
+        ? { ...orchestrationPlan.tooling }
+        : {};
+    tooling.enabled = summary.enabled;
+    tooling.allowlist = summary.allowlist;
+    tooling[summary.phase] = summary;
+    if (summary.requires_human_review) {
+        tooling.requires_human_review = true;
+    }
+    tooling.updated_at = new Date().toISOString();
+    return {
+        ...orchestrationPlan,
+        tooling
+    };
+}
+
+async function executeToolCalls({
+    phase,
+    calls,
+    document,
+    toolingConfig
+}) {
+    const allowlist = resolveToolAllowlist(toolingConfig, phase);
+    const reviewSkipReasons = new Set([
+        'tool_not_allowed',
+        'invalid_tool_call',
+        'missing_document_id',
+        'unknown_tool'
+    ]);
+    const enabled = toolingConfig.enabled
+        && (phase === ORCHESTRATOR_TOOL_PHASES.PRE_VISION
+            ? toolingConfig.preVisionEnabled
+            : toolingConfig.postAnalysisEnabled);
+    const summary = {
+        phase,
+        enabled,
+        requested: Array.isArray(calls) ? calls.length : 0,
+        executed: 0,
+        results: [],
+        skipped: [],
+        allowlist: Array.from(allowlist),
+        failed: false,
+        failPipeline: false,
+        requires_human_review: false,
+        normalizedImages: null,
+        normalizedImageData: null,
+        normalizationMetadata: null,
+        normalizationToolIndex: null,
+        normalizationIsFinal: false
+    };
+    const reviewSkips = [];
+    const hasNormalizationCall = Array.isArray(calls)
+        && calls.some(call => call?.tool === NORMALIZATION_TOOL_NAME);
+    const normalizationAllowed = phase === ORCHESTRATOR_TOOL_PHASES.PRE_VISION
+        && toolingConfig.preVisionNormalizationEnabled !== false
+        && allowlist.has(NORMALIZATION_TOOL_NAME);
+
+    if (!enabled) {
+        if (summary.requested > 0) {
+            summary.skipped.push({
+                reason: 'tooling_disabled',
+                count: summary.requested
+            });
+        }
+        return summary;
+    }
+
+    for (const call of calls || []) {
+        if (!call || !call.tool) {
+            const skip = { reason: 'invalid_tool_call', tool: call?.tool || null };
+            summary.skipped.push(skip);
+            reviewSkips.push(skip);
+            continue;
+        }
+        if (!allowlist.has(call.tool)) {
+            const skip = { reason: 'tool_not_allowed', tool: call.tool };
+            summary.skipped.push(skip);
+            reviewSkips.push(skip);
+            continue;
+        }
+        if (call.tool === NORMALIZATION_TOOL_NAME &&
+            toolingConfig.preVisionNormalizationEnabled === false) {
+            const skip = {
+                reason: 'normalization_disabled',
+                tool: call.tool
+            };
+            summary.skipped.push(skip);
+            reviewSkips.push(skip);
+            continue;
+        }
+        if (!paperlessApiTools.getPaperlessToolDefinition(call.tool)) {
+            const skip = { reason: 'unknown_tool', tool: call.tool };
+            summary.skipped.push(skip);
+            reviewSkips.push(skip);
+            continue;
+        }
+
+        const { input: preparedInput, missingDocumentId } = applyDocumentIdDefaults(
+            call.tool,
+            call.input,
+            document
+        );
+        if (missingDocumentId) {
+            const skip = { reason: 'missing_document_id', tool: call.tool };
+            summary.skipped.push(skip);
+            reviewSkips.push(skip);
+            continue;
+        }
+
+        const startTime = Date.now();
+        const outcome = await paperlessApiTools.executePaperlessTool(
+            call.tool,
+            preparedInput
+        );
+        const durationMs = Date.now() - startTime;
+        const resultIndex = summary.results.length;
+        const result = {
+            tool: call.tool,
+            input: preparedInput,
+            ok: outcome.ok,
+            data: outcome.data || null,
+            error: outcome.error || null,
+            duration_ms: durationMs,
+            reason: call.reason || null,
+            index: resultIndex
+        };
+        if (call.tool === NORMALIZATION_TOOL_NAME && outcome.ok && outcome.data) {
+            const { base64Images, image_data, metadata } = outcome.data;
+            if (Array.isArray(base64Images) && base64Images.length > 0) {
+                summary.normalizedImages = base64Images;
+                summary.normalizedImageData = image_data || base64Images[0];
+                summary.normalizationMetadata = metadata || null;
+                summary.normalizationToolIndex = resultIndex;
+                result.data = metadata || null;
+            }
+        }
+        summary.results.push(result);
+        summary.executed += 1;
+
+        if (outcome.ok) {
+            logger.info({
+                event: 'orchestrator_tool_executed',
+                phase,
+                tool: call.tool,
+                documentId: document?.id,
+                durationMs
+            });
+        } else {
+            logger.warn({
+                event: 'orchestrator_tool_failed',
+                phase,
+                tool: call.tool,
+                documentId: document?.id,
+                durationMs,
+                error: outcome.error
+            });
+        }
+    }
+
+    summary.failed = summary.results.some(result => !result.ok);
+    summary.failPipeline = summary.failed && toolingConfig.failOnError;
+    summary.requires_human_review = summary.failed || reviewSkips.length > 0;
+    if (summary.normalizationToolIndex !== null) {
+        summary.normalizationIsFinal = summary.normalizationToolIndex === summary.results.length - 1;
+    }
+    if (reviewSkips.length > 0) {
+        logger.warn({
+            event: 'orchestrator_tool_skips_review',
+            phase,
+            documentId: document?.id || document?.filename,
+            skipped: reviewSkips
+        });
+    }
+    if (summary.phase === ORCHESTRATOR_TOOL_PHASES.PRE_VISION) {
+        summary.normalization = buildNormalizationMetadata(summary);
+    }
+    return summary;
 }
 
 const GUIDANCE_TAG_SCHEMA_VERSION = String(
@@ -297,6 +658,28 @@ class ExpertPipelineExecutor {
                 });
                 finalStatus = 'failed';
                 context.addError('pipeline', error);
+            }
+
+            if (context.options?.orchestration && !context.options.orchestration.extraction_failed) {
+                const { plan: toolPlan } = extractToolPlan(context.options.orchestration);
+                context.options.orchestration.tool_plan = toolPlan;
+                const postAnalysisSummary = await executeToolCalls({
+                    phase: ORCHESTRATOR_TOOL_PHASES.POST_ANALYSIS,
+                    calls: toolPlan.post_analysis,
+                    document: context.document,
+                    toolingConfig: resolveToolingConfig(context.options)
+                });
+                context.options.orchestration = attachToolingSummary(
+                    context.options.orchestration,
+                    postAnalysisSummary
+                );
+                if (postAnalysisSummary.requires_human_review) {
+                    context.addWarning('orchestrator_tools', 'Post-analysis tool failure');
+                }
+                if (postAnalysisSummary.failPipeline) {
+                    finalStatus = 'failed';
+                    context.addError('orchestrator_tools', new Error('Post-analysis tool execution failed'));
+                }
             }
 
             // Build final result
@@ -626,9 +1009,11 @@ class ExpertPipelineExecutor {
             modelType: stage.modelType
         });
 
-        // Build image data for multimodal stages
-        const imageData = stage.modelType === ModelType.MULTIMODAL ?
-                          input.image || context.document.image_data : null;
+        // Build image data for multimodal stages (prefer normalized)
+        const resolvedImages = resolveDocumentImages(context.document);
+        const imageData = stage.modelType === ModelType.MULTIMODAL
+            ? (input.image || resolvedImages.imageData)
+            : null;
 
         // Build messages
         const messages = promptRegistry.buildMessages(
@@ -1030,7 +1415,8 @@ class ExpertPipelineExecutor {
                 errors: context.errors,
                 warnings: context.warnings,
                 requires_human_review: status !== 'success' ||
-                                       overallConfidence < pipeline.confidenceThreshold
+                                       overallConfidence < pipeline.confidenceThreshold ||
+                                       !!context.options?.orchestration?.tooling?.requires_human_review
             },
 
             document_info: {
@@ -1286,7 +1672,8 @@ class ExpertPipelineExecutor {
      * @returns {Promise<Object>} OCR result with text and metadata
      */
     async _executeVisualOCR(document, options = {}) {
-        const base64Images = document.base64Images || [];
+        const resolvedImages = resolveDocumentImages(document);
+        const base64Images = resolvedImages.base64Images || [];
 
         if (base64Images.length === 0) {
             logger.debug('[VisualOCR] No images available, using Paperless OCR');
@@ -1304,7 +1691,8 @@ class ExpertPipelineExecutor {
             event: 'visual_ocr_start',
             documentId: document.id || document.filename,
             totalPages: base64Images.length,
-            processingPages: Math.min(base64Images.length, maxPages)
+            processingPages: Math.min(base64Images.length, maxPages),
+            image_source: resolvedImages.source
         });
 
         for (let i = 0; i < Math.min(base64Images.length, maxPages); i++) {
@@ -1680,6 +2068,7 @@ async function processDocument(document, ollamaService, options = {}) {
     }
 
     const hasImage = !!(document.image_data || document.base64Images?.length);
+    const toolingConfig = resolveToolingConfig(options);
     let orchestrationPlan = null;
     if (MODEL_NAMES.orchestrator) {
         try {
@@ -1698,9 +2087,10 @@ async function processDocument(document, ollamaService, options = {}) {
                 has_image: hasImage,
                 ocr_length: (document.ocr_text || document.content || '').length,
                 visual_rag_sidecar_enabled: config.visualRagSidecar?.enabled === 'yes',
-                guidance_enabled: config.guidanceService?.enabled === 'yes'
+                guidance_enabled: config.guidanceService?.enabled === 'yes'     
             };
 
+            const toolDefinitions = getAllowedToolDefinitions(toolingConfig);
             const orchestrationMessages = promptRegistry.buildMessages(
                 'SYS_ORCHESTRATOR_V1',
                 {
@@ -1708,7 +2098,8 @@ async function processDocument(document, ollamaService, options = {}) {
                     routing_json: JSON.stringify(classificationResult?.routing || {}, null, 0),
                     quality_json: JSON.stringify(classificationResult?.quality_assessment || {}, null, 0),
                     doc_stats: JSON.stringify(docStats, null, 0),
-                    pipelines: JSON.stringify(pipelineCatalog, null, 0)
+                    pipelines: JSON.stringify(pipelineCatalog, null, 0),
+                    tools_json: JSON.stringify(toolDefinitions, null, 0)
                 }
             );
 
@@ -1766,6 +2157,91 @@ async function processDocument(document, ollamaService, options = {}) {
         classificationResult.routing.recommended_pipeline = recommendedPipeline;
     }
     classificationResult.orchestration = orchestrationPlan;
+
+    if (orchestrationPlan && !orchestrationPlan.extraction_failed) {
+        const { plan: toolPlan } = extractToolPlan(orchestrationPlan);
+        orchestrationPlan.tool_plan = toolPlan;
+        const preVisionSummary = await executeToolCalls({
+            phase: ORCHESTRATOR_TOOL_PHASES.PRE_VISION,
+            calls: toolPlan.pre_vision,
+            document,
+            toolingConfig
+        });
+        const normalizationImages = preVisionSummary.normalizedImages;
+        const normalizationImageData = preVisionSummary.normalizedImageData;
+        const normalizationMetadata = preVisionSummary.normalizationMetadata;
+        const normalizationIsFinal = preVisionSummary.normalizationIsFinal;
+        const preVisionSummaryForAttachment = {
+            ...preVisionSummary,
+            normalizedImages: null,
+            normalizedImageData: null
+        };
+        orchestrationPlan = attachToolingSummary(
+            orchestrationPlan,
+            preVisionSummaryForAttachment
+        );
+        if (preVisionSummaryForAttachment.normalization) {
+            orchestrationPlan.normalization = preVisionSummaryForAttachment.normalization;
+        }
+        classificationResult.orchestration = orchestrationPlan;
+        const hasNormalizationOutput = Array.isArray(normalizationImages)
+            && normalizationImages.length > 0
+            && normalizationIsFinal;
+        if (Array.isArray(normalizationImages)
+            && normalizationImages.length > 0
+            && !normalizationIsFinal) {
+            logger.warn({
+                event: 'orchestrator_normalization_out_of_order',
+                documentId: document.id || document.filename,
+                reason: 'normalization_not_last'
+            });
+        }
+        if (hasNormalizationOutput) {
+            document._original_image_data = document.image_data;
+            document._original_base64Images = document.base64Images;
+            document.normalized_base64Images = normalizationImages;
+            document.normalized_image_data = normalizationImageData
+                || normalizationImages[0];
+            document.image_data = document.normalized_image_data;
+            document.base64Images = normalizationImages;
+            document._normalization_metadata = normalizationMetadata || null;
+        }
+        const shouldRefreshImages = preVisionSummary.executed > 0 && !hasNormalizationOutput;
+        if (shouldRefreshImages) {
+            if (typeof options.refreshImages === 'function') {
+                try {
+                    const refreshed = await options.refreshImages({ forcePdf: true });
+                    if (Array.isArray(refreshed?.base64Images) && refreshed.base64Images.length > 0) {
+                        document.base64Images = refreshed.base64Images;
+                    }
+                    if (refreshed?.image_data) {
+                        document.image_data = refreshed.image_data;
+                    } else if (document.base64Images?.length > 0) {
+                        document.image_data = document.base64Images[0];
+                    }
+                    logger.info({
+                        event: 'orchestrator_prevision_refresh',
+                        documentId: document.id || document.filename,
+                        images: document.base64Images?.length || 0
+                    });
+                } catch (error) {
+                    logger.warn({
+                        event: 'orchestrator_prevision_refresh_failed',
+                        documentId: document.id || document.filename,
+                        error: error.message
+                    });
+                }
+            } else {
+                logger.warn({
+                    event: 'orchestrator_prevision_refresh_missing',
+                    documentId: document.id || document.filename
+                });
+            }
+        }
+        if (preVisionSummary.failPipeline) {
+            throw new Error('Orchestrator pre-vision tool execution failed');
+        }
+    }
 
     // Step 1.5: Visual OCR Enhancement Stage
     // Extract enhanced text using vision model before pipeline execution

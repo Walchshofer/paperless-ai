@@ -17,7 +17,7 @@ const swaggerDefinition = {
   },
   servers: [
     {
-      url: 'http://localhost:3000',
+      url: `http://localhost:${process.env.PAPERLESS_AI_PORT || 3000}`,
       description: 'Development server',
     },
     // Add production server details if applicable
