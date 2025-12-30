@@ -88,7 +88,7 @@ const {
     ExpertPipelineExecutor,
     processDocument,
     createPipelineExecutor 
-} = require('./experts/ExpertPipelineExecutor');
+} = require('./experts/ExpertPipelineExecutor_OLD');
 
 // ============================================================================
 // INTEGRATION LAYER

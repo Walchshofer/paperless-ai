@@ -35,7 +35,7 @@ const {
     ValidationEngine,
     processDocument,
     createPipelineExecutor
-} = require('./ExpertPipelineExecutor');
+} = require('./ExpertPipelineExecutor_OLD');
 
 const { LocalTranslator } = require('./translation');
 

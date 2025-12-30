@@ -748,7 +748,7 @@ describe('Expert Pipeline', function() {
     // ============================================================================
     
     describe('ExpertPipelineExecutor', function() {
-        const { ExpertPipelineExecutor } = require('../../services/experts/ExpertPipelineExecutor');
+        const { ExpertPipelineExecutor } = require('../../services/experts/ExpertPipelineExecutor_OLD');
         const { promptRegistry } = require('../../services/prompts/PromptRegistry');
         const { registerMedicalPrompts } = require('../../services/prompts/MedicalPrompts');
         

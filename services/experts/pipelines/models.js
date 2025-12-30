@@ -19,7 +19,7 @@ const MODEL_NAMES = Object.freeze({
     medicalRadiology: process.env.MEDICAL_RADIOLOGY_MODEL || config.expertModels?.medical?.radiology || config.ollama?.visionModel || 'llava-med-v1.6',
 
     // Financial models: prefer FINANCIAL_* env vars, then config.expertModels entries, then finance defaults, then ollama defaults
-    financeReasoning: process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || config.ollama?.model || 'fino1-8b',
+    financeReasoning: process.env.FINANCIAL_REASONING_MODEL || process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || config.ollama?.model || 'llm-pro-finance-8b',
     financeGeneral: process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || config.ollama?.visionModel || 'llm-pro-finance-8b',
     vatExpert: process.env.VAT_EXPERT_MODEL ||
                process.env.FINANCIAL_VAT_EXPERT ||
@@ -33,7 +33,7 @@ const MODEL_NAMES = Object.freeze({
     legalExpert: process.env.LEGAL_EXPERT_MODEL ||
                  process.env.LEGAL_ANALYSIS_MODEL ||
                  config.expertModels?.legal?.analysis ||
-                 'llm-pro-finance-8b',
+                 'gpt-oss',
 
     // Advanced tier - Reasoning models
     dragon: process.env.DRAGON_MODEL || null,

@@ -58,7 +58,7 @@ Steps:
 1. Inspect logs for template errors:
 
 ```bash
-docker logs guidance_service
+docker logs guidance-service
 ```
 
 2. Run template/LLM comparison to identify breaking LLM versions:

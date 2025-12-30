@@ -9,8 +9,8 @@ All production tier models are fully integrated and operational:
 - ✅ `qwen3-vl:8b` - Document classification and routing
 - ✅ `llava-med-v1.6` - Medical imaging analysis
 - ✅ `medtext-llama3` - Clinical text extraction
-- ✅ `fino1-8b` - Financial reasoning
-- ✅ `llm-pro-finance-8b` - Financial extraction and VAT analysis
+- ✅ `fino1-8b` - Financial calculator (math & numeric extraction)
+- ✅ `llm-pro-finance-8b` - Financial reasoning & VAT analysis
 - ✅ `sauerkraut-llama3.1:8b` - General purpose German text
 - ✅ `llama3.2:latest` - Alternative general purpose (LEGACY)
 

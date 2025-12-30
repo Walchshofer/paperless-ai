@@ -348,6 +348,45 @@ class GuidanceClient {
         });
     }
 
+    /**
+     * Helper: Check server templates and warn if expected templates are missing.
+     * Note: The Guidance service manages templates server-side; this method
+     * provides a convenience for operators to verify registration.
+     *
+     * @param {Object} templates - Map of templateName => metadata
+     */
+    async registerTemplates(templates = {}) {
+        try {
+            const available = await this.listTemplates();
+            for (const name of Object.keys(templates)) {
+                if (!available.includes(name)) {
+                    logger.warn({ event: 'guidance_template_missing', template: name });
+                } else {
+                    logger.info({ event: 'guidance_template_registered', template: name });
+                }
+            }
+            return true;
+        } catch (error) {
+            logger.warn({ event: 'guidance_register_templates_failed', error: error.message });
+            return false;
+        }
+    }
+
+    /**
+     * Check a single template registration status
+     * @param {string} name
+     * @returns {Promise<boolean>}
+     */
+    async registerTemplate(name, template) {
+        const available = await this.listTemplates();
+        if (!available.includes(name)) {
+            logger.warn({ event: 'guidance_template_missing', template: name });
+            return false;
+        }
+        logger.info({ event: 'guidance_template_present', template: name });
+        return true;
+    }
+
     // ========================================================================
     // PRIVATE HELPERS
     // ========================================================================

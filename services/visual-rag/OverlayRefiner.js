@@ -29,7 +29,7 @@ const config = require('../../config/config');
 const EXPERT_MODELS = Object.freeze({
     medical: process.env.MEDICAL_ANALYSIS_MODEL || config.expertModels?.medical?.analysis || 'medtext-llama3',
     financial: process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || 'fino1-8b',
-    legal: process.env.LEGAL_EXPERT_MODEL || config.expertModels?.legal?.analysis || 'llm-pro-finance-8b'
+    legal: process.env.LEGAL_EXPERT_MODEL || config.expertModels?.legal?.analysis || 'gpt-oss' 
 });
 
 /**

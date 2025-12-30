@@ -97,16 +97,18 @@ const routerModel = process.env.ROUTER_MODEL ||
   plannerModel ||
   ollamaVisionModel ||
   'qwen3-vl:8b';
-const orchestratorModel = process.env.ORCHESTRATOR_MODEL || 'nemotron-orchestrator:8b';
+const orchestratorModel = process.env.ORCHESTRATOR_MODEL || null;
 const generalModel = process.env.GENERAL_MODEL || ollamaModel;
 const medicalVisionModel = process.env.MEDICAL_VISION_MODEL || 'llava-med-v1.6';
 const medicalAnalysisModel = process.env.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3';
 const medicalRadiologyModel = process.env.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.6';
 const financialAnalysisModel = process.env.FINANCIAL_ANALYSIS_MODEL || 'fino1-8b';
+// New: FINANCIAL_REASONING_MODEL prefers specialized text-reasoning models; fall back to the old var for compatibility
+const financialReasoningModel = process.env.FINANCIAL_REASONING_MODEL || process.env.FINANCIAL_ANALYSIS_MODEL || 'llm-pro-finance-8b';
 const financialVisionModel = process.env.FINANCIAL_VISION_MODEL || 'llm-pro-finance-8b';
 const financialVatExpertModel = process.env.FINANCIAL_VAT_EXPERT || 'llm-pro-finance-8b';
 const legalVisionModel = process.env.LEGAL_VISION_MODEL || ollamaVisionModel;
-const legalAnalysisModel = process.env.LEGAL_ANALYSIS_MODEL || 'llm-pro-finance-8b';
+const legalAnalysisModel = process.env.LEGAL_ANALYSIS_MODEL || 'gpt-oss';
 const legalOrchestratorModel = process.env.LEGAL_ORCHESTRATOR_MODEL || orchestratorModel;
 
 const baseTokenLimit = parseEnvInt(process.env.TOKEN_LIMIT, 128000);

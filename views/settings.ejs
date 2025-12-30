@@ -669,6 +669,10 @@
                                                     value="<%= config.FINANCIAL_ANALYSIS_MODEL || 'fino1-8b' %>"
                                                     class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                                     placeholder="fino1-8b">
+
+                                                <!-- New: Financial Reasoning Model -->
+                                                <label for="financialReasoningModel" class="text-sm font-medium">Financial Reasoning Model</label>
+                                                <input id="financialReasoningModel" name="financialReasoningModel" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" value="<%= config.FINANCIAL_REASONING_MODEL || 'llm-pro-finance-8b' %>" placeholder="llm-pro-finance-8b">
                                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                     <div class="space-y-1">
                                                         <label for="financialAnalysisContextWindow" class="text-xs font-medium text-gray-600">Context Window</label>
@@ -770,9 +774,9 @@
                                                 <input type="text"
                                                     id="legalAnalysisModel"
                                                     name="legalAnalysisModel"
-                                                    value="<%= config.LEGAL_ANALYSIS_MODEL || 'llm-pro-finance-8b' %>"
+                                                    value="<%= config.LEGAL_ANALYSIS_MODEL || 'gpt-oss' %>"
                                                     class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                    placeholder="llm-pro-finance-8b">
+                                                    placeholder="gpt-oss">
                                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                     <div class="space-y-1">
                                                         <label for="legalAnalysisContextWindow" class="text-xs font-medium text-gray-600">Context Window</label>

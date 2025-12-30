@@ -22,10 +22,12 @@ Usage:
 import time
 from functools import wraps
 from contextlib import contextmanager
+from typing import Optional, List, Generator, Any
+
 from prometheus_client import (
-    Counter, Histogram, Gauge, Summary,
+    Counter, Histogram, Gauge,
     generate_latest, CONTENT_TYPE_LATEST,
-    REGISTRY, CollectorRegistry
+    REGISTRY
 )
 
 
@@ -107,22 +109,33 @@ guidance_tokens_processed = Counter(
 class RequestTracker:
     """Context manager for tracking request metrics."""
 
-    def __init__(self, template: str, model: str = 'unknown'):
+    def __init__(self, template: str, model: str = 'unknown') -> None:
         self.template = template
         self.model = model
         self.status = 'error'  # Default to error
-        self.start_time = None
+        self.start_time: Optional[float] = None
 
-    def set_status(self, status: str):
-        """Set the final status of the request."""
+    def set_status(self, status: str) -> None:
+        """
+        Set the final status of the request.
+
+        Args:
+            status: The request status (e.g., 'success', 'error')
+        """
         self.status = status
 
-    def __enter__(self):
+    def __enter__(self) -> 'RequestTracker':
         self.start_time = time.time()
         guidance_active_requests.labels(template=self.template).inc()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any]
+    ) -> bool:
+        """Record metrics and clean up resources."""
         duration = time.time() - self.start_time
 
         # Record metrics
@@ -143,11 +156,21 @@ class RequestTracker:
 
 
 @contextmanager
-def track_request(template: str, model: str = 'unknown'):
+def track_request(
+    template: str,
+    model: str = 'unknown'
+) -> Generator[RequestTracker, None, None]:
     """
     Context manager to track request metrics.
 
-    Usage:
+    Args:
+        template: The guidance template name being executed
+        model: The LLM model identifier
+
+    Yields:
+        RequestTracker: Tracker instance for setting status
+
+    Example:
         with track_request('medical_extractor', 'llama3') as tracker:
             result = process(...)
             tracker.set_status('success' if result else 'error')
@@ -157,7 +180,7 @@ def track_request(template: str, model: str = 'unknown'):
         yield tracker
 
 
-def track_cache_operation(operation: str, hit: bool):
+def track_cache_operation(operation: str, hit: bool) -> None:
     """
     Track a cache operation.
 
@@ -169,7 +192,11 @@ def track_cache_operation(operation: str, hit: bool):
     guidance_cache_ops_total.labels(operation=operation, status=status).inc()
 
 
-def track_validation(template: str, valid: bool, errors: list = None):
+def track_validation(
+    template: str,
+    valid: bool,
+    errors: Optional[List[str]] = None
+) -> None:
     """
     Track a validation result.
 
@@ -193,19 +220,25 @@ def track_validation(template: str, valid: bool, errors: list = None):
             ).inc()
 
 
-def track_model_call(model: str, duration_seconds: float):
+def track_model_call(model: str, duration_seconds: float) -> None:
     """
     Track an LLM model call.
 
     Args:
         model: Model name
-        duration_seconds: Call duration
+        duration_seconds: Call duration in seconds
     """
     guidance_model_calls_total.labels(model=model).inc()
-    guidance_model_latency_seconds.labels(model=model).observe(duration_seconds)
+    guidance_model_latency_seconds.labels(model=model).observe(
+        duration_seconds
+    )
 
 
-def track_tokens(template: str, input_tokens: int, output_tokens: int):
+def track_tokens(
+    template: str,
+    input_tokens: int,
+    output_tokens: int
+) -> None:
     """
     Track token usage.
 
@@ -225,8 +258,13 @@ def track_tokens(template: str, input_tokens: int, output_tokens: int):
     ).inc(output_tokens)
 
 
-def update_cache_size(size_bytes: int):
-    """Update the cache size gauge."""
+def update_cache_size(size_bytes: int) -> None:
+    """
+    Update the cache size gauge.
+
+    Args:
+        size_bytes: Cache size in bytes
+    """
     guidance_cache_size_bytes.set(size_bytes)
 
 
@@ -234,18 +272,28 @@ def update_cache_size(size_bytes: int):
 # DECORATORS
 # ============================================================================
 
-def metrics_tracked(template: str = None, model: str = None):
+def metrics_tracked(
+    template: Optional[str] = None,
+    model: Optional[str] = None
+) -> Any:
     """
     Decorator to automatically track function metrics.
 
-    Usage:
+    Args:
+        template: Template name (defaults to function name)
+        model: Model identifier (defaults to 'unknown')
+
+    Returns:
+        Decorated function with automatic metrics tracking
+
+    Example:
         @metrics_tracked(template='medical_extractor')
         def process_medical(document):
             ...
     """
-    def decorator(func):
+    def decorator(func: Any) -> Any:
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             tpl = template or func.__name__
             mdl = model or kwargs.get('model', 'unknown')
 
@@ -254,9 +302,9 @@ def metrics_tracked(template: str = None, model: str = None):
                     result = func(*args, **kwargs)
                     tracker.set_status('success')
                     return result
-                except Exception as e:
+                except Exception as exc:
                     tracker.set_status('error')
-                    raise
+                    raise exc
 
         return wrapper
     return decorator
@@ -266,9 +314,12 @@ def metrics_tracked(template: str = None, model: str = None):
 # FLASK INTEGRATION
 # ============================================================================
 
-def get_metrics_response():
+def get_metrics_response() -> Any:
     """
     Generate Prometheus metrics response for Flask.
+
+    Returns:
+        Flask Response object with metrics
 
     Usage:
         @app.route('/metrics')
@@ -282,7 +333,7 @@ def get_metrics_response():
     )
 
 
-def init_metrics_endpoint(app):
+def init_metrics_endpoint(app: Any) -> None:
     """
     Initialize the /metrics endpoint on a Flask app.
 
@@ -290,7 +341,7 @@ def init_metrics_endpoint(app):
         app: Flask application instance
     """
     @app.route('/metrics')
-    def metrics():
+    def metrics() -> Any:
         return get_metrics_response()
 
 
@@ -299,29 +350,41 @@ def init_metrics_endpoint(app):
 # ============================================================================
 
 def _classify_error(error_message: str) -> str:
-    """Classify an error message into a category."""
+    """
+    Classify an error message into a category.
+
+    Args:
+        error_message: The error message to classify
+
+    Returns:
+        Error category string
+    """
     error_lower = error_message.lower()
 
     if 'icd' in error_lower or 'code' in error_lower:
         return 'icd10_format'
-    elif 'atu' in error_lower or 'uid' in error_lower:
+    if 'atu' in error_lower or 'uid' in error_lower:
         return 'atu_format'
-    elif 'date' in error_lower or 'datum' in error_lower:
+    if 'date' in error_lower or 'datum' in error_lower:
         return 'date_format'
-    elif 'confidence' in error_lower or 'vertrauen' in error_lower:
+    if 'confidence' in error_lower or 'vertrauen' in error_lower:
         return 'confidence_range'
-    elif 'missing' in error_lower or 'required' in error_lower:
+    if 'missing' in error_lower or 'required' in error_lower:
         return 'missing_field'
-    elif 'type' in error_lower:
+    if 'type' in error_lower:
         return 'type_mismatch'
-    else:
-        return 'other'
+
+    return 'other'
 
 
-def reset_metrics():
-    """Reset all metrics (useful for testing)."""
-    # Note: This is a simplified reset - in production you might
-    # need a more sophisticated approach
+def reset_metrics() -> None:
+    """
+    Reset all metrics (useful for testing).
+
+    Note:
+        This is a simplified reset - in production you might
+        need a more sophisticated approach
+    """
     pass
 
 

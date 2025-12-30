@@ -46,10 +46,10 @@ const truncationMetrics = require('../ollama/truncationMetrics');
 const { pdfRenderer } = require('../visual-rag/PDFRenderer');
 
 // Import Expert Pipeline components
-const { promptRegistry, DomainType, ModelType } = require('../prompts/PromptRegistry');
+const { promptRegistry } = require('../prompts/PromptRegistry');
 const { registerMedicalPrompts } = require('../prompts/MedicalPrompts');
 const { expertRegistry } = require('../experts/ExpertRegistry');
-const { ExpertPipelineExecutor, processDocument } = require('../experts/ExpertPipelineExecutor');
+const { ExpertPipelineExecutor, processDocument } = require('../experts/ExpertPipelineExecutor_OLD');
 
 // ============================================================================
 // CONFIGURATION
@@ -66,7 +66,10 @@ const ProcessorConfig = {
         medicalImaging: process.env.MEDICAL_VISION_MODEL || config.expertModels?.medical?.vision || config.ollama?.visionModel || 'llava-med-v1.6',
         medicalText: process.env.MEDICAL_ANALYSIS_MODEL || config.expertModels?.medical?.analysis || config.ollama?.model || 'medtext-llama3',
         general: process.env.GENERAL_MODEL || config.ollama?.model || 'sauerkraut-llama3.1:8b',
-        financeReasoning: process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || 'fino1-8b',
+        // calculator for numeric extraction
+        financeCalculator: process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || 'fino1-8b',
+        // reasoning model: prefer FINANCIAL_REASONING_MODEL, fall back to old var for compatibility
+        financeReasoning: process.env.FINANCIAL_REASONING_MODEL || process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.reasoning || 'llm-pro-finance-8b',
         financeGeneral: process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || 'llm-pro-finance-8b',
         embedding: process.env.EMBEDDING_MODEL || config.ollama?.embeddingModel || 'nomic-embed-text'
     },
@@ -227,8 +230,8 @@ class InternalVatRag {
                 this._cache = [];
                 return this._cache;
             }
-        } catch (error) {
-            logger.debug('VAT RAG directory not found', { rootDir });
+        } catch (err) {
+            logger.debug('VAT RAG directory not found', { rootDir, error: err.message });
             this._cache = [];
             return this._cache;
         }
@@ -336,7 +339,7 @@ class ImagePreparator {
      * @returns {Object} Prepared image data
      */
     static async prepare(source, options = {}) {
-        const config = { ...ProcessorConfig.image, ...options };
+        const imageConfig = { ...ProcessorConfig.image, ...options };
         
         let imageBuffer;
         let metadata = {};
@@ -369,6 +372,10 @@ class ImagePreparator {
         
         // Detect image type from buffer magic bytes
         metadata.format = this._detectImageFormat(imageBuffer);
+
+        // Record requested image configuration for downstream components
+        metadata.requestedFormat = imageConfig.format;
+        metadata.requestedDpi = imageConfig.targetDpi;
         
         return {
             base64: base64Image,
@@ -663,6 +670,23 @@ class ResultMerger {
      * Check if two entities are the same
      */
     static _isSameEntity(entity1, entity2, category) {
+        // Category-specific matching for improved accuracy
+        if (category === 'amounts') {
+            const parseAmount = s => Number(String(s || '').replace(/[^0-9.-]+/g, ''));
+            const a1 = parseAmount(entity1.amount || entity1.value || entity1.text);
+            const a2 = parseAmount(entity2.amount || entity2.value || entity2.text);
+            if (!Number.isNaN(a1) && !Number.isNaN(a2) && a1 === a2) return true;
+        }
+        if (category === 'dates') {
+            const parseDate = s => {
+                const d = Date.parse(String(s || '').trim());
+                return Number.isNaN(d) ? null : d;
+            };
+            const d1 = parseDate(entity1.date || entity1.text || entity1.name);
+            const d2 = parseDate(entity2.date || entity2.text || entity2.name);
+            if (d1 && d2 && d1 === d2) return true;
+        }
+
         // Simple name-based matching for now
         const name1 = (entity1.name || entity1.text || entity1.drug_name || 
                        entity1.condition || entity1.medication || '').toLowerCase();
@@ -1095,7 +1119,6 @@ class DocumentProcessor {
      */
     async _processExpertPipeline(document, options) {
         // Prepare image if available
-        let preparedImage = null;
         let preparedImages = [];
         const resolveImageSource = () => document.image_path || document.image_data || null;
         const renderPdfImages = async (source) => {
@@ -1171,7 +1194,6 @@ class DocumentProcessor {
         };
         if (document.image_path || document.image_data) {
             const prepared = await prepareImages();
-            preparedImage = prepared.image_data;
             preparedImages = prepared.base64Images;
         }
 
@@ -1335,13 +1357,13 @@ class DocumentProcessor {
     async _processHybrid(document, options) {
         // First, try expert pipeline
         let expertResult = null;
-        let expertError = null;
+        let _expertError = null;
         
         if (this.config.features.enableExpertPipeline) {
             try {
                 expertResult = await this._processExpertPipeline(document, options);
             } catch (error) {
-                expertError = error;
+                _expertError = error;
                 logger.warn('Expert pipeline failed, will use legacy', {
                     error: error.message
                 });
@@ -1369,6 +1391,15 @@ class DocumentProcessor {
                 legacyResult = await this._processLegacyText(document, options);
             }
             this.stats.legacyFallbackUsed++;
+
+            // Preserve expert pipeline error context on fallback so diagnostics can inspect it
+            if (_expertError) {
+                try {
+                    legacyResult._expert_error = _expertError.message || String(_expertError);
+                } catch {
+                    legacyResult._expert_error = String(_expertError);
+                }
+            }
         } catch (legacyError) {
             logger.warn('Legacy processing also failed', { error: legacyError.message });
         }
@@ -1394,12 +1425,12 @@ class DocumentProcessor {
      * Classify document without full processing
      * Useful for routing decisions
      */
-    async classify(document, options = {}) {
+    async classify(document, _options = {}) {
         // Prepare image
         let preparedImage = null;
         if (document.image_path || document.image_data) {
             const imageSource = document.image_data || document.image_path;
-            const prepared = await ImagePreparator.prepare(imageSource);
+            const prepared = await ImagePreparator.prepare(imageSource, _options);
             preparedImage = prepared.base64;
         }
         
@@ -1449,7 +1480,7 @@ class DocumentProcessor {
     /**
      * Update processing statistics
      */
-    _updateStats(result, mode) {
+    _updateStats(result, _mode) {
         const confidence = result.confidence || 0;
         const n = this.stats.totalProcessed;
         
@@ -1460,6 +1491,12 @@ class DocumentProcessor {
         // Update domain counts
         const domain = result.classification?.primary_domain || 'Unknown';
         this.stats.byDomain[domain] = (this.stats.byDomain[domain] || 0) + 1;
+
+        // Track counts by processing mode when provided
+        if (_mode) {
+            this.stats.byMode = this.stats.byMode || {};
+            this.stats.byMode[_mode] = (this.stats.byMode[_mode] || 0) + 1;
+        }
     }
     
     /**

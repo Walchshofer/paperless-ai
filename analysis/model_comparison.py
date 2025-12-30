@@ -63,7 +63,10 @@ def _resolve_model_names():
     medical_imaging = os.getenv("MEDICAL_VISION_MODEL", "llava-med-v1.6")
     medical_text = os.getenv("MEDICAL_ANALYSIS_MODEL", "medtext-llama3")
     finance_general = os.getenv("FINANCIAL_VISION_MODEL", "llm-pro-finance-8b")
-    finance_reasoning = os.getenv("FINANCIAL_ANALYSIS_MODEL", "fino1-8b")
+    # FINANCIAL_ANALYSIS_MODEL is repurposed as the calculator (fino)
+    finance_calculator = os.getenv("FINANCIAL_ANALYSIS_MODEL", "fino1-8b")
+    # New: FINANCIAL_REASONING_MODEL for text reasoning; fall back to FINANCIAL_ANALYSIS_MODEL for backward compatibility
+    finance_reasoning = os.getenv("FINANCIAL_REASONING_MODEL", os.getenv("FINANCIAL_ANALYSIS_MODEL", "llm-pro-finance-8b"))
     vat_expert = (
         os.getenv("VAT_EXPERT_MODEL")
         or os.getenv("FINANCIAL_VAT_EXPERT")
@@ -73,7 +76,7 @@ def _resolve_model_names():
     legal_expert = (
         os.getenv("LEGAL_EXPERT_MODEL")
         or os.getenv("LEGAL_ANALYSIS_MODEL")
-        or "llm-pro-finance-8b"
+        or "gpt-oss"
     )
     general_model = (
         os.getenv("GENERAL_MODEL")
@@ -88,6 +91,7 @@ def _resolve_model_names():
         "medicalText": medical_text,
         "financeGeneral": finance_general,
         "financeReasoning": finance_reasoning,
+        "financeCalculator": finance_calculator,
         "vatExpert": vat_expert,
         "legalExpert": legal_expert,
         "general": general_model,

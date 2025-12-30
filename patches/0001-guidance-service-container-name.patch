@@ -1,0 +1,6 @@
+*** Begin Patch
+*** Update File: ../paperless-ngx/docker-compose.yml
+@@
+-    container_name: guidance_service
++    container_name: guidance-service
+*** End Patch

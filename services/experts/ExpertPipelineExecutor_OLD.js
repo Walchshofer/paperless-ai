@@ -6,6 +6,30 @@
  *
  * Architecture Reference: Expert Model Pipeline Design, Section 4
  * Hardware Target: NVIDIA RTX 3090 Ti (24GB VRAM)
+ *
+ * Execution Flow:
+ * ┌─────────────────────────────────────────────────────────────────────────────┐
+ * │                        PIPELINE EXECUTION ENGINE                            │
+ * │                                                                             │
+ * │  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐             │
+ * │  │  Stage 1 │───▶│  Stage 2 │───▶│  Stage 3 │───▶│  Stage N │             │
+ * │  │ (Visual) │    │  (Text)  │    │(Integrate)│   │(Validate)│             │
+ * │  └────┬─────┘    └────┬─────┘    └────┬─────┘    └────┬─────┘             │
+ * │       │               │               │               │                    │
+ * │       ▼               ▼               ▼               ▼                    │
+ * │  ┌─────────────────────────────────────────────────────────────┐          │
+ * │  │                    EXECUTION CONTEXT                         │          │
+ * │  │  - Stage outputs accumulate                                  │          │
+ * │  │  - Errors trigger recovery stages                           │          │
+ * │  │  - Metrics logged per ADR-005                               │          │
+ * │  └─────────────────────────────────────────────────────────────┘          │
+ * └─────────────────────────────────────────────────────────────────────────────┘
+ *
+ * Model Configuration:
+ * - Router: qwen3-vl:8b (multimodal)
+ * - Medical Imaging: llava-med-v1.6:latest (multimodal)
+ * - Medical Text: medtext-llama3:latest (text-only)
+ * - General Fallback: sauerkraut-llama3.1:8b (text-only)
  */
 
 const axios = require('axios');
@@ -20,8 +44,9 @@ const JsonRepairService = require('../rag/JsonRepairService');
 const { expertRegistry, StageType, ExecutionMode } = require('./ExpertRegistry');
 const LocalTranslator = require('./translation/LocalTranslator');
 const paperlessService = require('../paperlessService');
+const { paperlessApiTools } = require('../tools');
 
-// Import extracted utility modules
+// Import extracted modules
 const { ExecutionContext } = require('./context');
 const { ConditionEvaluator, ValidationEngine } = require('./evaluation');
 const { getVisualRagModules } = require('./utils');
@@ -29,26 +54,466 @@ const { getVisualRagModules } = require('./utils');
 // Import Guidance client for deterministic extraction
 const { guidanceClient, getFallbackPromptId } = require('../guidance');
 
-// Import utility modules (via centralized index)
-// Note: Only importing what's directly used in this file
-// NORMALIZATION_TOOL_NAME and REVIEW_SKIP_REASONS are used in toolingExecution.js
-// scoreOcrQuality is used internally by mergeOcrResults
-const {
-    normalizeLanguageHint,
-    normalizeBoolean,
-    resolveDocumentImages,
-    ORCHESTRATOR_TOOL_PHASES,
-    resolveToolingConfig,
-    getAllowedToolDefinitions,
-    extractToolPlan,
-    requiresHumanReview,
-    resolveGuidanceTemplateName,
-    mergeOcrResults,
-    buildVisOcrMetadata,
-    ensureOcrCustomFields,
-    executeToolCalls,
-    attachToolingSummary
-} = require('./utils');
+const OCR_CUSTOM_FIELD_BASE = 'vis_ocr_text';
+
+function normalizeLanguageHint(value) {
+    if (!value) return null;
+    const normalized = String(value).trim().toLowerCase();
+    if (!normalized) return null;
+    if (normalized.startsWith('de') || normalized.includes('german') || normalized.includes('deutsch')) {
+        return 'de';
+    }
+    if (normalized.startsWith('en') || normalized.includes('english')) {
+        return 'en';
+    }
+    return null;
+}
+
+function normalizeBoolean(value, fallback) {
+    if (value === undefined || value === null) return fallback;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (['true', 'yes', '1'].includes(normalized)) return true;
+        if (['false', 'no', '0'].includes(normalized)) return false;
+    }
+    return fallback;
+}
+
+function resolveDocumentImages(document) {
+    if (!document || typeof document !== 'object') {
+        return { base64Images: [], imageData: null, source: 'none' };
+    }
+    const normalizedImages = Array.isArray(document.normalized_base64Images)
+        && document.normalized_base64Images.length > 0
+        ? document.normalized_base64Images
+        : null;
+    const base64Images = normalizedImages || document.base64Images || [];
+    const imageData = normalizedImages
+        ? (document.normalized_image_data || normalizedImages[0])
+        : (document.image_data || base64Images[0] || null);
+    return {
+        base64Images,
+        imageData,
+        source: normalizedImages ? 'normalized' : 'original'
+    };
+}
+
+const ORCHESTRATOR_TOOL_PHASES = Object.freeze({
+    PRE_VISION: 'pre_vision',
+    POST_ANALYSIS: 'post_analysis'
+});
+
+const NORMALIZATION_TOOL_NAME = 'paperless.normalize_images';
+
+const DEFAULT_PRE_VISION_TOOL_ALLOWLIST = new Set([
+    NORMALIZATION_TOOL_NAME
+]);
+
+const DEFAULT_POST_ANALYSIS_TOOL_ALLOWLIST = new Set([
+    'paperless.update_document',
+    'paperless.bulk_edit_documents',
+    'paperless.resolve_tags',
+    'paperless.resolve_correspondent',
+    'paperless.resolve_document_type',
+    'paperless.list_tags',
+    'paperless.list_correspondents',
+    'paperless.list_document_types',
+    'paperless.list_storage_paths'
+]);
+
+const TOOL_DOCUMENT_ID_KEYS = new Map([
+    ['paperless.update_document', 'document_id'],
+    ['paperless.bulk_edit_documents', 'document_ids'],
+    [NORMALIZATION_TOOL_NAME, 'document_id']
+]);
+
+function resolveToolingConfig(options = {}) {
+    const orchestrationConfig = config.orchestration || {};
+    const enabled = normalizeBoolean(
+        options.orchestrationToolsEnabled,
+        normalizeBoolean(orchestrationConfig.toolsEnabled, false)
+    );
+    const preVisionEnabled = normalizeBoolean(
+        options.orchestrationPreVisionToolsEnabled,
+        normalizeBoolean(orchestrationConfig.preVisionToolsEnabled, enabled)
+    );
+    const postAnalysisEnabled = normalizeBoolean(
+        options.orchestrationPostAnalysisToolsEnabled,
+        normalizeBoolean(orchestrationConfig.postAnalysisToolsEnabled, enabled)
+    );
+    const preVisionNormalizationEnabled = normalizeBoolean(
+        options.orchestrationPreVisionNormalizationEnabled,
+        normalizeBoolean(orchestrationConfig.preVisionNormalizationEnabled, preVisionEnabled)
+    );
+    const failOnError = normalizeBoolean(
+        options.orchestrationFailOnToolError,
+        normalizeBoolean(orchestrationConfig.failOnToolError, false)
+    );
+    const allowlist = Array.isArray(orchestrationConfig.toolAllowlist)
+        ? orchestrationConfig.toolAllowlist
+        : null;
+    return {
+        enabled,
+        preVisionEnabled,
+        postAnalysisEnabled,
+        preVisionNormalizationEnabled,
+        failOnError,
+        allowlist
+    };
+}
+
+function resolveToolAllowlist(toolingConfig, phase) {
+    const baseAllowlist = phase === ORCHESTRATOR_TOOL_PHASES.PRE_VISION
+        ? DEFAULT_PRE_VISION_TOOL_ALLOWLIST
+        : DEFAULT_POST_ANALYSIS_TOOL_ALLOWLIST;
+    if (!Array.isArray(toolingConfig.allowlist) || toolingConfig.allowlist.length === 0) {
+        return new Set(baseAllowlist);
+    }
+    const configured = new Set(
+        toolingConfig.allowlist.map(name => String(name).trim()).filter(Boolean)
+    );
+    return new Set([...baseAllowlist].filter(name => configured.has(name)));
+}
+
+function getAllowedToolDefinitions(toolingConfig) {
+    const preVisionAllowlist = resolveToolAllowlist(
+        toolingConfig,
+        ORCHESTRATOR_TOOL_PHASES.PRE_VISION
+    );
+    const postAnalysisAllowlist = resolveToolAllowlist(
+        toolingConfig,
+        ORCHESTRATOR_TOOL_PHASES.POST_ANALYSIS
+    );
+    const combined = new Set([...preVisionAllowlist, ...postAnalysisAllowlist]);
+    return paperlessApiTools.listPaperlessTools().filter(tool => combined.has(tool.name));
+}
+
+function normalizeToolCalls(rawCalls) {
+    if (!Array.isArray(rawCalls)) return [];
+    return rawCalls.map(call => {
+        if (!call || typeof call !== 'object') return null;
+        const tool = String(call.tool || call.name || call.tool_name || '').trim();
+        if (!tool) return null;
+        const input = call.input && typeof call.input === 'object'
+            ? call.input
+            : call.arguments && typeof call.arguments === 'object'
+                ? call.arguments
+                : {};
+        const reason = call.reason || call.purpose || call.description || null;
+        return { tool, input, reason };
+    }).filter(Boolean);
+}
+
+function extractToolPlan(orchestrationPlan) {
+    if (!orchestrationPlan || typeof orchestrationPlan !== 'object') {
+        return { plan: { pre_vision: [], post_analysis: [] } };
+    }
+    const rawPlan = orchestrationPlan.tool_plan || orchestrationPlan.toolPlan || {};
+    const preVision = normalizeToolCalls(
+        rawPlan.pre_vision || rawPlan.preVision || orchestrationPlan.pre_vision || orchestrationPlan.preVision
+    );
+    const postAnalysis = normalizeToolCalls(
+        rawPlan.post_analysis || rawPlan.postAnalysis || orchestrationPlan.post_analysis || orchestrationPlan.postAnalysis
+    );
+    return { plan: { pre_vision: preVision, post_analysis: postAnalysis } };
+}
+
+function applyDocumentIdDefaults(toolName, input, document) {
+    const documentIdKey = TOOL_DOCUMENT_ID_KEYS.get(toolName);
+    const preparedInput = input && typeof input === 'object' ? { ...input } : {};
+    if (!documentIdKey) {
+        return { input: preparedInput, missingDocumentId: false };
+    }
+    if (preparedInput[documentIdKey] !== undefined && preparedInput[documentIdKey] !== null) {
+        return { input: preparedInput, missingDocumentId: false };
+    }
+    const docId = document?.id;
+    if (!docId) {
+        return { input: preparedInput, missingDocumentId: true };
+    }
+    preparedInput[documentIdKey] = docId;
+    return { input: preparedInput, missingDocumentId: false };
+}
+
+function buildNormalizationMetadata(summary) {
+    if (!summary || summary.phase !== ORCHESTRATOR_TOOL_PHASES.PRE_VISION) {
+        return null;
+    }
+    const actions = summary.results.map(result => ({
+        tool: result.tool,
+        ok: result.ok,
+        input: result.input,
+        data: result.data || null
+    }));
+    return {
+        requested: summary.requested,
+        executed: summary.executed,
+        succeeded: summary.results.filter(result => result.ok).length,
+        actions,
+        skipped: summary.skipped,
+        details: summary.normalizationMetadata || null,
+        normalization_is_final: summary.normalizationIsFinal
+    };
+}
+
+function attachToolingSummary(orchestrationPlan, summary) {
+    if (!orchestrationPlan || typeof orchestrationPlan !== 'object' || !summary) {
+        return orchestrationPlan;
+    }
+    const tooling = orchestrationPlan.tooling && typeof orchestrationPlan.tooling === 'object'
+        ? { ...orchestrationPlan.tooling }
+        : {};
+    tooling.enabled = summary.enabled;
+    tooling.allowlist = summary.allowlist;
+    tooling[summary.phase] = summary;
+    if (summary.requires_human_review) {
+        tooling.requires_human_review = true;
+    }
+    tooling.updated_at = new Date().toISOString();
+    return {
+        ...orchestrationPlan,
+        tooling
+    };
+}
+
+async function executeToolCalls({
+    phase,
+    calls,
+    document,
+    toolingConfig
+}) {
+    const allowlist = resolveToolAllowlist(toolingConfig, phase);
+    const reviewSkipReasons = new Set([
+        'tool_not_allowed',
+        'invalid_tool_call',
+        'missing_document_id',
+        'unknown_tool'
+    ]);
+    const enabled = toolingConfig.enabled
+        && (phase === ORCHESTRATOR_TOOL_PHASES.PRE_VISION
+            ? toolingConfig.preVisionEnabled
+            : toolingConfig.postAnalysisEnabled);
+    const summary = {
+        phase,
+        enabled,
+        requested: Array.isArray(calls) ? calls.length : 0,
+        executed: 0,
+        results: [],
+        skipped: [],
+        allowlist: Array.from(allowlist),
+        failed: false,
+        failPipeline: false,
+        requires_human_review: false,
+        normalizedImages: null,
+        normalizedImageData: null,
+        normalizationMetadata: null,
+        normalizationToolIndex: null,
+        normalizationIsFinal: false
+    };
+    const reviewSkips = [];
+    const hasNormalizationCall = Array.isArray(calls)
+        && calls.some(call => call?.tool === NORMALIZATION_TOOL_NAME);
+    const normalizationAllowed = phase === ORCHESTRATOR_TOOL_PHASES.PRE_VISION
+        && toolingConfig.preVisionNormalizationEnabled !== false
+        && allowlist.has(NORMALIZATION_TOOL_NAME);
+
+    if (!enabled) {
+        if (summary.requested > 0) {
+            summary.skipped.push({
+                reason: 'tooling_disabled',
+                count: summary.requested
+            });
+        }
+        return summary;
+    }
+
+    for (const call of calls || []) {
+        if (!call || !call.tool) {
+            const skip = { reason: 'invalid_tool_call', tool: call?.tool || null };
+            summary.skipped.push(skip);
+            reviewSkips.push(skip);
+            continue;
+        }
+        if (!allowlist.has(call.tool)) {
+            const skip = { reason: 'tool_not_allowed', tool: call.tool };
+            summary.skipped.push(skip);
+            reviewSkips.push(skip);
+            continue;
+        }
+        if (call.tool === NORMALIZATION_TOOL_NAME &&
+            toolingConfig.preVisionNormalizationEnabled === false) {
+            const skip = {
+                reason: 'normalization_disabled',
+                tool: call.tool
+            };
+            summary.skipped.push(skip);
+            reviewSkips.push(skip);
+            continue;
+        }
+        if (!paperlessApiTools.getPaperlessToolDefinition(call.tool)) {
+            const skip = { reason: 'unknown_tool', tool: call.tool };
+            summary.skipped.push(skip);
+            reviewSkips.push(skip);
+            continue;
+        }
+
+        const { input: preparedInput, missingDocumentId } = applyDocumentIdDefaults(
+            call.tool,
+            call.input,
+            document
+        );
+        if (missingDocumentId) {
+            const skip = { reason: 'missing_document_id', tool: call.tool };
+            summary.skipped.push(skip);
+            reviewSkips.push(skip);
+            continue;
+        }
+
+        const startTime = Date.now();
+        const outcome = await paperlessApiTools.executePaperlessTool(
+            call.tool,
+            preparedInput
+        );
+        const durationMs = Date.now() - startTime;
+        const resultIndex = summary.results.length;
+        const result = {
+            tool: call.tool,
+            input: preparedInput,
+            ok: outcome.ok,
+            data: outcome.data || null,
+            error: outcome.error || null,
+            duration_ms: durationMs,
+            reason: call.reason || null,
+            index: resultIndex
+        };
+        if (call.tool === NORMALIZATION_TOOL_NAME && outcome.ok && outcome.data) {
+            const { base64Images, image_data, metadata } = outcome.data;
+            if (Array.isArray(base64Images) && base64Images.length > 0) {
+                summary.normalizedImages = base64Images;
+                summary.normalizedImageData = image_data || base64Images[0];
+                summary.normalizationMetadata = metadata || null;
+                summary.normalizationToolIndex = resultIndex;
+                result.data = metadata || null;
+            }
+        }
+        summary.results.push(result);
+        summary.executed += 1;
+
+        if (outcome.ok) {
+            logger.info({
+                event: 'orchestrator_tool_executed',
+                phase,
+                tool: call.tool,
+                documentId: document?.id,
+                durationMs
+            });
+        } else {
+            logger.warn({
+                event: 'orchestrator_tool_failed',
+                phase,
+                tool: call.tool,
+                documentId: document?.id,
+                durationMs,
+                error: outcome.error
+            });
+        }
+    }
+
+    summary.failed = summary.results.some(result => !result.ok);
+    summary.failPipeline = summary.failed && toolingConfig.failOnError;
+    summary.requires_human_review = summary.failed || reviewSkips.length > 0;
+    if (summary.normalizationToolIndex !== null) {
+        summary.normalizationIsFinal = summary.normalizationToolIndex === summary.results.length - 1;
+    }
+    if (reviewSkips.length > 0) {
+        logger.warn({
+            event: 'orchestrator_tool_skips_review',
+            phase,
+            documentId: document?.id || document?.filename,
+            skipped: reviewSkips
+        });
+    }
+    if (summary.phase === ORCHESTRATOR_TOOL_PHASES.PRE_VISION) {
+        summary.normalization = buildNormalizationMetadata(summary);
+    }
+    return summary;
+}
+
+const GUIDANCE_TAG_SCHEMA_VERSION = String(
+    process.env.GUIDANCE_TAG_SCHEMA_VERSION ||
+    config.guidanceService?.tagSchemaVersion ||
+    'v1'
+).toLowerCase();
+const USE_GUIDANCE_TAG_SCHEMA_V2 = ['v2', '2', 'true', 'yes'].includes(
+    GUIDANCE_TAG_SCHEMA_VERSION
+);
+const GUIDANCE_V2_TEMPLATE_MAP = {
+    medical_integrator: 'medical_integrator_v2',
+    financial_extractor: 'financial_extractor_v2',
+    financial_reasoner: 'financial_reasoner_v2',
+    legal_extractor: 'legal_extractor_v2',
+    general_extractor: 'general_extractor_v2'
+};
+
+function resolveGuidanceTemplateName(templateName) {
+    if (!templateName || !USE_GUIDANCE_TAG_SCHEMA_V2) {
+        return templateName;
+    }
+    return GUIDANCE_V2_TEMPLATE_MAP[templateName] || templateName;
+}
+
+async function buildVisOcrMetadata(text, languageHint, translator, options = {}) {
+    const rawText = typeof text === 'string' ? text : '';
+    const sourceLang = normalizeLanguageHint(languageHint) || 'de';
+    const includeTranslations = options.includeTranslations !== false;
+    if (!rawText) {
+        return {
+            sourceLang,
+            vis_ocr_text: '',
+            vis_ocr_text_de: '',
+            vis_ocr_text_en: ''
+        };
+    }
+
+    let visOcrDe = rawText;
+    let visOcrEn = rawText;
+    if (includeTranslations && translator) {
+        if (sourceLang === 'de') {
+            visOcrEn = await translator.translate(rawText, 'de', 'en', options.translationOptions);
+        } else if (sourceLang === 'en') {
+            visOcrDe = await translator.translate(rawText, 'en', 'de', options.translationOptions);
+        } else {
+            visOcrDe = await translator.translate(rawText, sourceLang, 'de', options.translationOptions);
+            visOcrEn = await translator.translate(rawText, sourceLang, 'en', options.translationOptions);
+        }
+    }
+
+    return {
+        sourceLang,
+        vis_ocr_text: rawText,
+        vis_ocr_text_de: visOcrDe,
+        vis_ocr_text_en: visOcrEn
+    };
+}
+
+async function ensureOcrCustomFields() {
+    paperlessService.initialize();
+    if (!paperlessService.client) return false;
+    const fields = [
+        OCR_CUSTOM_FIELD_BASE,
+        `${OCR_CUSTOM_FIELD_BASE}_de`,
+        `${OCR_CUSTOM_FIELD_BASE}_en`
+    ];
+    for (const field of fields) {
+        await paperlessService.createCustomFieldSafely(field, 'text');
+    }
+    return true;
+}
+
+// ============================================================================
+// PIPELINE EXECUTOR
+// ============================================================================
 
 /**
  * ExpertPipelineExecutor - Main execution engine
@@ -102,9 +567,7 @@ class ExpertPipelineExecutor {
      * @private
      */
     _initVisualRag() {
-        if (this._visualRagInitialized) {
-            return;
-        }
+        if (this._visualRagInitialized) return;
         this._visualRagInitialized = true;
 
         const modules = getVisualRagModules();
@@ -126,7 +589,7 @@ class ExpertPipelineExecutor {
      */
     async execute(pipelineId, document, classificationResult, options = {}) {
         const startTime = Date.now();
-        this.stats.totalExecutions += 1;
+        this.stats.totalExecutions++;
 
         try {
             logger.info({
@@ -140,18 +603,18 @@ class ExpertPipelineExecutor {
             let pipeline;
             try {
                 pipeline = expertRegistry.get(pipelineId);
-            } catch (pipelineError) {
+            } catch (error) {
                 // Try to find a pipeline by stage id (backwards compatibility)
                 try {
                     pipeline = expertRegistry.findPipelineByStageId(pipelineId);
                     logger.info(`Resolved stage id ${pipelineId} to pipeline ${pipeline.id}`);
-                } catch (resolutionError) {
+                } catch (err) {
                     logger.error({
                         event: 'pipeline_not_found',
                         pipelineId,
-                        error: resolutionError.message
+                        error: err.message
                     });
-                    return this._buildErrorResult(pipelineId, pipelineError, startTime);
+                    return this._buildErrorResult(pipelineId, error, startTime);
                 }
             }
 
@@ -177,12 +640,8 @@ class ExpertPipelineExecutor {
                     if (stage.unloadAfter) {
                         try {
                             await this._unloadModel(stage.unloadModelName || stage.model);
-                        } catch (unloadError) {
-                            logger.warn({
-                                event: 'model_unload_error',
-                                stageId: stage.id,
-                                error: unloadError.message
-                            });
+                        } catch (err) {
+                            logger.warn({ event: 'model_unload_error', stageId: stage.id, error: err.message });
                         }
                     }
 
@@ -191,44 +650,32 @@ class ExpertPipelineExecutor {
                         finalStatus = 'partial';
                     }
                 }
-            } catch (stageExecutionError) {
+            } catch (error) {
                 logger.error({
                     event: 'pipeline_execution_error',
                     pipelineId,
-                    error: stageExecutionError.message
+                    error: error.message
                 });
                 finalStatus = 'failed';
-                context.addError('pipeline', stageExecutionError);
+                context.addError('pipeline', error);
             }
 
-            // Execute post-analysis tools if orchestration is available
             if (context.options?.orchestration && !context.options.orchestration.extraction_failed) {
                 const { plan: toolPlan } = extractToolPlan(context.options.orchestration);
                 context.options.orchestration.tool_plan = toolPlan;
-
                 const postAnalysisSummary = await executeToolCalls({
                     phase: ORCHESTRATOR_TOOL_PHASES.POST_ANALYSIS,
                     calls: toolPlan.post_analysis,
                     document: context.document,
                     toolingConfig: resolveToolingConfig(context.options)
                 });
-
                 context.options.orchestration = attachToolingSummary(
                     context.options.orchestration,
                     postAnalysisSummary
                 );
-
                 if (postAnalysisSummary.requires_human_review) {
-                    context.addWarning('orchestrator_tools', 'Post-analysis tool requires human review');
-                    logger.info({
-                        event: 'post_analysis_human_review_required',
-                        pipelineId,
-                        reviewSkips: postAnalysisSummary.skipped.filter(
-                            skip => requiresHumanReview(skip.reason)
-                        ).length
-                    });
+                    context.addWarning('orchestrator_tools', 'Post-analysis tool failure');
                 }
-
                 if (postAnalysisSummary.failPipeline) {
                     finalStatus = 'failed';
                     context.addError('orchestrator_tools', new Error('Post-analysis tool execution failed'));
@@ -259,16 +706,15 @@ class ExpertPipelineExecutor {
             });
 
             return result;
-        } catch (unexpectedError) {
+        } catch (err) {
             logger.error({
                 event: 'pipeline_execution_unexpected_error',
                 pipelineId,
-                error: unexpectedError.message,
-                stack: unexpectedError.stack
+                error: err.message
             });
 
-            // Ensure a consistent error object is returned
-            return this._buildErrorResult(pipelineId, unexpectedError, startTime);
+            // Ensure a consistent error object is returned (tests expect this shape)
+            return this._buildErrorResult(pipelineId, err, startTime);
         }
     }
 
@@ -301,7 +747,7 @@ class ExpertPipelineExecutor {
                 logger.debug(`Skipping fallback stage ${stage.id}: trigger condition not met`);
                 return { status: 'skipped', abort: false };
             }
-            context.recoveryAttempts += 1;
+            context.recoveryAttempts++;
         }
 
         // Handle validation stages (no LLM call)
@@ -316,7 +762,7 @@ class ExpertPipelineExecutor {
         let lastError = null;
         const maxRetries = stage.retryCount || 1;
 
-        for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 const output = await this._executeLLMStage(stage, stageInput, context);
 
@@ -332,14 +778,15 @@ class ExpertPipelineExecutor {
                 });
 
                 return { status: 'success', output, abort: false };
-            } catch (stageError) {
-                lastError = stageError;
+
+            } catch (error) {
+                lastError = error;
                 logger.warn({
                     event: 'stage_execution_retry',
                     stageId: stage.id,
                     attempt,
                     maxRetries,
-                    error: stageError.message
+                    error: error.message
                 });
 
                 if (attempt < maxRetries) {
@@ -374,7 +821,7 @@ class ExpertPipelineExecutor {
         const variables = this._flattenInput(input);
 
         // Text context for RAG injection
-        const textForContext = (input && (input.text || input.question || input.body)) ||
+        const textForContext = input && (input.text || input.question || input.body) ||
                                variables.text ||
                                context.document?.text ||
                                context.document?.ocr_text ||
@@ -384,15 +831,9 @@ class ExpertPipelineExecutor {
         if (stage.injectLegalContext) {
             try {
                 const legalCtx = await internalLegalRag.retrieve(textForContext);
-                if (legalCtx) {
-                    variables.legal_context = legalCtx;
-                }
-            } catch (legalError) {
-                logger.warn({
-                    event: 'legal_context_injection_failed',
-                    stageId: stage.id,
-                    error: legalError.message
-                });
+                if (legalCtx) variables.legal_context = legalCtx;
+            } catch (err) {
+                logger.warn({ event: 'legal_context_injection_failed', stageId: stage.id, error: err.message });
             }
         }
 
@@ -400,15 +841,9 @@ class ExpertPipelineExecutor {
         if (stage.injectVatContext) {
             try {
                 const vatCtx = await internalVatRag.retrieve(textForContext);
-                if (vatCtx) {
-                    variables.vat_context = vatCtx;
-                }
-            } catch (vatError) {
-                logger.warn({
-                    event: 'vat_context_injection_failed',
-                    stageId: stage.id,
-                    error: vatError.message
-                });
+                if (vatCtx) variables.vat_context = vatCtx;
+            } catch (err) {
+                logger.warn({ event: 'vat_context_injection_failed', stageId: stage.id, error: err.message });
             }
         }
 
@@ -426,30 +861,20 @@ class ExpertPipelineExecutor {
             context?.options?.existingTagsList ||
             context?.document?.tags ||
             [];
-
         let existingTags = Array.isArray(existingTagsRaw)
             ? existingTagsRaw
                 .map(tag => {
-                    if (!tag) {
-                        return null;
-                    }
-                    if (typeof tag === 'string') {
-                        return tag.trim();
-                    }
-                    if (typeof tag === 'object' && tag.name) {
-                        return String(tag.name).trim();
-                    }
+                    if (!tag) return null;
+                    if (typeof tag === 'string') return tag.trim();
+                    if (typeof tag === 'object' && tag.name) return String(tag.name).trim();
                     return null;
                 })
                 .filter(Boolean)
             : [];
-
         const existingTagIds = Array.isArray(existingTagsRaw)
             ? existingTagsRaw
                 .map(tag => {
-                    if (typeof tag === 'number' && Number.isFinite(tag)) {
-                        return tag;
-                    }
+                    if (typeof tag === 'number' && Number.isFinite(tag)) return tag;
                     if (tag && typeof tag === 'object' && typeof tag.id === 'number' && Number.isFinite(tag.id)) {
                         return tag.id;
                     }
@@ -457,7 +882,6 @@ class ExpertPipelineExecutor {
                 })
                 .filter(id => typeof id === 'number')
             : [];
-
         if (existingTags.length === 0 && existingTagIds.length > 0) {
             if (Array.isArray(context._resolvedExistingTagNames)) {
                 existingTags = context._resolvedExistingTagNames;
@@ -470,11 +894,11 @@ class ExpertPipelineExecutor {
                         existingTags = resolved.filter(Boolean);
                         context._resolvedExistingTagNames = existingTags;
                     }
-                } catch (tagError) {
+                } catch (error) {
                     logger.warn({
                         event: 'existing_tag_resolution_failed',
                         stageId: stage.id,
-                        error: tagError.message
+                        error: error.message
                     });
                 }
             }
@@ -504,7 +928,8 @@ class ExpertPipelineExecutor {
                 event: 'stage_using_guidance',
                 stageId: stage.id,
                 template: resolvedTemplate,
-                baseTemplate: stage.guidanceTemplate
+                baseTemplate: stage.guidanceTemplate,
+                tagSchemaVersion: GUIDANCE_TAG_SCHEMA_VERSION
             });
 
             try {
@@ -569,12 +994,11 @@ class ExpertPipelineExecutor {
             logger.warn({
                 event: 'stage_model_mismatch',
                 stageId: stage.id,
-                promptId,
+                promptId: promptId,
                 stageModel: stage.model,
                 promptModel: prompt.model
             });
         }
-
         logger.info({
             event: 'prompt_template_selected',
             stage: stage.id,
@@ -698,19 +1122,16 @@ class ExpertPipelineExecutor {
         if (!text || typeof text !== 'string') {
             return '';
         }
-
         const summaryConfig = options || {};
         const maxInputTokens = parseInt(summaryConfig.maxInputTokens || 4000, 10);
         const maxSummaryTokens = parseInt(summaryConfig.maxSummaryTokens || 512, 10);
         const temperature = summaryConfig.temperature ?? 0.1;
         const timeout = summaryConfig.timeout || 60000;
         const model = summaryConfig.model || config.ollama?.model || MODEL_NAMES.general;
-
         const trimmedText = truncateToTokenLimit(text, maxInputTokens);
         if (trimmedText.length < text.length) {
             truncationMetrics.recordPromptTruncation('expert', model);
         }
-
         const messages = [
             {
                 role: 'system',
@@ -730,9 +1151,9 @@ class ExpertPipelineExecutor {
                 timeout
             );
             return this._extractTextResponse(response).trim();
-        } catch (summaryError) {
+        } catch (error) {
             logger.warn('[ExpertPipelineExecutor] Summary fallback failed', {
-                error: summaryError.message
+                error: error.message
             });
             return '';
         }
@@ -763,7 +1184,6 @@ class ExpertPipelineExecutor {
     async _callOllama(model, messages, options) {
         const resolvedOptions = this._applyOllamaLimits(model, messages, options);
         truncationMetrics.recordRequest('expert', model);
-
         // If ollamaService is provided, use it
         if (this.ollamaService && typeof this.ollamaService.chat === 'function') {
             const response = await this.ollamaService.chat({
@@ -772,7 +1192,6 @@ class ExpertPipelineExecutor {
                 options: resolvedOptions,
                 stream: false
             });
-
             const doneReason = response?.done_reason;
             const evalCount = response?.eval_count;
             if (doneReason === 'length'
@@ -809,11 +1228,9 @@ class ExpertPipelineExecutor {
         const resolved = this.ollamaService?._resolveOllamaLimits
             ? this.ollamaService._resolveOllamaLimits('expert', model)
             : { contextWindow: null, maxResponseTokens: null };
-
         const contextWindow = Number.isFinite(resolved.contextWindow)
             ? resolved.contextWindow
             : config.ollama?.limits?.text?.contextWindow;
-
         if (resolved.source === 'model_limits') {
             logger.info({
                 event: 'model_limits_applied',
@@ -824,32 +1241,24 @@ class ExpertPipelineExecutor {
                 modelKey: resolved.modelKey
             });
         }
-
         let responseTokens = Number.isFinite(resolved.maxResponseTokens)
             ? resolved.maxResponseTokens
             : options.num_predict;
-
         if (!Number.isFinite(responseTokens)) {
             responseTokens = config.ollama?.limits?.text?.maxResponseTokens || 0;
         }
-
         const messageTokens = Array.isArray(messages)
             ? messages.reduce((sum, msg) => sum + calculateTokens(msg?.content || ''), 0)
             : 0;
-
         const imageCount = Array.isArray(messages)
             ? messages.reduce((sum, msg) => sum + (Array.isArray(msg?.images) ? msg.images.length : 0), 0)
             : 0;
-
         const imageTokenOverhead = config.ollama?.limits?.imageTokenOverhead || 1024;
         const totalInputTokens = messageTokens + (imageCount * imageTokenOverhead);
-
         const effectiveContextWindow = this.ollamaService?._getEffectiveContextWindow
             ? this.ollamaService._getEffectiveContextWindow(contextWindow)
             : contextWindow;
-
         const maxInputTokens = Math.max(0, (effectiveContextWindow || 0) - responseTokens);
-
         if (Number.isFinite(effectiveContextWindow) && totalInputTokens > maxInputTokens) {
             const availableResponseTokens = Math.max(0, effectiveContextWindow - totalInputTokens);
             if (availableResponseTokens < responseTokens) {
@@ -871,11 +1280,9 @@ class ExpertPipelineExecutor {
                 responseTokens = availableResponseTokens;
             }
         }
-
         const numCtx = this.ollamaService?._calculateNumCtx
             ? this.ollamaService._calculateNumCtx(totalInputTokens, responseTokens, contextWindow)
             : effectiveContextWindow;
-
         return {
             ...options,
             num_predict: responseTokens,
@@ -920,14 +1327,7 @@ class ExpertPipelineExecutor {
                             rawLength: content.length
                         }
                     };
-                } catch (jsonParseError) {
-                    logger.debug({
-                        event: 'response_json_parse_failed',
-                        stageId: stage.id,
-                        error: jsonParseError.message
-                    });
-                    // fallthrough to no_json_extracted result
-                }
+                } catch (err) { void err; /* fallthrough */ }
             }
 
             logger.warn({
@@ -946,17 +1346,17 @@ class ExpertPipelineExecutor {
                 raw_content: content,
                 extraction_failed: true
             };
-        } catch (parseError) {
+        } catch (error) {
             logger.warn({
                 event: 'response_parse_warning',
                 stageId: stage.id,
-                error: parseError.message
+                error: error.message
             });
 
             return {
                 _meta: {
                     parsed: false,
-                    parseError: parseError.message,
+                    parseError: error.message,
                     stageId: stage.id,
                     model: stage.model
                 },
@@ -991,7 +1391,7 @@ class ExpertPipelineExecutor {
             pipeline_id: pipeline.id,
             pipeline_name: pipeline.name,
             pipeline_version: pipeline.version,
-            status,
+            status: status,
 
             result: {
                 outputs: context.getAllOutputs(),
@@ -1033,7 +1433,7 @@ class ExpertPipelineExecutor {
      * Build error result when pipeline fails to start
      */
     _buildErrorResult(pipelineId, error, startTime) {
-        this.stats.failedExecutions += 1;
+        this.stats.failedExecutions++;
 
         return {
             success: false,
@@ -1078,11 +1478,11 @@ class ExpertPipelineExecutor {
             }
 
             return await this._visualOverlayRepository.getByDocId(docId);
-        } catch (overlayError) {
+        } catch (error) {
             logger.warn({
                 event: 'visual_overlay_fetch_failed',
                 docId,
-                error: overlayError.message
+                error: error.message
             });
             return [];
         }
@@ -1121,13 +1521,13 @@ class ExpertPipelineExecutor {
             });
 
             return result;
-        } catch (ingestionError) {
+        } catch (error) {
             logger.error({
                 event: 'visual_rag_ingestion_failed',
                 docId,
-                error: ingestionError.message
+                error: error.message
             });
-            return { success: false, error: ingestionError.message };
+            return { success: false, error: error.message };
         }
     }
 
@@ -1146,13 +1546,13 @@ class ExpertPipelineExecutor {
 
         try {
             return await this._ingestionManager.visualSearch(query, options);
-        } catch (searchError) {
+        } catch (error) {
             logger.warn({
                 event: 'visual_search_failed',
                 query,
-                error: searchError.message
+                error: error.message
             });
-            return { query, results: [], totalResults: 0, error: searchError.message };
+            return { query, results: [], totalResults: 0, error: error.message };
         }
     }
 
@@ -1198,11 +1598,11 @@ class ExpertPipelineExecutor {
                     overlayCount: overlays.length
                 });
             }
-        } catch (enrichmentError) {
+        } catch (error) {
             logger.warn({
                 event: 'visual_overlay_enrichment_failed',
                 docId,
-                error: enrichmentError.message
+                error: error.message
             });
         }
 
@@ -1214,9 +1614,9 @@ class ExpertPipelineExecutor {
      */
     _updateStats(result) {
         if (result.status === 'success') {
-            this.stats.successfulExecutions += 1;
+            this.stats.successfulExecutions++;
         } else {
-            this.stats.failedExecutions += 1;
+            this.stats.failedExecutions++;
         }
 
         // Update running average
@@ -1238,10 +1638,7 @@ class ExpertPipelineExecutor {
      * Attempts to use provided ollamaService.chat or generate.
      */
     async _unloadModel(modelName) {
-        if (!modelName || !this.ollamaService) {
-            return;
-        }
-
+        if (!modelName || !this.ollamaService) return;
         try {
             if (typeof this.ollamaService.chat === 'function') {
                 await this.ollamaService.chat({
@@ -1257,12 +1654,8 @@ class ExpertPipelineExecutor {
                 });
             }
             logger.debug({ event: 'model_unloaded', model: modelName });
-        } catch (unloadError) {
-            logger.warn({
-                event: 'model_unload_failed',
-                model: modelName,
-                error: unloadError.message
-            });
+        } catch (err) {
+            logger.warn({ event: 'model_unload_failed', model: modelName, error: err.message });
         }
     }
 
@@ -1302,7 +1695,7 @@ class ExpertPipelineExecutor {
             image_source: resolvedImages.source
         });
 
-        for (let i = 0; i < Math.min(base64Images.length, maxPages); i += 1) {
+        for (let i = 0; i < Math.min(base64Images.length, maxPages); i++) {
             try {
                 const pageText = await this._extractTextFromPage(
                     base64Images[i],
@@ -1311,13 +1704,13 @@ class ExpertPipelineExecutor {
                     timeout
                 );
                 pageTexts.push(`--- Page ${i + 1} ---\n${pageText}`);
-            } catch (pageError) {
+            } catch (error) {
                 // Log warning but continue with other pages
                 logger.warn({
                     event: 'page_ocr_failed',
                     page: i + 1,
                     documentId: document.id || document.filename,
-                    error: pageError.message
+                    error: error.message
                 });
                 pageTexts.push(`--- Page ${i + 1} (fallback) ---\n[OCR failed for this page]`);
             }
@@ -1327,25 +1720,11 @@ class ExpertPipelineExecutor {
         const rawPages = pageTexts.slice();
 
         // Merge with Paperless OCR using semantic quality scoring
-        const mergedResult = await mergeOcrResults(
+        const mergedResult = await this._mergeOcrResults(
             visualText,
             document.ocr_text || '',
-            {
-                ...options,
-                logMetrics: true
-            }
+            options
         );
-
-        // Log OCR quality metrics
-        logger.info({
-            event: 'visual_ocr_quality_assessment',
-            documentId: document.id || document.filename,
-            qualityScore: mergedResult.quality_score,
-            qualityBreakdown: mergedResult.quality_breakdown,
-            selectedSource: mergedResult.source,
-            reason: mergedResult.metadata.reason
-        });
-
         mergedResult.metadata = {
             ...(mergedResult.metadata || {}),
             raw_visual_text: visualText,
@@ -1392,6 +1771,97 @@ class ExpertPipelineExecutor {
             : (response.message?.content || response.response || '');
 
         return content.trim();
+    }
+
+    /**
+     * Merge visual OCR results with Paperless OCR using semantic quality scoring.
+     * Uses intelligent fallback based on quality metrics, not just length.
+     *
+     * @param {string} visualOcrText - Text extracted by vision model
+     * @param {string} paperlessOcrText - Text from Paperless-ngx Tesseract
+     * @param {Object} options - Merge options
+     * @returns {Promise<Object>} Merged result with source attribution
+     */
+    async _mergeOcrResults(visualOcrText, paperlessOcrText, options = {}) {
+        const qualityScore = this._scoreOcrQuality(visualOcrText, paperlessOcrText);
+        const minQuality = config.visualOCR?.minQuality || 0.6;
+
+        if (qualityScore < minQuality) {
+            logger.warn({
+                event: 'visual_ocr_low_quality',
+                score: qualityScore,
+                threshold: minQuality,
+                fallback: 'paperless'
+            });
+
+            return {
+                text: paperlessOcrText,
+                source: 'paperless_fallback',
+                quality_score: qualityScore,
+                metadata: {
+                    reason: 'quality_below_threshold',
+                    visual_length: visualOcrText.length,
+                    paperless_length: paperlessOcrText.length
+                }
+            };
+        }
+
+        return {
+            text: visualOcrText,
+            source: 'visual_ocr',
+            quality_score: qualityScore,
+            metadata: {
+                visual_length: visualOcrText.length,
+                paperless_length: paperlessOcrText.length
+            }
+        };
+    }
+
+    /**
+     * Score OCR quality using semantic metrics.
+     * Evaluates length ratio, word count, structure, and character validity.
+     *
+     * @param {string} visualText - Text from visual OCR
+     * @param {string} paperlessText - Text from Paperless
+     * @returns {number} Quality score (0.0 - 1.0)
+     */
+    _scoreOcrQuality(visualText, paperlessText) {
+        if (!visualText || visualText.length === 0) {
+            return 0;
+        }
+
+        const metrics = {
+            // Length ratio - visual should capture reasonable portion
+            lengthRatio: visualText.length / Math.max(paperlessText.length, 1),
+            // Word count - should have meaningful content
+            wordCount: (visualText.match(/\s+/g) || []).length + 1,
+            // Has structure - line breaks indicate preserved layout
+            hasStructure: /\n.*\n/.test(visualText),
+            // No garbage - check for non-printable characters (excluding common ones)
+            noGarbage: !/[^\x20-\x7E\n\r\t\xC0-\xFF]/.test(visualText.substring(0, 500)),
+            // Has alphanumeric content
+            hasAlphanumeric: /[a-zA-Z0-9]/.test(visualText)
+        };
+
+        // Weighted quality score
+        let score = 0;
+
+        // Length ratio contribution (0.3)
+        if (metrics.lengthRatio > 0.3) score += 0.15;
+        if (metrics.lengthRatio > 0.5) score += 0.15;
+
+        // Word count contribution (0.3)
+        if (metrics.wordCount > 20) score += 0.15;
+        if (metrics.wordCount > 50) score += 0.15;
+
+        // Structure contribution (0.2)
+        if (metrics.hasStructure) score += 0.2;
+
+        // Character quality contribution (0.2)
+        if (metrics.noGarbage) score += 0.1;
+        if (metrics.hasAlphanumeric) score += 0.1;
+
+        return Math.min(score, 1.0);
     }
 
     /**
@@ -1448,16 +1918,16 @@ class ExpertPipelineExecutor {
             return {
                 domain: domain.toLowerCase(),
                 document_type: documentType,
-                confidence,
+                confidence: confidence,
                 selected_pipeline: pipeline.id,
                 routing: routingMetadata,
                 raw_classification: classificationResult
             };
-        } catch (classificationError) {
+        } catch (error) {
             logger.warn({
                 event: 'classify_document_failed',
                 documentId: document.id || document.filename,
-                error: classificationError.message
+                error: error.message
             });
 
             // Return fallback classification
@@ -1467,7 +1937,7 @@ class ExpertPipelineExecutor {
                 confidence: 0,
                 selected_pipeline: 'PIPELINE_GENERAL_V1',
                 routing: null,
-                error: classificationError.message
+                error: error.message
             };
         }
     }
@@ -1576,10 +2046,11 @@ async function processDocument(document, ollamaService, options = {}) {
             confidence: classificationResult?.classification?.confidence,
             extractionFailed: classificationResult?.extraction_failed
         });
-    } catch (routerError) {
+
+    } catch (error) {
         logger.error({
             event: 'router_classification_failed',
-            error: routerError.message
+            error: error.message
         });
 
         // Fallback classification
@@ -1599,7 +2070,6 @@ async function processDocument(document, ollamaService, options = {}) {
     const hasImage = !!(document.image_data || document.base64Images?.length);
     const toolingConfig = resolveToolingConfig(options);
     let orchestrationPlan = null;
-
     if (MODEL_NAMES.orchestrator) {
         try {
             const pipelineCatalog = expertRegistry.list().map(p => ({
@@ -1617,7 +2087,7 @@ async function processDocument(document, ollamaService, options = {}) {
                 has_image: hasImage,
                 ocr_length: (document.ocr_text || document.content || '').length,
                 visual_rag_sidecar_enabled: config.visualRagSidecar?.enabled === 'yes',
-                guidance_enabled: config.guidanceService?.enabled === 'yes'
+                guidance_enabled: config.guidanceService?.enabled === 'yes'     
             };
 
             const toolDefinitions = getAllowedToolDefinitions(toolingConfig);
@@ -1644,10 +2114,10 @@ async function processDocument(document, ollamaService, options = {}) {
                 id: 'system_orchestrator',
                 model: MODEL_NAMES.orchestrator
             });
-        } catch (orchestrationError) {
+        } catch (error) {
             logger.warn({
                 event: 'orchestrator_call_failed',
-                error: orchestrationError.message
+                error: error.message
             });
         }
     }
@@ -1656,7 +2126,6 @@ async function processDocument(document, ollamaService, options = {}) {
         orchestrationPlan?.requires_visual_analysis,
         normalizeBoolean(classificationResult?.routing?.requires_visual_analysis, hasImage)
     );
-
     const useVisualOcr = normalizeBoolean(orchestrationPlan?.use_visual_ocr, requiresVisual);
     const useGuidance = normalizeBoolean(orchestrationPlan?.use_guidance, true);
     const useVisualRagIngestion = normalizeBoolean(
@@ -1683,12 +2152,10 @@ async function processDocument(document, ollamaService, options = {}) {
         ...(classificationResult.routing || {}),
         requires_visual_analysis: requiresVisual
     };
-
     const recommendedPipeline = orchestrationPlan?.selected_pipeline || orchestrationPlan?.selectedPipeline;
     if (recommendedPipeline) {
         classificationResult.routing.recommended_pipeline = recommendedPipeline;
     }
-
     classificationResult.orchestration = orchestrationPlan;
 
     if (orchestrationPlan && !orchestrationPlan.extraction_failed) {
@@ -1700,45 +2167,35 @@ async function processDocument(document, ollamaService, options = {}) {
             document,
             toolingConfig
         });
-
         const normalizationImages = preVisionSummary.normalizedImages;
         const normalizationImageData = preVisionSummary.normalizedImageData;
         const normalizationMetadata = preVisionSummary.normalizationMetadata;
         const normalizationIsFinal = preVisionSummary.normalizationIsFinal;
-
         const preVisionSummaryForAttachment = {
             ...preVisionSummary,
             normalizedImages: null,
             normalizedImageData: null
         };
-
         orchestrationPlan = attachToolingSummary(
             orchestrationPlan,
             preVisionSummaryForAttachment
         );
-
         if (preVisionSummaryForAttachment.normalization) {
             orchestrationPlan.normalization = preVisionSummaryForAttachment.normalization;
         }
-
         classificationResult.orchestration = orchestrationPlan;
-
         const hasNormalizationOutput = Array.isArray(normalizationImages)
             && normalizationImages.length > 0
             && normalizationIsFinal;
-
         if (Array.isArray(normalizationImages)
             && normalizationImages.length > 0
             && !normalizationIsFinal) {
             logger.warn({
                 event: 'orchestrator_normalization_out_of_order',
                 documentId: document.id || document.filename,
-                reason: 'normalization_not_last',
-                normalizationToolIndex: preVisionSummary.normalizationToolIndex,
-                totalResults: preVisionSummary.results.length
+                reason: 'normalization_not_last'
             });
         }
-
         if (hasNormalizationOutput) {
             document._original_image_data = document.image_data;
             document._original_base64Images = document.base64Images;
@@ -1748,15 +2205,7 @@ async function processDocument(document, ollamaService, options = {}) {
             document.image_data = document.normalized_image_data;
             document.base64Images = normalizationImages;
             document._normalization_metadata = normalizationMetadata || null;
-
-            logger.info({
-                event: 'orchestrator_normalization_applied',
-                documentId: document.id || document.filename,
-                originalImageCount: document._original_base64Images?.length || 0,
-                normalizedImageCount: normalizationImages.length
-            });
         }
-
         const shouldRefreshImages = preVisionSummary.executed > 0 && !hasNormalizationOutput;
         if (shouldRefreshImages) {
             if (typeof options.refreshImages === 'function') {
@@ -1775,22 +2224,20 @@ async function processDocument(document, ollamaService, options = {}) {
                         documentId: document.id || document.filename,
                         images: document.base64Images?.length || 0
                     });
-                } catch (refreshError) {
+                } catch (error) {
                     logger.warn({
                         event: 'orchestrator_prevision_refresh_failed',
                         documentId: document.id || document.filename,
-                        error: refreshError.message
+                        error: error.message
                     });
                 }
             } else {
                 logger.warn({
                     event: 'orchestrator_prevision_refresh_missing',
-                    documentId: document.id || document.filename,
-                    reason: 'refreshImages function not provided'
+                    documentId: document.id || document.filename
                 });
             }
         }
-
         if (preVisionSummary.failPipeline) {
             throw new Error('Orchestrator pre-vision tool execution failed');
         }
@@ -1811,18 +2258,18 @@ async function processDocument(document, ollamaService, options = {}) {
                 qualityScore: ocrResult.quality_score,
                 textLength: ocrResult.text?.length || 0
             });
-        } catch (ocrError) {
+        } catch (error) {
             logger.warn({
                 event: 'visual_ocr_failed',
                 documentId: document.id || document.filename,
-                error: ocrError.message
+                error: error.message
             });
             // Fallback to Paperless OCR
             document.enhanced_ocr_text = document.ocr_text;
             document._ocr_metadata = { source: 'paperless_error_fallback' };
         }
     } else {
-        // No images available or OCR disabled - use Paperless OCR directly
+        // No images available or OCR disabled - use Paperless OCR directly     
         document.enhanced_ocr_text = document.ocr_text;
         document._ocr_metadata = { source: 'paperless' };
     }
@@ -1835,19 +2282,14 @@ async function processDocument(document, ollamaService, options = {}) {
 
     const translationConfig = config.translation || {};
     const translator = new LocalTranslator({ ollamaService });
-
-    // Build OCR metadata with language normalization
-    const normalizedLanguage = normalizeLanguageHint(ocrLanguageHint);
-    const ocrMetadata = await buildVisOcrMetadata(ocrText, normalizedLanguage || ocrLanguageHint, translator, {
+    const ocrMetadata = await buildVisOcrMetadata(ocrText, ocrLanguageHint, translator, {
         includeTranslations: config.ocrCheckpoint?.includeTranslations !== 'no',
-        skipEmptyText: true,
         translationOptions: {
             maxTokens: translationConfig.maxTokens,
             temperature: translationConfig.temperature,
             contextWindow: translationConfig.contextWindow
         }
     });
-
     document._vis_ocr_metadata = ocrMetadata;
 
     if (document.id && config.ocrCheckpoint?.enabled === 'yes') {
@@ -1856,30 +2298,24 @@ async function processDocument(document, ollamaService, options = {}) {
             if (hasPaperless) {
                 const customFields = {};
                 if (ocrMetadata.vis_ocr_text) {
-                    customFields.vis_ocr_text = ocrMetadata.vis_ocr_text;
+                    customFields[OCR_CUSTOM_FIELD_BASE] = ocrMetadata.vis_ocr_text;
                 }
                 if (ocrMetadata.vis_ocr_text_de) {
-                    customFields.vis_ocr_text_de = ocrMetadata.vis_ocr_text_de;
+                    customFields[`${OCR_CUSTOM_FIELD_BASE}_de`] = ocrMetadata.vis_ocr_text_de;
                 }
                 if (ocrMetadata.vis_ocr_text_en) {
-                    customFields.vis_ocr_text_en = ocrMetadata.vis_ocr_text_en;
+                    customFields[`${OCR_CUSTOM_FIELD_BASE}_en`] = ocrMetadata.vis_ocr_text_en;
                 }
                 if (Object.keys(customFields).length > 0) {
                     await paperlessService.updateDocument(document.id, {
                         custom_fields: customFields
                     });
-
-                    logger.info({
-                        event: 'ocr_checkpoint_updated',
-                        documentId: document.id,
-                        fieldsUpdated: Object.keys(customFields).length
-                    });
                 }
             }
-        } catch (checkpointError) {
+        } catch (error) {
             logger.warn('[ExpertPipelineExecutor] OCR checkpoint update failed', {
                 docId: document.id,
-                error: checkpointError.message
+                error: error.message
             });
         }
     }
@@ -1889,44 +2325,21 @@ async function processDocument(document, ollamaService, options = {}) {
         const tokenCount = calculateTokens(ocrText);
         const maxInputTokens = parseInt(summaryConfig.maxInputTokens || 4000, 10);
         if (tokenCount > maxInputTokens) {
-            try {
-                const summary = await executor._summarizeTextForExtraction(ocrText, summaryConfig);
-                if (summary) {
-                    document.summary_text = summary;
-                    document.extraction_text = summary;
-                    document._summary_metadata = {
-                        source: 'summary_fallback',
-                        original_tokens: tokenCount,
-                        truncated_input_tokens: maxInputTokens
-                    };
-
-                    logger.info({
-                        event: 'text_summary_generated',
-                        documentId: document.id,
-                        originalTokens: tokenCount,
-                        summaryLength: summary.length
-                    });
-                }
-            } catch (summaryError) {
-                logger.warn({
-                    event: 'text_summary_generation_failed',
-                    documentId: document.id,
-                    error: summaryError.message
-                });
+            const summary = await executor._summarizeTextForExtraction(ocrText, summaryConfig);
+            if (summary) {
+                document.summary_text = summary;
+                document.extraction_text = summary;
+                document._summary_metadata = {
+                    source: 'summary_fallback',
+                    original_tokens: tokenCount,
+                    truncated_input_tokens: maxInputTokens
+                };
             }
         }
     }
 
     // Step 2: Route to appropriate pipeline
     const { pipeline, routingMetadata } = expertRegistry.route(classificationResult);
-
-    logger.info({
-        event: 'pipeline_routing_selected',
-        documentId: document.id || document.filename,
-        pipelineId: pipeline.id,
-        pipelineName: pipeline.name,
-        domain: classificationResult?.classification?.primary_domain
-    });
 
     // Step 3: Execute pipeline
     const result = await executor.execute(
@@ -1952,9 +2365,6 @@ async function processDocument(document, ollamaService, options = {}) {
 // EXPORTS
 // ============================================================================
 
-/**
- * Create pipeline executor instance
- */
 function createPipelineExecutor(ollamaService, options = {}) {
     return new ExpertPipelineExecutor(ollamaService, options);
 }
