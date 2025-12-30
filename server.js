@@ -820,8 +820,10 @@ async function startServer() {
   try {
     await initializeDataDirectory();
     await saveOpenApiSpec(); // Save OpenAPI specification on startup
-    app.listen(port, () => {
-      console.log(`Server running on port ${port}`);
+    const server = app.listen(port, () => {
+      const actualPort = server.address().port;
+      process.env.PAPERLESS_AI_PORT = actualPort;
+      console.log(`Server running on port ${actualPort}`);
       startScanning();
     });
   } catch (error) {

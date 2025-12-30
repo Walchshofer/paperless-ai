@@ -22,6 +22,7 @@ const { DomainResolver, domainResolver, DOMAIN_TYPES } = require('./DomainResolv
 const { OverlayRefiner, overlayRefiner, EXPERT_MODELS, LABEL_REFINEMENTS } = require('./OverlayRefiner');
 const { BatchIngestionJob, createBatchJob } = require('./BatchIngestionJob');
 const { PDFRenderer, pdfRenderer } = require('./PDFRenderer');
+const { ImageNormalizer } = require('./ImageNormalizer');
 const FieldProfiler = require('./FieldProfiler');
 const overlayConfig = require('./overlayConfig');
 
@@ -36,6 +37,7 @@ module.exports = {
     OverlayRefiner,
     BatchIngestionJob,
     PDFRenderer,
+    ImageNormalizer,
     FieldProfiler,
 
     // Singleton instances

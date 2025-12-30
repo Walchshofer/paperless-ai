@@ -10,12 +10,22 @@
  */
 
 const express = require('express');
+const path = require('path');
 const router = express.Router();
 const { ingestionManager, BatchIngestionJob, visualOverlayRepository, pdfRenderer } = require('../../services/visual-rag');
 const { getLegendForDomain, DOMAIN_FIELD_SPECS } = require('../../services/visual-rag/overlayConfig');
 const logger = require('../../services/logger');
 const paperlessService = require('../../services/paperlessService');
 const config = require('../../config/config');
+
+const resolveRelativePdfPath = (doc, docId) => {
+  const archiveFileName = doc.archive_file_name || doc.archive_filename || null;
+  const originalFileName = doc.original_file_name || `doc_${docId}.pdf`;
+  if (archiveFileName) {
+    return path.posix.join('documents', 'archive', archiveFileName);
+  }
+  return path.posix.join('documents', 'originals', originalFileName);
+};
 
 // Store active batch jobs (in production, consider using Redis or database)
 const activeJobs = new Map();
@@ -619,7 +629,8 @@ router.post('/ingest/:docId', async (req, res) => {
         }
 
         // Ingest through pipeline
-        const result = await ingestionManager.ingestDocument(docId, doc.original_file_name || `doc_${docId}.pdf`, {
+        const pdfPath = resolveRelativePdfPath(doc, docId);
+        const result = await ingestionManager.ingestDocument(docId, pdfPath, {
             base64Images: images.map(i => i.base64),
             metadata: {
                 title: doc.title,

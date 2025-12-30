@@ -34,6 +34,7 @@ This document provides a complete reference for all environment variables used i
 - `VISUAL_RETRIEVAL_MODEL` - Visual document retrieval model (default: null, planned: `tomoro-colqwen3-embed-8b`)
 - `ENABLE_VISUAL_RETRIEVAL` - Feature flag for visual search capabilities (default: `no`)
 - `ENABLE_ORCHESTRATOR` - Feature flag for intelligent expert routing (default: `no`)
+- `ORCHESTRATOR_PREVISION_NORMALIZATION_ENABLED` - Enable pre-vision image normalization tool calls (default: `no`, inherits `ORCHESTRATOR_PREVISION_TOOLS_ENABLED`)
 
 ## OpenAI Integration Variables
 

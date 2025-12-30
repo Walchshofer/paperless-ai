@@ -192,6 +192,31 @@ const aiRestrictions = {
   restrictToExistingDocumentTypes: parseEnvBoolean(process.env.RESTRICT_TO_EXISTING_DOCUMENT_TYPES, 'no')
 };
 
+const orchestratorToolsEnabled = parseEnvBoolean(
+  process.env.ORCHESTRATOR_TOOLS_ENABLED,
+  'no'
+);
+const orchestratorPreVisionToolsEnabled = parseEnvBoolean(
+  process.env.ORCHESTRATOR_PREVISION_TOOLS_ENABLED,
+  orchestratorToolsEnabled
+);
+const orchestratorPreVisionNormalizationEnabled = parseEnvBoolean(
+  process.env.ORCHESTRATOR_PREVISION_NORMALIZATION_ENABLED,
+  orchestratorPreVisionToolsEnabled
+);
+const orchestratorPostAnalysisToolsEnabled = parseEnvBoolean(
+  process.env.ORCHESTRATOR_POST_ANALYSIS_TOOLS_ENABLED,
+  orchestratorToolsEnabled
+);
+const orchestratorFailOnToolError = parseEnvBoolean(
+  process.env.ORCHESTRATOR_TOOL_FAIL_PIPELINE,
+  'no'
+);
+const orchestratorToolAllowlist = parseEnvJson(
+  process.env.ORCHESTRATOR_TOOL_ALLOWLIST_JSON,
+  null
+);
+
 console.log('Loaded restriction settings:', {
   RESTRICT_TO_EXISTING_TAGS: aiRestrictions.restrictToExistingTags,
   RESTRICT_TO_EXISTING_CORRESPONDENTS: aiRestrictions.restrictToExistingCorrespondents,
@@ -360,13 +385,21 @@ module.exports = {
   },
   // Guidance Service configuration (deterministic JSON extraction)
   guidanceService: {
-    enabled: parseEnvBoolean(process.env.GUIDANCE_SERVICE_ENABLED, 'yes'),      
+    enabled: parseEnvBoolean(process.env.GUIDANCE_SERVICE_ENABLED, 'yes'),
     url: process.env.GUIDANCE_SERVICE_URL || 'http://localhost:8002',
     model: process.env.GUIDANCE_MODEL || 'sauerkraut-llama3.1:8b',
     timeout: parseInt(process.env.GUIDANCE_TIMEOUT || '90000', 10),
     useCache: parseEnvBoolean(process.env.GUIDANCE_USE_CACHE, 'yes'),
     maxRetries: parseInt(process.env.GUIDANCE_MAX_RETRIES || '2', 10),
     tagSchemaVersion: process.env.GUIDANCE_TAG_SCHEMA_VERSION || 'v1'
+  },
+  orchestration: {
+    toolsEnabled: orchestratorToolsEnabled,
+    preVisionToolsEnabled: orchestratorPreVisionToolsEnabled,
+    postAnalysisToolsEnabled: orchestratorPostAnalysisToolsEnabled,
+    preVisionNormalizationEnabled: orchestratorPreVisionNormalizationEnabled,
+    failOnToolError: orchestratorFailOnToolError,
+    toolAllowlist: orchestratorToolAllowlist
   },
   translation: {
     model: process.env.TRANSLATION_MODEL || process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b',

@@ -276,6 +276,8 @@ OUTPUT REQUIREMENTS:
 - Choose one pipeline id from the provided list
 - Provide booleans for each decision field
 - Provide a confidence score 0.0-1.0 and short reasons
+- Include tool_plan with pre_vision and post_analysis arrays (can be empty)
+- Use ONLY tools listed in TOOLS_JSON
 <|eot_id|>`,
 
     userTemplate: `<|start_header_id|>user<|end_header_id|>
@@ -296,6 +298,19 @@ DOC_STATS:
 PIPELINES:
 {{pipelines}}
 
+TOOLS_JSON:
+{{tools_json}}
+
+NORMALIZATION_GUIDANCE:
+- If pre-vision normalization is needed, use tool "paperless.normalize_images" in pre_vision.
+- If "paperless.normalize_images" is used, it MUST be the final pre_vision tool.
+- Action format (actions array):
+  {"type":"rotate","degrees":90}
+  {"type":"crop","box":{"x":0.05,"y":0.05,"width":0.9,"height":0.9,"unit":"ratio"}}
+  {"type":"scale","max_width":2048,"max_height":2048}
+  {"type":"dpi","target":300}
+- Use page_range {"start":1,"end":3} or pages [1,3] when needed.
+
 Return this exact JSON structure:
 {
   "selected_pipeline": "<pipeline id>",
@@ -304,6 +319,22 @@ Return this exact JSON structure:
   "use_guidance": true|false,
   "use_visual_rag_ingestion": true|false,
   "use_visual_rag_retrieval": true|false,
+  "tool_plan": {
+    "pre_vision": [
+      {
+        "tool": "<tool name from TOOLS_JSON>",
+        "input": { "<tool parameters>": "<values>" },
+        "reason": "<short reason>"
+      }
+    ],
+    "post_analysis": [
+      {
+        "tool": "<tool name from TOOLS_JSON>",
+        "input": { "<tool parameters>": "<values>" },
+        "reason": "<short reason>"
+      }
+    ]
+  },
   "confidence": <0.0-1.0>,
   "reasons": ["<short reason>"]
 }

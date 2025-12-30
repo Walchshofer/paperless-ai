@@ -29,6 +29,15 @@ const { ingestionManager, visualOverlayRepository, visualSearchClient, pdfRender
 const PAPERLESS_URL = process.env.PAPERLESS_URL || 'http://localhost:8000';
 const PAPERLESS_TOKEN = process.env.PAPERLESS_API_TOKEN || config.paperless?.apiToken;
 
+const resolveRelativePdfPath = (doc, docId) => {
+    const archiveFileName = doc.archive_file_name || doc.archive_filename || null;
+    const originalFileName = doc.original_file_name || `doc-${docId}.pdf`;
+    if (archiveFileName) {
+        return path.posix.join('documents', 'archive', archiveFileName);
+    }
+    return path.posix.join('documents', 'originals', originalFileName);
+};
+
 // Parse command line args
 function parseArgs() {
     const args = {
@@ -194,7 +203,8 @@ async function runIngestion(docId, base64Images, document) {
 
     console.log(`   Detected domain: ${domain}`);
 
-    const result = await ingestionManager.ingestDocument(docId, document.original_file_name, {
+    const pdfPath = resolveRelativePdfPath(document, docId);
+    const result = await ingestionManager.ingestDocument(docId, pdfPath, {
         domain,
         base64Images,
         metadata: {
