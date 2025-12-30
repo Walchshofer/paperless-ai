@@ -14,7 +14,7 @@ This FAQ answers common questions about system setup, extraction accuracy, hardw
 
 **A:**
 - Verify `guidance-service` is running and listening on port **8002**.
-- Check Docker container logs: `docker logs guidance_service`.
+- Check Docker container logs: `docker logs guidance-service`.
 - Ensure the Windows firewall or other host-level network rules aren't blocking Docker container-to-host communication.
 - Confirm Ollama is running on the host.
 

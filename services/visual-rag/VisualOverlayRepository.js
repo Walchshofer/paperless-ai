@@ -29,8 +29,12 @@ let pool = null;
  * Note: 'db' only works inside Docker network, so we default to 'localhost'
  */
 function getPostgresHost() {
-    if (process.env.POSTGRES_HOST) return process.env.POSTGRES_HOST;
-    if (process.env.PAPERLESS_DBHOST) return process.env.PAPERLESS_DBHOST;
+    if (process.env.POSTGRES_HOST) {
+        return process.env.POSTGRES_HOST;
+    }
+    if (process.env.PAPERLESS_DBHOST) {
+        return process.env.PAPERLESS_DBHOST;
+    }
     // Default to localhost for Windows host access (Docker exposes 5432)
     return 'localhost';
 }
@@ -41,14 +45,20 @@ function getPostgresHost() {
  * @param {number} retryDelayMs - Delay between retries in ms (default: 1000)
  */
 async function initPoolWithRetry(maxRetries = 3, retryDelayMs = 1000) {
-    if (pool) return pool;
+    if (pool) {
+        return pool;
+    }
 
     let pg;
     try {
         pg = require('pg');
         Pool = pg.Pool;
-    } catch (error) {
-        logger.warn('[VisualOverlayRepository] pg module not installed. Run: npm install pg');
+    } catch (moduleError) {
+        logger.warn({
+            event: 'postgres_module_not_found',
+            error: moduleError.message,
+            suggestion: 'Run: npm install pg'
+        });
         return null;
     }
 
@@ -69,7 +79,7 @@ async function initPoolWithRetry(maxRetries = 3, retryDelayMs = 1000) {
         connectionTimeoutMillis: 5000
     };
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
         try {
             const testPool = new Pool(config);
 
@@ -79,15 +89,52 @@ async function initPoolWithRetry(maxRetries = 3, retryDelayMs = 1000) {
             client.release();
 
             // Connection successful
-            testPool.on('error', (err) => {
-                logger.error('[VisualOverlayRepository] Pool error:', err.message);
+            testPool.on('error', (poolError) => {
+                logger.error({
+                    event: 'postgres_pool_error',
+                    error: poolError.message,
+                    code: poolError.code
+                });
             });
 
             pool = testPool;
-            logger.info(`[VisualOverlayRepository] PostgreSQL pool initialized (${host}:${port}/${database}) on attempt ${attempt}`);
+            logger.info({
+                event: 'postgres_pool_initialized',
+                host,
+                port,
+                database,
+                attempt
+            });
+
+            // Ensure `embedding` column exists to support tests and backward compatibility
+            try {
+                const schemaClient = await pool.connect();
+                await schemaClient.query(
+                    'ALTER TABLE visual_overlays ADD COLUMN IF NOT EXISTS embedding JSONB DEFAULT NULL;'
+                );
+                schemaClient.release();
+                logger.info({
+                    event: 'postgres_embedding_column_ensured'
+                });
+            } catch (schemaError) {
+                logger.warn({
+                    event: 'postgres_embedding_column_failed',
+                    error: schemaError.message,
+                    code: schemaError.code
+                });
+            }
+
             return pool;
-        } catch (error) {
-            logger.warn(`[VisualOverlayRepository] Connection attempt ${attempt}/${maxRetries} failed to ${host}:${port}: ${error.message}`);
+        } catch (connectionError) {
+            logger.warn({
+                event: 'postgres_connection_failed',
+                attempt,
+                maxRetries,
+                host,
+                port,
+                error: connectionError.message,
+                code: connectionError.code
+            });
 
             if (attempt < maxRetries) {
                 await new Promise(resolve => setTimeout(resolve, retryDelayMs));
@@ -95,7 +142,12 @@ async function initPoolWithRetry(maxRetries = 3, retryDelayMs = 1000) {
         }
     }
 
-    logger.error(`[VisualOverlayRepository] Failed to connect to PostgreSQL at ${host}:${port} after ${maxRetries} attempts`);
+    logger.error({
+        event: 'postgres_pool_init_failed',
+        maxAttempts: maxRetries,
+        host,
+        port
+    });
     return null;
 }
 
@@ -104,14 +156,20 @@ async function initPoolWithRetry(maxRetries = 3, retryDelayMs = 1000) {
  * For lazy initialization - actual connection tested on first use
  */
 function initPool() {
-    if (pool) return pool;
+    if (pool) {
+        return pool;
+    }
 
     let pg;
     try {
         pg = require('pg');
         Pool = pg.Pool;
-    } catch (error) {
-        logger.warn('[VisualOverlayRepository] pg module not installed. Run: npm install pg');
+    } catch (moduleError) {
+        logger.warn({
+            event: 'postgres_module_not_found',
+            error: moduleError.message,
+            suggestion: 'Run: npm install pg'
+        });
         return null;
     }
 
@@ -134,11 +192,40 @@ function initPool() {
 
     pool = new Pool(config);
 
-    pool.on('error', (err) => {
-        logger.error('[VisualOverlayRepository] Pool error:', err.message);
+    pool.on('error', (poolError) => {
+        logger.error({
+            event: 'postgres_pool_error',
+            error: poolError.message,
+            code: poolError.code
+        });
     });
 
-    logger.info(`[VisualOverlayRepository] PostgreSQL pool initialized (${host}:${port}/${database})`);
+    logger.info({
+        event: 'postgres_pool_initialized',
+        host,
+        port,
+        database
+    });
+
+    // Ensure `embedding` column exists (best-effort)
+    (async () => {
+        try {
+            const schemaClient = await pool.connect();
+            await schemaClient.query(
+                'ALTER TABLE visual_overlays ADD COLUMN IF NOT EXISTS embedding JSONB DEFAULT NULL;'
+            );
+            schemaClient.release();
+            logger.info({
+                event: 'postgres_embedding_column_ensured'
+            });
+        } catch (schemaError) {
+            logger.warn({
+                event: 'postgres_embedding_column_failed',
+                error: schemaError.message,
+                code: schemaError.code
+            });
+        }
+    })();
 
     return pool;
 }
@@ -187,8 +274,12 @@ class VisualOverlayRepository {
             client.release();
             this._available = true;
             return true;
-        } catch (error) {
-            logger.warn('[VisualOverlayRepository] Database not available:', error.message);
+        } catch (availabilityError) {
+            logger.warn({
+                event: 'postgres_availability_check_failed',
+                error: availabilityError.message,
+                code: availabilityError.code
+            });
             this._available = false;
             return false;
         }
@@ -230,11 +321,16 @@ class VisualOverlayRepository {
                 embeddingVal
             ]);
 
-            logger.debug(`[VisualOverlayRepository] Saved overlay for doc ${docId} page ${pageNumber}: ${label}`);
+            logger.debug({
+                event: 'overlay_saved',
+                docId,
+                pageNumber,
+                label
+            });
 
             return this._mapRow(result.rows[0]);
-        } catch (error) {
-            throw this._wrapError('Failed to save overlay', error);
+        } catch (saveError) {
+            throw this._wrapError('Failed to save overlay', saveError);
         }
     }
 
@@ -284,12 +380,16 @@ class VisualOverlayRepository {
 
             await client.query('COMMIT');
 
-            logger.info(`[VisualOverlayRepository] Saved ${results.length} overlays for doc ${docId}`);
+            logger.info({
+                event: 'overlays_batch_saved',
+                docId,
+                count: results.length
+            });
 
             return results;
-        } catch (error) {
+        } catch (batchError) {
             await client.query('ROLLBACK');
-            throw this._wrapError('Failed to save overlays batch', error);
+            throw this._wrapError('Failed to save overlays batch', batchError);
         } finally {
             client.release();
         }
@@ -310,11 +410,15 @@ class VisualOverlayRepository {
         try {
             const result = await this.pool.query(query, [docId]);
 
-            logger.debug(`[VisualOverlayRepository] Deleted ${result.rowCount} overlays for doc ${docId}`);
+            logger.debug({
+                event: 'overlays_deleted',
+                docId,
+                deletedCount: result.rowCount
+            });
 
             return result.rowCount;
-        } catch (error) {
-            throw this._wrapError('Failed to delete overlays', error);
+        } catch (deleteError) {
+            throw this._wrapError('Failed to delete overlays', deleteError);
         }
     }
 
@@ -342,8 +446,8 @@ class VisualOverlayRepository {
         try {
             const result = await this.pool.query(query, [docId]);
             return result.rows.map(row => this._mapRow(row));
-        } catch (error) {
-            throw this._wrapError('Failed to get overlays by doc_id', error);
+        } catch (getError) {
+            throw this._wrapError('Failed to get overlays by doc_id', getError);
         }
     }
 
@@ -368,8 +472,8 @@ class VisualOverlayRepository {
         try {
             const result = await this.pool.query(query, [docId, pageNumber]);
             return result.rows.map(row => this._mapRow(row));
-        } catch (error) {
-            throw this._wrapError('Failed to get overlays by doc_id and page', error);
+        } catch (pageError) {
+            throw this._wrapError('Failed to get overlays by doc_id and page', pageError);
         }
     }
 
@@ -395,8 +499,8 @@ class VisualOverlayRepository {
         try {
             const result = await this.pool.query(query, [label, limit]);
             return result.rows.map(row => this._mapRow(row));
-        } catch (error) {
-            throw this._wrapError('Failed to get overlays by label', error);
+        } catch (labelError) {
+            throw this._wrapError('Failed to get overlays by label', labelError);
         }
     }
 
@@ -421,8 +525,8 @@ class VisualOverlayRepository {
         try {
             const result = await this.pool.query(query, [JSON.stringify(criteria), limit]);
             return result.rows.map(row => this._mapRow(row));
-        } catch (error) {
-            throw this._wrapError('Failed to search overlays', error);
+        } catch (searchError) {
+            throw this._wrapError('Failed to search overlays', searchError);
         }
     }
 
@@ -455,8 +559,8 @@ class VisualOverlayRepository {
                 ...this._mapRow(row),
                 similarity: row.similarity
             }));
-        } catch (error) {
-            throw this._wrapError('Failed to search by embedding', error);
+        } catch (embeddingError) {
+            throw this._wrapError('Failed to search by embedding', embeddingError);
         }
     }
 
@@ -475,8 +579,13 @@ class VisualOverlayRepository {
         try {
             const result = await this.pool.query(query, [docId]);
             return result.rowCount > 0;
-        } catch (error) {
-            logger.warn('[VisualOverlayRepository] Failed to check overlays:', error.message);
+        } catch (checkError) {
+            logger.warn({
+                event: 'overlay_existence_check_failed',
+                docId,
+                error: checkError.message,
+                code: checkError.code
+            });
             return false;
         }
     }
@@ -498,8 +607,12 @@ class VisualOverlayRepository {
         try {
             // Enable pgvector extension
             await this.pool.query('CREATE EXTENSION IF NOT EXISTS vector');
-        } catch (error) {
-            logger.warn('[VisualOverlayRepository] Failed to enable vector extension:', error.message);
+        } catch (vectorError) {
+            logger.warn({
+                event: 'postgres_vector_extension_failed',
+                error: vectorError.message,
+                code: vectorError.code
+            });
         }
 
         const columns = [
@@ -514,6 +627,7 @@ class VisualOverlayRepository {
 
         try {
             for (const col of columns) {
+                // Perform sequential ALTERs to ensure schema changes are applied in order
                 await this.pool.query(`
                     ALTER TABLE visual_overlays
                     ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}
@@ -539,10 +653,16 @@ class VisualOverlayRepository {
                 ON visual_overlays USING hnsw (embedding vector_cosine_ops)
             `);
 
-            logger.info('[VisualOverlayRepository] Enhanced schema columns verified');
+            logger.info({
+                event: 'postgres_enhanced_schema_verified'
+            });
             return true;
-        } catch (error) {
-            logger.warn('[VisualOverlayRepository] Failed to ensure enhanced schema:', error.message);
+        } catch (schemaError) {
+            logger.warn({
+                event: 'postgres_enhanced_schema_failed',
+                error: schemaError.message,
+                code: schemaError.code
+            });
             return false;
         }
     }
@@ -598,15 +718,23 @@ class VisualOverlayRepository {
                 JSON.stringify(routingWeights)
             ]);
 
-            logger.debug(`[VisualOverlayRepository] Saved expert knowledge for doc ${docId}`);
+            logger.debug({
+                event: 'expert_knowledge_saved',
+                docId,
+                qualityScore
+            });
             return true;
-        } catch (error) {
+        } catch (conflictError) {
             // If conflict detection fails, try simple insert
-            if (error.code === '23505') {
-                logger.debug('[VisualOverlayRepository] Conflict on insert, trying update');
+            if (conflictError.code === '23505') {
+                logger.debug({
+                    event: 'expert_knowledge_conflict_detected',
+                    docId,
+                    action: 'update'
+                });
                 return this._updateExpertKnowledge(docId, expertKnowledge);
             }
-            throw this._wrapError('Failed to save expert knowledge', error);
+            throw this._wrapError('Failed to save expert knowledge', conflictError);
         }
     }
 
@@ -646,8 +774,8 @@ class VisualOverlayRepository {
                 JSON.stringify(routingWeights)
             ]);
             return true;
-        } catch (error) {
-            throw this._wrapError('Failed to update expert knowledge', error);
+        } catch (updateError) {
+            throw this._wrapError('Failed to update expert knowledge', updateError);
         }
     }
 
@@ -683,8 +811,13 @@ class VisualOverlayRepository {
                 qualityScore: row.retrieval_quality_score || 0,
                 routingWeights: row.expert_routing_weights || {}
             };
-        } catch (error) {
-            logger.warn('[VisualOverlayRepository] Failed to get expert knowledge:', error.message);
+        } catch (retrievalError) {
+            logger.warn({
+                event: 'expert_knowledge_retrieval_failed',
+                docId,
+                error: retrievalError.message,
+                code: retrievalError.code
+            });
             return null;
         }
     }
@@ -724,8 +857,13 @@ class VisualOverlayRepository {
                 qualityScore: row.retrieval_quality_score || 0,
                 routingWeights: row.expert_routing_weights || {}
             }));
-        } catch (error) {
-            logger.warn('[VisualOverlayRepository] Failed to find by domain signals:', error.message);
+        } catch (filterError) {
+            logger.warn({
+                event: 'domain_signals_search_failed',
+                signals,
+                error: filterError.message,
+                code: filterError.code
+            });
             return [];
         }
     }
@@ -739,7 +877,9 @@ class VisualOverlayRepository {
      * @private
      */
     _mapRow(row) {
-        if (!row) return null;
+        if (!row) {
+            return null;
+        }
 
         // PostgreSQL returns BIGINT as string, convert to number
         // Safe for document IDs up to 2^53-1 (9 quadrillion)
@@ -759,11 +899,13 @@ class VisualOverlayRepository {
 
     /**
      * Wrap database errors with context
+     * Includes error code for debugging and retry logic
      * @private
      */
-    _wrapError(message, error) {
-        const code = error.code || 'UNKNOWN';
-        return new Error(`${message}: [${code}] ${error.message}`);
+    _wrapError(message, databaseError) {
+        const code = databaseError.code || 'UNKNOWN';
+        const detail = databaseError.detail || databaseError.message;
+        return new Error(`${message}: [${code}] ${detail}`);
     }
 
     /**
@@ -774,7 +916,9 @@ class VisualOverlayRepository {
             await this._pool.end();
             this._pool = null;
             this._available = null;
-            logger.info('[VisualOverlayRepository] Connection pool closed');
+            logger.info({
+                event: 'postgres_pool_closed'
+            });
         }
     }
 }

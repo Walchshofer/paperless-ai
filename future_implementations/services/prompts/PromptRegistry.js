@@ -11,7 +11,8 @@
  * - Router/Visual: qwen3-vl:8B (multimodal)
  * - Medical Radiology: llava-med-v1.6:latest (multimodal)  
  * - Medical General: medtext-llama3:latest (text-only)
- * - Finance Reasoning: fino1-8b (text-only)
+ * - Finance Reasoning: llm-pro-finance-8b (text-only)
+ * - Finance Calculator: fino1-8b (text-only)
  * - Finance General: llm-pro-finance-8b (text-only)
  * - Fallback: llama3.2:latest (text-only)
  *

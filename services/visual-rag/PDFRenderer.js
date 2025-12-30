@@ -137,7 +137,8 @@ class PDFRenderer {
             try {
                 await fs.unlink(tempPdfPath);
             } catch (err) {
-                // Ignore cleanup errors
+                // Log cleanup errors for diagnostics
+                logger.debug(`[PDFRenderer] Failed to remove temp PDF ${tempPdfPath}: ${err.message}`);
             }
         }
     }
@@ -214,7 +215,8 @@ class PDFRenderer {
                 try {
                     await fs.unlink(imagePath);
                 } catch (err) {
-                    // Ignore cleanup errors
+                    // Log cleanup errors for diagnostics
+                    logger.debug(`[PDFRenderer] Failed to remove rendered image ${imagePath}: ${err.message}`);
                 }
             }
 
@@ -280,7 +282,8 @@ class PDFRenderer {
                 try {
                     await fs.unlink(imagePath);
                 } catch (err) {
-                    // Ignore cleanup errors
+                    // Log cleanup errors for diagnostics
+                    logger.debug(`[PDFRenderer] Failed to remove rendered image ${imagePath}: ${err.message}`);
                 }
             }
 
@@ -319,17 +322,54 @@ class PDFRenderer {
      * @returns {Promise<{pageCount: number, canRender: boolean}>}
      */
     async getInfo(pdfSource) {
-        const poppler = getPdfPoppler();
-        if (!poppler) {
-            return { pageCount: 0, canRender: false };
-        }
-
+        let tempPdfPath = null;
         try {
-            // pdf-poppler doesn't have a direct info method, so we'd need to use pdfinfo
-            // For now, return a placeholder
-            return { pageCount: -1, canRender: true };
-        } catch (error) {
-            return { pageCount: 0, canRender: false, error: error.message };
+            // Normalize source to a file path when provided as Buffer
+            let pdfPath;
+            if (Buffer.isBuffer(pdfSource)) {
+                await fs.mkdir(this.tempDir, { recursive: true });
+                tempPdfPath = path.join(this.tempDir, `doc-info-${Date.now()}.pdf`);
+                await fs.writeFile(tempPdfPath, pdfSource);
+                pdfPath = tempPdfPath;
+            } else if (typeof pdfSource === 'string') {
+                pdfPath = pdfSource;
+            } else {
+                throw new Error('Invalid PDF source: must be Buffer or file path');
+            }
+
+            // If native poppler (pdfinfo) is available, use it to get page count
+            if (await checkNativePoppler()) {
+                try {
+                    const { stdout } = await execAsync(`pdfinfo "${pdfPath}"`, { timeout: 15000 });
+                    const match = stdout.match(/Pages:\s+(\d+)/i);
+                    const pageCount = match ? parseInt(match[1], 10) : -1;
+                    return { pageCount, canRender: pageCount > 0 };
+                } catch (err) {
+                    logger.error(`[PDFRenderer] pdfinfo failed: ${err.message}`);
+                    return { pageCount: 0, canRender: false, error: err.message };
+                }
+            }
+
+            // If only pdf-poppler package is available, we can say rendering is possible
+            if (getPdfPoppler() !== null) {
+                // pdf-poppler does not provide page-count info easily without rendering;
+                // return best-effort response that rendering is possible, but pageCount unknown.
+                return { pageCount: -1, canRender: true };
+            }
+
+            // No rendering capability
+            return { pageCount: 0, canRender: false };
+        } catch (err) {
+            logger.error(`[PDFRenderer] getInfo failed: ${err.message}`);
+            return { pageCount: 0, canRender: false, error: err.message };
+        } finally {
+            if (tempPdfPath) {
+                try {
+                    await fs.unlink(tempPdfPath);
+                } catch (err) {
+                    logger.debug(`[PDFRenderer] Failed to remove temp info PDF ${tempPdfPath}: ${err.message}`);
+                }
+            }
         }
     }
 
@@ -341,12 +381,17 @@ class PDFRenderer {
             const files = await fs.readdir(this.tempDir);
             for (const file of files) {
                 if (file.startsWith('render-') || file.startsWith('doc-')) {
-                    await fs.unlink(path.join(this.tempDir, file));
+                    try {
+                        await fs.unlink(path.join(this.tempDir, file));
+                    } catch (err) {
+                        logger.debug(`[PDFRenderer] cleanup: failed to remove ${file}: ${err.message}`);
+                    }
                 }
             }
             logger.debug('[PDFRenderer] Temp files cleaned up');
         } catch (err) {
-            // Ignore cleanup errors
+            // Log read/cleanup failures
+            logger.debug(`[PDFRenderer] cleanup failed: ${err.message}`);
         }
     }
 }

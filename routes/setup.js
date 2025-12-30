@@ -3434,9 +3434,10 @@ router.get('/settings', async (req, res) => {
   const orchestratorModel = process.env.ORCHESTRATOR_MODEL || 'nemotron-orchestrator:8b';
   const financialVisionModel = process.env.FINANCIAL_VISION_MODEL || 'llm-pro-finance-8b';
   const financialAnalysisModel = process.env.FINANCIAL_ANALYSIS_MODEL || 'fino1-8b';
+  const financialReasoningModel = process.env.FINANCIAL_REASONING_MODEL || process.env.FINANCIAL_ANALYSIS_MODEL || 'llm-pro-finance-8b';
   const financialVatExpertModel = process.env.FINANCIAL_VAT_EXPERT || 'llm-pro-finance-8b';
   const legalVisionModel = process.env.LEGAL_VISION_MODEL || 'qwen3-vl:8b';
-  const legalAnalysisModel = process.env.LEGAL_ANALYSIS_MODEL || 'llm-pro-finance-8b';
+  const legalAnalysisModel = process.env.LEGAL_ANALYSIS_MODEL || 'gpt-oss';
   const legalOrchestratorModel = process.env.LEGAL_ORCHESTRATOR_MODEL || orchestratorModel;
   let config = {
     PAPERLESS_API_URL: (process.env.PAPERLESS_API_URL || 'http://localhost:8000').replace(/\/api$/, ''),
@@ -3464,6 +3465,7 @@ router.get('/settings', async (req, res) => {
     ORCHESTRATOR_MODEL: orchestratorModel,
     FINANCIAL_VISION_MODEL: financialVisionModel,
     FINANCIAL_ANALYSIS_MODEL: financialAnalysisModel,
+    FINANCIAL_REASONING_MODEL: financialReasoningModel,
     FINANCIAL_VAT_EXPERT: financialVatExpertModel,
     LEGAL_VISION_MODEL: legalVisionModel,
     LEGAL_ANALYSIS_MODEL: legalAnalysisModel,

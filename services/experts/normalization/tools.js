@@ -1,204 +1,54 @@
-const paperlessService = require('../../paperlessService');
-const { pdfRenderer } = require('../../visual-rag/PDFRenderer');
-const { guidanceClient } = require('../../guidance/GuidanceClient');
-const { ingestionManager } = require('../../visual-rag/IngestionManager');
+// Dependencies are injected into PreVisionNormalizer for testability.
+// Import the class and the default singleton for backward compatibility.
+const { PreVisionNormalizer, preVisionNormalizer } = require('./PreVisionNormalizer');
 // Note: `runPaperlessTool` is required dynamically inside the function to avoid a circular require
 const logger = require('../../logger');
-const config = require('../../../config/config');
-const fs = require('fs').promises;
-const path = require('path');
 
 /**
  * AI-driven document normalization tool
  * Analyzes document geometry using vision model, applies normalization, and re-ingests if needed
  */
+// Thin wrapper delegating to the PreVisionNormalizer service
+
+
+/**
+ * Factory to create a normalization tool with injected dependencies.
+ *
+ * Example: const tool = createNormalizationTool({ paperlessService: mock, pdfRenderer: mock });
+ */
+function createNormalizationTool(deps = {}) {
+    const normalizer = deps.preVisionNormalizer || preVisionNormalizer || new PreVisionNormalizer(deps);
+
+    async function normalizeImagesAI(input = {}) {
+        const { document_id } = input;
+
+        if (!document_id) {
+            throw new Error('document_id is required');
+        }
+
+        const docId = Number(document_id);
+        if (!Number.isInteger(docId) || docId <= 0) {
+            throw new Error('document_id must be a positive integer');
+        }
+
+        logger.info(`[NormalizationTool] Starting AI-driven normalization for doc ${docId}`);
+
+        try {
+            const result = await normalizer.analyzeAndNormalize(docId, deps);
+            return result;
+        } catch (error) {
+            logger.error(`[NormalizationTool] Failed for doc ${docId}: ${error.message}`);
+            throw error;
+        }
+    }
+
+    return { normalizeImagesAI };
+}
+
+// Default export function for backward compatibility uses the singleton normalizer
 async function normalizeImagesAI(input = {}) {
-    const { document_id } = input;
-    
-    if (!document_id) {
-        throw new Error('document_id is required');
-    }
-
-    const docId = Number(document_id);
-    if (!Number.isInteger(docId) || docId <= 0) {
-        throw new Error('document_id must be a positive integer');
-    }
-
-    logger.info(`[NormalizationTool] Starting AI-driven normalization for doc ${docId}`);
-
-    const result = {
-        success: false,
-        document_id: docId,
-        normalized_pages: [],
-        metadata: {
-            actions_applied: [],
-            changes_detected: false,
-            reingested: false,
-            warnings: []
-        }
-    };
-
-    try {
-        // Step 1: Download original document
-        const pdfBuffer = await paperlessService.downloadOriginalDocument(docId)
-            || await paperlessService.downloadDocument(docId);
-        
-        if (!pdfBuffer) {
-            throw new Error(`Unable to download document ${docId}`);
-        }
-
-        // Step 2: Render first page for analysis (low DPI for speed)
-        const analysisDpi = 150;
-        const rendered = await pdfRenderer.renderBuffer(pdfBuffer, {
-            dpi: analysisDpi,
-            maxPages: 1,
-            docId
-        });
-
-        if (!rendered || rendered.length === 0) {
-            throw new Error('Failed to render document for analysis');
-        }
-
-        const analysisImage = rendered[0].base64;
-
-        // Step 3: Load Guidance template
-        const templatePath = path.join(process.cwd(), '.prompts', 'templates', 'normalization_guidance.md');
-        let promptTemplate;
-        try {
-            promptTemplate = await fs.readFile(templatePath, 'utf-8');
-        } catch (err) {
-            result.metadata.warnings.push(`Template not found: ${err.message}`);
-            logger.warn(`[NormalizationTool] Template not found, using fallback`);
-            // Fallback: no normalization
-            result.success = true;
-            return result;
-        }
-
-        // Step 4: Call Guidance service for geometry analysis
-        let geometryAnalysis;
-        try {
-            const guidanceResult = await guidanceClient.generate('normalization_geometry', {
-                image: analysisImage,
-                prompt: promptTemplate
-            }, {
-                model: config.ollama?.visionModel || 'qwen3-vl:8b',
-                temperature: 0.1
-            });
-
-            geometryAnalysis = guidanceResult.generated;
-        } catch (err) {
-            logger.warn(`[NormalizationTool] Guidance analysis failed: ${err.message}`);
-            // Fallback: try direct Ollama call
-            geometryAnalysis = await _fallbackVisionAnalysis(analysisImage, promptTemplate);
-        }
-
-        // Step 5: Parse and validate analysis
-        const analysis = _parseGeometryAnalysis(geometryAnalysis);
-        
-        if (!analysis || analysis.confidence < 0.5) {
-            result.metadata.warnings.push('Low confidence analysis, skipping normalization');
-            result.success = true;
-            return result;
-        }
-
-        // Step 6: Convert analysis to normalization actions
-        const actions = _buildNormalizationActions(analysis, rendered[0]);
-        
-        if (actions.length === 0) {
-            logger.info(`[NormalizationTool] No normalization needed for doc ${docId}`);
-            result.success = true;
-            result.metadata.reasoning = analysis.reasoning;
-            return result;
-        }
-
-        // Record metadata (wrap action params to match published output format)
-        result.metadata.actions_applied = actions.map(a => ({
-            type: a.type,
-            params: Object.assign({},
-                a.degrees !== undefined ? { degrees: a.degrees } : {},
-                a.box ? { box: a.box } : {},
-                a.target !== undefined ? { target: a.target } : {},
-                a.scale !== undefined ? { scale: a.scale } : {},
-                a.width !== undefined ? { width: a.width } : {},
-                a.height !== undefined ? { height: a.height } : {}
-            )
-        }));
-        result.metadata.changes_detected = true;
-
-        // Step 7: Apply normalization using existing tool
-        const targetDpi = analysis.target_dpi || config.visualRag?.visionRenderDpi || 300;
-        const maxPages = config.visualRag?.maxVisionPages || 4;
-
-        // Break cycle: require runPaperlessTool after a short tick so module.exports have been set
-        await new Promise(resolve => setImmediate(resolve));
-        const { runPaperlessTool } = require('../../tools/paperlessApiTools');
-
-        const normalizeResult = await runPaperlessTool('paperless.normalize_images', {
-            document_id: docId,
-            actions,
-            target_dpi: targetDpi,
-            max_pages: maxPages,
-            format: 'png'
-        });
-
-        if (!normalizeResult || !normalizeResult.base64Images) {
-            throw new Error('Normalization failed');
-        }
-
-        // Step 8: Build normalized pages metadata
-        result.normalized_pages = normalizeResult.base64Images.map((base64, idx) => ({
-            page: idx + 1,
-            base64,
-            width: normalizeResult.metadata?.pages?.[idx]?.width || null,
-            height: normalizeResult.metadata?.pages?.[idx]?.height || null
-        }));
-
-        // Step 9: Determine if re-ingestion is needed
-        const shouldReingest = _shouldReingest(analysis, actions);
-
-        if (shouldReingest) {
-            logger.info(`[NormalizationTool] Re-ingesting doc ${docId} after normalization`);
-            
-            try {
-                const doc = await paperlessService.getDocument(docId);
-
-                // Build relative PDF path consistent with other ingestion flows
-                const archiveName = doc?.archive_file_name || doc?.archive_filename;
-                const originalName = doc?.original_file_name || doc?.originalFileName || null;
-                let pdfPath;
-                if (archiveName) {
-                    pdfPath = `documents/archive/${archiveName}`;
-                } else {
-                    const fallbackName = originalName || `doc-${docId}.pdf`;
-                    pdfPath = `documents/originals/${fallbackName}`;
-                }
-
-                await ingestionManager.ingestDocument(docId, pdfPath, {
-                    base64Images: normalizeResult.base64Images,
-                    metadata: {
-                        normalized: true,
-                        normalization_actions: actions
-                    }
-                });
-
-                result.metadata.reingested = true;
-                logger.info(`[NormalizationTool] Re-ingestion complete for doc ${docId}`);
-            } catch (err) {
-                result.metadata.warnings.push(`Re-ingestion failed: ${err.message}`);
-                logger.warn(`[NormalizationTool] Re-ingestion failed: ${err.message}`);
-            }
-        }
-
-        result.success = true;
-        logger.info(`[NormalizationTool] Normalization complete for doc ${docId}`);
-
-        return result;
-
-    } catch (error) {
-        logger.error(`[NormalizationTool] Failed for doc ${docId}: ${error.message}`);
-        result.metadata.warnings.push(error.message);
-        throw error;
-    }
+    const tool = createNormalizationTool();
+    return tool.normalizeImagesAI(input);
 }
 
 /**
@@ -327,6 +177,11 @@ function _shouldReingest(analysis, actions) {
 async function _fallbackVisionAnalysis(base64Image, prompt) {
     // Try to call Ollama directly; if unavailable or fails, return null to allow no-op
     try {
+        if (!base64Image) {
+            logger.warn('[NormalizationTool] No image provided for fallback analysis');
+            return null;
+        }
+
         const ollamaService = require('../../ollamaService');
         const { extractJsonFromResponse } = require('../../ollama/utils');
 
@@ -349,5 +204,10 @@ async function _fallbackVisionAnalysis(base64Image, prompt) {
 }
 
 module.exports = {
-    normalizeImagesAI
+    normalizeImagesAI,
+    _denormalizeCoordinates,
+    _parseGeometryAnalysis,
+    _buildNormalizationActions,
+    _shouldReingest,
+    _fallbackVisionAnalysis
 };

@@ -321,7 +321,7 @@ Note: `general_classifier` is now executed in the General pipeline before extrac
 | --- | --- | --- | --- | --- | --- |
 | `financial_visual` | VISUAL_ANALYSIS | `financial_extractor` | `SYS_ROUTER_V1` | `qwen3-vl:8b` | Conditional (visual only) |
 | `financial_extraction` | TEXT_EXTRACTION | `financial_extractor` | `FIN_EXTRACT_V1` | `llm-pro-finance-8b` | Guidance preferred |
-| `financial_reasoning` | REASONING | `financial_reasoner` | `FIN_REASONER_V1` | `fino1-8b` | Guidance preferred |
+| `financial_reasoning` | REASONING | `financial_reasoner` | `FIN_REASONER_V1` | `llm-pro-finance-8b` | Guidance preferred |
 | `financial_vat_analysis` | REASONING | `vat_expert_analyzer` | `FIN_VAT_EXPERT_V1` | `llm-pro-finance-8b` | Guidance preferred |
 
 ### Legal pipeline (`PIPELINE_LEGAL_V1`)
@@ -329,7 +329,7 @@ Note: `general_classifier` is now executed in the General pipeline before extrac
 | Stage | Type | Guidance template | Prompt fallback | Model | Notes |
 | --- | --- | --- | --- | --- | --- |
 | `legal_orchestrator` | CLASSIFICATION | `legal_classifier` | `LEGAL_ORCHESTRATOR_V1` | `nemotron-orchestrator:8b` | Text-only routing inside legal |
-| `legal_extraction` | TEXT_EXTRACTION | `legal_extractor` | `LEGAL_EXTRACTOR_V1` | `llm-pro-finance-8b` | Guidance preferred |
+| `legal_extraction` | TEXT_EXTRACTION | `legal_extractor` | `LEGAL_EXTRACTOR_V1` | `gpt-oss` | Guidance preferred |
 | `legal_validation` | VALIDATION | `legal_validator` | n/a | n/a | Local rules only (Guidance not invoked) |
 
 ### General pipeline (`PIPELINE_GENERAL_V1`)

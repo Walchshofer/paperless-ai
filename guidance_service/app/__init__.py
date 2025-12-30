@@ -1,7 +1,9 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import guidance
-from guidance import models
+try:
+    from guidance import models  # type: ignore[import]
+except Exception:
+    models = None
 import json
 import os
 import logging
@@ -14,6 +16,7 @@ from templates.medical_de import MedicalTemplatesDE
 from templates.financial_de import FinancialTemplatesDE
 from templates.legal_de import LegalTemplatesDE
 from templates.general_de import GeneralTemplatesDE
+from templates import normalization_geometry as normalization_geometry_module
 
 # Import All Validators
 from validators.medical import validate_medical_extraction
@@ -28,7 +31,7 @@ from metrics.guidance_metrics import (
     track_cache_operation,
     track_validation
 )
-from metrics.tag_metrics import record_tag_generation, extract_tag_lists        
+from metrics.tag_metrics import record_tag_generation, extract_tag_lists
 from metrics.tag_statistics import build_tag_stats_context
 
 CONFIDENCE_KEYS = ("vertrauen", "sicherheit", "routing_vertrauen")
@@ -70,7 +73,7 @@ def _normalize_confidence_fields(payload):
 
     for key in CONFIDENCE_KEYS:
         if key in payload:
-            payload[key] = _normalize_confidence_value(payload.get(key))        
+            payload[key] = _normalize_confidence_value(payload.get(key))
 
     return payload
 
@@ -185,7 +188,9 @@ def _apply_tag_validation(generated, variables, template_name):
     suggested_tags = _dedupe_tags(suggested_tags)
     missing_tags = _dedupe_tags(missing_tags)
 
-    if suggested_tags or missing_tags or isinstance(generated.get("tagging"), dict):
+    if (suggested_tags
+            or missing_tags
+            or isinstance(generated.get("tagging"), dict)):
         generated["suggested_tags"] = suggested_tags
         generated["missing_tags"] = missing_tags
 
@@ -194,22 +199,25 @@ def _apply_tag_validation(generated, variables, template_name):
         if not tagging.get("domain"):
             tagging["domain"] = _infer_domain(template_name)
         if not tagging.get("source"):
-            tagging["source"] = "guidance_tagger_v2" if "v2" in template_name else "guidance_tagger"
+            tagging["source"] = ("guidance_tagger_v2"
+                                 if "v2" in template_name
+                                 else "guidance_tagger")
         generated["tagging"] = tagging
 
     return generated
 
+
 def create_app():
     app = Flask(__name__)
     CORS(app)
-    
+
     # Logging Configuration
     handler = logging.StreamHandler()
     formatter = jsonlogger.JsonFormatter()
     handler.setFormatter(formatter)
     app.logger.addHandler(handler)
     app.logger.setLevel(os.getenv('LOG_LEVEL', 'INFO'))
-    
+
     # Cache Initialization
     cache_manager = GuidanceCacheManager(
         cache_dir=os.getenv('CACHE_DIR', '/app/cache'),
@@ -219,36 +227,77 @@ def create_app():
 
     # Ollama Host Configuration
     # Prioritize OLLAMA_ENDPOINT, fallback to OLLAMA_HOST, then localhost
-    OLLAMA_ENDPOINT = os.getenv('OLLAMA_ENDPOINT', os.getenv('OLLAMA_HOST', 'http://localhost:11434/v1'))
-    
+    OLLAMA_ENDPOINT = os.getenv(
+        'OLLAMA_ENDPOINT',
+        os.getenv('OLLAMA_HOST', 'http://localhost:11434/v1')
+    )
+
     # Register All Templates across all phases
     templates = {
         # Phase 1: Medical
-        'medical_classifier': MedicalTemplatesDE.get_medical_classifier(),      
-        'medical_extractor': MedicalTemplatesDE.get_medical_extractor(),        
-        'medical_integrator': MedicalTemplatesDE.get_medical_integrator(),      
-        'medical_integrator_v2': MedicalTemplatesDE.get_medical_integrator_v2(),
-        
+        'medical_classifier': (
+            MedicalTemplatesDE.get_medical_classifier()
+        ),
+        'medical_extractor': (
+            MedicalTemplatesDE.get_medical_extractor()
+        ),
+        'medical_integrator': (
+            MedicalTemplatesDE.get_medical_integrator()
+        ),
+        'medical_integrator_v2': (
+            MedicalTemplatesDE.get_medical_integrator_v2()
+        ),
+
         # Phase 2: Financial
-        'financial_extractor': FinancialTemplatesDE.get_financial_extractor(),  
-        'financial_reasoner': FinancialTemplatesDE.get_financial_reasoner(),    
-        'vat_expert_analyzer': FinancialTemplatesDE.get_vat_expert_analyzer(),  
-        'financial_extractor_v2': FinancialTemplatesDE.get_financial_extractor_v2(),
-        'financial_reasoner_v2': FinancialTemplatesDE.get_financial_reasoner_v2(),
-        
+        'financial_extractor': (
+            FinancialTemplatesDE.get_financial_extractor()
+        ),
+        'financial_reasoner': (
+            FinancialTemplatesDE.get_financial_reasoner()
+        ),
+        'vat_expert_analyzer': (
+            FinancialTemplatesDE.get_vat_expert_analyzer()
+        ),
+        'financial_extractor_v2': (
+            FinancialTemplatesDE.get_financial_extractor_v2()
+        ),
+        'financial_reasoner_v2': (
+            FinancialTemplatesDE.get_financial_reasoner_v2()
+        ),
+
         # Phase 3: Legal
-        'legal_classifier': LegalTemplatesDE.get_legal_classifier(),
-        'legal_extractor': LegalTemplatesDE.get_legal_extractor(),
-        'legal_validator': LegalTemplatesDE.get_legal_validator(),
-        'legal_extractor_v2': LegalTemplatesDE.get_legal_extractor_v2(),
-        
+        'legal_classifier': (
+            LegalTemplatesDE.get_legal_classifier()
+        ),
+        'legal_extractor': (
+            LegalTemplatesDE.get_legal_extractor()
+        ),
+        'legal_validator': (
+            LegalTemplatesDE.get_legal_validator()
+        ),
+        'legal_extractor_v2': (
+            LegalTemplatesDE.get_legal_extractor_v2()
+        ),
+
         # Phase 4: General
-        'general_classifier': GeneralTemplatesDE.get_general_classifier(),      
-        'general_extractor': GeneralTemplatesDE.get_general_extractor(),        
-        'general_extractor_v2': GeneralTemplatesDE.get_general_extractor_v2(),
-        'cross_pipeline_router': GeneralTemplatesDE.get_cross_pipeline_router() 
+        'general_classifier': (
+            GeneralTemplatesDE.get_general_classifier()
+        ),
+        'general_extractor': (
+            GeneralTemplatesDE.get_general_extractor()
+        ),
+        'general_extractor_v2': (
+            GeneralTemplatesDE.get_general_extractor_v2()
+        ),
+        'cross_pipeline_router': (
+            GeneralTemplatesDE.get_cross_pipeline_router()
+        ),
+        # Phase 6: Normalization geometry
+        'normalization_geometry': (
+            normalization_geometry_module.analyze_document_geometry
+        ),
     }
-    
+
     # Initialize Prometheus metrics endpoint
     init_metrics_endpoint(app)
 
@@ -267,7 +316,7 @@ def create_app():
         return jsonify({
             'templates': list(templates.keys())
         })
-    
+
     @app.route('/generate', methods=['POST'])
     def generate():
         data = request.json or {}
@@ -287,7 +336,10 @@ def create_app():
 
                 stats_context = build_tag_stats_context(
                     existing_tags=_extract_existing_tags(variables),
-                    domain=variables.get("domain") or _infer_domain(template_name),
+                    domain=(
+                        variables.get("domain")
+                        or _infer_domain(template_name)
+                    ),
                 )
                 if stats_context and "tag_stats_context" not in variables:
                     variables = dict(variables)
@@ -295,11 +347,19 @@ def create_app():
 
                 if template_name not in templates:
                     tracker.set_status('error')
-                    return jsonify({'error': f'Template {template_name} not found'}), 400
+                    error_resp = {
+                        'error': f'Template {template_name} not found'
+                    }
+                    return jsonify(error_resp), 400
 
                 # 1. Cache Check
                 if use_cache:
-                    cached = cache_manager.get(template_name, variables, model, temperature)
+                    cached = cache_manager.get(
+                        template_name,
+                        variables,
+                        model,
+                        temperature,
+                    )
                     if cached:
                         app.logger.info(f"Cache hit for {template_name}")
                         track_cache_operation('get', hit=True)
@@ -317,7 +377,7 @@ def create_app():
                 lm = models.OpenAI(
                     model=model,
                     base_url=OLLAMA_ENDPOINT,
-                    api_key='ollama'
+                    api_key='ollama',
                 )
 
                 # 3. Execute Template
@@ -342,13 +402,19 @@ def create_app():
                 if output_payload is not None:
                     try:
                         if isinstance(output_payload, str):
-                            if '"suggested_tags"' in output_payload or '"missing_tags"' in output_payload:
+                            if (
+                                '"suggested_tags"' in output_payload
+                                or '"missing_tags"' in output_payload
+                            ):
                                 has_tag_fields = True
                             generated = json.loads(output_payload)
                             json_valid = True
                         elif isinstance(output_payload, dict):
                             generated = output_payload
-                            if 'suggested_tags' in output_payload or 'missing_tags' in output_payload:
+                            if (
+                                'suggested_tags' in output_payload
+                                or 'missing_tags' in output_payload
+                            ):
                                 has_tag_fields = True
                             json_valid = True
                         else:
@@ -373,7 +439,8 @@ def create_app():
                                 logger=app.logger,
                             )
                         tracker.set_status('error')
-                        return jsonify({'error': 'Failed to parse JSON output'}), 500
+                        error_resp = {'error': 'Failed to parse JSON output'}
+                        return jsonify(error_resp), 500
                 else:
                     if 'medical' in template_name:
                         var_names = [
@@ -434,24 +501,32 @@ def create_app():
                         try:
                             if var_name in result:
                                 generated[var_name] = result[var_name]
-                        except (KeyError, AttributeError, TypeError) as exc:    
+                        except (KeyError, AttributeError, TypeError) as exc:
                             app.logger.warning(
-                                "Variable extraction failed for %s:%s (%s)",    
+                                "Variable extraction failed for %s:%s (%s)",
                                 template_name,
                                 var_name,
                                 exc,
                             )
 
                 generated = _normalize_confidence_fields(generated)
-                generated = _apply_tag_validation(generated, variables, template_name)
+                generated = _apply_tag_validation(
+                    generated,
+                    variables,
+                    template_name,
+                )
                 tag_info = extract_tag_lists(generated)
                 has_tag_fields = has_tag_fields or (
-                    isinstance(generated, dict) and (
-                        'suggested_tags' in generated or 'missing_tags' in generated
+                    isinstance(generated, dict)
+                    and (
+                        'suggested_tags' in generated
+                        or 'missing_tags' in generated
                     )
                 )
                 if has_tag_fields:
-                    json_valid_value = json_valid if json_valid is not None else True
+                    json_valid_value = (
+                        json_valid if json_valid is not None else True
+                    )
                     record_tag_generation(
                         template=template_name,
                         domain=_infer_domain(template_name),
@@ -463,7 +538,7 @@ def create_app():
                     )
 
                 # 5. Validation Dispatch
-                validation = {'valid': True, 'errors': [], 'warnings': []}      
+                validation = {'valid': True, 'errors': [], 'warnings': []}
 
                 if 'medical' in template_name:
                     validation = validate_medical_extraction(generated)
