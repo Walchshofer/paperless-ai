@@ -42,6 +42,7 @@ const axios = require('axios');
 const { parse, parseISO, isValid, format } = require('date-fns');
 const logger = require('../logger');
 const config = require('../../config/config');
+const truncationMetrics = require('../ollama/truncationMetrics');
 
 // Import Expert Pipeline components
 const { promptRegistry, DomainType, ModelType } = require('../prompts/PromptRegistry');
@@ -1318,6 +1319,7 @@ class DocumentProcessor {
         return {
             ...this.stats,
             executorStats: this.pipelineExecutor.getStats(),
+            truncationStats: truncationMetrics.getStats(),
             registeredPipelines: expertRegistry.list().length,
             registeredPrompts: promptRegistry.list().length
         };

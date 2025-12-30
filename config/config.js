@@ -122,6 +122,25 @@ const ollamaExpertMaxResponseTokens = parseEnvInt(process.env.OLLAMA_EXPERT_MAX_
 const ollamaVisionImageTokenOverhead = parseEnvInt(process.env.OLLAMA_VISION_IMAGE_TOKENS, 1024);
 const translationContextWindow = parseEnvInt(process.env.TRANSLATION_CONTEXT_WINDOW, ollamaTextContextWindow);
 const ollamaModelLimitsOverrides = parseEnvJson(process.env.OLLAMA_MODEL_LIMITS_JSON, {});
+const qwenRouterHardeningEnabled = parseEnvBoolean(
+  process.env.QWEN_ROUTER_HARDENING_ENABLED,
+  'yes'
+);
+const qwenRouterTruncationThreshold = Number.parseFloat(
+  process.env.QWEN_ROUTER_TRUNCATION_THRESHOLD || '0.02'
+);
+const qwenRouterThinkingTokens = parseEnvInt(
+  process.env.QWEN_ROUTER_THINKING_TOKENS,
+  256
+);
+const qwenRouterOutputTokens = parseEnvInt(
+  process.env.QWEN_ROUTER_OUTPUT_TOKENS,
+  256
+);
+const qwenRouterStopSequences = parseEnvJson(
+  process.env.QWEN_ROUTER_STOP_SEQUENCES,
+  ['\nEND_JSON']
+);
 const defaultOllamaModelLimits = {};
 const defaultTextLimits = {
   contextWindow: ollamaTextContextWindow,
@@ -231,6 +250,17 @@ module.exports = {
     visionKeepAlive: process.env.VISION_KEEP_ALIVE || '5m',
     textKeepAlive: process.env.TEXT_KEEP_ALIVE || '2m',
     routerKeepAlive: process.env.ROUTER_KEEP_ALIVE || '5m',
+    qwenRouterHardening: {
+      enabled: qwenRouterHardeningEnabled,
+      truncationThreshold: Number.isFinite(qwenRouterTruncationThreshold)
+        ? qwenRouterTruncationThreshold
+        : 0.02,
+      thinkingTokens: qwenRouterThinkingTokens,
+      outputTokens: qwenRouterOutputTokens,
+      stopSequences: Array.isArray(qwenRouterStopSequences)
+        ? qwenRouterStopSequences
+        : ['\nEND_JSON']
+    },
     limits: {
       text: {
         contextWindow: ollamaTextContextWindow,

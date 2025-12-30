@@ -139,6 +139,9 @@ class MedicalTemplatesDE:
                 domain or kwargs.get("domain"),
                 existing_tags or kwargs.get("existing_tags"),
                 model or kwargs.get("model"),
+                stats_context=(
+                    kwargs.get("tag_stats_context") or kwargs.get("stats_context")
+                ),
             )
             with system():
                 lm += "Du bist ein medizinischer Dokumentklassifizierer. Antworte nur mit JSON."
@@ -170,6 +173,9 @@ class MedicalTemplatesDE:
                 domain or kwargs.get("domain"),
                 existing_tags or kwargs.get("existing_tags"),
                 model or kwargs.get("model"),
+                stats_context=(
+                    kwargs.get("tag_stats_context") or kwargs.get("stats_context")
+                ),
             )
             with system():
                 lm += (
@@ -207,6 +213,9 @@ class MedicalTemplatesDE:
                 domain or kwargs.get("domain"),
                 existing_tags or kwargs.get("existing_tags"),
                 model or kwargs.get("model"),
+                stats_context=(
+                    kwargs.get("tag_stats_context") or kwargs.get("stats_context")
+                ),
             )
             with system():
                 lm += "Harmonisiere Bild- und Textdaten."
@@ -249,6 +258,9 @@ class MedicalTemplatesDE:
                 domain or kwargs.get("domain"),
                 existing_tag_list,
                 model or kwargs.get("model"),
+                stats_context=(
+                    kwargs.get("tag_stats_context") or kwargs.get("stats_context")
+                ),
             )
             with system():
                 lm += "Harmonisiere Bild- und Textdaten."

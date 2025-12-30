@@ -6,6 +6,7 @@ const {
     writePromptToFile,
     extractJsonFromResponse
 } = require('./utils');
+const truncationMetrics = require('./truncationMetrics');
 const logger = require('../logger');
 
 module.exports = {
@@ -148,6 +149,7 @@ module.exports = {
                         limitsSource: limits.source,
                         modelKey: limits.modelKey
                     });
+                    truncationMetrics.recordPromptTruncation('text', this.model);
                     content = truncateToTokenLimit(content, targetContentTokens);
                     promptResult = this.promptFactory.buildTextPrompt(
                         content,
@@ -211,6 +213,7 @@ module.exports = {
                     limitsSource: limits.source,
                     modelKey: limits.modelKey
                 });
+                truncationMetrics.recordResponseTruncation('text', this.model);
             }
 
             // 6. Process Response
@@ -265,6 +268,7 @@ module.exports = {
 
             // NOTE: gpt-oss doesn't support the 'format' parameter for JSON schema
             // JSON output is requested via the system prompt instead
+            truncationMetrics.recordRequest('text', this.model);
             const res = await this.client.post(`${this.apiUrl}/api/generate`, {
                 model: this.model,
                 prompt: prompt,
