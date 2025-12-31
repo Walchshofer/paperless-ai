@@ -102,6 +102,142 @@ describe('LocalTranslator', function() {
         assert.strictEqual(mock.getCallCount(), 1);
     });
 
+    // ============================================================================
+    // ROUTER RETRY LOGIC TESTS
+    // ============================================================================
+    const { MockOllamaService: FixtureMockOllama } = require('../fixtures/mocks');
+    const { MODEL_NAMES } = require('../../services/prompts/PromptRegistry');
+    const { promptRegistry } = require('../../services/prompts/PromptRegistry');
+
+    describe('Router Retry Logic', function() {
+        before(function() {
+            // Ensure router prompt is registered
+            const { registerMedicalPrompts } = require('../../services/prompts/MedicalPrompts');
+            registerMedicalPrompts(promptRegistry);
+        });
+
+        it('Router classification with model availability check', async function() {
+            const mock = new FixtureMockOllama({ modelAvailable: false, loadedModels: [] });
+            const { ExpertPipelineExecutor } = require('../../services/experts/ExpertPipelineExecutor');
+            const executor = new ExpertPipelineExecutor(mock, {});
+
+            const availability = await executor._checkModelAvailability(MODEL_NAMES.router, 1000);
+            assert.strictEqual(availability.available, false);
+
+            const routerMessages = promptRegistry.buildMessages('SYS_ROUTER_V1', { source_system: 'test', filename: 'f.pdf' });
+            const classifyResult = await executor._classifyDocumentWithRetry({ id: 'doc-1' }, executor, routerMessages, {});
+            assert.ok(classifyResult._meta && classifyResult._meta.fallback, 'Expected immediate fallback when model not available');
+            assert.strictEqual(classifyResult._meta.reason, 'model_not_available');
+        });
+
+        it('Router classification retries on connection refused', async function() {
+            // Use small delays for test speed
+            const config = require('../../config/config');
+            config.routerRetry = config.routerRetry || {};
+            config.routerRetry.baseDelay = 10;
+            config.routerRetry.maxRetries = 3;
+
+            // Mock: fail twice then succeed
+            const responses = {
+                [MODEL_NAMES.router]: {
+                    message: { content: JSON.stringify({ primary_domain: 'Financial', document_type: 'invoice', confidence: 0.88 }) }
+                }
+            };
+            const mock = new FixtureMockOllama({ responses, failUntilAttempt: 2, loadedModels: [MODEL_NAMES.router], modelAvailable: true });
+
+            const { ExpertPipelineExecutor } = require('../../services/experts/ExpertPipelineExecutor');
+            const executor = new ExpertPipelineExecutor(mock, {});
+
+            // Capture delays
+            const delays = [];
+            executor._delay = async (ms) => { delays.push(ms); return Promise.resolve(); };
+
+            const routerMessages = promptRegistry.buildMessages('SYS_ROUTER_V1', { source_system: 'test', filename: 'f.pdf' });
+            const result = await executor._classifyDocumentWithRetry({ id: 'doc-2' }, executor, routerMessages, {});
+
+            assert.ok(result && result.classification && result.classification.primary_domain === 'Financial');
+            assert.strictEqual(mock.retryAttempts, 3);
+            assert.strictEqual(delays.length, 2);
+            assert.strictEqual(delays[0], 10);
+            assert.strictEqual(delays[1], 20);
+        });
+
+        it('Router classification retries on "Model not available" error', async function() {
+            const config = require('../../config/config');
+            config.routerRetry = config.routerRetry || {};
+            config.routerRetry.baseDelay = 5;
+            config.routerRetry.maxRetries = 3;
+
+            // Custom mock to throw a 'Model not available' on first call then succeed
+            class TempMock {
+                constructor() { this.calls = 0; }
+                async chat(req) {
+                    this.calls += 1;
+                    if (this.calls === 1) throw new Error('Model not available');
+                    return { message: { content: JSON.stringify({ primary_domain: 'Legal', document_type: 'contract', confidence: 0.8 }) } };
+                }
+                async checkStatus() { return { loadedModels: [MODEL_NAMES.router] }; }
+            }
+
+            const mock = new TempMock();
+            const { ExpertPipelineExecutor } = require('../../services/experts/ExpertPipelineExecutor');
+            const executor = new ExpertPipelineExecutor(mock, {});
+            const delays = [];
+            executor._delay = async (ms) => { delays.push(ms); return Promise.resolve(); };
+
+            const routerMessages = promptRegistry.buildMessages('SYS_ROUTER_V1', { source_system: 'test', filename: 'f.pdf' });
+            const res = await executor._classifyDocumentWithRetry({ id: 'doc-3' }, executor, routerMessages, {});
+            assert.ok(res && res.classification && res.classification.primary_domain === 'Legal');
+            assert.strictEqual(delays.length, 1);
+        });
+
+        it('Router classification exhausts retries and falls back to General', async function() {
+            const config = require('../../config/config');
+            config.routerRetry = config.routerRetry || {};
+            config.routerRetry.baseDelay = 5;
+            config.routerRetry.maxRetries = 3;
+
+            // Always fail with connection errors
+            const mock = new FixtureMockOllama({ failUntilAttempt: 9999, modelAvailable: true, loadedModels: [MODEL_NAMES.router] });
+            const { ExpertPipelineExecutor } = require('../../services/experts/ExpertPipelineExecutor');
+            const executor = new ExpertPipelineExecutor(mock, {});
+            executor._delay = async () => Promise.resolve();
+
+            const routerMessages = promptRegistry.buildMessages('SYS_ROUTER_V1', { source_system: 'test', filename: 'f.pdf' });
+            const res = await executor._classifyDocumentWithRetry({ id: 'doc-4' }, executor, routerMessages, {});
+            assert.strictEqual(res, null);
+        });
+
+        it('Router classification fails immediately on non-retryable error', async function() {
+            // Mock that throws non-retryable parse error
+            class TempMock2 {
+                async chat() { throw new Error('Invalid JSON structure'); }
+                async checkStatus() { return { loadedModels: [MODEL_NAMES.router] }; }
+            }
+            const mock = new TempMock2();
+            const { ExpertPipelineExecutor } = require('../../services/experts/ExpertPipelineExecutor');
+            const executor = new ExpertPipelineExecutor(mock, {});
+
+            let attempts = 0;
+            executor._delay = async (ms) => { attempts += 1; return Promise.resolve(); };
+
+            const routerMessages = promptRegistry.buildMessages('SYS_ROUTER_V1', { source_system: 'test', filename: 'f.pdf' });
+            await assert.rejects(async () => {
+                await executor._classifyDocumentWithRetry({ id: 'doc-5' }, executor, routerMessages, {});
+            });
+            assert.strictEqual(attempts, 0);
+        });
+
+        it('SemanticRouter handles model unavailability gracefully', function() {
+            const { SemanticRouter } = require('../../services/experts/routing');
+            const router = new SemanticRouter({ enabled: true });
+            const registry = new (require('../../services/experts/ExpertRegistry').ExpertRegistry)();
+            const pipelines = registry.getPipelines();
+            const selected = router.selectPipelineWithFallback(null, pipelines, { modelAvailable: false, routerFailed: false });
+            assert.ok(selected._meta && selected._meta.fallback === true);
+        });
+    });
+
     it('should bypass Ollama for same-language input', async function() {
         const mock = new MockOllamaService();
         const translator = new LocalTranslator({

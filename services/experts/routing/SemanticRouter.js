@@ -1,4 +1,5 @@
 const config = require('../../../config/config');
+const logger = require('../../logger');
 const { DomainType } = require('../../prompts/PromptRegistry');
 
 class SemanticRouter {
@@ -18,8 +19,16 @@ class SemanticRouter {
         if (!candidatePipelines.length) {
             return null;
         }
-
         const classification = classificationResult?.classification || classificationResult || {};
+        // Validate classification
+        if (!classification || typeof classification !== 'object' || !classification.primary_domain) {
+            logger && logger.warn && logger.warn({
+                event: 'semantic_router_invalid_classification',
+                classification: classificationResult
+            });
+            const general = candidatePipelines.find(p => p.domain === DomainType.GENERAL);
+            return general || candidatePipelines[0];
+        }
         const domain = classification.primary_domain || 'General';
         const confidence = Number(classification.confidence ?? 0);
 
@@ -44,6 +53,32 @@ class SemanticRouter {
         }
 
         return scored[0].pipeline;
+    }
+
+    /**
+     * Select pipeline but provide graceful fallback when router or model is unavailable.
+     * @param {Object} classificationResult
+     * @param {Array} candidatePipelines
+     * @param {Object} options - { modelAvailable: boolean, routerFailed: boolean }
+     * @returns {Object} selected pipeline. If fallback applied, returns pipeline augmented with _meta.
+     */
+    selectPipelineWithFallback(classificationResult, candidatePipelines = [], options = {}) {
+        const { modelAvailable = true, routerFailed = false } = options;
+
+        if (routerFailed || modelAvailable === false) {
+            logger && logger.warn && logger.warn({
+                event: 'semantic_router_forced_fallback',
+                reason: routerFailed ? 'router_failed' : 'model_unavailable'
+            });
+
+            const general = candidatePipelines.find(p => p.domain === DomainType.GENERAL) || candidatePipelines[0];
+            // Attach fallback metadata to make caller aware
+            const wrapped = Object.assign({}, general);
+            wrapped._meta = { fallback: true, reason: 'router_unavailable' };
+            return wrapped;
+        }
+
+        return this.selectPipeline(classificationResult, candidatePipelines);
     }
 
     _costScoreForPipeline(pipeline) {

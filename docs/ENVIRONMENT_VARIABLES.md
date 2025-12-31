@@ -9,6 +9,15 @@ This document provides a complete reference for all environment variables used i
 - `ROUTER_MODEL` - Expert pipeline router model (default: `qwen3-vl:8b`)
 - `OLLAMA_VISION_MODEL` - Default vision model for Ollama (default: `qwen3-vl:8b`)
 
+### Router Retry Configuration
+- `ROUTER_MAX_RETRIES` - Maximum retry attempts for router classification (default: `3`)
+- `ROUTER_RETRY_BASE_DELAY` - Base delay in milliseconds for exponential backoff (default: `1000`)
+- `ROUTER_RETRY_MAX_DELAY` - Maximum delay cap in milliseconds for exponential backoff (default: `10000`)
+- `ROUTER_ENABLE_MODEL_CHECK` - Enable pre-flight model availability check (default: `yes`)
+- `ROUTER_MODEL_CHECK_TIMEOUT` - Timeout for model availability check in milliseconds (default: `5000`)
+
+Adjust these values when operating in high-latency or resource-constrained environments. For example, reduce `ROUTER_RETRY_BASE_DELAY` for faster transient retry cycles in CI tests, or increase `ROUTER_MAX_RETRIES` for unstable network conditions.
+
 ### Production Tier - Medical Domain
 - `MEDICAL_VISION_MODEL` - Medical imaging analysis model (default: `llava-med-v1.6`)
 - `MEDICAL_ANALYSIS_MODEL` - Clinical text extraction model (default: `medtext-llama3`)

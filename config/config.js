@@ -436,6 +436,14 @@ module.exports = {
       router: parseFloat(process.env.SEMANTIC_ROUTER_WEIGHT_ROUTER || '0.2')
     }
   },
+  // Router retry and model-availability configuration
+  routerRetry: {
+    maxRetries: parseEnvInt(process.env.ROUTER_MAX_RETRIES, 3),
+    baseDelay: parseEnvInt(process.env.ROUTER_RETRY_BASE_DELAY, 1000),
+    maxDelay: parseEnvInt(process.env.ROUTER_RETRY_MAX_DELAY, 10000),
+    enableModelCheck: parseEnvBoolean(process.env.ROUTER_ENABLE_MODEL_CHECK, 'yes'),
+    modelCheckTimeout: parseEnvInt(process.env.ROUTER_MODEL_CHECK_TIMEOUT, 5000)
+  },
   // PostgreSQL configuration for visual overlays
   postgres: {
     host: process.env.POSTGRES_HOST || process.env.PAPERLESS_DBHOST || 'db',
