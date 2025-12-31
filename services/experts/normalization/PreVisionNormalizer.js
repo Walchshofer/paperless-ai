@@ -24,11 +24,12 @@ function getDefaultOptions() {
         analysisDpi: config.visualRag?.analysisRenderDpi || 150,
         targetDpi: config.visualRag?.visionRenderDpi || 300,
         maxPages: config.visualRag?.maxVisionPages || 4,
+        // Guidance templates live in the guidance_service templates directory
         templatePath: config.normalization?.templatePath || path.join(
             process.cwd(),
-            '.prompts',
+            'guidance_service',
             'templates',
-            'normalization_guidance.md'
+            'normalization_geometry.py'
         ),
         minConfidence: config.normalization?.minConfidence || 0.5,
         visionModel: config.ollama?.visionModel || 'qwen3-vl:8b',
@@ -565,9 +566,10 @@ class PreVisionNormalizer {
             fallbackResult.attempt = attempt;
             try {
                 // Attempt Guidance generation
+                // Pass the base64 image using the variable name expected by
+                // the Guidance template: `document_image_b64`.
                 const result = await this.guidanceClient.generate('normalization_geometry', {
-                    image: base64Image,
-                    prompt: promptTemplate
+                    document_image_b64: base64Image
                 }, {
                     model: this.visionModel,
                     temperature: 0.2

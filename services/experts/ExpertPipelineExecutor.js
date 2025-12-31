@@ -85,7 +85,9 @@ class ExpertPipelineExecutor {
             totalExecutions: 0,
             successfulExecutions: 0,
             failedExecutions: 0,
-            averageExecutionTimeMs: 0
+            averageExecutionTimeMs: 0,
+            routerRetries: 0,
+            routerFallbacks: 0
         };
 
         // JSON repair helper (uses Ollama 'sauerkraut' model)
@@ -1234,6 +1236,139 @@ class ExpertPipelineExecutor {
     }
 
     /**
+     * Check model availability via ollamaService.checkStatus()
+     * Returns: { available: boolean, loadedModels: string[] } or { available: false, error: string }
+     */
+    async _checkModelAvailability(modelName, timeout = 5000) {
+        const start = Date.now();
+        try {
+            if (!this.ollamaService || typeof this.ollamaService.checkStatus !== 'function') {
+                return { available: false, loadedModels: [], error: 'checkStatus_not_supported' };
+            }
+
+            // If checkStatus supports timeout natively, prefer that, otherwise use Promise.race
+            const checkPromise = this.ollamaService.checkStatus();
+            const timeoutPromise = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeout));
+
+            const status = await Promise.race([checkPromise, timeoutPromise]);
+
+            const loadedModels = Array.isArray(status?.loadedModels) ? status.loadedModels : [];
+            const available = loadedModels.includes(modelName);
+
+            logger.info({
+                event: 'router_model_availability_check',
+                model: modelName,
+                available,
+                loadedModels,
+                durationMs: Date.now() - start
+            });
+
+            return { available, loadedModels };
+        } catch (err) {
+            logger.warn({
+                event: 'router_model_availability_check',
+                model: modelName,
+                available: false,
+                error: err && err.message ? err.message : String(err)
+            });
+            return { available: false, error: err && err.message ? err.message : String(err) };
+        }
+    }
+
+    /**
+     * Classify document using router with retry, exponential backoff and optional model availability pre-check
+     * Signature follows plan: accepts document, executor, routerMessages, options
+     */
+    async _classifyDocumentWithRetry(document, executor, routerMessages, options = {}) {
+        executor = executor || this;
+
+        const retryCfg = (config.routerRetry || {});
+        const maxRetries = typeof retryCfg.maxRetries === 'number' ? retryCfg.maxRetries : 3;
+        const baseDelay = typeof retryCfg.baseDelay === 'number' ? retryCfg.baseDelay : 1000;
+        const maxDelay = typeof retryCfg.maxDelay === 'number' ? retryCfg.maxDelay : 10000;
+        const enableModelCheck = retryCfg.enableModelCheck === 'yes' || retryCfg.enableModelCheck === true;
+        const modelCheckTimeout = retryCfg.modelCheckTimeout || 5000;
+
+        // Pre-flight model availability check
+        if (enableModelCheck && MODEL_NAMES && MODEL_NAMES.router) {
+            try {
+                const availability = await executor._checkModelAvailability(MODEL_NAMES.router, modelCheckTimeout);
+                if (!availability.available) {
+                    logger.warn({
+                        event: 'router_model_unavailable_precheck',
+                        model: MODEL_NAMES.router,
+                        loadedModels: availability.loadedModels || [],
+                        reason: availability.error || 'not_loaded'
+                    });
+                    return { _meta: { fallback: true, reason: 'model_not_available' } };
+                }
+            } catch (err) {
+                logger.warn({
+                    event: 'router_model_availability_check_error',
+                    error: err && err.message ? err.message : String(err)
+                });
+            }
+        }
+
+        let lastError = null;
+        for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+            try {
+                const routerResponse = await executor._callOllama(MODEL_NAMES.router, routerMessages, promptRegistry.getOptions('SYS_ROUTER_V1'));
+
+                const parsed = await executor._parseResponse(routerResponse, { id: 'router', model: MODEL_NAMES.router });
+
+                // Successful classification
+                return parsed;
+            } catch (err) {
+                lastError = err;
+
+                // Determine retryability
+                const msg = err && err.message ? err.message : String(err);
+                const statusCode = err && err.statusCode;
+                const isConnRefused = /ECONNREFUSED/i.test(msg) || /ECONNRESET/i.test(msg);
+                const isModelNotAvailable = /Model not available/i.test(msg) || /model not loaded/i.test(msg);
+                const is5xx = [500, 502, 503, 504].includes(statusCode);
+
+                const retryable = isConnRefused || isModelNotAvailable || is5xx;
+
+                if (!retryable) {
+                    logger.error({ event: 'router_classification_non_retryable_error', error: msg });
+                    throw err;
+                }
+
+                // Log retry
+                const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), maxDelay);
+                logger.warn({
+                    event: 'router_classification_retry',
+                    attempt,
+                    maxRetries,
+                    delayMs: delay,
+                    error: msg
+                });
+
+                // Update stats
+                try { this.stats.routerRetries += 1; } catch (e) {}
+
+                if (attempt < maxRetries) {
+                    await executor._delay(delay);
+                    continue;
+                }
+            }
+        }
+
+        // All retries exhausted
+        logger.error({
+            event: 'router_classification_failed_all_retries',
+            attempts: maxRetries,
+            error: lastError && lastError.message ? lastError.message : String(lastError)
+        });
+
+        try { this.stats.routerFallbacks += 1; } catch (e) {}
+
+        return null;
+    }
+
+    /**
      * Unload a model via Ollama to free VRAM (use keep_alive: 0).
      * Attempts to use provided ollamaService.chat or generate.
      */
@@ -1534,55 +1669,20 @@ async function processDocument(document, ollamaService, options = {}) {
         document.image_data
     );
 
-    // Call router model
+    // Call router model with retry, model availability checks and graceful fallback
     let classificationResult;
-    try {
-        logger.info({
-            event: 'router_call_start',
-            model: MODEL_NAMES.router,
-            hasImageData: !!document.image_data,
-            imageDataLength: document.image_data?.length || 0,
-            filename: document.filename
+    const classifyResult = await executor._classifyDocumentWithRetry(document, executor, routerMessages, options);
+
+    if (classifyResult === null) {
+        // Retries exhausted
+        const maxRetries = (config.routerRetry && config.routerRetry.maxRetries) || 3;
+        logger.warn({
+            event: 'router_classification_fallback_to_general',
+            reason: 'router_retries_exhausted',
+            attempts: maxRetries,
+            documentId: document.id || document.filename
         });
 
-        const routerResponse = await executor._callOllama(
-            MODEL_NAMES.router,
-            routerMessages,
-            promptRegistry.getOptions('SYS_ROUTER_V1')
-        );
-
-        // Log raw router response for debugging
-        const rawContent = typeof routerResponse === 'string'
-            ? routerResponse
-            : (routerResponse?.message?.content || routerResponse?.response || JSON.stringify(routerResponse));
-
-        logger.info({
-            event: 'router_raw_response',
-            model: MODEL_NAMES.router,
-            responseLength: rawContent?.length || 0,
-            responsePreview: rawContent?.substring(0, 500) || 'empty',
-            responseType: typeof routerResponse
-        });
-
-        classificationResult = await executor._parseResponse(routerResponse, {
-            id: 'router',
-            model: MODEL_NAMES.router
-        });
-
-        logger.info({
-            event: 'router_parsed_result',
-            parsed: !!classificationResult?._meta?.parsed,
-            domain: classificationResult?.classification?.primary_domain,
-            confidence: classificationResult?.classification?.confidence,
-            extractionFailed: classificationResult?.extraction_failed
-        });
-    } catch (routerError) {
-        logger.error({
-            event: 'router_classification_failed',
-            error: routerError.message
-        });
-
-        // Fallback classification
         classificationResult = {
             classification: {
                 primary_domain: 'General',
@@ -1592,8 +1692,45 @@ async function processDocument(document, ollamaService, options = {}) {
             routing: {
                 requires_visual_analysis: false,
                 requires_expert_model: false
+            },
+            _meta: {
+                fallback: true,
+                reason: 'router_retries_exhausted',
+                attempts: maxRetries
             }
         };
+    } else if (classifyResult?._meta?.fallback) {
+        // Pre-check indicated model not available or immediate fallback
+        logger.warn({
+            event: 'router_classification_fallback_to_general',
+            reason: classifyResult._meta.reason || 'model_not_available',
+            documentId: document.id || document.filename
+        });
+
+        classificationResult = {
+            classification: {
+                primary_domain: 'General',
+                document_type: 'unknown',
+                confidence: 0.1
+            },
+            routing: {
+                requires_visual_analysis: false,
+                requires_expert_model: false
+            },
+            _meta: {
+                fallback: true,
+                reason: classifyResult._meta.reason || 'model_not_available'
+            }
+        };
+    } else {
+        classificationResult = classifyResult;
+        logger.info({
+            event: 'router_parsed_result',
+            parsed: !!classificationResult?._meta?.parsed,
+            domain: classificationResult?.classification?.primary_domain,
+            confidence: classificationResult?.classification?.confidence,
+            extractionFailed: classificationResult?.extraction_failed
+        });
     }
 
     const hasImage = !!(document.image_data || document.base64Images?.length);

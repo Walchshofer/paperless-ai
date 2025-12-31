@@ -188,7 +188,15 @@ class ExpertRegistry {
 
         if (!selectedPipeline && this.semanticRouter.enabled) {
             const candidatePipelines = this.getPipelines();
-            const routed = this.semanticRouter.selectPipeline(classificationResult, candidatePipelines);
+            const routerFailed = !!(classificationResult && classificationResult._meta && classificationResult._meta.fallback);
+            const modelAvailable = !(classificationResult && classificationResult._meta && classificationResult._meta.reason === 'model_not_available');
+
+            const routed = this.semanticRouter.selectPipelineWithFallback(
+                classificationResult,
+                candidatePipelines,
+                { routerFailed, modelAvailable }
+            );
+
             if (routed) {
                 selectedPipeline = routed;
                 routingReason = 'Semantic routing selection';

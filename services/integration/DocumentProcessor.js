@@ -1252,6 +1252,23 @@ class DocumentProcessor {
             }
         );
 
+        // If router fallback occurred during classification, annotate metadata and log
+        // Support both shapes: metadata on result.result._meta (top-level) or on result.result.classification._meta
+        const classificationMeta = result?.result?._meta || result?.result?.classification?._meta;
+        if (classificationMeta && classificationMeta.fallback) {
+            result.metadata = result.metadata || {};
+            result.metadata.router_fallback = {
+                reason: classificationMeta.reason || 'unknown',
+                attempts: classificationMeta.attempts || null
+            };
+
+            logger.warn({
+                event: 'document_processor_router_fallback',
+                documentId: document.id || document.filename,
+                reason: classificationMeta.reason || 'unknown'
+            });
+        }
+
         // Trigger Visual RAG ingestion if images available and enabled
         const orchestration = result?.metadata?.orchestration;
         const allowIngestion = normalizeBoolean(

@@ -1776,7 +1776,22 @@ async getOrCreateDocumentType(name) {
         return null;
       }
 
-      return Buffer.isBuffer(response.data) ? response.data : Buffer.from(response.data);
+      const buf = Buffer.isBuffer(response.data) ? response.data : Buffer.from(response.data);
+      // Quick validation: ensure the original download looks like a PDF. If not, fall back
+      // to the standard download endpoint to avoid feeding HTML/JSON into PDF tools.
+      try {
+        const header = buf.slice(0, 4).toString('utf8');
+        if (!header.startsWith('%PDF')) {
+          logger.warn(`[PAPERLESS] Original download for document ${documentId} does not appear to be PDF (header=${header}), falling back.`);
+          return null;
+        }
+      } catch (e) {
+        // If header check fails, fall back gracefully
+        logger.warn(`[PAPERLESS] Could not validate original download header for document ${documentId}: ${e.message}`);
+        return null;
+      }
+
+      return buf;
     } catch (error) {
       console.error(`[PAPERLESS] Error downloading original document ${documentId}:`, error.message);
       if (error.response) {
