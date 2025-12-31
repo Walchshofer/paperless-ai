@@ -143,7 +143,10 @@ const run = async () => {
 
   // 4) Legacy Fallback Safety
   try {
-    const vision = require('../services/ollama/vision');
+    const vision = require('../services/ollama/vision')({
+      ExpertPipelineExecutor: require('../services/experts/ExpertPipelineExecutor'),
+      expertRegistry: require('../services/experts/ExpertRegistry').expertRegistry
+    });
     const text = require('../services/ollama/text');
 
     const visionOk = typeof vision.analyzeDocumentWithVision === 'function';

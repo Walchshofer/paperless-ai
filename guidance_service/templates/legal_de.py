@@ -8,18 +8,32 @@ documents (AT/DE). Handles:
 - Tag suggestions and tagging metadata
 
 Supports both basic and v2 (with tags) variants.
+
+Best Practices Applied:
+- Comprehensive logging and error handling
+- Type annotations throughout
+- Pydantic schema validation
+- Clear docstrings for all functions
 """
 
+import logging
 import os
 from typing import Any, Callable, Dict, List, Literal, Optional
 
-from guidance import (  # type: ignore[import-not-found]
-    assistant,
-    gen_json,
-    guidance,
-    system,
-    user,
-)
+try:
+    from guidance import (  # type: ignore[import-not-found]
+        assistant,
+        json as gen_json,
+        guidance,
+        system,
+        user,
+    )
+except ImportError as e:
+    raise ImportError(
+        "guidance library not found. "
+        "Install with: pip install guidance==0.3.0"
+    ) from e
+
 from pydantic import BaseModel, Field, create_model
 
 from templates.components.common import (
@@ -29,6 +43,10 @@ from templates.components.common import (
     stringify,
 )
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Configuration from environment
 TAG_SELECT_MAX = int(os.getenv("GUIDANCE_TAG_SELECT_MAX", "50"))
 TAG_SUGGESTION_LIMIT = int(
     os.getenv("GUIDANCE_TAG_SUGGESTION_LIMIT", "5")
@@ -36,8 +54,20 @@ TAG_SUGGESTION_LIMIT = int(
 TAG_MISSING_LIMIT = int(os.getenv("GUIDANCE_TAG_MISSING_LIMIT", "5"))
 
 
+# ============================================================================
+# Output Schemas - Pydantic Models
+# ============================================================================
+
+
 class LegalClassifierOutput(BaseModel):
-    """Output schema for legal_classifier."""
+    """Output schema for legal_classifier.
+
+    Attributes:
+        dokumenttyp: Type of legal document
+        komplexitaet: Complexity level
+        vermutete_jurisdiktion: Expected jurisdiction
+        vertrauen: Confidence score (0-1)
+    """
 
     dokumenttyp: Literal[
         "Kaufvertrag",
@@ -55,13 +85,20 @@ class LegalClassifierOutput(BaseModel):
         "EU-weit",
         "International",
     ]
-    vertrauen: float = Field(ge=0, le=1)
+    vertrauen: float = Field(
+        ge=0, le=1, description="Confidence score"
+    )
 
     model_config = dict(extra="forbid")
 
 
 class LegalParties(BaseModel):
-    """Contract parties."""
+    """Contract parties.
+
+    Attributes:
+        partei_1: First contracting party
+        partei_2: Second contracting party
+    """
 
     partei_1: str
     partei_2: str
@@ -70,7 +107,12 @@ class LegalParties(BaseModel):
 
 
 class LegalDates(BaseModel):
-    """Contract dates."""
+    """Contract dates.
+
+    Attributes:
+        abschluss_datum: Date contract was signed
+        gueltig_ab: Date contract becomes effective
+    """
 
     abschluss_datum: str
     gueltig_ab: str
@@ -79,7 +121,11 @@ class LegalDates(BaseModel):
 
 
 class LegalJurisdiction(BaseModel):
-    """Legal jurisdiction and applicable law."""
+    """Legal jurisdiction and applicable law.
+
+    Attributes:
+        anwendbares_recht: Applicable law/jurisdiction
+    """
 
     anwendbares_recht: Literal[
         "Österreich (ABGB)",
@@ -93,28 +139,50 @@ class LegalJurisdiction(BaseModel):
 
 
 class LegalExtractorOutput(BaseModel):
-    """Output schema for legal_extractor."""
+    """Output schema for legal_extractor.
+
+    Attributes:
+        vertragsparteien: Contract parties
+        daten: Contract dates
+        jurisdiktion_und_recht: Legal jurisdiction
+        vertrauen: Confidence score (0-1)
+    """
 
     vertragsparteien: LegalParties
     daten: LegalDates
     jurisdiktion_und_recht: LegalJurisdiction
-    vertrauen: float = Field(ge=0, le=1)
+    vertrauen: float = Field(
+        ge=0, le=1, description="Confidence score"
+    )
 
     model_config = dict(extra="forbid")
 
 
 class LegalValidatorOutput(BaseModel):
-    """Output schema for legal_validator."""
+    """Output schema for legal_validator.
+
+    Attributes:
+        valid: Whether extraction is valid
+        issues: List of validation issues
+        vertrauen: Confidence score (0-1)
+    """
 
     valid: bool
     issues: List[str]
-    vertrauen: float = Field(ge=0, le=1)
+    vertrauen: float = Field(
+        ge=0, le=1, description="Confidence score"
+    )
 
     model_config = dict(extra="forbid")
 
 
 class TaggingTagConfidence(BaseModel):
-    """Confidence score for individual tag."""
+    """Confidence score for individual tag.
+
+    Attributes:
+        tag: Tag identifier
+        confidence: Confidence score (0-1)
+    """
 
     tag: str
     confidence: float = Field(ge=0, le=1)
@@ -123,7 +191,12 @@ class TaggingTagConfidence(BaseModel):
 
 
 class TaggingConfidence(BaseModel):
-    """Overall and per-tag confidence scores."""
+    """Overall and per-tag confidence scores.
+
+    Attributes:
+        overall: Overall confidence score
+        tags: Per-tag confidence scores
+    """
 
     overall: float = Field(ge=0, le=1)
     tags: List[TaggingTagConfidence] = Field(
@@ -134,13 +207,24 @@ class TaggingConfidence(BaseModel):
 
 
 class TaggingMetadata(BaseModel):
-    """Metadata for tagging output."""
+    """Metadata for tagging output.
+
+    Attributes:
+        domain: Domain identifier
+        source: Source of tagging
+        confidence: Confidence scores
+    """
 
     domain: str
     source: str
     confidence: TaggingConfidence
 
     model_config = dict(extra="forbid")
+
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
 
 
 def _build_tagged_schema(
@@ -155,41 +239,78 @@ def _build_tagged_schema(
 
     Returns:
         Extended Pydantic model with tag fields
+
+    Raises:
+        ValueError: If tag normalization fails
     """
-    allowed_tags = list(
-        dict.fromkeys(normalize_tags(existing_tags or []))
-    )
-    use_select = (
-        allowed_tags and len(allowed_tags) <= TAG_SELECT_MAX
-    )
+    try:
+        allowed_tags = list(
+            dict.fromkeys(normalize_tags(existing_tags or []))
+        )
+        use_select = (
+            allowed_tags and len(allowed_tags) <= TAG_SELECT_MAX
+        )
 
-    if use_select:
-        # Create Literal type from allowed tags
-        tag_literal = Literal[tuple(allowed_tags)]  # type: ignore
-        suggested_type = List[tag_literal]  # type: ignore
-    else:
-        suggested_type = List[str]
+        if use_select:
+            # Create Literal type from allowed tags
+            tag_literal = Literal[tuple(allowed_tags)]  # type: ignore
+            suggested_type = List[tag_literal]  # type: ignore
+            logger.debug(
+                f"Using Literal constraint for {len(allowed_tags)} tags"
+            )
+        else:
+            suggested_type = List[str]
+            logger.debug(
+                f"Using unconstrained List[str] "
+                f"for {len(allowed_tags)} tags"
+            )
 
-    return create_model(
-        f"{base_model.__name__}Tagged",
-        suggested_tags=(
-            suggested_type,
-            Field(
-                default_factory=list,
-                max_items=TAG_SUGGESTION_LIMIT,
+        tagged_model = create_model(
+            f"{base_model.__name__}Tagged",
+            suggested_tags=(
+                suggested_type,
+                Field(
+                    default_factory=list,
+                    max_items=TAG_SUGGESTION_LIMIT,
+                    description="Suggested tags from existing tags",
+                ),
             ),
-        ),
-        missing_tags=(
-            List[str],
-            Field(default_factory=list, max_items=TAG_MISSING_LIMIT),
-        ),
-        tagging=(TaggingMetadata, ...),
-        __base__=base_model,
-    )
+            missing_tags=(
+                List[str],
+                Field(
+                    default_factory=list,
+                    max_items=TAG_MISSING_LIMIT,
+                    description="New tag candidates",
+                ),
+            ),
+            tagging=(
+                TaggingMetadata,
+                Field(description="Tagging metadata and confidence"),
+            ),
+            __base__=base_model,
+        )
+
+        return tagged_model
+
+    except Exception as e:
+        logger.error(f"Failed to build tagged schema: {e}")
+        raise
+
+
+# ============================================================================
+# Guidance Templates
+# ============================================================================
 
 
 class LegalTemplatesDE:
-    """German-language legal contract extraction templates."""
+    """German-language legal contract extraction templates.
+
+    This class provides reusable Guidance templates for extracting and
+    analyzing legal documents in German and Austrian contexts.
+
+    Each template is decorated with @guidance and returns a callable that
+    can be used with Guidance language models.
+    """
 
     @staticmethod
     def get_legal_classifier() -> Callable:
@@ -197,6 +318,15 @@ class LegalTemplatesDE:
 
         Returns:
             Guidance template function for classification
+
+        Example:
+            >>> classifier = (
+            ...     LegalTemplatesDE.get_legal_classifier()
+            ... )
+            >>> lm = model + classifier(
+            ...     document_text="Kaufvertrag für..."
+            ... )
+            >>> result = lm["output"]
         """
 
         @guidance
@@ -209,7 +339,20 @@ class LegalTemplatesDE:
             model: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            """Classify legal document."""
+            """Classify legal document.
+
+            Args:
+                lm: Language model instance
+                document_text: Full document text
+                text_chunk: Alternative text parameter
+                domain: Domain context
+                existing_tags: Existing tags for context
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with classification result
+            """
             text = pick_text(document_text, text_chunk)
             domain_context = build_domain_context(
                 domain or kwargs.get("domain"),
@@ -221,11 +364,17 @@ class LegalTemplatesDE:
                 ),
             )
 
+            logger.debug(
+                f"Classifying legal document from domain: {domain}"
+            )
+
             with system():
                 lm += (
                     "Du bist ein Rechtsdokument-Klassifizierer "
-                    "spezialisiert auf deutschösterreichische\n"
-                    "Verträge.\n"
+                    "spezialisiert auf deutschösterreichische "
+                    "Verträge."
+                )
+                lm += (
                     "Klassifiziere das Dokument nach Typ, "
                     "Komplexität und Jurisdiktion."
                 )
@@ -267,6 +416,15 @@ class LegalTemplatesDE:
 
         Returns:
             Guidance template function for extraction
+
+        Example:
+            >>> extractor = (
+            ...     LegalTemplatesDE.get_legal_extractor()
+            ... )
+            >>> lm = model + extractor(
+            ...     legal_text="Kaufvertrag zwischen..."
+            ... )
+            >>> result = lm["output"]
         """
 
         @guidance
@@ -280,7 +438,21 @@ class LegalTemplatesDE:
             model: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            """Extract legal contract data."""
+            """Extract legal contract data.
+
+            Args:
+                lm: Language model instance
+                legal_text: Contract text
+                legal_context: Legal context information
+                text_chunk: Alternative text parameter
+                domain: Domain context
+                existing_tags: Existing tags
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with extraction result
+            """
             text = pick_text(legal_text, text_chunk)
             context_text = stringify(
                 pick_text(legal_context, kwargs.get("context"))
@@ -295,18 +467,25 @@ class LegalTemplatesDE:
                 ),
             )
 
+            logger.debug(
+                f"Extracting legal data from domain: {domain}"
+            )
+
             with system():
                 lm += (
                     "Du bist ein Rechtsanwalt und "
-                    "Vertragsspezialist für Österreich und "
-                    "Deutschland.\n"
+                    "Vertragsspezialist für Österreich "
+                    "und Deutschland."
+                )
+                lm += (
                     "Deine Aufgabe: Extrahiere wichtige "
                     "Vertragsdetails als valides JSON. "
                     "Verwende den bereitgestellten "
                     "Rechtskontext zur Interpretation "
-                    "zweifelhafter Klauseln.\n"
-                    f"Rechtskontext: {context_text}"
+                    "zweifelhafter Klauseln."
                 )
+                if context_text:
+                    lm += f"\nRechtskontext: {context_text}"
                 if domain_context:
                     lm += f"\n{domain_context}"
 
@@ -317,8 +496,7 @@ class LegalTemplatesDE:
                 )
                 lm += "Extrahiere bitte:\n"
                 lm += (
-                    "Vertragsparteien "
-                    "(mit vollständigem Namen)\n"
+                    "Vertragsparteien (mit vollständigem Namen)\n"
                 )
                 lm += (
                     "Vertragsdatum und Gültigkeitsdauer\n"
@@ -347,6 +525,16 @@ class LegalTemplatesDE:
 
         Returns:
             Guidance template function for extraction with tagging
+
+        Example:
+            >>> extractor_v2 = (
+            ...     LegalTemplatesDE.get_legal_extractor_v2()
+            ... )
+            >>> lm = model + extractor_v2(
+            ...     legal_text="Kaufvertrag...",
+            ...     existing_tags=["kaufvertrag", "wichtig"]
+            ... )
+            >>> result = lm["output"]
         """
 
         @guidance
@@ -360,7 +548,21 @@ class LegalTemplatesDE:
             model: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            """Extract legal data and suggest tags."""
+            """Extract legal data and suggest tags.
+
+            Args:
+                lm: Language model instance
+                legal_text: Contract text
+                legal_context: Legal context information
+                text_chunk: Alternative text parameter
+                domain: Domain context
+                existing_tags: Tags for constraining suggestions
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with extraction and tags
+            """
             text = pick_text(legal_text, text_chunk)
             context_text = stringify(
                 pick_text(legal_context, kwargs.get("context"))
@@ -368,10 +570,16 @@ class LegalTemplatesDE:
             existing_tag_list = normalize_tags(
                 existing_tags or kwargs.get("existing_tags")
             )
-            tag_schema = _build_tagged_schema(
-                LegalExtractorOutput,
-                existing_tag_list,
-            )
+
+            try:
+                tag_schema = _build_tagged_schema(
+                    LegalExtractorOutput,
+                    existing_tag_list,
+                )
+            except Exception as e:
+                logger.error(f"Failed to build tag schema: {e}")
+                tag_schema = LegalExtractorOutput
+
             domain_context = build_domain_context(
                 domain or kwargs.get("domain"),
                 existing_tag_list,
@@ -382,26 +590,33 @@ class LegalTemplatesDE:
                 ),
             )
 
+            logger.debug(
+                f"Extracting legal data with tagging from domain: "
+                f"{domain}, tags: {len(existing_tag_list)}"
+            )
+
             with system():
                 lm += (
                     "Du bist ein Rechtsanwalt und "
                     "Vertragsspezialist für Österreich "
-                    "und Deutschland.\n"
-                    "Extrahiere Vertragsdetails als valides "
-                    "JSON. "
-                    "Zusätzlich: gib Tag-Vorschläge im "
-                    "Tagging-Schema zurück.\n"
-                    f"Rechtskontext: {context_text}"
+                    "und Deutschland."
                 )
                 lm += (
-                    "\nTagging-Regeln: suggested_tags nur aus "
-                    "bestehenden Tags, "
-                    "missing_tags für neue Kandidaten. "
-                    "tagging.domain='legal', "
-                    "tagging.source='guidance_tagger_v2', "
-                    "tagging.confidence.overall zwischen "
-                    "0 und 1."
+                    "Extrahiere Vertragsdetails als valides JSON. "
+                    "Zusätzlich: gib Tag-Vorschläge im "
+                    "Tagging-Schema zurück."
                 )
+                lm += (
+                    "\nTagging-Regeln:\n"
+                    "- suggested_tags: nur aus bestehenden Tags\n"
+                    "- missing_tags: neue Tag-Kandidaten\n"
+                    "- tagging.domain: 'legal'\n"
+                    "- tagging.source: 'guidance_tagger_v2'\n"
+                    "- tagging.confidence.overall: zwischen "
+                    "0 und 1"
+                )
+                if context_text:
+                    lm += f"\nRechtskontext: {context_text}"
                 if domain_context:
                     lm += f"\n{domain_context}"
 
@@ -412,8 +627,7 @@ class LegalTemplatesDE:
                 )
                 lm += "Extrahiere bitte:\n"
                 lm += (
-                    "Vertragsparteien "
-                    "(mit vollständigem Namen)\n"
+                    "Vertragsparteien (mit vollständigem Namen)\n"
                 )
                 lm += (
                     "Vertragsdatum und Gültigkeitsdauer\n"
@@ -422,8 +636,7 @@ class LegalTemplatesDE:
                 lm += "Haftungsausschlüsse\n"
                 lm += "Beendigungsbedingungen\n"
                 lm += (
-                    "Geltende Jurisdiktion und anwendbares "
-                    "Recht"
+                    "Geltende Jurisdiktion und anwendbares Recht"
                 )
 
             with assistant():
@@ -442,6 +655,16 @@ class LegalTemplatesDE:
 
         Returns:
             Guidance template function for validation
+
+        Example:
+            >>> validator = (
+            ...     LegalTemplatesDE.get_legal_validator()
+            ... )
+            >>> lm = model + validator(
+            ...     legal_text="Kaufvertrag...",
+            ...     extracted_data={...}
+            ... )
+            >>> result = lm["output"]
         """
 
         @guidance
@@ -455,7 +678,21 @@ class LegalTemplatesDE:
             model: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            """Validate legal extraction."""
+            """Validate legal extraction.
+
+            Args:
+                lm: Language model instance
+                legal_text: Contract text
+                text_chunk: Alternative text parameter
+                extracted_data: Previously extracted data
+                domain: Domain context
+                existing_tags: Existing tags
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with validation result
+            """
             text = pick_text(legal_text, text_chunk)
             extraction_text = stringify(
                 pick_text(
@@ -474,14 +711,18 @@ class LegalTemplatesDE:
                 ),
             )
 
+            logger.debug("Validating legal extraction")
+
             with system():
                 lm += (
                     "Du bist ein juristischer "
-                    "Qualitätsprüfer. "
-                    "Prüfe, ob die Extraktion vollständig "
-                    "und konsistent ist. "
-                    "Antworte nur mit JSON."
+                    "Qualitätsprüfer."
                 )
+                lm += (
+                    "Prüfe, ob die Extraktion vollständig "
+                    "und konsistent ist."
+                )
+                lm += "Antworte nur mit JSON."
                 if domain_context:
                     lm += f"\n{domain_context}"
 
@@ -491,8 +732,8 @@ class LegalTemplatesDE:
                     lm += f"Extraktion: {extraction_text}\n"
                 lm += (
                     "Bewerte: gültig (true/false), liste "
-                    "Probleme, "
-                    "und gib einen Vertrauensscore (0-1)."
+                    "Probleme, und gib einen Vertrauensscore "
+                    "(0-1)."
                 )
 
             with assistant():

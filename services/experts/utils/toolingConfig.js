@@ -14,7 +14,7 @@ const ORCHESTRATOR_TOOL_PHASES = Object.freeze({
     POST_ANALYSIS: 'post_analysis'
 });
 
-const NORMALIZATION_TOOL_NAME = 'paperless.normalize_images';
+const NORMALIZATION_TOOL_NAME = 'paperless.normalize_images_ai';
 
 const DEFAULT_PRE_VISION_TOOL_ALLOWLIST = new Set([
     NORMALIZATION_TOOL_NAME

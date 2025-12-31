@@ -28,6 +28,11 @@ const fixtures = [
     domain: 'router',
     template: 'cross_pipeline_router',
     expectedPrompt: 'SYS_ROUTER_V1'
+  },
+  {
+    domain: 'normalization',
+    template: 'normalization_geometry',
+    expectedPrompt: 'SYS_ROUTER_V1'
   }
 ];
 

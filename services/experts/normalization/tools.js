@@ -1,8 +1,10 @@
-// Dependencies are injected into PreVisionNormalizer for testability.
-// Import the class and the default singleton for backward compatibility.
-const { PreVisionNormalizer, preVisionNormalizer } = require('./PreVisionNormalizer');
-// Note: `runPaperlessTool` is required dynamically inside the function to avoid a circular require
+const fs = require('fs').promises;
+const path = require('path');
 const logger = require('../../logger');
+const paperlessService = require('../../paperlessService');
+const { pdfRenderer } = require('../../visual-rag/PDFRenderer');
+const { ImageNormalizer } = require('../../visual-rag/ImageNormalizer');
+const { guidanceClient } = require('../../guidance/GuidanceClient');
 
 /**
  * AI-driven document normalization tool
@@ -16,39 +18,63 @@ const logger = require('../../logger');
  *
  * Example: const tool = createNormalizationTool({ paperlessService: mock, pdfRenderer: mock });
  */
-function createNormalizationTool(deps = {}) {
-    const normalizer = deps.preVisionNormalizer || preVisionNormalizer || new PreVisionNormalizer(deps);
+// Factory to create a normalization tool with optional injected dependencies.
+// This avoids top-level requires that cause circular dependencies: callers
+// should call `createNormalizationTools({ preVisionNormalizer })` and use
+// the returned `normalizeImagesAI` function. Helper utilities are exported
+// as well for unit tests.
+function createNormalizationTools(deps = {}) {
+    const normalizer = deps.preVisionNormalizer || null;
 
     async function normalizeImagesAI(input = {}) {
-        const { document_id } = input;
-
-        if (!document_id) {
+        if (!input.document_id) {
             throw new Error('document_id is required');
         }
-
-        const docId = Number(document_id);
-        if (!Number.isInteger(docId) || docId <= 0) {
+        const documentId = Number(input.document_id);
+        if (!Number.isInteger(documentId) || documentId <= 0) {
             throw new Error('document_id must be a positive integer');
         }
 
-        logger.info(`[NormalizationTool] Starting AI-driven normalization for doc ${docId}`);
-
-        try {
-            const result = await normalizer.analyzeAndNormalize(docId, deps);
-            return result;
-        } catch (error) {
-            logger.error(`[NormalizationTool] Failed for doc ${docId}: ${error.message}`);
-            throw error;
+        // If a PreVisionNormalizer instance is injected, prefer it for orchestration
+        if (normalizer && typeof normalizer.analyzeAndNormalize === 'function') {
+            // Delegate to the normalizer which contains orchestration logic
+            return normalizer.analyzeAndNormalize(documentId, input);
         }
+
+        // Fallback: run ImageNormalizer directly (stateless path)
+        const pdfBuffer = await paperlessService.downloadOriginalDocument(documentId)
+            || await paperlessService.downloadDocument(documentId);
+        if (!pdfBuffer) {
+            throw new Error(`Unable to download document ${documentId}`);
+        }
+
+        const normalized = await ImageNormalizer.normalizeBuffer(pdfBuffer, {
+            actions: input.actions,
+            target_dpi: input.target_dpi,
+            max_pages: input.max_pages,
+            pages: input.pages,
+            page_range: input.page_range,
+            format: input.format,
+            docId: documentId,
+            documentId
+        });
+
+        return {
+            document_id: documentId,
+            metadata: normalized.metadata || null,
+            base64Images: normalized.base64Images || [],
+            image_data: normalized.base64Images?.[0] || null
+        };
     }
 
-    return { normalizeImagesAI };
-}
-
-// Default export function for backward compatibility uses the singleton normalizer
-async function normalizeImagesAI(input = {}) {
-    const tool = createNormalizationTool();
-    return tool.normalizeImagesAI(input);
+    return {
+        normalizeImagesAI,
+        _denormalizeCoordinates,
+        _parseGeometryAnalysis,
+        _buildNormalizationActions,
+        _shouldReingest,
+        _fallbackVisionAnalysis
+    };
 }
 
 /**
@@ -204,7 +230,7 @@ async function _fallbackVisionAnalysis(base64Image, prompt) {
 }
 
 module.exports = {
-    normalizeImagesAI,
+    createNormalizationTools,
     _denormalizeCoordinates,
     _parseGeometryAnalysis,
     _buildNormalizationActions,

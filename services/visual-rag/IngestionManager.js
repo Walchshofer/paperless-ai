@@ -121,7 +121,7 @@ class IngestionManager {
         // Path 1: Visual Index (Tomoro Sidecar)
         if (this.enableVisualIndex) {
             tasks.push(
-                this._indexVisually(docId, pdfPath, enrichedMetadata)
+                this._indexVisually(docId, pdfPath, enrichedMetadata, base64Images)
                     .then(indexResult => {
                         result.visualIndex = indexResult;
                     })
@@ -186,7 +186,7 @@ class IngestionManager {
      * Path 1: Index document visually via sidecar
      * @private
      */
-    async _indexVisually(docId, pdfPath, metadata) {
+    async _indexVisually(docId, pdfPath, metadata, base64Images = null) {
         try {
             // Check if sidecar is available
             const available = await this.visualSearchClient.isAvailable();
@@ -196,7 +196,7 @@ class IngestionManager {
             }
 
             // Index the document
-            const indexResult = await this.visualSearchClient.indexDocument(docId, pdfPath, metadata);
+            const indexResult = await this.visualSearchClient.indexDocument(docId, pdfPath, metadata, base64Images);
 
             this.stats.visualIndexSuccesses++;
 

@@ -49,7 +49,7 @@ const { pdfRenderer } = require('../visual-rag/PDFRenderer');
 const { promptRegistry } = require('../prompts/PromptRegistry');
 const { registerMedicalPrompts } = require('../prompts/MedicalPrompts');
 const { expertRegistry } = require('../experts/ExpertRegistry');
-const { ExpertPipelineExecutor, processDocument } = require('../experts/ExpertPipelineExecutor_OLD');
+const { ExpertPipelineExecutor, processDocument } = require('../experts/ExpertPipelineExecutor');
 
 // ============================================================================
 // CONFIGURATION
@@ -451,6 +451,24 @@ class ImagePreparator {
      */
     static async prepareMultiPage(source, options = {}) {
         const imageConfig = { ...ProcessorConfig.image, ...options };
+
+        // If pre-normalized images provided, use them directly
+        if (options.normalizedImages && Array.isArray(options.normalizedImages) && options.normalizedImages.length > 0) {
+            logger.info('[ImagePreparator] Using pre-normalized images from options');
+            return options.normalizedImages.map((base64, idx) => ({
+                base64,
+                buffer: Buffer.from(base64, 'base64'),
+                metadata: {
+                    source: 'normalized',
+                    format: options.normalizedFormat || 'png',
+                    page: idx + 1,
+                    dpi: options.normalizedDpi || imageConfig.targetDpi || 300,
+                    size: Buffer.from(base64, 'base64').length,
+                    normalized: true
+                },
+                dataUrl: `data:image/${options.normalizedFormat || 'png'};base64,${base64}`
+            }));
+        }
 
         let imageBuffer;
         let metadata = {};
@@ -910,6 +928,17 @@ class ResultMerger {
                 customFields['medications'] = result.entities.medications
                     .map(m => m.drug_name || m.medication)
                     .join('; ');
+            }
+        }
+        // Preserve OCR checkpoint diagnostics if present
+        const checkpoint = result._expert_result && result._expert_result._ocr_checkpoint || result._expert_result && result._expert_result.ocr_checkpoint;
+        if (checkpoint && checkpoint.errors && checkpoint.errors.length > 0) {
+            try {
+                customFields['ocr_checkpoint_status'] = `partial:${checkpoint.fields?.length||0}/failed:${checkpoint.errors.length}`;
+                // Add a short note for operators
+                customFields['ai_pipeline_notes'] = `OCR checkpoint partial failure - ${checkpoint.errors.length} fields failed. See logs for details.`;
+            } catch (e) {
+                // Non-fatal
             }
         }
         

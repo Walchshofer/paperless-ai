@@ -18,6 +18,8 @@
  */
 
 const logger = require('../logger');
+const fs = require('fs');
+const path = require('path');
 
 // Lazy-load pg to allow graceful degradation if not installed
 let Pool = null;
@@ -37,6 +39,33 @@ function getPostgresHost() {
     }
     // Default to localhost for Windows host access (Docker exposes 5432)
     return 'localhost';
+}
+
+/**
+ * Read an env var with fallback to the host data/.env file (helpful when dotenv wasn't applied)
+ */
+function readEnvFallback(key) {
+    if (process.env[key] !== undefined && process.env[key] !== '') return process.env[key];
+
+    try {
+        const envPath = path.join(process.cwd(), 'data', '.env');
+        if (!fs.existsSync(envPath)) return undefined;
+        const content = fs.readFileSync(envPath, 'utf8');
+        const lines = content.split(/\r?\n/);
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) continue;
+            const idx = trimmed.indexOf('=');
+            if (idx === -1) continue;
+            const k = trimmed.substring(0, idx);
+            const v = trimmed.substring(idx + 1);
+            if (k === key) return v;
+        }
+    } catch (e) {
+        // ignore
+    }
+
+    return undefined;
 }
 
 /**
@@ -65,8 +94,9 @@ async function initPoolWithRetry(maxRetries = 3, retryDelayMs = 1000) {
     const host = getPostgresHost();
     const port = parseInt(process.env.POSTGRES_PORT || '5432', 10);
     const database = process.env.POSTGRES_DB || 'paperless';
-    const user = process.env.POSTGRES_USER || 'paperless';
-    const password = process.env.POSTGRES_PASSWORD || '';
+    // Prefer explicit Postgres env, fall back to Paperless-specific DB env vars or host data/.env
+    const user = readEnvFallback('POSTGRES_USER') || readEnvFallback('PAPERLESS_DBUSER') || 'paperless';
+    const password = readEnvFallback('POSTGRES_PASSWORD') || readEnvFallback('PAPERLESS_DBPASS') || '';
 
     const config = {
         host,
@@ -176,8 +206,8 @@ function initPool() {
     const host = getPostgresHost();
     const port = parseInt(process.env.POSTGRES_PORT || '5432', 10);
     const database = process.env.POSTGRES_DB || 'paperless';
-    const user = process.env.POSTGRES_USER || 'paperless';
-    const password = process.env.POSTGRES_PASSWORD || '';
+    const user = readEnvFallback('POSTGRES_USER') || readEnvFallback('PAPERLESS_DBUSER') || 'paperless';
+    const password = readEnvFallback('POSTGRES_PASSWORD') || readEnvFallback('PAPERLESS_DBPASS') || '';
 
     const config = {
         host,

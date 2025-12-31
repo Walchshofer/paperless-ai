@@ -4,62 +4,31 @@ routing.
 Uses Guidance framework for structured LLM outputs with Pydantic
 validation. Includes fallback stubs for editor/static-analysis
 compatibility.
+
+Best Practices Applied:
+- Comprehensive logging and error handling
+- Type annotations throughout
+- Pydantic schema validation
+- Clear docstrings for all functions
 """
 
+import logging
 import os
 from typing import Any, Callable, Dict, List, Literal, Optional
 
 try:
     from guidance import (  # type: ignore[import-not-found]
         assistant,
-        gen_json,
+        json as gen_json,
         guidance,
         system,
         user,
     )
-except ImportError:
-    # Editor/static-analysis friendly fallbacks for guidance
-    # decorators/context managers
-    def guidance(f: Callable) -> Callable:
-        """Fallback guidance decorator."""
-        return f
-
-    def _ctx() -> Any:
-        """Context manager stub."""
-
-        class _C:
-            def __enter__(self) -> None:
-                return None
-
-            def __exit__(
-                self,
-                exc_type: Any,
-                exc: Any,
-                tb: Any,
-            ) -> bool:
-                return False
-
-        return _C()
-
-    def system() -> Any:
-        """Fallback system context manager."""
-        return _ctx()
-
-    def user() -> Any:
-        """Fallback user context manager."""
-        return _ctx()
-
-    def assistant() -> Any:
-        """Fallback assistant context manager."""
-        return _ctx()
-
-    def gen_json(
-        *args: Any,
-        **kwargs: Any,
-    ) -> str:
-        """Fallback gen_json function."""
-        return ""
-
+except ImportError as e:
+    raise ImportError(
+        "guidance library not found. "
+        "Install with: pip install guidance==0.3.0"
+    ) from e
 
 from pydantic import BaseModel, Field, create_model
 
@@ -70,6 +39,10 @@ from templates.components.common import (
     stringify,
 )
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Configuration from environment
 TAG_SELECT_MAX = int(os.getenv("GUIDANCE_TAG_SELECT_MAX", "50"))
 TAG_SUGGESTION_LIMIT = int(
     os.getenv("GUIDANCE_TAG_SUGGESTION_LIMIT", "5")
@@ -77,8 +50,22 @@ TAG_SUGGESTION_LIMIT = int(
 TAG_MISSING_LIMIT = int(os.getenv("GUIDANCE_TAG_MISSING_LIMIT", "5"))
 
 
+# ============================================================================
+# Output Schemas - Pydantic Models
+# ============================================================================
+
+
 class GeneralClassifierOutput(BaseModel):
-    """Output schema for general document classification."""
+    """Output schema for general document classification.
+
+    Attributes:
+        dokumenttyp: Type of document
+        sprache: Document language
+        themata: List of document themes/topics
+        enthaelt_finanzen: Whether document contains financial data
+        enthaelt_personendaten: Whether document contains personal data
+        vertrauen: Confidence score (0-1)
+    """
 
     dokumenttyp: Literal[
         "Korrespondenz",
@@ -90,35 +77,56 @@ class GeneralClassifierOutput(BaseModel):
     themata: List[str]
     enthaelt_finanzen: bool
     enthaelt_personendaten: bool
-    vertrauen: float = Field(ge=0, le=1)
+    vertrauen: float = Field(ge=0, le=1, description="Confidence score")
 
     model_config = dict(extra="forbid")
 
 
 class GeneralExtractorOutput(BaseModel):
-    """Output schema for general document extraction."""
+    """Output schema for general document extraction.
+
+    Attributes:
+        zusammenfassung: Document summary
+        schluesselwoerter: Document keywords
+        entitaeten: Named entities identified
+        daten: Dates/temporal information
+        vertrauen: Confidence score (0-1)
+    """
 
     zusammenfassung: str
     schluesselwoerter: List[str]
     entitaeten: List[str]
     daten: List[str]
-    vertrauen: float = Field(ge=0, le=1)
+    vertrauen: float = Field(ge=0, le=1, description="Confidence score")
 
     model_config = dict(extra="forbid")
 
 
 class CrossPipelineRouterOutput(BaseModel):
-    """Output schema for cross-pipeline routing recommendation."""
+    """Output schema for cross-pipeline routing recommendation.
+
+    Attributes:
+        empfehlung: Recommended pipeline destination
+        begruendung: Rationale for recommendation
+        sicherheit: Confidence in recommendation (0-1)
+    """
 
     empfehlung: Literal["Medical", "Financial", "Legal", "General"]
     begruendung: str
-    sicherheit: float = Field(ge=0, le=1)
+    sicherheit: float = Field(
+        ge=0, le=1, description="Confidence score"
+    )
 
     model_config = dict(extra="forbid")
 
 
 class TaggingTagConfidence(BaseModel):
-    """Confidence score for individual tag."""
+    """Confidence score for individual tag.
+
+    Attributes:
+        tag: Tag identifier
+        confidence: Confidence score (0-1)
+    """
 
     tag: str
     confidence: float = Field(ge=0, le=1)
@@ -127,22 +135,40 @@ class TaggingTagConfidence(BaseModel):
 
 
 class TaggingConfidence(BaseModel):
-    """Overall and per-tag confidence scores."""
+    """Overall and per-tag confidence scores.
+
+    Attributes:
+        overall: Overall confidence score
+        tags: Per-tag confidence scores
+    """
 
     overall: float = Field(ge=0, le=1)
-    tags: List[TaggingTagConfidence] = Field(default_factory=list)
+    tags: List[TaggingTagConfidence] = Field(
+        default_factory=list
+    )
 
     model_config = dict(extra="forbid")
 
 
 class TaggingMetadata(BaseModel):
-    """Metadata for tagging output."""
+    """Metadata for tagging output.
+
+    Attributes:
+        domain: Domain identifier
+        source: Source of tagging
+        confidence: Confidence scores
+    """
 
     domain: str
     source: str
     confidence: TaggingConfidence
 
     model_config = dict(extra="forbid")
+
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
 
 
 def _build_tagged_schema(
@@ -157,42 +183,78 @@ def _build_tagged_schema(
 
     Returns:
         Extended Pydantic model with tag fields
+
+    Raises:
+        ValueError: If tag normalization fails
     """
-    allowed_tags = list(
-        dict.fromkeys(normalize_tags(existing_tags or []))
-    )
-    use_select = (
-        allowed_tags and len(allowed_tags) <= TAG_SELECT_MAX
-    )
+    try:
+        allowed_tags = list(
+            dict.fromkeys(normalize_tags(existing_tags or []))
+        )
+        use_select = (
+            allowed_tags and len(allowed_tags) <= TAG_SELECT_MAX
+        )
 
-    if use_select:
-        # Create Literal type from allowed tags
-        tag_literal = Literal[tuple(allowed_tags)]  # type: ignore
-        suggested_type = List[tag_literal]  # type: ignore
-    else:
-        suggested_type = List[str]
+        if use_select:
+            # Create Literal type from allowed tags
+            tag_literal = Literal[tuple(allowed_tags)]  # type: ignore
+            suggested_type = List[tag_literal]  # type: ignore
+            logger.debug(
+                f"Using Literal constraint for {len(allowed_tags)} tags"
+            )
+        else:
+            suggested_type = List[str]
+            logger.debug(
+                f"Using unconstrained List[str] "
+                f"for {len(allowed_tags)} tags"
+            )
 
-    return create_model(
-        f"{base_model.__name__}Tagged",
-        suggested_tags=(
-            suggested_type,
-            Field(
-                default_factory=list,
-                max_items=TAG_SUGGESTION_LIMIT,
+        tagged_model = create_model(
+            f"{base_model.__name__}Tagged",
+            suggested_tags=(
+                suggested_type,
+                Field(
+                    default_factory=list,
+                    max_items=TAG_SUGGESTION_LIMIT,
+                    description="Suggested tags from existing tags",
+                ),
             ),
-        ),
-        missing_tags=(
-            List[str],
-            Field(default_factory=list, max_items=TAG_MISSING_LIMIT),
-        ),
-        tagging=(TaggingMetadata, ...),
-        __base__=base_model,
-    )
+            missing_tags=(
+                List[str],
+                Field(
+                    default_factory=list,
+                    max_items=TAG_MISSING_LIMIT,
+                    description="New tag candidates",
+                ),
+            ),
+            tagging=(
+                TaggingMetadata,
+                Field(description="Tagging metadata and confidence"),
+            ),
+            __base__=base_model,
+        )
+
+        return tagged_model
+
+    except Exception as e:
+        logger.error(f"Failed to build tagged schema: {e}")
+        raise
+
+
+# ============================================================================
+# Guidance Templates
+# ============================================================================
 
 
 class GeneralTemplatesDE:
-    """German-language general document extraction templates
-    (fallback)."""
+    """German-language general document extraction templates.
+
+    This class provides reusable Guidance templates for extracting and
+    analyzing general documents in German contexts.
+
+    Each template is decorated with @guidance and returns a callable that
+    can be used with Guidance language models.
+    """
 
     @staticmethod
     def get_general_classifier() -> Callable:
@@ -200,6 +262,15 @@ class GeneralTemplatesDE:
 
         Returns:
             Guidance template function for document classification
+
+        Example:
+            >>> classifier = (
+            ...     GeneralTemplatesDE.get_general_classifier()
+            ... )
+            >>> lm = model + classifier(
+            ...     document_text="Ein Schreiben..."
+            ... )
+            >>> result = lm["output"]
         """
 
         @guidance
@@ -212,7 +283,20 @@ class GeneralTemplatesDE:
             model: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            """Classify document and extract metadata."""
+            """Classify document and extract metadata.
+
+            Args:
+                lm: Language model instance
+                document_text: Full document text
+                text_chunk: Alternative text parameter
+                domain: Domain context
+                existing_tags: Existing tags for context
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with classification result
+            """
             text = pick_text(document_text, text_chunk)
             domain_context = build_domain_context(
                 domain or kwargs.get("domain"),
@@ -224,19 +308,22 @@ class GeneralTemplatesDE:
                 ),
             )
 
+            logger.debug(
+                f"Classifying document from domain: {domain}"
+            )
+
             with system():
                 lm += (
                     "Du bist ein Dokumentklassifizierer für "
-                    "deutschsprachige\nAllgemeindokumente."
+                    "deutschsprachige Allgemeindokumente."
                 )
                 lm += (
-                    "Deine Aufgabe: Klassifiziere "
-                    "unstrukturierte oder\ngemischte Dokumente."
+                    "Deine Aufgabe: Klassifiziere unstrukturierte "
+                    "oder gemischte Dokumente."
                 )
                 lm += (
                     "Erkenne: Dokumenttyp, Sprache, "
-                    "wichtigste Entitäten und\n"
-                    "einen Vertrauensscore."
+                    "wichtigste Entitäten und Vertrauensscore."
                 )
                 if domain_context:
                     lm += f"\n{domain_context}"
@@ -251,8 +338,7 @@ class GeneralTemplatesDE:
                 )
                 lm += "- Sprache: Deutsch\n"
                 lm += (
-                    "- Enthält finanzielle Daten? "
-                    "(ja/nein)\n"
+                    "- Enthält finanzielle Daten? (ja/nein)\n"
                 )
                 lm += (
                     "- Enthält personelle Daten? (ja/nein)"
@@ -274,6 +360,15 @@ class GeneralTemplatesDE:
 
         Returns:
             Guidance template function for metadata extraction
+
+        Example:
+            >>> extractor = (
+            ...     GeneralTemplatesDE.get_general_extractor()
+            ... )
+            >>> lm = model + extractor(
+            ...     document_text="Ein Bericht..."
+            ... )
+            >>> result = lm["output"]
         """
 
         @guidance
@@ -286,7 +381,20 @@ class GeneralTemplatesDE:
             model: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            """Extract metadata from document."""
+            """Extract metadata from document.
+
+            Args:
+                lm: Language model instance
+                document_text: Full document text
+                text_chunk: Alternative text parameter
+                domain: Domain context
+                existing_tags: Existing tags for context
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with extraction result
+            """
             text = pick_text(document_text, text_chunk)
             domain_context = build_domain_context(
                 domain or kwargs.get("domain"),
@@ -298,14 +406,18 @@ class GeneralTemplatesDE:
                 ),
             )
 
+            logger.debug(
+                f"Extracting metadata from domain: {domain}"
+            )
+
             with system():
                 lm += (
-                    "Du bist ein Dokumentanalyst für\n"
+                    "Du bist ein Dokumentanalyst für "
                     "deutschsprachige Allgemeindokumente."
                 )
                 lm += (
-                    "Extrahiere Zusammenfassung, "
-                    "Schlüsselwörter\nund Entitäten."
+                    "Extrahiere Zusammenfassung, Schlüsselwörter "
+                    "und Entitäten."
                 )
                 if domain_context:
                     lm += f"\n{domain_context}"
@@ -314,8 +426,7 @@ class GeneralTemplatesDE:
                 lm += "Dokument:\n"
                 lm += f"{text}\n"
                 lm += (
-                    "Extrahiere: Zusammenfassung, "
-                    "Schlüsselwörter,\n"
+                    "Extrahiere: Zusammenfassung, Schlüsselwörter, "
                     "Entitäten und Daten."
                 )
 
@@ -334,8 +445,17 @@ class GeneralTemplatesDE:
         """Extract metadata + tag suggestions (v2).
 
         Returns:
-            Guidance template function for extraction with
-            tagging
+            Guidance template function for extraction with tagging
+
+        Example:
+            >>> extractor_v2 = (
+            ...     GeneralTemplatesDE.get_general_extractor_v2()
+            ... )
+            >>> lm = model + extractor_v2(
+            ...     document_text="Ein Bericht...",
+            ...     existing_tags=["report", "urgent"]
+            ... )
+            >>> result = lm["output"]
         """
 
         @guidance
@@ -348,15 +468,34 @@ class GeneralTemplatesDE:
             model: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            """Extract metadata and suggest tags."""
+            """Extract metadata and suggest tags.
+
+            Args:
+                lm: Language model instance
+                document_text: Full document text
+                text_chunk: Alternative text parameter
+                domain: Domain context
+                existing_tags: Tags for constraining suggestions
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with extraction and tags
+            """
             text = pick_text(document_text, text_chunk)
             existing_tag_list = normalize_tags(
                 existing_tags or kwargs.get("existing_tags")
             )
-            tag_schema = _build_tagged_schema(
-                GeneralExtractorOutput,
-                existing_tag_list,
-            )
+
+            try:
+                tag_schema = _build_tagged_schema(
+                    GeneralExtractorOutput,
+                    existing_tag_list,
+                )
+            except Exception as e:
+                logger.error(f"Failed to build tag schema: {e}")
+                tag_schema = GeneralExtractorOutput
+
             domain_context = build_domain_context(
                 domain or kwargs.get("domain"),
                 existing_tag_list,
@@ -367,27 +506,30 @@ class GeneralTemplatesDE:
                 ),
             )
 
+            logger.debug(
+                f"Extracting metadata with tagging from domain: "
+                f"{domain}, tags: {len(existing_tag_list)}"
+            )
+
             with system():
                 lm += (
-                    "Du bist ein Dokumentanalyst für\n"
+                    "Du bist ein Dokumentanalyst für "
                     "deutschsprachige Allgemeindokumente."
                 )
                 lm += (
-                    "Extrahiere Zusammenfassung, "
-                    "Schlüsselwörter und\nEntitäten."
+                    "Extrahiere Zusammenfassung, Schlüsselwörter "
+                    "und Entitäten.\n"
+                    "Gib auch Tag-Vorschläge im "
+                    "Tagging-Schema zurück."
                 )
                 lm += (
-                    "Zusätzlich: gib Tag-Vorschläge im "
-                    "Tagging-Schema\nzurück."
-                )
-                lm += (
-                    "Tagging-Regeln: suggested_tags nur aus "
-                    "bestehenden\nTags; missing_tags für neue "
-                    "Kandidaten.\n"
-                    "tagging.domain='general',\n"
-                    "tagging.source='guidance_tagger_v2'.\n"
-                    "tagging.confidence.overall zwischen "
-                    "0 und 1."
+                    "\nTagging-Regeln:\n"
+                    "- suggested_tags: nur aus bestehenden Tags\n"
+                    "- missing_tags: neue Tag-Kandidaten\n"
+                    "- tagging.domain: 'general'\n"
+                    "- tagging.source: 'guidance_tagger_v2'\n"
+                    "- tagging.confidence.overall: "
+                    "zwischen 0 und 1"
                 )
                 if domain_context:
                     lm += f"\n{domain_context}"
@@ -396,9 +538,8 @@ class GeneralTemplatesDE:
                 lm += "Dokument:\n"
                 lm += f"{text}\n"
                 lm += (
-                    "Extrahiere: Zusammenfassung, "
-                    "Schlüsselwörter,\n"
-                    "Entitäten und Daten."
+                    "Extrahiere: Zusammenfassung, Schlüsselwörter, "
+                    "Entitäten, Daten und Tags."
                 )
 
             with assistant():
@@ -417,6 +558,17 @@ class GeneralTemplatesDE:
 
         Returns:
             Guidance template function for pipeline routing
+
+        Example:
+            >>> router = (
+            ...     GeneralTemplatesDE.get_cross_pipeline_router()
+            ... )
+            >>> lm = model + router(
+            ...     doc_type="Rechnung",
+            ...     has_financial=True,
+            ...     classifier_output={...}
+            ... )
+            >>> result = lm["output"]
         """
 
         @guidance
@@ -438,7 +590,27 @@ class GeneralTemplatesDE:
             model: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            """Route document to appropriate pipeline."""
+            """Route document to appropriate pipeline.
+
+            Args:
+                lm: Language model instance
+                doc_type: Document type
+                summary: Document summary
+                themes: Document themes
+                has_financial: Financial content indicator
+                has_medical: Medical content indicator
+                has_legal: Legal content indicator
+                has_personal: Personal data indicator
+                classifier_output: Previous classifier output
+                extractor_output: Previous extractor output
+                domain: Domain context
+                existing_tags: Existing tags
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with routing recommendation
+            """
             # Normalize outputs
             classifier_output = (
                 classifier_output
@@ -456,32 +628,12 @@ class GeneralTemplatesDE:
             if not isinstance(extractor_output, dict):
                 extractor_output = {}
 
-            classifier_doc_info: Dict[str, Any] = (
-                classifier_output.get("document_info") or {}
-            )
-            if not isinstance(classifier_doc_info, dict):
-                classifier_doc_info = {}
-
-            extractor_doc_info: Dict[str, Any] = (
-                extractor_output.get("document_info") or {}
-            )
-            if not isinstance(extractor_doc_info, dict):
-                extractor_doc_info = {}
-
-            extractor_summary: Dict[str, Any] = (
-                extractor_output.get("summary") or {}
-            )
-            if not isinstance(extractor_summary, dict):
-                extractor_summary = {}
-
             # Extract fields with fallbacks
             document_type = pick_text(
                 doc_type,
                 kwargs.get("document_type"),
                 kwargs.get("dokumenttyp"),
                 classifier_output.get("dokumenttyp"),
-                classifier_doc_info.get("detected_type"),
-                extractor_doc_info.get("detected_type"),
             )
             theme_text = stringify(
                 pick_text(
@@ -515,9 +667,7 @@ class GeneralTemplatesDE:
             personal_text = stringify(
                 pick_text(
                     has_personal,
-                    kwargs.get(
-                        "enthaelt_personendaten"
-                    ),
+                    kwargs.get("enthaelt_personendaten"),
                     classifier_output.get(
                         "enthaelt_personendaten"
                     ),
@@ -529,7 +679,6 @@ class GeneralTemplatesDE:
                     kwargs.get("zusammenfassung"),
                     kwargs.get("summary"),
                     extractor_output.get("zusammenfassung"),
-                    extractor_summary.get("brief"),
                 )
             )
             domain_context = build_domain_context(
@@ -542,16 +691,17 @@ class GeneralTemplatesDE:
                 ),
             )
 
+            logger.debug("Routing document to appropriate pipeline")
+
             with system():
                 lm += (
-                    "Du bist ein Dokumentrouter für die\n"
+                    "Du bist ein Dokumentrouter für die "
                     "Paperless-AI Pipeline."
                 )
                 lm += (
                     "Nach Vorklassifizierung: sollte dieses "
-                    "Dokument zu\n"
-                    "Medical, Financial, Legal oder "
-                    "General gehen?"
+                    "Dokument zu Medical, Financial, Legal "
+                    "oder General gehen?"
                 )
                 lm += (
                     "Gib eine klare Empfehlung mit "
@@ -564,7 +714,9 @@ class GeneralTemplatesDE:
                 lm += "Klassifiziertes Dokument:\n"
                 lm += f"Dokumenttyp: {document_type}\n"
                 if summary_text:
-                    lm += f"Zusammenfassung: {summary_text}\n"
+                    lm += (
+                        f"Zusammenfassung: {summary_text}\n"
+                    )
                 lm += f"Erkannte Themata: {theme_text}\n"
                 lm += (
                     f"Enthält finanzielle Daten: "

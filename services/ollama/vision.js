@@ -4,13 +4,13 @@ const config = require('../../config/config');
 const paperlessService = require('../paperlessService');
 const { pdfRenderer } = require('../visual-rag/PDFRenderer');
 const TelemetryCollector = require('../TelemetryCollector');
-const { expertRegistry } = require('../experts/ExpertRegistry');
-const { ExpertPipelineExecutor } = require('../experts/ExpertPipelineExecutor_OLD');
 const { calculateTokens, extractJsonFromResponse } = require('./utils');
 const truncationMetrics = require('./truncationMetrics');
 const logger = require('../logger');
 
-module.exports = {
+module.exports = function createVisionModule(dependencies = {}) {
+    const { ExpertPipelineExecutor, expertRegistry } = dependencies;
+    return {
     _looksLikePdf(buffer) {
         if (!buffer || buffer.length < 5) return false;
         return buffer.slice(0, 5).toString('utf8') === '%PDF-';
@@ -44,6 +44,38 @@ module.exports = {
             logger.info(`[VISION] Starting vision analysis for document ${documentId}`);
 
             let plannerResult;
+            let preNormalizedImages = null;
+
+            // Optional pre-normalization (if enabled via options)
+            if (options.preNormalize && config.expertPipelineEnabled === 'yes') {
+                logger.info(`[VISION] Pre-normalization requested for doc ${documentId}`);
+                try {
+                    const { preVisionNormalizer } = require('../experts/normalization/PreVisionNormalizer');
+                    const normResult = await preVisionNormalizer.analyzeAndNormalize(documentId);
+                    
+                    if (normResult && normResult.success) {
+                        // Prefer normalized_pages but accept base64Images as fallback
+                        if (Array.isArray(normResult.normalized_pages) && normResult.normalized_pages.length > 0) {
+                            preNormalizedImages = normResult.normalized_pages;
+                        } else if (Array.isArray(normResult.base64Images) && normResult.base64Images.length > 0) {
+                            preNormalizedImages = normResult.base64Images;
+                        }
+
+                        if (preNormalizedImages && preNormalizedImages.length > 0) {
+                            logger.info(`[VISION] Pre-normalization applied: ${normResult.metadata.actions_applied?.length || 0} actions; using ${preNormalizedImages.length} normalized pages`);
+                            // Clear vision cache to force re-render with normalized document
+                            await this._clearVisionCache(documentId);
+                            await this._delay(1500); // Allow Paperless to process rotation if applied
+                        } else {
+                            logger.info('[VISION] Pre-normalization completed with no normalized pages returned');
+                        }
+                    }
+                } catch (error) {
+                    logger.warn(`[VISION] Pre-normalization failed: ${error.message}`);
+                    // Continue with original document
+                }
+            }
+
             const plannerStage = telemetry.startStage('planner', config.ollama.plannerModel || config.ollama.visionModel);
             try {
                 plannerResult = await this.analyzeDocumentPlannerVision(documentId);
@@ -51,6 +83,7 @@ module.exports = {
             } catch (error) {
                 telemetry.endStage(plannerStage, false);
                 logger.warn('[VISION] Planner failed, using default profile');
+                void error;
                 plannerResult = {
                     category: 'general',
                     doc_type_hint: null,
@@ -83,6 +116,14 @@ module.exports = {
                     logger.warn(`[PLANNER] Rotation request failed for document ${documentId}`);
                 }
             }
+
+            // Record rotation application in telemetry and logs
+            if (rotationApplied) {
+                logger.info(`[PLANNER] Rotation applied for document ${documentId}`);
+            }
+            try {
+                if (telemetry && telemetry.telemetry) telemetry.telemetry.rotationApplied = rotationApplied;
+            } catch (e) { void e; }
 
             const plannerRenderDpi = config.visualRag?.visionRenderDpi || 300;
             let base64Image = await this._loadPlannerImageAsBase64(documentId, plannerRenderDpi);
@@ -145,10 +186,33 @@ module.exports = {
             logger.info(`[VISION] Rendering pages: ${pagesToRender.join(', ')} at ${renderDpi} DPI`);
 
             const renderedImages = [];
-            for (const page of pagesToRender) {
-                const rendered = await this._loadRenderedPageAsBase64(documentId, page, renderDpi);
-                if (rendered) {
-                    renderedImages.push(rendered);
+
+            // Prefer pre-normalized images when available (from pre-normalizer run)
+            if (Array.isArray(preNormalizedImages) && preNormalizedImages.length > 0) {
+                logger.info(`[VISION] Using ${preNormalizedImages.length} pre-normalized images provided by PreVisionNormalizer`);
+                renderedImages.push(...preNormalizedImages.slice(0, pagesToRender.length));
+            } else {
+                // Fallback: attempt to resolve images from document object (may contain previously stored normalized images)
+                const { resolveDocumentImages } = require('../experts/utils/normalizers');
+                let docObj = null;
+                try {
+                    docObj = await paperlessService.getDocument(documentId);
+                } catch (err) {
+                    // ignore and fall back to rendering
+                    void err;
+                }
+
+                const imageResolution = resolveDocumentImages(docObj || {});
+                if (imageResolution.source === 'normalized' && Array.isArray(imageResolution.base64Images) && imageResolution.base64Images.length > 0) {
+                    logger.info(`[VISION] Using ${imageResolution.base64Images.length} pre-normalized images found on document object`);
+                    renderedImages.push(...imageResolution.base64Images.slice(0, pagesToRender.length));
+                } else {
+                    for (const page of pagesToRender) {
+                        const rendered = await this._loadRenderedPageAsBase64(documentId, page, renderDpi);
+                        if (rendered) {
+                            renderedImages.push(rendered);
+                        }
+                    }
                 }
             }
 
@@ -299,6 +363,10 @@ module.exports = {
                 };
 
                 const { pipeline, routingMetadata } = expertRegistry.route(classificationResult);
+                if (routingMetadata) {
+                    logger.debug(`[VISION] Routing metadata: ${JSON.stringify(routingMetadata)}`);
+                    try { if (telemetry && telemetry.telemetry) telemetry.telemetry.routingMetadata = routingMetadata; } catch (e) { void e; }
+                }
                 if (pipeline && plannerResult.routing?.expertPipeline) {
                     logger.info(`[VISION] Triggering expert pipeline: ${pipeline.domain} (${pipeline.id})`);
 
@@ -570,7 +638,7 @@ module.exports = {
                     await fs.writeFile(cachePath, data);
                 }
             });
-        } catch (e) {}
+        } catch (e) { void e; }
     },
 
     _normalizeRotationDegrees(value) {
@@ -683,6 +751,7 @@ module.exports = {
                 .map(entry => fs.unlink(path.join(renderDir, entry)).catch(() => {})));
         } catch (error) {
             // Ignore cache clearing errors
+            void error;
         }
     },
 
@@ -710,6 +779,7 @@ module.exports = {
             return buffer.toString('base64');
         } catch (e) {
             // Cache miss, attempt to fetch from Paperless
+            void e;
         }
 
         try {
@@ -744,6 +814,7 @@ module.exports = {
             return buffer.toString('base64');
         } catch (e) {
             // cache miss, continue to fetch
+            void e;
         }
 
         try {
@@ -794,6 +865,7 @@ module.exports = {
             // Debug logs removed for CI cleanliness; rely on higher-level info logs when needed
             const imageList = Array.isArray(base64Image) ? base64Image.filter(Boolean) : [base64Image];
             const imageBytes = imageList.reduce((total, img) => total + (img ? img.length : 0), 0);
+            logger.debug(`[VISION] Image payload size: ${imageBytes} bytes`);
 
             const model = options.model || config.ollama.visionModel;
             const limitKind = options.kind || 'vision';
@@ -903,3 +975,6 @@ module.exports = {
         }
     }
 };
+
+// Closing brace added to ensure module/function closure
+}

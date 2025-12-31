@@ -413,7 +413,11 @@ module.exports = {
   },
   ocrCheckpoint: {
     enabled: parseEnvBoolean(process.env.OCR_CHECKPOINT_ENABLED, 'yes'),
-    includeTranslations: parseEnvBoolean(process.env.OCR_CHECKPOINT_TRANSLATIONS_ENABLED, 'yes')
+    includeTranslations: parseEnvBoolean(process.env.OCR_CHECKPOINT_TRANSLATIONS_ENABLED, 'yes'),
+    maxRetries: parseEnvInt(process.env.OCR_CHECKPOINT_MAX_RETRIES, 3),
+    retryDelay: parseEnvInt(process.env.OCR_CHECKPOINT_RETRY_DELAY, 1000),
+    required: parseEnvBoolean(process.env.OCR_CHECKPOINT_REQUIRED, 'no'),
+    continueOnPartialSuccess: parseEnvBoolean(process.env.OCR_CHECKPOINT_CONTINUE_ON_PARTIAL_SUCCESS, 'yes')
   },
   summaryFallback: {
     enabled: parseEnvBoolean(process.env.SUMMARY_FALLBACK_ENABLED, 'yes'),
