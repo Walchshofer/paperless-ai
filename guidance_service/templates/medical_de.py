@@ -7,19 +7,33 @@ Handles:
 - Integrator: harmonization of imaging and text data
 - Tag suggestions and tagging metadata
 
-Supports both basic and v2 (with tags) variants.
+Supports basic, v2 (with tags), and integrator variants.
+
+Best Practices Applied:
+- Comprehensive logging and error handling
+- Type annotations throughout
+- Pydantic schema validation
+- Clear docstrings for all functions
 """
 
+import logging
 import os
 from typing import Any, Callable, List, Literal, Optional
 
-from guidance import (  # type: ignore[import-not-found]
-    assistant,
-    gen_json,
-    guidance,
-    system,
-    user,
-)
+try:
+    from guidance import (  # type: ignore[import-not-found]
+        assistant,
+        json as gen_json,
+        guidance,
+        system,
+        user,
+    )
+except ImportError as e:
+    raise ImportError(
+        "guidance library not found. "
+        "Install with: pip install guidance==0.3.0"
+    ) from e
+
 from pydantic import BaseModel, Field, create_model
 
 from templates.components.common import (
@@ -29,6 +43,10 @@ from templates.components.common import (
     stringify,
 )
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Configuration from environment
 TAG_SELECT_MAX = int(os.getenv("GUIDANCE_TAG_SELECT_MAX", "50"))
 TAG_SUGGESTION_LIMIT = int(
     os.getenv("GUIDANCE_TAG_SUGGESTION_LIMIT", "5")
@@ -36,8 +54,18 @@ TAG_SUGGESTION_LIMIT = int(
 TAG_MISSING_LIMIT = int(os.getenv("GUIDANCE_TAG_MISSING_LIMIT", "5"))
 
 
+# ============================================================================
+# Output Schemas - Pydantic Models
+# ============================================================================
+
+
 class MedicalClassifierOutput(BaseModel):
-    """Output schema for medical_classifier."""
+    """Output schema for medical_classifier.
+
+    Attributes:
+        dokumenttyp: Type of medical document
+        vertrauen: Confidence score (0-1)
+    """
 
     dokumenttyp: Literal[
         "Laborbefund",
@@ -46,13 +74,20 @@ class MedicalClassifierOutput(BaseModel):
         "Krankenkassenbeleg",
         "Sonstige",
     ]
-    vertrauen: float = Field(ge=0, le=1)
+    vertrauen: float = Field(
+        ge=0, le=1, description="Confidence score"
+    )
 
     model_config = dict(extra="forbid")
 
 
 class MedicalPatient(BaseModel):
-    """Patient information."""
+    """Patient information.
+
+    Attributes:
+        name: Patient full name
+        geburtsdatum: Date of birth (YYYY-MM-DD)
+    """
 
     name: str
     geburtsdatum: str
@@ -61,7 +96,11 @@ class MedicalPatient(BaseModel):
 
 
 class MedicalDiagnosis(BaseModel):
-    """Diagnosis with ICD-10 code."""
+    """Diagnosis with ICD-10 code.
+
+    Attributes:
+        icd10: ICD-10 diagnosis code (e.g., A01.0)
+    """
 
     icd10: str
 
@@ -69,7 +108,12 @@ class MedicalDiagnosis(BaseModel):
 
 
 class MedicalMedication(BaseModel):
-    """Medication information."""
+    """Medication information.
+
+    Attributes:
+        name: Medication name
+        dosierung: Dosage (e.g., "500mg täglich")
+    """
 
     name: str
     dosierung: str
@@ -78,7 +122,13 @@ class MedicalMedication(BaseModel):
 
 
 class MedicalLabValue(BaseModel):
-    """Laboratory test value."""
+    """Laboratory test value.
+
+    Attributes:
+        name: Test name (e.g., "Hemoglobin")
+        wert: Measured value
+        einheit: Unit of measurement (e.g., "g/dL")
+    """
 
     name: str
     wert: str
@@ -88,19 +138,33 @@ class MedicalLabValue(BaseModel):
 
 
 class MedicalExtractorOutput(BaseModel):
-    """Output schema for medical_extractor."""
+    """Output schema for medical_extractor.
+
+    Attributes:
+        patient: Patient information
+        diagnosen: List of diagnoses with ICD-10 codes
+        medikamente: List of medications
+        laborwerte: List of laboratory values
+        vertrauen: Confidence score (0-1)
+    """
 
     patient: MedicalPatient
     diagnosen: List[MedicalDiagnosis]
     medikamente: List[MedicalMedication]
     laborwerte: List[MedicalLabValue]
-    vertrauen: float = Field(ge=0, le=1)
+    vertrauen: float = Field(
+        ge=0, le=1, description="Confidence score"
+    )
 
     model_config = dict(extra="forbid")
 
 
 class MedicalIntegratorOutput(BaseModel):
-    """Output schema for medical_integrator."""
+    """Output schema for medical_integrator.
+
+    Attributes:
+        primaerdiagnose: Primary diagnosis from integrated data
+    """
 
     primaerdiagnose: str
 
@@ -108,7 +172,12 @@ class MedicalIntegratorOutput(BaseModel):
 
 
 class TaggingTagConfidence(BaseModel):
-    """Confidence score for individual tag."""
+    """Confidence score for individual tag.
+
+    Attributes:
+        tag: Tag identifier
+        confidence: Confidence score (0-1)
+    """
 
     tag: str
     confidence: float = Field(ge=0, le=1)
@@ -117,7 +186,12 @@ class TaggingTagConfidence(BaseModel):
 
 
 class TaggingConfidence(BaseModel):
-    """Overall and per-tag confidence scores."""
+    """Overall and per-tag confidence scores.
+
+    Attributes:
+        overall: Overall confidence score
+        tags: Per-tag confidence scores
+    """
 
     overall: float = Field(ge=0, le=1)
     tags: List[TaggingTagConfidence] = Field(
@@ -128,13 +202,24 @@ class TaggingConfidence(BaseModel):
 
 
 class TaggingMetadata(BaseModel):
-    """Metadata for tagging output."""
+    """Metadata for tagging output.
+
+    Attributes:
+        domain: Domain identifier
+        source: Source of tagging
+        confidence: Confidence scores
+    """
 
     domain: str
     source: str
     confidence: TaggingConfidence
 
     model_config = dict(extra="forbid")
+
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
 
 
 def _build_tagged_schema(
@@ -149,41 +234,78 @@ def _build_tagged_schema(
 
     Returns:
         Extended Pydantic model with tag fields
+
+    Raises:
+        ValueError: If tag normalization fails
     """
-    allowed_tags = list(
-        dict.fromkeys(normalize_tags(existing_tags or []))
-    )
-    use_select = (
-        allowed_tags and len(allowed_tags) <= TAG_SELECT_MAX
-    )
+    try:
+        allowed_tags = list(
+            dict.fromkeys(normalize_tags(existing_tags or []))
+        )
+        use_select = (
+            allowed_tags and len(allowed_tags) <= TAG_SELECT_MAX
+        )
 
-    if use_select:
-        # Create Literal type from allowed tags
-        tag_literal = Literal[tuple(allowed_tags)]  # type: ignore
-        suggested_type = List[tag_literal]  # type: ignore
-    else:
-        suggested_type = List[str]
+        if use_select:
+            # Create Literal type from allowed tags
+            tag_literal = Literal[tuple(allowed_tags)]  # type: ignore
+            suggested_type = List[tag_literal]  # type: ignore
+            logger.debug(
+                f"Using Literal constraint for {len(allowed_tags)} tags"
+            )
+        else:
+            suggested_type = List[str]
+            logger.debug(
+                f"Using unconstrained List[str] "
+                f"for {len(allowed_tags)} tags"
+            )
 
-    return create_model(
-        f"{base_model.__name__}Tagged",
-        suggested_tags=(
-            suggested_type,
-            Field(
-                default_factory=list,
-                max_items=TAG_SUGGESTION_LIMIT,
+        tagged_model = create_model(
+            f"{base_model.__name__}Tagged",
+            suggested_tags=(
+                suggested_type,
+                Field(
+                    default_factory=list,
+                    max_items=TAG_SUGGESTION_LIMIT,
+                    description="Suggested tags from existing tags",
+                ),
             ),
-        ),
-        missing_tags=(
-            List[str],
-            Field(default_factory=list, max_items=TAG_MISSING_LIMIT),
-        ),
-        tagging=(TaggingMetadata, ...),
-        __base__=base_model,
-    )
+            missing_tags=(
+                List[str],
+                Field(
+                    default_factory=list,
+                    max_items=TAG_MISSING_LIMIT,
+                    description="New tag candidates",
+                ),
+            ),
+            tagging=(
+                TaggingMetadata,
+                Field(description="Tagging metadata and confidence"),
+            ),
+            __base__=base_model,
+        )
+
+        return tagged_model
+
+    except Exception as e:
+        logger.error(f"Failed to build tagged schema: {e}")
+        raise
+
+
+# ============================================================================
+# Guidance Templates
+# ============================================================================
 
 
 class MedicalTemplatesDE:
-    """German-language medical extraction templates."""
+    """German-language medical extraction templates.
+
+    This class provides reusable Guidance templates for extracting and
+    analyzing medical documents in German contexts.
+
+    Each template is decorated with @guidance and returns a callable that
+    can be used with Guidance language models.
+    """
 
     @staticmethod
     def get_medical_classifier() -> Callable:
@@ -191,6 +313,15 @@ class MedicalTemplatesDE:
 
         Returns:
             Guidance template function for classification
+
+        Example:
+            >>> classifier = (
+            ...     MedicalTemplatesDE.get_medical_classifier()
+            ... )
+            >>> lm = model + classifier(
+            ...     document_text="Laborbefund vom..."
+            ... )
+            >>> result = lm["output"]
         """
 
         @guidance
@@ -203,7 +334,20 @@ class MedicalTemplatesDE:
             model: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            """Classify medical document."""
+            """Classify medical document.
+
+            Args:
+                lm: Language model instance
+                document_text: Full document text
+                text_chunk: Alternative text parameter
+                domain: Domain context
+                existing_tags: Existing tags for context
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with classification result
+            """
             text = pick_text(
                 document_text,
                 text_chunk,
@@ -219,12 +363,16 @@ class MedicalTemplatesDE:
                 ),
             )
 
+            logger.debug(
+                f"Classifying medical document from domain: {domain}"
+            )
+
             with system():
                 lm += (
                     "Du bist ein medizinischer "
-                    "Dokumentklassifizierer. "
-                    "Antworte nur mit JSON."
+                    "Dokumentklassifizierer."
                 )
+                lm += "Antworte nur mit JSON."
                 if domain_context:
                     lm += f"\n{domain_context}"
 
@@ -252,6 +400,15 @@ class MedicalTemplatesDE:
 
         Returns:
             Guidance template function for extraction
+
+        Example:
+            >>> extractor = (
+            ...     MedicalTemplatesDE.get_medical_extractor()
+            ... )
+            >>> lm = model + extractor(
+            ...     medical_text="Laborbefund..."
+            ... )
+            >>> result = lm["output"]
         """
 
         @guidance
@@ -264,7 +421,20 @@ class MedicalTemplatesDE:
             model: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            """Extract medical data."""
+            """Extract medical data.
+
+            Args:
+                lm: Language model instance
+                medical_text: Medical document text
+                text_chunk: Alternative text parameter
+                domain: Domain context
+                existing_tags: Existing tags for context
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with extraction result
+            """
             text = pick_text(
                 medical_text,
                 text_chunk,
@@ -280,21 +450,25 @@ class MedicalTemplatesDE:
                 ),
             )
 
+            logger.debug(
+                f"Extracting medical data from domain: {domain}"
+            )
+
             with system():
                 lm += (
                     "Du bist ein medizinischer "
                     "Datenextraktionist für deutschsprachige "
-                    "Dokumente. "
-                    "Antworte nur mit JSON."
+                    "Dokumente."
                 )
+                lm += "Antworte nur mit JSON."
                 if domain_context:
                     lm += f"\n{domain_context}"
 
             with user():
                 lm += f"Medizinischer Text: {text}\n"
                 lm += (
-                    "Extrahiere: Patient, Diagnosen "
-                    "(ICD-10), Medikamente, Laborwerte."
+                    "Extrahiere: Patient, Diagnosen (ICD-10), "
+                    "Medikamente, Laborwerte."
                 )
 
             with assistant():
@@ -308,11 +482,134 @@ class MedicalTemplatesDE:
         return medical_extractor
 
     @staticmethod
+    def get_medical_extractor_v2() -> Callable:
+        """Extract medical data + tag suggestions (v2).
+
+        Returns:
+            Guidance template function for extraction with tagging
+
+        Example:
+            >>> extractor_v2 = (
+            ...     MedicalTemplatesDE.get_medical_extractor_v2()
+            ... )
+            >>> lm = model + extractor_v2(
+            ...     medical_text="Laborbefund...",
+            ...     existing_tags=["labor", "blutbild"]
+            ... )
+            >>> result = lm["output"]
+        """
+
+        @guidance
+        def medical_extractor_v2(
+            lm: Any,
+            medical_text: Optional[str] = None,
+            text_chunk: Optional[str] = None,
+            domain: Optional[str] = None,
+            existing_tags: Optional[List[str]] = None,
+            model: Optional[str] = None,
+            **kwargs: Any,
+        ) -> Any:
+            """Extract medical data and suggest tags.
+
+            Args:
+                lm: Language model instance
+                medical_text: Medical document text
+                text_chunk: Alternative text parameter
+                domain: Domain context
+                existing_tags: Tags for constraining suggestions
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with extraction and tags
+            """
+            text = pick_text(
+                medical_text,
+                text_chunk,
+                kwargs.get("document_text"),
+            )
+            existing_tag_list = normalize_tags(
+                existing_tags or kwargs.get("existing_tags")
+            )
+
+            try:
+                tag_schema = _build_tagged_schema(
+                    MedicalExtractorOutput,
+                    existing_tag_list,
+                )
+            except Exception as e:
+                logger.error(f"Failed to build tag schema: {e}")
+                tag_schema = MedicalExtractorOutput
+
+            domain_context = build_domain_context(
+                domain or kwargs.get("domain"),
+                existing_tag_list,
+                model or kwargs.get("model"),
+                stats_context=(
+                    kwargs.get("tag_stats_context")
+                    or kwargs.get("stats_context")
+                ),
+            )
+
+            logger.debug(
+                f"Extracting medical data with tagging from domain: "
+                f"{domain}, tags: {len(existing_tag_list)}"
+            )
+
+            with system():
+                lm += (
+                    "Du bist ein medizinischer "
+                    "Datenextraktionist für deutschsprachige "
+                    "Dokumente."
+                )
+                lm += "Antworte nur mit JSON.\n"
+                lm += (
+                    "Gib auch Tag-Vorschläge im Tagging-Schema zurück."
+                )
+                lm += (
+                    "\nTagging-Regeln:\n"
+                    "- suggested_tags: nur aus bestehenden Tags\n"
+                    "- missing_tags: neue Tag-Kandidaten\n"
+                    "- tagging.domain: 'medical'\n"
+                    "- tagging.source: 'guidance_tagger_v2'\n"
+                    "- tagging.confidence.overall: zwischen 0 und 1"
+                )
+                if domain_context:
+                    lm += f"\n{domain_context}"
+
+            with user():
+                lm += f"Medizinischer Text: {text}\n"
+                lm += (
+                    "Extrahiere: Patient, Diagnosen (ICD-10), "
+                    "Medikamente, Laborwerte, Tags."
+                )
+
+            with assistant():
+                lm += gen_json(
+                    name="output",
+                    schema=tag_schema,
+                )
+
+            return lm
+
+        return medical_extractor_v2
+
+    @staticmethod
     def get_medical_integrator() -> Callable:
         """Integrate imaging and text data.
 
         Returns:
             Guidance template function for integration
+
+        Example:
+            >>> integrator = (
+            ...     MedicalTemplatesDE.get_medical_integrator()
+            ... )
+            >>> lm = model + integrator(
+            ...     imaging_analysis="CT zeigt...",
+            ...     text_extraction="Klinische Diagnose..."
+            ... )
+            >>> result = lm["output"]
         """
 
         @guidance
@@ -326,7 +623,21 @@ class MedicalTemplatesDE:
             model: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            """Integrate imaging and text data."""
+            """Integrate imaging and text data.
+
+            Args:
+                lm: Language model instance
+                imaging_analysis: Imaging analysis text
+                text_extraction: Clinical text data
+                prior_context: Prior medical context
+                domain: Domain context
+                existing_tags: Existing tags
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with integration result
+            """
             imaging_text = stringify(
                 pick_text(
                     imaging_analysis,
@@ -349,15 +660,21 @@ class MedicalTemplatesDE:
                 ),
             )
 
+            logger.debug("Integrating imaging and text data")
+
             with system():
-                lm += "Harmonisiere Bild- und Textdaten."
+                lm += (
+                    "Harmonisiere Bild- und Textdaten "
+                    "zu einer integrierten Diagnose."
+                )
                 if domain_context:
                     lm += f"\n{domain_context}"
 
             with user():
-                lm += f"Bild: {imaging_text} Text: {text_text}"
+                lm += f"Bildanalyse: {imaging_text}\n"
+                lm += f"Klinischer Text: {text_text}"
                 if prior_text:
-                    lm += f" Kontext: {prior_text}"
+                    lm += f"\nPrior-Kontext: {prior_text}"
 
             with assistant():
                 lm += gen_json(
@@ -375,6 +692,17 @@ class MedicalTemplatesDE:
 
         Returns:
             Guidance template function for integration with tagging
+
+        Example:
+            >>> integrator_v2 = (
+            ...     MedicalTemplatesDE.get_medical_integrator_v2()
+            ... )
+            >>> lm = model + integrator_v2(
+            ...     imaging_analysis="CT zeigt...",
+            ...     text_extraction="Diagnose...",
+            ...     existing_tags=["ct", "diagnose"]
+            ... )
+            >>> result = lm["output"]
         """
 
         @guidance
@@ -388,7 +716,21 @@ class MedicalTemplatesDE:
             model: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            """Integrate data and suggest tags."""
+            """Integrate data and suggest tags.
+
+            Args:
+                lm: Language model instance
+                imaging_analysis: Imaging analysis text
+                text_extraction: Clinical text data
+                prior_context: Prior medical context
+                domain: Domain context
+                existing_tags: Tags for constraining suggestions
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with integration and tags
+            """
             imaging_text = stringify(
                 pick_text(
                     imaging_analysis,
@@ -404,10 +746,16 @@ class MedicalTemplatesDE:
             existing_tag_list = normalize_tags(
                 existing_tags or kwargs.get("existing_tags")
             )
-            tag_schema = _build_tagged_schema(
-                MedicalIntegratorOutput,
-                existing_tag_list,
-            )
+
+            try:
+                tag_schema = _build_tagged_schema(
+                    MedicalIntegratorOutput,
+                    existing_tag_list,
+                )
+            except Exception as e:
+                logger.error(f"Failed to build tag schema: {e}")
+                tag_schema = MedicalIntegratorOutput
+
             domain_context = build_domain_context(
                 domain or kwargs.get("domain"),
                 existing_tag_list,
@@ -418,25 +766,36 @@ class MedicalTemplatesDE:
                 ),
             )
 
+            logger.debug(
+                f"Integrating imaging and text data with tagging, "
+                f"tags: {len(existing_tag_list)}"
+            )
+
             with system():
-                lm += "Harmonisiere Bild- und Textdaten."
                 lm += (
-                    "\nZusätzlich: gib Tag-Vorschläge im "
-                    "Tagging-Schema zurück. "
-                    "suggested_tags nur aus bestehenden Tags, "
-                    "missing_tags für neue Kandidaten. "
-                    "tagging.domain='medical', "
-                    "tagging.source='guidance_tagger_v2', "
-                    "tagging.confidence.overall zwischen "
-                    "0 und 1."
+                    "Harmonisiere Bild- und Textdaten "
+                    "zu einer integrierten Diagnose."
+                )
+                lm += "\n"
+                lm += (
+                    "Gib auch Tag-Vorschläge im Tagging-Schema zurück."
+                )
+                lm += (
+                    "\nTagging-Regeln:\n"
+                    "- suggested_tags: nur aus bestehenden Tags\n"
+                    "- missing_tags: neue Tag-Kandidaten\n"
+                    "- tagging.domain: 'medical'\n"
+                    "- tagging.source: 'guidance_tagger_v2'\n"
+                    "- tagging.confidence.overall: zwischen 0 und 1"
                 )
                 if domain_context:
                     lm += f"\n{domain_context}"
 
             with user():
-                lm += f"Bild: {imaging_text} Text: {text_text}"
+                lm += f"Bildanalyse: {imaging_text}\n"
+                lm += f"Klinischer Text: {text_text}"
                 if prior_text:
-                    lm += f" Kontext: {prior_text}"
+                    lm += f"\nPrior-Kontext: {prior_text}"
 
             with assistant():
                 lm += gen_json(

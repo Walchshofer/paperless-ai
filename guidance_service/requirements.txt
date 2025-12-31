@@ -1,11 +1,22 @@
+# Core LLM/Guidance
 guidance==0.3.0
+pydantic==2.12.5  # Aligned with Guidance
+
+# Web Framework
 flask==2.3.3
 flask-cors==4.0.0
 gunicorn==21.2.0
-pydantic==2.12.5
-python-json-logger==2.0.7
+
+# API Clients
+openai>=1.0.0,<2.0.0  # More explicit range
+
+# Data & Caching
 requests==2.31.0
-openai>=1
 diskcache==5.6.3
+
+# Logging & Monitoring
+python-json-logger==2.0.7
 prometheus_client==0.17.1
+
+# Testing
 pytest==9.0.2

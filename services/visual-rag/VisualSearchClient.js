@@ -55,7 +55,8 @@ class VisualSearchClient {
         }
 
         try {
-            const health = await this.health();
+            // Use retry helper to tolerate transient startup timing
+            const health = await this._retry(() => this.health(), this.retries);
             this._available = health.model_loaded;
             this._lastHealthCheck = now;
             return this._available;
@@ -63,6 +64,36 @@ class VisualSearchClient {
             this._available = false;
             this._lastHealthCheck = now;
             logger.warn('[VisualSearchClient] Sidecar not available:', error.message);
+
+            // Try a localhost fallback if the service host is not localhost
+            try {
+                const urlHostPattern = /^https?:\/\/([^:/]+)(:\d+)?/i;
+                const m = (this.baseUrl || '').match(urlHostPattern);
+                if (m) {
+                    const host = m[1];
+                    if (host !== 'localhost' && host !== '127.0.0.1') {
+                        const fallbackUrl = (this.baseUrl || '').replace(host, 'localhost');
+                        logger.debug(`[VisualSearchClient] Trying fallback health check at ${fallbackUrl}`);
+                        const resp = await axios.get(`${fallbackUrl.replace(/\/$/, '')}/health`, { timeout: Math.max(3000, this.timeout) });
+                        if (resp && resp.data && resp.data.model_loaded !== undefined) {
+                            logger.info('[VisualSearchClient] Sidecar reachable via localhost fallback');
+                            // Update client to use the localhost fallback so subsequent requests succeed
+                            this.baseUrl = fallbackUrl.replace(/\/$/, '');
+                            this.client = axios.create({
+                                baseURL: this.baseUrl,
+                                timeout: this.timeout,
+                                headers: { 'Content-Type': 'application/json' }
+                            });
+                            this._available = !!resp.data.model_loaded;
+                            this._lastHealthCheck = Date.now();
+                            return this._available;
+                        }
+                    }
+                }
+            } catch (fallbackErr) {
+                logger.debug('[VisualSearchClient] Localhost fallback failed:', fallbackErr.message);
+            }
+
             return false;
         }
     }
@@ -176,11 +207,33 @@ class VisualSearchClient {
      * @returns {Promise<Object>} Indexing status
      */
     async indexDocument(docId, pdfPath, metadata = {}) {
-        if (!pdfPath || typeof pdfPath !== 'string') {
-            throw new Error('PDF path must be a non-empty string');
+        // Allow indexing by PDF path OR by array of base64 images
+        const useImages = Array.isArray(arguments[3]) && arguments[3].length > 0;
+        const base64Images = useImages ? arguments[3] : null;
+
+        if (!useImages && (!pdfPath || typeof pdfPath !== 'string')) {
+            throw new Error('PDF path must be a non-empty string when images are not provided');
         }
 
         try {
+            if (useImages) {
+                logger.info(`[VisualSearchClient] Indexing document ${docId} via ${base64Images.length} image(s)`);
+
+                const response = await this.client.post('/index/document', {
+                    doc_id: docId,
+                    images: base64Images,
+                    metadata
+                });
+
+                logger.info(`[VisualSearchClient] Indexing (images) started for document ${docId}`);
+
+                return {
+                    status: response.data.status,
+                    document: response.data.document,
+                    docId
+                };
+            }
+
             logger.info(`[VisualSearchClient] Indexing document ${docId}: ${pdfPath}`);
 
             const response = await this.client.post('/index/document', {

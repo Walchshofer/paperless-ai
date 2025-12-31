@@ -18,7 +18,7 @@ const internalVatRag = require('../rag/InternalVatRag');
 const internalLegalRag = require('../rag/InternalLegalRag');
 const JsonRepairService = require('../rag/JsonRepairService');
 const { expertRegistry, StageType, ExecutionMode } = require('./ExpertRegistry');
-const LocalTranslator = require('./translation/LocalTranslator');
+// Delay importing LocalTranslator to avoid circular dependency issues
 const paperlessService = require('../paperlessService');
 
 // Import extracted utility modules
@@ -1721,7 +1721,16 @@ async function processDocument(document, ollamaService, options = {}) {
             orchestrationPlan.normalization = preVisionSummaryForAttachment.normalization;
         }
 
-        classificationResult.orchestration = orchestrationPlan;
+        // Attach normalization telemetry if collector provided
+        if (orchestrationPlan.normalization && options.telemetry) {
+            try {
+                options.telemetry.setNormalization(orchestrationPlan.normalization);
+            } catch (err) {
+                logger.warn({ event: 'telemetry_normalization_set_failed', error: err.message });
+            }
+        }
+
+        classificationResult.orchestration = orchestrationPlan; 
 
         const hasNormalizationOutput = Array.isArray(normalizationImages)
             && normalizationImages.length > 0
@@ -1755,6 +1764,20 @@ async function processDocument(document, ollamaService, options = {}) {
                 originalImageCount: document._original_base64Images?.length || 0,
                 normalizedImageCount: normalizationImages.length
             });
+
+            if (hasNormalizationOutput && normalizationMetadata) {
+                logger.info({
+                    event: 'normalization_metrics',
+                    documentId: document.id || document.filename,
+                    metrics: {
+                        normalization_rate: preVisionSummary.executed > 0 ? 1 : 0,
+                        change_detection_rate: normalizationMetadata.changes_detected ? 1 : 0,
+                        actions_count: normalizationMetadata.actions_applied?.length || 0,
+                        reingested: normalizationMetadata.reingested || false,
+                        confidence: normalizationMetadata.geometry_confidence || null
+                    }
+                });
+            }
         }
 
         const shouldRefreshImages = preVisionSummary.executed > 0 && !hasNormalizationOutput;
@@ -1833,8 +1856,16 @@ async function processDocument(document, ollamaService, options = {}) {
         classificationResult?.language ||
         document.language;
 
-    const translationConfig = config.translation || {};
-    const translator = new LocalTranslator({ ollamaService });
+        const translationConfig = config.translation || {};
+        // Require translator lazily to avoid circular require issues
+        let LocalTranslatorCtor;
+        try {
+            LocalTranslatorCtor = require('./translation/LocalTranslator');
+        } catch (e) {
+            const tm = require('./translation');
+            LocalTranslatorCtor = tm.LocalTranslator || tm;
+        }
+        const translator = new LocalTranslatorCtor({ ollamaService });
 
     // Build OCR metadata with language normalization
     const normalizedLanguage = normalizeLanguageHint(ocrLanguageHint);
@@ -1852,18 +1883,26 @@ async function processDocument(document, ollamaService, options = {}) {
 
     if (document.id && config.ocrCheckpoint?.enabled === 'yes') {
         try {
-            const hasPaperless = await ensureOcrCustomFields();
-            if (hasPaperless) {
+            const required = (config.ocrCheckpoint && config.ocrCheckpoint.required === 'yes') || false;
+            const continueOnPartial = (config.ocrCheckpoint && config.ocrCheckpoint.continueOnPartialSuccess === 'yes') || true;
+
+            const checkpointResult = await ensureOcrCustomFields({ continueOnPartialSuccess: continueOnPartial, failFast: required });
+
+            // Preserve OCR metadata no matter what
+            document._ocr_checkpoint = checkpointResult;
+
+            if (checkpointResult.success || (checkpointResult.fields && checkpointResult.fields.length > 0 && continueOnPartial)) {
                 const customFields = {};
-                if (ocrMetadata.vis_ocr_text) {
+                if ((checkpointResult.fields || []).includes('vis_ocr_text') && ocrMetadata.vis_ocr_text) {
                     customFields.vis_ocr_text = ocrMetadata.vis_ocr_text;
                 }
-                if (ocrMetadata.vis_ocr_text_de) {
+                if ((checkpointResult.fields || []).includes('vis_ocr_text_de') && ocrMetadata.vis_ocr_text_de) {
                     customFields.vis_ocr_text_de = ocrMetadata.vis_ocr_text_de;
                 }
-                if (ocrMetadata.vis_ocr_text_en) {
+                if ((checkpointResult.fields || []).includes('vis_ocr_text_en') && ocrMetadata.vis_ocr_text_en) {
                     customFields.vis_ocr_text_en = ocrMetadata.vis_ocr_text_en;
                 }
+
                 if (Object.keys(customFields).length > 0) {
                     await paperlessService.updateDocument(document.id, {
                         custom_fields: customFields
@@ -1875,12 +1914,38 @@ async function processDocument(document, ollamaService, options = {}) {
                         fieldsUpdated: Object.keys(customFields).length
                     });
                 }
+
+                if (!checkpointResult.success && checkpointResult.errors && checkpointResult.errors.length > 0) {
+                    logger.warn({
+                        event: 'ocr_checkpoint_partial_success',
+                        documentId: document.id,
+                        succeeded: checkpointResult.fields.length,
+                        failed: checkpointResult.errors.length,
+                        errors: checkpointResult.errors
+                    });
+                } else {
+                    logger.info({ event: 'ocr_checkpoint_completed', documentId: document.id });
+                }
+            } else {
+                // Total failure
+                logger.warn({
+                    event: 'ocr_checkpoint_failed_total',
+                    documentId: document.id,
+                    errors: checkpointResult.errors
+                });
+
+                // If checkpoint required, fail pipeline
+                if (required) {
+                    throw new Error('OCR checkpoint failed and is configured as required');
+                }
             }
         } catch (checkpointError) {
             logger.warn('[ExpertPipelineExecutor] OCR checkpoint update failed', {
                 docId: document.id,
                 error: checkpointError.message
             });
+            // Preserve metadata for diagnostics
+            document._ocr_checkpoint_exception = checkpointError.message;
         }
     }
 

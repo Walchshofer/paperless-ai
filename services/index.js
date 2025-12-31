@@ -88,7 +88,7 @@ const {
     ExpertPipelineExecutor,
     processDocument,
     createPipelineExecutor 
-} = require('./experts/ExpertPipelineExecutor_OLD');
+} = require('./experts/ExpertPipelineExecutor');
 
 // ============================================================================
 // INTEGRATION LAYER
@@ -120,7 +120,10 @@ let legacyText = null;
 let legacyClassify = null;
 
 try {
-    legacyVision = require('./ollama/vision');
+    legacyVision = require('./ollama/vision')({
+        ExpertPipelineExecutor: require('./experts/ExpertPipelineExecutor'),
+        expertRegistry: require('./experts/ExpertRegistry').expertRegistry
+    });
 } catch (e) {
     logger.debug('Legacy vision service not available');
 }

@@ -262,15 +262,20 @@ async function buildVisOcrMetadata(text, languageHint, translator, options = {})
  *
  * @returns {Promise<boolean>} Success flag
  */
-async function ensureOcrCustomFields() {
+async function ensureOcrCustomFields(options = {}) {
     paperlessService.initialize();
     if (!paperlessService.client) {
         logger.warn({
             event: 'ocr_custom_fields_skipped',
             reason: 'paperless_client_not_initialized'
         });
-        return false;
+        return { success: false, fields: [], errors: [{ field: null, error: 'paperless_client_not_initialized', retryable: false }] };
     }
+
+    const failFast = options.failFast === true ? true : (process.env.OCR_CHECKPOINT_FAIL_FAST === 'yes' || false);
+    const continueOnPartial = options.continueOnPartialSuccess === undefined
+        ? true
+        : !!options.continueOnPartialSuccess;
 
     const fields = [
         OCR_CUSTOM_FIELD_BASE,
@@ -278,38 +283,51 @@ async function ensureOcrCustomFields() {
         `${OCR_CUSTOM_FIELD_BASE}_en`
     ];
 
-    try {
-        for (const field of fields) {
+    const succeeded = [];
+    const errors = [];
+
+    for (const field of fields) {
+        try {
             const result = await paperlessService.createCustomFieldSafely(field, 'text');
 
-            if (result && result.success) {
-                logger.debug({
-                    event: 'ocr_custom_field_created',
-                    field,
-                    fieldId: result.id
-                });
+            // Support both old-style (field object) and new structured responses
+            if (result && result.id) {
+                succeeded.push(field);
+                logger.info({ event: 'ocr_custom_field_created', field, fieldId: result.id });
+            } else if (result && result.success === false && result.error) {
+                errors.push({ field, error: result.error, retryable: !!result.error.retryable });
+                logger.warn({ event: 'ocr_custom_field_creation_failed', field, error: result.error });
+                if (failFast) {
+                    return { success: false, fields: succeeded, errors };
+                }
+            } else if (result && result.success === true && result.field) {
+                succeeded.push(field);
+                logger.info({ event: 'ocr_custom_field_created', field, fieldId: result.field.id });
             } else {
-                logger.warn({
-                    event: 'ocr_custom_field_creation_failed',
-                    field,
-                    reason: result?.reason || 'unknown'
-                });
+                // Unknown shape
+                errors.push({ field, error: { type: 'unknown', message: 'Unknown create result' }, retryable: false });
+                logger.warn({ event: 'ocr_custom_field_creation_failed_unknown', field, result });
+                if (failFast) return { success: false, fields: succeeded, errors };
             }
+        } catch (error) {
+            // Unexpected exceptions
+            const e = { type: 'exception', message: error.message || String(error), retryable: false };
+            errors.push({ field, error: e, retryable: false });
+            logger.error({ event: 'ocr_custom_field_creation_exception', field, error: e });
+            if (failFast) return { success: false, fields: succeeded, errors };
         }
-
-        logger.info({
-            event: 'ocr_custom_fields_ensured',
-            fieldsCount: fields.length
-        });
-
-        return true;
-    } catch (error) {
-        logger.error({
-            event: 'ocr_custom_fields_error',
-            error: error.message
-        });
-        return false;
     }
+
+    // Aggregate logging
+    logger.info({
+        event: 'ocr_custom_fields_ensured_summary',
+        total: fields.length,
+        succeeded: succeeded.length,
+        failed: errors.length
+    });
+
+    const overallSuccess = errors.length === 0;
+    return { success: overallSuccess, fields: succeeded, errors };
 }
 
 module.exports = {

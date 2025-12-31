@@ -90,7 +90,8 @@ class HealthResponse(BaseModel):
 
 
 class IndexRequest(BaseModel):
-    pdf_path: str = Field(..., description="Path to PDF file (relative to /media/paperless)")
+    pdf_path: Optional[str] = Field(None, description="Path to PDF file (relative to /media/paperless)")
+    images: Optional[List[str]] = Field(None, description="Array of base64-encoded page images (PNG/JPEG)")
     doc_id: Optional[int] = Field(None, description="Document ID from Paperless-ngx")
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
@@ -258,6 +259,78 @@ async def get_status():
 async def index_document(request: IndexRequest, background_tasks: BackgroundTasks):
     """Index a single PDF document."""
     ensure_model_loaded()
+    # If images provided, write them to a temp folder under /data and index those images
+    if request.images and isinstance(request.images, list) and len(request.images) > 0:
+        # Prepare metadata
+        metadata = request.metadata or {}
+        if request.doc_id:
+            metadata["paperless_doc_id"] = request.doc_id
+
+        tmp_root = config.INDEX_DIR.parent / 'tmp_images'
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        uid = f"doc_{request.doc_id or 'unknown'}_{int(asyncio.get_event_loop().time()*1000)}"
+        tmp_dir = tmp_root / uid
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save images
+        for i, b64 in enumerate(request.images, start=1):
+            try:
+                import base64
+                img_bytes = base64.b64decode(b64)
+                img_path = tmp_dir / f"page_{i}.png"
+                with open(img_path, 'wb') as f:
+                    f.write(img_bytes)
+            except Exception as e:
+                logger.error(f"Failed to write image {i} for indexing: {e}")
+
+        async def do_index_images():
+            state.indexing_in_progress = True
+            try:
+                logger.info(f"Indexing {len(request.images)} images for doc {request.doc_id} from {tmp_dir}")
+                # Add to existing index or create a new one using the directory of images
+                index_path = config.INDEX_DIR / config.DEFAULT_INDEX_NAME
+
+                if index_path.exists() and state.index_loaded:
+                    state.model.add_to_index(
+                        input_path=str(tmp_dir),
+                        store_collection_with_index=config.STORE_COLLECTION,
+                        metadata=[metadata]
+                    )
+                else:
+                    state.model.index(
+                        input_path=str(tmp_dir),
+                        index_name=config.DEFAULT_INDEX_NAME,
+                        store_collection_with_index=config.STORE_COLLECTION,
+                        metadata=[metadata],
+                        overwrite=False
+                    )
+                    state.index_loaded = True
+
+                # Track indexed document
+                doc_key = f"images:{uid}"
+                state.indexed_documents[doc_key] = {"doc_id": request.doc_id, "metadata": metadata}
+
+                logger.info(f"Successfully indexed images from: {tmp_dir}")
+            except Exception as e:
+                logger.error(f"Failed to index images from {tmp_dir}: {e}")
+                state.last_error = str(e)
+                raise
+            finally:
+                state.indexing_in_progress = False
+                # cleanup files (best-effort)
+                try:
+                    import shutil
+                    shutil.rmtree(tmp_dir)
+                except Exception:
+                    pass
+
+        background_tasks.add_task(asyncio.to_thread, lambda: asyncio.run(do_index_images()))
+
+        return {"status": "indexing_started", "document": f"images:{uid}", "document_count": len(request.images)}
+
+    # Fallback: pdf_path-based indexing (existing behavior)
+    if not request.pdf_path:
+        raise HTTPException(status_code=400, detail="Either 'pdf_path' or 'images' must be provided")
 
     # Construct full path
     full_path = config.MEDIA_DIR / request.pdf_path
@@ -274,7 +347,7 @@ async def index_document(request: IndexRequest, background_tasks: BackgroundTask
             detail="Only PDF files are supported"
         )
 
-    async def do_index():
+    async def do_index_pdf():
         state.indexing_in_progress = True
         try:
             logger.info(f"Indexing document: {full_path}")
@@ -323,7 +396,7 @@ async def index_document(request: IndexRequest, background_tasks: BackgroundTask
             state.indexing_in_progress = False
 
     # Run indexing in background
-    background_tasks.add_task(asyncio.to_thread, lambda: asyncio.run(do_index()))
+    background_tasks.add_task(asyncio.to_thread, lambda: asyncio.run(do_index_pdf()))
 
     return {"status": "indexing_started", "document": request.pdf_path}
 

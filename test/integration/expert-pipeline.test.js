@@ -17,7 +17,7 @@
  */
 
 const assert = require('assert');
-const { LocalTranslator } = require('../../services/experts');
+const { LocalTranslator } = require('../../services/experts/translation');
 const { ExpertRegistry } = require('../../services/experts/ExpertRegistry');
 const { DomainType } = require('../../services/prompts/PromptRegistry');
 const { TemplateRegistry } = require('../../services/prompts/TemplateRegistry');
@@ -748,7 +748,7 @@ describe('Expert Pipeline', function() {
     // ============================================================================
     
     describe('ExpertPipelineExecutor', function() {
-        const { ExpertPipelineExecutor } = require('../../services/experts/ExpertPipelineExecutor_OLD');
+        const { ExpertPipelineExecutor } = require('../../services/experts/ExpertPipelineExecutor');
         const { promptRegistry } = require('../../services/prompts/PromptRegistry');
         const { registerMedicalPrompts } = require('../../services/prompts/MedicalPrompts');
         
@@ -1263,6 +1263,68 @@ describe('Expert Pipeline', function() {
 // ============================================================================
 // RUN TESTS IF EXECUTED DIRECTLY
 // ============================================================================
+
+// ---------------------------------------------------------------------------
+// Additional OCR checkpoint tests
+// ---------------------------------------------------------------------------
+describe('OCR checkpoint handling (integration)', function () {
+    const ocrMetadata = require('../../services/experts/utils/ocrMetadata');
+    const paperlessServiceModule = require('../../services/paperlessService');
+    const { DocumentProcessor } = require('../../services/integration/DocumentProcessor');
+
+    afterEach(function () {
+        if (paperlessServiceModule._original_createCustomFieldSafely) {
+            paperlessServiceModule.createCustomFieldSafely = paperlessServiceModule._original_createCustomFieldSafely;
+            delete paperlessServiceModule._original_createCustomFieldSafely;
+        }
+    });
+
+    it('ensureOcrCustomFields returns success when all created', async function () {
+        paperlessServiceModule._original_createCustomFieldSafely = paperlessServiceModule.createCustomFieldSafely;
+        paperlessServiceModule.createCustomFieldSafely = async (fname) => ({ id: 100 + Math.floor(Math.random()*100), name: fname });
+
+        const res = await ocrMetadata.ensureOcrCustomFields();
+        assert.strictEqual(res.success, true);
+        assert.strictEqual(res.fields.length, 3);
+        assert.strictEqual(res.errors.length, 0);
+    });
+
+    it('ensureOcrCustomFields reports partial success when one field fails', async function () {
+        paperlessServiceModule._original_createCustomFieldSafely = paperlessServiceModule.createCustomFieldSafely;
+        let calls = 0;
+        paperlessServiceModule.createCustomFieldSafely = async (fname) => {
+            calls++;
+            if (calls === 3) return { success: false, error: { type: 'validation', message: 'invalid', statusCode: 400, retryable: false } };
+            return { id: 200 + calls, name: fname };
+        };
+
+        const res = await ocrMetadata.ensureOcrCustomFields();
+        assert.strictEqual(res.success, false);
+        assert.strictEqual(res.fields.length, 2);
+        assert.strictEqual(res.errors.length, 1);
+        assert.strictEqual(res.errors[0].field, 'vis_ocr_text_en');
+    });
+
+    it('DocumentProcessor includes notes when checkpoint errors exist', function () {
+        const fakeResult = {
+            classification: { primary_domain: 'General' },
+            _expert_result: {
+                ocr_checkpoint: {
+                    success: false,
+                    fields: ['vis_ocr_text','vis_ocr_text_de'],
+                    errors: [{ field: 'vis_ocr_text_en', error: { message: 'permission denied' } }]
+                }
+            },
+            vis_ocr_text: 'some text',
+            vis_ocr_text_de: 'de text'
+        };
+
+        const { ResultMerger } = require('../../services/integration/DocumentProcessor');
+        const custom = ResultMerger._extractCustomFields(fakeResult);
+        assert.ok(custom.ai_pipeline_notes);
+        assert.ok(custom.ocr_checkpoint_status);
+    });
+});
 
 if (require.main === module) {
     const Mocha = require('mocha');

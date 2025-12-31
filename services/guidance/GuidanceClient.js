@@ -518,7 +518,10 @@ const TEMPLATE_TO_PROMPT_FALLBACK = {
     'general_classifier': 'GEN_FALLBACK_V1',
     'general_extractor': 'GEN_FALLBACK_V1',
     'general_extractor_v2': 'GEN_FALLBACK_V1',
-    'cross_pipeline_router': 'SYS_ROUTER_V1'
+    'cross_pipeline_router': 'SYS_ROUTER_V1',
+
+    // Normalization
+    'normalization_geometry': 'SYS_ROUTER_V1'
 };
 
 /**
@@ -526,7 +529,7 @@ const TEMPLATE_TO_PROMPT_FALLBACK = {
  */
 function getFallbackPromptId(guidanceTemplate) {
     return TEMPLATE_TO_PROMPT_FALLBACK[guidanceTemplate] || null;
-}
+} 
 
 // ============================================================================
 // SINGLETON EXPORT

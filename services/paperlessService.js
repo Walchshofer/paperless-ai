@@ -19,14 +19,32 @@ class PaperlessService {
   }
 
   initialize() {
-    if (!this.client && config.paperless.apiUrl && config.paperless.apiToken) {
-      this.client = axios.create({
-        baseURL: config.paperless.apiUrl,
-        headers: {
-          'Authorization': `Token ${config.paperless.apiToken}`,
-          'Content-Type': 'application/json'
+    if (!this.client) {
+      let apiUrl = config.paperless.apiUrl;
+      let apiToken = config.paperless.apiToken;
+
+      // Fallback: read host data/.env directly if config lacks values
+      if ((!apiUrl || !apiToken) && require('fs').existsSync(require('path').join(process.cwd(), 'data', '.env'))) {
+        try {
+          const envText = require('fs').readFileSync(require('path').join(process.cwd(), 'data', '.env'), 'utf8');
+          const mUrl = envText.match(/PAPERLESS_API_URL=(.+)/);
+          const mToken = envText.match(/PAPERLESS_API_TOKEN=(.+)/);
+          if (mUrl && mUrl[1]) apiUrl = apiUrl || mUrl[1].trim();
+          if (mToken && mToken[1]) apiToken = apiToken || mToken[1].trim();
+        } catch (e) {
+          // ignore
         }
-      });
+      }
+
+      if (apiUrl && apiToken) {
+        this.client = axios.create({
+          baseURL: apiUrl,
+          headers: {
+            'Authorization': `Token ${apiToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
     }
   }
 
@@ -366,30 +384,114 @@ class PaperlessService {
   }
 
   async createCustomFieldSafely(fieldName, fieldType, default_currency) {
-    try {
-      // Try to create the field first
-      const response = await this.client.post('/custom_fields/', { 
-        name: fieldName,
-        data_type: fieldType,
-        extra_data: {
-          default_currency: default_currency || null
+    this.initialize();
+    const maxRetries = (config.ocrCheckpoint && config.ocrCheckpoint.maxRetries) || 3;
+    const baseDelay = (config.ocrCheckpoint && config.ocrCheckpoint.retryDelay) || 1000;
+    const maxDelay = 5000;
+
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    const extractErrorInfo = (err) => {
+      const status = err.response?.status;
+      const data = err.response?.data;
+      const message = err.message || (data && JSON.stringify(data)) || 'unknown error';
+      const code = err.code || null;
+      return { statusCode: status, message, data, code };
+    };
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        logger.debug({ event: 'ocr_custom_field_creation_attempt', field: fieldName, attempt });
+        const response = await this.client.post('/custom_fields/', { 
+          name: fieldName,
+          data_type: fieldType,
+          extra_data: {
+            default_currency: default_currency || null
+          }
+        });
+        const newField = response.data;
+        logger.info({ event: 'ocr_custom_field_creation_success', field: fieldName, fieldId: newField.id });
+        this.customFieldCache.set(fieldName.toLowerCase(), newField);
+        this._refreshFieldMatcher();
+        return newField;
+      } catch (error) {
+        const info = extractErrorInfo(error);
+
+        // Categorize
+        const status = info.statusCode;
+        const code = info.code;
+        const lowerMsg = String(info.message || '').toLowerCase();
+
+        // Already exists (non-retryable) - try to refresh cache and find existing
+        if (status === 400 && lowerMsg.includes('already') && lowerMsg.includes('exist')) {
+          try {
+            await this.refreshCustomFieldCache();
+            const existingField = await this.findExistingCustomField(fieldName);
+            if (existingField) {
+              logger.info({ event: 'ocr_custom_field_found_existing', field: fieldName, fieldId: existingField.id });
+              return existingField;
+            }
+          } catch (inner) {
+            logger.warn({ event: 'ocr_custom_field_find_existing_failed', field: fieldName, error: inner.message });
+          }
+          return { success: false, error: { type: 'already_exists', message: info.message, statusCode: status, retryable: false } };
         }
-      });
-      const newField = response.data;
-      logger.debug(`Successfully created custom field "${fieldName}" with ID ${newField.id}`);
-      this.customFieldCache.set(fieldName.toLowerCase(), newField);
-      this._refreshFieldMatcher();
-      return newField;
-    } catch (error) { 
-      if (error.response?.status === 400) {
-        await this.refreshCustomFieldCache();
-        const existingField = await this.findExistingCustomField(fieldName);
-        if (existingField) {
-          return existingField;
+
+        // Validation errors (400 but not already exists)
+        if (status === 400) {
+          logger.error({ event: 'ocr_custom_field_validation_error', field: fieldName, error: info });
+          return { success: false, error: { type: 'validation', message: info.message, statusCode: status, retryable: false } };
         }
+
+        // Unauthorized / Forbidden
+        if (status === 401 || status === 403) {
+          logger.error({ event: 'ocr_custom_field_permission_error', field: fieldName, error: info });
+          return { success: false, error: { type: 'permission', message: info.message, statusCode: status, retryable: false } };
+        }
+
+        // Rate limit
+        if (status === 429) {
+          const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+          logger.warn({ event: 'ocr_custom_field_rate_limited', field: fieldName, attempt, delay });
+          if (attempt < maxRetries) {
+            await sleep(delay);
+            logger.debug({ event: 'ocr_custom_field_retry', field: fieldName, attempt, delay });
+            continue;
+          }
+          return { success: false, error: { type: 'rate_limit', message: info.message, statusCode: status, retryable: true } };
+        }
+
+        // Server errors - retryable
+        if ([500, 502, 503, 504].includes(status) || ['ETIMEDOUT', 'ECONNREFUSED', 'ECONNRESET'].includes(code)) {
+          const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+          logger.warn({ event: 'ocr_custom_field_transient_error', field: fieldName, status, code, attempt, delay });
+          if (attempt < maxRetries) {
+            await sleep(delay);
+            logger.debug({ event: 'ocr_custom_field_retry', field: fieldName, attempt, delay });
+            continue;
+          }
+          return { success: false, error: { type: 'transient', message: info.message, statusCode: status, retryable: true } };
+        }
+
+        // Network error with no response - treat as retryable
+        if (!error.response && code) {
+          const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+          logger.warn({ event: 'ocr_custom_field_network_error', field: fieldName, code, attempt, delay });
+          if (attempt < maxRetries) {
+            await sleep(delay);
+            logger.debug({ event: 'ocr_custom_field_retry', field: fieldName, attempt, delay });
+            continue;
+          }
+          return { success: false, error: { type: 'network', message: info.message, statusCode: null, retryable: true } };
+        }
+
+        // Unknown - fail non-retryable by default
+        logger.error({ event: 'ocr_custom_field_unknown_error', field: fieldName, info });
+        return { success: false, error: { type: 'unknown', message: info.message, statusCode: status || null, retryable: false } };
       }
-      throw error; // When couldn't find the field, rethrow the error
     }
+    // Should not reach here, but return a generic failure
+    return { success: false, error: { type: 'unknown', message: 'Exceeded retries', statusCode: null, retryable: true } };
   }
 
   async getExistingCustomFields(documentId) {

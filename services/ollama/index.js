@@ -6,7 +6,10 @@ const ExtractionValidator = require('../ExtractionValidator');
 
 const helpers = require('./helpers');
 const text = require('./text');
-const vision = require('./vision');
+const vision = require('./vision')({
+    ExpertPipelineExecutor: require('../experts/ExpertPipelineExecutor'),
+    expertRegistry: require('../experts/ExpertRegistry').expertRegistry
+});
 const sequential = require('./sequential');
 const playground = require('./playground');
 const status = require('./status');

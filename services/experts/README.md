@@ -63,33 +63,53 @@ services/experts/
 ├── README.md
 ├── ExpertPipelineExecutor.js      # Main execution engine
 ├── ExpertRegistry.js              # Pipeline registry & routing
-├── context.js                     # Execution context management
-├── evaluation.js                  # Condition & validation engines
-├── translation/
-│   └── LocalTranslator.js         # Multi-language translation
-├── utils/
+└── index.js                       # (removed) previously module exports — import specific modules directly
+├── context/
 │   ├── index.js
-│   ├── normalizers.js
-│   ├── toolingConfig.js
-│   ├── toolCalls.js
-│   ├── guidance.js
-│   ├── ocrQuality.js
-│   ├── ocrMetadata.js
-│   ├── toolingExecution.js
-│   ├── toolingHelpers.js
-│   └── __tests__/
-├── __tests__/
-│   ├── ExpertPipelineExecutor.test.js
-│   ├── integration.test.js
-│   └── fixtures/
-└── docs/
-    ├── ARCHITECTURE.md
-    ├── PIPELINE_CONFIGURATION.md
-    ├── API_REFERENCE.md
-    └── EXAMPLES.md
+│   └── ExecutionContext.js        # Execution context management
+├── evaluation/
+│   ├── index.js
+│   ├── ConditionEvaluator.js      # Condition evaluation engine
+│   └── ValidationEngine.js        # Validation rules engine
+├── normalization/
+│   ├── README.md
+│   ├── tools.js                   # Normalization tool wrapper
+│   └── PreVisionNormalizer.js     # AI-driven normalization service
+├── pipelines/
+│   ├── index.js
+│   ├── constants.js               # Pipeline constants
+│   ├── models.js                  # Pipeline models
+│   ├── GeneralPipeline.js
+│   ├── MedicalPipeline.js
+│   ├── FinancialPipeline.js
+│   └── LegalPipeline.js
+├── routing/
+│   ├── index.js
+│   └── SemanticRouter.js          # Semantic routing logic
+├── translation/
+│   ├── index.js
+│   └── LocalTranslator.js         # Multi-language translation
+└── utils/
+    ├── index.js                   # Central export point
+    ├── normalizers.js             # Data normalization utilities
+    ├── toolingConfig.js           # Tool configuration resolver
+    ├── toolingExecution.js        # Tool execution orchestration
+    ├── toolingHelpers.js          # Tool helper functions
+    ├── toolCalls.js               # Tool call parsing & validation
+    ├── guidance.js                # Guidance template resolution
+    ├── ocrQuality.js              # OCR quality scoring
+    ├── ocrMetadata.js             # OCR metadata builders
+    └── visualRagLoader.js         # Visual RAG lazy loader
 ```
 
 ---
+
+> **Note:** The previous compatibility aggregator `index.js` has been removed to avoid hidden circular
+> dependencies. Import modules directly, for example:
+>
+>- `const { expertRegistry } = require('./services/experts/ExpertRegistry');`
+>- `const { ExpertPipelineExecutor } = require('./services/experts/ExpertPipelineExecutor');`
+
 
 ## 🏗️ Architecture
 
@@ -210,7 +230,18 @@ Core responsibilities:
 - Orchestrate pipeline stages and error recovery
 - Expose methods such as `execute`, `classifyDocument`, `getVisualOverlays`, `ingestDocument`, `visualSearch`, `getStats`, `resetStats`
 
-### 2) Utility modules (`utils/`)
+### Pre-Vision Normalization (normalization/)
+
+A dedicated pre-vision normalization module performs geometry analysis and image transformations before Visual OCR or Visual RAG ingestion. Key points:
+
+- Implementation: `services/experts/normalization/PreVisionNormalizer.js` — analyzes the first page (default 150 DPI), calls the Guidance template `normalization_geometry` (or falls back to Ollama vision), validates geometry (rotation, crop_box, confidence), and constructs normalization actions (rotate/crop/scale).
+- Template: `.prompts/templates/normalization_guidance.md` provides the Guidance instruction and strict JSON output format for `normalization_geometry`.
+- Tooling: Normalization actions are executed via the `paperless.normalize_images` / `paperless.normalize_images_ai` tools and may trigger re-ingestion when changes are applied.
+- Configuration: Controlled by `ORCHESTRATOR_PREVISION_NORMALIZATION_ENABLED` (see below).
+
+**Telemetry & observability**: The normalization workflow emits structured telemetry and logs for observability. The `TelemetryCollector` exposes `setNormalization(metadata)` to attach normalization metadata (fields: `requested`, `executed`, `succeeded`, `changes_detected`, `reingested`, `actions_applied`, `warnings`) and getters `getNormalizationRate()` and `getChangeDetectionRate()` for quick rates. When normalization output is applied, `ExpertPipelineExecutor` emits a `normalization_metrics` event with metrics: `normalization_rate`, `change_detection_rate`, `actions_count`, `reingested`, and `confidence`.
+
+### 2) Utility modules (`utils/`) 
 
 Examples:
 
@@ -273,7 +304,7 @@ module.exports = {
   },
   guidanceService: { enabled: true, tagSchemaVersion: 'v2' },
   visualRagSidecar: { enabled: 'yes', dbHost: 'localhost', dbPort: 5432 },
-  orchestration: { toolsEnabled: true, preVisionToolsEnabled: true, toolAllowlist: ['paperless.normalize_images', 'paperless.update_document', 'paperless.resolve_tags'] },
+  orchestration: { toolsEnabled: true, preVisionToolsEnabled: true, toolAllowlist: ['paperless.normalize_images_ai', 'paperless.normalize_images', 'paperless.update_document', 'paperless.resolve_tags'] },
   visualOCR: { enabled: true, minQuality: 0.6, timeout: 60000 }
 };
 ```
@@ -303,11 +334,23 @@ All pipeline executions return a standard result object. Example:
 - Unit tests are in `__tests__/` and `utils/__tests__/`.
 - Run the test suite and linters before submitting changes.
 
+Recommended tests to add when touching normalization or guidance templates:
+
+- **Normalization**: tests for `PreVisionNormalizer._parseGeometryAnalysis`, `_denormalizeCoordinates`, and `_buildNormalizationActions`; ensure `.prompts/templates/normalization_guidance.md` is loadable and parseable.
+- **Guidance fallback verification**: add a unit or CI check that asserts `services/guidance/GuidanceClient.js` contains the expected fallback mappings (e.g., `normalization_geometry` -> `SYS_ROUTER_V1`). Consider `scripts/verify-guidance-fallbacks.js` for automated verification.
+- **Telemetry**: add tests for `TelemetryCollector.setNormalization()` and the getters `getNormalizationRate()` / `getChangeDetectionRate()` to validate observed metrics and edge cases.
+
+
+
 ---
 
 ## Contributing
 
 Please follow project guidelines (linting, tests, PR process). See the repo `CONTRIBUTING.md` for details.
+
+Compatibility note
+
+<!-- legacy shim removed; import directly from `services/experts/ExpertPipelineExecutor.js` -->
 
 ---
 

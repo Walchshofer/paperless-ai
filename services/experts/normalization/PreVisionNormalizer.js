@@ -13,6 +13,7 @@ const paperlessService = require('../../paperlessService');
 const { pdfRenderer } = require('../../visual-rag/PDFRenderer');
 const { guidanceClient } = require('../../guidance/GuidanceClient');
 const { ingestionManager } = require('../../visual-rag/IngestionManager');
+const { normalizeImagesAI } = require('./tools');
 
 /**
  * Default options for normalization analysis
@@ -429,18 +430,20 @@ class PreVisionNormalizer {
                 confidence: geometry.confidence
             };
 
-            // Apply normalization via paperless tool
-            const applyStart = Date.now();
-            await new Promise(resolve => setImmediate(resolve));
-            const { runPaperlessTool } = require('../../tools/paperlessApiTools');
+                // Apply normalization via paperless tool
+                const applyStart = Date.now();
+                await new Promise(resolve => setImmediate(resolve));
 
-            const normalizeResult = await runPaperlessTool('paperless.normalize_images', {
-                document_id: docId,
-                actions,
-                target_dpi: geometry.target_dpi || mergedOptions.targetDpi,
-                max_pages: mergedOptions.maxPages,
-                format: 'png'
-            });
+                // Lazy-load the normalization tools factory to avoid circular requires
+                const { createNormalizationTools } = require('./tools');
+                const tools = createNormalizationTools({ preVisionNormalizer: this });
+                const normalizeResult = await tools.normalizeImagesAI({
+                    document_id: docId,
+                    actions,
+                    target_dpi: geometry.target_dpi || mergedOptions.targetDpi,
+                    max_pages: mergedOptions.maxPages,
+                    format: 'png'
+                });
             const applyLatency = Date.now() - applyStart;
             this.stats.stageLatencies.normalizing.push(applyLatency);
 

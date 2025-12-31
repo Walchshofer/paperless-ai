@@ -8,18 +8,32 @@ German documents (AT/DE). Handles:
 - Tag suggestions and tagging metadata
 
 Supports both basic and v2 (with tags) variants.
+
+Best Practices Applied:
+- Comprehensive logging and error handling
+- Type annotations throughout
+- Pydantic schema validation
+- Clear docstrings for all functions
 """
 
+import logging
 import os
 from typing import Any, Callable, Dict, List, Literal, Optional
 
-from guidance import (  # type: ignore[import-not-found]
-    assistant,
-    gen_json,
-    guidance,
-    system,
-    user,
-)
+try:
+    from guidance import (  # type: ignore[import-not-found]
+        assistant,
+        json as gen_json,
+        guidance,
+        system,
+        user,
+    )
+except ImportError as e:
+    raise ImportError(
+        "guidance library not found. "
+        "Install with: pip install guidance==0.3.0"
+    ) from e
+
 from pydantic import BaseModel, Field, create_model
 
 from templates.components.common import (
@@ -29,6 +43,10 @@ from templates.components.common import (
     stringify,
 )
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Configuration from environment
 TAG_SELECT_MAX = int(os.getenv("GUIDANCE_TAG_SELECT_MAX", "50"))
 TAG_SUGGESTION_LIMIT = int(
     os.getenv("GUIDANCE_TAG_SUGGESTION_LIMIT", "5")
@@ -36,8 +54,18 @@ TAG_SUGGESTION_LIMIT = int(
 TAG_MISSING_LIMIT = int(os.getenv("GUIDANCE_TAG_MISSING_LIMIT", "5"))
 
 
+# ============================================================================
+# Output Schemas - Pydantic Models
+# ============================================================================
+
+
 class FinancialParty(BaseModel):
-    """Financial party (issuer/recipient) info."""
+    """Financial party (issuer/recipient) info.
+
+    Attributes:
+        name: Party name
+        uid: Unique identifier (e.g., Austrian UID)
+    """
 
     name: str
     uid: str
@@ -46,7 +74,11 @@ class FinancialParty(BaseModel):
 
 
 class FinancialParties(BaseModel):
-    """Container for financial parties."""
+    """Container for financial parties.
+
+    Attributes:
+        rechnungssteller: Invoice issuer
+    """
 
     rechnungssteller: FinancialParty
 
@@ -54,7 +86,11 @@ class FinancialParties(BaseModel):
 
 
 class FinancialDates(BaseModel):
-    """Financial document dates."""
+    """Financial document dates.
+
+    Attributes:
+        rechnungsdatum: Invoice date
+    """
 
     rechnungsdatum: str
 
@@ -62,7 +98,14 @@ class FinancialDates(BaseModel):
 
 
 class FinancialAmounts(BaseModel):
-    """Financial amounts (netto, tax, brutto)."""
+    """Financial amounts (netto, tax, brutto).
+
+    Attributes:
+        summe_netto: Net amount
+        steuersatz: Tax rate
+        steuerbetrag: Tax amount
+        summe_brutto: Gross amount
+    """
 
     summe_netto: float
     steuersatz: float
@@ -73,7 +116,13 @@ class FinancialAmounts(BaseModel):
 
 
 class FinancialExtractorOutput(BaseModel):
-    """Output schema for financial_extractor."""
+    """Output schema for financial_extractor.
+
+    Attributes:
+        parteien: Party information
+        daten: Date information
+        betraege: Amount information
+    """
 
     parteien: FinancialParties
     daten: FinancialDates
@@ -83,7 +132,11 @@ class FinancialExtractorOutput(BaseModel):
 
 
 class FinancialReasonerOutput(BaseModel):
-    """Output schema for financial_reasoner."""
+    """Output schema for financial_reasoner.
+
+    Attributes:
+        ist_valide: Whether amounts are mathematically valid
+    """
 
     ist_valide: bool
 
@@ -91,7 +144,11 @@ class FinancialReasonerOutput(BaseModel):
 
 
 class VatExpertOutput(BaseModel):
-    """Output schema for vat_expert_analyzer."""
+    """Output schema for vat_expert_analyzer.
+
+    Attributes:
+        konform: Whether VAT is compliant with Austrian law
+    """
 
     konform: bool
 
@@ -99,7 +156,12 @@ class VatExpertOutput(BaseModel):
 
 
 class TaggingTagConfidence(BaseModel):
-    """Confidence score for individual tag."""
+    """Confidence score for individual tag.
+
+    Attributes:
+        tag: Tag identifier
+        confidence: Confidence score (0-1)
+    """
 
     tag: str
     confidence: float = Field(ge=0, le=1)
@@ -108,7 +170,12 @@ class TaggingTagConfidence(BaseModel):
 
 
 class TaggingConfidence(BaseModel):
-    """Overall and per-tag confidence scores."""
+    """Overall and per-tag confidence scores.
+
+    Attributes:
+        overall: Overall confidence score
+        tags: Per-tag confidence scores
+    """
 
     overall: float = Field(ge=0, le=1)
     tags: List[TaggingTagConfidence] = Field(
@@ -119,13 +186,24 @@ class TaggingConfidence(BaseModel):
 
 
 class TaggingMetadata(BaseModel):
-    """Metadata for tagging output."""
+    """Metadata for tagging output.
+
+    Attributes:
+        domain: Domain identifier
+        source: Source of tagging
+        confidence: Confidence scores
+    """
 
     domain: str
     source: str
     confidence: TaggingConfidence
 
     model_config = dict(extra="forbid")
+
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
 
 
 def _build_tagged_schema(
@@ -140,41 +218,78 @@ def _build_tagged_schema(
 
     Returns:
         Extended Pydantic model with tag fields
+
+    Raises:
+        ValueError: If tag normalization fails
     """
-    allowed_tags = list(
-        dict.fromkeys(normalize_tags(existing_tags or []))
-    )
-    use_select = (
-        allowed_tags and len(allowed_tags) <= TAG_SELECT_MAX
-    )
+    try:
+        allowed_tags = list(
+            dict.fromkeys(normalize_tags(existing_tags or []))
+        )
+        use_select = (
+            allowed_tags and len(allowed_tags) <= TAG_SELECT_MAX
+        )
 
-    if use_select:
-        # Create Literal type from allowed tags
-        tag_literal = Literal[tuple(allowed_tags)]  # type: ignore
-        suggested_type = List[tag_literal]  # type: ignore
-    else:
-        suggested_type = List[str]
+        if use_select:
+            # Create Literal type from allowed tags
+            tag_literal = Literal[tuple(allowed_tags)]  # type: ignore
+            suggested_type = List[tag_literal]  # type: ignore
+            logger.debug(
+                f"Using Literal constraint for {len(allowed_tags)} tags"
+            )
+        else:
+            suggested_type = List[str]
+            logger.debug(
+                f"Using unconstrained List[str] "
+                f"for {len(allowed_tags)} tags"
+            )
 
-    return create_model(
-        f"{base_model.__name__}Tagged",
-        suggested_tags=(
-            suggested_type,
-            Field(
-                default_factory=list,
-                max_items=TAG_SUGGESTION_LIMIT,
+        tagged_model = create_model(
+            f"{base_model.__name__}Tagged",
+            suggested_tags=(
+                suggested_type,
+                Field(
+                    default_factory=list,
+                    max_items=TAG_SUGGESTION_LIMIT,
+                    description="Suggested tags from existing tags",
+                ),
             ),
-        ),
-        missing_tags=(
-            List[str],
-            Field(default_factory=list, max_items=TAG_MISSING_LIMIT),
-        ),
-        tagging=(TaggingMetadata, ...),
-        __base__=base_model,
-    )
+            missing_tags=(
+                List[str],
+                Field(
+                    default_factory=list,
+                    max_items=TAG_MISSING_LIMIT,
+                    description="New tag candidates",
+                ),
+            ),
+            tagging=(
+                TaggingMetadata,
+                Field(description="Tagging metadata and confidence"),
+            ),
+            __base__=base_model,
+        )
+
+        return tagged_model
+
+    except Exception as e:
+        logger.error(f"Failed to build tagged schema: {e}")
+        raise
+
+
+# ============================================================================
+# Guidance Templates
+# ============================================================================
 
 
 class FinancialTemplatesDE:
-    """German-language financial document templates."""
+    """German-language financial document templates.
+
+    This class provides reusable Guidance templates for extracting and
+    analyzing financial documents in German and Austrian contexts.
+
+    Each template is decorated with @guidance and returns a callable that
+    can be used with Guidance language models.
+    """
 
     @staticmethod
     def get_financial_extractor() -> Callable:
@@ -182,6 +297,13 @@ class FinancialTemplatesDE:
 
         Returns:
             Guidance template function for financial extraction
+
+        Example:
+            >>> extractor = (
+            ...     FinancialTemplatesDE.get_financial_extractor()
+            ... )
+            >>> lm = model + extractor(financial_text="Rechnung...")
+            >>> result = lm["output"]
         """
 
         @guidance
@@ -194,7 +316,20 @@ class FinancialTemplatesDE:
             model: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            """Extract financial document data."""
+            """Extract financial document data.
+
+            Args:
+                lm: Language model instance
+                financial_text: Full document text
+                text_chunk: Alternative text parameter
+                domain: Domain context
+                existing_tags: Existing tags for context
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with extraction result
+            """
             text = pick_text(financial_text, text_chunk)
             domain_context = build_domain_context(
                 domain or kwargs.get("domain"),
@@ -206,8 +341,15 @@ class FinancialTemplatesDE:
                 ),
             )
 
+            logger.debug(
+                f"Extracting financial data from domain: {domain}"
+            )
+
             with system():
-                lm += "Finanzextraktionist für AT/DE."
+                lm += (
+                    "Finanzextraktionist für AT/DE. "
+                    "Extrahiere Rechnungsdaten strukturiert."
+                )
                 if domain_context:
                     lm += f"\n{domain_context}"
 
@@ -234,6 +376,16 @@ class FinancialTemplatesDE:
 
         Returns:
             Guidance template function for extraction with tagging
+
+        Example:
+            >>> extractor_v2 = (
+            ...     FinancialTemplatesDE.get_financial_extractor_v2()
+            ... )
+            >>> lm = model + extractor_v2(
+            ...     financial_text="Rechnung...",
+            ...     existing_tags=["invoice", "paid"]
+            ... )
+            >>> result = lm["output"]
         """
 
         @guidance
@@ -246,15 +398,34 @@ class FinancialTemplatesDE:
             model: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            """Extract financial data and suggest tags."""
+            """Extract financial data and suggest tags.
+
+            Args:
+                lm: Language model instance
+                financial_text: Document text
+                text_chunk: Alternative text parameter
+                domain: Domain context
+                existing_tags: Tags for constraining suggestions
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with extraction and tags
+            """
             text = pick_text(financial_text, text_chunk)
             existing_tag_list = normalize_tags(
                 existing_tags or kwargs.get("existing_tags")
             )
-            tag_schema = _build_tagged_schema(
-                FinancialExtractorOutput,
-                existing_tag_list,
-            )
+
+            try:
+                tag_schema = _build_tagged_schema(
+                    FinancialExtractorOutput,
+                    existing_tag_list,
+                )
+            except Exception as e:
+                logger.error(f"Failed to build tag schema: {e}")
+                tag_schema = FinancialExtractorOutput
+
             domain_context = build_domain_context(
                 domain or kwargs.get("domain"),
                 existing_tag_list,
@@ -265,17 +436,26 @@ class FinancialTemplatesDE:
                 ),
             )
 
+            logger.debug(
+                f"Extracting financial data with tagging "
+                f"from domain: {domain}, tags: {len(existing_tag_list)}"
+            )
+
             with system():
-                lm += "Finanzextraktionist für AT/DE."
                 lm += (
-                    "\nZusätzlich: gib Tag-Vorschläge im "
-                    "Tagging-Schema zurück. "
-                    "suggested_tags nur aus bestehenden Tags, "
-                    "missing_tags für neue Kandidaten. "
-                    "tagging.domain='financial', "
-                    "tagging.source='guidance_tagger_v2', "
-                    "tagging.confidence.overall zwischen "
-                    "0 und 1."
+                    "Finanzextraktionist für AT/DE. "
+                    "Extrahiere Rechnungsdaten strukturiert.\n"
+                    "Gib auch Tag-Vorschläge im "
+                    "Tagging-Schema zurück."
+                )
+                lm += (
+                    "\nTagging-Regeln:\n"
+                    "- suggested_tags: nur aus bestehenden Tags\n"
+                    "- missing_tags: neue Tag-Kandidaten\n"
+                    "- tagging.domain: 'financial'\n"
+                    "- tagging.source: 'guidance_tagger_v2'\n"
+                    "- tagging.confidence.overall: "
+                    "zwischen 0 und 1"
                 )
                 if domain_context:
                     lm += f"\n{domain_context}"
@@ -284,7 +464,7 @@ class FinancialTemplatesDE:
                 lm += f"Dokument: {text}\n"
                 lm += (
                     "Extrahiere: Rechnungssteller (UID), "
-                    "Datum, Beträge (Netto/Steuer/Brutto)"
+                    "Datum, Beträge (Netto/Steuer/Brutto), Tags"
                 )
 
             with assistant():
@@ -303,6 +483,17 @@ class FinancialTemplatesDE:
 
         Returns:
             Guidance template function for amount validation
+
+        Example:
+            >>> reasoner = (
+            ...     FinancialTemplatesDE.get_financial_reasoner()
+            ... )
+            >>> lm = model + reasoner(
+            ...     netto="100.00",
+            ...     steuerbetrag="19.00",
+            ...     brutto="119.00"
+            ... )
+            >>> result = lm["output"]
         """
 
         @guidance
@@ -317,7 +508,22 @@ class FinancialTemplatesDE:
             model: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            """Validate financial calculations."""
+            """Validate financial calculations.
+
+            Args:
+                lm: Language model instance
+                netto: Net amount
+                steuerbetrag: Tax amount
+                brutto: Gross amount
+                extracted_data: Previously extracted data
+                domain: Domain context
+                existing_tags: Existing tags
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with validation result
+            """
             netto_value = pick_text(
                 netto,
                 kwargs.get("summe_netto"),
@@ -353,8 +559,13 @@ class FinancialTemplatesDE:
                 ),
             )
 
+            logger.debug("Validating financial calculations")
+
             with system():
-                lm += "Mathe-Prüfer."
+                lm += (
+                    "Mathematischer Validator für Finanzdaten. "
+                    "Prüfe: Netto + Steuer = Brutto"
+                )
                 if domain_context:
                     lm += f"\n{domain_context}"
 
@@ -383,6 +594,18 @@ class FinancialTemplatesDE:
 
         Returns:
             Guidance template function for validation with tagging
+
+        Example:
+            >>> reasoner_v2 = (
+            ...     FinancialTemplatesDE.get_financial_reasoner_v2()
+            ... )
+            >>> lm = model + reasoner_v2(
+            ...     netto="100.00",
+            ...     steuerbetrag="19.00",
+            ...     brutto="119.00",
+            ...     existing_tags=["valid", "checked"]
+            ... )
+            >>> result = lm["output"]
         """
 
         @guidance
@@ -397,7 +620,22 @@ class FinancialTemplatesDE:
             model: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            """Validate amounts and suggest tags."""
+            """Validate amounts and suggest tags.
+
+            Args:
+                lm: Language model instance
+                netto: Net amount
+                steuerbetrag: Tax amount
+                brutto: Gross amount
+                extracted_data: Previously extracted data
+                domain: Domain context
+                existing_tags: Tags for constraining
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with validation and tags
+            """
             netto_value = pick_text(
                 netto,
                 kwargs.get("summe_netto"),
@@ -426,10 +664,16 @@ class FinancialTemplatesDE:
             existing_tag_list = normalize_tags(
                 existing_tags or kwargs.get("existing_tags")
             )
-            tag_schema = _build_tagged_schema(
-                FinancialReasonerOutput,
-                existing_tag_list,
-            )
+
+            try:
+                tag_schema = _build_tagged_schema(
+                    FinancialReasonerOutput,
+                    existing_tag_list,
+                )
+            except Exception as e:
+                logger.error(f"Failed to build tag schema: {e}")
+                tag_schema = FinancialReasonerOutput
+
             domain_context = build_domain_context(
                 domain or kwargs.get("domain"),
                 existing_tag_list,
@@ -440,17 +684,25 @@ class FinancialTemplatesDE:
                 ),
             )
 
+            logger.debug(
+                f"Validating amounts with tagging, "
+                f"tags: {len(existing_tag_list)}"
+            )
+
             with system():
-                lm += "Mathe-Prüfer."
                 lm += (
-                    "\nZusätzlich: gib Tag-Vorschläge im "
-                    "Tagging-Schema zurück. "
-                    "suggested_tags nur aus bestehenden Tags, "
-                    "missing_tags für neue Kandidaten. "
-                    "tagging.domain='financial', "
-                    "tagging.source='guidance_tagger_v2', "
-                    "tagging.confidence.overall zwischen "
-                    "0 und 1."
+                    "Mathematischer Validator für Finanzdaten. "
+                    "Prüfe: Netto + Steuer = Brutto\n"
+                    "Gib auch Tag-Vorschläge zurück."
+                )
+                lm += (
+                    "\nTagging-Regeln:\n"
+                    "- suggested_tags: nur aus bestehenden Tags\n"
+                    "- missing_tags: neue Tag-Kandidaten\n"
+                    "- tagging.domain: 'financial'\n"
+                    "- tagging.source: 'guidance_tagger_v2'\n"
+                    "- tagging.confidence.overall: "
+                    "zwischen 0 und 1"
                 )
                 if domain_context:
                     lm += f"\n{domain_context}"
@@ -480,6 +732,17 @@ class FinancialTemplatesDE:
 
         Returns:
             Guidance template function for VAT analysis
+
+        Example:
+            >>> vat = (
+            ...     FinancialTemplatesDE.get_vat_expert_analyzer()
+            ... )
+            >>> lm = model + vat(
+            ...     total="119.00",
+            ...     tax_rate="19",
+            ...     from_party="Company A"
+            ... )
+            >>> result = lm["output"]
         """
 
         @guidance
@@ -495,13 +758,29 @@ class FinancialTemplatesDE:
             model: Optional[str] = None,
             **kwargs: Any,
         ) -> Any:
-            """Validate VAT compliance."""
+            """Validate VAT compliance.
+
+            Args:
+                lm: Language model instance
+                total: Total/gross amount
+                tax_rate: Tax rate percentage
+                from_party: Invoice issuer
+                vat_context: VAT-specific context
+                text_chunk: Alternative text parameter
+                domain: Domain context
+                existing_tags: Existing tags
+                model: Model identifier
+                **kwargs: Additional arguments
+
+            Returns:
+                Updated language model with compliance result
+            """
             total_value = pick_text(
                 total,
                 kwargs.get("summe_brutto"),
                 kwargs.get("extracted_data_summe_brutto"),
                 kwargs.get(
-                    "extracted_data_betraege_summe_brutto"
+                           "extracted_data_betraege_summe_brutto"
                 ),
             )
             tax_value = pick_text(
@@ -534,8 +813,13 @@ class FinancialTemplatesDE:
                 ),
             )
 
+            logger.debug("Analyzing VAT compliance")
+
             with system():
-                lm += "UStG Experte (Österreich)."
+                lm += (
+                    "UStG Experte (Österreich). "
+                    "Prüfe Umsatzsteuer-Compliance."
+                )
                 if domain_context:
                     lm += f"\n{domain_context}"
 

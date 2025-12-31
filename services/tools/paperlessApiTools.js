@@ -482,9 +482,12 @@ const TOOL_HANDLERS = new Map([
     ['paperless.list_storage_paths', listStoragePaths],
     ['paperless.normalize_images', normalizeImages],
     ['paperless.normalize_images_ai', async (input) => {
-        // Lazy require to avoid circular dependency during module initialization
-        const { normalizeImagesAI } = require('../experts/normalization/tools');
-        return normalizeImagesAI(input);
+        // Lazy-load factory and inject the singleton preVisionNormalizer to avoid
+        // circular requires at module load time.
+        const { createNormalizationTools } = require('../experts/normalization/tools');
+        const { preVisionNormalizer } = require('../experts/normalization/PreVisionNormalizer');
+        const tools = createNormalizationTools({ preVisionNormalizer });
+        return tools.normalizeImagesAI(input);
     }],
     ['paperless.reprocess_documents', reprocessDocuments],
     ['paperless.merge_documents', mergeDocuments]
