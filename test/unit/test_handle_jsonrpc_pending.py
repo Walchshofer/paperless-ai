@@ -1,31 +1,40 @@
 import asyncio
-import importlib.util
-import os
-import sys
-from pathlib import Path
-
-# Ensure tests load fixture stubs
-os.environ.setdefault("BRIDGE_TEST_STUBS", "1")
-_spec_location = Path(__file__).resolve().parents[2] / "codex-serena-bridge.py"
-spec = importlib.util.spec_from_file_location("codex_bridge", _spec_location)
-bridge = importlib.util.module_from_spec(spec)
-sys.modules["codex_bridge"] = bridge
-spec.loader.exec_module(bridge)
 
 import pytest
 
+from bridge.router import RequestRouter
+from bridge.state import BridgeState
+
+
+class _BlockingSession:
+    def __init__(self, event: asyncio.Event) -> None:
+        self.event = event
+
+    async def call_tool(self, name, arguments):
+        await self.event.wait()
+        return {"name": name, "arguments": arguments}
+
 
 @pytest.mark.asyncio
-async def test_handle_jsonrpc_registers_pending():
-    # Clear previous state
-    bridge.state.pending_requests.clear()
+async def test_forward_registers_and_clears_pending():
+    event = asyncio.Event()
+    state = BridgeState()
+    router = RequestRouter(state)
 
-    req = {"id": 42, "method": "tools/call", "params": {"name": "foo"}}
+    async with state.session_lock:
+        state.session = _BlockingSession(event)
+    state.connected.set()
 
-    await bridge.handle_jsonrpc(req)
+    task = asyncio.create_task(
+        router.forward("tools/call", {"name": "foo"}, "req-1")
+    )
 
-    assert 42 in bridge.state.pending_requests
-    pending = bridge.state.pending_requests[42]
-    assert isinstance(pending, bridge.PendingRequest)
-    # ensure the future exists
-    assert hasattr(pending, "future")
+    await asyncio.sleep(0)
+    async with state.pending_requests_lock:
+        assert "req-1" in state.pending_requests
+
+    event.set()
+    await task
+
+    async with state.pending_requests_lock:
+        assert "req-1" not in state.pending_requests
