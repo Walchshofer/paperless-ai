@@ -21,7 +21,7 @@ const { normalizeImagesAI } = require('./tools');
  */
 function getDefaultOptions() {
     return Object.freeze({
-        analysisDpi: config.visualRag?.analysisRenderDpi || 150,
+        analysisDpi: config.visualRag?.analysisRenderDpi || 300,
         targetDpi: config.visualRag?.visionRenderDpi || 300,
         maxPages: config.visualRag?.maxVisionPages || 4,
         // Guidance templates live in the guidance_service templates directory

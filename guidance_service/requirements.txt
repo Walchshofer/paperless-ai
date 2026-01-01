@@ -1,6 +1,7 @@
 # Core LLM/Guidance
 guidance==0.3.0
 pydantic==2.12.5  # Aligned with Guidance
+litellm==1.59.8   # Adapter for Ollama
 
 # Web Framework
 flask==2.3.3
