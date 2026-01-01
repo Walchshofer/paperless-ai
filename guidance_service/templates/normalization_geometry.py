@@ -23,6 +23,7 @@ try:
         guidance,
         system,
         user,
+        image
     )
 except ImportError as e:
     raise ImportError(
@@ -132,10 +133,9 @@ def analyze_document_geometry(
         )
 
     with user():
+        lm += image(document_image_b64)
         lm += (
-            "[IMAGE]\n"
             "Analyze this document:\n"
-            f"{document_image_b64[:100]}..."
         )
 
     with assistant():
