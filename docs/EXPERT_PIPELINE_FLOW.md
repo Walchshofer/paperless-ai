@@ -17,12 +17,19 @@ Sources of truth:
 
 ## High-level flow
 
-1) **Router classification (prompt-only)**
-   - Prompt: `SYS_ROUTER_V1`
+1) **Visual Signal Analyzer (First Pass)**
+   - Prompt: `VIS_SIGNAL_ANALYZER_V1`
+   - Model: `MODEL_NAMES.router` (default `qwen3-vl:8b`)
+   - File: `services/experts/VisualSignalAnalyzer.js`
+   - Outputs: `document_type`, `rotation`, `crop`, `overlays`
+   - Action: If rotation/crop is needed, `ImageNormalizer` applies changes and triggers re-ingestion.
+
+2) **Router classification (skipped if signals present)**
+   - Prompt: `SYS_ROUTER_V1` (only if step 1 didn't yield a classification)
    - Model: `MODEL_NAMES.router` (default `qwen3-vl:8b`)
    - File: `services/experts/ExpertPipelineExecutor.js` (`classifyDocument`)
 
-2) **System orchestrator (prompt + tool-calling)**
+3) **System orchestrator (prompt + tool-calling)**
    - Prompt: `SYS_ORCHESTRATOR_V1`
    - Model: `MODEL_NAMES.orchestrator` (default `nemotron-orchestrator:8b`)
    - Output: `selected_pipeline`, `use_guidance`, `requires_visual_analysis`,
@@ -31,7 +38,7 @@ Sources of truth:
    - Tooling is allowed to auto-run; human-in-the-loop is fallback only.
    - File: `services/experts/ExpertPipelineExecutor.js` (orchestrator section)
 
-3) **Pre-vision normalization (tool-driven)**
+4) **Pre-vision normalization (tool-driven)**
    - Triggered by orchestrator tool plan when visual OCR or Visual RAG needs
      a readable document.
    - Actions: rotate, crop, scale/normalize DPI.
@@ -42,11 +49,11 @@ Sources of truth:
    - Executes Visual OCR + Tesseract OCR + Visual Element Detection in parallel via `ParallelOcrExecutor`.
    - Persists `document.enhanced_ocr_text` + `document._ocr_metadata` for downstream stages.
 
-5) **Pipeline selection**
+6) **Pipeline selection**
    - Uses orchestrator override if present, else `ExpertRegistry.route()`       
    - File: `services/experts/ExpertRegistry.js`
 
-6) **Pipeline stage execution**
+7) **Pipeline stage execution**
    - For each stage:
      - `StageType.VALIDATION` = local validation only (no LLM)
      - Else, LLM stage:
@@ -54,13 +61,13 @@ Sources of truth:
        - Prompt path otherwise (PromptRegistry)
        - If Guidance errors, it falls back to prompt path
 
-7) **Post-analysis tooling (auto-run)**
+8) **Post-analysis tooling (auto-run)**
    - Tools run after expert analysis to update Paperless metadata:
      tags, correspondents, document types, storage paths, custom fields.
    - Human-in-the-loop only if validation or policy requires it.
    - Tag updates should follow governance rules (existing-only vs. review).
 
-8) **Visual RAG ingestion and overlays (conditional)**
+9) **Visual RAG ingestion and overlays (conditional)**
    - Sidecar visual indexing + overlay extraction, based on orchestration gates.
    - Colored overlays require positions stored as metadata AND embeddings.
 
@@ -84,10 +91,16 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  A[Document] --> B[SYS_ROUTER_V1 prompt only]
-  B --> C[SYS_ORCHESTRATOR_V1 nemotron tool calling]
+  A[Document] --> A1[Visual Signal Analyzer (VIS_SIGNAL_ANALYZER_V1)]
+  A1 -->|Norm Needed| A2[ImageNormalizer + Re-ingest]
+  A2 --> A3[Updated Document]
+  A1 -->|No Norm| A3
+  A3 --> B{Classified?}
+  B -->|Yes| C[SYS_ORCHESTRATOR_V1 nemotron tool calling]
+  B -->|No| B1[SYS_ROUTER_V1 prompt]
+  B1 --> C
   C --> C1{Tool calls}
-  C1 -->|Yes| C2[Pre-vision normalization: rotate crop scale]
+  C1 -->|Yes| C2[Additional normalization: rotate crop scale]
   C1 -->|No| D
   C2 --> D[Visual OCR enabled]
   D --> E[Expert pipeline stages]
