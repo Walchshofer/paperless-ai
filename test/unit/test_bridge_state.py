@@ -1,6 +1,6 @@
 import asyncio
 
-from services.bridge.state import BridgeState
+from bridge.state import BridgeState
 
 
 def test_bridge_state_init_and_close():
@@ -12,18 +12,20 @@ def test_bridge_state_init_and_close():
         assert not state.tools_ready.is_set()
         assert not state.shutdown.is_set()
         assert not state.reconnect_needed.is_set()
+        assert not state.connection_lost.is_set()
+        assert state.ever_connected is False
         assert state.is_running()
 
-        # Acquire lock to ensure it behaves like a lock
         async with state.session_lock:
             assert state.session_lock.locked()
 
-        # After close, fields are cleared and events reset
         await state.close()
         assert state.session is None
         assert state.tools == []
         assert not state.connected.is_set()
         assert not state.tools_ready.is_set()
+        assert not state.connection_lost.is_set()
+        assert state.ever_connected is False
 
     asyncio.run(_run())
 

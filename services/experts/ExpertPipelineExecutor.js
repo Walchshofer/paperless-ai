@@ -2781,35 +2781,57 @@ class ExpertPipelineExecutor {
      * Returns domain and routing information for use by DomainResolver.
      *
      * @param {Object} document - Document to classify (image_data, ocr_text, filename, etc.)
-     * @param {Object} options - Classification options
+     * @param {Object} options - Classification options (can include preCalculatedSignals)
      * @returns {Promise<Object>} Classification result with domain info
      */
     async classifyDocument(document, options = {}) {
         try {
-            // Build router messages
-            const routerMessages = promptRegistry.buildMessages(
-                'SYS_ROUTER_V1',
-                {
-                    source_system: document.source || 'paperless-ngx',
-                    filename: document.filename || 'unknown',
-                    resolution: document.resolution || 'standard',
-                    file_size: document.file_size || 'unknown'
-                },
-                document.image_data
-            );
+            let classificationResult;
 
-            // Call router model
-            const routerResponse = await this._callOllamaWithTimeout(
-                MODEL_NAMES.router,
-                routerMessages,
-                promptRegistry.getOptions('SYS_ROUTER_V1'),
-                options.timeout || 30000
-            );
+            // Check if pre-calculated signals are provided (from VisualSignalAnalyzer)
+            if (options.preCalculatedSignals && options.preCalculatedSignals.classification) {
+                const signals = options.preCalculatedSignals;
+                logger.info({
+                    event: 'using_pre_calculated_signals',
+                    documentId: document.id || document.filename,
+                    domain: signals.classification.primary_domain
+                });
 
-            const classificationResult = await this._parseResponse(routerResponse, {
-                id: 'router',
-                model: MODEL_NAMES.router
-            });
+                classificationResult = {
+                    classification: signals.classification,
+                    // If VisualSignalAnalyzer didn't provide detailed evidence, minimal fallback
+                    routing: {
+                        requires_visual_analysis: true, // Assuming true if visual signals were run
+                        requires_expert_model: true
+                    }
+                };
+            } else {
+                // Standard classification path
+                // Build router messages
+                const routerMessages = promptRegistry.buildMessages(
+                    'SYS_ROUTER_V1',
+                    {
+                        source_system: document.source || 'paperless-ngx',
+                        filename: document.filename || 'unknown',
+                        resolution: document.resolution || 'standard',
+                        file_size: document.file_size || 'unknown'
+                    },
+                    document.image_data
+                );
+
+                // Call router model
+                const routerResponse = await this._callOllamaWithTimeout(
+                    MODEL_NAMES.router,
+                    routerMessages,
+                    promptRegistry.getOptions('SYS_ROUTER_V1'),
+                    options.timeout || 30000
+                );
+
+                classificationResult = await this._parseResponse(routerResponse, {
+                    id: 'router',
+                    model: MODEL_NAMES.router
+                });
+            }
 
             // Extract and normalize domain
             const domain = classificationResult?.classification?.primary_domain ||
@@ -2898,29 +2920,51 @@ class ExpertPipelineExecutor {
 async function processDocument(document, ollamaService, options = {}) {
     const executor = new ExpertPipelineExecutor(ollamaService, options);
 
-    // Step 1: Classify document using router
+    // Step 1: Classify document using router (or use pre-calculated signals)
     logger.info({
         event: 'document_processing_start',
         documentId: document.id || document.filename
     });
 
-    // Build router messages
-    const routerMessages = promptRegistry.buildMessages(
-        'SYS_ROUTER_V1',
-        {
-            source_system: document.source || 'paperless-ngx',
-            filename: document.filename || 'unknown',
-            resolution: document.resolution || 'standard',
-            file_size: document.file_size || 'unknown'
-        },
-        document.image_data
-    );
-
-    // Call router model with retry, model availability checks and graceful fallback
     let classificationResult;
-    const classifyResult = await executor._classifyDocumentWithRetry(document, executor, routerMessages, options);
+    const preCalculatedSignals = options.context?.preCalculatedSignals || options.preCalculatedSignals;
 
-    if (classifyResult === null) {
+    if (preCalculatedSignals && preCalculatedSignals.classification) {
+        logger.info({
+            event: 'process_document_using_pre_calculated_signals',
+            documentId: document.id || document.filename
+        });
+
+        classificationResult = {
+            classification: preCalculatedSignals.classification,
+            routing: {
+                requires_visual_analysis: true,
+                requires_expert_model: true
+            },
+            _meta: {
+                source: 'visual_signal_analyzer',
+                parsed: true
+            }
+        };
+    } else {
+        // Build router messages
+        const routerMessages = promptRegistry.buildMessages(
+            'SYS_ROUTER_V1',
+            {
+                source_system: document.source || 'paperless-ngx',
+                filename: document.filename || 'unknown',
+                resolution: document.resolution || 'standard',
+                file_size: document.file_size || 'unknown'
+            },
+            document.image_data
+        );
+
+        // Call router model with retry, model availability checks and graceful fallback
+        const classifyResult = await executor._classifyDocumentWithRetry(document, executor, routerMessages, options);
+        classificationResult = classifyResult;
+    }
+
+    if (classificationResult === null && !preCalculatedSignals) {
         // Retries exhausted
         const maxRetries = (config.routerRetry && config.routerRetry.maxRetries) || 3;
         const msg = `Router classification failed after ${maxRetries} retries`;
@@ -2930,6 +2974,7 @@ async function processDocument(document, ollamaService, options = {}) {
             attempts: maxRetries,
             documentId: document.id || document.filename
         });
+<<<<<<< HEAD
         throw new Error(msg);
     } else if (classifyResult?._meta?.fallback) {
         // Pre-check indicated model not available or immediate fallback
@@ -2941,8 +2986,51 @@ async function processDocument(document, ollamaService, options = {}) {
             documentId: document.id || document.filename
         });
         throw new Error(msg);
+=======
+
+        classificationResult = {
+            classification: {
+                primary_domain: 'General',
+                document_type: 'unknown',
+                confidence: 0.1
+            },
+            routing: {
+                requires_visual_analysis: false,
+                requires_expert_model: false
+            },
+            _meta: {
+                fallback: true,
+                reason: 'router_retries_exhausted',
+                attempts: maxRetries
+            }
+        };
+    } else if (classificationResult?._meta?.fallback) {
+    } else if (classificationResult?._meta?.fallback) {
+        // Pre-check indicated model not available or immediate fallback
+        logger.warn({
+            event: 'router_classification_fallback_to_general',
+            reason: classificationResult._meta.reason || 'model_not_available',
+            documentId: document.id || document.filename
+        });
+
+        classificationResult = {
+            classification: {
+                primary_domain: 'General',
+                document_type: 'unknown',
+                confidence: 0.1
+            },
+            routing: {
+                requires_visual_analysis: false,
+                requires_expert_model: false
+            },
+            _meta: {
+                fallback: true,
+                reason: classificationResult._meta.reason || 'model_not_available'
+            }
+        };
+>>>>>>> efdd603f (feat: add visual signal analyzer for document normalization)
     } else {
-        classificationResult = classifyResult;
+        // classificationResult already set by router or pre-calc
         logger.info({
             event: 'router_parsed_result',
             parsed: !!classificationResult?._meta?.parsed,
