@@ -1,19 +1,100 @@
 /**
  * ValidationEngine
  *
- * Validates stage outputs against defined rules.
+ * Validates stage outputs against defined rules and extraction confidence.
  *
- * Uses ConditionEvaluator to check each rule and collects
- * validation issues for reporting.
+ * Output contract matches VALIDATION_AND_RETRY_POLICY.md specification.
  */
 
 const { ConditionEvaluator } = require('./ConditionEvaluator');
+const logger = require('../../logger');
 
 class ValidationEngine {
     /**
-     * Run validation rules against context
+     * Validate extraction output against rules and confidence thresholds
+     * 
+     * @param {Array} rules - Validation rules to check
+     * @param {Object} extractionOutput - The output from extraction stage
+     * @param {Object} context - Execution context
+     * @param {Object} options - Validation options
+     * @param {number} options.confidenceThreshold - Minimum confidence (default: 0.7)
+     * @param {Array<string>} options.requiredFields - Required field names
+     * @returns {Object} Validation result matching documented contract
      */
-    static validate(rules, context) {
+    static validate(rules, extractionOutput, context, options = {}) {
+        const confidenceThreshold = options.confidenceThreshold ?? 0.7;
+        const requiredFields = options.requiredFields || [];
+        
+        const missingFields = [];
+        const lowConfidenceFields = [];
+        let score = 1.0;  // Start at perfect
+
+        // Check required fields from rules
+        for (const rule of rules) {
+            const fieldValue = context.resolvePath(rule.field);
+            
+            if (fieldValue === undefined || fieldValue === null || fieldValue === '' || fieldValue === 'N/A') {
+                missingFields.push(rule.field);
+                score -= 0.2;  // High severity deduction
+            }
+        }
+
+        // Check explicit required fields list
+        for (const fieldName of requiredFields) {
+            if (!extractionOutput || extractionOutput[fieldName] === undefined || 
+                extractionOutput[fieldName] === null || extractionOutput[fieldName] === '') {
+                if (!missingFields.includes(fieldName)) {
+                    missingFields.push(fieldName);
+                    score -= 0.2;
+                }
+            }
+        }
+
+        // Check field-level confidence from _field_confidence
+        if (extractionOutput && extractionOutput._field_confidence) {
+            for (const [field, confidence] of Object.entries(extractionOutput._field_confidence)) {
+                if (typeof confidence === 'number' && confidence < confidenceThreshold) {
+                    lowConfidenceFields.push(field);
+                    score -= 0.1;  // Medium severity deduction
+                }
+            }
+        }
+
+        // Clamp score to [0, 1]
+        score = Math.max(0, Math.min(1, score));
+
+        const isValid = missingFields.length === 0 && lowConfidenceFields.length === 0;
+        
+        // High severity: missing fields or very low score
+        // Medium severity: low confidence fields only
+        const shouldFallback = missingFields.length > 0 || score < 0.5;
+
+        const result = {
+            isValid,
+            missingFields,
+            lowConfidenceFields,
+            score,
+            shouldFallback
+        };
+
+        logger.debug({
+            event: 'validation_complete',
+            isValid,
+            missingFieldsCount: missingFields.length,
+            lowConfidenceFieldsCount: lowConfidenceFields.length,
+            score,
+            shouldFallback
+        });
+
+        return result;
+    }
+
+    /**
+     * Legacy validate method for backward compatibility
+     * Wraps new validate() and converts to old format
+     * @deprecated Use validate() with new signature
+     */
+    static validateLegacy(rules, context) {
         const issues = [];
         let allPassed = true;
 

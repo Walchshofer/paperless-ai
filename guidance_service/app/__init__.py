@@ -1,9 +1,11 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 try:
-    from guidance import models  # type: ignore[import]
+    from guidance import models, system, user, assistant, gen  # type: ignore[import]
+    from guidance.models.experimental import LiteLLM  # type: ignore[import]
 except Exception:
     models = None
+    LiteLLM = None
 import json
 import os
 import logging
@@ -35,6 +37,28 @@ from metrics.tag_metrics import record_tag_generation, extract_tag_lists
 from metrics.tag_statistics import build_tag_stats_context
 
 CONFIDENCE_KEYS = ("vertrauen", "sicherheit", "routing_vertrauen")
+
+
+def parse_thinking_parts(text: str):
+    """Extract thinking and response phases"""
+    parts = []
+    
+    # Check for thinking markers
+    if "<think>" in text and "</think>" in text:
+        think_start = text.find("<think>") + 7
+        think_end = text.find("</think>")
+        thinking = text[think_start:think_end].strip()
+        response = text[think_end + 8:].strip()
+        
+        if thinking:
+            parts.append(("thinking", thinking))
+        if response:
+            parts.append(("response", response))
+    else:
+        # No thinking markers, just response
+        parts.append(("response", text))
+    
+    return parts if parts else [("response", text)]
 
 
 def _normalize_confidence_value(value):
@@ -250,14 +274,11 @@ def create_app():
     )
     use_cache = os.getenv('USE_CACHE', 'true') == 'true'
 
-    # Ollama Host Configuration
-    # Prioritize OLLAMA_ENDPOINT, fallback to OLLAMA_API_URL, then localhost
-    _ollama_base = os.getenv(
-        'OLLAMA_ENDPOINT',
-        os.getenv('OLLAMA_API_URL', 'http://localhost:11434')
-    )
-    # Ensure /v1 suffix for OpenAI compatibility mode
-    OLLAMA_ENDPOINT = _ollama_base if _ollama_base.endswith('/v1') else f"{_ollama_base.rstrip('/')}/v1"
+    # Ollama Base Configuration
+    # Use OLLAMA_API_URL as the canonical env var
+    OLLAMA_ENDPOINT = os.getenv(
+        'OLLAMA_API_URL',
+    ).rstrip('/')
 
     # Register All Templates across all phases
     templates = {
@@ -344,6 +365,60 @@ def create_app():
             'templates': list(templates.keys())
         })
 
+    @app.route('/api/guidance/stream', methods=['POST'])
+    def stream_thinking_response():
+        """Stream thinking model response from Ollama via Guidance"""
+        data = request.json or {}
+        prompt = data.get("prompt")
+        model_name = data.get("model", "qwen3-vl:8b")
+        max_tokens = data.get("max_tokens", 2000)
+        
+        if not prompt:
+            return jsonify({'error': 'Prompt required'}), 400
+            
+        def generate_stream():
+            try:
+                # Initialize LiteLLM
+                lm = LiteLLM(
+                    model_description={
+                        "model_name": model_name,
+                        "litellm_params": {
+                            "model": f"ollama/{model_name}",
+                            "api_base": OLLAMA_ENDPOINT,
+                        }
+                    },
+                    echo=False
+                )
+                
+                with system():
+                    lm_run = lm + "You are a helpful assistant."
+                
+                with user():
+                    lm_run += prompt
+                
+                with assistant():
+                    lm_run += gen(name="response", max_tokens=max_tokens, temperature=0.7)
+                
+                response_text = lm_run["response"]
+                
+                # Parse thinking and response
+                parts = parse_thinking_parts(response_text)
+                
+                for part_type, content in parts:
+                    yield json.dumps({
+                        "type": part_type,
+                        "content": content
+                    }) + "\n"
+                    
+            except Exception as e:
+                app.logger.error(f"Streaming failed: {str(e)}")
+                yield json.dumps({
+                    "type": "error",
+                    "content": str(e)
+                }) + "\n"
+
+        return Response(stream_with_context(generate_stream()), mimetype='application/x-ndjson')
+
     @app.route('/generate', methods=['POST'])
     def generate():
         data = request.json or {}
@@ -400,11 +475,16 @@ def create_app():
                     else:
                         track_cache_operation('get', hit=False)
 
-                # 2. Initialize Guidance LLM
-                lm = models.OpenAI(
-                    model=model,
-                    base_url=OLLAMA_ENDPOINT,
-                    api_key='ollama',
+                # 2. Initialize Guidance LLM (LiteLLM Proxy)
+                lm = LiteLLM(
+                    model_description={
+                        "model_name": model,
+                        "litellm_params": {
+                            "model": f"ollama/{model}",
+                            "api_base": OLLAMA_ENDPOINT,
+                        }
+                    },
+                    echo=False
                 )
 
                 # 3. Execute Template

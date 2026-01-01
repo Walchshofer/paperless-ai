@@ -341,6 +341,9 @@ class ExpertPipelineExecutor {
                     stageId: stage.id,
                     attempt,
                     maxRetries,
+                    retry_scope: 'document',  // Per VALIDATION_AND_RETRY_POLICY.md
+                    retry_reason: stageError.code || 'execution_failed',
+                    validation_triggered: false,
                     error: stageError.message
                 });
 
@@ -353,6 +356,15 @@ class ExpertPipelineExecutor {
 
         // All retries failed
         context.addError(stage.id, lastError);
+
+        logger.error({
+            event: 'stage_execution_failed',
+            stageId: stage.id,
+            retry_scope: 'document',
+            retry_reason: 'max_retries_exceeded',
+            maxRetries,
+            finalError: lastError.message
+        });
 
         // Determine if this is fatal
         const isFatal = stage.type === StageType.CLASSIFICATION ||
@@ -623,7 +635,9 @@ class ExpertPipelineExecutor {
      * Execute a validation stage
      */
     _executeValidationStage(stage, context, stageStart) {
-        const validationResult = ValidationEngine.validate(
+        // Use legacy validation for backward compatibility with existing pipeline stages
+        // The new validate() method is for validator-driven retry orchestration
+        const validationResult = ValidationEngine.validateLegacy(
             stage.validationRules,
             context
         );
@@ -974,21 +988,35 @@ class ExpertPipelineExecutor {
     _buildResult(pipeline, context, status, startTime) {
         const executionTimeMs = Date.now() - startTime;
 
-        // Determine overall confidence
-        let overallConfidence = 0;
+        // Determine primary output (extraction stages only, NOT reasoning stages)
+        // Per EXPERT_PIPELINE_DECISION_TABLE.md: FIN_REASONER is advisory only
         const integratedOutput = context.getStageOutput('integrated_record') ||
-                                  context.getStageOutput('financial_reasoning') ||
                                   context.getStageOutput('financial_extraction') ||
                                   context.getStageOutput('legal_extraction') ||
-                                  context.getStageOutput('general_extraction');
+                                  context.getStageOutput('general_extraction') ||
+                                  context.getStageOutput('medical_extraction');
 
+        // Advisory reasoning outputs (FIN_REASONER, etc.) - metadata only
+        const advisoryReasoning = context.getStageOutput('financial_reasoning');
+        if (advisoryReasoning) {
+            logger.debug({
+                event: 'advisory_reasoning_available',
+                suggested_corrections: advisoryReasoning.suggested_corrections || null,
+                consistency_checks: advisoryReasoning.consistency_checks || null,
+                advisory_only: true
+            });
+        }
+
+        // Determine overall confidence
+        let overallConfidence = 0;
         if (integratedOutput?.confidence_summary?.overall_confidence) {
             overallConfidence = integratedOutput.confidence_summary.overall_confidence;
         } else if (integratedOutput?.confidence?.overall) {
             overallConfidence = integratedOutput.confidence.overall;
         }
 
-        return {
+        // Build result structure
+        const result = {
             success: status === 'success',
             pipeline_id: pipeline.id,
             pipeline_name: pipeline.name,
@@ -1029,6 +1057,19 @@ class ExpertPipelineExecutor {
 
             timestamp: new Date().toISOString()
         };
+
+        // Attach advisory reasoning as metadata (not primary output)
+        // Per PIPELINE_STAGE_CONTRACTS.md: FIN_REASONER is advisory only, must not overwrite extraction
+        if (advisoryReasoning) {
+            result.metadata.advisory_reasoning = {
+                suggested_corrections: advisoryReasoning.suggested_corrections || [],
+                consistency_checks: advisoryReasoning.consistency_checks || [],
+                source: 'FIN_REASONER_V1',
+                note: 'Advisory only - not applied automatically'
+            };
+        }
+
+        return result;
     }
 
     /**
@@ -1229,6 +1270,189 @@ class ExpertPipelineExecutor {
     }
 
     /**
+     * Execute validator-driven retry orchestration after extraction stage
+     * Implements VALIDATION_AND_RETRY_POLICY.md severity-based retry logic
+     * 
+     * @param {Object} stage - The extraction stage
+     * @param {Object} context - Execution context
+     * @param {Object} pipeline - Pipeline definition
+     * @param {Function} extractionFn - Function to re-execute extraction
+     * @returns {Promise<Object>} Final extraction result with validation
+     */
+    async _executeWithValidation(stage, context, pipeline, extractionFn) {
+        const maxValidationRetries = 2;  // Bounded retries per VALIDATION_AND_RETRY_POLICY.md
+        let attempt = 0;
+        let lastValidationResult = null;
+        let extractionOutput = null;
+
+        // Get required fields from pipeline or stage config
+        const requiredFields = pipeline.requiredFields || 
+                               stage.requiredFields || 
+                               [];
+
+        while (attempt < maxValidationRetries) {
+            attempt++;
+
+            // Execute extraction (first time or retry)
+            try {
+                extractionOutput = await extractionFn();
+            } catch (extractionError) {
+                logger.error({
+                    event: 'extraction_failed_in_validation_loop',
+                    stageId: stage.id,
+                    attempt,
+                    retry_scope: 'document',
+                    error: extractionError.message
+                });
+                throw extractionError;
+            }
+
+            // Validate extraction output
+            const validationResult = ValidationEngine.validate(
+                stage.validationRules || [],
+                extractionOutput,
+                context,
+                {
+                    requiredFields,
+                    confidenceThreshold: pipeline.confidenceThreshold || 0.7
+                }
+            );
+
+            lastValidationResult = validationResult;
+
+            // Store validation result
+            context.setStageOutput(`${stage.outputKey}_validation`, validationResult);
+
+            logger.info({
+                event: 'extraction_validated',
+                stageId: stage.id,
+                attempt,
+                isValid: validationResult.isValid,
+                score: validationResult.score,
+                missingFieldsCount: validationResult.missingFields.length,
+                lowConfidenceFieldsCount: validationResult.lowConfidenceFields.length,
+                shouldFallback: validationResult.shouldFallback
+            });
+
+            // Success path
+            if (validationResult.isValid) {
+                logger.info({
+                    event: 'validation_success',
+                    stageId: stage.id,
+                    attempt,
+                    score: validationResult.score,
+                    retry_scope: 'document'
+                });
+                break;
+            }
+
+            // Determine retry action based on severity
+            if (validationResult.shouldFallback) {
+                // High severity: missing required fields or very low score
+                logger.warn({
+                    event: 'validation_triggered_retry',
+                    stageId: stage.id,
+                    attempt,
+                    retry_scope: 'document',
+                    retry_reason: validationResult.missingFields.length > 0 
+                        ? 'missing_required_fields' 
+                        : 'low_validation_score',
+                    missingFields: validationResult.missingFields,
+                    score: validationResult.score,
+                    severity: 'high',
+                    validation_triggered: true
+                });
+
+                // Implement escalation strategy per VALIDATION_AND_RETRY_POLICY.md
+                if (attempt === 1) {
+                    // First retry: same extraction, no changes
+                    logger.info({
+                        event: 'retry_strategy',
+                        strategy: 'retry_extraction_same_ocr',
+                        attempt,
+                        retry_scope: 'document'
+                    });
+                    continue;
+                } else if (attempt === 2 && context.document.enhanced_ocr_text) {
+                    // Second retry: OCR already selected via comparison
+                    logger.info({
+                        event: 'retry_strategy',
+                        strategy: 'ocr_already_selected',
+                        attempt,
+                        retry_scope: 'document',
+                        note: 'OCR source already selected via Visual vs Tesseract comparison'
+                    });
+                    continue;
+                }
+            } else if (validationResult.lowConfidenceFields.length > 0) {
+                // Medium severity: low confidence only
+                logger.warn({
+                    event: 'validation_low_confidence',
+                    stageId: stage.id,
+                    attempt,
+                    retry_scope: 'document',
+                    retry_reason: 'low_confidence_fields',
+                    lowConfidenceFields: validationResult.lowConfidenceFields,
+                    severity: 'medium',
+                    validation_triggered: true
+                });
+
+                // Single retry for medium severity
+                if (attempt === 1) {
+                    continue;
+                } else {
+                    // Accept with warning after one retry
+                    logger.warn({
+                        event: 'validation_accepted_with_warnings',
+                        stageId: stage.id,
+                        lowConfidenceFields: validationResult.lowConfidenceFields,
+                        score: validationResult.score,
+                        retry_scope: 'document'
+                    });
+                    context.addWarning(stage.id, 
+                        `Low confidence fields: ${validationResult.lowConfidenceFields.join(', ')}`
+                    );
+                    break;
+                }
+            }
+        }
+
+        // Terminal state determination per VALIDATION_AND_RETRY_POLICY.md
+        let terminalState = 'success';
+        if (!lastValidationResult.isValid) {
+            if (lastValidationResult.missingFields.length > 0) {
+                terminalState = 'manual_review_required';
+                context.addError(stage.id, new Error(
+                    `Validation failed after ${attempt} attempts: missing required fields ${lastValidationResult.missingFields.join(', ')}`
+                ));
+            } else {
+                terminalState = 'accepted_with_warnings';
+                context.addWarning(stage.id,
+                    `Accepted with low confidence after ${attempt} attempts`
+                );
+            }
+        }
+
+        logger.info({
+            event: 'validation_terminal_state',
+            stageId: stage.id,
+            terminalState,
+            attempts: attempt,
+            finalScore: lastValidationResult.score,
+            retry_scope: 'document',
+            missingFields: lastValidationResult.missingFields,
+            lowConfidenceFields: lastValidationResult.lowConfidenceFields
+        });
+
+        return {
+            output: extractionOutput,
+            validation: lastValidationResult,
+            terminalState,
+            attempts: attempt
+        };
+    }
+
+    /**
      * Utility: delay for retry backoff
      */
     _delay(ms) {
@@ -1236,34 +1460,35 @@ class ExpertPipelineExecutor {
     }
 
     /**
-     * Check model availability via ollamaService.checkStatus()
-     * Returns: { available: boolean, loadedModels: string[] } or { available: false, error: string }
+     * Check model availability via ollamaService.listModels()
+     * Returns: { available: boolean, models: string[] } or { available: false, error: string }
      */
     async _checkModelAvailability(modelName, timeout = 5000) {
         const start = Date.now();
         try {
-            if (!this.ollamaService || typeof this.ollamaService.checkStatus !== 'function') {
-                return { available: false, loadedModels: [], error: 'checkStatus_not_supported' };
+            if (!this.ollamaService || typeof this.ollamaService.listModels !== 'function') {
+                return { available: false, models: [], error: 'listModels_not_supported' };
             }
 
-            // If checkStatus supports timeout natively, prefer that, otherwise use Promise.race
-            const checkPromise = this.ollamaService.checkStatus();
+            // If listModels supports timeout natively, prefer that, otherwise use Promise.race
+            const listPromise = this.ollamaService.listModels();
             const timeoutPromise = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeout));
 
-            const status = await Promise.race([checkPromise, timeoutPromise]);
+            const models = await Promise.race([listPromise, timeoutPromise]);
 
-            const loadedModels = Array.isArray(status?.loadedModels) ? status.loadedModels : [];
-            const available = loadedModels.includes(modelName);
+            // listModels returns array of strings (model names)
+            const available = Array.isArray(models) && models.some(m => 
+                (typeof m === 'string' ? m : (m.name || m.model)).includes(modelName)
+            );
 
             logger.info({
                 event: 'router_model_availability_check',
                 model: modelName,
                 available,
-                loadedModels,
                 durationMs: Date.now() - start
             });
 
-            return { available, loadedModels };
+            return { available, models: models || [] };
         } catch (err) {
             logger.warn({
                 event: 'router_model_availability_check',
@@ -1681,52 +1906,24 @@ async function processDocument(document, ollamaService, options = {}) {
     if (classifyResult === null) {
         // Retries exhausted
         const maxRetries = (config.routerRetry && config.routerRetry.maxRetries) || 3;
-        logger.warn({
-            event: 'router_classification_fallback_to_general',
+        const msg = `Router classification failed after ${maxRetries} retries`;
+        logger.error({
+            event: 'router_classification_failed',
             reason: 'router_retries_exhausted',
             attempts: maxRetries,
             documentId: document.id || document.filename
         });
-
-        classificationResult = {
-            classification: {
-                primary_domain: 'General',
-                document_type: 'unknown',
-                confidence: 0.1
-            },
-            routing: {
-                requires_visual_analysis: false,
-                requires_expert_model: false
-            },
-            _meta: {
-                fallback: true,
-                reason: 'router_retries_exhausted',
-                attempts: maxRetries
-            }
-        };
+        throw new Error(msg);
     } else if (classifyResult?._meta?.fallback) {
         // Pre-check indicated model not available or immediate fallback
-        logger.warn({
-            event: 'router_classification_fallback_to_general',
-            reason: classifyResult._meta.reason || 'model_not_available',
+        const reason = classifyResult._meta.reason || 'model_not_available';
+        const msg = `Router model unavailable: ${reason}`;
+        logger.error({
+            event: 'router_classification_failed',
+            reason: reason,
             documentId: document.id || document.filename
         });
-
-        classificationResult = {
-            classification: {
-                primary_domain: 'General',
-                document_type: 'unknown',
-                confidence: 0.1
-            },
-            routing: {
-                requires_visual_analysis: false,
-                requires_expert_model: false
-            },
-            _meta: {
-                fallback: true,
-                reason: classifyResult._meta.reason || 'model_not_available'
-            }
-        };
+        throw new Error(msg);
     } else {
         classificationResult = classifyResult;
         logger.info({

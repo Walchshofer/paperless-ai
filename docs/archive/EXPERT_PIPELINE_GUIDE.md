@@ -1,3 +1,14 @@
+⚠️ **ARCHIVED DOCUMENT**
+
+This document is deprecated and superseded by:
+- [docs/EXPERT_PIPELINE_DECISION_TABLE.md](../EXPERT_PIPELINE_DECISION_TABLE.md)
+- [docs/ARCHITECTURE_OVERVIEW.md](../ARCHITECTURE_OVERVIEW.md)
+- [docs/PIPELINE_STAGE_CONTRACTS.md](../PIPELINE_STAGE_CONTRACTS.md)
+
+**Do not use this document to infer system behavior.**
+
+---
+
 # Expert Model Pipeline Implementation Guide
 
 ## Table of Contents

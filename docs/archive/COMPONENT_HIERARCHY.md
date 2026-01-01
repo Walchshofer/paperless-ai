@@ -1,3 +1,13 @@
+⚠️ **ARCHIVED DOCUMENT**
+
+This document is deprecated and superseded by:
+- [docs/EXPERT_PIPELINE_DECISION_TABLE.md](../EXPERT_PIPELINE_DECISION_TABLE.md)
+- [docs/ARCHITECTURE_OVERVIEW.md](../ARCHITECTURE_OVERVIEW.md)
+
+**Do not use this document to infer system behavior.**
+
+---
+
 # Component Hierarchy Documentation
 
 This document outlines the high-level component hierarchy of the paperless-ai application, including a visual diagram and an onboarding checklist for new developers.

@@ -24,6 +24,9 @@ class MockOllamaService {
         this.loadedModels = options.loadedModels || [];
         this.retryAttempts = 0;
         this.failUntilAttempt = options.failUntilAttempt || 0;
+        
+        // Bind listModels to ensure it's recognized as a function
+        this.listModels = this.listModels.bind(this);
     }
 
     async chat(request) {
@@ -81,6 +84,19 @@ class MockOllamaService {
             ? this.loadedModels
             : (this.modelAvailable ? ['router-model'] : []);
         return { loadedModels: loaded };
+    }
+
+    /**
+     * List available models - needed for model availability pre-check
+     * Returns array of model names
+     */
+    async listModels() {
+        if (!this.modelAvailable) {
+            return [];
+        }
+        return Array.isArray(this.loadedModels) && this.loadedModels.length > 0
+            ? this.loadedModels
+            : ['router-model'];
     }
 
     async analyzeDocumentWithVision(documentId, content, options = {}) {
