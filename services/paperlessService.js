@@ -1850,7 +1850,18 @@ async getOrCreateDocumentType(name) {
       try {
         const header = buf.slice(0, 4).toString('utf8');
         if (!header.startsWith('%PDF')) {
-          logger.warn(`[PAPERLESS] Original download for document ${documentId} does not appear to be PDF (header=${header}), falling back.`);
+          let extraInfo = '';
+          try {
+            // Try to parse the buffer as JSON to give more info (e.g. error message from API)
+            const textContent = buf.toString('utf8');
+            if (textContent.trim().startsWith('{')) {
+              const json = JSON.parse(textContent);
+              extraInfo = ` - Content: ${JSON.stringify(json)}`;
+            }
+          } catch (ignored) {
+            // ignore
+          }
+          logger.warn(`[PAPERLESS] Original download for document ${documentId} does not appear to be PDF (header=${header})${extraInfo}, falling back.`);
           return null;
         }
       } catch (e) {
