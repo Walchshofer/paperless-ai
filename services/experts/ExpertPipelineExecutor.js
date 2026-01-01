@@ -2494,9 +2494,7 @@ class ExpertPipelineExecutor {
             const models = await Promise.race([listPromise, timeoutPromise]);
 
             // listModels returns array of strings (model names)
-            const available = Array.isArray(models) && models.some(m => 
-                (typeof m === 'string' ? m : (m.name || m.model)).includes(modelName)
-            );
+            const available = Array.isArray(models) && models.some(m => (typeof m === 'string' ? m : (m.name || m.model)).includes(modelName));
 
             logger.info({
                 event: 'router_model_availability_check',
