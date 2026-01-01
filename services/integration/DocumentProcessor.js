@@ -930,7 +930,42 @@ class ResultMerger {
                     .map(m => m.drug_name || m.medication)
                     .join('; ');
             }
+        } else if (result.classification?.primary_domain === 'Financial') {
+            // Financial fields
+            if (result.amounts?.total !== undefined) {
+                customFields['invoice_total'] = result.amounts.total;
+            }
+            if (result.amounts?.tax !== undefined) {
+                customFields['invoice_tax'] = result.amounts.tax;
+            }
+            if (result.amounts?.currency) {
+                customFields['currency'] = result.amounts.currency;
+            }
+            if (result.dates?.due_date) {
+                customFields['due_date'] = result.dates.due_date;
+            }
+            if (result.reference_numbers?.invoice_number) {
+                customFields['invoice_number'] = result.reference_numbers.invoice_number;
+            }
+            if (result.reference_numbers?.iban) {
+                customFields['iban'] = result.reference_numbers.iban;
+            }
+        } else if (result.classification?.primary_domain === 'Legal') {
+            // Legal fields
+            if (result.case_info?.case_number) {
+                customFields['case_number'] = result.case_info.case_number;
+            }
+            if (result.case_info?.court) {
+                customFields['court'] = result.case_info.court;
+            }
+            if (result.parties?.plaintiff) {
+                customFields['plaintiff'] = result.parties.plaintiff;
+            }
+            if (result.parties?.defendant) {
+                customFields['defendant'] = result.parties.defendant;
+            }
         }
+
         // Preserve OCR checkpoint diagnostics if present
         const checkpoint = result._expert_result && result._expert_result._ocr_checkpoint || result._expert_result && result._expert_result.ocr_checkpoint;
         if (checkpoint && checkpoint.errors && checkpoint.errors.length > 0) {
