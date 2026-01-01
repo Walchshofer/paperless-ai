@@ -13,6 +13,8 @@ Best Practices Applied:
 - Comprehensive logging
 - Type safety with type hints
 - Explicit partial detection (not string-based)
+- Strict confidence validation
+- Flake8 formatting compliance
 """
 
 import logging
@@ -47,7 +49,11 @@ VALID_DOC_TYPES = {
     "Sonstige",
 }
 
-VALID_COMPLEXITY = {"Einfach", "Mittel", "Komplex"}
+VALID_COMPLEXITY = {
+    "Einfach",
+    "Mittel",
+    "Komplex",
+}
 
 VALID_JURISDICTIONS = {
     "Österreich",
@@ -64,6 +70,13 @@ VALID_APPLICABLE_LAW = {
     "Schiedsverfahren",
 }
 
+# Confidence keys to validate
+CONFIDENCE_KEYS = (
+    "vertrauen",
+    "sicherheit",
+    "routing_vertrauen",
+)
+
 # Date validation pattern
 DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
 
@@ -74,8 +87,10 @@ class ValidationResult:
     Attributes:
         errors: Critical validation failures
         warnings: Non-critical issues
-        schema_type: Detected schema type (classifier/extractor/validator)
-        partial: True if output is partial but accepted (permissive mode only)
+        schema_type: Detected schema type
+            (classifier/extractor/validator)
+        partial: True if output is partial but accepted
+            (permissive mode only)
     """
 
     def __init__(self) -> None:
@@ -138,7 +153,9 @@ def validate_legal_extraction(
 
     try:
         if not data or not isinstance(data, dict):
-            result.errors.append("Empty or non-dict extraction result")
+            result.errors.append(
+                "Empty or non-dict extraction result"
+            )
             logger.warning("Empty extraction result")
             return result.to_dict()
 
@@ -188,8 +205,8 @@ def validate_legal_extraction(
                     # Still validate tag fields
                     _validate_tag_fields(data, result)
                 else:
-                    # Full validation failure (strict mode or non-extractor)
-                    # Append mode-aware warning for strict partial extractor
+                    # Full validation failure (strict or non-extractor)
+                    # Append mode-aware warning for strict partial
                     if is_partial and validation_mode == "strict":
                         result.warnings.append(
                             "Detected partial extractor payload "
@@ -248,7 +265,8 @@ def _detect_schema(
     Order of detection (most specific first):
     1. legal_validator: "valid" + "issues"
     2. legal_classifier: "dokumenttyp" + "komplexitaet"
-    3. legal_extractor: 2+ of {vertragsparteien, daten, jurisdiktion_und_recht}
+    3. legal_extractor: 2+ of
+       {vertragsparteien, daten, jurisdiktion_und_recht}
 
     Args:
         data: Extraction data
@@ -265,7 +283,8 @@ def _detect_schema(
         return ("legal_classifier", LegalClassifierOutput)
 
     # Check for extractor output
-    # Requires 2+ of: vertragsparteien, daten, jurisdiktion_und_recht
+    # Requires 2+ of: vertragsparteien, daten,
+    # jurisdiktion_und_recht
     extractor_fields = {
         "vertragsparteien",
         "daten",
@@ -346,7 +365,9 @@ def _validate_extractor_logic(
             "Party 2 name suspiciously short (< 2 chars)"
         )
     if partei_1.lower() == partei_2.lower():
-        result.warnings.append("Party 1 and Party 2 are identical")
+        result.warnings.append(
+            "Party 1 and Party 2 are identical"
+        )
 
     # Date sanity checks
     dates = data.get("daten", {})
@@ -359,11 +380,13 @@ def _validate_extractor_logic(
 
     if abschluss and not _is_valid_date(abschluss):
         result.errors.append(
-            f"Invalid abschluss_datum format: {abschluss}"
+            f"Invalid abschluss_datum format: {abschluss} "
+            f"(must be YYYY-MM-DD)"
         )
     if gueltig_ab and not _is_valid_date(gueltig_ab):
         result.errors.append(
-            f"Invalid gueltig_ab format: {gueltig_ab}"
+            f"Invalid gueltig_ab format: {gueltig_ab} "
+            f"(must be YYYY-MM-DD)"
         )
 
     # Date logic check
@@ -387,10 +410,19 @@ def _validate_extractor_logic(
         return
 
     applicable_law = jurisdiction.get("anwendbares_recht", "")
-    if applicable_law not in VALID_APPLICABLE_LAW:
+    if applicable_law and (
+        applicable_law not in VALID_APPLICABLE_LAW
+    ):
         result.warnings.append(
             f"Unexpected applicable law: {applicable_law}"
         )
+
+    # CRITICAL: Validate confidence score
+    _validate_confidence_field(
+        data,
+        "vertrauen",
+        result,
+    )
 
 
 def _validate_partial_extractor_logic(
@@ -420,8 +452,10 @@ def _validate_partial_extractor_logic(
             result.warnings.append(
                 "Party 2 name suspiciously short (< 2 chars)"
             )
-        if partei_1 and partei_2 and (
-            partei_1.lower() == partei_2.lower()
+        if (
+            partei_1
+            and partei_2
+            and (partei_1.lower() == partei_2.lower())
         ):
             result.warnings.append(
                 "Party 1 and Party 2 are identical"
@@ -440,11 +474,13 @@ def _validate_partial_extractor_logic(
 
         if abschluss and not _is_valid_date(abschluss):
             result.warnings.append(
-                f"Invalid abschluss_datum format: {abschluss}"
+                f"Invalid abschluss_datum format: {abschluss} "
+                f"(must be YYYY-MM-DD)"
             )
         if gueltig_ab and not _is_valid_date(gueltig_ab):
             result.warnings.append(
-                f"Invalid gueltig_ab format: {gueltig_ab}"
+                f"Invalid gueltig_ab format: {gueltig_ab} "
+                f"(must be YYYY-MM-DD)"
             )
     else:
         if "daten" in data:
@@ -455,7 +491,9 @@ def _validate_partial_extractor_logic(
     # Jurisdiction validation (if present)
     jurisdiction = data.get("jurisdiktion_und_recht", {})
     if isinstance(jurisdiction, dict):
-        applicable_law = jurisdiction.get("anwendbares_recht", "")
+        applicable_law = jurisdiction.get(
+            "anwendbares_recht", ""
+        )
         if (
             applicable_law
             and applicable_law not in VALID_APPLICABLE_LAW
@@ -470,18 +508,11 @@ def _validate_partial_extractor_logic(
             )
 
     # Confidence check (if present)
-    confidence = data.get("vertrauen")
-    if confidence is not None:
-        try:
-            conf_val = float(confidence)
-            if conf_val < 0.5:
-                result.warnings.append(
-                    f"Low confidence partial extractor: {conf_val}"
-                )
-        except (TypeError, ValueError):
-            result.warnings.append(
-                f"Invalid confidence format: {confidence}"
-            )
+    _validate_confidence_field(
+        data,
+        "vertrauen",
+        result,
+    )
 
 
 def _validate_classifier_logic(
@@ -495,32 +526,36 @@ def _validate_classifier_logic(
         result: ValidationResult to mutate
     """
     # Document type check
-    doc_type = data.get("dokumenttyp", "")
-    if doc_type not in VALID_DOC_TYPES:
+    doc_type = data.get("dokumenttyp", "").strip()
+    if doc_type and doc_type not in VALID_DOC_TYPES:
         result.warnings.append(
             f"Non-standard document type: {doc_type}"
         )
 
     # Complexity check
-    complexity = data.get("komplexitaet", "")
-    if complexity not in VALID_COMPLEXITY:
+    complexity = data.get("komplexitaet", "").strip()
+    if complexity and complexity not in VALID_COMPLEXITY:
         result.warnings.append(
             f"Non-standard complexity value: {complexity}"
         )
 
     # Jurisdiction check
-    jurisdiction = data.get("vermutete_jurisdiktion", "")
-    if jurisdiction not in VALID_JURISDICTIONS:
+    jurisdiction = data.get(
+        "vermutete_jurisdiktion", ""
+    ).strip()
+    if jurisdiction and (
+        jurisdiction not in VALID_JURISDICTIONS
+    ):
         result.warnings.append(
             f"Non-standard jurisdiction: {jurisdiction}"
         )
 
-    # Confidence checks
-    confidence = data.get("vertrauen", 0)
-    if confidence < 0.5:
-        result.warnings.append(
-            f"Low confidence classifier result: {confidence}"
-        )
+    # CRITICAL: Validate confidence score
+    _validate_confidence_field(
+        data,
+        "vertrauen",
+        result,
+    )
 
 
 def _validate_validator_logic(
@@ -549,12 +584,12 @@ def _validate_validator_logic(
             "Validator marked valid but listed issues"
         )
 
-    # Confidence check
-    confidence = data.get("vertrauen", 0)
-    if confidence < 0.5:
-        result.warnings.append(
-            f"Low confidence validator result: {confidence}"
-        )
+    # CRITICAL: Validate confidence score
+    _validate_confidence_field(
+        data,
+        "vertrauen",
+        result,
+    )
 
 
 def _is_valid_date(date_str: str) -> bool:
@@ -594,6 +629,38 @@ def _is_valid_date(date_str: str) -> bool:
         return False
 
 
+def _validate_confidence_field(
+    data: Dict[str, Any],
+    field_name: str,
+    result: ValidationResult,
+) -> None:
+    """Validate confidence field is in valid range.
+
+    Args:
+        data: Data dict
+        field_name: Field name to validate
+        result: ValidationResult to mutate
+    """
+    confidence = data.get(field_name)
+
+    if confidence is None:
+        return
+
+    try:
+        conf_val = float(confidence)
+        # STRICT: out-of-range confidence is a critical error
+        if not (0.0 <= conf_val <= 1.0):
+            result.errors.append(
+                f"Confidence score ({field_name}) out of valid range "
+                f"[0.0, 1.0]: {confidence}"
+            )
+    except (ValueError, TypeError):
+        result.errors.append(
+            f"Invalid confidence format ({field_name}): {confidence} "
+            f"(must be float in range 0.0-1.0)"
+        )
+
+
 def _validate_tag_fields(
     data: Dict[str, Any],
     result: ValidationResult,
@@ -609,7 +676,7 @@ def _validate_tag_fields(
         result.errors.append("suggested_tags must be a list")
     elif isinstance(suggested, list):
         if any(not isinstance(tag, str) for tag in suggested):
-            result.warnings.append(
+            result.errors.append(
                 "suggested_tags contains non-string entries"
             )
 
@@ -618,7 +685,7 @@ def _validate_tag_fields(
         result.errors.append("missing_tags must be a list")
     elif isinstance(missing, list):
         if any(not isinstance(tag, str) for tag in missing):
-            result.warnings.append(
+            result.errors.append(
                 "missing_tags contains non-string entries"
             )
 
@@ -651,14 +718,15 @@ def _validate_tag_fields(
     if overall is not None:
         try:
             value = float(overall)
-            if value < 0 or value > 1:
-                result.warnings.append(
-                    f"tagging.confidence.overall out of range: "
-                    f"{overall}"
+            if not (0.0 <= value <= 1.0):
+                result.errors.append(
+                    f"tagging.confidence.overall out of range "
+                    f"[0.0, 1.0]: {overall}"
                 )
         except (TypeError, ValueError):
-            result.warnings.append(
-                "tagging.confidence.overall is not a number"
+            result.errors.append(
+                "tagging.confidence.overall must be a number in range "
+                "0.0-1.0"
             )
 
 
@@ -669,7 +737,7 @@ def _validate_tag_fields(
 
 def test_validate_legal_extraction() -> None:
     """Test validator with sample data in both modes."""
-    # Test extractor output (complete)
+    # Test extractor output (complete) - valid
     extractor_data = {
         "vertragsparteien": {
             "partei_1": "Company A GmbH",
@@ -685,13 +753,46 @@ def test_validate_legal_extraction() -> None:
         "vertrauen": 0.95,
     }
 
-    result = validate_legal_extraction(extractor_data, mode="strict")
+    result = validate_legal_extraction(
+        extractor_data, mode="strict"
+    )
     logger.info(f"Complete extractor validation (strict): {result}")
-    assert result["valid"], "Complete extractor output should be valid"
+    assert result["valid"], (
+        "Complete extractor output should be valid"
+    )
     assert result["schema_type"] == "legal_extractor"
-    assert not result["partial"], "Complete output should not be partial"
+    assert not result["partial"], (
+        "Complete output should not be partial"
+    )
 
-    # Test classifier output
+    # Test extractor with out-of-range confidence (STRICT)
+    invalid_confidence_extractor = {
+        "vertragsparteien": {
+            "partei_1": "Company A",
+            "partei_2": "Company B",
+        },
+        "daten": {
+            "abschluss_datum": "2024-01-15",
+            "gueltig_ab": "2024-02-01",
+        },
+        "jurisdiktion_und_recht": {
+            "anwendbares_recht": "Deutschland (BGB)",
+        },
+        "vertrauen": 100,  # OUT OF RANGE!
+    }
+
+    result = validate_legal_extraction(
+        invalid_confidence_extractor, mode="strict"
+    )
+    logger.info(
+        f"Extractor validation (invalid confidence): {result}"
+    )
+    assert not result["valid"], "Should reject vertrauen=100"
+    assert any(
+        "out of valid range" in err for err in result["errors"]
+    ), f"Should have range error, got: {result['errors']}"
+
+    # Test classifier output - valid
     classifier_data = {
         "dokumenttyp": "Kaufvertrag",
         "komplexitaet": "Mittel",
@@ -699,22 +800,63 @@ def test_validate_legal_extraction() -> None:
         "vertrauen": 0.88,
     }
 
-    result = validate_legal_extraction(classifier_data, mode="strict")
-    logger.info(f"Classifier validation: {result}")
+    result = validate_legal_extraction(
+        classifier_data, mode="strict"
+    )
+    logger.info(f"Classifier validation (valid): {result}")
     assert result["valid"], "Classifier output should be valid"
     assert result["schema_type"] == "legal_classifier"
 
-    # Test validator output
+    # Test classifier with invalid doc type (warning)
+    invalid_doctype_classifier = {
+        "dokumenttyp": "InvalidType",
+        "komplexitaet": "Mittel",
+        "vermutete_jurisdiktion": "Deutschland",
+        "vertrauen": 0.8,
+    }
+
+    result = validate_legal_extraction(
+        invalid_doctype_classifier, mode="strict"
+    )
+    logger.info(
+        f"Classifier validation (invalid doc type): {result}"
+    )
+    # Should be valid (Pydantic allows it), but with warning
+    assert len(result["warnings"]) > 0, (
+        "Should have warnings for invalid doc type"
+    )
+
+    # Test validator output - valid
     validator_data = {
         "valid": True,
         "issues": [],
         "vertrauen": 0.92,
     }
 
-    result = validate_legal_extraction(validator_data, mode="strict")
-    logger.info(f"Validator validation: {result}")
+    result = validate_legal_extraction(
+        validator_data, mode="strict"
+    )
+    logger.info(f"Validator validation (valid): {result}")
     assert result["valid"], "Validator output should be valid"
     assert result["schema_type"] == "legal_validator"
+
+    # Test validator with conflicting flags (warning)
+    conflicting_validator = {
+        "valid": True,
+        "issues": ["Issue 1", "Issue 2"],
+        "vertrauen": 0.85,
+    }
+
+    result = validate_legal_extraction(
+        conflicting_validator, mode="strict"
+    )
+    logger.info(
+        f"Validator validation (conflicting flags): {result}"
+    )
+    # Should be valid (Pydantic allows it), but with warning
+    assert len(result["warnings"]) > 0, (
+        "Should warn about conflicting flags"
+    )
 
     # Test partial extractor in STRICT mode (should fail)
     partial_extractor = {
@@ -730,9 +872,13 @@ def test_validate_legal_extraction() -> None:
         "vertrauen": 0.85,
     }
 
-    result = validate_legal_extraction(partial_extractor, mode="strict")
+    result = validate_legal_extraction(
+        partial_extractor, mode="strict"
+    )
     logger.info(f"Partial extractor (strict mode): {result}")
-    assert not result["valid"], "Partial should fail in strict mode"
+    assert not result["valid"], (
+        "Partial should fail in strict mode"
+    )
     assert result["schema_type"] == "legal_extractor"
     assert result["partial"] is False
     assert any(
@@ -740,14 +886,23 @@ def test_validate_legal_extraction() -> None:
     ), "Should warn about partial payload"
 
     # Test partial extractor in PERMISSIVE mode (should succeed)
-    result = validate_legal_extraction(partial_extractor, mode="permissive")
+    result = validate_legal_extraction(
+        partial_extractor, mode="permissive"
+    )
     logger.info(f"Partial extractor (permissive mode): {result}")
-    assert result["valid"], "Partial should pass in permissive mode"
+    assert result["valid"], (
+        "Partial should pass in permissive mode"
+    )
     assert result["schema_type"] == "legal_extractor"
-    assert result["partial"] is True, "Should mark as partial"
+    assert result["partial"] is True, (
+        "Should mark as partial"
+    )
+    assert any(
+        "permissive mode" in w.lower() for w in result["warnings"]
+    ), f"Should explain permissive acceptance, got: {result['warnings']}"
 
-    # Test with invalid date
-    invalid_extractor = {
+    # Test with invalid date format
+    invalid_date_extractor = {
         "vertragsparteien": {
             "partei_1": "Company A",
             "partei_2": "Company B",
@@ -759,14 +914,126 @@ def test_validate_legal_extraction() -> None:
         "jurisdiktion_und_recht": {
             "anwendbares_recht": "Deutschland (BGB)",
         },
-        "vertrauen": 0.5,
+        "vertrauen": 0.9,
     }
 
-    result = validate_legal_extraction(invalid_extractor, mode="strict")
+    result = validate_legal_extraction(
+        invalid_date_extractor, mode="strict"
+    )
     logger.info(f"Invalid date validation: {result}")
-    assert not result["valid"], "Invalid date should fail validation"
+    assert not result["valid"], (
+        "Invalid date should fail validation"
+    )
+    assert any(
+        "date format" in err.lower() for err in result["errors"]
+    ), f"Should have date error, got: {result['errors']}"
 
-    logger.info("All tests passed!")
+    # Test with identical parties (warning)
+    identical_parties_extractor = {
+        "vertragsparteien": {
+            "partei_1": "Company A",
+            "partei_2": "Company A",  # Same as partei_1!
+        },
+        "daten": {
+            "abschluss_datum": "2024-01-15",
+            "gueltig_ab": "2024-02-01",
+        },
+        "jurisdiktion_und_recht": {
+            "anwendbares_recht": "Deutschland (BGB)",
+        },
+        "vertrauen": 0.8,
+    }
+
+    result = validate_legal_extraction(
+        identical_parties_extractor, mode="strict"
+    )
+    logger.info(f"Identical parties validation: {result}")
+    # Should be valid but with warning
+    assert len(result["warnings"]) > 0, (
+        "Should warn about identical parties"
+    )
+
+    # Test with dates in wrong order (warning)
+    wrong_date_order_extractor = {
+        "vertragsparteien": {
+            "partei_1": "Company A",
+            "partei_2": "Company B",
+        },
+        "daten": {
+            "abschluss_datum": "2024-02-01",
+            "gueltig_ab": "2024-01-15",  # Before abschluss!
+        },
+        "jurisdiktion_und_recht": {
+            "anwendbares_recht": "Deutschland (BGB)",
+        },
+        "vertrauen": 0.85,
+    }
+
+    result = validate_legal_extraction(
+        wrong_date_order_extractor, mode="strict"
+    )
+    logger.info(f"Wrong date order validation: {result}")
+    # Should be valid but with warning
+    assert len(result["warnings"]) > 0, (
+        "Should warn about date order"
+    )
+
+    # Test with invalid confidence format (strict error)
+    invalid_conf_format_extractor = {
+        "vertragsparteien": {
+            "partei_1": "Company A",
+            "partei_2": "Company B",
+        },
+        "daten": {
+            "abschluss_datum": "2024-01-15",
+            "gueltig_ab": "2024-02-01",
+        },
+        "jurisdiktion_und_recht": {
+            "anwendbares_recht": "Deutschland (BGB)",
+        },
+        "vertrauen": "invalid_format",  # Not a number!
+    }
+
+    result = validate_legal_extraction(
+        invalid_conf_format_extractor, mode="strict"
+    )
+    logger.info(f"Invalid confidence format validation: {result}")
+    assert not result["valid"], (
+        "Should reject invalid confidence format"
+    )
+    assert any(
+        "Invalid confidence format" in err for err in result["errors"]
+    ), f"Should have format error, got: {result['errors']}"
+
+    # Test partial extractor with bad confidence (permissive)
+    partial_with_bad_conf = {
+        "vertragsparteien": {
+            "partei_1": "Company A",
+            "partei_2": "Company B",
+        },
+        "daten": {
+            "abschluss_datum": "2024-01-15",
+            "gueltig_ab": "2024-02-01",
+        },
+        # Missing: jurisdiktion_und_recht
+        "vertrauen": 2.0,  # OUT OF RANGE
+    }
+
+    result = validate_legal_extraction(
+        partial_with_bad_conf, mode="permissive"
+    )
+    logger.info(
+        f"Partial with bad confidence (permissive): {result}"
+    )
+    # Permissive accepts partial, but confidence error is still caught
+    assert not result["valid"], (
+        "Should fail due to confidence even in permissive"
+    )
+    assert any(
+        "out of valid range" in err for err in result["errors"]
+    ), f"Should have confidence error, got: {result['errors']}"
+
+    logger.info("✅ All legal extraction tests passed!")
 
 
 if __name__ == "__main__":

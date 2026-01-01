@@ -234,7 +234,11 @@ Respond with this exact JSON structure:
     "visual_clarity": "high|medium|low",
     "text_legibility": "high|medium|low",
     "completeness": "complete|partial|fragment",
-    "issues": ["<any quality issues detected>"]
+    "issues": ["<any quality issues detected>"],
+    "needs_rotation": <true if document appears rotated 90/180/270 degrees>,
+    "rotation_degrees": <0|90|180|270 - detected rotation to correct>,
+    "needs_cropping": <true if small document on large background/scan bed visible>,
+    "needs_normalization": <true if any geometry correction needed before processing>
   },
   "metadata_hints": {
     "detected_date": "<date if visible, null otherwise>",
@@ -303,8 +307,9 @@ TOOLS_JSON:
 {{tools_json}}
 
 NORMALIZATION_GUIDANCE:
-- If pre-vision normalization is needed, use tool "paperless.normalize_images" in pre_vision.
-- If "paperless.normalize_images" is used, it MUST be the final pre_vision tool.
+- If pre-vision normalization is needed, use tool "paperless.normalize_images_ai" in pre_vision.
+- If "paperless.normalize_images_ai" is used, it MUST be the final pre_vision tool.
+- Trigger normalization when QUALITY_JSON indicates: visual_clarity is "low", needs_rotation is true, or needs_cropping is true.
 - Action format (actions array):
   {"type":"rotate","degrees":90}
   {"type":"crop","box":{"x":0.05,"y":0.05,"width":0.9,"height":0.9,"unit":"ratio"}}

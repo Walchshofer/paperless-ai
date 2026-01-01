@@ -48,12 +48,67 @@ class MockOllamaService {
         return this.defaultResponse;
     }
 
+    async analyzeDocument(content, existingTags = [], existingCorrespondentList = [], existingDocumentTypesList = [], id, customPrompt = null, options = {}) {
+        this.calls.push({ method: 'analyzeDocument', content, id, options });
+
+        if (this.shouldFail) {
+            throw new Error(this.failureMessage);
+        }
+
+        return {
+            document: {
+                title: 'Mock Document',
+                correspondent: 'Mock Correspondent',
+                tags: (existingTags || []).slice(0, 2),
+                document_type: (existingDocumentTypesList && existingDocumentTypesList[0]) || 'correspondence',
+                document_date: new Date().toISOString().split('T')[0],
+                language: 'en',
+                custom_fields: {}
+            },
+            metrics: {
+                promptTokens: 100,
+                completionTokens: 50,
+                totalTokens: 150,
+                processingTime: '0.5'
+            },
+            confidence: 0.75
+        };
+    }
+
     async checkStatus() {
         // Simulate response shape: { loadedModels: [...] }
         const loaded = Array.isArray(this.loadedModels) && this.loadedModels.length > 0
             ? this.loadedModels
             : (this.modelAvailable ? ['router-model'] : []);
         return { loadedModels: loaded };
+    }
+
+    async analyzeDocumentWithVision(documentId, content, options = {}) {
+        this.calls.push({ method: 'analyzeDocumentWithVision', documentId, content, options });
+
+        if (this.shouldFail) {
+            throw new Error(this.failureMessage);
+        }
+
+        return {
+            document: {
+                title: 'Mock Vision Document',
+                correspondent: 'Mock Vision Correspondent',
+                tags: (options.existingTags || []).slice(0, 2),
+                document_type: (options.existingDocumentTypesList && options.existingDocumentTypesList[0]) || 'correspondence',
+                document_date: new Date().toISOString().split('T')[0],
+                language: 'en',
+                custom_fields: {}
+            },
+            metrics: {
+                promptTokens: 150,
+                completionTokens: 75,
+                totalTokens: 225,
+                processingTime: '1.2'
+            },
+            confidence: 0.8,
+            visual: true
+        };
     }
 
     getCallCount() {

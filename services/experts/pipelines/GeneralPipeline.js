@@ -62,7 +62,8 @@ const GeneralPipeline = {
             name: 'Cross Pipeline Routing',
             type: StageType.REASONING,
             guidanceTemplate: 'cross_pipeline_router',
-            model: MODEL_NAMES.general,
+            // Use orchestrator model for routing decisions, fallback to general
+            model: MODEL_NAMES.orchestrator || MODEL_NAMES.general,
             modelType: ModelType.TEXT_ONLY,
             executionMode: ExecutionMode.SEQUENTIAL,
             inputMapping: {

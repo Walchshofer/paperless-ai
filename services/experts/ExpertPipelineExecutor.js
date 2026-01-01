@@ -1279,7 +1279,8 @@ class ExpertPipelineExecutor {
      * Classify document using router with retry, exponential backoff and optional model availability pre-check
      * Signature follows plan: accepts document, executor, routerMessages, options
      */
-    async _classifyDocumentWithRetry(document, executor, routerMessages, options = {}) {
+    async _classifyDocumentWithRetry(document, executor, routerMessages, _options = {}) {
+        void _options;
         executor = executor || this;
 
         const retryCfg = (config.routerRetry || {});
@@ -1347,7 +1348,9 @@ class ExpertPipelineExecutor {
                 });
 
                 // Update stats
-                try { this.stats.routerRetries += 1; } catch (e) {}
+                try { this.stats.routerRetries += 1; } catch (err) {
+                    logger.debug({ event: 'router_stats_increment_failed', error: err && err.message ? err.message : String(err) });
+                }
 
                 if (attempt < maxRetries) {
                     await executor._delay(delay);
@@ -1363,7 +1366,9 @@ class ExpertPipelineExecutor {
             error: lastError && lastError.message ? lastError.message : String(lastError)
         });
 
-        try { this.stats.routerFallbacks += 1; } catch (e) {}
+        try { this.stats.routerFallbacks += 1; } catch (err) {
+            logger.debug({ event: 'router_fallbacks_increment_failed', error: err && err.message ? err.message : String(err) });
+        }
 
         return null;
     }
@@ -1999,6 +2004,7 @@ async function processDocument(document, ollamaService, options = {}) {
         try {
             LocalTranslatorCtor = require('./translation/LocalTranslator');
         } catch (e) {
+            void e;
             const tm = require('./translation');
             LocalTranslatorCtor = tm.LocalTranslator || tm;
         }

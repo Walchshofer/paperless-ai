@@ -60,14 +60,12 @@ def validate_medical_extraction(
             ]
             if doc_type and doc_type not in valid_types:
                 warnings.append(
-                    f"Document type '{doc_type}' not in "
-                    f"standard list"
+                    f"Document type '{doc_type}' not in standard list"
                 )
         elif "primaerdiagnose" in data:
             if not data.get("primaerdiagnose"):
                 warnings.append(
-                    "Primary diagnosis (primaerdiagnose) "
-                    "is missing"
+                    "Primary diagnosis (primaerdiagnose) is missing"
                 )
         else:
             patient = data.get("patient", {})
@@ -79,54 +77,65 @@ def validate_medical_extraction(
                 if isinstance(patient, dict)
                 else None
             )
-            if (
-                dob
-                and not re.match(r"^\d{4}-\d{2}-\d{2}$", dob)
-            ):
-                warnings.append(
-                    f"Invalid date format (geburtsdatum): {dob}"
+            if dob and not re.match(r"^\d{4}-\d{2}-\d{2}$", dob):
+                errors.append(
+                    f"Invalid date format (geburtsdatum): {dob} "
+                    f"(must be YYYY-MM-DD)"
                 )
 
             diagnoses = data.get("diagnosen", [])
             if not isinstance(diagnoses, list):
-                errors.append("Diagnosen must be a list")
+                errors.append("diagnosen must be a list")
             else:
-                for dx in diagnoses:
+                if len(diagnoses) == 0:
+                    warnings.append(
+                        "No diagnoses (diagnosen) provided"
+                    )
+                for idx, dx in enumerate(diagnoses):
                     if not isinstance(dx, dict):
-                        warnings.append(
-                            "Diagnosis entry is not an object"
+                        errors.append(
+                            f"Diagnosis entry {idx} is not an object"
                         )
                         continue
                     icd10 = dx.get("icd10")
-                    if (
-                        icd10
-                        and not re.match(
-                            r"^[A-Z]\d{2}(\.[A-Z0-9]{1,4})?$",
-                            icd10,
+                    if not icd10:
+                        errors.append(
+                            f"Diagnosis {idx} missing ICD-10 code"
                         )
+                    elif not re.match(
+                        r"^[A-Z]\d{2}(\.[A-Z0-9]{1,4})?$",
+                        icd10,
                     ):
-                        warnings.append(f"Invalid ICD-10: {icd10}")
+                        errors.append(
+                            f"Invalid ICD-10 format: {icd10} "
+                            f"(must match ^[A-Z]\\d{{2}}(\\.\\[A-Z0-9]{{1,4}})?$)"
+                        )
 
             for field in ["medikamente", "laborwerte"]:
                 value = data.get(field)
-                if value is not None and not isinstance(
-                    value,
-                    list,
-                ):
-                    errors.append(f"{field} must be a list")
+                if value is not None and not isinstance(value, list):
+                    errors.append(
+                        f"{field} must be a list, got {type(value).__name__}"
+                    )
+                elif isinstance(value, list) and len(value) == 0:
+                    warnings.append(
+                        f"No {field} (medications/lab values) provided"
+                    )
 
+        # CRITICAL: Validate confidence score
         confidence = data.get("vertrauen")
         if confidence is not None:
             try:
                 conf_val = float(confidence)
+                # STRICT: out-of-range confidence is a critical error
                 if not (0.0 <= conf_val <= 1.0):
-                    warnings.append(
-                        f"Confidence score out of range: "
-                        f"{confidence}"
+                    errors.append(
+                        f"Confidence score (vertrauen) out of valid range [0.0, 1.0]: {confidence}"
                     )
             except (ValueError, TypeError):
                 errors.append(
-                    f"Invalid confidence format: {confidence}"
+                    f"Invalid confidence format (vertrauen): {confidence} "
+                    f"(must be float in range 0.0-1.0)"
                 )
 
         _validate_tag_fields(data, warnings, errors, "medical")
@@ -140,7 +149,7 @@ def validate_medical_extraction(
     except Exception as e:
         return {
             "valid": False,
-            "errors": [str(e)],
+            "errors": [f"Validation exception: {type(e).__name__}: {str(e)}"],
             "warnings": warnings,
         }
 
@@ -164,7 +173,7 @@ def _validate_tag_fields(
         errors.append("suggested_tags must be a list")
     elif isinstance(suggested, list):
         if any(not isinstance(tag, str) for tag in suggested):
-            warnings.append(
+            errors.append(
                 "suggested_tags contains non-string entries"
             )
 
@@ -173,7 +182,7 @@ def _validate_tag_fields(
         errors.append("missing_tags must be a list")
     elif isinstance(missing, list):
         if any(not isinstance(tag, str) for tag in missing):
-            warnings.append(
+            errors.append(
                 "missing_tags contains non-string entries"
             )
 
@@ -188,8 +197,7 @@ def _validate_tag_fields(
     tag_domain = tagging.get("domain")
     if tag_domain and str(tag_domain).lower() != domain:
         warnings.append(
-            f"tagging.domain '{tag_domain}' does not match "
-            f"'{domain}'"
+            f"tagging.domain '{tag_domain}' does not match '{domain}'"
         )
 
     if not tagging.get("source"):
@@ -207,12 +215,11 @@ def _validate_tag_fields(
     if overall is not None:
         try:
             value = float(overall)
-            if value < 0 or value > 1:
-                warnings.append(
-                    f"tagging.confidence.overall out of range: "
-                    f"{overall}"
+            if not (0.0 <= value <= 1.0):
+                errors.append(
+                    f"tagging.confidence.overall out of range [0.0, 1.0]: {overall}"
                 )
         except (TypeError, ValueError):
-            warnings.append(
-                "tagging.confidence.overall is not a number"
+            errors.append(
+                "tagging.confidence.overall must be a number in range 0.0-1.0"
             )

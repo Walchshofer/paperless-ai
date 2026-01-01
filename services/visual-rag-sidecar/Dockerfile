@@ -8,7 +8,8 @@
 # Run:   docker run --gpus all -p 8001:8001 visual-rag:local
 
 # Use NVIDIA CUDA base image with Python
-FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
+# Updated from deprecated 12.1.0-cudnn8 to supported 12.4.1-cudnn
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -21,8 +22,8 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
 
 # Hugging Face cache directory (will be mounted as volume)
+# Note: TRANSFORMERS_CACHE is deprecated, HF_HOME is the standard
 ENV HF_HOME=/root/.cache/huggingface
-ENV TRANSFORMERS_CACHE=/root/.cache/huggingface
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

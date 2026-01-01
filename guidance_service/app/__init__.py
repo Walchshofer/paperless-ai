@@ -38,36 +38,61 @@ CONFIDENCE_KEYS = ("vertrauen", "sicherheit", "routing_vertrauen")
 
 
 def _normalize_confidence_value(value):
+    """Normalize confidence values to 0.0-1.0 range.
+
+    Handles:
+    - Boolean → 1.0 (True) or 0.0 (False)
+    - Percentage strings (explicit %) → divide by 100
+    - Values already in 0-1 → pass through
+    - Values in (1, 100] without % → REJECT (ambiguous)
+    - Values > 100 → clamp to 1.0
+    - Values < 0 → clamp to 0.0
+    - Invalid values → return as-is (validator will catch)
+    """
     if value is None:
         return None
+
     if isinstance(value, bool):
         return float(value)
+
+    # Convert to float
     if isinstance(value, (int, float)):
         normalized = float(value)
     elif isinstance(value, str):
         cleaned = value.strip()
-        if cleaned.endswith("%"):
+        # Handle explicit percentage notation
+        is_percentage = cleaned.endswith("%")
+        if is_percentage:
             cleaned = cleaned[:-1]
         cleaned = cleaned.replace(",", ".")
         try:
             normalized = float(cleaned)
+            if is_percentage:
+                # Explicit percentage: divide by 100
+                normalized = normalized / 100.0
         except (TypeError, ValueError):
-            return value
+            return value  # Invalid format, let validator reject it
     else:
-        return value
+        return value  # Unsupported type, let validator reject it
 
+    # Clamp to valid range
     if normalized < 0:
-        normalized = 0.0
+        return 0.0
     elif normalized > 1.0:
-        if normalized <= 100:
-            normalized = normalized / 100.0
-        else:
-            normalized = 1.0
+        return 1.0
 
     return round(normalized, 2)
 
 
 def _normalize_confidence_fields(payload):
+    """Normalize all confidence fields in payload.
+
+    Args:
+        payload: Dict with potential confidence fields
+                 
+    Returns:
+        Dict with normalized confidence values
+    """
     if not isinstance(payload, dict):
         return payload
 
@@ -226,11 +251,13 @@ def create_app():
     use_cache = os.getenv('USE_CACHE', 'true') == 'true'
 
     # Ollama Host Configuration
-    # Prioritize OLLAMA_ENDPOINT, fallback to OLLAMA_HOST, then localhost
-    OLLAMA_ENDPOINT = os.getenv(
+    # Prioritize OLLAMA_ENDPOINT, fallback to OLLAMA_API_URL, then localhost
+    _ollama_base = os.getenv(
         'OLLAMA_ENDPOINT',
-        os.getenv('OLLAMA_HOST', 'http://localhost:11434/v1')
+        os.getenv('OLLAMA_API_URL', 'http://localhost:11434')
     )
+    # Ensure /v1 suffix for OpenAI compatibility mode
+    OLLAMA_ENDPOINT = _ollama_base if _ollama_base.endswith('/v1') else f"{_ollama_base.rstrip('/')}/v1"
 
     # Register All Templates across all phases
     templates = {
@@ -383,8 +410,36 @@ def create_app():
                 # 3. Execute Template
                 template_func = templates[template_name]
                 template_start = time.time()
+
+                # VERBOSE LOGGING: Log template execution start
+                app.logger.info({
+                    'event': 'template_execution_start',
+                    'template': template_name,
+                    'model': model,
+                    'temperature': temperature,
+                    'variables_keys': list(variables.keys()) if variables else [],
+                    'ollama_endpoint': OLLAMA_ENDPOINT
+                })
+
                 result = lm + template_func(**variables)
                 template_latency_seconds = time.time() - template_start
+
+                # VERBOSE LOGGING: Log raw result
+                raw_output = None
+                try:
+                    if "output" in result:
+                        raw_output = result["output"]
+                except Exception:
+                    raw_output = str(result)[:500]
+
+                app.logger.info({
+                    'event': 'template_execution_complete',
+                    'template': template_name,
+                    'model': model,
+                    'latency_seconds': round(template_latency_seconds, 2),
+                    'raw_output_preview': str(raw_output)[:300] if raw_output else None,
+                    'raw_output_type': type(raw_output).__name__ if raw_output else None
+                })
 
                 # 4. Extract Variables
                 generated = {}

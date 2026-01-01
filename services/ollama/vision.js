@@ -818,7 +818,13 @@ module.exports = function createVisionModule(dependencies = {}) {
         }
 
         try {
-            const pdfBuffer = await paperlessService.downloadOriginalDocument(documentId);
+            // Try original document first, fallback to regular download if it fails
+            let pdfBuffer = await paperlessService.downloadOriginalDocument(documentId);
+            if (!pdfBuffer || pdfBuffer.length === 0) {
+                logger.info(`[VISION] Original download unavailable, trying regular download for doc ${documentId}`);
+                pdfBuffer = await paperlessService.downloadDocument(documentId);
+            }
+
             if (pdfBuffer && pdfBuffer.length > 0) {
                 if (!this._looksLikePdf(pdfBuffer)) {
                     if (this._looksLikeImage(pdfBuffer)) {

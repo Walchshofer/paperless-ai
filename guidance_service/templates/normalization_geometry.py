@@ -166,7 +166,7 @@ def analyze_document_geometry(
         )
 
         # Store validated object back in lm for downstream use
-        lm["geometry_validated"] = validated_geometry
+        lm = lm.set("geometry_validated", validated_geometry)
 
     except json.JSONDecodeError as e:
         logger.error(f"JSON parsing failed: {e}")
