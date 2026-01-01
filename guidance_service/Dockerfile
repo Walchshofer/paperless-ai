@@ -43,4 +43,4 @@ ENV PYTHONUNBUFFERED=1
 ENV GUIDANCE_CACHE_DIR=/app/cache_data
 
 # Run with gunicorn for production
-CMD ["python", "-m", "gunicorn", "--bind", "0.0.0.0:8002", "--workers", "2", "--timeout", "120", "app:create_app()"]
+CMD ["python", "-m", "gunicorn", "--bind", "0.0.0.0:8002", "--workers", "2", "--timeout", "300", "app:create_app()"]

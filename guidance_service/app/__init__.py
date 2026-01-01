@@ -549,6 +549,31 @@ def create_app():
                             'begruendung',
                             'sicherheit',
                         ]
+                    elif 'normalization_geometry' in template_name:
+                        # Extract geometry data from normalization template
+                        try:
+                            if 'geometry_validated' in result:
+                                val = result['geometry_validated']
+                                # Handle Pydantic model
+                                if hasattr(val, 'model_dump'):
+                                    generated = val.model_dump()
+                                elif hasattr(val, 'dict'):
+                                    generated = val.dict()
+                                else:
+                                    generated = val
+                            elif 'geometry' in result:
+                                raw_geo = result['geometry']
+                                if isinstance(raw_geo, str):
+                                    generated = json.loads(raw_geo)
+                                else:
+                                    generated = raw_geo
+                        except Exception as exc:
+                            app.logger.warning(
+                                "Geometry extraction failed for %s (%s)",
+                                template_name,
+                                exc,
+                            )
+                        var_names = []
                     else:
                         var_names = []
 
