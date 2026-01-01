@@ -131,13 +131,14 @@ const qwenRouterHardeningEnabled = parseEnvBoolean(
 const qwenRouterTruncationThreshold = Number.parseFloat(
   process.env.QWEN_ROUTER_TRUNCATION_THRESHOLD || '0.02'
 );
+// Increased token budgets for qwen3-vl:8b (128K context allows more tokens)
 const qwenRouterThinkingTokens = parseEnvInt(
   process.env.QWEN_ROUTER_THINKING_TOKENS,
-  256
+  1024  // Was 256 - too low, caused truncation
 );
 const qwenRouterOutputTokens = parseEnvInt(
   process.env.QWEN_ROUTER_OUTPUT_TOKENS,
-  256
+  512   // Was 256 - too low, caused truncation
 );
 const qwenRouterStopSequences = parseEnvJson(
   process.env.QWEN_ROUTER_STOP_SEQUENCES,
@@ -354,6 +355,11 @@ module.exports = {
     textQualityThreshold: parseInt(process.env.TEXT_QUALITY_THRESHOLD || '60', 10),
     forceVision: parseEnvBoolean(process.env.FORCE_VISUAL_RAG, 'no'),
     visionRenderDpi: parseInt(process.env.VISION_RENDER_DPI || '300', 10),
+    // Analysis DPI for geometry detection (rotation/crop) - defaults to visionRenderDpi
+    analysisRenderDpi: parseInt(
+      process.env.ANALYSIS_RENDER_DPI || process.env.VISION_RENDER_DPI || '300',
+      10
+    ),
     maxVisionPages: parseInt(process.env.MAX_VISION_PAGES || '4', 10),
     maxRetriesPlanner: parseInt(process.env.VISUAL_RAG_MAX_RETRIES_PLANNER || '1', 10),
     maxRetriesExtractor: parseInt(process.env.VISUAL_RAG_MAX_RETRIES_EXTRACTOR || '1', 10)

@@ -288,7 +288,8 @@ async function ensureOcrCustomFields(options = {}) {
 
     for (const field of fields) {
         try {
-            const result = await paperlessService.createCustomFieldSafely(field, 'text');
+            // Paperless-ngx uses 'string' for text fields, not 'text'
+            const result = await paperlessService.createCustomFieldSafely(field, 'string');
 
             // Support both old-style (field object) and new structured responses
             if (result && result.id) {

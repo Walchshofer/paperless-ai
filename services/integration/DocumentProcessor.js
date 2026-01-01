@@ -958,6 +958,11 @@ class ResultMerger {
  * - Legacy processing fallback
  * - Hybrid processing modes
  * - Result normalization
+ *
+ * Note: For legacy fallback support, the provided `ollamaService` should expose the
+ * `analyzeDocument(content, existingTags, existingCorrespondentList, existingDocumentTypesList, id, customPrompt, options)`
+ * and `analyzeDocumentWithVision(documentId, content, options)` methods. If these are missing,
+ * legacy fallback will be unavailable and the processor will fail gracefully with descriptive errors.
  */
 class DocumentProcessor {
     /**
@@ -966,6 +971,23 @@ class DocumentProcessor {
      */
     constructor(ollamaService, options = {}) {
         this.ollamaService = ollamaService;
+        // Validate presence of legacy methods on provided ollamaService
+        this._hasLegacyTextSupport = !!(this.ollamaService && typeof this.ollamaService.analyzeDocument === 'function');
+        this._hasLegacyVisionSupport = !!(this.ollamaService && typeof this.ollamaService.analyzeDocumentWithVision === 'function');
+
+        if (!this._hasLegacyTextSupport) {
+            logger.warn({
+                event: 'legacy_text_method_missing',
+                message: 'ollamaService.analyzeDocument method not found; legacy text fallback will be unavailable'
+            });
+        }
+
+        if (!this._hasLegacyVisionSupport) {
+            logger.warn({
+                event: 'legacy_vision_method_missing',
+                message: 'ollamaService.analyzeDocumentWithVision method not found; legacy vision fallback will be unavailable'
+            });
+        }
         this.config = { ...ProcessorConfig, ...options };
         
         // Initialize expert pipeline executor
@@ -1018,7 +1040,7 @@ class DocumentProcessor {
         });
         
         try {
-            let result;
+            let result = null;
             
             switch (processingMode) {
                 case ProcessorConfig.modes.EXPERT_PIPELINE:
@@ -1353,6 +1375,13 @@ class DocumentProcessor {
             documentCreated: options.documentCreated || document.created || document.added
         };
 
+        // Defensive check: ensure method exists
+        if (!this._hasLegacyVisionSupport || typeof this.ollamaService.analyzeDocumentWithVision !== 'function') {
+            const errMsg = 'Legacy vision processing unavailable: ollamaService.analyzeDocumentWithVision method not found. Ensure ollamaService is properly initialized with vision module methods.';
+            logger.error({ event: 'legacy_vision_unavailable', documentId: document.id, message: errMsg });
+            throw new Error(errMsg);
+        }
+
         // Call via ollamaService to ensure proper method binding
         const result = await this.ollamaService.analyzeDocumentWithVision(
             document.id,
@@ -1377,6 +1406,13 @@ class DocumentProcessor {
         const existingTags = options.existingTags || [];
         const existingCorrespondentList = options.existingCorrespondentList || [];
         const existingDocumentTypesList = options.existingDocumentTypesList || [];
+
+        // Defensive check: ensure method exists
+        if (!this._hasLegacyTextSupport || typeof this.ollamaService.analyzeDocument !== 'function') {
+            const errMsg = 'Legacy text processing unavailable: ollamaService.analyzeDocument method not found. Ensure ollamaService is properly initialized with text module methods.';
+            logger.error({ event: 'legacy_text_unavailable', documentId: document.id, message: errMsg });
+            throw new Error(errMsg);
+        }
 
         // Call via ollamaService to ensure proper method binding
         const result = await this.ollamaService.analyzeDocument(
@@ -1447,7 +1483,17 @@ class DocumentProcessor {
                 }
             }
         } catch (legacyError) {
-            logger.warn('Legacy processing also failed', { error: legacyError.message });
+            const hasImage = document.image_path || document.image_data;
+            const method = hasImage ? 'analyzeDocumentWithVision' : 'analyzeDocument';
+            const hasLegacySupport = hasImage ? this._hasLegacyVisionSupport : this._hasLegacyTextSupport;
+
+            logger.warn('Legacy processing also failed', {
+                error: legacyError && legacyError.message ? legacyError.message : String(legacyError),
+                method,
+                documentId: document.id || document.filename,
+                hasLegacySupport,
+                stack: legacyError && legacyError.stack ? legacyError.stack : undefined
+            });
         }
         
         // Merge results

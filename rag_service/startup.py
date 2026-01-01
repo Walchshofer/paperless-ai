@@ -163,37 +163,48 @@ async def startup_event():
         if documents_exist:
             logger.info("Found existing data, loading without reindexing")
 
-            if not global_state.system_status.data_loaded:
-                try:
-                    global_state.data_manager.documents = []
-                    with open(DOCUMENTS_FILE, "r", encoding="utf-8") as handle:
-                        loaded_docs = json.load(handle)
+            # Always reload documents from JSON on startup - the in-memory list
+            # is empty on process start even if data_loaded flag is True from
+            # a previous session's persisted state
+            try:
+                global_state.data_manager.documents = []
+                with open(DOCUMENTS_FILE, "r", encoding="utf-8") as handle:
+                    loaded_docs = json.load(handle)
 
-                        if not isinstance(loaded_docs, list) or (
-                            loaded_docs
-                            and not isinstance(loaded_docs[0], dict)
-                        ):
-                            logger.error(
-                                "Invalid document structure in documents.json"
-                            )
-                            loaded_docs = []
-
-                        global_state.data_manager.documents = loaded_docs
-
-                    if global_state.data_manager.documents:
-                        global_state.system_status.data_loaded = True
-                        global_state.indexing_status.documents_count = len(
-                            global_state.data_manager.documents
+                    if not isinstance(loaded_docs, list) or (
+                        loaded_docs
+                        and not isinstance(loaded_docs[0], dict)
+                    ):
+                        logger.error(
+                            "Invalid document structure in documents.json"
                         )
-                        global_state.save_state()
+                        loaded_docs = []
 
-                except Exception as exc:
-                    logger.error("Error loading documents: %s", str(exc))
-                    logger.error(traceback.format_exc())
+                    global_state.data_manager.documents = loaded_docs
+
+                if global_state.data_manager.documents:
+                    global_state.system_status.data_loaded = True
+                    global_state.indexing_status.documents_count = len(
+                        global_state.data_manager.documents
+                    )
+                    global_state.save_state()
+                    logger.info(
+                        "Loaded %d documents from documents.json",
+                        len(global_state.data_manager.documents)
+                    )
+
+            except Exception as exc:
+                logger.error("Error loading documents: %s", str(exc))
+                logger.error(traceback.format_exc())
 
             global_state.search_engine = SearchEngine(
                 global_state.data_manager, initialize_on_start=False
             )
+
+            # Sync search engine documents with data manager documents
+            # This is needed because SearchEngine is created with initialize_on_start=False
+            if global_state.data_manager.documents:
+                global_state.search_engine.documents = global_state.data_manager.documents
 
             if (
                 global_state.data_manager.documents

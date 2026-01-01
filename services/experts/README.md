@@ -113,70 +113,160 @@ services/experts/
 
 ## 🏗️ Architecture
 
-The pipeline follows a multi-stage flow: classification -> orchestration -> tooling -> domain routing -> stage execution -> post-analysis -> enrichment.
+The pipeline follows a multi-stage flow: preparation → classification → orchestration → normalization → visual OCR → domain routing → stage execution → post-analysis → enrichment.
+
+### High-Level Flow
 
 ```mermaid
 graph TD
-  Start[Document Processing Pipeline] --> Router
+  Start[Document Arrives] --> Prepare
 
-  subgraph "1. Router Classification (SYS_ROUTER_V1)"
-    Router[Multimodal Vision-Language Model]
-    RouterDesc[Determines Domain: Medical/Financial/Legal\nReturns Confidence & Hints]
-    Router --- RouterDesc
+  subgraph "Phase 0: Preparation"
+    Prepare[Download PDF + Render @ 300 DPI]
+    PrepareDesc[PDFRenderer creates base64Images]
+    Prepare --- PrepareDesc
   end
 
-  Router --> Orchestrator
+  Prepare --> Router
 
-  subgraph "2. Orchestrator Planning (SYS_ORCHESTRATOR_V1)"
-    Orchestrator[Planning & Coordination]
-    OrchDesc[Plans Tool Execution\nDetermines Visual Processing\nConfigures Guidance]
-    Orchestrator --- OrchDesc
+  subgraph "Phase 1: Classification (SYS_ROUTER_V1)"
+    Router[qwen3-vl:8b Vision Model]
+    RouterOut[primary_domain + quality_assessment<br/>needs_rotation, needs_cropping, needs_normalization]
+    Router --> RouterOut
   end
 
-  Orchestrator --> Tools
+  RouterOut --> Orchestrator
 
-  subgraph "Tooling Phase"
-    direction TB
-    Tools{Parallel Execution}
-    Tools --> PV[Pre-Vision Tools]
-    Tools --> VO[Visual OCR Enhancement]
-    Tools --> NI[Normalize Images]
+  subgraph "Phase 2: Orchestration (SYS_ORCHESTRATOR_V1)"
+    Orchestrator[nemotron-orchestrator:8b]
+    OrchOut[tool_plan.pre_vision + flags<br/>use_visual_ocr, use_guidance, use_visual_rag]
+    Orchestrator --> OrchOut
   end
 
-  PV --> DomainRoute
-  VO --> DomainRoute
-  NI --> DomainRoute
+  OrchOut --> Normalization
 
-  subgraph "3. Domain Pipeline Routing"
-    DomainRoute[Route to Expert Pipeline]
-    DomainEx[Examples: PIPELINE_FINANCIAL_V1, PIPELINE_MEDICAL_V1]
-    DomainRoute --- DomainEx
+  subgraph "Phase 3: Pre-Vision Normalization"
+    Normalization{needs_normalization?}
+    Normalization -->|Yes| Geometry[Geometry Analysis<br/>rotate, crop, scale]
+    Normalization -->|No| Skip[Skip]
+    Geometry --> Sharp[ImageNormalizer + Sharp]
+    Sharp --> Reingest[Re-ingest to Visual RAG]
   end
 
-  DomainRoute --> StageExec
+  Skip --> VisualOCR
+  Reingest --> VisualOCR
 
-  subgraph "4. Stage Execution"
-    StageExec[Execute Pipeline Stages]
-    StagesList[Stage 1: Classification\nStage 2: Analysis\nStage 3: Integration\nStage 4: Validation\nRecovery: Error Recovery]
-    StageExec --- StagesList
+  subgraph "Phase 4: Visual OCR"
+    VisualOCR[VIS_OCR_V1 + mergeOcrResults]
+    OCROut[Best quality OCR text]
+    VisualOCR --> OCROut
   end
 
-  StageExec --> PostAnalysis
+  OCROut --> DomainRoute
 
-  subgraph "5. Post-Analysis Tools"
-    PostAnalysis[Metadata & System Updates]
-    PADesc[Update Document Metadata\nResolve Tags & Correspondents\nUpdate Paperless-ngx]
-    PostAnalysis --- PADesc
+  subgraph "Phase 5: Domain Pipeline Routing"
+    DomainRoute[ExpertRegistry.route]
+    DomainRoute --> Medical[PIPELINE_MEDICAL_V1]
+    DomainRoute --> Financial[PIPELINE_FINANCIAL_V1]
+    DomainRoute --> Legal[PIPELINE_LEGAL_V1]
+    DomainRoute --> General[PIPELINE_GENERAL_V1]
   end
 
-  PostAnalysis --> Enrichment
+  Medical --> StageExec
+  Financial --> StageExec
+  Legal --> StageExec
+  General --> StageExec
 
-  subgraph "6. Result Enrichment"
-    Enrichment[Final Output Generation]
-    EnrDesc[Add Visual Overlays\nAggregate Statistics\nGenerate Quality Metrics]
-    Enrichment --- EnrDesc
+  subgraph "Phase 6: Stage Execution"
+    StageExec{Stage Type}
+    StageExec -->|VALIDATION| Local[Local Rules]
+    StageExec -->|LLM| Guidance{Guidance?}
+    Guidance -->|Yes| GuidanceSvc[Guidance Service]
+    Guidance -->|No| Prompt[PromptRegistry + JsonRepair]
   end
+
+  Local --> PostAnalysis
+  GuidanceSvc --> PostAnalysis
+  Prompt --> PostAnalysis
+
+  subgraph "Phase 7: Post-Analysis"
+    PostAnalysis[Resolve Tags, Correspondent, Type]
+    PostAnalysis --> CustomFields[Update Custom Fields]
+  end
+
+  CustomFields --> Enrichment
+
+  subgraph "Phase 8: Enrichment"
+    Enrichment[Fetch Visual RAG Overlays]
+    Enrichment --> Merge[ResultMerger.toPaperlessFormat]
+  end
+
+  Merge --> Update[PATCH Paperless-ngx]
 ```
+
+### Legacy vs Expert Pipeline Comparison
+
+```mermaid
+flowchart LR
+  subgraph Legacy["Legacy Flow"]
+    L1[Document] --> L2[Single LLM Call]
+    L2 --> L3[Update Paperless]
+  end
+
+  subgraph Expert["Expert Pipeline Flow"]
+    E1[Document] --> E2[Router<br/>Classification]
+    E2 --> E3[Orchestrator<br/>Tool Planning]
+    E3 --> E4[Pre-Vision<br/>Normalization]
+    E4 --> E5[Visual OCR]
+    E5 --> E6[Domain<br/>Pipeline]
+    E6 --> E7[Visual RAG<br/>Overlays]
+    E7 --> E8[Update<br/>Paperless]
+  end
+
+  Legacy -.->|Fallback| Expert
+```
+
+### Service Coordination
+
+```mermaid
+flowchart TD
+  subgraph External["External"]
+    Paperless[Paperless-ngx:8000]
+    Ollama[Ollama:11434]
+  end
+
+  subgraph Core["paperless-ai:3000"]
+    DP[DocumentProcessor]
+    EPE[ExpertPipelineExecutor]
+    PVN[PreVisionNormalizer]
+  end
+
+  subgraph Support["Support Services"]
+    Guidance[Guidance:8002]
+    VisualRAG[Visual RAG:8001]
+    Postgres[(PostgreSQL:5432)]
+  end
+
+  Paperless -->|API| DP
+  DP --> EPE
+  EPE -->|Classify/OCR| Ollama
+  EPE --> PVN
+  PVN -->|Geometry| Guidance
+  EPE -->|Stages| Guidance
+  EPE -->|Ingest| VisualRAG
+  VisualRAG --> Postgres
+  DP -->|Update| Paperless
+```
+
+### Detailed Documentation
+
+For comprehensive flow documentation including:
+- Pre-Vision Normalization Layer details
+- Visual RAG Integration architecture
+- Guidance vs Prompt execution paths
+- Pipeline stage maps per domain
+
+See: [`.prompts/EXPERT_PIPELINE_FLOW.md`](../../.prompts/EXPERT_PIPELINE_FLOW.md)
 
 ---
 

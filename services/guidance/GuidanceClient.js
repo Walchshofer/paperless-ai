@@ -193,14 +193,22 @@ class GuidanceClient {
 
                 const result = response.data;
 
-                // Log success
+                // Log success with response details (VERBOSE)
+                const generatedPreview = result.generated
+                    ? JSON.stringify(result.generated).slice(0, 500)
+                    : null;
+
                 logger.info({
                     event: 'guidance_generate_success',
                     template,
                     model,
                     source: result.source,  // 'cache' or 'generated'
                     valid: result.validation?.valid,
-                    durationMs: Date.now() - startTime
+                    durationMs: Date.now() - startTime,
+                    // VERBOSE: Include response preview for debugging
+                    generatedPreview,
+                    validationErrors: result.validation?.errors?.slice(0, 3),
+                    validationWarnings: result.validation?.warnings?.slice(0, 3)
                 });
 
                 return {
