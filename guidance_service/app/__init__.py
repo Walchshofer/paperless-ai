@@ -1,7 +1,9 @@
 from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 try:
-    from guidance import models, system, user, assistant, gen  # type: ignore[import]
+    from guidance import (  # type: ignore[import]
+        models, system, user, assistant, gen
+    )
     from guidance.models.experimental import LiteLLM  # type: ignore[import]
 except Exception:
     models = None
@@ -42,14 +44,14 @@ CONFIDENCE_KEYS = ("vertrauen", "sicherheit", "routing_vertrauen")
 def parse_thinking_parts(text: str):
     """Extract thinking and response phases"""
     parts = []
-    
+
     # Check for thinking markers
     if "<think>" in text and "</think>" in text:
         think_start = text.find("<think>") + 7
         think_end = text.find("</think>")
         thinking = text[think_start:think_end].strip()
         response = text[think_end + 8:].strip()
-        
+
         if thinking:
             parts.append(("thinking", thinking))
         if response:
@@ -57,7 +59,7 @@ def parse_thinking_parts(text: str):
     else:
         # No thinking markers, just response
         parts.append(("response", text))
-    
+
     return parts if parts else [("response", text)]
 
 
@@ -113,7 +115,7 @@ def _normalize_confidence_fields(payload):
 
     Args:
         payload: Dict with potential confidence fields
-                 
+
     Returns:
         Dict with normalized confidence values
     """
@@ -373,10 +375,10 @@ def create_app():
         prompt = data.get("prompt")
         model_name = data.get("model", "qwen3-vl:8b")
         max_tokens = data.get("max_tokens", 2000)
-        
+
         if not prompt:
             return jsonify({'error': 'Prompt required'}), 400
-            
+
         def generate_stream():
             try:
                 # Initialize LiteLLM
@@ -390,27 +392,31 @@ def create_app():
                     },
                     echo=False
                 )
-                
+
                 with system():
                     lm_run = lm + "You are a helpful assistant."
-                
+
                 with user():
                     lm_run += prompt
-                
+
                 with assistant():
-                    lm_run += gen(name="response", max_tokens=max_tokens, temperature=0.7)
-                
+                    lm_run += gen(
+                        name="response",
+                        max_tokens=max_tokens,
+                        temperature=0.7
+                    )
+
                 response_text = lm_run["response"]
-                
+
                 # Parse thinking and response
                 parts = parse_thinking_parts(response_text)
-                
+
                 for part_type, content in parts:
                     yield json.dumps({
                         "type": part_type,
                         "content": content
                     }) + "\n"
-                    
+
             except Exception as e:
                 app.logger.error(f"Streaming failed: {str(e)}")
                 yield json.dumps({
@@ -418,7 +424,10 @@ def create_app():
                     "content": str(e)
                 }) + "\n"
 
-        return Response(stream_with_context(generate_stream()), mimetype='application/x-ndjson')
+        return Response(
+            stream_with_context(generate_stream()),
+            mimetype='application/x-ndjson'
+        )
 
     @app.route('/generate', methods=['POST'])
     def generate():
@@ -498,7 +507,9 @@ def create_app():
                     'template': template_name,
                     'model': model,
                     'temperature': temperature,
-                    'variables_keys': list(variables.keys()) if variables else [],
+                    'variables_keys': (
+                        list(variables.keys()) if variables else []
+                    ),
                     'ollama_endpoint': OLLAMA_API_URL
                 })
 
@@ -518,8 +529,12 @@ def create_app():
                     'template': template_name,
                     'model': model,
                     'latency_seconds': round(template_latency_seconds, 2),
-                    'raw_output_preview': str(raw_output)[:300] if raw_output else None,
-                    'raw_output_type': type(raw_output).__name__ if raw_output else None
+                    'raw_output_preview': (
+                        str(raw_output)[:300] if raw_output else None
+                    ),
+                    'raw_output_type': (
+                        type(raw_output).__name__ if raw_output else None
+                    )
                 })
 
                 # 4. Extract Variables
