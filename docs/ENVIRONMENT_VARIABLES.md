@@ -45,6 +45,13 @@ Adjust these values when operating in high-latency or resource-constrained envir
 - `ENABLE_ORCHESTRATOR` - Feature flag for intelligent expert routing (default: `no`)
 - `ORCHESTRATOR_PREVISION_NORMALIZATION_ENABLED` - Enable pre-vision image normalization tool calls (default: `no`, inherits `ORCHESTRATOR_PREVISION_TOOLS_ENABLED`)
 
+### Guidance Service Configuration
+- `GUIDANCE_MODEL` - Model for structured extraction in guidance-service (default: `sauerkraut-llama3.1:8b`)
+- `OLLAMA_API_URL` - Ollama API endpoint for guidance-service container (default: `http://host.docker.internal:11434`)
+  - For Docker Desktop (Windows/Mac): Use `http://host.docker.internal:11434`
+  - For Docker Compose service networking: Use `http://ollama:11434` (if Ollama runs as a service named 'ollama')
+  - For host network mode: Use `http://localhost:11434`
+
 ## OpenAI Integration Variables
 
 ### Model Configuration

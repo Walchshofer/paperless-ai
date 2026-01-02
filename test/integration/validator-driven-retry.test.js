@@ -50,14 +50,6 @@ class MockExecutionContext {
     }
 }
 
-// Mock logger
-const mockLogger = {
-    debug: () => {},
-    info: () => {},
-    warn: () => {},
-    error: () => {}
-};
-
 // Mock ValidationEngine
 const { ValidationEngine } = require('../../services/experts/evaluation/ValidationEngine');
 
@@ -84,11 +76,7 @@ describe('Validator-Driven Retry Orchestration', function() {
             while (attempt < maxValidationRetries) {
                 attempt++;
 
-                try {
-                    extractionOutput = await extractionFn();
-                } catch (extractionError) {
-                    throw extractionError;
-                }
+                extractionOutput = await extractionFn();
 
                 const validationResult = ValidationEngine.validate(
                     stage.validationRules || [],

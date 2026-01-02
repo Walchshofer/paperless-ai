@@ -1,6 +1,6 @@
 ---
 description: Update documentation first and ensure code/doc synchronization.
-tools: ["codebase"]
+tools: ["search/codebase"]
 ---
 
 # Docs Agent (Guardrails)

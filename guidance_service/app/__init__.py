@@ -276,8 +276,9 @@ def create_app():
 
     # Ollama Base Configuration
     # Use OLLAMA_API_URL as the canonical env var
-    OLLAMA_ENDPOINT = os.getenv(
+    OLLAMA_API_URL = os.getenv(
         'OLLAMA_API_URL',
+        'http://host.docker.internal:11434'
     ).rstrip('/')
 
     # Register All Templates across all phases
@@ -356,7 +357,7 @@ def create_app():
             'service': 'guidance-service',
             'phases_loaded': ['medical', 'financial', 'legal', 'general'],
             'cache_enabled': use_cache,
-            'ollama_target': OLLAMA_ENDPOINT
+            'ollama_target': OLLAMA_API_URL
         })
 
     @app.route('/templates', methods=['GET'])
@@ -384,7 +385,7 @@ def create_app():
                         "model_name": model_name,
                         "litellm_params": {
                             "model": f"ollama/{model_name}",
-                            "api_base": OLLAMA_ENDPOINT,
+                            "api_base": OLLAMA_API_URL,
                         }
                     },
                     echo=False
@@ -481,7 +482,7 @@ def create_app():
                         "model_name": model,
                         "litellm_params": {
                             "model": f"ollama/{model}",
-                            "api_base": OLLAMA_ENDPOINT,
+                            "api_base": OLLAMA_API_URL,
                         }
                     },
                     echo=False
@@ -498,7 +499,7 @@ def create_app():
                     'model': model,
                     'temperature': temperature,
                     'variables_keys': list(variables.keys()) if variables else [],
-                    'ollama_endpoint': OLLAMA_ENDPOINT
+                    'ollama_endpoint': OLLAMA_API_URL
                 })
 
                 result = lm + template_func(**variables)
