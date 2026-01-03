@@ -43,4 +43,16 @@ ENV PYTHONUNBUFFERED=1
 ENV GUIDANCE_CACHE_DIR=/app/cache_data
 
 # Run with gunicorn for production
-CMD ["python", "-m", "gunicorn", "--bind", "0.0.0.0:8002", "--workers", "2", "--timeout", "120", "app:create_app()"]
+# Use gthread worker class to avoid pickle errors with guidance/LiteLLM
+# (threads share memory, avoiding multiprocessing pickle issues)
+# 2 workers × 4 threads = 8 concurrent requests
+CMD ["python", "-m", "gunicorn", \
+     "--bind", "0.0.0.0:8002", \
+     "--workers", "2", \
+     "--worker-class", "gthread", \
+     "--threads", "4", \
+     "--timeout", "300", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-", \
+     "--log-level", "info", \
+     "app:create_app()"]

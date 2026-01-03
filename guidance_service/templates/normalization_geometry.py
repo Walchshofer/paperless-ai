@@ -1,20 +1,24 @@
-"""Document geometry analysis template using Guidance constrained JSON.
+"""Document geometry analysis template for vision models.
 
-Analyzes document rotation, cropping, and DPI requirements using a
-vision-capable LLM model with guaranteed valid JSON output via
-Pydantic schema constraints and token-level generation control.
+NOTE: This template CANNOT run through Guidance's LiteLLM backend because
+Guidance's experimental LiteLLM does NOT support multimodal/vision inputs.
+The document_image_b64 parameter would be ignored.
 
-Best Practices Applied:
-- Comprehensive logging and error handling
-- Post-generation validation with Pydantic
-- Type annotations and validation
-- Configurable parameters
-- Clear documentation
+Instead, vision templates are handled by __init__.py's call_ollama_vision()
+which calls Ollama's /api/chat directly with proper image handling.
+
+This module provides:
+- SYSTEM_PROMPTS: System prompts by language
+- USER_PROMPTS: User instructions by language (used by call_ollama_vision)
+- NormalizationGeometry schema (via import)
+
+The @guidance decorated function is kept for documentation and potential
+future use if Guidance adds multimodal support.
 """
 
 import json
 import logging
-from typing import Any, Dict
+from typing import Any, Callable, Dict
 
 try:
     from guidance import (  # type: ignore[import-not-found]
@@ -49,141 +53,178 @@ SYSTEM_PROMPTS: Dict[str, str] = {
     ),
 }
 
+# User prompts - instructions for geometry analysis
+# NOTE: The actual image is passed via LiteLLM's multimodal support,
+# NOT embedded as base64 text in the prompt (that confuses models)
+USER_PROMPTS: Dict[str, str] = {
+    "de": (
+        "Analysiere dieses Dokumentbild und bestimme: "
+        "1) Rotation (0, 90, 180 oder 270 Grad im Uhrzeigersinn), "
+        "2) Ob Zuschneiden nötig ist, "
+        "3) Empfohlene DPI (200-400), "
+        "4) Dein Vertrauensniveau (0.0-1.0)."
+    ),
+    "en": (
+        "Analyze this document image and determine: "
+        "1) Rotation (0, 90, 180, or 270 degrees clockwise), "
+        "2) Whether cropping is needed, "
+        "3) Recommended DPI (200-400), "
+        "4) Your confidence level (0.0-1.0)."
+    ),
+}
 
-@guidance
-def analyze_document_geometry(
-    lm: Any,
-    document_image_b64: str,
-    language: str = "de",
-    max_tokens: int = 300,
-    temperature: float = 0.2,
-) -> Any:
-    """Analyze document geometry using constrained JSON generation.
 
-    Result is GUARANTEED valid per NormalizationGeometry schema at
-    token level via Guidance constrained generation. Determines
-    rotation, cropping, and DPI requirements.
+def get_analyze_document_geometry() -> Callable:
+    """Factory function that returns the geometry analysis template.
 
-    The generated JSON is:
-    - Structurally valid (Pydantic schema-constrained)
-    - Semantically validated (post-generation validation)
-    - Type-safe (Field constraints enforced)
-
-    Args:
-        lm: Language model object (passed by Guidance framework)
-        document_image_b64: Base64-encoded image (first page only).
-            Should be first ~100 chars for display only; actual
-            model receives full image if passed via proper channels
-        language: Language code ("de" for German, "en" for English).
-            Must be a key in SYSTEM_PROMPTS
-        max_tokens: Maximum tokens to generate (default: 300)
-        temperature: Generation temperature (default: 0.2)
+    This pattern avoids pickle issues with @guidance decorator
+    by creating the decorated function fresh each time.
 
     Returns:
-        Updated language model object with generated "geometry" field
-        containing valid NormalizationGeometry JSON object
-
-    Raises:
-        ValueError: If language is not supported or post-generation
-                    validation fails
-        Exception: On template execution errors (logged before re-raise)
-
-    Example:
-        >>> from guidance.models import Transformers
-        >>> import base64
-        >>> lm = Transformers("qwen3-vl:8b")
-        >>> with open("doc.jpg", "rb") as f:
-        ...     encoded_img = base64.b64encode(f.read()).decode()
-        >>> result = lm + analyze_document_geometry(
-        ...     document_image_b64=encoded_img,
-        ...     language="de"
-        ... )
-        >>> geometry = result["geometry"]
-        >>> print(f"Rotate: {geometry.rotate}°")
-        >>> print(f"Target DPI: {geometry.target_dpi}")
+        Guidance template function for document geometry analysis
     """
-    # Validate language parameter
-    if language not in SYSTEM_PROMPTS:
-        logger.warning(
-            f"Unsupported language '{language}'; "
-            f"defaulting to 'en'"
+
+    @guidance
+    def analyze_document_geometry(
+        lm: Any,
+        document_image_b64: str,
+        language: str = "de",
+        max_tokens: int = 300,
+        temperature: float = 0.2,
+    ) -> Any:
+        """Analyze document geometry using constrained JSON generation.
+
+        Result is GUARANTEED valid per NormalizationGeometry schema at
+        token level via Guidance constrained generation. Determines
+        rotation, cropping, and DPI requirements.
+
+        The generated JSON is:
+        - Structurally valid (Pydantic schema-constrained)
+        - Semantically validated (post-generation validation)
+        - Type-safe (Field constraints enforced)
+
+        Args:
+            lm: Language model object (passed by Guidance framework)
+            document_image_b64: Base64-encoded image (first page only).
+                Should be first ~100 chars for display only; actual
+                model receives full image if passed via proper channels
+            language: Language code ("de" for German, "en" for English).
+                Must be a key in SYSTEM_PROMPTS
+            max_tokens: Maximum tokens to generate (default: 300)
+            temperature: Generation temperature (default: 0.2)
+
+        Returns:
+            Updated language model object with generated "geometry"
+            field containing valid NormalizationGeometry JSON object
+
+        Raises:
+            ValueError: If language is not supported or post-generation
+                        validation fails
+            Exception: On template execution errors (logged before raise)
+
+        Example:
+            >>> from guidance.models import Transformers
+            >>> import base64
+            >>> lm = Transformers("qwen3-vl:8b")
+            >>> with open("doc.jpg", "rb") as f:
+            ...     encoded_img = base64.b64encode(f.read()).decode()
+            >>> result = lm + analyze_document_geometry(
+            ...     document_image_b64=encoded_img,
+            ...     language="de"
+            ... )
+            >>> geometry = result["geometry"]
+            >>> print(f"Rotate: {geometry.rotate}°")
+            >>> print(f"Target DPI: {geometry.target_dpi}")
+        """
+        # Validate language parameter
+        if language not in SYSTEM_PROMPTS:
+            logger.warning(
+                f"Unsupported language '{language}'; "
+                f"defaulting to 'en'"
+            )
+            language = "en"
+
+        # Validate base64 format (basic sanity check)
+        if not document_image_b64 or len(document_image_b64) < 10:
+            logger.warning(
+                "Document image appears to be empty or too short"
+            )
+
+        logger.debug(
+            f"Analyzing document geometry: "
+            f"language={language}, max_tokens={max_tokens}, "
+            f"temperature={temperature}"
         )
-        language = "en"
 
-    # Validate base64 format (basic sanity check)
-    if not document_image_b64 or len(document_image_b64) < 10:
-        logger.warning(
-            "Document image appears to be empty or too short"
-        )
+        system_prompt = SYSTEM_PROMPTS[language]
 
-    logger.debug(
-        f"Analyzing document geometry: "
-        f"language={language}, max_tokens={max_tokens}, "
-        f"temperature={temperature}"
-    )
+        with system():
+            lm += system_prompt
+            lm += (
+                "\nReturn ONLY valid JSON matching the schema. "
+                "No markdown, no explanations."
+            )
 
-    system_prompt = SYSTEM_PROMPTS[language]
+        with user():
+            # NOTE: Do NOT include base64 image data in the text prompt!
+            # The image must be passed through LiteLLM's multimodal channel.
+            # Including base64 text here confuses the model & produces garbage.
+            # The document_image_b64 parameter is passed to the model via
+            # the images parameter in the LLM call, not in the prompt text.
+            lm += USER_PROMPTS[language]
 
-    with system():
-        lm += system_prompt
-        lm += (
-            "\nReturn ONLY valid JSON matching the schema. "
-            "No markdown, no explanations."
-        )
+        with assistant():
+            lm += gen_json(
+                schema=NormalizationGeometry,
+                name="geometry",
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
 
-    with user():
-        lm += (
-            "[IMAGE]\n"
-            "Analyze this document:\n"
-            f"{document_image_b64[:100]}..."
-        )
+        # Step 2: Post-generation validation
+        # Guidance guarantees JSON structure, but we validate semantics
+        try:
+            # Extract the raw JSON string from the language model
+            geometry_json_str = lm["geometry"]
 
-    with assistant():
-        lm += gen_json(
-            schema=NormalizationGeometry,
-            name="geometry",
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
+            # Parse and validate with Pydantic
+            geometry_data = json.loads(geometry_json_str)
+            validated_geometry = NormalizationGeometry.model_validate(
+                geometry_data
+            )
 
-    # Step 2: Post-generation validation
-    # Guidance guarantees JSON structure, but we validate semantics
-    try:
-        # Extract the raw JSON string from the language model
-        geometry_json_str = lm["geometry"]
+            logger.info(
+                f"Geometry analysis successful: "
+                f"rotate={validated_geometry.rotate}°, "
+                f"dpi={validated_geometry.target_dpi}, "
+                f"confidence={validated_geometry.confidence}"
+            )
 
-        # Parse and validate with Pydantic
-        geometry_data = json.loads(geometry_json_str)
-        validated_geometry = NormalizationGeometry.model_validate(
-            geometry_data
-        )
+            # Store validated object back in lm for downstream use
+            lm = lm.set("geometry_validated", validated_geometry)
 
-        logger.info(
-            f"Geometry analysis successful: "
-            f"rotate={validated_geometry.rotate}°, "
-            f"dpi={validated_geometry.target_dpi}, "
-            f"confidence={validated_geometry.confidence}"
-        )
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parsing failed: {e}")
+            raise ValueError(
+                f"Generated output is not valid JSON: {e}"
+            ) from e
 
-        # Store validated object back in lm for downstream use
-        lm = lm.set("geometry_validated", validated_geometry)
+        except ValidationError as e:
+            logger.error(f"Pydantic validation failed: {e}")
+            raise ValueError(
+                f"Generated output failed schema validation: {e}"
+            ) from e
 
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON parsing failed: {e}")
-        raise ValueError(
-            f"Generated output is not valid JSON: {e}"
-        ) from e
+        except Exception as e:
+            logger.exception(
+                f"Unexpected error during post-generation validation: {e}"
+            )
+            raise
 
-    except ValidationError as e:
-        logger.error(f"Pydantic validation failed: {e}")
-        raise ValueError(
-            f"Generated output failed schema validation: {e}"
-        ) from e
+        return lm
 
-    except Exception as e:
-        logger.exception(
-            f"Unexpected error during post-generation validation: {e}"
-        )
-        raise
+    return analyze_document_geometry
 
-    return lm
+
+# For backward compatibility - create via factory
+analyze_document_geometry = get_analyze_document_geometry()

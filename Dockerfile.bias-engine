@@ -1,0 +1,26 @@
+﻿FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
+
+# Install Python deps
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy Code
+COPY guidance/ ./guidance/
+COPY setup_grpc.sh .
+
+# Setup Proto
+RUN chmod +x setup_grpc.sh && ./setup_grpc.sh
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV TOKENIZER_MODEL=gpt2 
+# Override this in docker-compose/k8s
+
+# Run Server
+CMD ["python", "-m", "guidance.ipc.grpc_server"]

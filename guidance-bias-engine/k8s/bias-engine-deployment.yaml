@@ -1,0 +1,33 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bias-engine
+  namespace: guidance
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: bias-engine
+  template:
+    metadata:
+      labels:
+        app: bias-engine
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8001"
+    spec:
+      containers:
+      - name: bias-engine
+        image: guidance:bias-engine-latest
+        ports:
+        - containerPort: 50051
+          name: grpc
+        - containerPort: 8001
+          name: metrics
+        env:
+        - name: TOKENIZER_MODEL
+          value: "meta-llama/Meta-Llama-3-8B" # Example for production
+        resources:
+          limits:
+            cpu: 4
+            memory: 8Gi

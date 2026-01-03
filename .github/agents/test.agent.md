@@ -1,6 +1,6 @@
 ---
 description: Generate or update tests focusing on retries, fallbacks, OCR selection, and cache behavior.
-tools: ["codebase"]
+tools: ["search/codebase", "search/usages", "web/fetch", "oraios/serena/*", "context7/*"]
 ---
 
 # Test Agent (Guardrails)
