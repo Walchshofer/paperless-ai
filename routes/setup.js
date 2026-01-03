@@ -257,7 +257,7 @@ router.use(async (req, res, next) => {
   // Setup check
   try {
     const isConfigured = await setupService.isConfigured();
- 
+
     if (!isConfigured && (!process.env.PAPERLESS_AI_INITIAL_SETUP || process.env.PAPERLESS_AI_INITIAL_SETUP === 'no') && !req.path.startsWith('/setup')) {
       return res.redirect('/setup');
     } else if (!isConfigured && process.env.PAPERLESS_AI_INITIAL_SETUP === 'yes' && !req.path.startsWith('/settings')) {
@@ -267,14 +267,14 @@ router.use(async (req, res, next) => {
     console.error('Error checking setup configuration:', error);
     return res.status(500).send('Internal Server Error');
   }
-  
+
   next();
 });
 
 // Protected route middleware for API endpoints
 const protectApiRoute = (req, res, next) => {
   const token = req.cookies.jwt || req.headers.authorization?.split(' ')[1];
-  
+
   if (!token) {
     return res.status(401).json({ message: 'Authentication required' });
   }
@@ -297,7 +297,7 @@ const protectApiRoute = (req, res, next) => {
  *       Serves the login page for user authentication to the Paperless-AI application.
  *       If no users exist in the database, the endpoint automatically redirects to the setup page
  *       to complete the initial application configuration.
- *       
+ *
  *       This endpoint handles both new user sessions and returning users whose
  *       sessions have expired.
  *     tags:
@@ -346,7 +346,7 @@ router.get('/login', (req, res) => {
  *       Authenticates a user using their username and password credentials.
  *       If authentication is successful, a JWT token is generated and stored in a secure HTTP-only
  *       cookie for subsequent requests.
- *       
+ *
  *       Failed login attempts are logged for security purposes, and multiple failures
  *       may result in temporary account lockout depending on configuration.
  *     tags:
@@ -417,10 +417,10 @@ router.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    console.log('Login attempt for user:', username);   
+    console.log('Login attempt for user:', username);
     // Get user data - returns a single user object
     const user = await documentModel.getUser(username);
-    
+
     // Check if user was found and has required fields
     if (!user || !user.password) {
       console.log('[FAILED LOGIN] User not found or invalid data:', username);
@@ -433,19 +433,19 @@ router.post('/login', async (req, res) => {
 
     if (isValidPassword) {
       const token = jwt.sign(
-        { 
-          id: user.id, 
-          username: user.username 
+        {
+          id: user.id,
+          username: user.username
         },
         JWT_SECRET,
         { expiresIn: '24h' }
       );
       res.cookie('jwt', token, {
         httpOnly: true,
-        secure: false,  
-        sameSite: 'lax', 
+        secure: false,
+        sameSite: 'lax',
         path: '/',
-        maxAge: 24 * 60 * 60 * 1000 
+        maxAge: 24 * 60 * 60 * 1000
       });
 
       return res.redirect('/dashboard');
@@ -467,7 +467,7 @@ router.post('/login', async (req, res) => {
  *     description: |
  *       Terminates the current user session by invalidating and clearing the JWT authentication
  *       cookie. After logging out, the user is redirected to the login page.
- *       
+ *
  *       This endpoint also clears any session-related data stored on the server side
  *       for the current user.
  *     tags:
@@ -506,7 +506,7 @@ router.get('/logout', (req, res) => {
  *     description: |
  *       Retrieves sample data extracted from a document, including processed text content
  *       and any metadata that has been extracted or processed by the AI.
- *       
+ *
  *       This endpoint is commonly used for previewing document data in the UI before
  *       completing document processing or updating metadata.
  *     tags:
@@ -586,12 +586,12 @@ router.get('/sampleData/:id', async (req, res) => {
  *     summary: AI playground testing environment
  *     description: |
  *       Renders the AI playground page for experimenting with document analysis.
- *       
+ *
  *       This interactive environment allows users to test different AI providers and prompts
  *       on document content without affecting the actual document processing workflow.
  *       Users can paste document text, customize prompts, and see raw AI responses
  *       to better understand how the AI models analyze document content.
- *       
+ *
  *       The playground is useful for fine-tuning prompts and testing AI capabilities
  *       before applying them to actual document processing.
  *     tags:
@@ -655,7 +655,7 @@ router.get('/playground', protectApiRoute, async (req, res) => {
  *       Retrieves the thumbnail image for a specific document from the Paperless-ngx system.
  *       This endpoint proxies the request to the Paperless-ngx API and returns the thumbnail
  *       image for display in the UI.
- *       
+ *
  *       The thumbnail is returned as an image file in the format provided by Paperless-ngx,
  *       typically JPEG or PNG.
  *     tags:
@@ -704,17 +704,17 @@ router.get('/thumb/:documentId', async (req, res) => {
     try {
       await fs.access(cachePath);
       console.log('Serving cached thumbnail');
-      
+
       // Wenn ja, sende direkt das gecachte Bild
       res.setHeader('Content-Type', 'image/png');
       return res.sendFile(path.resolve(cachePath));
-      
+
     } catch (err) {
       // File existiert nicht im Cache, hole es von Paperless
       console.log('Thumbnail not cached, fetching from Paperless');
-      
+
       const thumbnailData = await paperlessService.getThumbnailImage(req.params.documentId);
-      
+
       if (!thumbnailData) {
         return res.status(404).send('Thumbnail nicht gefunden');
       }
@@ -897,7 +897,7 @@ router.get('/api/document/:docId/page-count', async (req, res) => {
  *     description: |
  *       Renders the chat interface page where users can interact with document-specific AI assistants.
  *       This page displays a list of available documents and the chat interface for the selected document.
- *     tags: 
+ *     tags:
  *       - Navigation
  *       - Chat
  *     parameters:
@@ -963,7 +963,7 @@ router.get('/chat', async (req, res) => {
  *       Initializes a chat session for a specific document identified by the query parameter.
  *       Loads document content and prepares it for the chat interface.
  *       This endpoint returns the document content, chat history if available, and initial context.
- *     tags: 
+ *     tags:
  *       - API
  *       - Chat
  *     parameters:
@@ -1056,7 +1056,7 @@ router.get('/chat/init', async (req, res) => {
  *       Sends a user message to the document-specific chat AI assistant.
  *       The message is processed in the context of the specified document.
  *       Returns a streaming response with the AI's reply chunks.
- *     tags: 
+ *     tags:
  *       - API
  *       - Chat
  *     security:
@@ -1089,9 +1089,9 @@ router.get('/chat/init', async (req, res) => {
  *               type: string
  *               example: |
  *                 data: {"chunk":"This document appears to be"}
- *                 
+ *
  *                 data: {"chunk":" an invoice from"}
- *                 
+ *
  *                 data: {"done":true}
  *       400:
  *         description: Missing document ID or message
@@ -1148,7 +1148,7 @@ router.post('/chat/message', async (req, res) => {
  *       Initializes a chat session for a specific document identified by the path parameter.
  *       Loads document content and prepares it for the chat interface.
  *       This endpoint returns the document content, chat history if available, and initial context.
- *     tags: 
+ *     tags:
  *       - API
  *       - Chat
  *     parameters:
@@ -1228,7 +1228,7 @@ router.get('/chat/init/:documentId', async (req, res) => {
   try {
       const { documentId } = req.params;
       if (!documentId) {
-          return res.status(400).json({ error: 'Document ID is required' });    
+          return res.status(400).json({ error: 'Document ID is required' });
       }
       const model = req.query.model;
       const result = await ChatService.initializeChat(documentId, { model });
@@ -1312,7 +1312,7 @@ router.get('/api/ollama/models', async (req, res) => {
  *       Renders the document history page with filtering options.
  *       This page displays a list of all documents that have been processed by Paperless-AI,
  *       showing the changes made to the documents through AI processing.
- *       
+ *
  *       The page includes filtering capabilities by correspondent, tag, and free text search,
  *       allowing users to easily find specific documents or categories of processed documents.
  *       Each entry includes links to the original document in Paperless-ngx.
@@ -1421,7 +1421,7 @@ router.get('/history/doc/:id', async (req, res) => {
  *       Returns a paginated list of documents that have been processed by Paperless-AI.
  *       Supports filtering by tag, correspondent, and search term.
  *       Designed for integration with DataTables jQuery plugin.
- *       
+ *
  *       This endpoint provides comprehensive information about each processed document,
  *       including its metadata before and after AI processing, allowing users to track
  *       changes made by the system.
@@ -1595,7 +1595,7 @@ router.get('/api/history', async (req, res) => {
         link: `${baseURL}/documents/${doc.document_id}/`
       };
     }).filter(doc => {
-      const matchesSearch = !search || 
+      const matchesSearch = !search ||
         doc.title.toLowerCase().includes(search.toLowerCase()) ||
         doc.correspondent.toLowerCase().includes(search.toLowerCase()) ||
         doc.tags.some(tag => tag.name.toLowerCase().includes(search.toLowerCase()));
@@ -1653,7 +1653,7 @@ router.get('/api/history', async (req, res) => {
  *     description: |
  *       Deletes all processing records from the database, allowing documents to be processed again.
  *       This doesn't delete the actual documents from Paperless-ngx, only their processing status in Paperless-AI.
- *       
+ *
  *       This operation can be useful when changing AI models or prompts, as it allows reprocessing
  *       all documents with the updated configuration.
  *     tags:
@@ -1713,7 +1713,7 @@ router.post('/api/reset-all-documents', async (req, res) => {
  *     description: |
  *       Deletes processing records for specific documents, allowing them to be processed again.
  *       This doesn't delete the actual documents from Paperless-ngx, only their processing status in Paperless-AI.
- *       
+ *
  *       This operation is useful when you want to reprocess only selected documents after changes to
  *       the AI model, prompt, or document metadata configuration.
  *     tags:
@@ -1803,13 +1803,13 @@ router.post('/api/reset-documents', async (req, res) => {
  *     description: |
  *       Initiates an immediate scan of documents in Paperless-ngx that haven't been processed yet.
  *       This endpoint can be used to manually trigger processing without waiting for the scheduled interval.
- *       
+ *
  *       The scan will:
  *       - Connect to Paperless-ngx API
  *       - Fetch all unprocessed documents
  *       - Process each document with the configured AI service
  *       - Update documents in Paperless-ngx with generated metadata
- *       
+ *
  *       The process respects the function limitations set in the configuration.
  *     tags:
  *       - Documents
@@ -1859,7 +1859,7 @@ try {
       console.error('Failed to get own user ID. Abort scanning.');
       return;
     }
-    
+
       try {
         let [existingTags, documents, ownUserId, existingCorrespondentList, existingDocumentTypes] = await Promise.all([
           paperlessService.getTags(),
@@ -1868,16 +1868,16 @@ try {
           paperlessService.listCorrespondentsNames(),
           paperlessService.listDocumentTypesNames()
         ]);
-    
+
         //get existing correspondent list
         existingCorrespondentList = existingCorrespondentList.map(correspondent => correspondent.name);
-        
+
         //get existing document types list
         let existingDocumentTypesList = existingDocumentTypes.map(docType => docType.name);
-        
+
         // Extract tag names from tag objects
         const existingTagNames = existingTags.map(tag => tag.name);
-    
+
         for (const doc of documents) {
           try {
           const result = await processDocument(doc, existingTagNames, existingCorrespondentList, existingDocumentTypesList, ownUserId);
@@ -2066,7 +2066,7 @@ async function buildUpdateData(analysis, doc) {
     // First, add any new/updated fields
     for (const key in customFields) {
       const customField = customFields[key];
-      
+
       if (!customField.field_name || !customField.value?.trim()) {
         console.log(`[DEBUG] Skipping empty/invalid custom field`);
         continue;
@@ -2278,10 +2278,10 @@ async function savePipelineChanges(docId, updateData, analysis, originalData) {
  *     description: |
  *       Generates a new random API key for the application and updates the .env file.
  *       The previous API key will be invalidated immediately after generation.
- *       
+ *
  *       This API key can be used for programmatic access to the API endpoints
  *       by sending it in the `x-api-key` header of subsequent requests.
- *       
+ *
  *       **Security Notice**: This operation invalidates any existing API key.
  *       All systems using the previous key will need to be updated.
  *     tags:
@@ -2327,7 +2327,7 @@ router.post('/api/key-regenerate', async (req, res) => {
     const fs = require('fs');
     const path = require('path');
     const dotenv = require('dotenv');
-    const crypto = require('crypto');    
+    const crypto = require('crypto');
     const envPath = path.join(__dirname, '../data/', '.env');
     const envConfig = dotenv.parse(fs.readFileSync(envPath));
     // Generiere ein neues API-Token
@@ -2369,11 +2369,11 @@ const normalizeArray = (value) => {
  *     summary: Application setup page
  *     description: |
  *       Renders the application setup page for initial configuration.
- *       
+ *
  *       This page allows configuring the connection to Paperless-ngx, AI services,
  *       and other application settings. It loads existing configuration if available
  *       and redirects to dashboard if setup is already complete.
- *       
+ *
  *       The setup page is the entry point for new installations and guides users through
  *       the process of connecting to Paperless-ngx, configuring AI providers, and setting up
  *       admin credentials.
@@ -2505,9 +2505,9 @@ router.get('/setup', async (req, res) => {
  *   get:
  *     summary: Document preview
  *     description: |
- *       Fetches and returns the content of a specific document from Paperless-ngx 
+ *       Fetches and returns the content of a specific document from Paperless-ngx
  *       for preview in the manual document review interface.
- *       
+ *
  *       This endpoint retrieves document details including content, title, ID, and tags,
  *       allowing users to view the document text before applying changes or processing
  *       it with AI tools. The document content is retrieved directly from Paperless-ngx
@@ -2576,7 +2576,7 @@ router.get('/manual/preview/:id', async (req, res) => {
   try {
     const documentId = req.params.id;
     console.log('Fetching content for document:', documentId);
-    
+
     const response = await fetch(
       `${process.env.PAPERLESS_API_URL}/documents/${documentId}/`,
       {
@@ -2585,7 +2585,7 @@ router.get('/manual/preview/:id', async (req, res) => {
         }
       }
     );
-    
+
     if (!response.ok) {
       throw new Error(`Failed to fetch document content: ${response.status} ${response.statusText}`);
     }
@@ -2611,10 +2611,10 @@ router.get('/manual/preview/:id', async (req, res) => {
  *   get:
  *     summary: Document review page
  *     description: |
- *       Renders the manual document review page that allows users to browse, 
+ *       Renders the manual document review page that allows users to browse,
  *       view and manually process documents from Paperless-ngx.
- *       
- *       This interface enables users to review documents, view their content, and 
+ *
+ *       This interface enables users to review documents, view their content, and
  *       manage tags, correspondents, and document metadata without AI assistance.
  *       Users can apply manual changes to documents based on their own judgment,
  *       which is particularly useful for correction or verification of AI-processed documents.
@@ -2666,7 +2666,7 @@ router.get('/manual', async (req, res) => {
  *     summary: Get all tags
  *     description: |
  *       Retrieves all tags from Paperless-ngx for use in the manual document review interface.
- *       
+ *
  *       This endpoint returns a complete list of all available tags that can be applied to documents,
  *       including their IDs, names, and colors. The tags are retrieved directly from Paperless-ngx
  *       and used for tag selection in the UI when manually updating document metadata.
@@ -2712,7 +2712,7 @@ router.get('/manual/tags', async (req, res) => {
  *     summary: Get all documents
  *     description: |
  *       Retrieves all documents from Paperless-ngx for display in the manual document review interface.
- *       
+ *
  *       This endpoint returns a list of all available documents that can be manually reviewed,
  *       including their basic metadata such as ID, title, and creation date. The documents are
  *       retrieved directly from Paperless-ngx and presented in the UI for selection and processing.
@@ -2758,9 +2758,9 @@ router.get('/manual/documents', async (req, res) => {
  *     summary: Get count of correspondents
  *     description: |
  *       Retrieves the list of correspondents with their document counts.
- *       This endpoint returns all correspondents in the system along with 
+ *       This endpoint returns all correspondents in the system along with
  *       the number of documents associated with each correspondent.
- *     tags: 
+ *     tags:
  *       - API
  *       - Metadata
  *     security:
@@ -2818,9 +2818,9 @@ router.get('/api/correspondentsCount', async (req, res) => {
  *     summary: Get count of tags
  *     description: |
  *       Retrieves the list of tags with their document counts.
- *       This endpoint returns all tags in the system along with 
+ *       This endpoint returns all tags in the system along with
  *       the number of documents associated with each tag.
- *     tags: 
+ *     tags:
  *       - API
  *       - Metadata
  *     security:
@@ -3082,9 +3082,9 @@ async function processQueue(customPrompt) {
   }
 
   if (isProcessing || documentQueue.length === 0) return;
-  
+
   isProcessing = true;
-  
+
   try {
     const isConfigured = await setupService.isConfigured();
     if (!isConfigured) {
@@ -3109,7 +3109,7 @@ async function processQueue(customPrompt) {
 
     while (documentQueue.length > 0) {
       const doc = documentQueue.shift();
-      
+
       try {
         const result = await processDocument(doc, existingTags, existingCorrespondentList, existingDocumentTypesList, ownUserId, customPrompt);
         if (!result) continue;
@@ -3129,7 +3129,7 @@ async function processQueue(customPrompt) {
     console.error('[ERROR] Error during queue processing:', error);
   } finally {
     isProcessing = false;
-    
+
     if (documentQueue.length > 0) {
       processQueue();
     }
@@ -3145,7 +3145,7 @@ async function processQueue(customPrompt) {
  *       Processes incoming webhook notifications from Paperless-ngx about document
  *       changes, additions, or deletions. The webhook allows Paperless-AI to respond
  *       to document changes in real-time.
- *       
+ *
  *       When a new document is added or updated in Paperless-ngx, this endpoint can
  *       trigger automatic AI processing for metadata extraction.
  *     tags:
@@ -3235,15 +3235,15 @@ router.post('/api/webhook/document', async (req, res) => {
     if (!url) {
       return res.status(400).send('Missing document URL');
     }
-    
+
     try {
       const documentId = extractDocumentId(url);
       const document = await paperlessService.getDocument(documentId);
-      
+
       if (!document) {
         return res.status(404).send(`Document with ID ${documentId} not found`);
       }
-      
+
       documentQueue.push(document);
       if (prompt) {
         usePrompt = true;
@@ -3252,19 +3252,19 @@ router.post('/api/webhook/document', async (req, res) => {
       } else {
         await processQueue();
       }
-      
-      
+
+
       res.status(202).send({
         message: 'Document accepted for processing',
         documentId: documentId,
         queuePosition: documentQueue.length
       });
-      
+
     } catch (error) {
       console.error('[ERROR] Failed to extract document ID or fetch document:', error);
       return res.status(200).send('Invalid document URL format');
     }
-    
+
   } catch (error) {
     console.error('[ERROR] Error in webhook endpoint:', error);
     res.status(200).send('Internal server error');
@@ -3280,8 +3280,8 @@ router.post('/api/webhook/document', async (req, res) => {
  *       Renders the main dashboard page of the application with summary statistics and visualizations.
  *       The dashboard provides an overview of processed documents, system metrics, and important statistics
  *       about document processing including tag counts, correspondent counts, and token usage.
- *       
- *       The page displays visualizations for document processing status, token distribution, 
+ *
+ *       The page displays visualizations for document processing status, token distribution,
  *       processing time statistics, and document type categorization to help administrators
  *       understand system performance and document processing patterns.
  *     tags:
@@ -3321,31 +3321,31 @@ router.get('/dashboard', async (req, res) => {
   const processingTimeStats = await documentModel.getProcessingTimeStats();
   const tokenDistribution = await documentModel.getTokenDistribution();
   const documentTypes = await documentModel.getDocumentTypeStats();
-  
+
   const averagePromptTokens = metrics.length > 0 ? Math.round(metrics.reduce((acc, cur) => acc + cur.promptTokens, 0) / metrics.length) : 0;
   const averageCompletionTokens = metrics.length > 0 ? Math.round(metrics.reduce((acc, cur) => acc + cur.completionTokens, 0) / metrics.length) : 0;
   const averageTotalTokens = metrics.length > 0 ? Math.round(metrics.reduce((acc, cur) => acc + cur.totalTokens, 0) / metrics.length) : 0;
   const tokensOverall = metrics.length > 0 ? metrics.reduce((acc, cur) => acc + cur.totalTokens, 0) : 0;
-  
+
   const version = configFile.PAPERLESS_AI_VERSION || ' ';
-  
-  res.render('dashboard', { 
-    paperless_data: { 
-      tagCount, 
-      correspondentCount, 
-      documentCount, 
+
+  res.render('dashboard', {
+    paperless_data: {
+      tagCount,
+      correspondentCount,
+      documentCount,
       processedDocumentCount,
       processingTimeStats,
       tokenDistribution,
       documentTypes
-    }, 
-    openai_data: { 
-      averagePromptTokens, 
-      averageCompletionTokens, 
-      averageTotalTokens, 
-      tokensOverall 
-    }, 
-    version 
+    },
+    openai_data: {
+      averagePromptTokens,
+      averageCompletionTokens,
+      averageTotalTokens,
+      tokensOverall
+    },
+    version
   });
 });
 
@@ -3357,12 +3357,12 @@ router.get('/dashboard', async (req, res) => {
  *     description: |
  *       Renders the application settings page where users can modify configuration
  *       after initial setup.
- *       
- *       This page allows administrators to update connections to Paperless-ngx, 
+ *
+ *       This page allows administrators to update connections to Paperless-ngx,
  *       AI provider settings, processing parameters, feature toggles, and custom fields.
  *       The interface provides validation for connection settings and displays the current
  *       configuration values.
- *       
+ *
  *       Changes made on this page require application restart to take full effect.
  *     tags:
  *       - Navigation
@@ -3446,7 +3446,7 @@ router.get('/settings', async (req, res) => {
     AI_PROVIDER: process.env.AI_PROVIDER || 'openai',
     OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
     OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-    OLLAMA_API_URL: process.env.OLLAMA_API_URL || 'http://localhost:11434',     
+    OLLAMA_API_URL: process.env.OLLAMA_API_URL || 'http://localhost:11434',
     OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b',
     OLLAMA_CONTEXT_WINDOW: process.env.OLLAMA_CONTEXT_WINDOW || '',
     OLLAMA_MAX_RESPONSE_TOKENS: process.env.OLLAMA_MAX_RESPONSE_TOKENS || '',
@@ -3497,7 +3497,7 @@ router.get('/settings', async (req, res) => {
     SCAN_INTERVAL: process.env.SCAN_INTERVAL || '*/30 * * * *',
     SYSTEM_PROMPT: process.env.SYSTEM_PROMPT || '',
     PROCESS_PREDEFINED_DOCUMENTS: process.env.PROCESS_PREDEFINED_DOCUMENTS || 'no',
-    
+
     TOKEN_LIMIT: process.env.TOKEN_LIMIT || 128000,
     RESPONSE_TOKENS: process.env.RESPONSE_TOKENS || 1000,
     TAGS: normalizeArray(process.env.TAGS),
@@ -3515,7 +3515,7 @@ router.get('/settings', async (req, res) => {
     AZURE_API_KEY: process.env.AZURE_API_KEY || '',
     AZURE_DEPLOYMENT_NAME: process.env.AZURE_DEPLOYMENT_NAME || '',
     AZURE_API_VERSION: process.env.AZURE_API_VERSION || '',
-    RESTRICT_TO_EXISTING_TAGS: process.env.RESTRICT_TO_EXISTING_TAGS || 'no',   
+    RESTRICT_TO_EXISTING_TAGS: process.env.RESTRICT_TO_EXISTING_TAGS || 'no',
     PIPELINE_TAG_REPLACE: process.env.PIPELINE_TAG_REPLACE || 'no',
     RESTRICT_TO_EXISTING_CORRESPONDENTS: process.env.RESTRICT_TO_EXISTING_CORRESPONDENTS || 'no',
     RESTRICT_TO_EXISTING_DOCUMENT_TYPES: process.env.RESTRICT_TO_EXISTING_DOCUMENT_TYPES || 'no',
@@ -3527,7 +3527,7 @@ router.get('/settings', async (req, res) => {
     EXTERNAL_API_TIMEOUT: process.env.EXTERNAL_API_TIMEOUT || '5000',
     EXTERNAL_API_TRANSFORM: process.env.EXTERNAL_API_TRANSFORM || ''
   };
-  
+
   if (isConfigured) {
     const savedConfig = await setupService.loadConfig();
     if (savedConfig.PAPERLESS_API_URL) {
@@ -3544,7 +3544,7 @@ router.get('/settings', async (req, res) => {
   console.log('Current config TAGS:', config.TAGS);
   console.log('Current config PROMPT_TAGS:', config.PROMPT_TAGS);
   const version = configFile.PAPERLESS_AI_VERSION || ' ';
-  res.render('settings', { 
+  res.render('settings', {
     version,
     config,
     success: isConfigured ? 'The application is already configured. You can update the configuration below.' : undefined,
@@ -3560,11 +3560,11 @@ router.get('/settings', async (req, res) => {
  *     description: |
  *       Renders a debug interface for testing and troubleshooting Paperless-ngx connections
  *       and API responses.
- *       
+ *
  *       This page provides a simple UI for executing API calls to Paperless-ngx endpoints
  *       and viewing the raw responses. It's primarily used for diagnosing connection issues
  *       and understanding the structure of data returned by the Paperless-ngx API.
- *       
+ *
  *       The debug interface should only be accessible to administrators and is not intended
  *       for regular use in production environments.
  *     tags:
@@ -3597,7 +3597,7 @@ router.get('/settings', async (req, res) => {
 router.get('/debug', async (req, res) => {
   //const isConfigured = await setupService.isConfigured();
   //if (!isConfigured) {
-  //   return res.status(503).json({ 
+  //   return res.status(503).json({
   //     status: 'not_configured',
   //     message: 'Application setup not completed'
   //   });
@@ -3619,7 +3619,7 @@ router.get('/debug', async (req, res) => {
  *     summary: Debug tags API
  *     description: |
  *       Returns the raw tags data from Paperless-ngx for debugging purposes.
- *       
+ *
  *       This endpoint performs a direct API call to the Paperless-ngx tags endpoint
  *       and returns the unmodified response. It's used for diagnosing tag-related issues
  *       and verifying proper connection to Paperless-ngx.
@@ -3663,7 +3663,7 @@ router.get('/debug/tags', async (req, res) => {
  *     summary: Debug documents API
  *     description: |
  *       Returns the raw documents data from Paperless-ngx for debugging purposes.
- *       
+ *
  *       This endpoint performs a direct API call to the Paperless-ngx documents endpoint
  *       and returns the unmodified response. It's used for diagnosing document-related issues
  *       and verifying proper connection to Paperless-ngx.
@@ -3707,7 +3707,7 @@ router.get('/debug/documents', async (req, res) => {
  *     summary: Debug correspondents API
  *     description: |
  *       Returns the raw correspondents data from Paperless-ngx for debugging purposes.
- *       
+ *
  *       This endpoint performs a direct API call to the Paperless-ngx correspondents endpoint
  *       and returns the unmodified response. It's used for diagnosing correspondent-related issues
  *       and verifying proper connection to Paperless-ngx.
@@ -3753,7 +3753,7 @@ router.get('/debug/correspondents', async (req, res) => {
  *       Analyzes document content using the configured AI provider and returns structured metadata.
  *       This endpoint processes the document text to extract relevant information such as tags,
  *       correspondent, and document type based on content analysis.
- *       
+ *
  *       The analysis is performed using the AI provider configured in the application settings.
  *     tags:
  *       - Documents
@@ -3844,7 +3844,7 @@ router.post('/manual/analyze', express.json(), async (req, res) => {
     existingTagsList = existingTagsList.map(tags => tags.name);
     let existingDocumentTypes = await paperlessService.listDocumentTypesNames();
     let existingDocumentTypesList = existingDocumentTypes.map(docType => docType.name);
-    
+
     if (!content || typeof content !== 'string') {
       console.log('Invalid content received:', content);
       return res.status(400).json({ error: 'Valid content string is required' });
@@ -3853,7 +3853,7 @@ router.post('/manual/analyze', express.json(), async (req, res) => {
     if (process.env.AI_PROVIDER === 'openai') {
       const analyzeDocument = await openaiService.analyzeDocument(content, existingTagsList, existingCorrespondentList, existingDocumentTypesList, id || []);
       await documentModel.addOpenAIMetrics(
-            id, 
+            id,
             analyzeDocument.metrics.promptTokens,
             analyzeDocument.metrics.completionTokens,
             analyzeDocument.metrics.totalTokens
@@ -3936,6 +3936,24 @@ router.post('/manual/analyze-visual', express.json(), async (req, res) => {
 
     logger.info('[Visual Analysis] Starting for document %s', docId);
 
+    // Check RAG service availability
+    let ragAvailable = false;
+    try {
+      const ragStatus = await RAGService.checkStatus();
+      ragAvailable = ragStatus.server_up && ragStatus.index_ready;
+      if (!ragAvailable) {
+        logger.warn('[Visual Analysis] RAG service unavailable, proceeding without RAG features', {
+          server_up: ragStatus.server_up,
+          index_ready: ragStatus.index_ready
+        });
+      }
+    } catch (ragError) {
+      logger.warn('[Visual Analysis] RAG service check failed, proceeding without RAG', {
+        error: ragError.message,
+        code: ragError.code
+      });
+    }
+
     // Step 1: Download PDF from Paperless-ngx
     const pdfBuffer = await paperlessService.downloadDocument(docId);
     if (!pdfBuffer) {
@@ -3975,7 +3993,10 @@ router.post('/manual/analyze-visual', express.json(), async (req, res) => {
 
     // Step 5: Process with Expert Pipeline
     const processor = new DocumentProcessor(ollamaService);
-    const result = await processor.process(preparedDoc, { forceExpertPipeline: true });
+    const result = await processor.process(preparedDoc, {
+      forceExpertPipeline: true,
+      skipRag: !ragAvailable
+    });
 
     // Step 6: Extract and save overlays if overlay extraction is enabled
     let overlayCount = 0;
@@ -4016,9 +4037,25 @@ router.post('/manual/analyze-visual', express.json(), async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('[Visual Analysis] Error: %s', error.message);
-    console.error('[Visual Analysis] Stack:', error.stack);
-    return res.status(500).json({ success: false, error: error.message });
+    // Ensure JSON response even on unexpected errors
+    res.set('Content-Type', 'application/json');
+
+    // Log detailed error information
+    logger.error('[Visual Analysis] Processing failed', {
+      docId: req.body.docId,
+      error: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+
+    // Return structured error response
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Document processing failed',
+      details: error.code === 'ECONNREFUSED'
+        ? 'External service unavailable. Please check service configuration.'
+        : undefined
+    });
   }
 });
 
@@ -4031,7 +4068,7 @@ router.post('/manual/analyze-visual', express.json(), async (req, res) => {
  *       Analyzes document content using a custom user-provided prompt.
  *       This endpoint is primarily used for testing and experimenting with different prompts
  *       without affecting the actual document processing workflow.
- *       
+ *
  *       The analysis is performed using the AI provider configured in the application settings,
  *       but with a custom prompt that overrides the default system prompt.
  *     tags:
@@ -4101,7 +4138,7 @@ router.post('/manual/analyze-visual', express.json(), async (req, res) => {
 router.post('/manual/playground', express.json(), async (req, res) => {
   try {
     const { content, existingTags, prompt, documentId } = req.body;
-    
+
     if (!content || typeof content !== 'string') {
       console.log('Invalid content received:', content);
       return res.status(400).json({ error: 'Valid content string is required' });
@@ -4110,7 +4147,7 @@ router.post('/manual/playground', express.json(), async (req, res) => {
     if (process.env.AI_PROVIDER === 'openai') {
       const analyzeDocument = await openaiService.analyzePlayground(content, prompt);
       await documentModel.addOpenAIMetrics(
-        documentId, 
+        documentId,
         analyzeDocument.metrics.promptTokens,
         analyzeDocument.metrics.completionTokens,
         analyzeDocument.metrics.totalTokens
@@ -4122,7 +4159,7 @@ router.post('/manual/playground', express.json(), async (req, res) => {
     } else if (process.env.AI_PROVIDER === 'custom') {
       const analyzeDocument = await customService.analyzePlayground(content, prompt);
       await documentModel.addOpenAIMetrics(
-        documentId, 
+        documentId,
         analyzeDocument.metrics.promptTokens,
         analyzeDocument.metrics.completionTokens,
         analyzeDocument.metrics.totalTokens
@@ -4131,7 +4168,7 @@ router.post('/manual/playground', express.json(), async (req, res) => {
     } else if (process.env.AI_PROVIDER === 'azure') {
       const analyzeDocument = await azureService.analyzePlayground(content, prompt);
       await documentModel.addOpenAIMetrics(
-        documentId, 
+        documentId,
         analyzeDocument.metrics.promptTokens,
         analyzeDocument.metrics.completionTokens,
         analyzeDocument.metrics.totalTokens
@@ -4155,7 +4192,7 @@ router.post('/manual/playground', express.json(), async (req, res) => {
  *       Updates document metadata such as tags, correspondent and title in the Paperless-ngx system.
  *       This endpoint handles the translation between tag names and IDs, and manages the creation of
  *       new tags or correspondents if they don't exist in the system.
- *       
+ *
  *       The endpoint also removes any unused tags from the document to keep the metadata clean.
  *     tags:
  *       - Documents
@@ -4253,7 +4290,7 @@ router.post('/manual/updateDocument', express.json(), async (req, res) => {
 
 
     await paperlessService.removeUnusedTagsFromDocument(documentId, tagIds);
-    
+
     // Then update with new tags (this will only add new ones since we already removed unused ones)
     const updateData = {
       tags: tagIds,
@@ -4265,7 +4302,7 @@ router.post('/manual/updateDocument', express.json(), async (req, res) => {
       return res.status(400).json({ error: 'No changes provided' });
     }
     const updateDocument = await paperlessService.updateDocument(documentId, updateData);
-    
+
     // Mark document as processed
     await documentModel.addProcessedDocument(documentId, updateData.title);
 
@@ -4285,7 +4322,7 @@ router.post('/manual/updateDocument', express.json(), async (req, res) => {
  *       Provides information about the current system health status.
  *       This endpoint checks database connectivity and returns system operational status.
  *       Used for monitoring and automated health checks.
- *     tags: 
+ *     tags:
  *       - System
  *     responses:
  *       200:
@@ -4334,7 +4371,7 @@ router.get('/health', async (req, res) => {
   try {
     // const isConfigured = await setupService.isConfigured();
     // if (!isConfigured) {
-    //   return res.status(503).json({ 
+    //   return res.status(503).json({
     //     status: 'not_configured',
     //     message: 'Application setup not completed'
     //   });
@@ -4342,7 +4379,7 @@ router.get('/health', async (req, res) => {
     try {
       await documentModel.isDocumentProcessed(1);
     } catch (error) {
-      return res.status(503).json({ 
+      return res.status(503).json({
         status: 'database_error',
         message: 'Database check failed'
       });
@@ -4351,9 +4388,9 @@ router.get('/health', async (req, res) => {
     res.json({ status: 'healthy' });
   } catch (error) {
     console.error('Health check failed:', error);
-    res.status(500).json({ 
-      status: 'error', 
-      message: error.message 
+    res.status(500).json({
+      status: 'error',
+      message: error.message
     });
   }
 });
@@ -4366,7 +4403,7 @@ router.get('/health', async (req, res) => {
  *     description: |
  *       Configures the initial setup of the Paperless-AI application, including connections
  *       to Paperless-ngx, AI provider settings, processing parameters, and user authentication.
- *       
+ *
  *       This endpoint is primarily used during the first-time setup of the application and
  *       creates the necessary configuration files and database tables.
  *     tags:
@@ -4540,8 +4577,8 @@ router.get('/health', async (req, res) => {
  */
 router.post('/setup', express.json(), async (req, res) => {
   try {
-    const { 
-      paperlessUrl, 
+    const {
+      paperlessUrl,
       paperlessToken,
       paperlessUsername,
       aiProvider,
@@ -4635,9 +4672,9 @@ router.post('/setup', express.json(), async (req, res) => {
     // Initialize paperlessService with the new credentials
     const paperlessApiUrl = paperlessUrl + '/api';
     const initSuccess = await paperlessService.initializeWithCredentials(paperlessApiUrl, paperlessToken);
-    
+
     if (!initSuccess) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Failed to initialize connection to Paperless-ngx. Please check URL and Token.'
       });
     }
@@ -4645,7 +4682,7 @@ router.post('/setup', express.json(), async (req, res) => {
     // Validate Paperless credentials
     const isPaperlessValid = await setupService.validatePaperlessConfig(paperlessUrl, paperlessToken);
     if (!isPaperlessValid) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Paperless-ngx connection failed. Please check URL and Token.'
       });
     }
@@ -4668,10 +4705,10 @@ router.post('/setup', express.json(), async (req, res) => {
     let processedCustomFields = [];
     if (customFields && activateCustomFields) {
       try {
-        const parsedFields = typeof customFields === 'string' 
-          ? JSON.parse(customFields) 
+        const parsedFields = typeof customFields === 'string'
+          ? JSON.parse(customFields)
           : customFields;
-        
+
         for (const field of parsedFields.custom_fields) {
           try {
             const createdField = await paperlessService.createCustomFieldSafely(
@@ -4679,7 +4716,7 @@ router.post('/setup', express.json(), async (req, res) => {
               field.data_type,
               field.currency
             );
-            
+
             if (createdField) {
               processedCustomFields.push({
                 value: field.value,
@@ -4701,7 +4738,7 @@ router.post('/setup', express.json(), async (req, res) => {
     const apiToken = process.env.API_KEY || require('crypto').randomBytes(64).toString('hex');
     const jwtToken = process.env.JWT_SECRET || require('crypto').randomBytes(64).toString('hex');
 
-    const processedPrompt = systemPrompt 
+    const processedPrompt = systemPrompt
       ? systemPrompt.replace(/\r\n/g, '\n').replace(/\n/g, '\\n').replace(/=/g, '')
       : '';
 
@@ -4742,8 +4779,8 @@ router.post('/setup', express.json(), async (req, res) => {
       ACTIVATE_DOCUMENT_TYPE: activateDocumentType ? 'yes' : 'no',
       ACTIVATE_TITLE: activateTitle ? 'yes' : 'no',
       ACTIVATE_CUSTOM_FIELDS: activateCustomFields ? 'yes' : 'no',
-      CUSTOM_FIELDS: processedCustomFields.length > 0 
-        ? JSON.stringify({ custom_fields: processedCustomFields }) 
+      CUSTOM_FIELDS: processedCustomFields.length > 0
+        ? JSON.stringify({ custom_fields: processedCustomFields })
         : '{"custom_fields":[]}',
       DISABLE_AUTOMATIC_PROCESSING: disableAutomaticProcessing ? 'yes' : 'no',
       AZURE_ENDPOINT: azureEndpoint || '',
@@ -4751,12 +4788,12 @@ router.post('/setup', express.json(), async (req, res) => {
       AZURE_DEPLOYMENT_NAME: azureDeploymentName || '',
       AZURE_API_VERSION: azureApiVersion || ''
     };
-    
+
     // Validate AI provider config
     if (aiProvider === 'openai') {
       const isOpenAIValid = await setupService.validateOpenAIConfig(openaiKey);
       if (!isOpenAIValid) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: 'OpenAI API Key is not valid. Please check the key.'
         });
       }
@@ -4765,7 +4802,7 @@ router.post('/setup', express.json(), async (req, res) => {
     } else if (aiProvider === 'ollama') {
       const isOllamaValid = await setupService.validateOllamaConfig(ollamaUrl, ollamaModel);
       if (!isOllamaValid) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: 'Ollama connection failed. Please check URL and Model.'
         });
       }
@@ -4795,7 +4832,7 @@ router.post('/setup', express.json(), async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 15);
     await documentModel.addUser(username, hashedPassword);
 
-    res.json({ 
+    res.json({
       success: true,
       message: 'Configuration saved successfully.',
       restart: true
@@ -4808,7 +4845,7 @@ router.post('/setup', express.json(), async (req, res) => {
 
   } catch (error) {
     console.error('[ERROR] Setup error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'An error occurred: ' + error.message
     });
   }
@@ -4821,9 +4858,9 @@ router.post('/setup', express.json(), async (req, res) => {
  *     summary: Update application settings
  *     description: |
  *       Updates the configuration settings of the Paperless-AI application after initial setup.
- *       This endpoint allows administrators to modify connections to Paperless-ngx, 
+ *       This endpoint allows administrators to modify connections to Paperless-ngx,
  *       AI provider settings, processing parameters, and feature toggles.
- *       
+ *
  *       Changes made through this endpoint are applied immediately and affect all future
  *       document processing operations.
  *     tags:
@@ -5001,8 +5038,8 @@ router.post('/setup', express.json(), async (req, res) => {
  */
 router.post('/settings', express.json(), async (req, res) => {
   try {
-    const { 
-      paperlessUrl, 
+    const {
+      paperlessUrl,
       paperlessToken,
       aiProvider,
       openaiKey,
@@ -5131,10 +5168,10 @@ router.post('/settings', express.json(), async (req, res) => {
     let processedCustomFields = [];
     if (customFields) {
       try {
-        const parsedFields = typeof customFields === 'string' 
-          ? JSON.parse(customFields) 
+        const parsedFields = typeof customFields === 'string'
+          ? JSON.parse(customFields)
           : customFields;
-        
+
         processedCustomFields = parsedFields.custom_fields.map(field => ({
           value: field.value,
           data_type: field.data_type,
@@ -5166,7 +5203,7 @@ router.post('/settings', express.json(), async (req, res) => {
     const pipelineTagReplace = req.body.pipelineTagReplace === 'on' || req.body.pipelineTagReplace === 'yes';
     const restrictToExistingCorrespondents = req.body.restrictToExistingCorrespondents === 'on' || req.body.restrictToExistingCorrespondents === 'yes';
     const restrictToExistingDocumentTypes = req.body.restrictToExistingDocumentTypes === 'on' || req.body.restrictToExistingDocumentTypes === 'yes';
-    
+
     // Extract external API settings with defaults
     const externalApiEnabled = req.body.externalApiEnabled === 'on' || req.body.externalApiEnabled === 'yes';
     const externalApiUrl = req.body.externalApiUrl || '';
@@ -5176,11 +5213,11 @@ router.post('/settings', express.json(), async (req, res) => {
     const externalApiTimeout = req.body.externalApiTimeout || '5000';
     const externalApiTransform = req.body.externalApiTransform || '';
 
-    if (paperlessUrl !== currentConfig.PAPERLESS_API_URL?.replace('/api', '') || 
+    if (paperlessUrl !== currentConfig.PAPERLESS_API_URL?.replace('/api', '') ||
         paperlessToken !== currentConfig.PAPERLESS_API_TOKEN) {
       const isPaperlessValid = await setupService.validatePaperlessConfig(paperlessUrl, paperlessToken);
       if (!isPaperlessValid) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: 'Paperless-ngx connection failed. Please check URL and Token.'
         });
       }
@@ -5195,24 +5232,24 @@ router.post('/settings', express.json(), async (req, res) => {
     // Handle AI provider configuration
     if (aiProvider) {
       updatedConfig.AI_PROVIDER = aiProvider;
-      
+
       if (aiProvider === 'openai' && openaiKey) {
         const isOpenAIValid = await setupService.validateOpenAIConfig(openaiKey);
         if (!isOpenAIValid) {
-          return res.status(400).json({ 
+          return res.status(400).json({
             error: 'OpenAI API Key is not valid. Please check the key.'
           });
         }
         updatedConfig.OPENAI_API_KEY = openaiKey;
         if (openaiModel) updatedConfig.OPENAI_MODEL = openaiModel;
-      } 
+      }
       else if (aiProvider === 'ollama' && (ollamaUrl || ollamaModel)) {
         const isOllamaValid = await setupService.validateOllamaConfig(
           ollamaUrl || currentConfig.OLLAMA_API_URL,
           ollamaModel || currentConfig.OLLAMA_MODEL
         );
         if (!isOllamaValid) {
-          return res.status(400).json({ 
+          return res.status(400).json({
             error: 'Ollama connection failed. Please check URL and Model.'
           });
         }
@@ -5235,7 +5272,7 @@ router.post('/settings', express.json(), async (req, res) => {
     // Update general settings
     if (scanInterval) updatedConfig.SCAN_INTERVAL = scanInterval;
     if (systemPrompt) updatedConfig.SYSTEM_PROMPT = processedPrompt.replace(/\r\n/g, '\n').replace(/\n/g, '\\n');
-    if (showTags) updatedConfig.PROCESS_PREDEFINED_DOCUMENTS = showTags;        
+    if (showTags) updatedConfig.PROCESS_PREDEFINED_DOCUMENTS = showTags;
     if (tokenLimit) updatedConfig.TOKEN_LIMIT = tokenLimit;
     if (responseTokens) updatedConfig.RESPONSE_TOKENS = responseTokens;
     if (ollamaContextWindow !== undefined) updatedConfig.OLLAMA_CONTEXT_WINDOW = ollamaContextWindow;
@@ -5302,8 +5339,8 @@ router.post('/settings', express.json(), async (req, res) => {
 
     // Update custom fields
     if (processedCustomFields.length > 0 || customFields) {
-      updatedConfig.CUSTOM_FIELDS = JSON.stringify({ 
-        custom_fields: processedCustomFields 
+      updatedConfig.CUSTOM_FIELDS = JSON.stringify({
+        custom_fields: processedCustomFields
       });
     }
 
@@ -5313,13 +5350,13 @@ router.post('/settings', express.json(), async (req, res) => {
       updatedConfig.ACTIVATE_DOCUMENT_TYPE = activateDocumentType ? 'yes' : 'no';
       updatedConfig.ACTIVATE_TITLE = activateTitle ? 'yes' : 'no';
       updatedConfig.ACTIVATE_CUSTOM_FIELDS = activateCustomFields ? 'yes' : 'no';
-      
+
       // Handle tag and correspondent restrictions
       updatedConfig.RESTRICT_TO_EXISTING_TAGS = restrictToExistingTags ? 'yes' : 'no';
       updatedConfig.PIPELINE_TAG_REPLACE = pipelineTagReplace ? 'yes' : 'no';
       updatedConfig.RESTRICT_TO_EXISTING_CORRESPONDENTS = restrictToExistingCorrespondents ? 'yes' : 'no';
       updatedConfig.RESTRICT_TO_EXISTING_DOCUMENT_TYPES = restrictToExistingDocumentTypes ? 'yes' : 'no';
-      
+
       // Handle external API integration
       updatedConfig.EXTERNAL_API_ENABLED = externalApiEnabled ? 'yes' : 'no';
       updatedConfig.EXTERNAL_API_URL = externalApiUrl || '';
@@ -5351,7 +5388,7 @@ router.post('/settings', express.json(), async (req, res) => {
       console.log('[ERROR] Error creating custom fields:', error);
     }
 
-    res.json({ 
+    res.json({
       success: true,
       message: 'Configuration saved successfully.',
       restart: true
@@ -5363,7 +5400,7 @@ router.post('/settings', express.json(), async (req, res) => {
 
   } catch (error) {
     console.error('Settings update error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'An error occurred: ' + error.message
     });
   }
@@ -5378,7 +5415,7 @@ router.post('/settings', express.json(), async (req, res) => {
  *       Returns the current status of document processing operations.
  *       This endpoint provides information about documents in the processing queue
  *       and the current processing state (active/idle).
- *       
+ *
  *       The status information can be used by UIs to display progress indicators
  *       and provide real-time feedback about background processing operations.
  *     tags:
@@ -5452,12 +5489,12 @@ router.get('/api/processing-status', async (req, res) => {
 
 router.get('/api/rag-test', async (req, res) => {
   RAGService.initialize();
-  try { 
+  try {
     if(await RAGService.sendDocumentsToRAGService()){
       res.status(200).json({ success: true });
     }else{
       res.status(500).json({ success: false });
-    }    
+    }
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch processing status' });
   }

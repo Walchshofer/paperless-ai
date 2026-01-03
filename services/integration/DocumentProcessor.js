@@ -1250,11 +1250,18 @@ class DocumentProcessor {
 
         let vatContext = '';
         let vatContextSources = [];
-        if (this.config.features.enableVatRag) {
-            const vatQuery = document.ocr_text || document.content || '';
-            const vatResult = await InternalVatRag.retrieveVatContext(vatQuery, this.config.rag);
-            vatContext = vatResult.contextText;
-            vatContextSources = vatResult.sources;
+        if (this.config.features.enableVatRag && !options.skipRag) {
+            try {
+                const vatQuery = document.ocr_text || document.content || '';
+                const vatResult = await InternalVatRag.retrieveVatContext(vatQuery, this.config.rag);
+                vatContext = vatResult.contextText;
+                vatContextSources = vatResult.sources;
+            } catch (vatError) {
+                logger.warn('[DocumentProcessor] VAT RAG retrieval failed', {
+                    error: vatError.message
+                });
+                // Continue without VAT context
+            }
         }
 
         // Run full pipeline processing
@@ -1304,7 +1311,8 @@ class DocumentProcessor {
             : (document.base64Images && document.base64Images.length > 0)
                 ? document.base64Images
                 : preparedImages;
-        if (ingestionImages.length > 0 && document.id && allowIngestion && config.visualRagSidecar?.enabled === 'yes') {
+        if (ingestionImages.length > 0 && document.id && allowIngestion &&
+            config.visualRagSidecar?.enabled === 'yes' && !options.skipRag) {
             try {
                 const domain = result.result?.classification?.classification?.primary_domain?.toLowerCase();
                 const ingestionPdfPath = resolvePdfPathForIngestion(
