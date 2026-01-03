@@ -23,12 +23,32 @@ const path = require('path');
 const { Pool } = require('pg');
 
 // Configuration
+
+/**
+ * Get required environment variable with fallback
+ * Exits with error message if not found
+ */
+function requireEnv(key, fallbackKey = null) {
+    const value = process.env[key];
+    if (value && value !== '') return value;
+    
+    if (fallbackKey) {
+        const fallbackValue = process.env[fallbackKey];
+        if (fallbackValue && fallbackValue !== '') return fallbackValue;
+    }
+    
+    const keys = fallbackKey ? `${key} or ${fallbackKey}` : key;
+    console.error(`\n❌ Missing required environment variable: ${keys}`);
+    console.error('💡 Set this in your docker-compose.env file or export it before running.\n');
+    process.exit(1);
+}
+
 const config = {
     host: process.env.POSTGRES_HOST || process.env.PAPERLESS_DBHOST || 'localhost',
     port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
     database: process.env.POSTGRES_DB || 'paperless',
-    user: process.env.POSTGRES_USER || 'paperless',
-    password: process.env.POSTGRES_PASSWORD || ''
+    user: requireEnv('POSTGRES_USER', 'PAPERLESS_DBUSER'),
+    password: requireEnv('POSTGRES_PASSWORD', 'PAPERLESS_DBPASS')
 };
 
 async function runMigration(migrationFile) {

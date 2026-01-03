@@ -9,6 +9,25 @@
 process.env.GUIDANCE_ENABLED = process.env.GUIDANCE_ENABLED || 'true';
 process.env.GUIDANCE_SERVICE_ENABLED = process.env.GUIDANCE_SERVICE_ENABLED || 'no';
 
+/**
+ * Get required environment variable for tests
+ * Logs warning and returns null if not found (tests should handle gracefully)
+ */
+function getTestEnv(key, fallbackKey = null) {
+    const value = process.env[key];
+    if (value && value !== '') return value;
+    
+    if (fallbackKey) {
+        const fallbackValue = process.env[fallbackKey];
+        if (fallbackValue && fallbackValue !== '') return fallbackValue;
+    }
+    
+    const keys = fallbackKey ? `${key} or ${fallbackKey}` : key;
+    console.warn(`⚠️ [test] Missing environment variable: ${keys}`);
+    console.warn('   Tests requiring database access may fail.');
+    return null;
+}
+
 // Default RAG Service URL for tests if not provided
 process.env.RAG_SERVICE_URL = process.env.RAG_SERVICE_URL || 'http://localhost:8000';
 
@@ -64,8 +83,14 @@ if (process.env.RAG_SERVICE_ENABLED === 'true') {
             const host = process.env.POSTGRES_HOST || process.env.PAPERLESS_DBHOST || 'localhost';
             const port = parseInt(process.env.POSTGRES_PORT || '5432', 10);
             const database = process.env.POSTGRES_DB || 'paperless';
-            const user = process.env.POSTGRES_USER || 'paperless';
-            const password = process.env.POSTGRES_PASSWORD || '';
+            const user = getTestEnv('POSTGRES_USER', 'PAPERLESS_DBUSER');
+            const password = getTestEnv('POSTGRES_PASSWORD', 'PAPERLESS_DBPASS');
+
+            // Skip connection if credentials are missing
+            if (!user || !password) {
+                console.warn('⚠️ [test] Skipping database schema initialization due to missing credentials');
+                return;
+            }
 
             const pool = new Pool({
                 host,

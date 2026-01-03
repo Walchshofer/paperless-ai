@@ -116,6 +116,29 @@ Adjust these values when operating in high-latency or resource-constrained envir
 - `RAG_TOP_K` - Number of similar documents to retrieve (default: `5`)
 - `RAG_SIMILARITY_THRESHOLD` - Minimum similarity score (default: `0.7`)
 
+### PostgreSQL + pg_vector Configuration
+
+- `POSTGRES_HOST` - PostgreSQL server host (default: `db` for Docker, `localhost` for host)
+- `POSTGRES_PORT` - PostgreSQL server port (default: `5432`)
+- `POSTGRES_DB` - Database name (default: `paperless`)
+- `POSTGRES_USER` - Database username (required, fallback: `PAPERLESS_DBUSER`)
+- `POSTGRES_PASSWORD` - Database password (required, fallback: `PAPERLESS_DBPASS`)
+- `PAPERLESS_DBHOST` - Paperless-NGX database host (fallback for `POSTGRES_HOST`)
+- `PAPERLESS_DBPORT` - Paperless-NGX database port (fallback for `POSTGRES_PORT`)
+- `PAPERLESS_DBNAME` - Paperless-NGX database name (fallback for `POSTGRES_DB`)
+- `PAPERLESS_DBUSER` - Paperless-NGX database user (fallback for `POSTGRES_USER`)
+- `PAPERLESS_DBPASS` - Paperless-NGX database password (fallback for `POSTGRES_PASSWORD`)
+
+**Requirements:**
+- PostgreSQL 16+ with pg_vector extension
+- Docker image: `pgvector/pgvector:pg16`
+- User must have CREATE EXTENSION privilege
+
+**Troubleshooting:**
+- Check health: `curl http://localhost:3000/health/database`
+- Verify extension: `docker exec paperless_db psql -U <user> -d <db> -c "SELECT extversion FROM pg_extension WHERE extname = 'vector'"`
+- See `docs/DATABASE_SETUP.md` for detailed troubleshooting guide
+
 ## Security and Access Control
 
 ### Authentication
