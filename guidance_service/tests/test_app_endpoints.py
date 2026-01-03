@@ -59,7 +59,12 @@ class TestGenerateEndpoint:
         assert 'not found' in data.get('error', '').lower()
 
     @patch('app.guidance')
-    def test_generate_success_returns_json(self, mock_guidance, client, general_variables):
+    def test_generate_success_returns_json(
+        self,
+        mock_guidance,
+        client,
+        general_variables,
+    ):
         """Successful generation should return valid JSON."""
         # Mock guidance to return a valid response
         mock_program = MagicMock()
@@ -112,7 +117,10 @@ class TestTemplatesEndpoint:
         templates = data.get('templates', [])
 
         # Check for presence of domain-specific templates
-        template_names = [t if isinstance(t, str) else t.get('name', '') for t in templates]
+        template_names = [
+            t if isinstance(t, str) else t.get('name', '')
+            for t in templates
+        ]
 
         # At least one template from each domain should exist
         has_medical = any('medical' in t.lower() for t in template_names)
@@ -128,7 +136,12 @@ class TestCacheIntegration:
     """Tests for cache integration with /generate."""
 
     @patch('app.cache_manager')
-    def test_cache_hit_returns_cached(self, mock_cache, client, general_variables):
+    def test_cache_hit_returns_cached(
+        self,
+        mock_cache,
+        client,
+        general_variables,
+    ):
         """Should return cached result on cache hit."""
         cached_result = {
             'generated': {'dokumenttyp': 'Brief'},
@@ -176,7 +189,12 @@ class TestErrorHandling:
         assert response.status_code in [200, 400, 415]
 
     @patch('app.guidance')
-    def test_ollama_timeout_handled(self, mock_guidance, client, general_variables):
+    def test_ollama_timeout_handled(
+        self,
+        mock_guidance,
+        client,
+        general_variables,
+    ):
         """Ollama timeout should return 503."""
         mock_guidance.side_effect = TimeoutError("Connection timed out")
 

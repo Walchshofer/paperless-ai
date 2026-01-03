@@ -1,9 +1,10 @@
 """
 Visual RAG Sidecar Service
 
-A FastAPI service that provides visual document retrieval using ColQwen2/ColPali
-via the Byaldi library. This service indexes PDF pages as images and enables
-semantic search that understands document layout, tables, charts, and formatting.
+A FastAPI service that provides visual document retrieval using ColQwen2/
+ColPali via the Byaldi library. This service indexes PDF pages as images and
+enables semantic search that understands document layout, tables, charts,
+and formatting.
 
 Architecture:
 - Runs as a Docker sidecar alongside paperless-ngx
@@ -34,6 +35,7 @@ logger = logging.getLogger("visual_rag")
 # Configuration
 # =============================================================================
 
+
 class Config:
     """Service configuration from environment variables."""
 
@@ -62,6 +64,7 @@ config = Config()
 # Global State
 # =============================================================================
 
+
 class ServiceState:
     """Global service state."""
 
@@ -81,6 +84,7 @@ state = ServiceState()
 # Pydantic Models
 # =============================================================================
 
+
 class HealthResponse(BaseModel):
     status: str
     model_loaded: bool
@@ -90,21 +94,63 @@ class HealthResponse(BaseModel):
 
 
 class IndexRequest(BaseModel):
-    pdf_path: Optional[str] = Field(None, description="Path to PDF file (relative to /media/paperless)")
-    images: Optional[List[str]] = Field(None, description="Array of base64-encoded page images (PNG/JPEG)")
-    doc_id: Optional[int] = Field(None, description="Document ID from Paperless-ngx")
+    pdf_path: Optional[str] = Field(
+        None,
+        description=(
+            "Path to PDF file (relative to /media/paperless)"
+        ),
+    )
+    images: Optional[List[str]] = Field(
+        None,
+        description=(
+            "Array of base64-encoded page images (PNG/JPEG)"
+        ),
+    )
+    doc_id: Optional[int] = Field(
+        None,
+        description=(
+            "Document ID from Paperless-ngx"
+        ),
+    )
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
 class IndexDirectoryRequest(BaseModel):
-    directory: str = Field("documents/originals", description="Directory to index (relative to /media/paperless)")
-    recursive: bool = Field(True, description="Index subdirectories")
+    directory: str = Field(
+        "documents/originals",
+        description=(
+            "Directory to index (relative to /media/paperless)"
+        ),
+    )
+    recursive: bool = Field(
+        True,
+        description=(
+            "Index subdirectories"
+        ),
+    )
 
 
 class SearchRequest(BaseModel):
-    query: str = Field(..., description="Search query text")
-    k: int = Field(5, ge=1, le=50, description="Number of results to return")
-    include_base64: bool = Field(False, description="Include base64 image in results")
+    query: str = Field(
+        ...,
+        description=(
+            "Search query text"
+        ),
+    )
+    k: int = Field(
+        5,
+        ge=1,
+        le=50,
+        description=(
+            "Number of results to return"
+        ),
+    )
+    include_base64: bool = Field(
+        False,
+        description=(
+            "Include base64 image in results"
+        ),
+    )
 
 
 class SearchResult(BaseModel):
@@ -146,7 +192,7 @@ def load_model():
 
     try:
         logger.info(f"Loading visual retrieval model: {config.MODEL_NAME}")
-        logger.info(f"This may take 30-60 seconds on first load...")
+        logger.info("This may take 30-60 seconds on first load...")
 
         # Import here to avoid startup delay if model not needed
         from byaldi import RAGMultiModalModel
@@ -163,7 +209,10 @@ def load_model():
             state.index_loaded = True
             logger.info("Existing index loaded successfully")
         else:
-            logger.info("No existing index found, loading model for new indexing")
+            logger.info(
+                "No existing index found, loading model for new "
+                "indexing"
+            )
             state.model = RAGMultiModalModel.from_pretrained(
                 config.MODEL_NAME,
                 verbose=1
@@ -256,11 +305,19 @@ async def get_status():
 
 
 @app.post("/index/document")
-async def index_document(request: IndexRequest, background_tasks: BackgroundTasks):
+async def index_document(
+    request: IndexRequest,
+    background_tasks: BackgroundTasks,
+):
     """Index a single PDF document."""
     ensure_model_loaded()
-    # If images provided, write them to a temp folder under /data and index those images
-    if request.images and isinstance(request.images, list) and len(request.images) > 0:
+    # If images provided, write them to a temp folder under /data
+    # and index those images
+    if (
+        request.images
+        and isinstance(request.images, list)
+        and len(request.images) > 0
+    ):
         # Prepare metadata
         metadata = request.metadata or {}
         if request.doc_id:
@@ -268,7 +325,8 @@ async def index_document(request: IndexRequest, background_tasks: BackgroundTask
 
         tmp_root = config.INDEX_DIR.parent / 'tmp_images'
         tmp_root.mkdir(parents=True, exist_ok=True)
-        uid = f"doc_{request.doc_id or 'unknown'}_{int(asyncio.get_event_loop().time()*1000)}"
+        timestamp = int(asyncio.get_event_loop().time() * 1000)
+        uid = f"doc_{request.doc_id or 'unknown'}_{timestamp}"
         tmp_dir = tmp_root / uid
         tmp_dir.mkdir(parents=True, exist_ok=True)
 
@@ -286,8 +344,12 @@ async def index_document(request: IndexRequest, background_tasks: BackgroundTask
         async def do_index_images():
             state.indexing_in_progress = True
             try:
-                logger.info(f"Indexing {len(request.images)} images for doc {request.doc_id} from {tmp_dir}")
-                # Add to existing index or create a new one using the directory of images
+                logger.info(
+                    f"Indexing {len(request.images)} images for doc "
+                    f"{request.doc_id} from {tmp_dir}"
+                )
+                # Add to existing index or create a new one
+                # using the directory of images
                 index_path = config.INDEX_DIR / config.DEFAULT_INDEX_NAME
 
                 if index_path.exists() and state.index_loaded:
@@ -308,7 +370,10 @@ async def index_document(request: IndexRequest, background_tasks: BackgroundTask
 
                 # Track indexed document
                 doc_key = f"images:{uid}"
-                state.indexed_documents[doc_key] = {"doc_id": request.doc_id, "metadata": metadata}
+                state.indexed_documents[doc_key] = {
+                    "doc_id": request.doc_id,
+                    "metadata": metadata,
+                }
 
                 logger.info(f"Successfully indexed images from: {tmp_dir}")
             except Exception as e:
@@ -324,13 +389,23 @@ async def index_document(request: IndexRequest, background_tasks: BackgroundTask
                 except Exception:
                     pass
 
-        background_tasks.add_task(asyncio.to_thread, lambda: asyncio.run(do_index_images()))
+        background_tasks.add_task(
+            asyncio.to_thread,
+            lambda: asyncio.run(do_index_images()),
+        )
 
-        return {"status": "indexing_started", "document": f"images:{uid}", "document_count": len(request.images)}
+        return {
+            "status": "indexing_started",
+            "document": f"images:{uid}",
+            "document_count": len(request.images),
+        }
 
     # Fallback: pdf_path-based indexing (existing behavior)
     if not request.pdf_path:
-        raise HTTPException(status_code=400, detail="Either 'pdf_path' or 'images' must be provided")
+        raise HTTPException(
+            status_code=400,
+            detail="Either 'pdf_path' or 'images' must be provided",
+        )
 
     # Construct full path
     full_path = config.MEDIA_DIR / request.pdf_path
@@ -396,13 +471,19 @@ async def index_document(request: IndexRequest, background_tasks: BackgroundTask
             state.indexing_in_progress = False
 
     # Run indexing in background
-    background_tasks.add_task(asyncio.to_thread, lambda: asyncio.run(do_index_pdf()))
+    background_tasks.add_task(
+        asyncio.to_thread,
+        lambda: asyncio.run(do_index_pdf()),
+    )
 
     return {"status": "indexing_started", "document": request.pdf_path}
 
 
 @app.post("/index/directory")
-async def index_directory(request: IndexDirectoryRequest, background_tasks: BackgroundTasks):
+async def index_directory(
+    request: IndexDirectoryRequest,
+    background_tasks: BackgroundTasks,
+):
     """Index all PDFs in a directory."""
     ensure_model_loaded()
 
@@ -427,7 +508,10 @@ async def index_directory(request: IndexDirectoryRequest, background_tasks: Back
     async def do_batch_index():
         state.indexing_in_progress = True
         try:
-            logger.info(f"Batch indexing {len(pdf_files)} PDFs from: {full_path}")
+            logger.info(
+                f"Batch indexing {len(pdf_files)} PDFs from: "
+                f"{full_path}"
+            )
 
             # Index the directory
             state.model.index(
@@ -455,7 +539,10 @@ async def index_directory(request: IndexDirectoryRequest, background_tasks: Back
         finally:
             state.indexing_in_progress = False
 
-    background_tasks.add_task(asyncio.to_thread, lambda: asyncio.run(do_batch_index()))
+    background_tasks.add_task(
+        asyncio.to_thread,
+        lambda: asyncio.run(do_batch_index()),
+    )
 
     return {
         "status": "indexing_started",

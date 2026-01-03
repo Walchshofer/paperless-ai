@@ -122,14 +122,17 @@ class TagStatistics:
         if frequent_tags:
             parts.append(f"frequent tags: {', '.join(frequent_tags)}")
         if cooccurrence_entries:
-            co_text = "; ".join(
-                f"{seed} -> {', '.join(tags)}" for seed, tags in cooccurrence_entries
-            )
+            co_text_entries = [
+                f"{seed} -> {', '.join(tags)}"
+                for seed, tags in cooccurrence_entries
+            ]
+            co_text = "; ".join(co_text_entries)
             parts.append(f"co-occurrence hints: {co_text}")
 
         if not parts:
             return ""
-        return f"Tag stats (hint): {'; '.join(parts)}."
+        joined_parts = '; '.join(parts)
+        return f"Tag stats (hint): {joined_parts}."
 
     def _prune_domain(self, domain: str) -> None:
         freq = self._tag_frequency.get(domain)
@@ -146,7 +149,9 @@ class TagStatistics:
 
 _TAG_STATS = TagStatistics(
     max_tags=int(os.getenv("GUIDANCE_STATS_MAX_TAGS", "2000")),
-    max_cooccurrence_per_tag=int(os.getenv("GUIDANCE_STATS_MAX_COOC_PER_TAG", "200")),
+    max_cooccurrence_per_tag=int(
+        os.getenv("GUIDANCE_STATS_MAX_COOC_PER_TAG", "200")
+    ),
 )
 
 
@@ -175,7 +180,9 @@ def build_tag_stats_context(
         return ""
     min_events = int(os.getenv("GUIDANCE_STATS_MIN_EVENTS", "500"))
     frequent_limit = int(os.getenv("GUIDANCE_STATS_FREQUENT_LIMIT", "5"))
-    cooccurrence_limit = int(os.getenv("GUIDANCE_STATS_COOCCURRENCE_LIMIT", "3"))
+    cooccurrence_limit = int(
+        os.getenv("GUIDANCE_STATS_COOCCURRENCE_LIMIT", "3")
+    )
     min_count = int(os.getenv("GUIDANCE_STATS_MIN_COUNT", "2"))
     return _TAG_STATS.build_context(
         existing_tags=existing_tags,

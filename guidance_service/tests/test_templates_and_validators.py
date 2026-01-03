@@ -73,7 +73,10 @@ class TestMedicalValidator:
         }
         result = validate_medical_extraction(output)
         # Should have warnings about missing data
-        assert len(result.get('warnings', [])) > 0 or len(result.get('errors', [])) > 0
+        assert (
+            len(result.get('warnings', [])) > 0
+            or len(result.get('errors', [])) > 0
+        )
 
     def test_confidence_out_of_range(self):
         """Confidence outside 0-1 should error."""
@@ -146,7 +149,11 @@ class TestFinancialValidator:
         }
         result = validate_financial_extraction(output)
         # Should catch invalid ATU
-        atu_issues = [e for e in result.get('errors', []) + result.get('warnings', []) if 'ATU' in e.upper() or 'uid' in e.lower()]
+        atu_issues = [
+            e
+            for e in result.get('errors', []) + result.get('warnings', [])
+            if 'ATU' in e.upper() or 'uid' in e.lower()
+        ]
         assert len(atu_issues) > 0
 
     def test_math_consistency_netto_brutto(self):
@@ -167,7 +174,11 @@ class TestFinancialValidator:
             "daten": {"rechnungsdatum": "2024-12-20"}
         }
         result = validate_financial_extraction(output)
-        math_errors = [e for e in result['errors'] if 'konsistenz' in e.lower() or 'math' in e.lower()]
+        math_errors = [
+            e
+            for e in result['errors']
+            if 'konsistenz' in e.lower() or 'math' in e.lower()
+        ]
         assert len(math_errors) == 0
 
     def test_math_inconsistency_detected(self):
@@ -246,7 +257,11 @@ class TestLegalValidator:
         }
         result = validate_legal_extraction(output)
         assert result['valid'] is False
-        party_errors = [e for e in result['errors'] if 'partei' in e.lower() or 'party' in e.lower()]
+        party_errors = [
+            e
+            for e in result['errors']
+            if 'partei' in e.lower() or 'party' in e.lower()
+        ]
         assert len(party_errors) > 0
 
     def test_invalid_date_format(self):
@@ -257,7 +272,8 @@ class TestLegalValidator:
                 "partei_2": "B"
             },
             "daten": {
-                "abschluss_datum": "20.12.2024"  # Wrong format (should be YYYY-MM-DD)
+                # Wrong format (should be YYYY-MM-DD)
+                "abschluss_datum": "20.12.2024"
             },
             "vertrauen": 0.9
         }
@@ -298,7 +314,10 @@ class TestGeneralValidator:
     def test_legacy_extractor_format(self):
         """Legacy extractor format should still validate."""
         output = {
-            "zusammenfassung": "Dies ist eine Zusammenfassung des Dokuments mit ausreichend Text.",
+            "zusammenfassung": (
+                "Dies ist eine Zusammenfassung des Dokuments "
+                "mit ausreichend Text"
+            ),
             "schluesselwoerter": ["Rechnung", "Zahlung", "Betrag"]
         }
         result = validate_general_extraction(output)
@@ -315,7 +334,11 @@ class TestGeneralValidator:
         result = validate_general_extraction(output)
         # Should have warning about empty themata
         warnings = result.get('warnings', [])
-        themata_warnings = [w for w in warnings if 'themata' in w.lower() or 'topics' in w.lower()]
+        themata_warnings = [
+            w
+            for w in warnings
+            if 'themata' in w.lower() or 'topics' in w.lower()
+        ]
         assert len(themata_warnings) > 0
 
     def test_routing_recommendation_format(self):

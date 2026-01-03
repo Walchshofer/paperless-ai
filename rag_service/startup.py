@@ -202,9 +202,12 @@ async def startup_event():
             )
 
             # Sync search engine documents with data manager documents
-            # This is needed because SearchEngine is created with initialize_on_start=False
+            # This is needed because SearchEngine is created with
+            # initialize_on_start=False
             if global_state.data_manager.documents:
-                global_state.search_engine.documents = global_state.data_manager.documents
+                global_state.search_engine.documents = (
+                    global_state.data_manager.documents
+                )
 
             if (
                 global_state.data_manager.documents
@@ -318,7 +321,9 @@ async def startup_event():
         logger.error("Error during startup: %s", str(exc))
         logger.error(traceback.format_exc())
         global_state.system_status.server_up = True
-        global_state.indexing_status.message = f"Error during startup: {str(exc)}"
+        global_state.indexing_status.message = (
+            f"Error during startup: {str(exc)}"
+        )
         global_state.save_state()
 
         if not global_state.data_manager:

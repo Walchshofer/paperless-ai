@@ -7,10 +7,13 @@ Ready-to-use templates for common patterns
 # MODEL INITIALIZATION
 # =============================================================================
 
-def init_ollama_model(model_name: str = "neural-chat", host: str = "host.docker.internal"):
+def init_ollama_model(
+    model_name: str = "neural-chat",
+    host: str = "host.docker.internal",
+):
     """Initialize Ollama model via LiteLLM"""
     import guidance
-    
+
     config = {
         "model_name": model_name,
         "litellm_params": {
@@ -33,17 +36,20 @@ def init_ollama_model(model_name: str = "neural-chat", host: str = "host.docker.
 def classify_document(lm, content: str, options: list = None):
     """Generic document classification"""
     from guidance import system, user, assistant, select
-    
+
     options = options or ["Invoice", "Contract", "Report", "Memo", "Other"]
-    
+
     with system():
         lm += "You are a document classifier."
     with user():
         lm += f"Classify:\n{content[:500]}"
     with assistant():
         lm += "Type: " + select(options=options, name="doc_type")
-        lm += "\nPriority: " + select(options=["High", "Medium", "Low"], name="priority")
-    
+        lm += "\nPriority: " + select(
+            options=["High", "Medium", "Low"],
+            name="priority",
+        )
+
     return {"type": lm["doc_type"], "priority": lm["priority"]}
 
 
@@ -59,10 +65,11 @@ EXTRACTION_PATTERNS = {
     "url": r"https?://[^\s]+",
 }
 
+
 def extract_fields(lm, content: str, fields: list):
     """Extract specified fields from content"""
     from guidance import system, user, assistant, gen
-    
+
     with system():
         lm += "Extract fields precisely. Return only values."
     with user():
@@ -72,12 +79,16 @@ def extract_fields(lm, content: str, fields: list):
         for field in fields:
             pattern = EXTRACTION_PATTERNS.get(field)
             if pattern:
-                lm += f"{field}: " + gen(name=field, regex=pattern, max_tokens=50, stop="\n")
+                lm += f"{field}: " + gen(
+                    name=field, regex=pattern, max_tokens=50, stop="\n"
+                )
             else:
-                lm += f"{field}: " + gen(name=field, max_tokens=50, stop="\n")
+                lm += f"{field}: " + gen(
+                    name=field, max_tokens=50, stop="\n"
+                )
             lm += "\n"
             results[field] = lm[field]
-    
+
     return results
 
 
@@ -88,18 +99,26 @@ def extract_fields(lm, content: str, fields: list):
 def deep_analysis(lm, content: str, max_thinking_tokens: int = 2000):
     """Deep analysis using thinking model with explicit reasoning"""
     from guidance import system, user, assistant, gen, select
-    
+
     with system():
         lm += "Analyze thoroughly. Show your reasoning."
     with user():
         lm += f"Analyze:\n{content}"
     with assistant():
         lm += "<thinking>\n"
-        lm += gen(name="reasoning", max_tokens=max_thinking_tokens, stop="</thinking>")
+        lm += gen(
+            name="reasoning",
+            max_tokens=max_thinking_tokens,
+            stop="</thinking>",
+        )
         lm += "\n</thinking>\n\n"
-        lm += "Summary: " + gen(name="summary", max_tokens=300, temperature=0.1)
-        lm += "\nRisk: " + select(options=["Low", "Medium", "High"], name="risk")
-    
+        lm += "Summary: " + gen(
+            name="summary", max_tokens=300, temperature=0.1
+        )
+        lm += "\nRisk: " + select(
+            options=["Low", "Medium", "High"], name="risk"
+        )
+
     return {
         "reasoning": lm["reasoning"],
         "summary": lm["summary"],
@@ -111,15 +130,17 @@ def deep_analysis(lm, content: str, max_thinking_tokens: int = 2000):
 # RETRY WRAPPER
 # =============================================================================
 
-async def with_retry(func, *args, max_retries=3, timeout=30, fallback=None, **kwargs):
+async def with_retry(
+    func, *args, max_retries=3, timeout=30, fallback=None, **kwargs
+):
     """Execute function with exponential backoff retry"""
     import asyncio
-    
+
     for attempt in range(max_retries):
         try:
             return await asyncio.wait_for(
                 asyncio.to_thread(func, *args, **kwargs),
-                timeout=timeout
+                timeout=timeout,
             )
         except Exception as e:
             if attempt == max_retries - 1:
@@ -155,7 +176,7 @@ def create_db_session(database_url: str):
     """Create SQLAlchemy session"""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
-    
+
     engine = create_engine(database_url, pool_pre_ping=True)
     return sessionmaker(bind=engine)()
 
@@ -181,8 +202,10 @@ async def process_document(request: DocumentRequest):
         # Classification
         classification = classify_document(instruction_model, request.content)
         # Extraction
-        fields = extract_fields(instruction_model, request.content, ["email", "date", "amount"])
-        
+        fields = extract_fields(
+            instruction_model, request.content, ["email", "date", "amount"]
+        )
+
         return {
             "classification": classification,
             "extracted_fields": fields
@@ -241,11 +264,13 @@ volumes:
 if __name__ == "__main__":
     # Initialize model
     lm = init_ollama_model("neural-chat")
-    
+
     # Test classification
     result = classify_document(lm, "Invoice #123 for $5000 from Acme Corp")
     print(f"Classification: {result}")
-    
+
     # Test extraction
-    fields = extract_fields(lm, "Contact: john@example.com, Date: 01/15/2024", ["email", "date"])
+    fields = extract_fields(
+        lm, "Contact: john@example.com, Date: 01/15/2024", ["email", "date"]
+    )
     print(f"Extracted: {fields}")

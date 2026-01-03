@@ -53,10 +53,13 @@ response = stub.ComputeBiases(bias_service_pb2.BiasRequest(
     generated_text="{text}",
     vocab_size=50257
 ))
-print(f"tokens={{len(response.token_biases)}},time={{response.computation_time_ms}}ms")
+print(
+    f"tokens={{len(response.token_biases)}},"
+    f"time={{response.computation_time_ms}}ms"
+)
 '''
     ]
-    
+
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
     if result.returncode == 0:
         output = result.stdout.strip()
@@ -91,10 +94,13 @@ response = stub.ComputeBiases(bias_service_pb2.BiasRequest(
 ))
 # Get first 5 token IDs
 tokens = list(response.token_biases.keys())[:5]
-print(f"valid={{len(response.token_biases)}},time={{response.computation_time_ms}}ms,sample={{tokens}}")
+print(
+    f"valid={{len(response.token_biases)}},"
+    f"time={{response.computation_time_ms}}ms,sample={{tokens}}"
+)
 '''
     ]
-    
+
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
     if result.returncode == 0:
         output = result.stdout.strip()
@@ -115,7 +121,9 @@ from guidance.ipc.proto import bias_service_pb2, bias_service_pb2_grpc
 channel = grpc.insecure_channel("localhost:50051")
 stub = bias_service_pb2_grpc.LogitBiasServiceStub(channel)
 
-response = stub.HealthCheck(bias_service_pb2.HealthCheckRequest(service="test"))
+response = stub.HealthCheck(
+    bias_service_pb2.HealthCheckRequest(service="test")
+)
 print(f"status={response.status}")
 '''
 ]

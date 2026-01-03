@@ -87,7 +87,10 @@ class TestCacheStorage:
     def test_set_and_get(self, clean_cache):
         """Should store and retrieve values."""
         cache = clean_cache
-        result = {'generated': {'test': 'value'}, 'validation': {'valid': True}}
+        result = {
+            'generated': {'test': 'value'},
+            'validation': {'valid': True},
+        }
 
         cache.set(
             template='test',
@@ -137,7 +140,10 @@ class TestCacheTTL:
     def test_expired_entries_not_returned(self, tmp_path):
         """Expired entries should not be returned."""
         # Create cache with very short TTL
-        cache = GuidanceCacheManager(str(tmp_path / 'ttl_cache'), ttl_hours=0.0001)
+        cache = GuidanceCacheManager(
+            str(tmp_path / 'ttl_cache'),
+            ttl_hours=0.0001,
+        )
 
         cache.set('t', {}, 'm', 0.1, {'v': 'test'})
 

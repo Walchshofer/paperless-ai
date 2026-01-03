@@ -1,4 +1,15 @@
-from guidance import guidance, gen
+try:
+    from guidance import guidance, gen  # type: ignore[import-not-found]
+except ImportError:
+    # Guidance not available locally — provide no-op stubs so modules can import.
+    def guidance(*_args, **_kwargs):
+        def decorator(func):
+            return func
+        return decorator
+
+    def gen(*_args, **_kwargs):
+        # Minimal placeholder to support string concatenation in templates.
+        return ""
 
 
 def pick_text(*values):
@@ -61,7 +72,10 @@ def confidence_block(lm):
 
 @guidance(stateless=True)
 def tag_entry(lm, tag_str, domain):
-    lm += '{"tag": "' + str(tag_str) + '", "domain": "' + str(domain) + '", '   
+    lm += (
+        '{"tag": "' + str(tag_str) + '", '
+        '"domain": "' + str(domain) + '", '
+    )
     lm += confidence_block()
     lm += '}'
     return lm
