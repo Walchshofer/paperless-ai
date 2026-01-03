@@ -53,6 +53,22 @@ resolveEnvAlias('ENABLE_VISUAL_RAG', ['VISUAL_RAG_ENABLED']);
 resolveEnvAlias('PAPERLESS_OCR_LANGUAGES', ['PAPERLESS_OCR_LANGUAGE']);
 const resolvedOllamaModel = resolveEnvAlias('OLLAMA_MODEL', ['AI_MODEL']);
 
+const requireEnv = (key, fallbackKeys = []) => {
+  const value = process.env[key];
+  if (value && value !== '') return value;
+  
+  for (const fallbackKey of fallbackKeys) {
+    const fallbackValue = process.env[fallbackKey];
+    if (fallbackValue && fallbackValue !== '') return fallbackValue;
+  }
+  
+  const allKeys = [key, ...fallbackKeys].join(' or ');
+  throw new Error(
+    `Missing required environment variable: ${allKeys}\n` +
+    `Please ensure your docker-compose.env file is loaded correctly.`
+  );
+};
+
 const mergeModelLimitEntries = (baseEntry, overrideEntry) => {
   const merged = baseEntry && typeof baseEntry === 'object' ? { ...baseEntry } : {};
   if (!overrideEntry || typeof overrideEntry !== 'object') return merged;
@@ -453,10 +469,10 @@ module.exports = {
   // PostgreSQL configuration for visual overlays
   postgres: {
     host: process.env.POSTGRES_HOST || process.env.PAPERLESS_DBHOST || 'db',
-    port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
-    database: process.env.POSTGRES_DB || 'paperless',
-    user: process.env.POSTGRES_USER || 'paperless',
-    password: process.env.POSTGRES_PASSWORD || ''
+    port: parseInt(process.env.POSTGRES_PORT || process.env.PAPERLESS_DBPORT || '5432', 10),
+    database: process.env.POSTGRES_DB || process.env.PAPERLESS_DBNAME || 'paperless',
+    user: process.env.POSTGRES_USER || process.env.PAPERLESS_DBUSER,
+    password: process.env.POSTGRES_PASSWORD || process.env.PAPERLESS_DBPASS
   },
   duplicateDetection: {
     enabled: parseEnvBoolean(process.env.DUPLICATE_DETECTION_ENABLED, 'yes'),
@@ -549,3 +565,82 @@ module.exports = {
     'colqwen3': 'tomoro-colqwen3-embed-8b'
   }
 };
+
+/**
+ * Validate required database credentials
+ * Throws error with helpful message if credentials are missing
+ */
+function validateDatabaseCredentials() {
+  const requiredVars = [
+    { key: 'POSTGRES_USER', fallback: 'PAPERLESS_DBUSER', value: process.env.POSTGRES_USER || process.env.PAPERLESS_DBUSER },
+    { key: 'POSTGRES_PASSWORD', fallback: 'PAPERLESS_DBPASS', value: process.env.POSTGRES_PASSWORD || process.env.PAPERLESS_DBPASS },
+    { key: 'POSTGRES_DB', fallback: 'PAPERLESS_DBNAME', value: process.env.POSTGRES_DB || process.env.PAPERLESS_DBNAME }
+  ];
+
+  const missing = [];
+  for (const varInfo of requiredVars) {
+    if (!varInfo.value || varInfo.value === '') {
+      missing.push(`${varInfo.key} (or ${varInfo.fallback})`);
+    }
+  }
+
+  if (missing.length > 0) {
+    throw new Error(
+      `[CONFIG] Missing required database credentials: ${missing.join(', ')}\n` +
+      `Please ensure these variables are set in docker-compose.env:\n` +
+      `  - POSTGRES_USER=<username>\n` +
+      `  - POSTGRES_PASSWORD=<password>\n` +
+      `  - POSTGRES_DB=<database_name>`
+    );
+  }
+}
+
+// Run validation immediately
+validateDatabaseCredentials();
+
+/**
+ * Log environment variable resolution for debugging
+ * Shows which variable name was used and its source
+ */
+function logEnvResolution(canonicalKey, fallbackKeys = []) {
+  const canonicalValue = process.env[canonicalKey];
+  let source = null;
+  let value = canonicalValue;
+
+  if (canonicalValue) {
+    source = canonicalKey;
+  } else {
+    for (const fallbackKey of fallbackKeys) {
+      const fallbackValue = process.env[fallbackKey];
+      if (fallbackValue !== undefined && fallbackValue !== '') {
+        source = fallbackKey;
+        value = fallbackValue;
+        break;
+      }
+    }
+  }
+
+  return { key: canonicalKey, source, value: value ? '******' : '<NOT SET>' };
+}
+
+// Log all database-related environment variables at startup
+console.log('[CONFIG] Environment variable resolution:');
+console.log('  Database User:', logEnvResolution('POSTGRES_USER', ['PAPERLESS_DBUSER']));
+console.log('  Database Password:', logEnvResolution('POSTGRES_PASSWORD', ['PAPERLESS_DBPASS']));
+console.log('  Database Name:', logEnvResolution('POSTGRES_DB', ['PAPERLESS_DBNAME']));
+console.log('  Database Host:', logEnvResolution('POSTGRES_HOST', ['PAPERLESS_DBHOST']));
+console.log('  Database Port:', logEnvResolution('POSTGRES_PORT', ['PAPERLESS_DBPORT']));
+
+console.log('[CONFIG] Database configuration loaded:', {
+  host: module.exports.postgres.host,
+  port: module.exports.postgres.port,
+  database: module.exports.postgres.database,
+  user: module.exports.postgres.user,
+  password: module.exports.postgres.password ? '******' : '<NOT SET>',
+  source: {
+    user: process.env.POSTGRES_USER ? 'POSTGRES_USER' : 'PAPERLESS_DBUSER',
+    password: process.env.POSTGRES_PASSWORD ? 'POSTGRES_PASSWORD' : 'PAPERLESS_DBPASS',
+    database: process.env.POSTGRES_DB ? 'POSTGRES_DB' : 'PAPERLESS_DBNAME',
+    host: process.env.POSTGRES_HOST ? 'POSTGRES_HOST' : (process.env.PAPERLESS_DBHOST ? 'PAPERLESS_DBHOST' : 'default')
+  }
+});

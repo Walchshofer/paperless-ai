@@ -706,6 +706,125 @@ app.get('/health', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /health/database:
+ *   get:
+ *     summary: Database and pg_vector extension health check
+ *     description: |
+ *       Detailed health check for PostgreSQL database connection and pg_vector extension.
+ *       Returns connection status, pg_vector availability, and schema readiness.
+ *     tags: [System, Database]
+ *     responses:
+ *       200:
+ *         description: Database is healthy and pg_vector is available
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: "healthy"
+ *                 database:
+ *                   type: object
+ *                   properties:
+ *                     connected:
+ *                       type: boolean
+ *                     host:
+ *                       type: string
+ *                     port:
+ *                       type: number
+ *                     database:
+ *                       type: string
+ *                 pgvector:
+ *                   type: object
+ *                   properties:
+ *                     available:
+ *                       type: boolean
+ *                     version:
+ *                       type: string
+ *                 schema:
+ *                   type: object
+ *                   properties:
+ *                     ready:
+ *                       type: boolean
+ *       503:
+ *         description: Database connection failed or pg_vector not available
+ */
+app.get('/health/database', async (req, res) => {
+  try {
+    const cfg = require('./config/config');
+    const { visualOverlayRepository } = require('./services/visual-rag/VisualOverlayRepository');
+
+    // Test basic connectivity
+    const isConnected = await visualOverlayRepository.isAvailable(false);
+    if (!isConnected) {
+      return res.status(503).json({
+        status: 'unhealthy',
+        database: {
+          connected: false,
+          host: cfg.postgres.host,
+          port: cfg.postgres.port,
+          database: cfg.postgres.database,
+          error: 'Database connection failed'
+        },
+        troubleshooting: [
+          'Check if PostgreSQL container is running: docker ps | grep paperless_db',
+          'Verify credentials in docker-compose.env',
+          'Check container logs: docker logs paperless_db'
+        ]
+      });
+    }
+
+    // Check pg_vector extension
+    const pgvectorCheck = await visualOverlayRepository.checkPgVectorExtension();
+    
+    // Check schema readiness
+    const schemaReady = await visualOverlayRepository.ensureEnhancedSchema();
+
+    const response = {
+      status: pgvectorCheck.available && schemaReady ? 'healthy' : 'degraded',
+      database: {
+        connected: true,
+        host: cfg.postgres.host,
+        port: cfg.postgres.port,
+        database: cfg.postgres.database
+      },
+      pgvector: {
+        available: pgvectorCheck.available,
+        version: pgvectorCheck.version,
+        error: pgvectorCheck.error
+      },
+      schema: {
+        ready: schemaReady
+      }
+    };
+
+    if (!pgvectorCheck.available || !schemaReady) {
+      response.troubleshooting = [
+        'Verify docker-compose.yml uses pgvector/pgvector:pg16 image',
+        'Check PostgreSQL logs: docker logs paperless_db',
+        'Run migration: docker exec paperless_ai node migrations/run-migration.js'
+      ];
+      return res.status(503).json(response);
+    }
+
+    res.json(response);
+  } catch (error) {
+    console.error('Database health check failed:', error);
+    res.status(503).json({
+      status: 'error',
+      message: error.message,
+      troubleshooting: [
+        'Check application logs for detailed error information',
+        'Verify all environment variables are set correctly',
+        'Restart services: docker-compose restart'
+      ]
+    });
+  }
+});
+
 app.get('/api/duplicates/stats', (req, res) => {
   res.json(duplicateDetector.getStats());
 });
@@ -815,11 +934,75 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Start server
+async function validateDatabaseConnection() {
+  const cfg = require('./config/config');
+
+  console.log('[STARTUP] Validating database connection...');
+  console.log('[STARTUP] Database credentials:', {
+    host: cfg.postgres.host,
+    port: cfg.postgres.port,
+    database: cfg.postgres.database,
+    user: cfg.postgres.user,
+    password: cfg.postgres.password ? '******' : '<MISSING>'
+  });
+
+  const { visualOverlayRepository } = require('./services/visual-rag/VisualOverlayRepository');
+  
+  try {
+    // Test basic connectivity
+    const isAvailable = await visualOverlayRepository.isAvailable(true);
+    if (!isAvailable) {
+      throw new Error('Database connection test failed');
+    }
+    console.log('[STARTUP] ✓ Database connection successful');
+
+    // Check pg_vector extension
+    console.log('[STARTUP] Checking pg_vector extension...');
+    const pgvectorCheck = await visualOverlayRepository.checkPgVectorExtension();
+    
+    if (!pgvectorCheck.available) {
+      console.error('[STARTUP] ✗ pg_vector extension not available:', pgvectorCheck.error);
+      console.error('[STARTUP] Troubleshooting:');
+      console.error('  1. Verify docker-compose.yml uses pgvector/pgvector:pg16 image');
+      console.error('  2. Check container: docker inspect paperless_db | grep Image');
+      console.error('  3. Install extension: docker exec paperless_db psql -U ' + cfg.postgres.user + ' -d ' + cfg.postgres.database + ' -c "CREATE EXTENSION vector"');
+      throw new Error('pg_vector extension not available');
+    }
+    
+    console.log('[STARTUP] ✓ pg_vector extension available (version: ' + pgvectorCheck.version + ')');
+
+    // Ensure schema is ready
+    console.log('[STARTUP] Ensuring database schema...');
+    const schemaReady = await visualOverlayRepository.ensureEnhancedSchema();
+    
+    if (!schemaReady) {
+      console.error('[STARTUP] ✗ Database schema initialization failed');
+      console.error('[STARTUP] Check logs above for specific error details');
+      throw new Error('Database schema initialization failed');
+    }
+    
+    console.log('[STARTUP] ✓ Database schema ready');
+    return true;
+  } catch (error) {
+    console.error('[STARTUP] ✗ Database validation failed:', error.message);
+    console.error('[STARTUP] Please verify:');
+    console.error('  1. PostgreSQL container is running: docker ps | grep paperless_db');
+    console.error('  2. Environment variables are set in docker-compose.env');
+    console.error('  3. Credentials match between docker-compose.env and PostgreSQL');
+    console.error('  4. Container uses pgvector image: docker inspect paperless_db | grep Image');
+    throw error;
+  }
+}
+
 async function startServer() {
   const port = process.env.PAPERLESS_AI_PORT || 3000;
   try {
     await initializeDataDirectory();
     await saveOpenApiSpec(); // Save OpenAPI specification on startup
+
+    // Validate database connection before starting server
+    await validateDatabaseConnection();
+
     const server = app.listen(port, () => {
       const actualPort = server.address().port;
       process.env.PAPERLESS_AI_PORT = actualPort;

@@ -641,6 +641,73 @@
         }
       }
     },
+    "/health/database": {
+      "get": {
+        "summary": "Database and pg_vector extension health check",
+        "description": "Detailed health check for PostgreSQL database connection and pg_vector extension.\nReturns connection status, pg_vector availability, and schema readiness.\n",
+        "tags": [
+          "System",
+          "Database"
+        ],
+        "responses": {
+          "200": {
+            "description": "Database is healthy and pg_vector is available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "healthy"
+                    },
+                    "database": {
+                      "type": "object",
+                      "properties": {
+                        "connected": {
+                          "type": "boolean"
+                        },
+                        "host": {
+                          "type": "string"
+                        },
+                        "port": {
+                          "type": "number"
+                        },
+                        "database": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "pgvector": {
+                      "type": "object",
+                      "properties": {
+                        "available": {
+                          "type": "boolean"
+                        },
+                        "version": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "ready": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database connection failed or pg_vector not available"
+          }
+        }
+      }
+    },
     "/login": {
       "get": {
         "summary": "Render login page or redirect to setup if no users exist",

@@ -69,6 +69,26 @@ function readEnvFallback(key) {
 }
 
 /**
+ * Read required environment variable with fallback keys
+ * Throws error if not found
+ */
+function requireEnvFallback(key, fallbackKeys = []) {
+    const value = readEnvFallback(key);
+    if (value && value !== '') return value;
+    
+    for (const fallbackKey of fallbackKeys) {
+        const fallbackValue = readEnvFallback(fallbackKey);
+        if (fallbackValue && fallbackValue !== '') return fallbackValue;
+    }
+    
+    const allKeys = [key, ...fallbackKeys].join(' or ');
+    throw new Error(
+        `[VisualOverlayRepository] Missing required database credential: ${allKeys}\n` +
+        `Ensure POSTGRES_USER and POSTGRES_PASSWORD are set in docker-compose.env`
+    );
+}
+
+/**
  * Initialize the PostgreSQL connection pool with retry logic
  * @param {number} maxRetries - Maximum connection attempts (default: 3)
  * @param {number} retryDelayMs - Delay between retries in ms (default: 1000)
@@ -95,8 +115,8 @@ async function initPoolWithRetry(maxRetries = 3, retryDelayMs = 1000) {
     const port = parseInt(process.env.POSTGRES_PORT || '5432', 10);
     const database = process.env.POSTGRES_DB || 'paperless';
     // Prefer explicit Postgres env, fall back to Paperless-specific DB env vars or host data/.env
-    const user = readEnvFallback('POSTGRES_USER') || readEnvFallback('PAPERLESS_DBUSER') || 'paperless';
-    const password = readEnvFallback('POSTGRES_PASSWORD') || readEnvFallback('PAPERLESS_DBPASS') || '';
+    const user = requireEnvFallback('POSTGRES_USER', ['PAPERLESS_DBUSER']);
+    const password = requireEnvFallback('POSTGRES_PASSWORD', ['PAPERLESS_DBPASS']);
 
     const config = {
         host,
@@ -135,24 +155,6 @@ async function initPoolWithRetry(maxRetries = 3, retryDelayMs = 1000) {
                 database,
                 attempt
             });
-
-            // Ensure `embedding` column exists to support tests and backward compatibility
-            try {
-                const schemaClient = await pool.connect();
-                await schemaClient.query(
-                    'ALTER TABLE visual_overlays ADD COLUMN IF NOT EXISTS embedding JSONB DEFAULT NULL;'
-                );
-                schemaClient.release();
-                logger.info({
-                    event: 'postgres_embedding_column_ensured'
-                });
-            } catch (schemaError) {
-                logger.warn({
-                    event: 'postgres_embedding_column_failed',
-                    error: schemaError.message,
-                    code: schemaError.code
-                });
-            }
 
             return pool;
         } catch (connectionError) {
@@ -206,8 +208,8 @@ function initPool() {
     const host = getPostgresHost();
     const port = parseInt(process.env.POSTGRES_PORT || '5432', 10);
     const database = process.env.POSTGRES_DB || 'paperless';
-    const user = readEnvFallback('POSTGRES_USER') || readEnvFallback('PAPERLESS_DBUSER') || 'paperless';
-    const password = readEnvFallback('POSTGRES_PASSWORD') || readEnvFallback('PAPERLESS_DBPASS') || '';
+    const user = requireEnvFallback('POSTGRES_USER', ['PAPERLESS_DBUSER']);
+    const password = requireEnvFallback('POSTGRES_PASSWORD', ['PAPERLESS_DBPASS']);
 
     const config = {
         host,
@@ -236,26 +238,6 @@ function initPool() {
         port,
         database
     });
-
-    // Ensure `embedding` column exists (best-effort)
-    (async () => {
-        try {
-            const schemaClient = await pool.connect();
-            await schemaClient.query(
-                'ALTER TABLE visual_overlays ADD COLUMN IF NOT EXISTS embedding JSONB DEFAULT NULL;'
-            );
-            schemaClient.release();
-            logger.info({
-                event: 'postgres_embedding_column_ensured'
-            });
-        } catch (schemaError) {
-            logger.warn({
-                event: 'postgres_embedding_column_failed',
-                error: schemaError.message,
-                code: schemaError.code
-            });
-        }
-    })();
 
     return pool;
 }
@@ -315,6 +297,60 @@ class VisualOverlayRepository {
         }
     }
 
+    /**
+     * Check if pg_vector extension is available and properly installed
+     * @returns {Promise<{available: boolean, version: string|null, error: string|null}>}
+     */
+    async checkPgVectorExtension() {
+        if (!this.pool) {
+            return {
+                available: false,
+                version: null,
+                error: 'PostgreSQL connection pool not initialized'
+            };
+        }
+
+        try {
+            // Check if extension exists in available extensions
+            const availableResult = await this.pool.query(
+                "SELECT * FROM pg_available_extensions WHERE name = 'vector'"
+            );
+
+            if (availableResult.rows.length === 0) {
+                return {
+                    available: false,
+                    version: null,
+                    error: 'pgvector extension not available in PostgreSQL installation'
+                };
+            }
+
+            // Check if extension is installed
+            const installedResult = await this.pool.query(
+                "SELECT extversion FROM pg_extension WHERE extname = 'vector'"
+            );
+
+            if (installedResult.rows.length === 0) {
+                return {
+                    available: false,
+                    version: availableResult.rows[0].default_version,
+                    error: 'pgvector extension available but not installed (run CREATE EXTENSION vector)'
+                };
+            }
+
+            return {
+                available: true,
+                version: installedResult.rows[0].extversion,
+                error: null
+            };
+        } catch (checkError) {
+            return {
+                available: false,
+                version: null,
+                error: `Failed to check pgvector: ${checkError.message}`
+            };
+        }
+    }
+
     // =========================================================================
     // Write Operations
     // =========================================================================
@@ -335,7 +371,7 @@ class VisualOverlayRepository {
 
         const query = `
             INSERT INTO visual_overlays (doc_id, page_number, overlay_data, semantic_label, embedding)
-            VALUES ($1, $2, $3, $4, $5)
+            VALUES ($1, $2, $3, $4, $5::vector)
             RETURNING id, doc_id, page_number, overlay_data, semantic_label, created_at
         `;
 
@@ -393,7 +429,7 @@ class VisualOverlayRepository {
 
                 const query = `
                     INSERT INTO visual_overlays (doc_id, page_number, overlay_data, semantic_label, embedding)
-                    VALUES ($1, $2, $3, $4, $5)
+                    VALUES ($1, $2, $3, $4, $5::vector)
                     RETURNING id, doc_id, page_number, overlay_data, semantic_label, created_at
                 `;
 
@@ -576,9 +612,9 @@ class VisualOverlayRepository {
 
         const query = `
             SELECT id, doc_id, page_number, overlay_data, semantic_label, created_at,
-                   1 - (embedding <=> $1) as similarity
+                   1 - (embedding <=> $1::vector) as similarity
             FROM visual_overlays
-            WHERE 1 - (embedding <=> $1) > $2
+            WHERE 1 - (embedding <=> $1::vector) > $2
             ORDER BY similarity DESC
             LIMIT $3
         `;
@@ -634,15 +670,50 @@ class VisualOverlayRepository {
             return false;
         }
 
+        // Check pg_vector availability first
+        const pgvectorCheck = await this.checkPgVectorExtension();
+        if (!pgvectorCheck.available) {
+            const errorDetails = {
+                event: 'postgres_pgvector_not_available',
+                error: pgvectorCheck.error,
+                troubleshooting: [
+                    'Verify docker-compose.yml uses pgvector/pgvector:pg16 image',
+                    'Check container logs: docker logs paperless_db',
+                    'Verify PostgreSQL version: docker exec paperless_db psql -U <user> -d <db> -c "SELECT version()"',
+                    'Manually install extension: docker exec paperless_db psql -U <user> -d <db> -c "CREATE EXTENSION IF NOT EXISTS vector"'
+                ]
+            };
+            logger.error(errorDetails);
+            return false;
+        }
+
+        logger.info({
+            event: 'postgres_pgvector_verified',
+            version: pgvectorCheck.version
+        });
+
+        // Enable pgvector extension (should already be installed, but ensure it's enabled)
         try {
-            // Enable pgvector extension
             await this.pool.query('CREATE EXTENSION IF NOT EXISTS vector');
+            logger.info({
+                event: 'postgres_vector_extension_enabled',
+                version: pgvectorCheck.version
+            });
         } catch (vectorError) {
-            logger.warn({
+            logger.error({
                 event: 'postgres_vector_extension_failed',
                 error: vectorError.message,
-                code: vectorError.code
+                code: vectorError.code,
+                hint: vectorError.hint,
+                detail: vectorError.detail,
+                troubleshooting: [
+                    'Check PostgreSQL logs: docker logs paperless_db',
+                    'Verify database user has CREATE EXTENSION privilege',
+                    'Ensure pgvector shared library is loaded: docker exec paperless_db psql -U <user> -d <db> -c "SHOW shared_preload_libraries"',
+                    'Restart PostgreSQL container: docker restart paperless_db'
+                ]
             });
+            return false;
         }
 
         const columns = [
@@ -688,11 +759,42 @@ class VisualOverlayRepository {
             });
             return true;
         } catch (schemaError) {
-            logger.warn({
+            const errorContext = {
                 event: 'postgres_enhanced_schema_failed',
                 error: schemaError.message,
-                code: schemaError.code
-            });
+                code: schemaError.code,
+                hint: schemaError.hint,
+                detail: schemaError.detail
+            };
+
+            // Provide specific troubleshooting based on error code
+            if (schemaError.code === '42704') {
+                errorContext.troubleshooting = [
+                    'Type "vector" does not exist - pgvector extension not properly installed',
+                    'Run: docker exec paperless_db psql -U <user> -d <db> -c "CREATE EXTENSION vector"',
+                    'Verify image: docker inspect paperless_db | grep Image'
+                ];
+            } else if (schemaError.code === '42501') {
+                errorContext.troubleshooting = [
+                    'Permission denied - database user lacks required privileges',
+                    'Grant privileges: GRANT CREATE ON DATABASE <db> TO <user>',
+                    'Or use superuser credentials in docker-compose.env'
+                ];
+            } else if (schemaError.code === '42P07') {
+                errorContext.troubleshooting = [
+                    'Column already exists - schema partially created',
+                    'This is usually safe to ignore',
+                    'Check table structure: docker exec paperless_db psql -U <user> -d <db> -c "\\d visual_overlays"'
+                ];
+            } else {
+                errorContext.troubleshooting = [
+                    'Check PostgreSQL logs: docker logs paperless_db',
+                    'Verify database connectivity: docker exec paperless_db pg_isready',
+                    'Test manual connection: docker exec -it paperless_db psql -U <user> -d <db>'
+                ];
+            }
+
+            logger.error(errorContext);
             return false;
         }
     }
