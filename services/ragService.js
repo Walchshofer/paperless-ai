@@ -15,17 +15,33 @@ class RagService {
    */
   async checkStatus() {
     try {
-      const response = await axios.get(`${this.baseUrl}/status`);
-      //make test call to the LLM service to check if it is available
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+
+      const response = await axios.get(`${this.baseUrl}/status`, {
+        signal: controller.signal,
+        timeout: 3000
+      });
+
+      clearTimeout(timeoutId);
       return response.data;
     } catch (error) {
-      console.error('Error checking RAG service status:', error.message);
-      return {
+      const errorDetails = {
         server_up: false,
         data_loaded: false,
         index_ready: false,
         error: error.message
       };
+
+      if (error.code === 'ECONNREFUSED') {
+        console.warn('[RAG Service] Connection refused - service not running at', this.baseUrl);
+      } else if (error.code === 'ETIMEDOUT' || error.name === 'AbortError') {
+        console.warn('[RAG Service] Request timeout - service may be overloaded');
+      } else {
+        console.error('[RAG Service] Status check error:', error.message);
+      }
+
+      return errorDetails;
     }
   }
 

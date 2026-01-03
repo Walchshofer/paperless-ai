@@ -30,10 +30,48 @@ class HybridSearchService {
         this.alpha = options.alpha ?? 0.5;
 
         // Caching
-        this._visualAvailable = null;
-        this._textAvailable = null;
+        this._visualAvailable = false;
+        this._textAvailable = false;
+        this._initializationError = null;
         this._lastCheck = 0;
         this._checkInterval = 60000; // 1 minute
+
+        // Perform async initialization without blocking constructor
+        this._initializeAsync().catch(err => {
+            this._initializationError = err;
+            logger.warn('[HybridSearchService] Initialization failed, service will operate in degraded mode', {
+                error: err.message
+            });
+        });
+    }
+
+    async _initializeAsync() {
+        // Check visual search availability
+        try {
+            this._visualAvailable = await this.visualSearchClient.isAvailable();
+        } catch (error) {
+            logger.debug('[HybridSearchService] Visual search check failed:', error.message);
+            this._visualAvailable = false;
+        }
+
+        // Check text RAG availability with timeout
+        try {
+            const statusPromise = this.ragService.checkStatus();
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('RAG status check timeout')), 3000)
+            );
+
+            const status = await Promise.race([statusPromise, timeoutPromise]);
+            this._textAvailable = status.server_up && (status.index_ready || status.data_loaded);
+        } catch (error) {
+            logger.debug('[HybridSearchService] Text RAG check failed:', error.message);
+            this._textAvailable = false;
+        }
+
+        logger.info('[HybridSearchService] Initialized', {
+            visual: this._visualAvailable,
+            text: this._textAvailable
+        });
     }
 
     // =========================================================================
@@ -45,10 +83,25 @@ class HybridSearchService {
      * @returns {Promise<{visual: boolean, text: boolean, hybrid: boolean}>}
      */
     async isAvailable() {
+        // Wait for initialization to complete (with timeout) if undefined
+        if (this._visualAvailable === undefined || this._textAvailable === undefined) {
+             const maxWait = 5000;
+             const startTime = Date.now();
+             while (this._visualAvailable === undefined || this._textAvailable === undefined) {
+                 if (Date.now() - startTime > maxWait) {
+                     logger.warn('[HybridSearchService] Initialization timeout, assuming unavailable');
+                     this._visualAvailable = false;
+                     this._textAvailable = false;
+                     break;
+                 }
+                 await new Promise(resolve => setTimeout(resolve, 100));
+             }
+        }
+
         const now = Date.now();
 
         // Use cached results if recent
-        if (this._visualAvailable !== null && (now - this._lastCheck) < this._checkInterval) {
+        if ((now - this._lastCheck) < this._checkInterval) {
             return {
                 visual: this._visualAvailable,
                 text: this._textAvailable,
@@ -56,23 +109,8 @@ class HybridSearchService {
             };
         }
 
-        // Check visual search availability
-        try {
-            this._visualAvailable = await this.visualSearchClient.isAvailable();
-        } catch (error) {
-            logger.debug('[HybridSearchService] Visual search check failed:', error.message);
-            this._visualAvailable = false;
-        }
-
-        // Check text RAG availability
-        try {
-            const status = await this.ragService.checkStatus();
-            this._textAvailable = status.index_ready || status.data_loaded || false;
-        } catch (error) {
-            logger.debug('[HybridSearchService] Text RAG check failed:', error.message);
-            this._textAvailable = false;
-        }
-
+        // Re-check logic (similar to _initializeAsync but serial and updates cache)
+        await this._initializeAsync();
         this._lastCheck = now;
 
         return {
