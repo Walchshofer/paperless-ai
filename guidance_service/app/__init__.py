@@ -1,13 +1,7 @@
 from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
-try:
-    from guidance import (  # type: ignore[import]
-        models, system, user, assistant, gen
-    )
-    from guidance.models.experimental import LiteLLM  # type: ignore[import]
-except Exception:
-    models = None
-    LiteLLM = None
+# DON'T import guidance at module level - import lazily in functions
+# This avoids pickle issues with @guidance decorators and thread locks
 import json
 import os
 import logging
@@ -15,12 +9,8 @@ import time
 from pythonjsonlogger import jsonlogger
 from cache.guidance_cache import GuidanceCacheManager
 
-# Import All Templates
-from templates.medical_de import MedicalTemplatesDE
-from templates.financial_de import FinancialTemplatesDE
-from templates.legal_de import LegalTemplatesDE
-from templates.general_de import GeneralTemplatesDE
-from templates import normalization_geometry as normalization_geometry_module
+# Note: Template modules are imported inline in get_template_func() to avoid
+# pickle issues with @guidance decorated functions being stored globally
 
 # Import All Validators
 from validators.medical import validate_medical_extraction
@@ -277,77 +267,302 @@ def create_app():
     use_cache = os.getenv('USE_CACHE', 'true') == 'true'
 
     # Ollama Base Configuration
-    # Use OLLAMA_API_URL as the canonical env var
-    OLLAMA_API_URL = os.getenv(
+    # Base URL for health checks and native Ollama API
+    OLLAMA_BASE_URL = os.getenv(
         'OLLAMA_API_URL',
         'http://host.docker.internal:11434'
     ).rstrip('/')
+    
+    # OpenAI-compatible endpoint for LiteLLM
+    # Guidance's LiteLLM only supports: openai, azure_ai, azure, gemini, anthropic, xai, hosted_vllm, groq, mistral
+    # Ollama exposes OpenAI-compatible API at /v1, so we use openai/ prefix
+    OLLAMA_API_BASE = OLLAMA_BASE_URL + '/v1'
 
-    # Register All Templates across all phases
-    templates = {
+    # Templates that require vision models - must bypass Guidance
+    # 
+    # WHY BYPASS IS NEEDED:
+    # 1. Guidance's experimental LiteLLM wrapper doesn't expose `images` param
+    # 2. Even with LiteLLM >= 1.70.0 (which has Ollama vision fix PR #9089),
+    #    Guidance templates can't pass images through the multimodal channel
+    # 3. The document_image_b64 param in templates is ignored by LiteLLM
+    #
+    # WORKAROUND (from https://github.com/BerriAI/litellm/issues/6683):
+    # Direct Ollama API call with images in separate array
+    VISION_TEMPLATES = {'normalization_geometry'}
+
+    def strip_base64_header(image_b64: str) -> str:
+        """Strip data URI header from base64 image (Header Trap fix).
+        
+        Ollama expects raw base64, not data URIs like:
+        "data:image/jpeg;base64,/9j/4AAQ..." -> "/9j/4AAQ..."
+        
+        Args:
+            image_b64: Base64 string, possibly with data URI header
+            
+        Returns:
+            Clean base64 string without header
+        """
+        if not image_b64:
+            return image_b64
+        # Check for data URI pattern in first 100 chars
+        if ',' in image_b64[:100] and image_b64.startswith('data:'):
+            return image_b64.split(',', 1)[1]
+        return image_b64
+
+    def call_ollama_vision(
+        model: str,
+        image_b64: str,
+        prompt: str,
+        schema_json: dict,
+        temperature: float = 0.2,
+        max_tokens: int = 2000  # Large buffer for thinking models with verbose reasoning
+    ) -> dict:
+        """Call Ollama directly for vision models (bypasses Guidance).
+        
+        WHY BYPASS IS REQUIRED:
+        - Guidance's experimental LiteLLM does NOT support multimodal
+        - There's no way to pass images through Guidance's API
+        - The image param in templates is ignored by LiteLLM
+        
+        TRAP AVOIDANCE:
+        1. Header Trap: Strips "data:image/...;base64," prefix
+        2. Injection Trap: Image goes in 'images' array, NOT in prompt text
+        
+        Args:
+            model: Vision model name (e.g., 'qwen3-vl:8b')
+            image_b64: Base64-encoded image (may include data URI header)
+            prompt: Text prompt for analysis (NO image data here!)
+            schema_json: JSON schema for structured output
+            temperature: Generation temperature
+            max_tokens: Maximum tokens to generate
+            
+        Returns:
+            Parsed JSON response from the model
+        """
+        import requests as http_requests
+        
+        # FIX TRAP 1: Strip data URI header
+        clean_image = strip_base64_header(image_b64)
+        
+        # Validate we have actual image data
+        if not clean_image or len(clean_image) < 100:
+            raise ValueError(
+                "Image data is empty or too short after header strip. "
+                "Expected base64-encoded image."
+            )
+        
+        app.logger.debug(
+            f"Vision request: image_len={len(clean_image)}, "
+            f"model={model}, header_stripped={len(clean_image) != len(image_b64)}"
+        )
+        
+        # Build prompt with simplified schema (NO full JSON dump - breaks qwen3-vl!)
+        # NOTE: qwen3-vl returns EMPTY when:
+        # 1. System message is used
+        # 2. "format": "json" option is used  
+        # 3. Large JSON schema is included in prompt
+        # Solution: Use simple, direct prompt with example output format
+        full_prompt = f"""Analyze this document image for geometric corrections.
+
+{prompt}
+
+Return ONLY valid JSON with these fields:
+- "rotate": integer (0, 90, 180, or 270 degrees)
+- "needs_crop": boolean (true if margins need cropping)
+- "target_dpi": integer (200-400, recommended resolution)
+- "confidence": float (0.0-1.0, your confidence level)
+- "reasoning": string (brief explanation)
+
+Example output format:
+{{"rotate": 0, "needs_crop": false, "target_dpi": 300, "confidence": 0.9, "reasoning": "Document is upright"}}"""
+        
+        # FIX TRAP 2: Image in 'images' array, NOT in prompt text
+        # FIX TRAP 3: Do NOT use system message - qwen3-vl returns empty with it!
+        # FIX TRAP 4: Do NOT use "format": "json" - breaks qwen3-vl (returns empty)
+        # FIX TRAP 5: Do NOT include large JSON schema - breaks qwen3-vl (returns empty)
+        payload = {
+            "model": model,
+            "messages": [
+                # NOTE: NO system message - qwen3-vl doesn't support it!
+                {
+                    "role": "user",
+                    "content": full_prompt,  # Text only - no base64!
+                    "images": [clean_image]   # Image via proper channel
+                }
+            ],
+            "stream": False,
+            "options": {
+                "temperature": temperature,
+                "num_predict": max_tokens
+            }
+            # REMOVED: "format": "json" - breaks qwen3-vl vision model
+        }
+        
+        response = http_requests.post(
+            f"{OLLAMA_BASE_URL}/api/chat",
+            json=payload,
+            timeout=300
+        )
+        response.raise_for_status()
+        
+        result = response.json()
+        content = result.get("message", {}).get("content", "")
+        
+        app.logger.debug(
+            f"Vision response: content_len={len(content)}, "
+            f"preview={content[:200] if content else 'EMPTY'}"
+        )
+        
+        if not content or not content.strip():
+            raise ValueError(
+                "Vision model returned empty response. "
+                "Check image validity and model vision support."
+            )
+        
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError as e:
+            app.logger.error(f"Invalid JSON from vision model: {content[:500]}")
+            raise ValueError(f"Vision model output not valid JSON: {e}")
+
+    def get_lm(model_name: str):
+        """Factory function to create fresh LLM instance per request.
+
+        Uses LiteLLM with openai/ prefix pointing to Ollama's OpenAI-compatible
+        endpoint (/v1). This works because:
+        1. Guidance's LiteLLM ONLY supports: openai, azure_ai, azure, gemini,
+           anthropic, xai, hosted_vllm, groq, mistral
+        2. Ollama exposes OpenAI-compatible API at http://host:11434/v1
+        3. We use api_base to redirect to Ollama
+
+        Args:
+            model_name: The model to use (e.g., 'sauerkraut-llama3.1:8b')
+
+        Returns:
+            Fresh LiteLLM instance configured for Ollama via OpenAI-compatible API
+        """
+        # Lazy import to avoid module-level pickle issues
+        from guidance.models.experimental import LiteLLM
+
+        return LiteLLM(
+            model_description={
+                "model_name": model_name,
+                "litellm_params": {
+                    # Use openai/ prefix - Guidance's LiteLLM doesn't support ollama/
+                    # Ollama's OpenAI-compatible endpoint handles this correctly
+                    "model": f"openai/{model_name}",
+                    "api_base": OLLAMA_API_BASE,  # Points to Ollama's /v1 endpoint
+                    "api_key": "ollama",  # Ollama doesn't require auth but LiteLLM needs something
+                    "timeout": 300,
+                    "max_retries": 1,
+                }
+            },
+            echo=False
+        )
+
+    # Valid template names (for validation only - don't store decorated functions!)
+    # Storing @guidance decorated functions in a dict causes pickle errors
+    # when Gunicorn tries to serialize them across workers
+    VALID_TEMPLATES = {
         # Phase 1: Medical
-        'medical_classifier': (
-            MedicalTemplatesDE.get_medical_classifier()
-        ),
-        'medical_extractor': (
-            MedicalTemplatesDE.get_medical_extractor()
-        ),
-        'medical_integrator': (
-            MedicalTemplatesDE.get_medical_integrator()
-        ),
-        'medical_integrator_v2': (
-            MedicalTemplatesDE.get_medical_integrator_v2()
-        ),
-
+        'medical_classifier',
+        'medical_extractor',
+        'medical_integrator',
+        'medical_integrator_v2',
         # Phase 2: Financial
-        'financial_extractor': (
-            FinancialTemplatesDE.get_financial_extractor()
-        ),
-        'financial_reasoner': (
-            FinancialTemplatesDE.get_financial_reasoner()
-        ),
-        'vat_expert_analyzer': (
-            FinancialTemplatesDE.get_vat_expert_analyzer()
-        ),
-        'financial_extractor_v2': (
-            FinancialTemplatesDE.get_financial_extractor_v2()
-        ),
-        'financial_reasoner_v2': (
-            FinancialTemplatesDE.get_financial_reasoner_v2()
-        ),
-
+        'financial_extractor',
+        'financial_reasoner',
+        'vat_expert_analyzer',
+        'financial_extractor_v2',
+        'financial_reasoner_v2',
         # Phase 3: Legal
-        'legal_classifier': (
-            LegalTemplatesDE.get_legal_classifier()
-        ),
-        'legal_extractor': (
-            LegalTemplatesDE.get_legal_extractor()
-        ),
-        'legal_validator': (
-            LegalTemplatesDE.get_legal_validator()
-        ),
-        'legal_extractor_v2': (
-            LegalTemplatesDE.get_legal_extractor_v2()
-        ),
-
+        'legal_classifier',
+        'legal_extractor',
+        'legal_validator',
+        'legal_extractor_v2',
         # Phase 4: General
-        'general_classifier': (
-            GeneralTemplatesDE.get_general_classifier()
-        ),
-        'general_extractor': (
-            GeneralTemplatesDE.get_general_extractor()
-        ),
-        'general_extractor_v2': (
-            GeneralTemplatesDE.get_general_extractor_v2()
-        ),
-        'cross_pipeline_router': (
-            GeneralTemplatesDE.get_cross_pipeline_router()
-        ),
+        'general_classifier',
+        'general_extractor',
+        'general_extractor_v2',
+        'cross_pipeline_router',
         # Phase 6: Normalization geometry
-        'normalization_geometry': (
-            normalization_geometry_module.analyze_document_geometry
-        ),
+        'normalization_geometry',
     }
+
+    def get_template_func(template_name: str):
+        """Import and return template function inline per request.
+
+        This avoids pickling issues by importing the @guidance decorated
+        function fresh for each request, rather than storing it globally.
+
+        Args:
+            template_name: Name of the template to get
+
+        Returns:
+            The @guidance decorated template function
+
+        Raises:
+            ValueError: If template_name is not valid
+        """
+        # Import inline to avoid pickle issues with @guidance decorators
+        if template_name == 'medical_classifier':
+            from templates.medical_de import MedicalTemplatesDE
+            return MedicalTemplatesDE.get_medical_classifier()
+        elif template_name == 'medical_extractor':
+            from templates.medical_de import MedicalTemplatesDE
+            return MedicalTemplatesDE.get_medical_extractor()
+        elif template_name == 'medical_integrator':
+            from templates.medical_de import MedicalTemplatesDE
+            return MedicalTemplatesDE.get_medical_integrator()
+        elif template_name == 'medical_integrator_v2':
+            from templates.medical_de import MedicalTemplatesDE
+            return MedicalTemplatesDE.get_medical_integrator_v2()
+        elif template_name == 'financial_extractor':
+            from templates.financial_de import FinancialTemplatesDE
+            return FinancialTemplatesDE.get_financial_extractor()
+        elif template_name == 'financial_reasoner':
+            from templates.financial_de import FinancialTemplatesDE
+            return FinancialTemplatesDE.get_financial_reasoner()
+        elif template_name == 'vat_expert_analyzer':
+            from templates.financial_de import FinancialTemplatesDE
+            return FinancialTemplatesDE.get_vat_expert_analyzer()
+        elif template_name == 'financial_extractor_v2':
+            from templates.financial_de import FinancialTemplatesDE
+            return FinancialTemplatesDE.get_financial_extractor_v2()
+        elif template_name == 'financial_reasoner_v2':
+            from templates.financial_de import FinancialTemplatesDE
+            return FinancialTemplatesDE.get_financial_reasoner_v2()
+        elif template_name == 'legal_classifier':
+            from templates.legal_de import LegalTemplatesDE
+            return LegalTemplatesDE.get_legal_classifier()
+        elif template_name == 'legal_extractor':
+            from templates.legal_de import LegalTemplatesDE
+            return LegalTemplatesDE.get_legal_extractor()
+        elif template_name == 'legal_validator':
+            from templates.legal_de import LegalTemplatesDE
+            return LegalTemplatesDE.get_legal_validator()
+        elif template_name == 'legal_extractor_v2':
+            from templates.legal_de import LegalTemplatesDE
+            return LegalTemplatesDE.get_legal_extractor_v2()
+        elif template_name == 'general_classifier':
+            from templates.general_de import GeneralTemplatesDE
+            return GeneralTemplatesDE.get_general_classifier()
+        elif template_name == 'general_extractor':
+            from templates.general_de import GeneralTemplatesDE
+            return GeneralTemplatesDE.get_general_extractor()
+        elif template_name == 'general_extractor_v2':
+            from templates.general_de import GeneralTemplatesDE
+            return GeneralTemplatesDE.get_general_extractor_v2()
+        elif template_name == 'cross_pipeline_router':
+            from templates.general_de import GeneralTemplatesDE
+            return GeneralTemplatesDE.get_cross_pipeline_router()
+        elif template_name == 'normalization_geometry':
+            from templates.normalization_geometry import (
+                get_analyze_document_geometry
+            )
+            return get_analyze_document_geometry()
+        else:
+            raise ValueError(f"Unknown template: {template_name}")
 
     # Initialize Prometheus metrics endpoint
     init_metrics_endpoint(app)
@@ -359,13 +574,53 @@ def create_app():
             'service': 'guidance-service',
             'phases_loaded': ['medical', 'financial', 'legal', 'general'],
             'cache_enabled': use_cache,
-            'ollama_target': OLLAMA_API_URL
+            'ollama_target': OLLAMA_BASE_URL
         })
+
+    @app.route('/health/models', methods=['GET'])
+    def check_model_health():
+        """Verify Ollama connectivity and list available models."""
+        import requests as http_requests
+        try:
+            response = http_requests.get(
+                f"{OLLAMA_BASE_URL}/api/tags",
+                timeout=5
+            )
+            if response.status_code == 200:
+                models_data = response.json().get('models', [])
+                return jsonify({
+                    'status': 'ok',
+                    'ollama_endpoint': OLLAMA_BASE_URL,
+                    'models_available': [
+                        m.get('name') for m in models_data
+                    ]
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Ollama API returned error',
+                    'status_code': response.status_code
+                }), 503
+        except http_requests.exceptions.Timeout:
+            return jsonify({
+                'status': 'error',
+                'message': 'Ollama connection timed out'
+            }), 503
+        except http_requests.exceptions.ConnectionError as e:
+            return jsonify({
+                'status': 'error',
+                'message': f'Cannot connect to Ollama: {str(e)}'
+            }), 503
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'message': f'Unexpected error: {str(e)}'
+            }), 503
 
     @app.route('/templates', methods=['GET'])
     def list_templates():
         return jsonify({
-            'templates': list(templates.keys())
+            'templates': sorted(list(VALID_TEMPLATES))
         })
 
     @app.route('/api/guidance/stream', methods=['POST'])
@@ -381,17 +636,12 @@ def create_app():
 
         def generate_stream():
             try:
-                # Initialize LiteLLM
-                lm = LiteLLM(
-                    model_description={
-                        "model_name": model_name,
-                        "litellm_params": {
-                            "model": f"ollama/{model_name}",
-                            "api_base": OLLAMA_API_URL,
-                        }
-                    },
-                    echo=False
-                )
+                # Lazy import guidance components to avoid pickle issues
+                from guidance import system, user, assistant, gen
+
+                # Create fresh LLM instance per request to avoid
+                # pickle issues with thread locks
+                lm = get_lm(model_name)
 
                 with system():
                     lm_run = lm + "You are a helpful assistant."
@@ -457,7 +707,7 @@ def create_app():
                     variables = dict(variables)
                     variables["tag_stats_context"] = stats_context
 
-                if template_name not in templates:
+                if template_name not in VALID_TEMPLATES:
                     tracker.set_status('error')
                     error_resp = {
                         'error': f'Template {template_name} not found'
@@ -485,20 +735,89 @@ def create_app():
                     else:
                         track_cache_operation('get', hit=False)
 
-                # 2. Initialize Guidance LLM (LiteLLM Proxy)
-                lm = LiteLLM(
-                    model_description={
-                        "model_name": model,
-                        "litellm_params": {
-                            "model": f"ollama/{model}",
-                            "api_base": OLLAMA_API_URL,
-                        }
-                    },
-                    echo=False
-                )
+                # 2. Handle vision templates via direct Ollama API
+                # Guidance's LiteLLM does NOT support multimodal 
+                # - image params are ignored
+                # See: https://github.com/BerriAI/litellm/issues/6683
+                if template_name in VISION_TEMPLATES:
+                    template_start = time.time()
+                    
+                    app.logger.info({
+                        'event': 'vision_template_start',
+                        'template': template_name,
+                        'model': model,
+                        'mode': 'direct_ollama_bypass'
+                    })
+                    
+                    # Import schema and prompts from template module
+                    from schemas.NormalizationSchema import NormalizationGeometry
+                    from templates.normalization_geometry import USER_PROMPTS
+                    
+                    schema_json = NormalizationGeometry.model_json_schema()
+                    image_b64 = variables.get('document_image_b64', '')
+                    language = variables.get('language', 'de')
+                    prompt = USER_PROMPTS.get(language, USER_PROMPTS['en'])
+                    
+                    try:
+                        generated = call_ollama_vision(
+                            model=model,
+                            image_b64=image_b64,
+                            prompt=prompt,
+                            schema_json=schema_json,
+                            temperature=temperature,
+                            max_tokens=2000  # Large buffer for thinking models
+                        )
+                        json_valid = True
+                        template_latency_seconds = time.time() - template_start
+                        
+                        app.logger.info({
+                            'event': 'vision_template_complete',
+                            'template': template_name,
+                            'latency_seconds': round(template_latency_seconds, 2)
+                        })
+                        
+                        # Validate with Pydantic
+                        try:
+                            NormalizationGeometry.model_validate(generated)
+                            validation = {
+                                'valid': True, 'errors': [], 'warnings': []
+                            }
+                        except Exception as val_err:
+                            validation = {
+                                'valid': False,
+                                'errors': [str(val_err)],
+                                'warnings': []
+                            }
+                        
+                        # Cache and return
+                        if use_cache:
+                            cache_manager.set(
+                                template_name, variables, model, temperature,
+                                {'generated': generated, 'validation': validation}
+                            )
+                            track_cache_operation('set', hit=True)
+                        
+                        tracker.set_status('success')
+                        return jsonify({
+                            'status': 'success',
+                            'generated': generated,
+                            'validation': validation,
+                            'source': 'generated'
+                        })
+                        
+                    except Exception as vision_err:
+                        app.logger.error(f"Vision template failed: {vision_err}")
+                        tracker.set_status('error')
+                        return jsonify({'error': str(vision_err)}), 500
 
-                # 3. Execute Template
-                template_func = templates[template_name]
+                # 3. Standard Guidance path for text-only templates
+                # Create fresh LLM instance per request to avoid
+                # pickle issues with thread locks
+                lm = get_lm(model)
+
+                # Execute Template - import inline to avoid pickle issues
+                # with @guidance decorated functions
+                template_func = get_template_func(template_name)
                 template_start = time.time()
 
                 # VERBOSE LOGGING: Log template execution start
@@ -510,7 +829,7 @@ def create_app():
                     'variables_keys': (
                         list(variables.keys()) if variables else []
                     ),
-                    'ollama_endpoint': OLLAMA_API_URL
+                    'ollama_endpoint': OLLAMA_BASE_URL
                 })
 
                 result = lm + template_func(**variables)

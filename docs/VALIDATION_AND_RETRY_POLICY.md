@@ -8,7 +8,7 @@ This policy is authoritative and must be enforced by the orchestrator. Validatio
 
 ## Validation Engine Output
 
-The current ValidationEngine emits the following structure:
+The ValidationEngine emits the following structure:
 
 ```json
 {
@@ -16,9 +16,50 @@ The current ValidationEngine emits the following structure:
   "missingFields": ["invoice_number", "date"],
   "lowConfidenceFields": ["total_amount"],
   "score": 0.65,
-  "shouldFallback": true
+  "shouldFallback": true,
+  "severity": "critical",
+  "fieldSeverities": {
+    "invoice_number": "critical",
+    "date": "critical",
+    "total_amount": "medium"
+  },
+  "retryHint": {
+    "suggestedAction": "visual_ocr",
+    "targetFields": ["invoice_number", "date", "total_amount"],
+    "reason": "Missing critical fields: invoice_number, date"
+  }
 }
 ```
+
+### Field Definitions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `isValid` | boolean | True if no missing or low-confidence fields |
+| `missingFields` | string[] | Required fields that are missing or empty |
+| `lowConfidenceFields` | string[] | Fields below confidence threshold |
+| `score` | number | Validation score (0.0-1.0) |
+| `shouldFallback` | boolean | True if score < 0.5 or missing required fields |
+| `severity` | string | Overall severity: "none", "warning", "critical" |
+| `fieldSeverities` | object | Per-field severity mapping |
+| `retryHint` | object\|null | Actionable retry suggestion (null if valid) |
+
+### Severity Values
+
+- **`none`**: Validation passed, no issues
+- **`warning`**: Low confidence fields exist but no missing required fields
+- **`critical`**: Required fields are missing
+
+### Field Severity Levels
+
+- **`critical`**: Missing required field (score deduction: -0.2)
+- **`high`**: Confidence < 0.5 (score deduction: -0.1)
+- **`medium`**: Confidence 0.5-0.7 (score deduction: -0.1)
+
+### Retry Hint Actions
+
+- **`visual_ocr`**: Re-attempt with Visual OCR when fields are missing
+- **`lower_threshold`**: Consider lowering threshold for low-confidence fields
 
 ### Important Constraints
 

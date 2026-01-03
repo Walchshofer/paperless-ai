@@ -1,6 +1,6 @@
 ---
 description: Implement features and refactors following the pipeline decision table and service boundaries.
-tools: ["codebase"]
+tools: ["search/codebase", "search/usages", "web/fetch", "oraios/serena/*", "context7/*", "sequential-thinking/*"]
 ---
 
 # Implement Agent (Guardrails)

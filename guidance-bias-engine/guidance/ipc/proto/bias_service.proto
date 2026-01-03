@@ -1,0 +1,33 @@
+﻿syntax = "proto3";
+
+package guidance.ipc;
+
+service LogitBiasService {
+  rpc ComputeBiases(BiasRequest) returns (BiasResponse) {}
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse) {}
+}
+
+message BiasRequest {
+  string regex_pattern = 1;
+  string generated_text = 2;
+  int32 vocab_size = 3;
+}
+
+message BiasResponse {
+  map<int32, float> token_biases = 1; 
+  int64 computation_time_ms = 2;
+  bool cache_hit = 3;
+}
+
+message HealthCheckRequest {
+  string service = 1;
+}
+
+message HealthCheckResponse {
+  enum ServingStatus {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+  }
+  ServingStatus status = 1;
+}

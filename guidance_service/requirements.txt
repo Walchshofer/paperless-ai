@@ -1,7 +1,10 @@
 # Core LLM/Guidance
 guidance==0.3.0
 pydantic==2.12.5  # Aligned with Guidance
-litellm==1.59.8   # Adapter for Ollama
+# LiteLLM >= 1.70.0 includes Ollama vision fix (PR #9089, merged March 2025)
+# However, Guidance's experimental LiteLLM wrapper may not expose images param
+# Vision templates use direct Ollama API bypass as safeguard
+litellm>=1.70.0
 
 # Web Framework
 flask==2.3.3
@@ -9,7 +12,7 @@ flask-cors==4.0.0
 gunicorn==21.2.0
 
 # API Clients
-openai>=1.0.0,<2.0.0  # More explicit range
+openai>=1.0.0,<2.0.0  # Required by LiteLLM and guidance
 
 # Data & Caching
 requests==2.31.0

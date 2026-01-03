@@ -1,6 +1,6 @@
 ---
 description: Make schema changes safely (router schema, validator schema, overlay schema, pipeline output schemas) with strict compatibility rules.
-tools: ["codebase"]
+tools: ["search/codebase", "search/usages", "web/fetch", "oraios/serena/*", "context7/*", "sequential-thinking/*"]
 ---
 
 # Schema Evolution Agent (Guardrails)

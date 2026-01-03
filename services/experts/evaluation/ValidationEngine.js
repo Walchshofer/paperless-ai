@@ -27,6 +27,7 @@ class ValidationEngine {
         
         const missingFields = [];
         const lowConfidenceFields = [];
+        const fieldSeverities = {};  // Per-field severity tracking
         let score = 1.0;  // Start at perfect
 
         // Check required fields from rules
@@ -35,6 +36,7 @@ class ValidationEngine {
             
             if (fieldValue === undefined || fieldValue === null || fieldValue === '' || fieldValue === 'N/A') {
                 missingFields.push(rule.field);
+                fieldSeverities[rule.field] = 'critical';
                 score -= 0.2;  // High severity deduction
             }
         }
@@ -45,6 +47,7 @@ class ValidationEngine {
                 extractionOutput[fieldName] === null || extractionOutput[fieldName] === '') {
                 if (!missingFields.includes(fieldName)) {
                     missingFields.push(fieldName);
+                    fieldSeverities[fieldName] = 'critical';
                     score -= 0.2;
                 }
             }
@@ -55,6 +58,7 @@ class ValidationEngine {
             for (const [field, confidence] of Object.entries(extractionOutput._field_confidence)) {
                 if (typeof confidence === 'number' && confidence < confidenceThreshold) {
                     lowConfidenceFields.push(field);
+                    fieldSeverities[field] = confidence < 0.5 ? 'high' : 'medium';
                     score -= 0.1;  // Medium severity deduction
                 }
             }
@@ -64,17 +68,32 @@ class ValidationEngine {
         score = Math.max(0, Math.min(1, score));
 
         const isValid = missingFields.length === 0 && lowConfidenceFields.length === 0;
-        
-        // High severity: missing fields or very low score
-        // Medium severity: low confidence fields only
         const shouldFallback = missingFields.length > 0 || score < 0.5;
+
+        // Determine overall severity
+        const severity = missingFields.length > 0 ? 'critical' :
+                         lowConfidenceFields.length > 0 ? 'warning' : 'none';
+
+        // Build retry hint for validations with issues (actionable suggestions)
+        // Provide hint when: shouldFallback OR low confidence fields exist
+        const hasIssues = shouldFallback || lowConfidenceFields.length > 0;
+        const retryHint = hasIssues ? {
+            suggestedAction: missingFields.length > 0 ? 'visual_ocr' : 'lower_threshold',
+            targetFields: [...missingFields, ...lowConfidenceFields].slice(0, 3),
+            reason: missingFields.length > 0 
+                ? `Missing critical fields: ${missingFields.join(', ')}`
+                : `Low confidence on: ${lowConfidenceFields.join(', ')}`
+        } : null;
 
         const result = {
             isValid,
             missingFields,
             lowConfidenceFields,
             score,
-            shouldFallback
+            shouldFallback,
+            severity,
+            fieldSeverities,
+            retryHint
         };
 
         logger.debug({
@@ -83,7 +102,8 @@ class ValidationEngine {
             missingFieldsCount: missingFields.length,
             lowConfidenceFieldsCount: lowConfidenceFields.length,
             score,
-            shouldFallback
+            shouldFallback,
+            severity
         });
 
         return result;

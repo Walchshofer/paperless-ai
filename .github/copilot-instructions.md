@@ -81,10 +81,40 @@ When implementing, Copilot must produce:
 4) tests,
 5) a checklist mapping changes back to the decision table.
 
-## 6) Chat modes
-Use the appropriate chat mode files:
-- `.github/chatmodes/implement.chatmode.md`
-- `.github/chatmodes/test.chatmode.md`
-- `.github/chatmodes/debug.chatmode.md`
-- `.github/chatmodes/docs.chatmode.md`
-- `.github/chatmodes/schema-evolution.chatmode.md`
+## 6) Custom Agents
+Use the appropriate agent for specialized tasks (invoke via `@agent-name` in chat):
+
+| Agent | Purpose |
+|-------|---------|
+| `@optimize` | **MoE Orchestrator** - Coordinates all agents for production excellence |
+| `@docs` | Documentation updates (doc-first workflow) |
+| `@implement` | Feature implementation with guardrails |
+| `@test` | Test generation (Mocha + Node assert) |
+| `@debug` | Root cause analysis and diagnostics |
+| `@schema-evolution` | Schema changes with migration plans |
+| `@pipeline-orchestration` | LLM chains, validation, OCR strategy |
+| `@paperless-api-expert` | Paperless-ngx REST API v9 integration |
+| `@guidance-expert` | Guidance AI framework (gen, select, LiteLLM) |
+
+Agent files are located in `.github/agents/`.
+
+### MoE Orchestration Workflow
+For comprehensive codebase optimization, use `@optimize` which sequences all agents:
+```
+@optimize → @docs → @schema-evolution → @pipeline-orchestration → @guidance-expert → @implement → @test → @debug → @paperless-api-expert
+```
+Each phase produces deliverables that feed into the next phase via handoffs.
+
+## 7) Instructions Files
+Pattern-based instructions in `.github/instructions/` are auto-applied based on `applyTo` glob patterns.
+
+| File | Applies To | Purpose |
+|------|-----------|---------|
+| `javascript.instructions.md` | `**/*.js` | JS coding standards, logging, error handling |
+| `test.instructions.md` | `test/**/*.js` | Mocha test patterns, AAA structure, mocking |
+| `docs.instructions.md` | `docs/**/*.md` | Documentation standards, authoritative docs |
+| `python.instructions.md` | `**/*.py` | Python standards for guidance/rag services |
+| `services.instructions.md` | `services/**/*.js` | Service layer patterns, pipeline contracts |
+| `routes.instructions.md` | `routes/**/*.js` | Express routes, Swagger/JSDoc standards |
+
+Instructions are automatically included when editing matching files.

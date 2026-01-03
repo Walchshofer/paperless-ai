@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Bias Engine - gRPC Logit Bias Computation (Prometheus metrics enabled)
+  - job_name: 'bias-engine'
+    static_configs:
+      - targets: ['bias-engine:8001']
+    metrics_path: /metrics
+
+  # Guidance Service - Deterministic JSON Extraction (Prometheus metrics enabled)
+  - job_name: 'guidance-service'
+    static_configs:
+      - targets: ['guidance-service:8002']
+    metrics_path: /metrics
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Note: visual-rag and paperless-ai don't expose /metrics endpoints
+  # Add them here when metrics are implemented

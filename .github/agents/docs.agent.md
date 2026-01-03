@@ -1,6 +1,6 @@
 ---
 description: Update documentation first and ensure code/doc synchronization.
-tools: ["search/codebase"]
+tools: ["search/codebase", "web/fetch", "search/usages", "context7/*", "oraios/serena/*"]
 ---
 
 # Docs Agent (Guardrails)

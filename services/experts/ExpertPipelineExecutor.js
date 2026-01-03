@@ -531,12 +531,20 @@ class ExpertPipelineExecutor {
                     Number.isFinite(streamingThreshold) &&
                     tokenCount > streamingThreshold;
 
+                // Determine temperature based on template type
+                // Extraction/classification templates benefit from deterministic output (0.0)
+                // Reasoning/creative templates may need some variability (0.1-0.3)
+                const isExtractionTemplate = resolvedTemplate.includes('extractor') ||
+                                              resolvedTemplate.includes('classifier') ||
+                                              resolvedTemplate.includes('validator');
+                const templateTemperature = isExtractionTemplate ? 0.0 : 0.1;
+
                 const guidanceResult = await guidanceClient.generate(
                     resolvedTemplate,
                     variables,
                     {
                         model: modelName,
-                        temperature: 0.1,
+                        temperature: templateTemperature,
                         stream: enableStreaming
                     }
                 );
@@ -548,7 +556,8 @@ class ExpertPipelineExecutor {
                         template: resolvedTemplate,
                         baseTemplate: stage.guidanceTemplate,
                         valid: guidanceResult.validation?.valid,
-                        source: guidanceResult.source
+                        source: guidanceResult.source,
+                        temperature: templateTemperature
                     });
 
                     return guidanceResult.generated;

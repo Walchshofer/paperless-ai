@@ -284,4 +284,264 @@ describe('ValidationEngine', function() {
             assert.strictEqual(result.checkedRules, 1);
         });
     });
+
+
+    describe('Phase 5: severity field', () => {
+        it('should return severity "none" when validation passes', () => {
+            // Arrange
+            const context = new MockExecutionContext();
+            context.setStageOutput('extractor', { title: 'Test Document' });
+            
+            const rules = [{ field: 'stages.extractor.output.title' }];
+            const extractionOutput = {
+                title: 'Test Document',
+                _field_confidence: { title: 0.95 }
+            };
+
+            // Act
+            const result = ValidationEngine.validate(rules, extractionOutput, context);
+
+            // Assert
+            assert.strictEqual(result.severity, 'none');
+            assert.strictEqual(result.isValid, true);
+        });
+
+        it('should return severity "critical" when required fields are missing', () => {
+            // Arrange
+            const context = new MockExecutionContext();
+            const rules = [
+                { field: 'stages.extractor.output.invoice_number' },
+                { field: 'stages.extractor.output.amount' }
+            ];
+            const extractionOutput = { description: 'Some text' };
+
+            // Act
+            const result = ValidationEngine.validate(rules, extractionOutput, context);
+
+            // Assert
+            assert.strictEqual(result.severity, 'critical');
+            assert.ok(result.missingFields.includes('stages.extractor.output.invoice_number'));
+            assert.ok(result.missingFields.includes('stages.extractor.output.amount'));
+        });
+
+        it('should return severity "warning" when only low confidence fields exist', () => {
+            // Arrange
+            const context = new MockExecutionContext();
+            context.setStageOutput('extractor', { title: 'Test' });
+            
+            const rules = [{ field: 'stages.extractor.output.title' }];
+            const extractionOutput = {
+                title: 'Test',
+                _field_confidence: { title: 0.5 }  // Below default 0.7 threshold
+            };
+
+            // Act
+            const result = ValidationEngine.validate(rules, extractionOutput, context);
+
+            // Assert
+            assert.strictEqual(result.severity, 'warning');
+            assert.ok(result.lowConfidenceFields.includes('title'));
+        });
+    });
+
+    describe('Phase 5: fieldSeverities object', () => {
+        it('should track "critical" severity for missing required fields', () => {
+            // Arrange
+            const context = new MockExecutionContext();
+            const rules = [
+                { field: 'stages.extractor.output.uid' },
+                { field: 'stages.extractor.output.date' }
+            ];
+            const extractionOutput = {};
+
+            // Act
+            const result = ValidationEngine.validate(rules, extractionOutput, context);
+
+            // Assert
+            assert.ok(result.fieldSeverities);
+            assert.strictEqual(
+                result.fieldSeverities['stages.extractor.output.uid'],
+                'critical'
+            );
+            assert.strictEqual(
+                result.fieldSeverities['stages.extractor.output.date'],
+                'critical'
+            );
+        });
+
+        it('should track "high" severity for very low confidence fields (< 0.5)', () => {
+            // Arrange
+            const context = new MockExecutionContext();
+            context.setStageOutput('extractor', { amount: '100.00' });
+            
+            const rules = [];
+            const extractionOutput = {
+                amount: '100.00',
+                _field_confidence: { amount: 0.3 }  // Very low
+            };
+
+            // Act
+            const result = ValidationEngine.validate(rules, extractionOutput, context);
+
+            // Assert
+            assert.strictEqual(result.fieldSeverities.amount, 'high');
+        });
+
+        it('should track "medium" severity for moderately low confidence (0.5-0.7)', () => {
+            // Arrange
+            const context = new MockExecutionContext();
+            context.setStageOutput('extractor', { vendor: 'ACME Corp' });
+            
+            const rules = [];
+            const extractionOutput = {
+                vendor: 'ACME Corp',
+                _field_confidence: { vendor: 0.6 }  // Below 0.7 but above 0.5
+            };
+
+            // Act
+            const result = ValidationEngine.validate(rules, extractionOutput, context);
+
+            // Assert
+            assert.strictEqual(result.fieldSeverities.vendor, 'medium');
+        });
+
+        it('should be empty object when all fields are valid', () => {
+            // Arrange
+            const context = new MockExecutionContext();
+            context.setStageOutput('extractor', { title: 'Valid Title' });
+            
+            const rules = [{ field: 'stages.extractor.output.title' }];
+            const extractionOutput = {
+                title: 'Valid Title',
+                _field_confidence: { title: 0.95 }
+            };
+
+            // Act
+            const result = ValidationEngine.validate(rules, extractionOutput, context);
+
+            // Assert
+            assert.deepStrictEqual(result.fieldSeverities, {});
+        });
+    });
+
+    describe('Phase 5: retryHint object', () => {
+        it('should be null when validation passes (no fallback needed)', () => {
+            // Arrange
+            const context = new MockExecutionContext();
+            context.setStageOutput('extractor', { title: 'Test' });
+            
+            const rules = [{ field: 'stages.extractor.output.title' }];
+            const extractionOutput = {
+                title: 'Test',
+                _field_confidence: { title: 0.9 }
+            };
+
+            // Act
+            const result = ValidationEngine.validate(rules, extractionOutput, context);
+
+            // Assert
+            assert.strictEqual(result.retryHint, null);
+            assert.strictEqual(result.shouldFallback, false);
+        });
+
+        it('should suggest "visual_ocr" when fields are missing', () => {
+            // Arrange
+            const context = new MockExecutionContext();
+            const rules = [{ field: 'stages.extractor.output.invoice_date' }];
+            const extractionOutput = {};
+
+            // Act
+            const result = ValidationEngine.validate(rules, extractionOutput, context);
+
+            // Assert
+            assert.ok(result.retryHint);
+            assert.strictEqual(result.retryHint.suggestedAction, 'visual_ocr');
+            assert.ok(result.retryHint.targetFields.includes(
+                'stages.extractor.output.invoice_date'
+            ));
+            assert.ok(result.retryHint.reason.includes('Missing critical fields'));
+        });
+
+        it('should suggest "lower_threshold" when only low confidence exists', () => {
+            // Arrange
+            const context = new MockExecutionContext();
+            context.setStageOutput('extractor', {
+                amount: '50.00',
+                date: '2024-01-01',
+                vendor: 'Test'
+            });
+            
+            const rules = [];
+            const extractionOutput = {
+                amount: '50.00',
+                date: '2024-01-01',
+                vendor: 'Test',
+                _field_confidence: {
+                    amount: 0.4,
+                    date: 0.5,
+                    vendor: 0.6
+                }
+            };
+
+            // Act
+            const result = ValidationEngine.validate(rules, extractionOutput, context);
+
+            // Assert
+            assert.ok(result.retryHint);
+            assert.strictEqual(result.retryHint.suggestedAction, 'lower_threshold');
+            assert.ok(result.retryHint.reason.includes('Low confidence'));
+        });
+
+        it('should limit targetFields to first 3 fields', () => {
+            // Arrange
+            const context = new MockExecutionContext();
+            context.setStageOutput('extractor', {
+                f1: 'a', f2: 'b', f3: 'c', f4: 'd', f5: 'e'
+            });
+            
+            const rules = [];
+            const extractionOutput = {
+                f1: 'a', f2: 'b', f3: 'c', f4: 'd', f5: 'e',
+                _field_confidence: {
+                    f1: 0.3, f2: 0.3, f3: 0.3, f4: 0.3, f5: 0.3
+                }
+            };
+
+            // Act
+            const result = ValidationEngine.validate(rules, extractionOutput, context);
+
+            // Assert
+            assert.ok(result.retryHint);
+            assert.ok(
+                result.retryHint.targetFields.length <= 3,
+                `Expected at most 3 targetFields, got ${result.retryHint.targetFields.length}`
+            );
+        });
+    });
+
+    describe('Phase 5: backward compatibility', () => {
+        it('should return all original fields plus new Phase 5 fields', () => {
+            // Arrange
+            const context = new MockExecutionContext();
+            context.setStageOutput('extractor', { title: 'Test' });
+            
+            const rules = [{ field: 'stages.extractor.output.title' }];
+            const extractionOutput = { title: 'Test' };
+
+            // Act
+            const result = ValidationEngine.validate(rules, extractionOutput, context);
+
+            // Assert - original fields
+            assert.ok('isValid' in result, 'Missing isValid field');
+            assert.ok('missingFields' in result, 'Missing missingFields field');
+            assert.ok('lowConfidenceFields' in result, 'Missing lowConfidenceFields field');
+            assert.ok('score' in result, 'Missing score field');
+            assert.ok('shouldFallback' in result, 'Missing shouldFallback field');
+
+            // Assert - new Phase 5 fields
+            assert.ok('severity' in result, 'Missing severity field');
+            assert.ok('fieldSeverities' in result, 'Missing fieldSeverities field');
+            assert.ok('retryHint' in result, 'Missing retryHint field');
+        });
+    });
 });
