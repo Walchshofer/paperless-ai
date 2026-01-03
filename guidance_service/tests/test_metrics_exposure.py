@@ -26,7 +26,11 @@ class TestMetricsEndpoint:
         if response.status_code == 200:
             content = response.data.decode('utf-8')
             # Prometheus format includes HELP and TYPE comments
-            assert '# HELP' in content or '# TYPE' in content or 'guidance_' in content
+            assert (
+                '# HELP' in content
+                or '# TYPE' in content
+                or 'guidance_' in content
+            )
 
 
 class TestRequestMetrics:
@@ -81,7 +85,10 @@ class TestLatencyMetrics:
         if response.status_code == 200:
             content = response.data.decode('utf-8')
             # Should have latency histogram
-            assert 'guidance_request_latency_seconds' in content or 'latency' in content.lower()
+            assert (
+                'guidance_request_latency_seconds' in content
+                or 'latency' in content.lower()
+            )
 
     def test_latency_by_template(self, client, general_variables):
         """Latency should be labeled by template."""
@@ -148,7 +155,10 @@ class TestValidationMetrics:
         if response.status_code == 200:
             content = response.data.decode('utf-8')
             # Should have validation metrics
-            assert 'guidance_validation' in content or 'validation' in content.lower()
+            assert (
+                'guidance_validation' in content
+                or 'validation' in content.lower()
+            )
 
 
 class TestActiveRequestGauge:

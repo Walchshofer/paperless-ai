@@ -1,6 +1,6 @@
 ---
 description: Diagnose regressions or unexpected behavior in the Expert Pipeline deterministically.
-tools: ["search/codebase", "search/usages", "fetch", "oraios/serena/*", "sequential-thinking/*"]
+tools: ["search/codebase", "search/usages", "web/fetch", "oraios/serena/*", "sequential-thinking/*"]
 ---
 
 # Debug Agent (Guardrails)

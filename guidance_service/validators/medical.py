@@ -108,7 +108,7 @@ def validate_medical_extraction(
                     ):
                         errors.append(
                             f"Invalid ICD-10 format: {icd10} "
-                            f"(must match ^[A-Z]\\d{{2}}(\\.\\[A-Z0-9]{{1,4}})?$)"
+                            "(must match ^[A-Z]\\d{2}(\\.[A-Z0-9]{1,4})?$)"
                         )
 
             for field in ["medikamente", "laborwerte"]:
@@ -130,7 +130,8 @@ def validate_medical_extraction(
                 # STRICT: out-of-range confidence is a critical error
                 if not (0.0 <= conf_val <= 1.0):
                     errors.append(
-                        f"Confidence score (vertrauen) out of valid range [0.0, 1.0]: {confidence}"
+                        f"Confidence score (vertrauen) out of valid range "
+                        f"[0.0, 1.0]: {confidence}"
                     )
             except (ValueError, TypeError):
                 errors.append(
@@ -217,7 +218,8 @@ def _validate_tag_fields(
             value = float(overall)
             if not (0.0 <= value <= 1.0):
                 errors.append(
-                    f"tagging.confidence.overall out of range [0.0, 1.0]: {overall}"
+                    f"tagging.confidence.overall out of range "
+                    f"[0.0, 1.0]: {overall}"
                 )
         except (TypeError, ValueError):
             errors.append(

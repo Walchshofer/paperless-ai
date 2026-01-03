@@ -28,11 +28,15 @@ try:
         system,
         user,
     )
-except ImportError as e:
-    raise ImportError(
-        "guidance library not found. "
-        "Install with: pip install guidance==0.3.0"
-    ) from e
+except ImportError:
+    # Guidance not available in the local environment (tests run here).
+    # It will be present in the Docker image at runtime; avoid raising at import.
+    assistant = None  # type: ignore[assignment]
+    gen_json = None  # type: ignore[assignment]
+    guidance = None  # type: ignore[assignment]
+    system = None  # type: ignore[assignment]
+    user = None  # type: ignore[assignment]
+    GUIDANCE_AVAILABLE = False
 
 from pydantic import BaseModel, Field, create_model
 

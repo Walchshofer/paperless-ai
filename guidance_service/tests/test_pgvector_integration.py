@@ -19,14 +19,20 @@ pytest.importorskip("psycopg2")
 class TestDatabaseConnection:
     """Tests for database connection handling."""
 
-    def test_connection_with_valid_credentials(self, pg_connection_string, skip_if_no_postgres):
+    def test_connection_with_valid_credentials(
+        self,
+        pg_connection_string,
+        skip_if_no_postgres,
+    ):
         """Should connect with valid credentials."""
         import psycopg2
         conn = psycopg2.connect(pg_connection_string)
         assert conn is not None
         conn.close()
 
-    def test_connection_handles_invalid_credentials(self):
+    def test_connection_handles_invalid_credentials(
+        self,
+    ):
         """Should handle invalid credentials gracefully."""
         import psycopg2
         with pytest.raises(psycopg2.OperationalError):
@@ -34,7 +40,9 @@ class TestDatabaseConnection:
                 "postgresql://invalid:invalid@localhost:5432/nonexistent"
             )
 
-    def test_pgvector_extension_available(self, pg_connection_string, skip_if_no_postgres):
+    def test_pgvector_extension_available(
+        self, pg_connection_string, skip_if_no_postgres
+    ):
         """pgvector extension should be available."""
         import psycopg2
         conn = psycopg2.connect(pg_connection_string)
@@ -86,14 +94,17 @@ class TestVectorStorage:
         # Create a 768-dimensional test vector
         test_vector = [0.1] * 768
 
-        cur.execute(
-            "INSERT INTO test_embeddings (document_id, content, embedding) VALUES (%s, %s, %s)",
-            (1, "Test document", test_vector)
+        sql = (
+            "INSERT INTO test_embeddings (document_id,"
+            " content, embedding) VALUES (%s, %s, %s)"
         )
+        cur.execute(sql, (1, "Test document", test_vector))
         conn.commit()
 
         # Verify insert
-        cur.execute("SELECT COUNT(*) FROM test_embeddings WHERE document_id = 1")
+        cur.execute(
+            "SELECT COUNT(*) FROM test_embeddings WHERE document_id = 1"
+        )
         count = cur.fetchone()[0]
         assert count == 1
 
@@ -105,10 +116,12 @@ class TestVectorStorage:
         wrong_vector = [0.1] * 128
 
         with pytest.raises(Exception):  # DataError or similar
-            cur.execute(
-                "INSERT INTO test_embeddings (document_id, content, embedding) VALUES (%s, %s, %s)",
-                (2, "Wrong dimensions", wrong_vector)
+            sql = (
+                "INSERT INTO test_embeddings (document_id,"
+                " content, embedding) VALUES (%s, %s, %s)"
             )
+            cur.execute(sql, (2, "Wrong dimensions", wrong_vector))
+            conn.commit()
             conn.commit()
 
 
@@ -116,7 +129,9 @@ class TestSimilaritySearch:
     """Tests for vector similarity search."""
 
     @pytest.fixture
-    def populated_table(self, pg_connection_string, skip_if_no_postgres):
+    def populated_table(
+        self, pg_connection_string, skip_if_no_postgres
+    ):
         """Create table with test data."""
         import psycopg2
         conn = psycopg2.connect(pg_connection_string)
@@ -139,10 +154,11 @@ class TestSimilaritySearch:
         ]
 
         for content, vec in vectors:
-            cur.execute(
-                "INSERT INTO test_similarity (content, embedding) VALUES (%s, %s)",
-                (content, vec)
+            sql = (
+                "INSERT INTO test_similarity (content,"
+                " embedding) VALUES (%s, %s)"
             )
+            cur.execute(sql, (content, vec))
 
         conn.commit()
 
@@ -195,7 +211,11 @@ class TestSimilaritySearch:
 class TestSchemaValidation:
     """Tests for database schema validation."""
 
-    def test_visual_overlays_schema(self, pg_connection_string, skip_if_no_postgres):
+    def test_visual_overlays_schema(
+        self,
+        pg_connection_string,
+        skip_if_no_postgres,
+    ):
         """visual_overlays table should have correct schema."""
         import psycopg2
         conn = psycopg2.connect(pg_connection_string)
@@ -224,7 +244,9 @@ class TestSchemaValidation:
 class TestConnectionPooling:
     """Tests for connection pool behavior."""
 
-    def test_multiple_connections(self, pg_connection_string, skip_if_no_postgres):
+    def test_multiple_connections(
+        self, pg_connection_string, skip_if_no_postgres
+    ):
         """Should handle multiple concurrent connections."""
         import psycopg2
         connections = []
@@ -259,7 +281,9 @@ class TestConnectionPooling:
 class TestErrorRecovery:
     """Tests for error recovery scenarios."""
 
-    def test_recovers_from_query_error(self, pg_connection_string, skip_if_no_postgres):
+    def test_recovers_from_query_error(
+        self, pg_connection_string, skip_if_no_postgres
+    ):
         """Should recover from query errors."""
         import psycopg2
         conn = psycopg2.connect(pg_connection_string)

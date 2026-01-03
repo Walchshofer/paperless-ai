@@ -15,7 +15,9 @@ bias_service_pb2_grpc = None
 try:
     from guidance.ipc.proto import bias_service_pb2, bias_service_pb2_grpc
 except ImportError as e:
-    logging.error(f"Proto files not generated. Run setup_grpc.sh first. Error: {e}")
+    logging.error(
+        f"Proto files not generated. Run setup_grpc.sh first. Error: {e}"
+    )
     sys.exit(1)
 
 from guidance.engines.logit_bias_engine import LogitBiasEngine
@@ -25,15 +27,19 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("BiasEngine")
 
 # Prometheus Metrics
-REQUEST_TIME = Summary('bias_computation_seconds', 'Time spent computing biases')
-REQUEST_COUNT = Counter('bias_requests_total', 'Total bias computation requests')
+REQUEST_TIME = Summary(
+    'bias_computation_seconds', 'Time spent computing biases'
+)
+REQUEST_COUNT = Counter(
+    'bias_requests_total', 'Total bias computation requests'
+)
 
 class LogitBiasServicer(bias_service_pb2_grpc.LogitBiasServiceServicer):
     def __init__(self):
         # Configurable tokenizer via Environment Variable
         model_name = os.getenv("TOKENIZER_MODEL", "gpt2")
         logger.info(f"Loading tokenizer: {model_name}...")
-        
+
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
             self.engine = LogitBiasEngine(self.tokenizer)
@@ -46,15 +52,15 @@ class LogitBiasServicer(bias_service_pb2_grpc.LogitBiasServiceServicer):
     def ComputeBiases(self, request, context):
         REQUEST_COUNT.inc()
         start = time.perf_counter()
-        
+
         biases, valid_count = self.engine.compute_biases(
             request.regex_pattern, 
             request.generated_text,
             request.vocab_size
         )
-        
+
         elapsed = (time.perf_counter() - start) * 1000
-        
+
         return bias_service_pb2.BiasResponse(
             token_biases=biases,
             computation_time_ms=int(elapsed),

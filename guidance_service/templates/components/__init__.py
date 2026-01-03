@@ -21,4 +21,3 @@ __all__ = [
     "PATTERN_PHONE_AT",
     "PATTERN_PLZ_AT",
 ]
-

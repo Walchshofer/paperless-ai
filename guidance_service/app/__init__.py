@@ -272,14 +272,16 @@ def create_app():
         'OLLAMA_API_URL',
         'http://host.docker.internal:11434'
     ).rstrip('/')
-    
+
     # OpenAI-compatible endpoint for LiteLLM
-    # Guidance's LiteLLM only supports: openai, azure_ai, azure, gemini, anthropic, xai, hosted_vllm, groq, mistral
+    # Guidance's LiteLLM only supports:
+    #   - openai, azure_ai, azure, gemini
+    #   - anthropic, xai, hosted_vllm, groq, mistral
     # Ollama exposes OpenAI-compatible API at /v1, so we use openai/ prefix
     OLLAMA_API_BASE = OLLAMA_BASE_URL + '/v1'
 
     # Templates that require vision models - must bypass Guidance
-    # 
+    #
     # WHY BYPASS IS NEEDED:
     # 1. Guidance's experimental LiteLLM wrapper doesn't expose `images` param
     # 2. Even with LiteLLM >= 1.70.0 (which has Ollama vision fix PR #9089),
@@ -292,13 +294,13 @@ def create_app():
 
     def strip_base64_header(image_b64: str) -> str:
         """Strip data URI header from base64 image (Header Trap fix).
-        
+
         Ollama expects raw base64, not data URIs like:
         "data:image/jpeg;base64,/9j/4AAQ..." -> "/9j/4AAQ..."
-        
+
         Args:
             image_b64: Base64 string, possibly with data URI header
-            
+
         Returns:
             Clean base64 string without header
         """
@@ -315,19 +317,20 @@ def create_app():
         prompt: str,
         schema_json: dict,
         temperature: float = 0.2,
-        max_tokens: int = 2000  # Large buffer for thinking models with verbose reasoning
+        # Large buffer for thinking models with verbose reasoning
+        max_tokens: int = 2000
     ) -> dict:
         """Call Ollama directly for vision models (bypasses Guidance).
-        
+
         WHY BYPASS IS REQUIRED:
         - Guidance's experimental LiteLLM does NOT support multimodal
         - There's no way to pass images through Guidance's API
         - The image param in templates is ignored by LiteLLM
-        
+
         TRAP AVOIDANCE:
         1. Header Trap: Strips "data:image/...;base64," prefix
         2. Injection Trap: Image goes in 'images' array, NOT in prompt text
-        
+
         Args:
             model: Vision model name (e.g., 'qwen3-vl:8b')
             image_b64: Base64-encoded image (may include data URI header)
@@ -335,34 +338,38 @@ def create_app():
             schema_json: JSON schema for structured output
             temperature: Generation temperature
             max_tokens: Maximum tokens to generate
-            
+
         Returns:
             Parsed JSON response from the model
         """
         import requests as http_requests
-        
+
         # FIX TRAP 1: Strip data URI header
         clean_image = strip_base64_header(image_b64)
-        
+
         # Validate we have actual image data
         if not clean_image or len(clean_image) < 100:
             raise ValueError(
                 "Image data is empty or too short after header strip. "
                 "Expected base64-encoded image."
             )
-        
+
         app.logger.debug(
             f"Vision request: image_len={len(clean_image)}, "
-            f"model={model}, header_stripped={len(clean_image) != len(image_b64)}"
+            f"model={model}, "
+            f"header_stripped={len(clean_image) != len(image_b64)}",
         )
-        
-        # Build prompt with simplified schema (NO full JSON dump - breaks qwen3-vl!)
+
+        # Build prompt with simplified schema (NO full JSON dump -
+        #  breaks qwen3-vl!)
         # NOTE: qwen3-vl returns EMPTY when:
         # 1. System message is used
-        # 2. "format": "json" option is used  
+        # 2. "format": "json" option is used
         # 3. Large JSON schema is included in prompt
         # Solution: Use simple, direct prompt with example output format
-        full_prompt = f"""Analyze this document image for geometric corrections.
+
+        full_prompt = (
+            f"""Analyze this document image for geometric corrections.
 
 {prompt}
 
@@ -374,12 +381,22 @@ Return ONLY valid JSON with these fields:
 - "reasoning": string (brief explanation)
 
 Example output format:
-{{"rotate": 0, "needs_crop": false, "target_dpi": 300, "confidence": 0.9, "reasoning": "Document is upright"}}"""
-        
+            {{
+                "rotate": 0,
+                "needs_crop": false,
+                "target_dpi": 300,
+                "confidence": 0.9,
+                "reasoning": "Document is upright"
+            }}"""
+        )
         # FIX TRAP 2: Image in 'images' array, NOT in prompt text
-        # FIX TRAP 3: Do NOT use system message - qwen3-vl returns empty with it!
-        # FIX TRAP 4: Do NOT use "format": "json" - breaks qwen3-vl (returns empty)
-        # FIX TRAP 5: Do NOT include large JSON schema - breaks qwen3-vl (returns empty)
+        # FIX TRAP 3: Do NOT use system message -
+        #  qwen3-vl returns empty with it!
+        # FIX TRAP 4: Do NOT use "format": "json" -
+        #  breaks qwen3-vl (returns empty)
+        # FIX TRAP 5: Do NOT include large JSON schema -
+        #  breaks qwen3-vl (returns empty)
+
         payload = {
             "model": model,
             "messages": [
@@ -397,32 +414,34 @@ Example output format:
             }
             # REMOVED: "format": "json" - breaks qwen3-vl vision model
         }
-        
+
         response = http_requests.post(
             f"{OLLAMA_BASE_URL}/api/chat",
             json=payload,
             timeout=300
         )
         response.raise_for_status()
-        
+
         result = response.json()
         content = result.get("message", {}).get("content", "")
-        
+
         app.logger.debug(
             f"Vision response: content_len={len(content)}, "
             f"preview={content[:200] if content else 'EMPTY'}"
         )
-        
+
         if not content or not content.strip():
             raise ValueError(
                 "Vision model returned empty response. "
                 "Check image validity and model vision support."
             )
-        
+
         try:
             return json.loads(content)
         except json.JSONDecodeError as e:
-            app.logger.error(f"Invalid JSON from vision model: {content[:500]}")
+            app.logger.error(
+                f"Invalid JSON from vision model: {content[:500]}"
+            )
             raise ValueError(f"Vision model output not valid JSON: {e}")
 
     def get_lm(model_name: str):
@@ -430,8 +449,9 @@ Example output format:
 
         Uses LiteLLM with openai/ prefix pointing to Ollama's OpenAI-compatible
         endpoint (/v1). This works because:
-        1. Guidance's LiteLLM ONLY supports: openai, azure_ai, azure, gemini,
-           anthropic, xai, hosted_vllm, groq, mistral
+        1. Guidance's LiteLLM ONLY supports:
+           - openai, azure_ai, azure, gemini
+           - anthropic, xai, hosted_vllm, groq, mistral
         2. Ollama exposes OpenAI-compatible API at http://host:11434/v1
         3. We use api_base to redirect to Ollama
 
@@ -439,7 +459,8 @@ Example output format:
             model_name: The model to use (e.g., 'sauerkraut-llama3.1:8b')
 
         Returns:
-            Fresh LiteLLM instance configured for Ollama via OpenAI-compatible API
+            Fresh LiteLLM instance configured for Ollama via
+            OpenAI-compatible API
         """
         # Lazy import to avoid module-level pickle issues
         from guidance.models.experimental import LiteLLM
@@ -448,11 +469,15 @@ Example output format:
             model_description={
                 "model_name": model_name,
                 "litellm_params": {
-                    # Use openai/ prefix - Guidance's LiteLLM doesn't support ollama/
-                    # Ollama's OpenAI-compatible endpoint handles this correctly
+                    # Use openai/ prefix - Guidance's LiteLLM doesn't
+                    # support the 'ollama' provider name
+                    # Ollama's OpenAI-compatible endpoint handles this
+                    # correctly
                     "model": f"openai/{model_name}",
-                    "api_base": OLLAMA_API_BASE,  # Points to Ollama's /v1 endpoint
-                    "api_key": "ollama",  # Ollama doesn't require auth but LiteLLM needs something
+                    # Points to Ollama's /v1 endpoint
+                    "api_base": OLLAMA_API_BASE,
+                    # Ollama doesn't require auth but LiteLLM needs something
+                    "api_key": "ollama",
                     "timeout": 300,
                     "max_retries": 1,
                 }
@@ -460,7 +485,8 @@ Example output format:
             echo=False
         )
 
-    # Valid template names (for validation only - don't store decorated functions!)
+    # Valid template names (for validation only -
+    #  don't store decorated functions!)
     # Storing @guidance decorated functions in a dict causes pickle errors
     # when Gunicorn tries to serialize them across workers
     VALID_TEMPLATES = {
@@ -736,28 +762,30 @@ Example output format:
                         track_cache_operation('get', hit=False)
 
                 # 2. Handle vision templates via direct Ollama API
-                # Guidance's LiteLLM does NOT support multimodal 
+                # Guidance's LiteLLM does NOT support multimodal
                 # - image params are ignored
                 # See: https://github.com/BerriAI/litellm/issues/6683
                 if template_name in VISION_TEMPLATES:
                     template_start = time.time()
-                    
+
                     app.logger.info({
                         'event': 'vision_template_start',
                         'template': template_name,
                         'model': model,
                         'mode': 'direct_ollama_bypass'
                     })
-                    
+
                     # Import schema and prompts from template module
-                    from schemas.NormalizationSchema import NormalizationGeometry
+                    from schemas.NormalizationSchema import (
+                        NormalizationGeometry,
+                    )
                     from templates.normalization_geometry import USER_PROMPTS
-                    
+
                     schema_json = NormalizationGeometry.model_json_schema()
                     image_b64 = variables.get('document_image_b64', '')
                     language = variables.get('language', 'de')
                     prompt = USER_PROMPTS.get(language, USER_PROMPTS['en'])
-                    
+
                     try:
                         generated = call_ollama_vision(
                             model=model,
@@ -765,38 +793,45 @@ Example output format:
                             prompt=prompt,
                             schema_json=schema_json,
                             temperature=temperature,
-                            max_tokens=2000  # Large buffer for thinking models
+                            # Large buffer for thinking models
+                            max_tokens=2000
                         )
                         json_valid = True
                         template_latency_seconds = time.time() - template_start
-                        
+
                         app.logger.info({
                             'event': 'vision_template_complete',
                             'template': template_name,
-                            'latency_seconds': round(template_latency_seconds, 2)
+                            'latency_seconds': round(
+                                template_latency_seconds, 2
+                            )
                         })
-                        
+
                         # Validate with Pydantic
                         try:
                             NormalizationGeometry.model_validate(generated)
                             validation = {
                                 'valid': True, 'errors': [], 'warnings': []
                             }
+
                         except Exception as val_err:
                             validation = {
                                 'valid': False,
                                 'errors': [str(val_err)],
                                 'warnings': []
                             }
-                        
+
                         # Cache and return
                         if use_cache:
                             cache_manager.set(
                                 template_name, variables, model, temperature,
-                                {'generated': generated, 'validation': validation}
+                                {
+                                    'generated': generated,
+                                    'validation': validation,
+                                }
                             )
                             track_cache_operation('set', hit=True)
-                        
+
                         tracker.set_status('success')
                         return jsonify({
                             'status': 'success',
@@ -804,9 +839,11 @@ Example output format:
                             'validation': validation,
                             'source': 'generated'
                         })
-                        
+
                     except Exception as vision_err:
-                        app.logger.error(f"Vision template failed: {vision_err}")
+                        app.logger.error(
+                            f"Vision template failed: {vision_err}"
+                        )
                         tracker.set_status('error')
                         return jsonify({'error': str(vision_err)}), 500
 

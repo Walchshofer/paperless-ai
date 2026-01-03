@@ -1,275 +1,366 @@
-# Handoff Document: Expert Pipeline Fixes and Verbose Logging
+# Handoff Document: Subagent Creation & Bias Engine Integration
 
 <original_task>
-1. Enable TEMPORARY verbose logging to see which templates are used and model responses
-2. Investigate 'Bad Request' errors in paperless_webserver logs
-3. Investigate 'FATAL' and 'WARNING' logs in paperless_db container
-4. Test document 74 with the Expert Pipeline after fixes
-5. Address response truncation, token budgets, and PDF rendering issues discovered during testing
+1. Create specialized Claude Code subagents by converting GitHub Copilot-style agent definitions to Claude Code format
+2. Register all agents in `.claude/agents.toml`
+3. Fully integrate `guidance-bias-engine/docker-compose.yml` into the main Docker configuration at `C:\Users\pwalc\MyApps\paperless-ngx\docker-compose.yml`
+4. Clean up duplicate/misplaced Docker configuration files
 </original_task>
 
 <work_completed>
 
-## 1. Verbose Logging Enabled
+## 1. Subagent Creation (7 Agents)
 
-### guidance_service/app/__init__.py
-Added detailed template execution logging (lines 389-417):
-```python
-# VERBOSE LOGGING: Log template execution start
-app.logger.info({
-    'event': 'template_execution_start',
-    'template': template_name,
-    'model': model,
-    'temperature': temperature,
-    'variables_keys': list(variables.keys()) if variables else [],
-    'ollama_endpoint': OLLAMA_ENDPOINT
-})
+Created and registered 7 specialized subagents in `.claude/agents/`:
 
-# VERBOSE LOGGING: Log raw result
-app.logger.info({
-    'event': 'template_execution_complete',
-    'template': template_name,
-    'model': model,
-    'latency_seconds': round(template_latency_seconds, 2),
-    'raw_output_preview': str(raw_output)[:300] if raw_output else None,
-    'raw_output_type': type(raw_output).__name__ if raw_output else None
-})
+| Agent | File | Purpose |
+|-------|------|---------|
+| `schema-evolution` | `agents/schema-evolution.md` | Safe schema changes with backward compatibility rules |
+| `pipeline-orchestration-expert` | `agents/pipeline-orchestration-expert.md` | (Pre-existing) Pipeline orchestration, LLM chains, validation retries |
+| `test-agent` | `agents/test-agent.md` | Test generation with Mocha/Node.js assert, retries, fallbacks, OCR |
+| `debug-agent` | `agents/debug-agent.md` | Deterministic debugging with 7-step checklist + debug skill |
+| `docs-agent` | `agents/docs-agent.md` | Documentation-first updates, code/doc sync |
+| `paperless-api-expert` | `agents/paperless-api-expert.md` | Paperless-ngx REST API integration (v9) |
+| `guidance-expert` | `agents/guidance-expert.md` | Guidance AI framework (gen, select, regex, streaming) |
+
+**Registry file:** `.claude/agents.toml` - All 7 agents registered with tools and descriptions.
+
+### Agent Structure (XML format)
+Each agent follows this structure:
+```xml
+<agent>
+  <role>...</role>
+  <authority><authoritative_docs_order>...</authoritative_docs_order></authority>
+  <expertise><domain>...</domain><specializations>...</specializations></expertise>
+  <key_files>...</key_files>
+  <concepts>...</concepts>
+  <behaviors>...</behaviors>
+  <constraints>...</constraints>
+  <tools>...</tools>
+</agent>
 ```
 
-### docker-compose.yml (C:\Users\pwalc\MyApps\paperless-ngx\)
-Line 166: Changed `LOG_LEVEL=INFO` to `LOG_LEVEL=DEBUG  # TEMPORARY: Verbose logging for debugging`
+## 2. Bias Engine Docker Integration
 
-### services/guidance/GuidanceClient.js
-Lines 196-212: Enhanced `guidance_generate_success` logging to include:
-- `generatedPreview`: First 500 chars of response JSON
-- `validationErrors`: First 3 validation errors
-- `validationWarnings`: First 3 validation warnings
+### Files Modified:
 
-## 2. Fixed Guidance Service OLLAMA_API_URL
+**`C:\Users\pwalc\MyApps\paperless-ngx\docker-compose.yml`:**
+- Added service #8: `bias-engine`
+  - Build context: `../paperless-ai/guidance-bias-engine`
+  - Dockerfile: `Dockerfile.bias-engine`
+  - Ports: 50051 (gRPC), 8003 (metrics mapped from internal 8001)
+  - Healthcheck: Python gRPC channel check
+  - Volume: `bias_engine_models:/models`
+- Added service #10: `prometheus`
+  - Image: `prom/prometheus:latest`
+  - Port: 9091 (mapped from internal 9090)
+  - Config: `../paperless-ai/monitoring/prometheus.yml`
+- Added service #11: `grafana`
+  - Image: `grafana/grafana:latest`
+  - Port: 3001 (mapped from internal 3000)
+  - Depends on prometheus
+- Updated service #9: `guidance-service`
+  - Added `depends_on: bias-engine: condition: service_healthy`
+  - Added env var: `BIAS_ENGINE_URL=bias-engine:50051`
+- Added volumes: `bias_engine_models`, `prometheus_data`, `grafana_data`
 
-### guidance_service/app/__init__.py (lines 228-235)
-Changed from checking `OLLAMA_ENDPOINT` → `OLLAMA_HOST` → localhost
-To: `OLLAMA_ENDPOINT` → `OLLAMA_API_URL` → localhost
-Also auto-appends `/v1` suffix for OpenAI compatibility:
-```python
-_ollama_base = os.getenv('OLLAMA_ENDPOINT',
-    os.getenv('OLLAMA_API_URL', 'http://localhost:11434'))
-OLLAMA_ENDPOINT = _ollama_base if _ollama_base.endswith('/v1') else f"{_ollama_base.rstrip('/')}/v1"
+**`C:\Users\pwalc\MyApps\paperless-ngx\docker-compose.env`:**
+Added section H:
+```env
+# H. BIAS ENGINE (Constrained Generation)
+BIAS_ENGINE_URL=bias-engine:50051
+BIAS_ENGINE_ENABLED=yes
+TOKENIZER_MODEL=gpt2
 ```
 
-## 3. Fixed Custom Fields Bad Request Error
+**`C:\Users\pwalc\MyApps\paperless-ai\monitoring\prometheus.yml`:**
+Updated to monitor full stack:
+- bias-engine:8001
+- guidance-service:8002
+- visual-rag:8001
+- paperless-ai:3000
+- prometheus:9090 (self)
 
-### Root Cause
-Code passed `data_type: "text"` but Paperless-ngx API expects `"string"`
+**`C:\Users\pwalc\MyApps\paperless-ai\CLAUDE.md`:**
+- Updated with complete 11-service architecture table
+- Added key environment variables documentation
+- Added monitoring URLs (Prometheus: 9091, Grafana: 3001)
 
-### services/experts/utils/ocrMetadata.js (line 291-292)
-Changed:
-```javascript
-// Paperless-ngx uses 'string' for text fields, not 'text'
-const result = await paperlessService.createCustomFieldSafely(field, 'string');
-```
+### Files Created:
 
-### Created Missing Custom Fields via API
-```bash
-curl -X POST "http://localhost:8000/api/custom_fields/" -H "Authorization: Token ..." -d '{"name": "vis_ocr_text", "data_type": "string"}'
-# Created vis_ocr_text (id: 11), vis_ocr_text_de (id: 12), vis_ocr_text_en (id: 13)
-```
+**`C:\Users\pwalc\MyApps\paperless-ai\test\integration\bias-engine.test.js`:**
+- Integration tests for bias-engine connectivity
+- Health check tests (gRPC channel)
+- Metrics endpoint tests (/metrics on 8003)
+- Regex pattern validation tests (email, amount, date patterns)
+- Guidance service integration tests
 
-## 4. Fixed Database Collation Mismatch
+### Files Deleted:
 
-### Root Cause
-PostgreSQL upgrade changed collation version (2.41 → 2.36)
+- `C:\Users\pwalc\MyApps\paperless-ai\docker-compose.yml` (incorrectly placed in project root)
+- `C:\Users\pwalc\MyApps\paperless-ai\guidance-bias-engine\docker-compose.yml` (consolidated into main stack)
+- `C:\Users\pwalc\MyApps\paperless-ai\guidance-bias-engine\monitoring\` directory (using main monitoring folder)
 
-### Fix Applied
-```bash
-docker exec -i paperless_db psql -U elfman -d paperless -c "ALTER DATABASE paperless REFRESH COLLATION VERSION;"
-```
-Note: Database user is `elfman`, not `paperless`
+## 3. Guidance Expert Knowledge Access
 
-## 5. Fixed ExpertPipelineExecutor Constructor Error
+Demonstrated access to guidance-expert knowledge files:
+- `.claude/knowledge/guidance-expert/references/quick-reference.md` - Syntax reference
+- `.claude/knowledge/guidance-expert/references/guidance-functions.md` - gen(), select(), tools
 
-### Root Cause
-`services/ollama/index.js` line 10 passed module object instead of class
-
-### Fix (line 10)
-Changed:
-```javascript
-ExpertPipelineExecutor: require('../experts/ExpertPipelineExecutor').ExpertPipelineExecutor,
-```
-
-## 6. Updated cross_pipeline_router Model
-
-### services/experts/pipelines/GeneralPipeline.js (lines 65-66)
-Changed from `MODEL_NAMES.general` to use orchestrator:
-```javascript
-// Use orchestrator model for routing decisions, fallback to general
-model: MODEL_NAMES.orchestrator || MODEL_NAMES.general,
-```
-
-## 7. Increased Token Budgets
-
-### config/config.js (lines 134-142)
-Changed defaults from 256 to higher values:
-```javascript
-// Increased token budgets for qwen3-vl:8b (128K context allows more tokens)
-const qwenRouterThinkingTokens = parseEnvInt(
-  process.env.QWEN_ROUTER_THINKING_TOKENS,
-  1024  // Was 256 - too low, caused truncation
-);
-const qwenRouterOutputTokens = parseEnvInt(
-  process.env.QWEN_ROUTER_OUTPUT_TOKENS,
-  512   // Was 256 - too low, caused truncation
-);
-```
-
-## 8. Fixed PDF Rendering Fallback
-
-### services/ollama/vision.js (lines 820-856)
-Added fallback to regular download when original download fails:
-```javascript
-// Try original document first, fallback to regular download if it fails
-let pdfBuffer = await paperlessService.downloadOriginalDocument(documentId);
-if (!pdfBuffer || pdfBuffer.length === 0) {
-    logger.info(`[VISION] Original download unavailable, trying regular download for doc ${documentId}`);
-    pdfBuffer = await paperlessService.downloadDocument(documentId);
-}
-```
-
-### Root Cause
-`/download/original/` endpoint returns 302 redirect to login (doesn't support token auth)
-`/download/` endpoint works correctly with token auth
+Provided constrained generation patterns:
+- `gen(name="...", regex="...", max_tokens=..., temperature=0.0)`
+- `select(options=[...], name="...")`
+- Context managers: `with system/user/assistant():`
 
 </work_completed>
 
 <work_remaining>
 
-## 1. Test Document 74 Again
-All fixes have been applied but not yet tested. Run:
-```bash
-cd C:\Users\pwalc\MyApps\paperless-ai
-PAPERLESS_API_URL=http://localhost:8000/api PAPERLESS_API_TOKEN=6a07c1933e505afd78fa2f9484ea3758de4957ce node test/manual/test-doc74-pipeline.js
-```
+## Immediate Tasks
 
-Expected improvements:
-- PDF should render at 300 DPI (not thumbnail fallback)
-- Token budgets: thinkingBudget=1024, outputBudget=512 (was 256 each)
-- cross_pipeline_router should use orchestrator model if available
-- ExpertPipelineExecutor should instantiate correctly
-- Guidance templates should show verbose logs
+1. **Start the integrated Docker stack:**
+   ```bash
+   cd C:\Users\pwalc\MyApps\paperless-ngx
+   docker compose up -d --build
+   ```
 
-## 2. Rebuild paperless-ai Container (if testing inside Docker)
-The local test runs outside Docker. To test inside container:
-```bash
-cd C:\Users\pwalc\MyApps\paperless-ngx
-docker compose build paperless-ai
-docker compose up -d paperless-ai
-```
+2. **Verify bias-engine builds correctly:**
+   - The Dockerfile at `guidance-bias-engine/Dockerfile.bias-engine` requires proto compilation
+   - `setup_grpc.sh` runs during build to generate gRPC stubs
+   - Check for any missing dependencies
 
-## 3. Revert Verbose Logging (after debugging)
-In `docker-compose.yml` line 166, change back:
-```yaml
-- LOG_LEVEL=INFO  # Reverted from DEBUG
-```
+3. **Test bias-engine connectivity:**
+   ```bash
+   # Check all services are healthy
+   docker compose ps
 
-## 4. Verify Router Model Pre-Check Behavior
-The logs showed `loadedModels: []` because Ollama unloads models after inactivity.
-The current code falls back to General when model isn't pre-loaded, but vision analysis still uses qwen3-vl:8b on-demand.
-Consider: Should the pre-check be removed or made optional?
+   # Test metrics endpoint
+   curl http://localhost:8003/metrics
 
-## 5. Address OCR Custom Fields "Already Exists" Errors
-The fields now exist but code still tries to create them, causing 400 errors with `{ name: [Array] }`.
-The `createCustomFieldSafely` function should detect existing fields and return them instead of failing.
+   # Check bias-engine logs
+   docker logs bias_engine
+
+   # Verify guidance-service connects to bias-engine
+   docker logs guidance-service | grep -i bias
+   ```
+
+4. **Run integration tests:**
+   ```bash
+   cd C:\Users\pwalc\MyApps\paperless-ai
+   npm test -- --grep "Bias Engine"
+   ```
+
+5. **Verify Grafana access:**
+   - URL: http://localhost:3001
+   - Login: admin/admin
+   - Add Prometheus datasource: http://prometheus:9090
+
+## Future Enhancements
+
+1. **Grafana Dashboards:**
+   - Create pre-configured dashboards for bias-engine metrics
+   - `bias_requests_total` counter
+   - `bias_computation_seconds` histogram
+   - Add alerting rules for service health
+
+2. **Bias Engine Tokenizer:**
+   - Currently using `gpt2` tokenizer (50257 vocab)
+   - For production with Llama models, consider switching to `meta-llama/Meta-Llama-3-8B`
+   - Requires HuggingFace token for gated models
+
+3. **Custom Agent Task Tool Integration:**
+   - Custom agents in `agents.toml` are documentation-only
+   - They don't auto-spawn via Task tool's `subagent_type` parameter
+   - To use: Read agent file directly and follow its instructions
 
 </work_remaining>
 
 <attempted_approaches>
 
-## Failed: Adding OLLAMA_HOST to docker-compose.yml
-User rejected: "Use OLLAMA_API_URL instead of creating a duplicate with exact the same value. We do not need OLLAMA_HOST."
-Solution: Modified guidance service code to read OLLAMA_API_URL directly.
+## Successful Approaches
 
-## Failed: Initial Token Budget Values
-Default 256 tokens for thinking+output caused response truncation at 700 tokens.
-Increased to 1024+512=1536 total.
+1. **Subagent XML Structure:** Used `<agent>` XML format with clearly defined sections for role, authority, expertise, key_files, concepts, behaviors, constraints, and tools.
 
-## Failed: downloadOriginalDocument Only
-The `/download/original/` endpoint returns 302 redirect to login page.
-Added fallback to regular `/download/` endpoint which works with token auth.
+2. **Docker Integration Strategy:** Added services sequentially to main docker-compose.yml rather than attempting complex merge operations.
 
-## Investigated But Not Root Cause: "role paperless does not exist"
-These FATAL errors happen during container startup before database is initialized.
-Actual user is `elfman` (from docker-compose.env). Not a real issue, just transient health check failures.
+3. **Knowledge Access Pattern:** For guidance-expert queries, directly read knowledge files from `.claude/knowledge/guidance-expert/` since custom agents can't be spawned via Task tool.
+
+4. **Healthcheck Design:** Used inline Python gRPC check for bias-engine since standard HTTP healthcheck doesn't apply to gRPC services.
+
+## Issues Encountered
+
+1. **Task tool limitation:** Custom agents defined in `agents.toml` are NOT recognized by the Task tool's `subagent_type` parameter. Only built-in agents work:
+   - `general-purpose`, `Explore`, `Plan`, `claude-code-guide`
+   - `taches-cc-resources:skill-auditor`, `taches-cc-resources:slash-command-auditor`, etc.
+
+   **Workaround:** Access agent knowledge files directly via Read tool, or use `@agent-name` syntax in chat for user awareness.
+
+2. **Windows path handling:** Used `rm` command (Git Bash) instead of `del` (CMD) for file deletion in Bash tool.
+
+3. **Port conflict avoidance:**
+   - bias-engine metrics: internal 8001 → external 8003 (avoids conflict with visual-rag on 8001)
+   - prometheus: internal 9090 → external 9091
 
 </attempted_approaches>
 
 <critical_context>
 
-## Docker Configuration Location
-- docker-compose.yml: `C:\Users\pwalc\MyApps\paperless-ngx\docker-compose.yml`
-- docker-compose.env: `C:\Users\pwalc\MyApps\paperless-ngx\docker-compose.env`
-- Project code: `C:\Users\pwalc\MyApps\paperless-ai\`
+## Key Architecture Decisions
 
-## Key Environment Variables
-- `PAPERLESS_API_TOKEN`: 6a07c1933e505afd78fa2f9484ea3758de4957ce
-- `OLLAMA_API_URL`: http://host.docker.internal:11434 (in docker-compose.env)
-- `ORCHESTRATOR_MODEL`: nemotron-orchestrator:8b (in docker-compose.env)
-- `GUIDANCE_MODEL`: sauerkraut-llama3.1:8b
-- `POSTGRES_USER`: elfman (NOT "paperless")
+1. **Service Dependencies (Startup Order):**
+   ```
+   db, broker → webserver, gotenberg, tika
+                    ↓
+              bias-engine
+                    ↓
+            guidance-service
+                    ↓
+              paperless-ai ← visual-rag
+                    ↓
+              prometheus → grafana
+   ```
 
-## Model Availability
-- qwen3-vl:8b: Vision router model, 128K context, loads on-demand
-- sauerkraut-llama3.1:8b: General/Guidance model
-- nemotron-orchestrator:8b: Orchestrator model for routing decisions
+2. **Port Mappings:**
+   | Service | Internal | External | Protocol |
+   |---------|----------|----------|----------|
+   | bias-engine (gRPC) | 50051 | 50051 | gRPC |
+   | bias-engine (metrics) | 8001 | 8003 | HTTP |
+   | guidance-service | 8002 | 8002 | HTTP |
+   | visual-rag | 8001 | 8001 | HTTP |
+   | prometheus | 9090 | 9091 | HTTP |
+   | grafana | 3000 | 3001 | HTTP |
 
-## Paperless-ngx API Notes
-- `/documents/{id}/download/` - Works with token auth (returns PDF)
-- `/documents/{id}/download/original/` - Returns 302 redirect (doesn't support token auth from API)
-- Custom field `data_type` must be `"string"`, not `"text"`
+3. **Bias Engine Purpose:**
+   - Computes logit biases for constrained generation
+   - Uses regex FSM (Finite State Machine) to determine valid tokens
+   - Returns sparse bias map: `{token_id: 100.0}` for valid tokens
+   - Enables Guidance AI framework to enforce output patterns (emails, dates, amounts, etc.)
 
-## Test Script Location
-`C:\Users\pwalc\MyApps\paperless-ai\test\manual\test-doc74-pipeline.js`
+## Environment Variables
 
-## Guidance Service Health Check
-```bash
-curl -s http://localhost:8002/health | python -m json.tool
-# Shows: ollama_target: "http://host.docker.internal:11434/v1"
+```env
+# Bias Engine
+BIAS_ENGINE_URL=bias-engine:50051
+BIAS_ENGINE_ENABLED=yes
+TOKENIZER_MODEL=gpt2
+
+# Guidance Service
+GUIDANCE_SERVICE_URL=http://guidance-service:8002
+GUIDANCE_MODEL=sauerkraut-llama3.1:8b
+BIAS_ENGINE_URL=bias-engine:50051  # Also in guidance-service environment
+
+# Visual RAG
+VISUAL_RAG_URL=http://visual-rag:8001
+
+# Monitoring
+GF_SECURITY_ADMIN_PASSWORD=admin
+```
+
+## File Locations
+
+| Category | Path |
+|----------|------|
+| Docker configs | `C:\Users\pwalc\MyApps\paperless-ngx\` |
+| Bias engine source | `C:\Users\pwalc\MyApps\paperless-ai\guidance-bias-engine\` |
+| Monitoring config | `C:\Users\pwalc\MyApps\paperless-ai\monitoring\prometheus.yml` |
+| Agent definitions | `C:\Users\pwalc\MyApps\paperless-ai\.claude\agents\` |
+| Agent registry | `C:\Users\pwalc\MyApps\paperless-ai\.claude\agents.toml` |
+| Integration tests | `C:\Users\pwalc\MyApps\paperless-ai\test\integration\bias-engine.test.js` |
+
+## Guidance Expert Knowledge
+
+Knowledge files at `.claude/knowledge/guidance-expert/`:
+- `SKILL.md` - Main skill documentation (READ FIRST)
+- `references/quick-reference.md` - Quick syntax reference
+- `references/guidance-functions.md` - gen(), select(), tools, grammars
+- `references/core-concepts.md` - Model immutability, context managers
+- `references/litellm-ollama.md` - LiteLLM configuration
+- `references/streaming.md` - Async patterns
+- `references/dms-patterns.md` - DMS workflows
+- `references/postgresql-pgvector.md` - Vector search
+- `scripts/snippets.py` - Code templates
+
+## Bias Engine gRPC Interface
+
+```protobuf
+service LogitBiasService {
+  rpc ComputeBiases(BiasRequest) returns (BiasResponse);
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+message BiasRequest {
+  string regex_pattern = 1;
+  string generated_text = 2;
+  int32 vocab_size = 3;
+}
+
+message BiasResponse {
+  map<int32, float> token_biases = 1;
+  int32 computation_time_ms = 2;
+  bool cache_hit = 3;
+}
 ```
 
 </critical_context>
 
 <current_state>
 
-## Files Modified (Not Committed)
-1. `guidance_service/app/__init__.py` - OLLAMA_API_URL fix + verbose logging
-2. `services/guidance/GuidanceClient.js` - Enhanced success logging
-3. `services/experts/utils/ocrMetadata.js` - data_type: "string"
-4. `services/ollama/index.js` - ExpertPipelineExecutor import fix
-5. `services/experts/pipelines/GeneralPipeline.js` - orchestrator model for router
-6. `config/config.js` - Increased token budgets
-7. `services/ollama/vision.js` - PDF download fallback
-8. `docker-compose.yml` - LOG_LEVEL=DEBUG (temporary)
+## Deliverable Status
 
-## Containers Status
-- guidance-service: Rebuilt and running with DEBUG logging
-- paperless_ai: Running but using old code (not rebuilt)
-- paperless_webserver: Running
-- paperless_db: Running, collation fixed
+| Item | Status | Notes |
+|------|--------|-------|
+| Subagent creation (7 agents) | **Complete** | All registered in agents.toml |
+| Docker integration (11 services) | **Complete** | Configured, NOT started |
+| Documentation (CLAUDE.md) | **Complete** | Architecture table updated |
+| Prometheus config | **Complete** | Full stack monitoring |
+| Integration tests | **Complete** | bias-engine.test.js created |
+| Cleanup old files | **Complete** | Removed duplicate configs |
 
-## Custom Fields Created
-- vis_ocr_text (id: 11)
-- vis_ocr_text_de (id: 12)
-- vis_ocr_text_en (id: 13)
+## Docker Stack Status
 
-## Ready for Testing
-All code fixes applied. Test document 74 to verify:
-1. PDF renders at 300 DPI (not thumbnail)
-2. No ExpertPipelineExecutor constructor error
-3. Token budgets show 1024/512 in logs
-4. Guidance templates show verbose logs
-5. cross_pipeline_router uses orchestrator model
+The Docker stack has been **configured but NOT started**. All configuration changes saved to:
+- `C:\Users\pwalc\MyApps\paperless-ngx\docker-compose.yml` (11 services)
+- `C:\Users\pwalc\MyApps\paperless-ngx\docker-compose.env` (bias engine vars added)
+
+## Background Task
+
+There is a background bash task `b67a02a` with significant output (10538+ lines). This may be a previous docker compose operation. Check status:
+```bash
+# View output
+cat "C:\Users\pwalc\AppData\Local\Temp\claude\C--Users-pwalc-MyApps-paperless-ai\tasks\b67a02a.output"
+
+# Or check last 50 lines
+tail -50 "C:\Users\pwalc\AppData\Local\Temp\claude\C--Users-pwalc-MyApps-paperless-ai\tasks\b67a02a.output"
+```
 
 ## Open Questions
-1. Should router model pre-check be removed? (causes fallback when model not in VRAM)
-2. Should OCR field creation check for existing fields first?
+
+1. **Guidance-service gRPC client:** Does guidance-service have gRPC client code to connect to bias-engine? May need to implement if not present.
+
+2. **Healthcheck reliability:** The bias-engine healthcheck uses `python -c "import grpc; ..."`. Verify this works in the slim Python container.
+
+3. **Prometheus scrape interval:** Currently 15s. Adjust for production if needed.
+
+## Next Actions
+
+1. Start Docker stack:
+   ```bash
+   cd C:\Users\pwalc\MyApps\paperless-ngx
+   docker compose up -d --build
+   ```
+
+2. Verify all 11 services are healthy:
+   ```bash
+   docker compose ps
+   ```
+
+3. Test bias-engine:
+   ```bash
+   curl http://localhost:8003/metrics
+   ```
+
+4. Access Grafana:
+   - URL: http://localhost:3001
+   - Login: admin/admin
 
 </current_state>

@@ -86,7 +86,10 @@ async def get_context(
                 logger.error(f"Invalid search result at index {i}")
                 continue
 
-            context += f"Document {i + 1}: {result.title}\n{result.snippet}\n\n"
+            context += (
+                f"Document {i + 1}: {result.title}\n"
+                f"{result.snippet}\n\n"
+            )
             sources.append(
                 {
                     "title": result.title,
