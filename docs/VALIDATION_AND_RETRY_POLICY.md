@@ -59,6 +59,7 @@ The ValidationEngine emits the following structure:
 ### Retry Hint Actions
 
 - **`visual_ocr`**: Re-attempt with Visual OCR when fields are missing
+- **`visual_query`**: Execute targeted visual queries for missing/low-confidence fields
 - **`lower_threshold`**: Consider lowering threshold for low-confidence fields
 
 ### Important Constraints
@@ -125,9 +126,61 @@ The ValidationEngine emits the following structure:
 ### Retry Escalation Order
 
 1. Retry extraction (same OCR)
-2. Escalate OCR (Visual OCR vs Tesseract)
-3. Fallback to PromptRegistry
-4. Accept with warning or require manual review
+2. Execute visual queries for targeted field validation (if available)
+3. Escalate OCR (Visual OCR vs Tesseract reconciliation)
+4. Fallback to PromptRegistry
+5. Accept with warning or require manual review
+
+### Circuit Breaker Interaction
+
+**Circuit Breaker States:**
+- **CLOSED**: Normal operation, all visual operations allowed
+- **OPEN**: Visual Sidecar failing, skip visual operations gracefully
+- **HALF_OPEN**: Testing recovery, limited visual operations
+
+**Retry Behavior with Circuit Breaker:**
+
+- When circuit breaker is **CLOSED**:
+  - Full retry escalation order applies
+  - Visual queries executed normally
+  - 500ms latency budget, 1000ms hard timeout
+
+- When circuit breaker is **OPEN**:
+  - Skip visual query generation (Stage 5.5)
+  - Skip visual query execution (Stage 8)
+  - Fall back to extraction-only pipeline
+  - No pipeline failure, log degraded mode
+  - Continue with OCR escalation if needed
+
+- When circuit breaker is **HALF_OPEN**:
+  - Allow visual query generation attempt
+  - Single visual query execution attempt (no retries)
+  - If successful → transition to CLOSED
+  - If failed → transition back to OPEN
+
+**Circuit Breaker Retry Configuration:**
+- Failure threshold: 3 consecutive failures
+- Cooldown period: 30 seconds
+- Exponential backoff: 100ms, 200ms, 400ms
+- Max retries per operation: 3
+
+### Visual Query Retry Policy
+
+**Query Generation Retries:**
+- Single retry permitted if Guidance template fails
+- Fallback to PromptRegistry + JsonRepair
+- If both fail → skip visual validation, continue pipeline
+
+**Query Execution Retries:**
+- Per-query retry via circuit breaker (max 3 attempts)
+- Exponential backoff between retries
+- Failed queries do not block pipeline
+- Partial results accepted (some queries succeed, others fail)
+
+**Graceful Degradation:**
+- Visual validation is enhancement, not requirement
+- Missing visual confirmation does not fail validation
+- Extraction-only results are valid terminal state
 
 ---
 

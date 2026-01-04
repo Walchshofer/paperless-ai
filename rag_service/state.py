@@ -30,7 +30,7 @@ class GlobalState:
                 "system_status": {
                     "data_loaded": self.system_status.data_loaded,
                     "index_ready": self.system_status.index_ready,
-                    "chroma_ready": self.system_status.chroma_ready,
+                    "pgvector_ready": self.system_status.pgvector_ready,
                     "bm25_ready": self.system_status.bm25_ready,
                 },
                 "indexed_document_ids": (
@@ -96,8 +96,8 @@ class GlobalState:
                     self.system_status.index_ready = sys_status.get(
                         "index_ready", False
                     )
-                    self.system_status.chroma_ready = sys_status.get(
-                        "chroma_ready", False
+                    self.system_status.pgvector_ready = sys_status.get(
+                        "pgvector_ready", False
                     )
                     self.system_status.bm25_ready = sys_status.get(
                         "bm25_ready", False

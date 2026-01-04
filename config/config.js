@@ -380,7 +380,7 @@ module.exports = {
     maxRetriesPlanner: parseInt(process.env.VISUAL_RAG_MAX_RETRIES_PLANNER || '1', 10),
     maxRetriesExtractor: parseInt(process.env.VISUAL_RAG_MAX_RETRIES_EXTRACTOR || '1', 10)
   },
-  // Visual RAG Sidecar configuration (Tomoro/ColQwen2)
+  // Visual RAG Sidecar configuration (Tomoro/ColQwen3)
   visualRagSidecar: {
     enabled: parseEnvBoolean(process.env.ENABLE_VISUAL_RAG_SIDECAR, 'no'),
     url: process.env.VISUAL_RAG_URL || 'http://visual-rag:8001',
@@ -471,8 +471,8 @@ module.exports = {
     host: process.env.POSTGRES_HOST || process.env.PAPERLESS_DBHOST || 'db',
     port: parseInt(process.env.POSTGRES_PORT || process.env.PAPERLESS_DBPORT || '5432', 10),
     database: process.env.POSTGRES_DB || process.env.PAPERLESS_DBNAME || 'paperless',
-    user: process.env.POSTGRES_USER || process.env.PAPERLESS_DBUSER,
-    password: process.env.POSTGRES_PASSWORD || process.env.PAPERLESS_DBPASS
+    user: process.env.POSTGRES_USER || process.env.PAPERLESS_DBUSER || 'paperless',
+    password: process.env.POSTGRES_PASSWORD || process.env.PAPERLESS_DBPASS || ''
   },
   duplicateDetection: {
     enabled: parseEnvBoolean(process.env.DUPLICATE_DETECTION_ENABLED, 'yes'),
@@ -561,10 +561,16 @@ module.exports = {
     
     // Infrastructure tier - Embeddings
     'nomic-embed': 'nomic-embed-text-v1.5',
+    'tomoroai/tomoro-colqwen3-embed-8b': 'tomoro-colqwen3-embed-8b',
     'tomoro': 'tomoro-colqwen3-embed-8b',
     'colqwen3': 'tomoro-colqwen3-embed-8b'
   }
 };
+
+// Validate pgvector is available
+if (!process.env.POSTGRES_HOST && !process.env.PAPERLESS_DBHOST) {
+  console.warn('[CONFIG] WARNING: PostgreSQL host not configured. pgvector will not be available.');
+}
 
 /**
  * Validate required database credentials

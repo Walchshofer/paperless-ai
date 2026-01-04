@@ -723,7 +723,7 @@ class VisualOverlayRepository {
             { name: 'domain_signals', type: 'JSONB DEFAULT \'[]\'' },
             { name: 'retrieval_quality_score', type: 'FLOAT DEFAULT 0.0' },
             { name: 'expert_routing_weights', type: 'JSONB DEFAULT \'{}\'' },
-            { name: 'embedding', type: 'vector(768)' }
+            { name: 'embedding', type: 'vector(320)' }
         ];
 
         try {
@@ -752,6 +752,13 @@ class VisualOverlayRepository {
             await this.pool.query(`
                 CREATE INDEX IF NOT EXISTS idx_visual_overlays_embedding 
                 ON visual_overlays USING hnsw (embedding vector_cosine_ops)
+            `);
+
+            // Also create an IVFFLAT index option for batch-oriented retrieval workloads
+            // Note: ivfflat may require list tuning and is more efficient for large datasets
+            await this.pool.query(`
+                CREATE INDEX IF NOT EXISTS idx_visual_overlays_embedding_ivfflat
+                ON visual_overlays USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)
             `);
 
             logger.info({

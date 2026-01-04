@@ -62,6 +62,25 @@ Fallback is **not optional** and must not be bypassed.
 
 ---
 
+## Guidance Template Authoring Rules (Required)
+
+These rules apply to all Guidance templates used for classification, extraction,
+reasoning, and visual query generation.
+
+- **Determinism**: Use `temperature=0.0` for classification and extraction tasks.
+- **Fixed options**: Use `select()` for enums (doc_type, action, severity,
+  expected_element_type).
+- **Identifiers**: Use regex constraints for identifiers (UUIDs, invoice numbers,
+  dates, amounts).
+- **Schema enforcement**: Use `guidance_json(schema=..., name="output")` for any
+  structured JSON output.
+- **Immutability**: Capture and return the updated LM state
+  (`lm = model + template(...)`); do not assume in-place mutation.
+- **Tools**: When tools are required, use `Tool.from_callable` or
+  `Tool.from_regex` and surface errors explicitly (no silent failures).
+
+---
+
 ## Interaction Flow
 
 The `ExpertPipelineExecutor` orchestrates this interaction inside

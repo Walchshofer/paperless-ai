@@ -1,6 +1,6 @@
 # Visual RAG Sidecar Service
 
-A FastAPI service that provides visual document retrieval using ColQwen2/ColPali via the Byaldi library. This service indexes PDF pages as images and enables semantic search that understands document layout, tables, charts, and formatting.
+A FastAPI service that provides visual document retrieval using ColQwen3/ColPali via the Byaldi library. This service indexes PDF pages as images and enables semantic search that understands document layout, tables, charts, and formatting.
 
 ## Architecture
 
@@ -28,7 +28,7 @@ A FastAPI service that provides visual document retrieval using ColQwen2/ColPali
 ## Features
 
 - **Visual Document Retrieval**: Search documents by visual content (tables, charts, layouts)
-- **ColQwen2 Model**: Uses state-of-the-art vision-language model for embedding
+- **ColQwen3 Model**: Uses state-of-the-art vision-language model for embedding
 - **PDF Page Indexing**: Indexes each PDF page as an image
 - **Late Interaction Search**: MaxSim scoring for high-quality retrieval
 - **GPU Optimized**: Designed to share GPU with Ollama on RTX 3090 Ti
@@ -85,7 +85,7 @@ curl -X DELETE http://localhost:8001/index
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VISUAL_RAG_MODEL` | `vidore/colqwen2-v1.0` | ColQwen2 model to use |
+| `VISUAL_RAG_MODEL` | `TomoroAI/tomoro-colqwen3-embed-8b` | ColQwen3 model to use |
 | `INDEX_DIR` | `/data/indices` | Directory for storing indices |
 | `MEDIA_DIR` | `/media/paperless` | Directory containing PDFs |
 | `DEFAULT_INDEX_NAME` | `paperless_visual` | Name of the index |
@@ -142,12 +142,30 @@ python main.py
 
 ## Model Information
 
-**ColQwen2 (vidore/colqwen2-v1.0)**
+**ColQwen3 (TomoroAI/tomoro-colqwen3-embed-8b)**
 - Architecture: ColPali / ColQwen (Vision-Language Retriever)
 - Methodology: Late Interaction (MaxSim)
-- Size: ~8.5 GB
+- Size: 8B parameters
+- Embedding dimension: **320** (single-vector per image patch)
+- Context window: **32k tokens**
+- Storage efficiency: **~13× storage efficiency vs ColQwen2 (v2)** for dense indexing
 - VRAM: 12GB+ recommended
-- Strength: Zero-loss visual retrieval (finds charts, layouts, handwriting without OCR)
+- Strength: Zero-loss visual retrieval (finds charts, layouts, and handwriting without OCR)
+
+**Legacy**
+- `vidore/colqwen2-v1.0` is deprecated and no longer supported. Re-index on ColQwen3.
+
+## Troubleshooting: flash-attn / CUDA build
+
+Some deployments use `flash-attn` or CUDA-accelerated kernels to improve Latency and VRAM usage. If you encounter build-time or runtime errors related to `flash-attn` (e.g. build failures, missing CUDA symbols, or illegal instruction / segfault while loading the extension), try the following:
+
+1. Verify your CUDA toolkit and driver versions match the PyTorch wheel. Use `nvidia-smi` and `python -c "import torch;print(torch.version.cuda)"`.
+2. Install a PyTorch wheel that matches CUDA (e.g. `pip install torch --index-url https://download.pytorch.org/whl/cu121`).
+3. Reinstall `flash-attn` against the same environment (prefer a binary wheel), for example `pip install flash-attn --no-build-isolation` or use a prebuilt wheel for your CUDA version.
+4. If build fails due to compiler flags, ensure you have a recent `gcc`/`clang` and CUDA toolchain available in the build image.
+5. As a fallback, disable accelerated kernels and run on plain PyTorch CPU/CUDA kernels while debugging.
+
+If you continue to hit issues, capture logs and open an issue with the sidecar maintainers including PyTorch and CUDA versions, and the reproduction steps.
 
 ## Troubleshooting
 

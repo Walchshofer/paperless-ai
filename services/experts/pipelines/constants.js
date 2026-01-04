@@ -16,7 +16,8 @@ const StageType = Object.freeze({
     INTEGRATION: 'integration',          // Multi-source data fusion
     VALIDATION: 'validation',            // Output quality checks
     RECOVERY: 'recovery',                // Error recovery attempts
-    VISUAL_QUERY_GENERATION: 'visual_query_generation'  // Phase 3: Generate visual queries for missing/low-confidence fields
+    VISUAL_QUERY_GENERATION: 'visual_query_generation',  // Phase 3: Generate visual queries for missing/low-confidence fields
+    VISUAL_QUERY_EXECUTION: 'visual_query_execution'     // Phase 4: Execute visual queries against Visual RAG sidecar
 });
 
 /**

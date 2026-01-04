@@ -277,7 +277,7 @@ async def check_health():
         "data_manager": "unknown",
         "search_engine": "unknown",
         "documents_loaded": False,
-        "chroma_initialized": False,
+        "pgvector_initialized": False,
         "bm25_initialized": False,
         "issues": [],
         "recommendations": [],
@@ -319,27 +319,36 @@ async def check_health():
         else:
             health_status["search_engine"] = "ok"
 
-        if (
-            global_state.search_engine
-            and global_state.search_engine.collection
-        ):
+        # Check pgvector
+        if not global_state.search_engine or not global_state.search_engine.db_pool:
+            health_status["issues"].append("pgvector not initialized")
+            health_status["recommendations"].append(
+                "Call /indexing/start endpoint"
+            )
+            health_status["search_engine"] = "missing"
+        else:
             try:
-                collection_count = (
-                    global_state.search_engine.collection.count()
-                )
-                health_status["chroma_initialized"] = collection_count > 0
-                if collection_count == 0:
+                conn = global_state.search_engine.db_pool.getconn()
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM document_embeddings;")
+                count = cursor.fetchone()[0]
+                cursor.close()
+                global_state.search_engine.db_pool.putconn(conn)
+
+                health_status["pgvector_initialized"] = count > 0
+                if count == 0:
                     health_status["issues"].append(
-                        "ChromaDB collection is empty"
+                        "pgvector table is empty"
                     )
                     health_status["recommendations"].append(
-                        "Call /indexing/start with force=true to rebuild "
-                        "ChromaDB"
+                        "Call /indexing/start with force=true to rebuild pgvector"
                     )
+                else:
+                    health_status["search_engine"] = "ok"
             except Exception as exc:
-                logger.error(f"Error checking ChromaDB collection: {str(exc)}")
+                logger.error(f"Error checking pgvector: {str(exc)}")
                 health_status["issues"].append(
-                    "Error checking ChromaDB collection"
+                    "Error checking pgvector"
                 )
 
         if (

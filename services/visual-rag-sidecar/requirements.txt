@@ -9,7 +9,7 @@ pydantic>=2.5.0
 
 # Byaldi - ColPali/ColQwen2 wrapper
 # Provides multi-modal document retrieval
-byaldi>=0.0.5
+byaldi>=0.0.6
 
 # PyTorch with CUDA support
 # Note: Install separately with proper CUDA version
@@ -24,9 +24,8 @@ transformers>=4.36.0
 pdf2image>=1.16.3
 Pillow>=10.0.0
 
-# Optional: Flash Attention for better performance
-# Uncomment if your GPU supports it (Ampere or newer)
-# flash-attn>=2.4.0
+# Flash Attention is installed separately in the Dockerfile with build flags
+# See Dockerfile for the explicit `pip install --no-build-isolation flash-attn>=2.4.0`
 
 # Utilities
 python-dotenv>=1.0.0

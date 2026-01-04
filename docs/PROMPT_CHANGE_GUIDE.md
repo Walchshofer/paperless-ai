@@ -77,6 +77,11 @@ Every prompt change MUST include:
 - PromptRegistry fallback MUST remain compatible
 - V2 Guidance templates must degrade gracefully to V1
 - Executor must not assume Guidance availability
+- Classification and extraction templates MUST use `temperature=0.0`
+- Fixed-option fields MUST use `select()`; identifiers MUST use regex constraints
+- Structured outputs MUST use `guidance_json(schema=..., name="output")`
+- Template execution must capture returned LM state (immutability)
+- Tool-based extraction MUST surface errors and avoid silent failures
 
 ---
 

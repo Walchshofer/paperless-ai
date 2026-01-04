@@ -8,13 +8,11 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(ROOT_DIR, "data")
 
 DOCUMENTS_FILE = os.path.join(DATA_DIR, "documents.json")
-CHROMADB_DIR = os.path.join(DATA_DIR, "chromadb")
 BM25_FILE = os.path.join(DATA_DIR, "bm25_index.pkl")
 STATE_FILE = os.path.join(DATA_DIR, "system_state.json")
 
 EMBEDDING_MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
 CROSS_ENCODER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-COLLECTION_NAME = "documents"
 BM25_WEIGHT = 0.3
 SEMANTIC_WEIGHT = 0.7
 MAX_RESULTS = 20

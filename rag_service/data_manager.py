@@ -5,16 +5,15 @@ import traceback
 from datetime import datetime
 from typing import Tuple
 
-import chromadb
+import psycopg2
 import requests
-from chromadb.utils import embedding_functions
+from psycopg2.extras import execute_values
+from psycopg2.pool import SimpleConnectionPool
 from sentence_transformers import CrossEncoder, SentenceTransformer
 from tqdm import tqdm
 
 from .logging_utils import logger
 from .settings import (
-    CHROMADB_DIR,
-    COLLECTION_NAME,
     CROSS_ENCODER_MODEL_NAME,
     DOCUMENTS_FILE,
     EMBEDDING_MODEL_NAME,
@@ -73,14 +72,16 @@ class DataManager:
         self.documents = []
         self.document_hashes = {}
         self.last_sync = None
-        self.collection = None
         self.is_initialized = False
-        self.chroma_initialized = False
+        self.db_pool = None
+        self.db_host = os.getenv("POSTGRES_HOST", "db")
+        self.db_port = int(os.getenv("POSTGRES_PORT", "5432"))
+        self.db_name = os.getenv("POSTGRES_DB", "paperless")
+        self.db_user = os.getenv("POSTGRES_USER", "paperless")
+        self.db_password = os.getenv("POSTGRES_PASSWORD", "")
 
         self.sentence_transformer = None
-        self.embedding_function = None
         self.cross_encoder = None
-        self.chroma_client = None
 
         self.indexed_document_ids = (
             global_state._indexed_document_ids
@@ -93,21 +94,12 @@ class DataManager:
             self.initialize_models()
 
     def initialize_models(self) -> bool:
-        """Initialize NLP models and ChromaDB."""
+        """Initialize NLP models and PostgreSQL + pgvector."""
         try:
             if self.sentence_transformer is None:
                 logger.info("Initializing sentence transformer model")
                 self.sentence_transformer = SentenceTransformer(
                     EMBEDDING_MODEL_NAME
-                )
-
-            if self.embedding_function is None:
-                logger.info("Initializing embedding function")
-                self.embedding_function = (
-                    embedding_functions
-                    .SentenceTransformerEmbeddingFunction(
-                        model_name=EMBEDDING_MODEL_NAME,
-                    )
                 )
 
             if self.cross_encoder is None:
@@ -116,11 +108,20 @@ class DataManager:
                     CROSS_ENCODER_MODEL_NAME
                 )
 
-            if self.chroma_client is None:
-                logger.info("Initializing ChromaDB client")
-                self.chroma_client = chromadb.PersistentClient(
-                    path=CHROMADB_DIR,
+            # Initialize PostgreSQL + pgvector connection pool
+            if self.db_pool is None:
+                logger.info("Initializing PostgreSQL + pgvector connection pool")
+                self.db_pool = SimpleConnectionPool(
+                    1, 20,
+                    host=self.db_host,
+                    port=self.db_port,
+                    database=self.db_name,
+                    user=self.db_user,
+                    password=self.db_password
                 )
+
+                # Ensure pgvector extension and schema are initialized
+                self._ensure_pgvector_schema()
 
             self.is_initialized = True
             global_state.save_state()
@@ -128,6 +129,47 @@ class DataManager:
         except Exception as exc:
             logger.error("Error initializing models: %s", str(exc))
             self.is_initialized = False
+            return False
+
+    def _ensure_pgvector_schema(self) -> bool:
+        """Ensure pgvector extension and document_embeddings table exist."""
+        try:
+            conn = self.db_pool.getconn()
+            cursor = conn.cursor()
+
+            # Enable pgvector extension
+            cursor.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+
+            # Create document_embeddings table if not exists
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS document_embeddings (
+                    id SERIAL PRIMARY KEY,
+                    doc_id INTEGER NOT NULL UNIQUE,
+                    title TEXT NOT NULL,
+                    correspondent TEXT,
+                    created DATE,
+                    content TEXT,
+                    embedding vector(384),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # Create index for vector similarity search
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_embedding_cosine 
+                ON document_embeddings USING ivfflat (embedding vector_cosine_ops)
+                WITH (lists = 100);
+            """)
+
+            conn.commit()
+            cursor.close()
+            self.db_pool.putconn(conn)
+
+            logger.info("pgvector schema initialized successfully")
+            return True
+        except Exception as exc:
+            logger.error("Error ensuring pgvector schema: %s", str(exc))
             return False
 
     def _get_headers(self) -> dict:
@@ -452,167 +494,74 @@ class DataManager:
             DOCUMENTS_FILE,
         )
 
-    def setup_chroma_collection(self, force_update: bool = False):
-        """Set up ChromaDB collection. Supports adding only new documents."""
-        if not self.is_initialized:
-            success = self.initialize_models()
-            if not success:
-                logger.error(
-                    "Failed to initialize models for ChromaDB setup"
-                )
-                return None
-
-        os.makedirs(CHROMADB_DIR, exist_ok=True)
-
+    def _add_documents_to_pgvector(self, documents) -> bool:
+        """Add documents and embeddings to PostgreSQL + pgvector."""
         try:
-            existing_collections = self.chroma_client.list_collections()
-            collection_exists = any(
-                coll.name == COLLECTION_NAME
-                for coll in existing_collections
-            )
+            conn = self.db_pool.getconn()
+            cursor = conn.cursor()
 
-            if collection_exists and not force_update:
-                try:
-                    collection = self.chroma_client.get_collection(
-                        name=COLLECTION_NAME,
-                        embedding_function=self.embedding_function,
-                    )
-                    logger.info(
-                        "Loaded existing ChromaDB collection '%s'",
-                        COLLECTION_NAME,
-                    )
+            batch_size = 100
+            total_docs = len(documents)
 
-                    collection_count = collection.count()
-                    logger.info(
-                        "ChromaDB collection contains %s documents",
-                        collection_count,
-                    )
-
-                    if collection_count == 0 and self.documents:
-                        logger.warning(
-                            "Empty ChromaDB collection found but documents "
-                            "exist. Forcing update."
-                        )
-                        force_update = True
-                    else:
-                        if self.new_document_ids and not force_update:
-                            logger.info(
-                                "Adding %s new documents to ChromaDB "
-                                "collection",
-                                len(self.new_document_ids),
-                            )
-                            new_docs = [
-                                doc
-                                for doc in self.documents
-                                if doc["id"]
-                                in self.new_document_ids
-                            ]
-                            if new_docs:
-                                self._add_documents_to_chroma(
-                                    collection,
-                                    new_docs,
-                                )
-
-                        self.collection = collection
-                        self.chroma_initialized = True
-                        global_state.system_status.chroma_ready = True
-                        global_state.save_state()
-                        return collection
-
-                except Exception as inner_exc:
-                    logger.error(
-                        "Error accessing ChromaDB collection: %s",
-                        str(inner_exc),
-                    )
-                    logger.error(traceback.format_exc())
-                    logger.warning(
-                        "Will attempt to recreate the collection"
-                    )
-                    force_update = True
-
-            if force_update and collection_exists:
+            for i in range(0, total_docs, batch_size):
+                batch = documents[i:i + batch_size]
                 logger.info(
-                    "Forcing update of ChromaDB collection '%s'",
-                    COLLECTION_NAME,
+                    "Processing batch %s/%s (%s documents)",
+                    i // batch_size + 1,
+                    (total_docs - 1) // batch_size + 1,
+                    len(batch),
                 )
-                self.chroma_client.delete_collection(COLLECTION_NAME)
+
+                # Generate embeddings for batch
+                texts = [
+                    f"{doc['title']} {doc['correspondent']} {doc['content']}"
+                    for doc in batch
+                ]
+                embeddings = self.sentence_transformer.encode(texts)
+
+                # Prepare data for insertion
+                data = [
+                    (
+                        doc["id"],
+                        doc["title"],
+                        doc["correspondent"],
+                        doc["created"],
+                        doc["content"],
+                        embedding.tolist()
+                    )
+                    for doc, embedding in zip(batch, embeddings)
+                ]
+
+                # Upsert documents and embeddings
+                execute_values(
+                    cursor,
+                    """
+                    INSERT INTO document_embeddings 
+                    (doc_id, title, correspondent, created, content, embedding)
+                    VALUES %s
+                    ON CONFLICT (doc_id) DO UPDATE SET
+                        title = EXCLUDED.title,
+                        correspondent = EXCLUDED.correspondent,
+                        created = EXCLUDED.created,
+                        content = EXCLUDED.content,
+                        embedding = EXCLUDED.embedding,
+                        updated_at = CURRENT_TIMESTAMP
+                    """,
+                    data
+                )
+                conn.commit()
+
+            cursor.close()
+            self.db_pool.putconn(conn)
 
             logger.info(
-                "Creating new ChromaDB collection '%s'",
-                COLLECTION_NAME,
+                "Added/updated %s documents to pgvector",
+                total_docs,
             )
-            collection = self.chroma_client.create_collection(
-                name=COLLECTION_NAME,
-                embedding_function=self.embedding_function,
-            )
-
-            if not self.documents:
-                self.load_documents()
-
-            self._add_documents_to_chroma(collection, self.documents)
-
-            self.collection = collection
-            self.chroma_initialized = True
-            global_state.system_status.chroma_ready = True
-            global_state.save_state()
-
-            return collection
-
+            return True
         except Exception as exc:
-            logger.error(
-                "Error setting up ChromaDB collection: %s",
-                str(exc),
-            )
-            logger.error(traceback.format_exc())
-            global_state.system_status.chroma_ready = False
-            self.chroma_initialized = False
-            global_state.save_state()
-            raise
-
-    def _add_documents_to_chroma(
-        self,
-        collection,
-        documents,
-    ) -> None:
-        """Add documents to ChromaDB collection."""
-        batch_size = 100
-        total_docs = len(documents)
-
-        for i in range(0, total_docs, batch_size):
-            batch = documents[i:i + batch_size]
-            logger.info(
-                "Processing batch %s/%s (%s documents)",
-                i // batch_size + 1,
-                (total_docs - 1) // batch_size + 1,
-                len(batch),
-            )
-
-            ids = [str(doc["id"]) for doc in batch]
-            texts = [
-                f"{doc['title']} {doc['correspondent']} {doc['content']}"
-                for doc in batch
-            ]
-            metadatas = [
-                {
-                    "title": doc["title"],
-                    "correspondent": doc["correspondent"],
-                    "created": doc["created"],
-                    "tags": ", ".join(doc["tags"]),
-                    "hash": doc["hash"],
-                }
-                for doc in batch
-            ]
-
-            collection.upsert(
-                ids=ids,
-                documents=texts,
-                metadatas=metadatas,
-            )
-
-        logger.info(
-            "Added/updated %s documents to ChromaDB collection",
-            total_docs,
-        )
+            logger.error("Error adding documents to pgvector: %s", str(exc))
+            return False
 
 
 # Search Engine

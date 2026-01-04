@@ -13,9 +13,7 @@ from .search_engine import SearchEngine
 from .settings import (
     DATA_DIR,
     DOCUMENTS_FILE,
-    CHROMADB_DIR,
     BM25_FILE,
-    COLLECTION_NAME,
 )
 from .state import global_state
 
@@ -147,18 +145,22 @@ async def startup_event():
         global_state.data_manager.initialize_models()
 
         documents_exist = os.path.exists(DOCUMENTS_FILE)
-        chromadb_exists = os.path.exists(CHROMADB_DIR)
-        chroma_collection_exists = False
         bm25_exists = os.path.exists(BM25_FILE)
+        pgvector_initialized = False
 
-        if chromadb_exists and global_state.data_manager.chroma_client:
-            existing_collections = (
-                global_state.data_manager.chroma_client.list_collections()
-            )
-            chroma_collection_exists = any(
-                collection.name == COLLECTION_NAME
-                for collection in existing_collections
-            )
+        if global_state.data_manager.db_pool:
+            try:
+                conn = global_state.data_manager.db_pool.getconn()
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM document_embeddings;")
+                count = cursor.fetchone()[0]
+                cursor.close()
+                global_state.data_manager.db_pool.putconn(conn)
+                pgvector_initialized = count > 0
+            except Exception as exc:
+                logger.error("Error checking pgvector table: %s", str(exc))
+                logger.error(traceback.format_exc())
+        global_state.system_status.pgvector_ready = pgvector_initialized
 
         if documents_exist:
             logger.info("Found existing data, loading without reindexing")
@@ -212,36 +214,14 @@ async def startup_event():
             if (
                 global_state.data_manager.documents
                 and len(global_state.data_manager.documents) > 0
-                and chroma_collection_exists
+                and pgvector_initialized
                 and bm25_exists
             ):
 
                 logger.info(
                     "Found valid documents and indexes, attempting to load"
                 )
-
-                if not global_state.data_manager.chroma_initialized:
-                    try:
-                        chroma_client = (
-                            global_state.data_manager.chroma_client
-                        )
-                        embedding_fn = (
-                            global_state.data_manager.embedding_function
-                        )
-                        collection = chroma_client.get_collection(
-                            name=COLLECTION_NAME,
-                            embedding_function=embedding_fn,
-                        )
-                        global_state.data_manager.collection = collection
-                        global_state.data_manager.chroma_initialized = True
-                        global_state.system_status.chroma_ready = True
-                        global_state.search_engine.collection = collection
-                        logger.info("Loaded existing ChromaDB collection")
-                    except Exception as exc:
-                        logger.error(
-                            "Error loading ChromaDB collection: %s", str(exc)
-                        )
-                        logger.error(traceback.format_exc())
+                global_state.system_status.pgvector_ready = True
 
                 if bm25_exists and global_state.search_engine:
                     try:
@@ -294,7 +274,7 @@ async def startup_event():
             if (
                 not global_state.search_engine.is_initialized
                 or not global_state.search_engine.bm25_initialized
-                or not global_state.data_manager.chroma_initialized
+                or not pgvector_initialized
             ):
 
                 logger.info("Search engine needs initialization after startup")
@@ -303,8 +283,8 @@ async def startup_event():
             logger.info("Not all required data found for auto-loading")
             if not documents_exist:
                 logger.info("Documents file not found")
-            if not chroma_collection_exists:
-                logger.info("ChromaDB collection not found")
+            if not pgvector_initialized:
+                logger.info("pgvector table not initialized")
 
             global_state.search_engine = SearchEngine(
                 global_state.data_manager, initialize_on_start=False

@@ -40,7 +40,21 @@ class Config:
     """Service configuration from environment variables."""
 
     # Model settings
-    MODEL_NAME = os.getenv("VISUAL_RAG_MODEL", "vidore/colqwen2-v1.0")
+    # BREAKING CHANGE: Only TomoroAI/tomoro-colqwen3-embed-8b is supported
+    # Old model vidore/colqwen2-v1.0 is no longer supported
+    # Users must re-index documents with the new model
+    MODEL_NAME = "TomoroAI/tomoro-colqwen3-embed-8b"
+
+    # Log warning if user tries to override with old model
+    if os.getenv("VISUAL_RAG_MODEL") == "vidore/colqwen2-v1.0":
+        logger.warning(
+            "BREAKING CHANGE: vidore/colqwen2-v1.0 is no longer supported"
+        )
+        raise ValueError(
+            "BREAKING CHANGE: vidore/colqwen2-v1.0 is no longer supported. "
+            "Please upgrade to TomoroAI/tomoro-colqwen3-embed-8b and re-index documents. "
+            "See migration guide: docs/RAG_SYSTEMS_REFERENCE.md"
+        )
 
     # Paths
     INDEX_DIR = Path(os.getenv("INDEX_DIR", "/data/indices"))
@@ -254,6 +268,13 @@ async def lifespan(app: FastAPI):
     logger.info(f"Model: {config.MODEL_NAME}")
     logger.info(f"Index directory: {config.INDEX_DIR}")
     logger.info(f"Media directory: {config.MEDIA_DIR}")
+    logger.warning("=" * 80)
+    logger.warning("BREAKING CHANGE: Visual RAG Sidecar v2.0")
+    logger.warning("Old model vidore/colqwen2-v1.0 is no longer supported")
+    logger.warning("Only TomoroAI/tomoro-colqwen3-embed-8b is supported")
+    logger.warning("Existing indices must be re-indexed")
+    logger.warning("See: docs/RAG_SYSTEMS_REFERENCE.md#migration-guide")
+    logger.warning("=" * 80)
 
     # Ensure directories exist
     config.INDEX_DIR.mkdir(parents=True, exist_ok=True)
@@ -271,7 +292,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Visual RAG Sidecar",
-    description="Visual document retrieval service using ColQwen2/ColPali",
+    description="Visual document retrieval service using ColQwen3/ColPali (v2.0+)",
     version="1.0.0",
     lifespan=lifespan
 )

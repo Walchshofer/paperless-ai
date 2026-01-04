@@ -9,7 +9,7 @@
 
 # Use NVIDIA CUDA base image with Python
 # Updated from deprecated 12.1.0-cudnn8 to supported 12.4.1-cudnn
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -20,6 +20,9 @@ ENV PYTHONUNBUFFERED=1
 
 # PyTorch CUDA memory configuration for GPU sharing with Ollama
 ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+# Flash Attention compilation settings
+ENV MAX_JOBS=4
+ENV TORCH_CUDA_ARCH_LIST="8.0;8.6;8.9;9.0"
 
 # Hugging Face cache directory (will be mounted as volume)
 # Note: TRANSFORMERS_CACHE is deprecated, HF_HOME is the standard
@@ -31,6 +34,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     python3.10-dev \
     build-essential \
+    # CUDA development tools for flash-attention compilation (required)
+    cuda-toolkit-12-4 \
+    ninja-build \
     # Poppler for PDF to image conversion (required by Byaldi)
     poppler-utils \
     # Additional image processing libraries
@@ -54,14 +60,18 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 WORKDIR /app
 
 # Install PyTorch with CUDA support first (large download, cache separately)
+# Install PyTorch with CUDA 12.4 support
 RUN pip install --no-cache-dir \
     torch==2.2.0 \
     torchvision==0.17.0 \
-    --index-url https://download.pytorch.org/whl/cu121
+    --index-url https://download.pytorch.org/whl/cu124
 
 # Copy requirements and install dependencies
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
+# Install flash-attention separately with no-build-isolation flag
+# This ensures proper CUDA compilation for ColQwen3
+RUN pip install --no-cache-dir --no-build-isolation flash-attn>=2.4.0
 
 # Copy application code
 COPY main.py /app/

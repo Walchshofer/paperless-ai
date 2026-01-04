@@ -285,7 +285,7 @@ Below are the commonly used model tags and the related environment variables use
 | Financial (calculator) | `FINANCIAL_ANALYSIS_MODEL` | `fino1-8b` |
 | Legal (vision) | `LEGAL_VISION_MODEL` | `qwen3-vl:8b` |
 | Legal (analysis / expert) | `LEGAL_EXPERT_MODEL`, `LEGAL_ANALYSIS_MODEL` | `gpt-oss` (20B) or `sauerkraut-llama3.1:8b` |
-| Visual RAG Sidecar | `VISUAL_RAG_MODEL` (visual-rag-sidecar) | `vidore/colqwen2-v1.0` |
+| Visual RAG Sidecar | `VISUAL_RAG_MODEL` (visual-rag-sidecar) | `TomoroAI/tomoro-colqwen3-embed-8b` |
 | Embeddings | `OLLAMA_EMBEDDING_MODEL`, `EMBEDDING_MODEL` | `nomic-embed-text-v1.5`, `tomoro-colqwen3-embed-8b` |
 
 Example configuration object used by the executor:
@@ -305,7 +305,7 @@ const MODELS = {
 ```
 
 Notes:
-- The Visual-RAG sidecar runs a dedicated visual retrieval model (`vidore/colqwen2-v1.0`) and is configured separately in `services/visual-rag-sidecar`.
+- The Visual-RAG sidecar runs a dedicated visual retrieval model (`TomoroAI/tomoro-colqwen3-embed-8b`) and is configured separately in `services/visual-rag-sidecar`. Legacy `vidore/colqwen2-v1.0` is deprecated.    
 - Embedding models are pluggable; the codebase currently prefers `nomic-embed-text-v1.5` or `tomoro-colqwen3-embed-8b` where available.
 - In many places defaults are read from environment variables (e.g., `process.env.ROUTER_MODEL`), check `docker-compose.env` and `test/setup-env.js` for repo defaults.
 

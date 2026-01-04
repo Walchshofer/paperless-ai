@@ -331,6 +331,11 @@ class ExpertPipelineExecutor {
             return this._executeVisualQueryGenerationStage(stage, context, stageStart);
         }
 
+        // Handle visual query execution stages (Phase 4)
+        if (stage.type === StageType.VISUAL_QUERY_EXECUTION) {
+            return this._executeVisualQueryExecutionStage(stage, context, stageStart);
+        }
+
         // Build input from mappings
         const stageInput = this._buildStageInput(stage.inputMapping, context);
 
@@ -954,6 +959,162 @@ class ExpertPipelineExecutor {
             });
 
             // Not fatal - pipeline can continue without visual queries
+            return {
+                status: 'warning',
+                output: fallbackOutput,
+                abort: false
+            };
+        }
+    }
+
+    /**
+     * Execute a visual query execution stage (Phase 4)
+     *
+     * Executes visual queries against the Visual RAG sidecar and merges results
+     * with extraction output. Applies circuit breaker protection, deduplication,
+     * and confidence score fusion.
+     *
+     * @param {Object} stage - Stage configuration
+     * @param {Object} context - Execution context
+     * @param {number} stageStart - Stage start timestamp
+     * @returns {Object} Stage execution result
+     */
+    async _executeVisualQueryExecutionStage(stage, context, stageStart) {
+        logger.info({
+            event: 'visual_query_execution_stage_start',
+            stageId: stage.id,
+            documentId: context.document?.id || context.document?.filename
+        });
+
+        try {
+            // Import VisualQueryExecutor and VisualSearchClient (lazy load)
+            const { VisualQueryExecutor } = require('./VisualQueryExecutor');
+            const { VisualSearchClient } = require('../visual-rag/VisualSearchClient');
+
+            // Get visual queries from Phase 3
+            const queryOutput = context.getStageOutput('visual_queries');
+            const visualQueries = queryOutput?.queries || [];
+
+            // Get extraction results
+            const extractionResults = context.getStageOutput('extraction') ||
+                                     context.getStageOutput('general_extraction') ||
+                                     context.getStageOutput('text_extraction') ||
+                                     {};
+
+            // Get document image
+            const documentImage = context.document?.imageBase64 ||
+                                 context.document?.imageBuffer ||
+                                 context.document?.imagePath;
+
+            if (!documentImage) {
+                logger.warn({
+                    event: 'visual_query_execution_no_image',
+                    stageId: stage.id,
+                    documentId: context.document?.id
+                });
+            }
+
+            // Prepare document metadata
+            const documentMetadata = {
+                id: context.document?.id,
+                filename: context.document?.filename,
+                documentType: context.getStageOutput('classification')?.primary_domain ||
+                             context.document?.documentType ||
+                             'general'
+            };
+
+            // Initialize Visual Search Client and Executor
+            const visualSearchClient = new VisualSearchClient();
+            const executor = new VisualQueryExecutor(visualSearchClient, stage.executorConfig || {});
+
+            // Execute queries and merge results
+            const result = await executor.executeQueries({
+                visualQueries,
+                extractionResults,
+                documentMetadata,
+                documentImage
+            });
+
+            const timing = Date.now() - stageStart;
+
+            // Store execution result in context
+            const executionOutput = {
+                fields: result.fields,
+                newly_discovered_fields: result.newly_discovered_fields,
+                overlays: result.overlays,
+                metadata: result.execution_metadata,
+                executionTimeMs: timing
+            };
+
+            context.setStageOutput(stage.outputKey || 'visual_execution', executionOutput, timing);
+
+            // Also update document fields for backward compatibility
+            if (result.fields && result.fields.length > 0) {
+                context.document.fields = result.fields;
+            }
+
+            logger.info({
+                event: 'visual_query_execution_stage_complete',
+                stageId: stage.id,
+                documentId: context.document?.id,
+                fieldsCount: result.fields.length,
+                newlyDiscoveredCount: result.newly_discovered_fields.length,
+                visualConfirmationRate: result.execution_metadata.visual_confirmation_rate,
+                executionTimeMs: timing
+            });
+
+            return {
+                status: 'success',
+                output: executionOutput,
+                abort: false
+            };
+
+        } catch (error) {
+            const timing = Date.now() - stageStart;
+
+            logger.error({
+                event: 'visual_query_execution_stage_failed',
+                stageId: stage.id,
+                documentId: context.document?.id,
+                error: error.message,
+                stack: error.stack,
+                executionTimeMs: timing
+            });
+
+            context.addError(stage.id, error);
+
+            // Graceful degradation: continue with extraction-only results
+            const extractionResults = context.getStageOutput('extraction') ||
+                                     context.getStageOutput('general_extraction') ||
+                                     {};
+
+            const fallbackOutput = {
+                fields: (extractionResults.fields || []).map(f => ({
+                    ...f,
+                    visual_confirmation: false
+                })),
+                newly_discovered_fields: [],
+                overlays: [],
+                metadata: {
+                    total_queries_executed: 0,
+                    successful_queries: 0,
+                    failed_queries: 0,
+                    fallback: true,
+                    error: error.message
+                },
+                executionTimeMs: timing
+            };
+
+            context.setStageOutput(stage.outputKey || 'visual_execution', fallbackOutput, timing);
+
+            logger.warn({
+                event: 'visual_query_execution_fallback',
+                stageId: stage.id,
+                documentId: context.document?.id,
+                message: 'Continuing with extraction-only results (no visual execution)'
+            });
+
+            // Not fatal - pipeline can continue without visual execution
             return {
                 status: 'warning',
                 output: fallbackOutput,

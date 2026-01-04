@@ -17,6 +17,9 @@ Execution order, retries, and fallback behavior are defined in
 - Stages must not invoke retries directly
 - Stages must surface errors; orchestration decides recovery
 - Stages must not assume Guidance availability
+- If Guidance is used, templates must follow the Guidance authoring rules:
+  `temperature=0.0` for classification/extraction, `select()` for fixed options,
+  regex constraints for identifiers, and `guidance_json` for schema outputs.
 
 ---
 
@@ -98,26 +101,58 @@ Correct image geometry prior to OCR or visual analysis.
 
 ---
 
-## Stage 4: Visual OCR
+## Stage 4: Parallel OCR + Visual Element Detection
 
 ### Purpose
-Extract text using a vision-capable LLM.
+Execute OCR and visual element detection in parallel with circuit breaker protection.
 
 ### Inputs
-- Page images
+- Document ID (for Tesseract OCR fetch)
+- Prepared/normalized page images
+- Execution context
 
 ### Outputs
-- Visual OCR text
+- `enhanced_ocr_text` - Reconciled OCR text from best source(s)
+- `ocr_metadata` - Source attribution, conflict rate, latency metrics
+- `visual_elements` - Detected tables, images, layout structure
 
 ### Allowed
-- Direct Ollama vision model calls
-- OCR quality scoring vs Tesseract
-- OCR source selection
+- **Track 1: Visual OCR**
+  - Direct Ollama vision model calls (qwen3-vl:8b via ollama_visual)
+  - OCR text extraction from images
+  - 500ms latency budget, 1000ms hard timeout
+
+- **Track 2: Tesseract OCR**
+  - Fetch from Paperless-ngx API `/api/documents/{id}/` endpoint
+  - Use `content` field for Tesseract OCR output
+  - Parallel execution with Visual OCR
+
+- **Track 3: Visual Element Detection**
+  - Table detection via Visual RAG sidecar
+  - Image/figure detection
+  - Layout analysis
+  - Circuit breaker protected calls
+  - 500ms timeout per detection task
+
+- **OCR Reconciliation**
+  - Use `mergeOcrResults()` when both sources succeed
+  - Length ratio scoring
+  - Structural integrity checks
+  - Garbage detection
+  - Document type awareness (scanned docs favor Visual OCR)
+
+- **Circuit Breaker**
+  - Track failure counts per service
+  - Transition states: CLOSED → OPEN → HALF_OPEN
+  - Exponential backoff: 100ms, 200ms, 400ms
+  - Graceful degradation when circuit OPEN
 
 ### Forbidden
-- Use of Visual RAG
-- Page-specific retries
+- Using Visual RAG for OCR extraction
+- Page-specific retries (document-scoped only)
 - Schema inference
+- Infinite retry loops
+- Blocking on Visual Sidecar when circuit OPEN
 
 ---
 
@@ -127,11 +162,13 @@ Extract text using a vision-capable LLM.
 Produce structured data from OCR text.
 
 ### Inputs
-- Selected OCR text
+- Selected OCR text (enhanced_ocr_text)
 - Evidence context
+- Visual elements (optional)
 
 ### Outputs
 - Schema-compliant structured fields
+- Field confidence scores
 
 ### Allowed
 - Guidance execution
@@ -142,6 +179,58 @@ Produce structured data from OCR text.
 - Silent failure
 - Partial schema emission
 - Skipping validation
+
+---
+
+## Stage 5.5: Visual Query Generation
+
+### Purpose
+Generate targeted visual queries for field validation and missing field detection.
+
+### Inputs
+- `extraction_result` - Structured extraction output from Stage 5
+- `ocr_text` - Reconciled OCR text
+- `field_schema` - Paperless-ngx custom field taxonomy
+- `visual_elements` - Detected tables, images, layout from Stage 4
+
+### Outputs
+- `visual_queries` - Array of query objects:
+  - `question` (string, required) - Natural language query
+  - `field_target` (string, required) - Target field name
+  - `expected_element_type` (string, required) - field_extraction | validation | exploration
+  - `priority` (number, 0-1) - Query priority
+  - `confidence` (number, 0-1) - Expected confidence for dynamic k
+  - `rarity_factor` (number, 0-1) - Field rarity in taxonomy for dynamic k
+
+### Allowed
+- Use Guidance template `visual_query_generator_de` (or domain variants)
+- Query custom field taxonomy from Paperless-ngx API
+- Generate minimum 3 queries per document
+- Target missing or low-confidence fields from extraction
+- Use OCR text to create precise field-targeted questions
+- Access visual elements metadata for context
+
+### Forbidden
+- Direct Visual RAG sidecar calls (query generation only, not execution)
+- Mutation of extraction result
+- Execution when circuit breaker is OPEN
+- Generating queries for fields not in schema or taxonomy
+- Failing the pipeline if query generation fails (must gracefully degrade)
+
+### Execution Condition
+- Only execute if `context.visualSidecarAvailable !== false`
+- Circuit breaker must be CLOSED or HALF_OPEN
+- Must be positioned after extraction, before reasoning
+
+### Validation
+- Minimum 3 queries required
+- Each query must have: question, field_target, expected_element_type
+- Field targets must exist in extraction schema or custom field taxonomy
+
+### Fallback Behavior
+- If query generation fails → skip visual validation
+- Pipeline continues with extraction-only results
+- Log warning but do not fail pipeline
 
 ---
 
@@ -194,22 +283,50 @@ Assess extraction completeness and confidence.
 ## Stage 8: Enrichment (Visual RAG)
 
 ### Purpose
-Attach visual evidence overlays.
+Execute visual queries and attach visual evidence overlays with field enhancements.
 
 ### Inputs
-- Final structured result
+- `visual_queries` - Generated queries from Stage 5.5
+- Document ID
+- Final structured result from extraction
+- Execution context
 
 ### Outputs
-- Visual overlay references
+- `visual_search_results` - Aggregated search results with deduplication
+- Enhanced extraction with:
+  - Updated field confidence scores
+  - Overlay positions (page, x, y, width, height)
+  - Visual confirmations
+  - Newly discovered fields
 
 ### Allowed
-- Best-effort retrieval
-- Evidence linking
+- **Visual Query Execution**
+  - Execute queries via Visual RAG sidecar
+  - Max 5 concurrent queries per document
+  - Dynamic k selection using formula: `K = base_K * (1 + (1 - confidence) * 0.5) * (1 + rarity_factor)`
+  - Circuit breaker protected calls
+
+- **Base K Values**
+  - field_extraction: k=3 (high precision)
+  - validation: k=5 (moderate)
+  - exploration: k=10 (high recall)
+
+- **Result Aggregation**
+  - Deduplicate overlapping bounding boxes (IoU > 0.7)
+  - Merge visual confirmations with extraction output
+  - Boost field confidence scores when visually validated
+  - Add overlay positions to field metadata
+  - Flag newly discovered fields from visual search
+
+- **Best-effort retrieval**
+- **Evidence linking**
 
 ### Forbidden
-- OCR
-- Extraction
-- Pipeline failure if unavailable
+- OCR extraction (evidence only)
+- Overwriting extraction without visual confirmation
+- Pipeline failure if Visual Sidecar unavailable
+- Executing queries when circuit breaker OPEN (must skip gracefully)
+- Blocking pipeline on visual query failures
 
 ---
 

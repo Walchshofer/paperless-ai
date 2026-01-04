@@ -2,7 +2,11 @@
 
 ## Overview
 
-Paperless-AI uses PostgreSQL with the pg_vector extension for visual overlay storage and semantic search capabilities. This guide covers setup, troubleshooting, and common issues.
+Paperless-AI uses PostgreSQL with the pg_vector extension for:
+- Visual RAG overlay storage (`visual_overlays`)
+- RAGZ text embeddings (`document_embeddings`)
+
+This guide covers setup, troubleshooting, and common issues.
 
 ## Requirements
 
@@ -19,9 +23,11 @@ graph TD
     B -->|pgvector/pgvector:pg16| C[PostgreSQL 16]
     C -->|Extension| D[pg_vector]
     D -->|Stores| E[visual_overlays Table]
-    E -->|Columns| F[embedding vector 768]
+    E -->|Columns| F[embedding vector 320]
     E -->|Columns| G[expert_metadata JSONB]
     E -->|Columns| H[domain_signals JSONB]
+    D -->|Stores| I[document_embeddings Table]
+    I -->|Columns| J[embedding vector 384]
 ```
 
 ## Configuration

@@ -15,7 +15,7 @@ class SystemStatus(BaseModel):
     server_up: bool = True
     data_loaded: bool = False
     index_ready: bool = False
-    chroma_ready: bool = False
+    pgvector_ready: bool = False
     bm25_ready: bool = False
     indexing_status: IndexingStatus = IndexingStatus()
 

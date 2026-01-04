@@ -90,6 +90,24 @@ const GeneralPipeline = {
             outputKey: 'visual_queries',
             timeout: 10000,
             retryCount: 2
+        },
+        {
+            id: 'visual_query_execution',
+            name: 'Visual Query Execution',
+            type: StageType.VISUAL_QUERY_EXECUTION,
+            executionMode: ExecutionMode.SEQUENTIAL,
+            inputMapping: {
+                visual_queries: 'stages.visual_queries.output',
+                extraction: 'stages.general_extraction.output'
+            },
+            outputKey: 'visual_execution',
+            timeout: 30000,
+            retryCount: 1,
+            executorConfig: {
+                timeoutBudget: 500,
+                hardTimeout: 1000,
+                maxConcurrentQueries: 5
+            }
         }
     ]
 };

@@ -3,6 +3,8 @@ import pickle
 import time
 import traceback
 from typing import List
+import psycopg2
+from psycopg2.pool import SimpleConnectionPool
 
 import numpy as np
 from tqdm import tqdm
@@ -19,7 +21,7 @@ from .state import global_state
 class SearchEngine:
     def __init__(self, data_manager, initialize_on_start=False):
         self.data_manager = data_manager
-        self.collection = None
+        self.db_pool = data_manager.db_pool  # Use shared connection pool
         self.documents = None
         self.bm25 = None
         self.tokenized_corpus = None
@@ -40,24 +42,33 @@ class SearchEngine:
             logger.error("Documents not loaded or empty")
             valid = False
 
-        # Check ChromaDB
-        if not self.collection:
-            logger.error("ChromaDB collection not initialized")
+        # Check pgvector
+        if not self.db_pool:
+            logger.error("PostgreSQL + pgvector not initialized")
+            global_state.system_status.pgvector_ready = False
             valid = False
         else:
             try:
-                # Check if collection is accessible
-                collection_count = self.collection.count()
-                if collection_count == 0:
-                    logger.error("ChromaDB collection is empty")
+                conn = self.db_pool.getconn()
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM document_embeddings;")
+                count = cursor.fetchone()[0]
+                cursor.close()
+                self.db_pool.putconn(conn)
+
+                if count == 0:
+                    logger.error("pgvector table is empty")
+                    global_state.system_status.pgvector_ready = False
                     valid = False
                 else:
                     logger.info(
-                        "ChromaDB collection contains %s documents",
-                        collection_count,
+                        "pgvector table contains %s documents",
+                        count,
                     )
+                    global_state.system_status.pgvector_ready = True
             except Exception as e:
-                logger.error(f"Error accessing ChromaDB collection: {str(e)}")
+                logger.error(f"Error accessing pgvector: {str(e)}")
+                global_state.system_status.pgvector_ready = False
                 valid = False
 
         # Check BM25
@@ -96,10 +107,7 @@ class SearchEngine:
         return valid
 
     def initialize(self, force_update=False):
-        """Initialize search engine.
-
-        Supports adding only new documents.
-        """
+        """Initialize search engine with pgvector."""
         try:
             # Ensure we have documents
             if not self.data_manager.documents:
@@ -107,32 +115,25 @@ class SearchEngine:
             else:
                 self.documents = self.data_manager.documents
 
-            # Validate documents array
             if not self.documents or len(self.documents) == 0:
                 logger.error("No documents loaded")
                 return False
 
-            # Set up ChromaDB collection - this now handles adding only new
-            # documents
-            if not self.data_manager.chroma_initialized or force_update:
-                self.collection = self.data_manager.setup_chroma_collection(
-                    force_update=force_update
+            # Add documents to pgvector
+            if force_update or not self._pgvector_initialized():
+                logger.info("Initializing pgvector with documents")
+                success = self.data_manager._add_documents_to_pgvector(
+                    self.documents
                 )
-            else:
-                self.collection = self.data_manager.collection
+                if not success:
+                    logger.error("Failed to add documents to pgvector")
+                    return False
 
-            # Check if we have new documents
-            have_new_docs = bool(self.data_manager.new_document_ids)
-
-            # First try to load the BM25 index from disk if we don't need to
-            # rebuild
+            # Load or create BM25 index
             bm25_loaded = False
             if os.path.exists(BM25_FILE) and not force_update:
                 try:
-                    # Load BM25 and verify it
                     bm25_loaded = self._load_bm25()
-
-                    # Check if tokenized corpus size matches document count
                     if (
                         bm25_loaded
                         and self.tokenized_corpus
@@ -143,22 +144,12 @@ class SearchEngine:
                             len(self.tokenized_corpus),
                             len(self.documents),
                         )
-                        logger.info(
-                            "Forcing BM25 rebuild due to size mismatch"
-                        )
                         bm25_loaded = False
                         self._setup_bm25()
-                    elif bm25_loaded and have_new_docs:
-                        # If we loaded BM25 successfully and have new
-                        # documents, update BM25
-                        logger.info("Updating BM25 with new documents")
-                        self._add_new_documents_to_bm25()
                 except Exception as e:
                     logger.error(f"Error loading BM25 index: {str(e)}")
-                    logger.error(traceback.format_exc())
                     bm25_loaded = False
 
-            # If BM25 wasn't loaded successfully, set up from scratch
             if not bm25_loaded:
                 logger.info("Setting up BM25 from scratch")
                 self._setup_bm25()
@@ -169,7 +160,6 @@ class SearchEngine:
             if valid:
                 self.is_initialized = True
                 global_state.system_status.index_ready = True
-                # Save state after initializing
                 global_state.save_state()
                 logger.info("Search engine initialized successfully")
                 return True
@@ -183,6 +173,20 @@ class SearchEngine:
             self.is_initialized = False
             global_state.system_status.index_ready = False
             global_state.save_state()
+            return False
+
+    def _pgvector_initialized(self) -> bool:
+        """Check if pgvector has documents indexed."""
+        try:
+            conn = self.db_pool.getconn()
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM document_embeddings;")
+            count = cursor.fetchone()[0]
+            cursor.close()
+            self.db_pool.putconn(conn)
+            return count > 0
+        except Exception as e:
+            logger.error(f"Error checking pgvector: {str(e)}")
             return False
 
     def _setup_bm25(self):
@@ -443,72 +447,61 @@ class SearchEngine:
         return results
 
     def semantic_search(self, query, top_k=MAX_RESULTS):
-        """Perform semantic search using ChromaDB"""
+        """Perform semantic search using PostgreSQL + pgvector"""
         if not self.is_initialized:
             logger.error("Search engine not initialized for semantic search")
             raise Exception("Search engine not initialized")
 
-        if not self.collection:
-            logger.error("ChromaDB collection not properly initialized")
-            raise Exception("ChromaDB collection not properly initialized")
+        if not self.db_pool:
+            logger.error("PostgreSQL + pgvector not properly initialized")
+            raise Exception("PostgreSQL + pgvector not properly initialized")
 
         try:
-            results = self.collection.query(
-                query_texts=[query],
-                n_results=min(top_k, 100),  # Limit to avoid overloading
-            )
+            # Generate embedding for query
+            query_embedding = self.data_manager.sentence_transformer.encode(query)
 
-            if (
-                not results
-                or "ids" not in results
-                or not results["ids"]
-                or len(results["ids"]) == 0
-            ):
-                logger.warning("ChromaDB search returned no results")
-                return []
+            conn = self.db_pool.getconn()
+            cursor = conn.cursor()
 
-            # Check if results are valid
-            if len(results["ids"][0]) == 0:
-                logger.warning("ChromaDB search returned empty results list")
-                return []
+            # Perform vector similarity search using cosine distance
+            cursor.execute("""
+                SELECT 
+                    doc_id,
+                    title,
+                    correspondent,
+                    created,
+                    content,
+                    1 - (embedding <=> %s::vector) as similarity_score
+                FROM document_embeddings
+                ORDER BY embedding <=> %s::vector
+                LIMIT %s;
+            """, (query_embedding.tolist(), query_embedding.tolist(), top_k))
 
-            documents = []
-            for i, doc_id in enumerate(results["ids"][0]):
-                try:
-                    # Find the document in our list
-                    doc = next(
-                        (d for d in self.documents if str(d["id"]) == doc_id),
-                        None,
-                    )
+            results = []
+            for row in cursor.fetchall():
+                doc_id, title, correspondent, created, content, score = row
 
-                    if doc:
-                        distance = (
-                            results["distances"][0][i]
-                            if "distances" in results
-                            and len(results["distances"]) > 0
-                            else 1.0
-                        )
-                        documents.append(
-                            {
-                                "id": doc["id"],
-                                "title": doc["title"],
-                                "correspondent": doc["correspondent"],
-                                "date": doc["created"],
-                                "score": (
-                                    float(distance)
-                                    if isinstance(distance, (int, float))
-                                    else 1.0
-                                ),
-                                "content": doc["content"],
-                            }
-                        )
-                except Exception as e:
-                    logger.error(
-                        f"Error processing document with ID {doc_id}: {str(e)}"
-                    )
+                # Find document in our list for additional metadata
+                doc = next(
+                    (d for d in self.documents if d["id"] == doc_id),
+                    None,
+                )
 
-            logger.info(f"Semantic search found {len(documents)} results")
-            return documents
+                if doc:
+                    results.append({
+                        "id": doc_id,
+                        "title": title,
+                        "correspondent": correspondent,
+                        "date": created.isoformat() if created else "",
+                        "score": float(score),
+                        "content": content,
+                    })
+
+            cursor.close()
+            self.db_pool.putconn(conn)
+
+            logger.info(f"Semantic search found {len(results)} results")
+            return results
 
         except Exception as e:
             logger.error(f"Error in semantic search: {str(e)}")
@@ -516,12 +509,11 @@ class SearchEngine:
             return []
 
     def hybrid_search(self, query, top_k=MAX_RESULTS):
-        """Perform hybrid search combining BM25 and semantic search"""
+        """Perform hybrid search combining BM25 and pgvector"""
         logger.info(f"Performing hybrid search for query: '{query}'")
 
         if not self.is_initialized:
             logger.error("Search engine not initialized for hybrid search")
-            # Try to initialize if possible
             self.initialize(force_update=False)
             if not self.is_initialized:
                 raise Exception("Search engine could not be initialized")
@@ -529,20 +521,15 @@ class SearchEngine:
         # Ensure both search components are ready
         if not self.bm25_initialized:
             logger.error("BM25 not initialized for hybrid search")
-            self._setup_bm25()  # Try to rebuild BM25
+            self._setup_bm25()
             if not self.bm25_initialized:
-                # Fall back to just semantic search if BM25 fails
                 logger.warning("Falling back to semantic search only")
                 return self.semantic_search(query, top_k)
 
-        if not self.collection:
-            logger.error("ChromaDB collection not available for hybrid search")
-            # Try to set up ChromaDB.
-            self.data_manager.setup_chroma_collection()
-            if not self.collection:
-                # Fall back to just keyword search if semantic fails
-                logger.warning("Falling back to keyword search only")
-                return self.keyword_search(query, top_k)
+        if not self.db_pool:
+            logger.error("pgvector not available for hybrid search")
+            logger.warning("Falling back to keyword search only")
+            return self.keyword_search(query, top_k)
 
         # Get results from both search methods
         try:
@@ -562,7 +549,7 @@ class SearchEngine:
             logger.error("Both search methods failed")
             raise Exception("All search methods failed")
 
-        # Combine results
+        # Combine results (same logic as before)
         results_map = {}
 
         # Normalize scores
@@ -578,12 +565,8 @@ class SearchEngine:
                 )
 
         if semantic_results:
-            # For semantic search, lower distance is better, so invert the
-            # score
             for r in semantic_results:
-                # Convert distance to similarity score (1 -
-                # normalized_distance)
-                r["score"] = 1 - r["score"] if r["score"] <= 1 else 0
+                r["score"] = r["score"] if r["score"] <= 1 else 0
 
         # Add keyword results with weight
         for result in keyword_results:
