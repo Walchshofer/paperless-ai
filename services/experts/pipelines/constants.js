@@ -15,7 +15,8 @@ const StageType = Object.freeze({
     REASONING: 'reasoning',              // Domain-specific inference
     INTEGRATION: 'integration',          // Multi-source data fusion
     VALIDATION: 'validation',            // Output quality checks
-    RECOVERY: 'recovery'                 // Error recovery attempts
+    RECOVERY: 'recovery',                // Error recovery attempts
+    VISUAL_QUERY_GENERATION: 'visual_query_generation'  // Phase 3: Generate visual queries for missing/low-confidence fields
 });
 
 /**

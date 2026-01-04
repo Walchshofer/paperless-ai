@@ -29,6 +29,9 @@ const { getVisualRagModules } = require('./utils');
 // Import Guidance client for deterministic extraction
 const { guidanceClient, getFallbackPromptId } = require('../guidance');
 
+// Import ParallelOcrExecutor for Phase 2: Parallel OCR Execution
+const { ParallelOcrExecutor } = require('./ParallelOcrExecutor');
+
 // Import utility modules (via centralized index)
 // Note: Only importing what's directly used in this file
 // NORMALIZATION_TOOL_NAME and REVIEW_SKIP_REASONS are used in toolingExecution.js
@@ -97,6 +100,13 @@ class ExpertPipelineExecutor {
         this._visualRagInitialized = false;
         this._ingestionManager = null;
         this._visualOverlayRepository = null;
+
+        // Parallel OCR Executor (Phase 2)
+        this.parallelOcrExecutor = new ParallelOcrExecutor(
+            this.ollamaService,
+            options.parallelOcr || {},
+            options.metricsCollector || null
+        );
     }
 
     /**
@@ -309,6 +319,16 @@ class ExpertPipelineExecutor {
         // Handle validation stages (no LLM call)
         if (stage.type === StageType.VALIDATION) {
             return this._executeValidationStage(stage, context, stageStart);
+        }
+
+        // Handle parallel OCR stages (Phase 2)
+        if (stage.type === StageType.TEXT_EXTRACTION && stage.useParallelOcr === true) {
+            return this._executeParallelOcrStage(stage, context, stageStart);
+        }
+
+        // Handle visual query generation stages (Phase 3)
+        if (stage.type === StageType.VISUAL_QUERY_GENERATION) {
+            return this._executeVisualQueryGenerationStage(stage, context, stageStart);
         }
 
         // Build input from mappings
@@ -665,6 +685,281 @@ class ExpertPipelineExecutor {
             output: validationResult,
             abort: false
         };
+    }
+
+    /**
+     * Execute a parallel OCR stage (Phase 2)
+     *
+     * Executes 3 concurrent OCR tracks:
+     * - Visual OCR (qwen3-vl:8b)
+     * - Tesseract OCR (Paperless-ngx)
+     * - Visual Element Detection (Visual RAG sidecar)
+     *
+     * Results are reconciled using document-type-aware logic.
+     */
+    async _executeParallelOcrStage(stage, context, stageStart) {
+        logger.info({
+            event: 'parallel_ocr_stage_start',
+            stageId: stage.id,
+            documentId: context.document?.id || context.document?.filename
+        });
+
+        try {
+            // Prepare document for OCR execution
+            const document = {
+                id: context.document?.id,
+                filename: context.document?.filename,
+                imageBase64: context.document?.imageBase64,
+                imagePath: context.document?.imagePath,
+                imageBuffer: context.document?.imageBuffer
+            };
+
+            // Extract document type from classification or metadata
+            const documentType = context.getStageOutput('classification')?.primary_domain ||
+                                context.document?.documentType ||
+                                'general';
+
+            const metadata = {
+                documentType,
+                classification: context.getStageOutput('classification'),
+                ...stage.metadata
+            };
+
+            // Execute parallel OCR
+            const result = await this.parallelOcrExecutor.execute(document, metadata);
+
+            const timing = Date.now() - stageStart;
+
+            // Store OCR result in context
+            const ocrOutput = {
+                text: result.ocr.text,
+                source: result.ocr.source,
+                confidence: result.ocr.confidence,
+                reconciliation: result.ocr.reconciliation,
+                visualElements: result.visualElements,
+                metadata: {
+                    ...result.metadata,
+                    executionTimeMs: timing
+                }
+            };
+
+            context.setStageOutput(stage.outputKey || 'ocr', ocrOutput, timing);
+
+            // Also set backward-compatible fields for existing pipeline stages
+            if (result.ocr.text) {
+                context.document.ocr_text = result.ocr.text;
+                context.document.text = result.ocr.text;
+            }
+
+            logger.info({
+                event: 'parallel_ocr_stage_complete',
+                stageId: stage.id,
+                documentId: context.document?.id,
+                success: result.success,
+                ocrSource: result.ocr.source,
+                tracksSucceeded: result.metadata.tracksSucceeded,
+                executionTimeMs: timing
+            });
+
+            return {
+                status: result.success ? 'success' : 'partial',
+                output: ocrOutput,
+                abort: false
+            };
+
+        } catch (error) {
+            const timing = Date.now() - stageStart;
+
+            logger.error({
+                event: 'parallel_ocr_stage_failed',
+                stageId: stage.id,
+                documentId: context.document?.id,
+                error: error.message,
+                executionTimeMs: timing
+            });
+
+            context.addError(stage.id, error);
+
+            // Graceful degradation: try to use existing OCR if available
+            if (context.document?.content || context.document?.ocr_text) {
+                const fallbackText = context.document.content || context.document.ocr_text;
+
+                logger.warn({
+                    event: 'parallel_ocr_fallback_to_existing',
+                    stageId: stage.id,
+                    documentId: context.document?.id,
+                    fallbackSource: 'existing_ocr'
+                });
+
+                const fallbackOutput = {
+                    text: fallbackText,
+                    source: 'fallback-existing',
+                    confidence: 0.5,
+                    metadata: {
+                        fallback: true,
+                        originalError: error.message
+                    }
+                };
+
+                context.setStageOutput(stage.outputKey || 'ocr', fallbackOutput, timing);
+                context.document.ocr_text = fallbackText;
+                context.document.text = fallbackText;
+
+                return {
+                    status: 'warning',
+                    output: fallbackOutput,
+                    abort: false
+                };
+            }
+
+            // No fallback available - this is not fatal, continue with empty OCR
+            return {
+                status: 'error',
+                error,
+                abort: false  // Not fatal - pipeline can continue without OCR
+            };
+        }
+    }
+
+    /**
+     * Execute a visual query generation stage (Phase 3)
+     *
+     * Generates targeted visual queries for missing or low-confidence fields.
+     * Results are used by Phase 4 (Visual Query Execution) to query the Visual RAG sidecar.
+     *
+     * @param {Object} stage - Stage configuration
+     * @param {Object} context - Execution context
+     * @param {number} stageStart - Stage start timestamp
+     * @returns {Object} Stage execution result
+     */
+    async _executeVisualQueryGenerationStage(stage, context, stageStart) {
+        logger.info({
+            event: 'visual_query_generation_stage_start',
+            stageId: stage.id,
+            documentId: context.document?.id || context.document?.filename
+        });
+
+        try {
+            // Import VisualQueryGenerator (lazy load to avoid circular deps)
+            const { visualQueryGenerator } = require('./VisualQueryGenerator');
+
+            // Get extraction results from previous stages
+            const extractionResults = context.getStageOutput('extraction') ||
+                                     context.getStageOutput('general_extraction') ||
+                                     context.getStageOutput('text_extraction') ||
+                                     {};
+
+            // Get OCR results from Phase 2 (or fallback to document text)
+            const ocrResults = context.getStageOutput('ocr') || {
+                text: context.document?.ocr_text || context.document?.text || '',
+                source: 'fallback'
+            };
+
+            // Get field taxonomy (if available from PaperlessService)
+            let fieldTaxonomy = null;
+            try {
+                const paperlessService = require('../paperlessService');
+                if (paperlessService && paperlessService.getFieldTaxonomy) {
+                    fieldTaxonomy = await paperlessService.getFieldTaxonomy();
+                }
+            } catch (taxonomyError) {
+                logger.warn({
+                    event: 'field_taxonomy_unavailable',
+                    stageId: stage.id,
+                    reason: taxonomyError.message
+                });
+                // Continue with null taxonomy - fallback will be used
+            }
+
+            // Prepare document metadata
+            const documentMetadata = {
+                id: context.document?.id,
+                filename: context.document?.filename,
+                documentType: context.getStageOutput('classification')?.primary_domain ||
+                             context.document?.documentType ||
+                             'general'
+            };
+
+            // Generate visual queries
+            const result = await visualQueryGenerator.generateQueries({
+                extractionResults,
+                ocrResults,
+                fieldTaxonomy,
+                documentMetadata
+            });
+
+            const timing = Date.now() - stageStart;
+
+            // Store query generation result in context
+            const queryOutput = {
+                queries: result.visual_queries,
+                metadata: result.generation_metadata,
+                executionTimeMs: timing
+            };
+
+            context.setStageOutput(stage.outputKey || 'visual_queries', queryOutput, timing);
+
+            logger.info({
+                event: 'visual_query_generation_stage_complete',
+                stageId: stage.id,
+                documentId: context.document?.id,
+                queriesGenerated: result.visual_queries.length,
+                successRate: result.generation_metadata.success_rate,
+                executionTimeMs: timing
+            });
+
+            return {
+                status: 'success',
+                output: queryOutput,
+                abort: false
+            };
+
+        } catch (error) {
+            const timing = Date.now() - stageStart;
+
+            logger.error({
+                event: 'visual_query_generation_stage_failed',
+                stageId: stage.id,
+                documentId: context.document?.id,
+                error: error.message,
+                stack: error.stack,
+                executionTimeMs: timing
+            });
+
+            context.addError(stage.id, error);
+
+            // Graceful degradation: continue with empty queries
+            // The pipeline can still proceed with extraction-only results
+            const fallbackOutput = {
+                queries: [],
+                metadata: {
+                    total_queries_generated: 0,
+                    success_rate: 0,
+                    fields_targeted: [],
+                    missing_fields: [],
+                    low_confidence_fields: [],
+                    error: error.message,
+                    fallback: true
+                },
+                executionTimeMs: timing
+            };
+
+            context.setStageOutput(stage.outputKey || 'visual_queries', fallbackOutput, timing);
+
+            logger.warn({
+                event: 'visual_query_generation_fallback',
+                stageId: stage.id,
+                documentId: context.document?.id,
+                message: 'Continuing with extraction-only results (no visual queries)'
+            });
+
+            // Not fatal - pipeline can continue without visual queries
+            return {
+                status: 'warning',
+                output: fallbackOutput,
+                abort: false
+            };
+        }
     }
 
     /**

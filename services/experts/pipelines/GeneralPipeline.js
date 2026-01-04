@@ -77,6 +77,19 @@ const GeneralPipeline = {
             },
             outputKey: 'routing_recommendation',
             timeout: 30000
+        },
+        {
+            id: 'visual_query_generation',
+            name: 'Visual Query Generation',
+            type: StageType.VISUAL_QUERY_GENERATION,
+            executionMode: ExecutionMode.SEQUENTIAL,
+            inputMapping: {
+                extraction: 'stages.general_extraction.output',
+                ocr: 'stages.ocr.output'
+            },
+            outputKey: 'visual_queries',
+            timeout: 10000,
+            retryCount: 2
         }
     ]
 };
