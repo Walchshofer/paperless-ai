@@ -213,6 +213,7 @@ Generate targeted visual queries for field validation and missing field detectio
 - `ocr_text` - Reconciled OCR text
 - `field_schema` - Paperless-ngx custom field taxonomy
 - `visual_elements` - Detected tables, images, layout from Stage 4
+- Context Pack required; raw OCR dumps are forbidden (evidence snippets only)
 
 ### Outputs
 - `visual_queries` - Array of query objects:
@@ -222,6 +223,7 @@ Generate targeted visual queries for field validation and missing field detectio
   - `priority` (number, 0-1) - Query priority
   - `confidence` (number, 0-1) - Expected confidence for dynamic k
   - `rarity_factor` (number, 0-1) - Field rarity in taxonomy for dynamic k
+  - `logit_bias` is Guidance-internal only and must not be emitted in the output schema
 
 ### Allowed
 - Use Guidance template `visual_query_generator_de` (or domain variants)
@@ -324,8 +326,9 @@ Execute visual queries and attach visual evidence overlays with field enhancemen
 - **Visual Query Execution**
   - Execute queries via Visual RAG sidecar
   - Max 5 concurrent queries per document
-  - Dynamic k selection using formula: `K = base_K * (1 + (1 - confidence) * 0.5) * (1 + rarity_factor)`
-  - Circuit breaker protected calls
+  - Dynamic k selection using formula: `K = base_K * (1 + (1 - confidence)) * (1 + rarity_factor)`
+  - Circuit breaker protected calls with bounded retries/backoff
+  - Skip visual queries if document image is unavailable (extraction-only fallback)
 
 - **Base K Values**
   - field_extraction: k=3 (high precision)
@@ -333,10 +336,13 @@ Execute visual queries and attach visual evidence overlays with field enhancemen
   - exploration: k=10 (high recall)
 
 - **Result Aggregation**
-  - Deduplicate overlapping bounding boxes (IoU > 0.7)
+  - Deduplicate overlapping bounding boxes (IoU > 0.6 effective; config default 0.7 with 0.1 tolerance)
   - Merge visual confirmations with extraction output
+  - Confidence fusion weights: extraction 0.6, visual 0.4
   - Boost field confidence scores when visually validated
   - Add overlay positions to field metadata
+  - Overlay positions must be normalized (0–1)
+  - Evidence refs required for visual confirmations and newly discovered fields
   - Flag newly discovered fields from visual search
 
 - **Best-effort retrieval**

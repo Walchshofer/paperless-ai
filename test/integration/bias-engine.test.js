@@ -54,7 +54,7 @@ describeOrSkip('Bias Engine Integration', function() {
     describe('Health Check', function() {
         it('should respond to health check requests', async function() {
             // Arrange
-            const channel = new grpc.Channel(
+            const client = new grpc.Client(
                 BIAS_ENGINE_URL,
                 grpc.credentials.createInsecure()
             );
@@ -64,20 +64,18 @@ describeOrSkip('Bias Engine Integration', function() {
 
             // Assert
             return new Promise((resolve, reject) => {
-                channel.watchConnectivityState(
-                    grpc.connectivityState.READY,
-                    deadline,
-                    (err) => {
-                        if (err) {
-                            // Connection failed - service may not be running
-                            console.log(`Bias engine not reachable at ${BIAS_ENGINE_URL}`);
-                            this.skip();
-                        } else {
-                            assert.ok(true, 'Bias engine is reachable');
-                            resolve();
-                        }
+                client.waitForReady(deadline, (err) => {
+                    if (err) {
+                        console.log(`Bias engine not reachable at ${BIAS_ENGINE_URL}`);
+                        this.skip();
+                        return;
                     }
-                );
+                    assert.ok(true, 'Bias engine is reachable');
+                    if (typeof client.close === 'function') {
+                        client.close();
+                    }
+                    resolve();
+                });
             });
         });
     });

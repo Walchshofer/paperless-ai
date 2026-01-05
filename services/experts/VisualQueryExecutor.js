@@ -134,6 +134,17 @@ class VisualQueryExecutor {
             return this._buildFallbackResult(extractionResults, startTime, 'no_queries');
         }
 
+        // Require a document image for visual search; otherwise degrade gracefully
+        if (!documentImage) {
+            logger.info({
+                event: 'visual_query_execution_skipped',
+                reason: 'no_image',
+                documentId: documentMetadata.id
+            });
+
+            return this._buildFallbackResult(extractionResults, startTime, 'no_image');
+        }
+
         try {
             logger.info({
                 event: 'visual_query_execution_start',
@@ -238,7 +249,7 @@ class VisualQueryExecutor {
             const k = this._calculateDynamicK(query);
 
             // Execute via circuit breaker
-            const result = await this.circuitBreaker.execute(async () => {
+            const cbResult = await this.circuitBreaker.execute(async () => {    
                 return await this._executeVisualSearch(
                     query.question,
                     documentImage,
@@ -247,6 +258,11 @@ class VisualQueryExecutor {
                 );
             });
 
+            if (!cbResult.success || cbResult.fallback) {
+                throw cbResult.error || new Error('Circuit breaker prevented execution');
+            }
+
+            const result = cbResult.data || {};
             const latency = Date.now() - startTime;
 
             this._updateStats(true, false, latency);
@@ -392,7 +408,7 @@ class VisualQueryExecutor {
      */
     _calculateDynamicK(query) {
         const baseK = BASE_K_VALUES[query.expected_element_type] || 3;
-        const confidenceFactor = 1 + (1 - query.confidence) * 0.5;
+        const confidenceFactor = 1 + (1 - query.confidence);
         const rarityFactor = 1 + query.rarity_factor;
 
         const dynamicK = baseK * confidenceFactor * rarityFactor;
@@ -425,7 +441,7 @@ class VisualQueryExecutor {
         allBoxes.sort((a, b) => b.score - a.score);
 
         const deduplicated = [];
-        const iouThreshold = this.config.iouThreshold;
+        const iouThreshold = Math.max(0, this.config.iouThreshold - 0.1); // allow small tolerance
 
         for (const candidate of allBoxes) {
             let isDuplicate = false;
@@ -484,7 +500,8 @@ class VisualQueryExecutor {
         const area2 = box2.width * box2.height;
         const union = area1 + area2 - intersection;
 
-        return union > 0 ? intersection / union : 0;
+        const iou = union > 0 ? intersection / union : 0;
+        return Math.min(1, iou);
     }
 
     /**

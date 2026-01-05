@@ -314,11 +314,13 @@ Generate targeted visual queries for field validation and missing field detectio
 **Visual Query Execution**
 - Max 5 concurrent queries per document
 - Dynamic k selection based on query type and confidence
-- Deduplication of overlapping bounding boxes (IoU > 0.7)
+- Circuit breaker provides bounded retries/backoff; no additional per-query retry loop
+- If document image is unavailable, skip visual queries and return extraction-only
+- Deduplication of overlapping bounding boxes (IoU > 0.6 effective; config default 0.7 with 0.1 tolerance)
 
 **Dynamic K Formula**
 ```
-K = base_K * (1 + (1 - confidence) * 0.5) * (1 + rarity_factor)
+K = base_K * (1 + (1 - confidence)) * (1 + rarity_factor)
 
 Base K values:
 - field_extraction: k=3 (high precision)
@@ -329,6 +331,7 @@ Base K values:
 **Result Aggregation**
 - Merge visual search results with extraction output
 - Update field confidence scores with visual confirmations
+- Confidence fusion weights: extraction 0.6, visual 0.4
 - Add overlay positions to field metadata
 - Flag newly discovered fields from visual search
 

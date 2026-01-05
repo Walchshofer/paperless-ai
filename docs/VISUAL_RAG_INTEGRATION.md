@@ -59,7 +59,7 @@ The Visual RAG integration enhances the document processing pipeline with visual
 │  │  │  │  Execute Queries (max 5 concurrent)        │  │    │  │
 │  │  │  │  - Dynamic K Selection                      │  │    │  │
 │  │  │  │  - Visual RAG Sidecar                       │  │    │  │
-│  │  │  │  - Result Deduplication (IoU > 0.7)         │  │    │  │
+│  │  │  │  - Result Deduplication (IoU > 0.6)         │  │    │  │
 │  │  │  └────────────────────────────────────────────┘  │    │  │
 │  │  └──────────────────────────────────────────────────┘    │  │
 │  └──────────────────────────────────────────────────────────┘  │
@@ -356,7 +356,7 @@ Store in context.outputs.visual_queries
 ### Formula
 
 ```
-K = base_K * (1 + (1 - confidence) * 0.5) * (1 + rarity_factor)
+K = base_K * (1 + (1 - confidence)) * (1 + rarity_factor)
 ```
 
 ### Base K Values
@@ -371,14 +371,14 @@ K = base_K * (1 + (1 - confidence) * 0.5) * (1 + rarity_factor)
 
 **High Confidence Field (confidence=0.9, rarity=0.1)**
 ```
-K = 3 * (1 + (1 - 0.9) * 0.5) * (1 + 0.1)
-K = 3 * 1.05 * 1.1 = 3.465 ≈ 3
+K = 3 * (1 + (1 - 0.9)) * (1 + 0.1)
+K = 3 * 1.1 * 1.1 = 3.63 ≈ 4
 ```
 
 **Low Confidence Rare Field (confidence=0.4, rarity=0.8)**
 ```
-K = 3 * (1 + (1 - 0.4) * 0.5) * (1 + 0.8)
-K = 3 * 1.3 * 1.8 = 7.02 ≈ 7
+K = 3 * (1 + (1 - 0.4)) * (1 + 0.8)
+K = 3 * 1.6 * 1.8 = 8.64 ≈ 9
 ```
 
 ### Adaptive Behavior
@@ -393,7 +393,7 @@ K = 3 * 1.3 * 1.8 = 7.02 ≈ 7
 
 ### Intersection over Union (IoU)
 
-Bounding boxes with **IoU > 0.7** are considered duplicates.
+Bounding boxes with **IoU > 0.6** are considered duplicates (config default 0.7 with 0.1 tolerance).
 
 ```javascript
 function calculateIoU(box1, box2) {
@@ -414,7 +414,7 @@ function calculateIoU(box1, box2) {
 ### Deduplication Rules
 
 1. **Same Page Requirement**: Only compare boxes on the same page
-2. **IoU Threshold**: IoU > 0.7 triggers deduplication
+2. **IoU Threshold**: IoU > 0.6 triggers deduplication
 3. **Confidence Selection**: Keep result with higher confidence score
 4. **Metadata Preservation**: Retain query attribution from best result
 
@@ -424,9 +424,19 @@ function calculateIoU(box1, box2) {
 Query 1 Result: box={x:100, y:50, w:200, h:30}, score=0.85
 Query 2 Result: box={x:105, y:52, w:195, h:28}, score=0.78
 
-IoU = 0.82 > 0.7 → Duplicate detected
+IoU = 0.82 > 0.6 → Duplicate detected
 Keep Query 1 Result (score 0.85 > 0.78)
 ```
+
+---
+
+## Result Processing
+
+- Sort results by confidence score (descending).
+- Match results to extracted fields by `field_target` and position.
+- Overlay positions are normalized to 0–1 (x, y, width, height).
+- Confidence fusion uses extraction 0.6 / visual 0.4.
+- Evidence refs are required for visual confirmations and newly discovered fields.
 
 ---
 
@@ -471,6 +481,11 @@ Keep Query 1 Result (score 0.85 > 0.78)
 | Field detection F1 | > 0.92 | < 0.85 |
 | Embedding query latency | < 100ms | > 300ms |
 | OCR conflict rate | < 10% | > 20% |
+| Query generation latency (p95) | < 200ms | > 500ms |
+| Per-query execution latency (p95) | < 500ms | > 1000ms |
+| 5 concurrent queries total (p95) | < 500ms | > 1000ms |
+| End-to-end per document (p95) | < 2000ms | > 4000ms |
+| Metrics overhead | < 5% | > 10% |
 
 ---
 
@@ -558,6 +573,7 @@ PAPERLESS_API_TOKEN=<your-token>
 - Pipeline continues without visual enhancements
 - No pipeline failures
 - Extraction-only results returned
+- If document images are unavailable, visual queries are skipped by design
 
 ### High OCR Conflict Rate
 

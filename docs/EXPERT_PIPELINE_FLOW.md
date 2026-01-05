@@ -3,6 +3,7 @@
 Purpose: document the execution flow and where Guidance templates are used
 versus PromptRegistry prompts, so we can tune cost, latency, JSON validity, and
 tooling decisions (normalization, metadata updates, Visual RAG ingestion).
+Note: legacy prompts may refer to this as the "SSOT Retrieval Broker."
 
 Sources of truth:
 - `services/experts/ExpertPipelineExecutor.js`

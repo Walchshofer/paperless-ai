@@ -72,6 +72,23 @@ class VisualQueryGenerator {
         };
     }
 
+    _clampPriority(value) {
+        return Math.max(0, Math.min(1, value));
+    }
+
+    _missingPriority(rarity = 0) {
+        // Normalize into [0,1] while keeping relative ordering by rarity
+        return this._clampPriority(
+            this.config.priorityWeights.missingField * (0.5 + 0.5 * rarity)
+        );
+    }
+
+    _lowConfidencePriority(confidence = 0) {
+        return this._clampPriority(
+            this.config.priorityWeights.lowConfidence * (1 - confidence)
+        );
+    }
+
     /**
      * Generate visual queries for a document
      *
@@ -248,7 +265,7 @@ class VisualQueryGenerator {
             prioritized.push({
                 fieldName: missingField.name,
                 type: 'missing',
-                priority: this.config.priorityWeights.missingField * (1 + missingField.rarity),
+                priority: this._missingPriority(missingField.rarity),
                 rarity: missingField.rarity,
                 existingValue: null,
                 existingConfidence: 0
@@ -260,7 +277,7 @@ class VisualQueryGenerator {
             prioritized.push({
                 fieldName: lowConfField.name,
                 type: 'low_confidence',
-                priority: this.config.priorityWeights.lowConfidence * (1 - lowConfField.confidence),
+                priority: this._lowConfidencePriority(lowConfField.confidence),
                 rarity: this._calculateRarity(lowConfField.name, null),
                 existingValue: lowConfField.value,
                 existingConfidence: lowConfField.confidence
@@ -400,7 +417,7 @@ class VisualQueryGenerator {
             ...fieldAnalysis.missingFields.map(field => ({
                 fieldName: field.name,
                 type: 'missing',
-                priority: this.config.priorityWeights.missingField * (1 + field.rarity),
+                priority: this._missingPriority(field.rarity),
                 rarity: field.rarity,
                 existingValue: null,
                 existingConfidence: 0
@@ -408,7 +425,7 @@ class VisualQueryGenerator {
             ...fieldAnalysis.lowConfidenceFields.map(field => ({
                 fieldName: field.name,
                 type: 'low_confidence',
-                priority: this.config.priorityWeights.lowConfidence * (1 - field.confidence),
+                priority: this._lowConfidencePriority(field.confidence),
                 rarity: this._calculateRarity(field.name, null),
                 existingValue: field.value,
                 existingConfidence: field.confidence
@@ -418,25 +435,24 @@ class VisualQueryGenerator {
         const fallbackFields = fieldAnalysis.availableFields.map(fieldName => ({
             fieldName,
             type: 'missing',
-            priority: this.config.priorityWeights.missingField,
+            priority: this._clampPriority(this.config.priorityWeights.missingField),
             rarity: this._calculateRarity(fieldName, null),
             existingValue: null,
             existingConfidence: 0
         }));
 
         const supplemental = candidateFields.length > 0 ? candidateFields : fallbackFields;
+        const uniqueSupplemental = supplemental.filter(
+            entry => !existingTargets.has(entry.fieldName)
+        );
+        const selectionPool = uniqueSupplemental.length > 0
+            ? uniqueSupplemental
+            : supplemental;
         let cursor = 0;
 
-        const allowDuplicates =
-            existingTargets.size >= fieldAnalysis.availableFields.length;
-
-        for (let i = 0; i < remainingCount && supplemental.length > 0; i++) {
-            const entry = supplemental[cursor % supplemental.length];
+        for (let i = 0; i < remainingCount && selectionPool.length > 0; i++) {
+            const entry = selectionPool[cursor % selectionPool.length];
             cursor += 1;
-            if (!allowDuplicates && existingTargets.has(entry.fieldName)) {
-                i -= 1;
-                continue;
-            }
             const query = this._createQuery(entry);
             queries.push(query);
             existingTargets.add(entry.fieldName);

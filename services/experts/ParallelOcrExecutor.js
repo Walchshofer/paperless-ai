@@ -768,7 +768,7 @@ class ParallelOcrExecutor {
             return 0;
         }
 
-        let confidence = 0.5; // Base confidence
+        let confidence = 0.4; // Base confidence keeps short text below 0.7
 
         // Length check
         if (text.length > 100) confidence += 0.1;

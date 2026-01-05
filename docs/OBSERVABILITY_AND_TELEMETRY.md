@@ -103,6 +103,22 @@ The system must emit structured telemetry for the following events:
 - guidance_success_rate
 - average_pipeline_duration
 
+## Prometheus Metrics (Canonical Names)
+
+- ocr_reconciliation_conflict_rate
+- sidecar_availability
+- field_detection_f1
+- embedding_query_latency_ms
+- visual_query_execution_time_ms
+- visual_queries_executed_total
+- visual_element_detection_latency_ms
+- circuit_breaker_state
+- circuit_breaker_transitions_total
+- visual_confirmation_rate
+- ocr_source_attribution_rate
+- extraction_accuracy_per_field_type
+- user_correction_rate
+
 ---
 
 ## Debugging Workflow
