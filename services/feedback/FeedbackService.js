@@ -7,6 +7,7 @@
 const logger = require('../logger');
 const path = require('path');
 const fs = require('fs').promises;
+const { metricsCollector } = require('../metrics/PrometheusMetrics');
 
 class FeedbackService {
     constructor(options = {}) {
@@ -51,13 +52,20 @@ class FeedbackService {
             const filePath = path.join(this.feedbackDir, fileName);
             
             await fs.writeFile(filePath, JSON.stringify(record, null, 2));
-            
+
             logger.info({
                 event: 'user_feedback_submitted',
                 documentId,
                 pipelineId: feedback.pipelineId,
                 rating: feedback.rating
             });
+            if (metricsCollector?.recordFeedback) {
+                metricsCollector.recordFeedback({
+                    pipelineId: feedback.pipelineId,
+                    accuracyScore: record.accuracyScore,
+                    corrections: record.corrections
+                });
+            }
 
             return { success: true, feedbackId: fileName };
         } catch (err) {

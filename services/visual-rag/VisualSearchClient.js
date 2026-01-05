@@ -14,6 +14,7 @@
 
 const axios = require('axios');
 const logger = require('../logger');
+const { metricsCollector } = require('../metrics/PrometheusMetrics');
 const config = require('../../config/config');
 
 class VisualSearchClient {
@@ -23,6 +24,7 @@ class VisualSearchClient {
         this.baseUrl = options.baseUrl || process.env.VISUAL_RAG_URL || configUrl || 'http://localhost:8001';
         this.timeout = options.timeout || config.visualRagSidecar?.timeout || 30000;
         this.retries = options.retries || 2;
+        this.metricsCollector = options.metricsCollector || metricsCollector || null;
 
         this.client = axios.create({
             baseURL: this.baseUrl,
@@ -59,11 +61,17 @@ class VisualSearchClient {
             const health = await this._retry(() => this.health(), this.retries);
             this._available = health.model_loaded;
             this._lastHealthCheck = now;
+            if (this.metricsCollector?.recordSidecarAvailability) {
+                this.metricsCollector.recordSidecarAvailability('visual-rag', this._available);
+            }
             return this._available;
         } catch (error) {
             this._available = false;
             this._lastHealthCheck = now;
             logger.warn('[VisualSearchClient] Sidecar not available:', error.message);
+            if (this.metricsCollector?.recordSidecarAvailability) {
+                this.metricsCollector.recordSidecarAvailability('visual-rag', false);
+            }
 
             // Try a localhost fallback if the service host is not localhost
             try {
@@ -137,13 +145,14 @@ class VisualSearchClient {
      * @returns {Promise<Object>} Search results with doc_id, page_num, score
      */
     async search(query, options = {}) {
-        const { k = 5, includeBase64 = false } = options;
+        const { k = 5, includeBase64 = false, queryType } = options;
 
         if (!query || typeof query !== 'string') {
             throw new Error('Query must be a non-empty string');
         }
 
         try {
+            const startTime = Date.now();
             logger.debug(`[VisualSearchClient] Searching: "${query}" (k=${k})`);
 
             const response = await this.client.post('/search', {
@@ -153,6 +162,16 @@ class VisualSearchClient {
             });
 
             const results = response.data;
+            const durationMs = Date.now() - startTime;
+            if (this.metricsCollector?.observeEmbeddingQueryLatency) {
+                this.metricsCollector.observeEmbeddingQueryLatency(
+                    queryType || 'unknown',
+                    durationMs
+                );
+            }
+            if (this.metricsCollector?.recordSidecarAvailability) {
+                this.metricsCollector.recordSidecarAvailability('visual-rag', true);
+            }
 
             logger.info(`[VisualSearchClient] Found ${results.total_results} results for "${query}"`);
 
@@ -169,6 +188,9 @@ class VisualSearchClient {
                 totalResults: results.total_results
             };
         } catch (error) {
+            if (this.metricsCollector?.recordSidecarAvailability) {
+                this.metricsCollector.recordSidecarAvailability('visual-rag', false);
+            }
             throw this._wrapError('Visual search failed', error);
         }
     }

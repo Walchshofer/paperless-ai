@@ -11,6 +11,7 @@ const setupRoutes = require('./routes/setup');
 const duplicateDetector = require('./services/DuplicateDetector');
 const healthMetricsService = require('./services/HealthMetricsService');
 const PatternDetectionEngine = require('./services/PatternDetectionEngine');
+const { metricsCollector } = require('./services/metrics/PrometheusMetrics');
 
 // Add environment variables for RAG service if not already set
 process.env.RAG_SERVICE_URL = process.env.RAG_SERVICE_URL || 'http://localhost:8000';
@@ -703,6 +704,43 @@ app.get('/health', async (req, res) => {
       status: 'error', 
       message: error.message 
     });
+  }
+});
+
+/**
+ * @swagger
+ * /metrics:
+ *   get:
+ *     summary: Prometheus metrics export
+ *     description: |
+ *       Exposes Prometheus-formatted metrics for pipeline observability.
+ *       Metrics are collected on a best-effort basis and never block pipeline processing.
+ *     tags: [System, API]
+ *     responses:
+ *       200:
+ *         description: Prometheus metrics payload
+ *         content:
+ *           text/plain:
+ *             schema:
+ *               type: string
+ *       500:
+ *         description: Metrics export failed
+ *         content:
+ *           text/plain:
+ *             schema:
+ *               type: string
+ */
+app.get('/metrics', async (_req, res) => {
+  try {
+    const payload = await metricsCollector.getMetrics();
+    res.setHeader('Content-Type', metricsCollector.contentType);
+    res.status(200).send(payload);
+  } catch (error) {
+    logger.warn({
+      event: 'metrics_export_failed',
+      error: error.message
+    });
+    res.status(500).send('');
   }
 });
 

@@ -452,6 +452,7 @@ class ParallelOcrExecutor {
             event: 'visual_elements_track_start',
             documentId: document.id || document.filename
         });
+        const trackStart = Date.now();
 
         const operation = async () => {
             // Prepare image for Visual RAG sidecar
@@ -485,6 +486,13 @@ class ParallelOcrExecutor {
 
         // Execute with circuit breaker protection
         const result = await this.circuitBreakers.visualElements.execute(operation);
+        const trackDuration = Date.now() - trackStart;
+        if (this.metricsCollector?.observeVisualElementDetectionLatency) {
+            this.metricsCollector.observeVisualElementDetectionLatency(
+                'detect_elements',
+                trackDuration
+            );
+        }
 
         if (result.success) {
             logger.debug({
@@ -493,6 +501,9 @@ class ParallelOcrExecutor {
                 elementCount: result.data.elements.length,
                 confidence: result.data.confidence
             });
+            if (this.metricsCollector?.recordSidecarAvailability) {
+                this.metricsCollector.recordSidecarAvailability('visual-elements', true);
+            }
 
             return {
                 success: true,
@@ -506,6 +517,9 @@ class ParallelOcrExecutor {
                 error: result.error.message,
                 circuitState: result.circuitState
             });
+            if (this.metricsCollector?.recordSidecarAvailability) {
+                this.metricsCollector.recordSidecarAvailability('visual-elements', false);
+            }
 
             return {
                 success: false,
@@ -529,6 +543,14 @@ class ParallelOcrExecutor {
      */
     async _reconcileOcrResults(visualOcrResult, tesseractOcrResult, metadata) {
         const documentType = metadata.documentType || DocumentType.GENERAL;
+        const recordOcrMetrics = (source, conflictRate = null) => {
+            if (this.metricsCollector?.recordOcrSource) {
+                this.metricsCollector.recordOcrSource(documentType, source);
+            }
+            if (Number.isFinite(conflictRate) && this.metricsCollector?.recordOcrConflictRate) {
+                this.metricsCollector.recordOcrConflictRate(documentType, conflictRate);
+            }
+        };
 
         // If only one source succeeded, use that
         if (visualOcrResult.success && !tesseractOcrResult.success) {
@@ -538,6 +560,7 @@ class ParallelOcrExecutor {
                 reason: 'tesseract_failed'
             });
 
+            recordOcrMetrics('visual-ocr', 0);
             return {
                 success: true,
                 text: visualOcrResult.data.text,
@@ -557,6 +580,7 @@ class ParallelOcrExecutor {
                 reason: 'visual_failed'
             });
 
+            recordOcrMetrics('tesseract-ocr', 0);
             return {
                 success: true,
                 text: tesseractOcrResult.data.text,
@@ -577,6 +601,7 @@ class ParallelOcrExecutor {
                 tesseractError: tesseractOcrResult.error
             });
 
+            recordOcrMetrics('none', 0);
             return {
                 success: false,
                 text: '',
@@ -661,6 +686,7 @@ class ParallelOcrExecutor {
             tesseractLength: tesseractText.length
         });
 
+        recordOcrMetrics(mergedResult.source, conflict);
         return {
             success: true,
             text: mergedResult.text,

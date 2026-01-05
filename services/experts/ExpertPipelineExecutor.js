@@ -13,6 +13,7 @@ const logger = require('../logger');
 const config = require('../../config/config');
 const { calculateTokens, truncateToTokenLimit } = require('../ollama/utils');
 const truncationMetrics = require('../ollama/truncationMetrics');
+const { metricsCollector } = require('../metrics/PrometheusMetrics');
 const { promptRegistry, ModelType, MODEL_NAMES } = require('../prompts/PromptRegistry');
 const internalVatRag = require('../rag/InternalVatRag');
 const internalLegalRag = require('../rag/InternalLegalRag');
@@ -82,6 +83,7 @@ class ExpertPipelineExecutor {
         };
         this.translator = options.translator || null;
         this.semanticRouter = options.semanticRouter || null;
+        this.metricsCollector = options.metricsCollector || metricsCollector || null;
 
         // Execution statistics
         this.stats = {
@@ -300,9 +302,10 @@ class ExpertPipelineExecutor {
 
         // Check execution conditions
         if (stage.executionMode === ExecutionMode.CONDITIONAL) {
-            if (!ConditionEvaluator.evaluate(stage.condition, context)) {
+            if (!ConditionEvaluator.evaluate(stage.condition, context)) {       
                 context.skipStage(stage.id, 'Condition not met');
-                logger.debug(`Skipping stage ${stage.id}: condition not met`);
+                logger.debug(`Skipping stage ${stage.id}: condition not met`);  
+                this._recordStageLatency(stage, Date.now() - stageStart);
                 return { status: 'skipped', abort: false };
             }
         }
@@ -311,6 +314,7 @@ class ExpertPipelineExecutor {
             if (!ConditionEvaluator.evaluate(stage.triggerCondition, context)) {
                 context.skipStage(stage.id, 'Fallback not triggered');
                 logger.debug(`Skipping fallback stage ${stage.id}: trigger condition not met`);
+                this._recordStageLatency(stage, Date.now() - stageStart);
                 return { status: 'skipped', abort: false };
             }
             context.recoveryAttempts += 1;
@@ -350,7 +354,9 @@ class ExpertPipelineExecutor {
             );
 
             const timing = Date.now() - stageStart;
+            this._recordStageLatency(stage, timing);
             context.setStageOutput(stage.outputKey, validationResult.output, timing);
+            this._recordStageLatency(stage, timing);
 
             logger.debug({
                 event: 'stage_execution_with_validation_complete',
@@ -385,6 +391,7 @@ class ExpertPipelineExecutor {
                 // Store output
                 const timing = Date.now() - stageStart;
                 context.setStageOutput(stage.outputKey, output, timing);
+                this._recordStageLatency(stage, timing);
 
                 logger.debug({
                     event: 'stage_execution_complete',
@@ -416,6 +423,11 @@ class ExpertPipelineExecutor {
 
         // All retries failed
         context.addError(stage.id, lastError);
+        this._recordStageLatency(stage, Date.now() - stageStart);
+        if (stage.type === StageType.TEXT_EXTRACTION
+            && this.metricsCollector?.recordExtractionError) {
+            this.metricsCollector.recordExtractionError(stage.id || stage.name);
+        }
 
         logger.error({
             event: 'stage_execution_failed',
@@ -713,6 +725,7 @@ class ExpertPipelineExecutor {
 
         const timing = Date.now() - stageStart;
         context.setStageOutput(stage.outputKey, validationResult, timing);
+        this._recordStageLatency(stage, timing);
 
         if (!validationResult.valid) {
             for (const issue of validationResult.issues) {
@@ -826,6 +839,7 @@ class ExpertPipelineExecutor {
 
         } catch (error) {
             const timing = Date.now() - stageStart;
+            this._recordStageLatency(stage, timing);
 
             logger.error({
                 event: 'parallel_ocr_stage_failed',
@@ -941,6 +955,7 @@ class ExpertPipelineExecutor {
                 fallbackOutput,
                 timing
             );
+            this._recordStageLatency(stage, timing);
 
             return { output: fallbackOutput, timing };
         };
@@ -1275,6 +1290,7 @@ class ExpertPipelineExecutor {
             };
 
             context.setStageOutput(stage.outputKey || 'visual_queries', queryOutput, timing);
+            this._recordStageLatency(stage, timing);
 
             logger.info({
                 event: 'visual_query_generation_stage_complete',
@@ -1293,6 +1309,7 @@ class ExpertPipelineExecutor {
 
         } catch (error) {
             const timing = Date.now() - stageStart;
+            this._recordStageLatency(stage, timing);
 
             logger.error({
                 event: 'visual_query_generation_stage_failed',
@@ -1382,6 +1399,7 @@ class ExpertPipelineExecutor {
                 fallbackOutput,
                 timing
             );
+            this._recordStageLatency(stage, timing);
 
             return { output: fallbackOutput, timing };
         };
@@ -1453,7 +1471,10 @@ class ExpertPipelineExecutor {
             const executor = new VisualQueryExecutor(
                 visualSearchClient,
                 this._visualOverlayRepository,
-                stage.executorConfig || {}
+                {
+                    ...(stage.executorConfig || {}),
+                    metricsCollector: this.metricsCollector
+                }
             );
 
             // Execute queries and merge results
@@ -1476,6 +1497,7 @@ class ExpertPipelineExecutor {
             };
 
             context.setStageOutput(stage.outputKey || 'visual_execution', executionOutput, timing);
+            this._recordStageLatency(stage, timing);
 
             // Also update document fields for backward compatibility
             if (result.fields && result.fields.length > 0) {
@@ -1500,6 +1522,10 @@ class ExpertPipelineExecutor {
 
         } catch (error) {
             const timing = Date.now() - stageStart;
+            this._recordStageLatency(stage, timing);
+            if (this.metricsCollector?.recordIntegrationError) {
+                this.metricsCollector.recordIntegrationError(stage.id || stage.name);
+            }
 
             logger.error({
                 event: 'visual_query_execution_stage_failed',
@@ -1527,6 +1553,18 @@ class ExpertPipelineExecutor {
                 abort: false
             };
         }
+    }
+
+    _recordStageLatency(stage, timing) {
+        if (!this.options.enableMetrics) return;
+        if (!this.metricsCollector || !this.metricsCollector.recordStageLatency) {
+            return;
+        }
+        this.metricsCollector.recordStageLatency(
+            stage.id || stage.name || 'unknown',
+            stage.type || 'unknown',
+            timing
+        );
     }
 
     /**

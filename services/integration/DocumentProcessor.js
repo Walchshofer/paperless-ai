@@ -44,6 +44,7 @@ const logger = require('../logger');
 const config = require('../../config/config');
 const truncationMetrics = require('../ollama/truncationMetrics');
 const { pdfRenderer } = require('../visual-rag/PDFRenderer');
+const { metricsCollector } = require('../metrics/PrometheusMetrics');
 
 // Import Expert Pipeline components
 const { promptRegistry } = require('../prompts/PromptRegistry');
@@ -991,11 +992,12 @@ class DocumentProcessor {
         this.config = { ...ProcessorConfig, ...options };
         
         // Initialize expert pipeline executor
-        this.pipelineExecutor = new ExpertPipelineExecutor(ollamaService, {
+        this.pipelineExecutor = new ExpertPipelineExecutor(ollamaService, {     
             defaultTimeout: this.config.timeouts.extraction,
             maxRetries: 2,
             enableMetrics: this.config.features.enableMetricsLogging,
-            embeddingModel: this.config.models.embedding
+            embeddingModel: this.config.models.embedding,
+            metricsCollector
         });
         
         // Register medical prompts if enabled

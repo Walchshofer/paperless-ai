@@ -81,6 +81,9 @@ class CircuitBreaker {
             serviceName: this.serviceName,
             config: this.config
         });
+        if (this.metricsCollector?.recordCircuitBreakerState) {
+            this.metricsCollector.recordCircuitBreakerState(this.serviceName, this.state);
+        }
     }
 
     /**

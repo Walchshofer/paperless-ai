@@ -12,6 +12,7 @@
  */
 
 const logger = require('../logger');
+const { metricsCollector } = require('../metrics/PrometheusMetrics');
 const { CircuitBreaker, CircuitState } = require('./CircuitBreaker');
 
 /**
@@ -65,9 +66,11 @@ class VisualQueryExecutor {
 
         this.visualSearchClient = visualSearchClient;
         this.overlayRepository = overlayRepository;
+        const { metricsCollector: providedMetrics, ...executorOptions } = options;
+        this.metricsCollector = providedMetrics || metricsCollector || null;
         this.config = {
             ...DEFAULT_CONFIG,
-            ...options
+            ...executorOptions
         };
 
         // Initialize circuit breaker for sidecar protection
@@ -79,7 +82,7 @@ class VisualQueryExecutor {
             maxRetries: this.config.maxRetries,
             initialBackoff: this.config.initialBackoff,
             backoffMultiplier: this.config.backoffMultiplier
-        });
+        }, this.metricsCollector);
 
         this.stats = {
             totalQueriesExecuted: 0,
@@ -120,7 +123,24 @@ class VisualQueryExecutor {
                 message: 'Circuit breaker OPEN - skipping visual queries'
             });
 
-            return this._buildFallbackResult(extractionResults, startTime, 'circuit_breaker_open');
+            const fallback = this._buildFallbackResult(
+                extractionResults,
+                startTime,
+                'circuit_breaker_open'
+            );
+            if (this.metricsCollector?.observeVisualQueryExecutionTime) {
+                this.metricsCollector.observeVisualQueryExecutionTime(
+                    documentMetadata.documentType,
+                    Date.now() - startTime
+                );
+            }
+            if (this.metricsCollector?.recordVisualConfirmationRate) {
+                this.metricsCollector.recordVisualConfirmationRate(
+                    documentMetadata.documentType,
+                    fallback.execution_metadata.visual_confirmation_rate
+                );
+            }
+            return fallback;
         }
 
         // If no queries or no image, return extraction-only results
@@ -131,7 +151,20 @@ class VisualQueryExecutor {
                 documentId: documentMetadata.id
             });
 
-            return this._buildFallbackResult(extractionResults, startTime, 'no_queries');
+            const fallback = this._buildFallbackResult(extractionResults, startTime, 'no_queries');
+            if (this.metricsCollector?.observeVisualQueryExecutionTime) {
+                this.metricsCollector.observeVisualQueryExecutionTime(
+                    documentMetadata.documentType,
+                    Date.now() - startTime
+                );
+            }
+            if (this.metricsCollector?.recordVisualConfirmationRate) {
+                this.metricsCollector.recordVisualConfirmationRate(
+                    documentMetadata.documentType,
+                    fallback.execution_metadata.visual_confirmation_rate
+                );
+            }
+            return fallback;
         }
 
         // Require a document image for visual search; otherwise degrade gracefully
@@ -142,7 +175,20 @@ class VisualQueryExecutor {
                 documentId: documentMetadata.id
             });
 
-            return this._buildFallbackResult(extractionResults, startTime, 'no_image');
+            const fallback = this._buildFallbackResult(extractionResults, startTime, 'no_image');
+            if (this.metricsCollector?.observeVisualQueryExecutionTime) {
+                this.metricsCollector.observeVisualQueryExecutionTime(
+                    documentMetadata.documentType,
+                    Date.now() - startTime
+                );
+            }
+            if (this.metricsCollector?.recordVisualConfirmationRate) {
+                this.metricsCollector.recordVisualConfirmationRate(
+                    documentMetadata.documentType,
+                    fallback.execution_metadata.visual_confirmation_rate
+                );
+            }
+            return fallback;
         }
 
         try {
@@ -183,12 +229,25 @@ class VisualQueryExecutor {
                 durationMs: Date.now() - startTime
             });
 
-            return {
+            const result = {
                 fields: mergedFields,
                 newly_discovered_fields: this._extractNewlyDiscovered(mergedFields),
                 overlays,
                 execution_metadata: metadata
             };
+            if (this.metricsCollector?.observeVisualQueryExecutionTime) {
+                this.metricsCollector.observeVisualQueryExecutionTime(
+                    documentMetadata.documentType,
+                    Date.now() - startTime
+                );
+            }
+            if (this.metricsCollector?.recordVisualConfirmationRate) {
+                this.metricsCollector.recordVisualConfirmationRate(
+                    documentMetadata.documentType,
+                    metadata.visual_confirmation_rate
+                );
+            }
+            return result;
 
         } catch (error) {
             logger.error({
@@ -199,7 +258,20 @@ class VisualQueryExecutor {
             });
 
             // Graceful degradation: return extraction-only results
-            return this._buildFallbackResult(extractionResults, startTime, 'error', error);
+            const fallback = this._buildFallbackResult(extractionResults, startTime, 'error', error);
+            if (this.metricsCollector?.observeVisualQueryExecutionTime) {
+                this.metricsCollector.observeVisualQueryExecutionTime(
+                    documentMetadata.documentType,
+                    Date.now() - startTime
+                );
+            }
+            if (this.metricsCollector?.recordVisualConfirmationRate) {
+                this.metricsCollector.recordVisualConfirmationRate(
+                    documentMetadata.documentType,
+                    fallback.execution_metadata.visual_confirmation_rate
+                );
+            }
+            return fallback;
         }
     }
 
@@ -243,18 +315,25 @@ class VisualQueryExecutor {
      */
     async _executeQueryWithRetry(query, documentImage, documentMetadata) {
         const startTime = Date.now();
+        if (this.metricsCollector?.incrementVisualQueriesExecuted) {
+            this.metricsCollector.incrementVisualQueriesExecuted(
+                documentMetadata.documentType,
+                query.expected_element_type
+            );
+        }
 
         try {
             // Calculate dynamic K for this query
             const k = this._calculateDynamicK(query);
 
             // Execute via circuit breaker
-            const cbResult = await this.circuitBreaker.execute(async () => {    
+            const cbResult = await this.circuitBreaker.execute(async () => {
                 return await this._executeVisualSearch(
                     query.question,
                     documentImage,
                     k,
-                    documentMetadata
+                    documentMetadata,
+                    query.expected_element_type
                 );
             });
 
@@ -281,6 +360,12 @@ class VisualQueryExecutor {
             const isTimeout = error.message?.includes('timeout') || latency >= this.config.hardTimeout;
 
             this._updateStats(false, isTimeout, latency);
+            if (isTimeout && this.metricsCollector?.recordVisualQueryTimeout) {
+                this.metricsCollector.recordVisualQueryTimeout(
+                    documentMetadata.documentType,
+                    query.expected_element_type
+                );
+            }
 
             logger.warn({
                 event: 'visual_query_failed',
@@ -305,7 +390,7 @@ class VisualQueryExecutor {
      * Execute visual search against sidecar
      * @private
      */
-    async _executeVisualSearch(question, documentImage, k, documentMetadata) {
+    async _executeVisualSearch(question, documentImage, k, documentMetadata, queryType) {
         logger.debug({
             event: 'visual_search_call',
             question,
@@ -313,7 +398,7 @@ class VisualQueryExecutor {
             documentId: documentMetadata.id
         });
 
-        const response = await this.visualSearchClient.search(question, { k });
+        const response = await this.visualSearchClient.search(question, { k, queryType });
 
         if (response && Array.isArray(response.bounding_boxes)) {
             return {

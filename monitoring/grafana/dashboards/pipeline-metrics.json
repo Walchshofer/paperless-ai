@@ -1,0 +1,82 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "Pipeline Stage Latency P95 (ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, stage_name) (rate(pipeline_stage_latency_ms_bucket[5m])))",
+          "legendFormat": "{{stage_name}}"
+        }
+      ]
+    },
+    {
+      "title": "OCR Conflict Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "ocr_reconciliation_conflict_rate",
+          "legendFormat": "{{document_type}}"
+        }
+      ]
+    },
+    {
+      "title": "Sidecar Availability",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "sidecar_availability",
+          "legendFormat": "{{service}}"
+        }
+      ]
+    },
+    {
+      "title": "Circuit Breaker State",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 8 },
+      "targets": [
+        {
+          "expr": "circuit_breaker_state",
+          "legendFormat": "{{service}}"
+        }
+      ]
+    },
+    {
+      "title": "OCR Source Attribution",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "ocr_source_attribution_rate",
+          "legendFormat": "{{document_type}}/{{source}}"
+        }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": ["pipeline", "metrics", "paperless-ai"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "title": "Pipeline Metrics",
+  "uid": "pipeline_metrics",
+  "version": 1
+}
