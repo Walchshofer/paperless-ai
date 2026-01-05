@@ -2,6 +2,14 @@
 
 This document provides a complete reference for all environment variables used in the paperless-ai system, with a focus on model configuration.
 
+## Source of Truth (Multi-Container)
+The authoritative environment file for the multi-container setup is:
+- `C:\Users\pwalc\MyApps\paperless-ngx\docker-compose.env`
+
+All runtime variables for Paperless-NGX + paperless-ai should live there. Other
+`.env` files are pointers only to avoid duplication. Always run Compose with:
+`docker compose --env-file docker-compose.env ...`
+
 ## Model Configuration Environment Variables
 
 ### Production Tier - Router/Classification
@@ -162,9 +170,9 @@ Adjust these values when operating in high-latency or resource-constrained envir
 - `ENABLE_TELEGRAM_INTEGRATION` - Enable Telegram bot integration (default: `no`)
 - `ENABLE_WEBHOOKS` - Enable webhook notifications (default: `no`)
 
-## Example Configuration Files
+## Example Configuration Snippets (docker-compose.env)
 
-### Minimal Production Configuration (.env)
+### Minimal Production Configuration (docker-compose.env)
 ```bash
 # Basic model configuration
 PLANNER_MODEL=qwen3-vl:8b
@@ -180,7 +188,7 @@ DATABASE_URL=postgresql://user:pass@localhost:5432/paperless
 JWT_SECRET=your-secret-key-here
 ```
 
-### Full Production Configuration (.env)
+### Full Production Configuration (docker-compose.env)
 ```bash
 # Production tier models
 PLANNER_MODEL=qwen3-vl:8b
