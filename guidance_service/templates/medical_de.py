@@ -18,7 +18,7 @@ Best Practices Applied:
 
 import logging
 import os
-from typing import Any, Callable, List, Literal, Optional
+from typing import Any, Callable, Dict, List, Literal, Optional
 
 try:
     from guidance import (  # type: ignore[import-not-found]
@@ -159,6 +159,31 @@ class MedicalExtractorOutput(BaseModel):
     vertrauen: float = Field(
         ge=0, le=1, description="Confidence score"
     )
+
+    model_config = dict(extra="forbid")
+
+
+class VisualQuery(BaseModel):
+    """Output schema for a single visual query."""
+
+    question: str
+    field_target: str
+    expected_element_type: Literal[
+        "field_extraction",
+        "validation",
+        "exploration",
+    ]
+    priority: float = Field(ge=0, le=1)
+    confidence: float = Field(ge=0, le=1)
+    rarity_factor: float = Field(ge=0, le=1)
+
+    model_config = dict(extra="forbid")
+
+
+class VisualQueryGenerationOutput(BaseModel):
+    """Output schema for visual query generation."""
+
+    queries: List[VisualQuery] = Field(min_length=3)
 
     model_config = dict(extra="forbid")
 
@@ -810,3 +835,96 @@ class MedicalTemplatesDE:
             return lm
 
         return medical_integrator_v2
+
+    @staticmethod
+    def get_visual_query_generator() -> Callable:
+        """Generate visual query candidates for missing/low-confidence fields.
+
+        Returns:
+            Guidance template function for visual query generation
+        """
+
+        @guidance
+        def visual_query_generator(
+            lm: Any,
+            extraction_result: Optional[Dict[str, Any]] = None,
+            ocr_text: Optional[str] = None,
+            field_schema: Optional[Dict[str, Any]] = None,
+            visual_elements: Optional[Any] = None,
+            document_type: Optional[str] = None,
+            document_id: Optional[str] = None,
+            filename: Optional[str] = None,
+            **kwargs: Any,
+        ) -> Any:
+            extraction_payload = (
+                extraction_result
+                or kwargs.get("extraction_result")
+                or {}
+            )
+            ocr_payload = pick_text(
+                ocr_text,
+                kwargs.get("ocr_text"),
+            )
+            schema_payload = (
+                field_schema
+                or kwargs.get("field_schema")
+                or {}
+            )
+            elements_payload = (
+                visual_elements
+                if visual_elements is not None
+                else kwargs.get("visual_elements")
+            )
+            doc_type = pick_text(
+                document_type,
+                kwargs.get("document_type"),
+            )
+            doc_id = pick_text(
+                document_id,
+                kwargs.get("document_id"),
+            )
+            file_name = pick_text(
+                filename,
+                kwargs.get("filename"),
+            )
+
+            with system():
+                lm += (
+                    "Du erzeugst gezielte visuelle Suchanfragen "
+                    "fuer medizinische Felder und Befunde."
+                )
+                lm += (
+                    "Regeln: mindestens 3 Anfragen, "
+                    "field_target muss im Schema oder Extraktion "
+                    "vorhanden sein."
+                )
+                lm += (
+                    "expected_element_type muss "
+                    "field_extraction, validation oder exploration sein."
+                )
+
+            with user():
+                lm += "Dokumenttyp:\n"
+                lm += f"{stringify(doc_type)}\n"
+                lm += "Dokument-ID:\n"
+                lm += f"{stringify(doc_id)}\n"
+                lm += "Dateiname:\n"
+                lm += f"{stringify(file_name)}\n"
+                lm += "EXTRAKTION (JSON):\n"
+                lm += f"{stringify(extraction_payload)}\n"
+                lm += "OCR TEXT:\n"
+                lm += f"{stringify(ocr_payload)}\n"
+                lm += "FELD-SCHEMA (JSON):\n"
+                lm += f"{stringify(schema_payload)}\n"
+                lm += "VISUELLE ELEMENTE (JSON):\n"
+                lm += f"{stringify(elements_payload)}\n"
+
+            with assistant():
+                lm += gen_json(
+                    name="output",
+                    schema=VisualQueryGenerationOutput,
+                )
+
+            return lm
+
+        return visual_query_generator

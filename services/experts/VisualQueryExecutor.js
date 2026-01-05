@@ -57,8 +57,14 @@ class VisualQueryExecutor {
      * @param {Object} visualSearchClient - Visual RAG sidecar client
      * @param {Object} options - Executor configuration
      */
-    constructor(visualSearchClient, options = {}) {
+    constructor(visualSearchClient, overlayRepository = null, options = {}) {
+        if (overlayRepository && typeof overlayRepository.getByDocIdAndPage !== 'function') {
+            options = overlayRepository;
+            overlayRepository = null;
+        }
+
         this.visualSearchClient = visualSearchClient;
+        this.overlayRepository = overlayRepository;
         this.config = {
             ...DEFAULT_CONFIG,
             ...options
@@ -126,16 +132,6 @@ class VisualQueryExecutor {
             });
 
             return this._buildFallbackResult(extractionResults, startTime, 'no_queries');
-        }
-
-        if (!documentImage) {
-            logger.warn({
-                event: 'visual_query_execution_skipped',
-                reason: 'no_document_image',
-                documentId: documentMetadata.id
-            });
-
-            return this._buildFallbackResult(extractionResults, startTime, 'no_image');
         }
 
         try {
@@ -260,6 +256,7 @@ class VisualQueryExecutor {
                 query,
                 bounding_boxes: result.bounding_boxes || [],
                 scores: result.scores || [],
+                page_numbers: result.page_numbers || [],
                 latency
             };
 
@@ -293,10 +290,6 @@ class VisualQueryExecutor {
      * @private
      */
     async _executeVisualSearch(question, documentImage, k, documentMetadata) {
-        // This would call the actual Visual RAG sidecar API
-        // For now, return mock structure
-        // In production: return await this.visualSearchClient.search({ question, image: documentImage, k });
-
         logger.debug({
             event: 'visual_search_call',
             question,
@@ -304,10 +297,91 @@ class VisualQueryExecutor {
             documentId: documentMetadata.id
         });
 
-        // Mock response structure
+        const response = await this.visualSearchClient.search(question, { k });
+
+        if (response && Array.isArray(response.bounding_boxes)) {
+            return {
+                bounding_boxes: response.bounding_boxes,
+                scores: response.scores || [],
+                page_numbers: response.page_numbers || []
+            };
+        }
+
+        const docId = documentMetadata?.id;
+        const results = response?.results || [];
+        if (!docId || !Array.isArray(results) || results.length === 0) {
+            return { bounding_boxes: [], scores: [], page_numbers: [] };
+        }
+
+        const matching = results.filter(result => String(result.docId) === String(docId));
+        if (matching.length === 0) {
+            return { bounding_boxes: [], scores: [], page_numbers: [] };
+        }
+
+        if (!this.overlayRepository ||
+            typeof this.overlayRepository.getByDocIdAndPage !== 'function') {
+            logger.debug({
+                event: 'visual_overlay_repository_unavailable',
+                documentId: docId
+            });
+            return { bounding_boxes: [], scores: [], page_numbers: [] };
+        }
+
+        let overlayAvailable = true;
+        if (typeof this.overlayRepository.isAvailable === 'function') {
+            try {
+                overlayAvailable = await this.overlayRepository.isAvailable(false);
+            } catch (error) {
+                overlayAvailable = false;
+                logger.warn({
+                    event: 'visual_overlay_repository_check_failed',
+                    documentId: docId,
+                    error: error.message
+                });
+            }
+        }
+
+        if (!overlayAvailable) {
+            return { bounding_boxes: [], scores: [], page_numbers: [] };
+        }
+
+        const pageScores = new Map();
+        for (const result of matching) {
+            const pageNumber = result.pageNum;
+            if (!pageNumber) {
+                continue;
+            }
+            const score = typeof result.score === 'number' ? result.score : 0;
+            const existing = pageScores.get(pageNumber);
+            if (existing === undefined || score > existing) {
+                pageScores.set(pageNumber, score);
+            }
+        }
+
+        const boundingBoxes = [];
+        const scores = [];
+        const pageNumbers = [];
+
+        for (const [pageNumber, score] of pageScores.entries()) {
+            const overlays = await this.overlayRepository.getByDocIdAndPage(docId, pageNumber);
+            for (const overlay of overlays) {
+                const normalized = this._normalizeOverlayBox(overlay?.box);
+                if (!normalized) {
+                    continue;
+                }
+                const overlayScore = typeof overlay?.confidence === 'number'
+                    ? overlay.confidence
+                    : score;
+                boundingBoxes.push(normalized);
+                scores.push(overlayScore);
+                pageNumbers.push(pageNumber);
+            }
+        }
+
         return {
-            bounding_boxes: [],
-            scores: []
+            bounding_boxes: boundingBoxes,
+            scores,
+            page_numbers: pageNumbers
         };
     }
 
@@ -336,11 +410,12 @@ class VisualQueryExecutor {
         // Collect all bounding boxes from successful queries
         for (const result of queryResults) {
             if (result.success && result.bounding_boxes) {
-                for (let i = 0; i < result.bounding_boxes.length; i++) {
+                for (let i = 0; i < result.bounding_boxes.length; i++) {        
                     allBoxes.push({
                         box: result.bounding_boxes[i],
                         score: result.scores?.[i] || 0,
-                        query: result.query
+                        query: result.query,
+                        page_number: result.page_numbers?.[i]
                     });
                 }
             }
@@ -356,10 +431,17 @@ class VisualQueryExecutor {
             let isDuplicate = false;
 
             for (const existing of deduplicated) {
-                const iou = this._calculateIoU(candidate.box, existing.box);
-                if (iou > iouThreshold) {
-                    isDuplicate = true;
-                    break;
+                const samePage = (
+                    candidate.page_number === undefined ||
+                    existing.page_number === undefined ||
+                    candidate.page_number === existing.page_number
+                );
+                if (samePage) {
+                    const iou = this._calculateIoU(candidate.box, existing.box);
+                    if (iou > iouThreshold) {
+                        isDuplicate = true;
+                        break;
+                    }
                 }
             }
 
@@ -406,6 +488,35 @@ class VisualQueryExecutor {
     }
 
     /**
+     * Normalize overlay box format [ymin, xmin, ymax, xmax] to { x, y, width, height }
+     * @private
+     */
+    _normalizeOverlayBox(box) {
+        if (!Array.isArray(box) || box.length < 4) {
+            return null;
+        }
+
+        const [ymin, xmin, ymax, xmax] = box.map(Number);
+        if (![ymin, xmin, ymax, xmax].every(Number.isFinite)) {
+            return null;
+        }
+
+        const maxVal = Math.max(ymin, xmin, ymax, xmax);
+        const scale = maxVal > 1 ? 1000 : 1;
+        const x = xmin / scale;
+        const y = ymin / scale;
+        const width = Math.max(0, (xmax - xmin) / scale);
+        const height = Math.max(0, (ymax - ymin) / scale);
+
+        return {
+            x: Math.min(1, Math.max(0, x)),
+            y: Math.min(1, Math.max(0, y)),
+            width: Math.min(1, Math.max(0, width)),
+            height: Math.min(1, Math.max(0, height))
+        };
+    }
+
+    /**
      * Merge visual results with extraction results using confidence fusion
      * @private
      */
@@ -440,7 +551,10 @@ class VisualQueryExecutor {
                     visual_confirmation: true,
                     visual_confidence: visualConfidence,
                     extraction_confidence: extractionConfidence,
-                    bounding_box: visualResult.box
+                    bounding_box: {
+                        ...visualResult.box,
+                        page_number: visualResult.page_number ?? null
+                    }
                 });
 
                 // Remove from map to track processed fields
@@ -449,11 +563,14 @@ class VisualQueryExecutor {
                 // Newly discovered field from visual search
                 fields.push({
                     name: fieldName,
-                    value: null,  // Value extraction happens in next stage
+                    value: null,  // Value extraction happens in next stage     
                     confidence: visualConfidence,
                     visual_confidence: visualConfidence,
                     newly_discovered: true,
-                    bounding_box: visualResult.box
+                    bounding_box: {
+                        ...visualResult.box,
+                        page_number: visualResult.page_number ?? null
+                    }
                 });
             }
         }
@@ -476,6 +593,7 @@ class VisualQueryExecutor {
     _calculateOverlays(visualResults) {
         return visualResults.map(result => ({
             field_name: result.query.field_target,
+            page_number: result.page_number ?? null,
             position: {
                 x: result.box.x,
                 y: result.box.y,

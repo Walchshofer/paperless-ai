@@ -29,6 +29,7 @@ from templates.financial_de import (
     FinancialExtractorOutput,
     FinancialReasonerOutput,
     VatExpertOutput,
+    VisualQueryGenerationOutput,
 )
 
 logger = logging.getLogger(__name__)
@@ -182,6 +183,9 @@ def _detect_schema(
     if "parteien" in data and "betraege" in data:
         return ("financial_extractor", FinancialExtractorOutput)
 
+    if "queries" in data:
+        return ("visual_query_generation", VisualQueryGenerationOutput)
+
     # Check for reasoner output
     if "ist_valide" in data and len(data) == 1:
         return ("financial_reasoner", FinancialReasonerOutput)
@@ -211,6 +215,30 @@ def _validate_business_logic(
         _validate_reasoner_logic(data, result)
     elif schema_type == "vat_expert":
         _validate_vat_logic(data, result)
+    elif schema_type == "visual_query_generation":
+        _validate_visual_query_logic(data, result)
+
+
+def _validate_visual_query_logic(
+    data: Dict[str, Any],
+    result: ValidationResult,
+) -> None:
+    """Validate business logic for visual query generation output."""
+    queries = data.get("queries", [])
+    if not queries:
+        result.errors.append("No visual queries generated")
+        return
+
+    targets = [
+        query.get("field_target")
+        for query in queries
+        if isinstance(query, dict)
+        and query.get("field_target")
+    ]
+    if len(targets) != len(set(targets)):
+        result.warnings.append(
+            "Duplicate field_target entries in visual queries"
+        )
 
 
 def _validate_extractor_logic(

@@ -909,26 +909,110 @@ class ExpertPipelineExecutor {
             documentId: context.document?.id || context.document?.filename
         });
 
+        const orchestration = context?.options?.orchestration || {};
+        const enableVisualRag =
+            context?.options?.enableVisualRag ?? this.options.enableVisualRag;
+        const allowQueryGeneration =
+            normalizeBoolean(orchestration.use_visual_query_generation, true) &&
+            normalizeBoolean(orchestration.useVisualQueryGeneration, true);
+        const allowVisualRetrieval =
+            normalizeBoolean(orchestration.use_visual_rag_retrieval, true) &&
+            normalizeBoolean(orchestration.useVisualRagRetrieval, true);
+
+        const buildFallbackOutput = (reason, error = null) => {
+            const timing = Date.now() - stageStart;
+            const fallbackOutput = {
+                queries: [],
+                metadata: {
+                    total_queries_generated: 0,
+                    success_rate: 0,
+                    fields_targeted: [],
+                    missing_fields: [],
+                    low_confidence_fields: [],
+                    fallback: true,
+                    skip_reason: reason,
+                    error: error?.message
+                },
+                executionTimeMs: timing
+            };
+
+            context.setStageOutput(
+                stage.outputKey || 'visual_queries',
+                fallbackOutput,
+                timing
+            );
+
+            return { output: fallbackOutput, timing };
+        };
+
+        if (!enableVisualRag || !allowQueryGeneration || !allowVisualRetrieval) {
+            const skipReason = !enableVisualRag
+                ? 'visual_rag_disabled'
+                : (!allowQueryGeneration
+                    ? 'visual_query_generation_disabled'
+                    : 'visual_rag_retrieval_disabled');
+
+            context.skipStage(stage.id, skipReason);
+            const { output } = buildFallbackOutput(skipReason);
+
+            logger.info({
+                event: 'visual_query_generation_skipped',
+                stageId: stage.id,
+                documentId: context.document?.id,
+                reason: skipReason
+            });
+
+            return { status: 'skipped', output, abort: false };
+        }
+
         try {
             // Import VisualQueryGenerator (lazy load to avoid circular deps)
             const { visualQueryGenerator } = require('./VisualQueryGenerator');
 
+            if (typeof context.visualSidecarAvailable !== 'boolean') {
+                const { VisualSearchClient } = require('../visual-rag/VisualSearchClient');
+                const visualSearchClient = new VisualSearchClient();
+                context.visualSidecarAvailable = await visualSearchClient.isAvailable();
+            }
+
+            if (!context.visualSidecarAvailable) {
+                const { output } = buildFallbackOutput('visual_sidecar_unavailable');
+                context.skipStage(stage.id, 'visual_sidecar_unavailable');
+
+                logger.warn({
+                    event: 'visual_query_generation_sidecar_unavailable',
+                    stageId: stage.id,
+                    documentId: context.document?.id
+                });
+
+                return { status: 'skipped', output, abort: false };
+            }
+
+            const stageInput = this._buildStageInput(stage.inputMapping, context);
+
             // Get extraction results from previous stages
-            const extractionResults = context.getStageOutput('extraction') ||
+            const extractionResults = stageInput.extraction ||
+                                     context.getStageOutput('extraction') ||
                                      context.getStageOutput('general_extraction') ||
                                      context.getStageOutput('text_extraction') ||
                                      {};
 
             // Get OCR results from Phase 2 (or fallback to document text)
-            const ocrResults = context.getStageOutput('ocr') || {
-                text: context.document?.ocr_text || context.document?.text || '',
-                source: 'fallback'
-            };
+            const ocrResults = stageInput.ocr ||
+                               context.getStageOutput('ocr') ||
+                               {
+                                   text: context.document?.ocr_text || context.document?.text || '',
+                                   source: 'fallback'
+                               };
+
+            const visualElements =
+                ocrResults.visualElements ||
+                context.getStageOutput('ocr')?.visualElements ||
+                [];
 
             // Get field taxonomy (if available from PaperlessService)
             let fieldTaxonomy = null;
             try {
-                const paperlessService = require('../paperlessService');
                 if (paperlessService && paperlessService.getFieldTaxonomy) {
                     fieldTaxonomy = await paperlessService.getFieldTaxonomy();
                 }
@@ -950,20 +1034,243 @@ class ExpertPipelineExecutor {
                              'general'
             };
 
-            // Generate visual queries
-            const result = await visualQueryGenerator.generateQueries({
-                extractionResults,
-                ocrResults,
-                fieldTaxonomy,
-                documentMetadata
-            });
+            const allowedFields = new Set();
+            const taxonomyFields = Array.isArray(fieldTaxonomy?.fields) ? fieldTaxonomy.fields : [];
+            for (const field of taxonomyFields) {
+                if (typeof field === 'string' && field) {
+                    allowedFields.add(field);
+                }
+            }
+            if (Array.isArray(extractionResults.fields)) {
+                for (const field of extractionResults.fields) {
+                    if (field?.name) {
+                        allowedFields.add(field.name);
+                    }
+                }
+            }
+            if (Array.isArray(visualQueryGenerator?.config?.fallbackFieldSet)) {
+                for (const field of visualQueryGenerator.config.fallbackFieldSet) {
+                    if (field) {
+                        allowedFields.add(field);
+                    }
+                }
+            }
+            const hasAllowedFields = allowedFields.size > 0;
+
+            const normalizeFloat = (value, fallback) => {
+                const parsed = Number.parseFloat(value);
+                if (!Number.isFinite(parsed)) {
+                    return fallback;
+                }
+                return Math.min(1, Math.max(0, parsed));
+            };
+
+            const normalizeQueries = async (rawQueries, sourceLabel) => {
+                const allowedTypes = new Set(['field_extraction', 'validation', 'exploration']);
+                const normalized = (Array.isArray(rawQueries) ? rawQueries : [])
+                    .map(query => {
+                        if (!query || typeof query !== 'object') {
+                            return null;
+                        }
+                        const question = typeof query.question === 'string'
+                            ? query.question.trim()
+                            : '';
+                        const fieldTarget = typeof query.field_target === 'string'
+                            ? query.field_target.trim()
+                            : '';
+                        if (!question || !fieldTarget) {
+                            return null;
+                        }
+                        if (hasAllowedFields && !allowedFields.has(fieldTarget)) {
+                            return null;
+                        }
+                        const expectedType = allowedTypes.has(query.expected_element_type)
+                            ? query.expected_element_type
+                            : 'field_extraction';
+                        return {
+                            question,
+                            field_target: fieldTarget,
+                            expected_element_type: expectedType,
+                            priority: normalizeFloat(query.priority, 0.5),
+                            confidence: normalizeFloat(query.confidence, 0.6),
+                            rarity_factor: normalizeFloat(query.rarity_factor, 0.5),
+                            source: sourceLabel
+                        };
+                    })
+                    .filter(Boolean);
+
+                const minQueries = visualQueryGenerator.config?.minQueriesPerDocument || 3;
+                if (normalized.length >= minQueries) {
+                    return normalized;
+                }
+
+                const fallback = await visualQueryGenerator.generateQueries({
+                    extractionResults,
+                    ocrResults,
+                    fieldTaxonomy,
+                    documentMetadata
+                });
+                const supplemental = Array.isArray(fallback.visual_queries)
+                    ? fallback.visual_queries
+                    : [];
+                const seenTargets = new Set(normalized.map(query => query.field_target));
+                const allowDuplicates =
+                    hasAllowedFields && seenTargets.size >= allowedFields.size;
+
+                let index = 0;
+                while (normalized.length < minQueries && supplemental.length > 0) {
+                    const candidate = supplemental[index % supplemental.length];
+                    index += 1;
+                    if (!candidate) {
+                        continue;
+                    }
+                    if (!allowDuplicates && seenTargets.has(candidate.field_target)) {
+                        continue;
+                    }
+                    normalized.push({
+                        question: candidate.question,
+                        field_target: candidate.field_target,
+                        expected_element_type: candidate.expected_element_type || 'field_extraction',
+                        priority: normalizeFloat(candidate.priority, 0.5),
+                        confidence: normalizeFloat(candidate.confidence, 0.6),
+                        rarity_factor: normalizeFloat(candidate.rarity_factor, 0.5),
+                        source: 'heuristic'
+                    });
+                    seenTargets.add(candidate.field_target);
+                }
+
+                return normalized;
+            };
+
+            const guidanceEnabled =
+                normalizeBoolean(context?.options?.guidanceEnabled, true) &&
+                normalizeBoolean(orchestration.use_guidance, true) &&
+                normalizeBoolean(orchestration.useGuidance, true);
+
+            let generated = null;
+            let source = 'heuristic';
+
+            const documentDomain = String(documentMetadata.documentType || '').toLowerCase();
+            let resolvedTemplate = stage.guidanceTemplate || null;
+            if (resolvedTemplate === 'visual_query_generator_de' &&
+                ['financial', 'medical', 'legal'].includes(documentDomain)) {
+                resolvedTemplate = `${documentDomain}_visual_query_generator_de`;
+            }
+            resolvedTemplate = resolveGuidanceTemplateName(resolvedTemplate);
+
+            if (resolvedTemplate && guidanceEnabled && await guidanceClient.isAvailable()) {
+                const variables = {
+                    extraction_result: extractionResults,
+                    ocr_text: ocrResults.text || '',
+                    field_schema: fieldTaxonomy || {},
+                    visual_elements: visualElements,
+                    document_metadata: documentMetadata,
+                    document_type: documentMetadata.documentType,
+                    document_id: documentMetadata.id,
+                    filename: documentMetadata.filename
+                };
+
+                try {
+                    const guidanceResult = await guidanceClient.generate(
+                        resolvedTemplate,
+                        variables,
+                        {
+                            model: stage.model,
+                            temperature: 0.0
+                        }
+                    );
+
+                    if (guidanceResult.success && guidanceResult.validation?.valid) {
+                        generated = guidanceResult.generated;
+                        source = guidanceResult.source || 'guidance';
+                    } else {
+                        logger.warn({
+                            event: 'visual_query_generation_guidance_invalid',
+                            stageId: stage.id,
+                            template: resolvedTemplate,
+                            valid: guidanceResult.validation?.valid,
+                            errors: guidanceResult.validation?.errors?.slice(0, 3)
+                        });
+                    }
+                } catch (guidanceError) {
+                    logger.warn({
+                        event: 'visual_query_generation_guidance_failed',
+                        stageId: stage.id,
+                        template: resolvedTemplate,
+                        error: guidanceError.message
+                    });
+                }
+            }
+
+            if (!generated) {
+                const promptId = stage.promptId ||
+                                 (stage.guidanceTemplate
+                                     ? getFallbackPromptId(stage.guidanceTemplate)
+                                     : null);
+                if (promptId && promptRegistry.has(promptId)) {
+                    const promptVariables = {
+                        extraction_result: JSON.stringify(extractionResults || {}),
+                        ocr_text: ocrResults.text || '',
+                        field_schema: JSON.stringify(fieldTaxonomy || {}),
+                        visual_elements: JSON.stringify(visualElements || [])
+                    };
+
+                    try {
+                        const messages = promptRegistry.buildMessages(
+                            promptId,
+                            promptVariables
+                        );
+                        const options = promptRegistry.getOptions(promptId);
+                        const timeout = stage.timeout || this.options.defaultTimeout;
+                        const response = await this._callOllamaWithTimeout(
+                            stage.model,
+                            messages,
+                            options,
+                            timeout
+                        );
+                        generated = await this._parseResponse(response, stage);
+                        source = 'prompt';
+                    } catch (promptError) {
+                        logger.warn({
+                            event: 'visual_query_generation_prompt_failed',
+                            stageId: stage.id,
+                            promptId,
+                            error: promptError.message
+                        });
+                    }
+                }
+            }
+
+            let normalizedQueries = [];
+            if (generated) {
+                const rawQueries = Array.isArray(generated.queries)
+                    ? generated.queries
+                    : (Array.isArray(generated.visual_queries)
+                        ? generated.visual_queries
+                        : []);
+                normalizedQueries = await normalizeQueries(rawQueries, source);
+            }
+
+            if (normalizedQueries.length === 0) {
+                const fallbackResult = await visualQueryGenerator.generateQueries({
+                    extractionResults,
+                    ocrResults,
+                    fieldTaxonomy,
+                    documentMetadata
+                });
+                normalizedQueries = fallbackResult.visual_queries;
+                source = 'heuristic';
+            }
 
             const timing = Date.now() - stageStart;
-
-            // Store query generation result in context
             const queryOutput = {
-                queries: result.visual_queries,
-                metadata: result.generation_metadata,
+                queries: normalizedQueries,
+                metadata: {
+                    total_queries_generated: normalizedQueries.length,
+                    success_rate: normalizedQueries.length > 0 ? 1 : 0,
+                    fields_targeted: normalizedQueries.map(query => query.field_target),
+                    source
+                },
                 executionTimeMs: timing
             };
 
@@ -973,8 +1280,8 @@ class ExpertPipelineExecutor {
                 event: 'visual_query_generation_stage_complete',
                 stageId: stage.id,
                 documentId: context.document?.id,
-                queriesGenerated: result.visual_queries.length,
-                successRate: result.generation_metadata.success_rate,
+                queriesGenerated: normalizedQueries.length,
+                generationSource: source,
                 executionTimeMs: timing
             });
 
@@ -998,23 +1305,7 @@ class ExpertPipelineExecutor {
 
             context.addError(stage.id, error);
 
-            // Graceful degradation: continue with empty queries
-            // The pipeline can still proceed with extraction-only results
-            const fallbackOutput = {
-                queries: [],
-                metadata: {
-                    total_queries_generated: 0,
-                    success_rate: 0,
-                    fields_targeted: [],
-                    missing_fields: [],
-                    low_confidence_fields: [],
-                    error: error.message,
-                    fallback: true
-                },
-                executionTimeMs: timing
-            };
-
-            context.setStageOutput(stage.outputKey || 'visual_queries', fallbackOutput, timing);
+            const { output } = buildFallbackOutput('generation_failed', error);
 
             logger.warn({
                 event: 'visual_query_generation_fallback',
@@ -1023,10 +1314,9 @@ class ExpertPipelineExecutor {
                 message: 'Continuing with extraction-only results (no visual queries)'
             });
 
-            // Not fatal - pipeline can continue without visual queries
             return {
                 status: 'warning',
-                output: fallbackOutput,
+                output,
                 abort: false
             };
         }
@@ -1051,33 +1341,102 @@ class ExpertPipelineExecutor {
             documentId: context.document?.id || context.document?.filename
         });
 
+        const orchestration = context?.options?.orchestration || {};
+        const enableVisualRag =
+            context?.options?.enableVisualRag ?? this.options.enableVisualRag;
+        const allowVisualValidation =
+            normalizeBoolean(orchestration.use_visual_validation, true) &&
+            normalizeBoolean(orchestration.useVisualValidation, true);
+        const allowVisualRetrieval =
+            normalizeBoolean(orchestration.use_visual_rag_retrieval, true) &&
+            normalizeBoolean(orchestration.useVisualRagRetrieval, true);
+
+        const extractionResults = context.getStageOutput('extraction') ||
+                                 context.getStageOutput('general_extraction') ||
+                                 context.getStageOutput('text_extraction') ||
+                                 {};
+
+        const buildFallbackOutput = (reason, error = null) => {
+            const timing = Date.now() - stageStart;
+            const fallbackOutput = {
+                fields: (extractionResults.fields || []).map(f => ({
+                    ...f,
+                    visual_confirmation: false
+                })),
+                newly_discovered_fields: [],
+                overlays: [],
+                metadata: {
+                    total_queries_executed: 0,
+                    successful_queries: 0,
+                    failed_queries: 0,
+                    timeout_queries: 0,
+                    fallback: true,
+                    fallback_reason: reason,
+                    error: error?.message
+                },
+                executionTimeMs: timing
+            };
+
+            context.setStageOutput(
+                stage.outputKey || 'visual_execution',
+                fallbackOutput,
+                timing
+            );
+
+            return { output: fallbackOutput, timing };
+        };
+
+        if (!enableVisualRag || !allowVisualValidation || !allowVisualRetrieval) {
+            const skipReason = !enableVisualRag
+                ? 'visual_rag_disabled'
+                : (!allowVisualValidation
+                    ? 'visual_validation_disabled'
+                    : 'visual_rag_retrieval_disabled');
+
+            context.skipStage(stage.id, skipReason);
+            const { output } = buildFallbackOutput(skipReason);
+
+            logger.info({
+                event: 'visual_query_execution_skipped',
+                stageId: stage.id,
+                documentId: context.document?.id,
+                reason: skipReason
+            });
+
+            return { status: 'skipped', output, abort: false };
+        }
+
         try {
             // Import VisualQueryExecutor and VisualSearchClient (lazy load)
             const { VisualQueryExecutor } = require('./VisualQueryExecutor');
             const { VisualSearchClient } = require('../visual-rag/VisualSearchClient');
 
+            if (typeof context.visualSidecarAvailable !== 'boolean') {
+                const visualSearchClient = new VisualSearchClient();
+                context.visualSidecarAvailable = await visualSearchClient.isAvailable();
+            }
+
+            if (!context.visualSidecarAvailable) {
+                const { output } = buildFallbackOutput('visual_sidecar_unavailable');
+                context.skipStage(stage.id, 'visual_sidecar_unavailable');
+
+                logger.warn({
+                    event: 'visual_query_execution_sidecar_unavailable',
+                    stageId: stage.id,
+                    documentId: context.document?.id
+                });
+
+                return { status: 'skipped', output, abort: false };
+            }
+
             // Get visual queries from Phase 3
             const queryOutput = context.getStageOutput('visual_queries');
             const visualQueries = queryOutput?.queries || [];
 
-            // Get extraction results
-            const extractionResults = context.getStageOutput('extraction') ||
-                                     context.getStageOutput('general_extraction') ||
-                                     context.getStageOutput('text_extraction') ||
-                                     {};
-
-            // Get document image
+            // Get document image if available (optional)
             const documentImage = context.document?.imageBase64 ||
                                  context.document?.imageBuffer ||
                                  context.document?.imagePath;
-
-            if (!documentImage) {
-                logger.warn({
-                    event: 'visual_query_execution_no_image',
-                    stageId: stage.id,
-                    documentId: context.document?.id
-                });
-            }
 
             // Prepare document metadata
             const documentMetadata = {
@@ -1089,8 +1448,13 @@ class ExpertPipelineExecutor {
             };
 
             // Initialize Visual Search Client and Executor
+            this._initVisualRag();
             const visualSearchClient = new VisualSearchClient();
-            const executor = new VisualQueryExecutor(visualSearchClient, stage.executorConfig || {});
+            const executor = new VisualQueryExecutor(
+                visualSearchClient,
+                this._visualOverlayRepository,
+                stage.executorConfig || {}
+            );
 
             // Execute queries and merge results
             const result = await executor.executeQueries({
@@ -1148,29 +1512,7 @@ class ExpertPipelineExecutor {
 
             context.addError(stage.id, error);
 
-            // Graceful degradation: continue with extraction-only results
-            const extractionResults = context.getStageOutput('extraction') ||
-                                     context.getStageOutput('general_extraction') ||
-                                     {};
-
-            const fallbackOutput = {
-                fields: (extractionResults.fields || []).map(f => ({
-                    ...f,
-                    visual_confirmation: false
-                })),
-                newly_discovered_fields: [],
-                overlays: [],
-                metadata: {
-                    total_queries_executed: 0,
-                    successful_queries: 0,
-                    failed_queries: 0,
-                    fallback: true,
-                    error: error.message
-                },
-                executionTimeMs: timing
-            };
-
-            context.setStageOutput(stage.outputKey || 'visual_execution', fallbackOutput, timing);
+            const { output } = buildFallbackOutput('execution_failed', error);
 
             logger.warn({
                 event: 'visual_query_execution_fallback',
@@ -1179,10 +1521,9 @@ class ExpertPipelineExecutor {
                 message: 'Continuing with extraction-only results (no visual execution)'
             });
 
-            // Not fatal - pipeline can continue without visual execution
             return {
                 status: 'warning',
-                output: fallbackOutput,
+                output,
                 abort: false
             };
         }

@@ -49,6 +49,14 @@ def validate_medical_extraction(
                 "warnings": warnings,
             }
 
+        if "queries" in data:
+            _validate_visual_query_fields(data, warnings, errors)
+            return {
+                "valid": len(errors) == 0,
+                "errors": errors,
+                "warnings": warnings,
+            }
+
         if "dokumenttyp" in data:
             doc_type = data.get("dokumenttyp", "")
             valid_types = [
@@ -150,9 +158,51 @@ def validate_medical_extraction(
     except Exception as e:
         return {
             "valid": False,
-            "errors": [f"Validation exception: {type(e).__name__}: {str(e)}"],
+            "errors": [f"Validation exception: {type(e).__name__}: {str(e)}"],  
             "warnings": warnings,
         }
+
+
+def _validate_visual_query_fields(
+    data: Dict[str, Any],
+    warnings: List[str],
+    errors: List[str],
+) -> None:
+    """Validate visual query generation output."""
+    queries = data.get("queries")
+    if not isinstance(queries, list):
+        errors.append("queries must be a list")
+        return
+    if len(queries) == 0:
+        errors.append("No visual queries generated")
+        return
+
+    targets: List[str] = []
+    for idx, query in enumerate(queries):
+        if not isinstance(query, dict):
+            errors.append(f"Query {idx} must be an object")
+            continue
+        if not query.get("question"):
+            errors.append(f"Query {idx} missing question")
+        field_target = query.get("field_target")
+        if not field_target:
+            errors.append(f"Query {idx} missing field_target")
+        else:
+            targets.append(field_target)
+        expected = query.get("expected_element_type")
+        if expected not in (
+            "field_extraction",
+            "validation",
+            "exploration",
+        ):
+            errors.append(
+                f"Query {idx} has invalid expected_element_type: {expected}"
+            )
+
+    if len(targets) != len(set(targets)):
+        warnings.append(
+            "Duplicate field_target entries in visual queries"
+        )
 
 
 def _validate_tag_fields(

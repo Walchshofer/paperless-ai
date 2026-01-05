@@ -62,8 +62,8 @@ WORKDIR /app
 # Install PyTorch with CUDA support first (large download, cache separately)
 # Install PyTorch with CUDA 12.4 support
 RUN pip install --no-cache-dir \
-    torch==2.2.0 \
-    torchvision==0.17.0 \
+    torch==2.4.0 \
+    torchvision==0.19.0 \
     --index-url https://download.pytorch.org/whl/cu124
 
 # Copy requirements and install dependencies

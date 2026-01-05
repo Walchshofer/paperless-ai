@@ -23,7 +23,7 @@ describe('Phase 2 → Phase 3 Integration', () => {
         };
 
         executor = new ExpertPipelineExecutor(mockOllamaService, {
-            enableVisualRag: false  // Disable Visual RAG for unit testing
+            enableVisualRag: true
         });
 
         visualQueryGenerator.resetStats();
@@ -31,6 +31,7 @@ describe('Phase 2 → Phase 3 Integration', () => {
 
     it('should pass OCR results from Phase 2 to Phase 3 query generation', async () => {
         const context = new ExecutionContext();
+        context.visualSidecarAvailable = true;
 
         // Simulate Phase 2 OCR output
         context.setStageOutput('ocr', {
@@ -141,6 +142,7 @@ describe('Phase 2 → Phase 3 Integration', () => {
 
     it('should gracefully degrade when OCR output is missing', async () => {
         const context = new ExecutionContext();
+        context.visualSidecarAvailable = true;
 
         // No OCR output in context
         context.setStageOutput('general_extraction', {

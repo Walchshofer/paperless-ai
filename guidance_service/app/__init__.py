@@ -510,7 +510,11 @@ Example output format:
         'general_classifier',
         'general_extractor',
         'general_extractor_v2',
-        'cross_pipeline_router',
+        # Phase 5.5: Visual query generation
+        'visual_query_generator_de',
+        'financial_visual_query_generator_de',
+        'medical_visual_query_generator_de',
+        'legal_visual_query_generator_de',
         # Phase 6: Normalization geometry
         'normalization_geometry',
     }
@@ -579,9 +583,18 @@ Example output format:
         elif template_name == 'general_extractor_v2':
             from templates.general_de import GeneralTemplatesDE
             return GeneralTemplatesDE.get_general_extractor_v2()
-        elif template_name == 'cross_pipeline_router':
+        elif template_name == 'visual_query_generator_de':
             from templates.general_de import GeneralTemplatesDE
-            return GeneralTemplatesDE.get_cross_pipeline_router()
+            return GeneralTemplatesDE.get_visual_query_generator()
+        elif template_name == 'financial_visual_query_generator_de':
+            from templates.financial_de import FinancialTemplatesDE
+            return FinancialTemplatesDE.get_visual_query_generator()
+        elif template_name == 'medical_visual_query_generator_de':
+            from templates.medical_de import MedicalTemplatesDE
+            return MedicalTemplatesDE.get_visual_query_generator()
+        elif template_name == 'legal_visual_query_generator_de':
+            from templates.legal_de import LegalTemplatesDE
+            return LegalTemplatesDE.get_visual_query_generator()
         elif template_name == 'normalization_geometry':
             from templates.normalization_geometry import (
                 get_analyze_document_geometry
