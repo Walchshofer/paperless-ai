@@ -81,6 +81,71 @@ reasoning, and visual query generation.
 
 ---
 
+## Context Pack Contract (Required)
+
+Guidance templates must accept a canonical Context Pack as their only context.
+This keeps extraction deterministic and evidence-backed.
+
+**Context Pack fields**:
+- `document`: { `doc_id`, `source`, `timestamps`, `tenant_id`, `user_id` }
+- `classification_priors`: { `doc_type_candidates[]`, `confidence` }
+- `evidence_bundle`:
+  - `visual_hits[]`: { `page_id`, `bbox`, `score` }
+  - `ocr_snippets[]`: { `page_id`, `bbox`, `text` }
+  - `text_snippets[]`: { `chunk_id`, `text`, `score` }
+  - `normalization`: { `rotate`, `deskew_angle`, `crop_box`, `dpi` }
+- `policy_constraints`: { `allowed_roots[]`, `allowed_path_segments[]`, `naming_templates[]`, `retention_rules[]` }
+- `user_preferences`: { `vendors[]`, `taxonomy[]`, `locale`, `currency` }
+- `system_state`: { `existing_tags[]`, `duplicate_candidates[]`, `related_docs[]` }
+
+No stage may pass full OCR dumps or raw document content outside the Context Pack.
+
+---
+
+## Guidance Output Contracts (Required)
+
+Guidance outputs are split into three focused calls. Each output must include
+`evidence_refs[]` pointing to `page_id+bbox`, `chunk_id`, or `ocr_offset`.
+
+1) **Classification + Tagging**
+```json
+{
+  "doc_type": "string",
+  "tags": ["string"],
+  "entities": [{"name": "string", "value": "string"}],
+  "confidence": 0.0,
+  "rationale": "string",
+  "evidence_refs": ["page:1:box:...", "chunk:uuid"]
+}
+```
+
+2) **Field Extraction**
+```json
+{
+  "fields": [
+    {
+      "name": "string",
+      "value": "string",
+      "confidence": 0.0,
+      "evidence_ref": "page:1:box:..."
+    }
+  ]
+}
+```
+
+3) **Autonomous Storage Plan**
+```json
+{
+  "folder_path": "string",
+  "filename": "string",
+  "actions": ["tag", "move", "rename"],
+  "confidence": 0.0,
+  "safety_checks": ["allowed_path", "not_destructive"]
+}
+```
+
+---
+
 ## Interaction Flow
 
 The `ExpertPipelineExecutor` orchestrates this interaction inside

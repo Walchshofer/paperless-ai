@@ -5,20 +5,22 @@ This document provides a comprehensive overview of the Visual RAG sidecar integr
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
-2. [Circuit Breaker Pattern](#circuit-breaker-pattern)
-3. [Parallel Execution Strategy](#parallel-execution-strategy)
-4. [Visual Query Generation](#visual-query-generation)
-5. [Dynamic K Selection](#dynamic-k-selection)
-6. [Deduplication Strategy](#deduplication-strategy)
-7. [Metrics Reference](#metrics-reference)
-8. [Configuration](#configuration)
-9. [Troubleshooting](#troubleshooting)
+2. [Visual-first Retrieval (V2)](#visual-first-retrieval-v2)
+3. [Circuit Breaker Pattern](#circuit-breaker-pattern)
+4. [Parallel Execution Strategy](#parallel-execution-strategy)
+5. [Visual Query Generation](#visual-query-generation)
+6. [Dynamic K Selection](#dynamic-k-selection)
+7. [Deduplication Strategy](#deduplication-strategy)
+8. [Metrics Reference](#metrics-reference)
+9. [Configuration](#configuration)
+10. [Model & Build Requirements (ColQwen3-only)](#model--build-requirements-colqwen3-only)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Architecture Overview
 
-The Visual RAG integration enhances the document processing pipeline with visual retrieval capabilities, field detection with bounding boxes, and expert-driven question generation.
+The Visual RAG integration enhances the document processing pipeline with visual retrieval capabilities, field detection with bounding boxes, and expert-driven question generation. In V2, visual retrieval is the default for query answering with text retrieval as a fallback via RAGZ.
 
 ### System Components
 
@@ -71,11 +73,29 @@ The Visual RAG integration enhances the document processing pipeline with visual
 
 | Service | Port | Purpose |
 |---------|------|---------|
-| Visual RAG Sidecar | 8001 | Tomoro ColQwen3 visual retrieval (`TomoroAI/tomoro-colqwen3-embed-8b`) — 320-d embeddings, 32k context, ~13× storage efficiency vs v2 |
+| Visual RAG Sidecar | 8001 | ColQwen3-only visual retrieval (`TomoroAI/tomoro-colqwen3-embed-8b`). Rejects `vidore/colqwen2-v1.0` at startup; 320-d embeddings, 32k context. |
+| RAGZ Text Retrieval | Configurable | Text retrieval fallback (pgvector `document_embeddings.embedding vector(384)`). |
 | Paperless-ngx API | 8000 | Document metadata and Tesseract OCR |
 | Guidance Service | 8002 | Constrained query generation |
 | Bias Engine | 50051 | Logit bias for deterministic generation |
 | Prometheus | 9091 | Metrics collection |
+
+---
+
+## Visual-first Retrieval (V2)
+
+Visual retrieval is the default for query answering. Text retrieval is optional and used only for validation or fallback.
+
+```
+User Query -> Query Router -> Visual Retrieval (default)
+                            -> Context Pack Builder -> Guidance Response -> Action Orchestrator
+                \-> Text Retrieval (optional) ->/
+```
+
+Key rules:
+- Visual RAG and RAGZ are separate services with distinct vector columns.
+- Context Pack inputs must include visual hits + OCR snippets, not raw OCR dumps.
+- Evidence refs are required for any extracted fields or actions.
 
 ---
 
@@ -462,6 +482,7 @@ Keep Query 1 Result (score 0.85 > 0.78)
 # Visual RAG Sidecar
 VISUAL_RAG_URL=http://visual-rag:8001
 VISUAL_RAG_ENABLED=yes
+VISUAL_RAG_MODEL=TomoroAI/tomoro-colqwen3-embed-8b  # fixed; colqwen2 rejected
 
 # Circuit Breaker
 VISUAL_SIDECAR_TIMEOUT_MS=500
@@ -480,9 +501,7 @@ VISUAL_QUERY_IOU_THRESHOLD=0.7
 # Concurrency
 VISUAL_QUERY_MAX_CONCURRENT=5
 
-# Embedding Model
-VISUAL_RAG_TOKENIZER_MODEL=gpt2
-EMBEDDING_MODEL=nomic-embed-text
+# Text retrieval (RAGZ) configuration is documented in docs/RAG_SYSTEMS_REFERENCE.md.
 
 # Paperless API
 PAPERLESS_API_URL=http://localhost:8000/api
@@ -501,6 +520,17 @@ PAPERLESS_API_TOKEN=<your-token>
   dynamic_k_enabled: true              // Enable dynamic K formula
 }
 ```
+
+---
+
+## Model & Build Requirements (ColQwen3-only)
+
+- Only `TomoroAI/tomoro-colqwen3-embed-8b` is supported. Setting
+  `VISUAL_RAG_MODEL=vidore/colqwen2-v1.0` triggers a startup error and requires
+  re-indexing.
+- Startup logs include explicit breaking-change warnings for ColQwen2 removal.
+- CUDA 12.4+ is required for the sidecar build; use PyTorch `cu124` wheels.
+- `flash-attn>=2.4.0` must be built against the same CUDA toolkit as PyTorch.
 
 ---
 

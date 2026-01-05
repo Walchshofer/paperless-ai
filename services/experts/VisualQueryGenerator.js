@@ -115,9 +115,7 @@ class VisualQueryGenerator {
             // Step 4: Ensure minimum query count
             const finalQueries = this._ensureMinimumQueries(
                 queries,
-                fieldAnalysis,
-                ocrResults,
-                fieldTaxonomy
+                fieldAnalysis
             );
 
             // Step 5: Build metadata
@@ -177,18 +175,34 @@ class VisualQueryGenerator {
         };
 
         // Get available fields from taxonomy or use fallback
-        const taxonomyFields = fieldTaxonomy?.fields || this.config.fallbackFieldSet;
-        analysis.availableFields = taxonomyFields;
+        const taxonomyFields = Array.isArray(fieldTaxonomy?.fields)
+            ? fieldTaxonomy.fields
+            : [];
+        const extractedFieldNames = Array.isArray(extractionResults.fields)
+            ? extractionResults.fields.map(field => field.name).filter(Boolean)
+            : [];
+        const fallbackFields = this.config.fallbackFieldSet;
+
+        const availableFieldSet = new Set([
+            ...taxonomyFields,
+            ...extractedFieldNames,
+            ...fallbackFields
+        ]);
+        analysis.availableFields = Array.from(availableFieldSet);
 
         // Analyze extraction results
         const extractedFieldsMap = new Map();
         if (extractionResults.fields && Array.isArray(extractionResults.fields)) {
             for (const field of extractionResults.fields) {
+                if (!field?.name) {
+                    continue;
+                }
                 extractedFieldsMap.set(field.name, field);
                 analysis.extractedFields.push(field.name);
 
                 // Check if field has low confidence
-                if (field.confidence < this.config.confidenceThreshold) {
+                if (field.confidence < this.config.confidenceThreshold &&
+                    availableFieldSet.has(field.name)) {
                     analysis.lowConfidenceFields.push({
                         name: field.name,
                         confidence: field.confidence,
@@ -198,8 +212,11 @@ class VisualQueryGenerator {
             }
         }
 
-        // Identify missing fields
-        for (const fieldName of taxonomyFields) {
+        // Identify missing fields from taxonomy (or fallback)
+        const missingCandidates = taxonomyFields.length > 0
+            ? taxonomyFields
+            : fallbackFields;
+        for (const fieldName of missingCandidates) {
             if (!extractedFieldsMap.has(fieldName)) {
                 analysis.missingFields.push({
                     name: fieldName,
@@ -371,24 +388,58 @@ class VisualQueryGenerator {
      * Ensure minimum query count is met
      * @private
      */
-    _ensureMinimumQueries(queries, fieldAnalysis, ocrResults, fieldTaxonomy) {
+    _ensureMinimumQueries(queries, fieldAnalysis) {
         if (queries.length >= this.config.minQueriesPerDocument) {
             return queries;
         }
 
-        // Add exploration queries to reach minimum
+        // Use allowed fields to meet minimum while respecting schema/taxonomy
         const remainingCount = this.config.minQueriesPerDocument - queries.length;
+        const existingTargets = new Set(queries.map(q => q.field_target));
+        const candidateFields = [
+            ...fieldAnalysis.missingFields.map(field => ({
+                fieldName: field.name,
+                type: 'missing',
+                priority: this.config.priorityWeights.missingField * (1 + field.rarity),
+                rarity: field.rarity,
+                existingValue: null,
+                existingConfidence: 0
+            })),
+            ...fieldAnalysis.lowConfidenceFields.map(field => ({
+                fieldName: field.name,
+                type: 'low_confidence',
+                priority: this.config.priorityWeights.lowConfidence * (1 - field.confidence),
+                rarity: this._calculateRarity(field.name, null),
+                existingValue: field.value,
+                existingConfidence: field.confidence
+            }))
+        ];
 
-        for (let i = 0; i < remainingCount; i++) {
-            queries.push({
-                question: 'What other important information is visible in this document?',
-                field_target: 'additional_info',
-                expected_element_type: QueryElementType.EXPLORATION,
-                priority: this.config.priorityWeights.exploration,
-                confidence: 0.6,
-                rarity_factor: 0.5,
-                logit_bias: this._buildLogitBias('additional_info', QueryElementType.EXPLORATION)
-            });
+        const fallbackFields = fieldAnalysis.availableFields.map(fieldName => ({
+            fieldName,
+            type: 'missing',
+            priority: this.config.priorityWeights.missingField,
+            rarity: this._calculateRarity(fieldName, null),
+            existingValue: null,
+            existingConfidence: 0
+        }));
+
+        const supplemental = candidateFields.length > 0 ? candidateFields : fallbackFields;
+        let cursor = 0;
+
+        const allowDuplicates =
+            existingTargets.size >= fieldAnalysis.availableFields.length;
+
+        for (let i = 0; i < remainingCount && supplemental.length > 0; i++) {
+            const entry = supplemental[cursor % supplemental.length];
+            cursor += 1;
+            if (!allowDuplicates && existingTargets.has(entry.fieldName)) {
+                i -= 1;
+                continue;
+            }
+            const query = this._createQuery(entry);
+            queries.push(query);
+            existingTargets.add(entry.fieldName);
         }
 
         return queries;

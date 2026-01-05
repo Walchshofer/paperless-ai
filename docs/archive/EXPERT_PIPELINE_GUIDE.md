@@ -114,7 +114,7 @@ services/
 └── integration/
 └── DocumentProcessor.js # Main integration layer
 
-> **Note:** Deprecated root-level implementations `services/ExpertRegistry.js` and `services/ExpertPipelineExecutor.js` have been removed to avoid import shadowing. Use the canonical implementations under `services/experts/`. Reference implementations live in `future_implementations/services/experts/` for documentation and comparison purposes.
+> **Note:** Deprecated root-level implementations `services/ExpertRegistry.js` and `services/ExpertPipelineExecutor.js` have been removed to avoid import shadowing. Use the canonical implementations under `services/experts/`.
 
 yaml
 
@@ -1062,32 +1062,6 @@ interface PaperlessFormat {
 # ============================================================================
 # DEVELOPMENT AND TESTING
 # ============================================================================
-
-## Reference Implementations
-
-The `future_implementations/` directory contains reference implementations that demonstrate experimental features and alternative approaches. These are **not production code** and should not be imported directly.
-
-### Relationship to Production Code
-
-- **Purpose**: `future_implementations/` serves as a development sandbox for testing new features before integration
-- **Import Policy**: Always import from `services/`, never from `future_implementations/`
-- **Migration Path**: Features proven in `future_implementations/` should be merged into `services/` following testing requirements
-- **Documentation**: See `future_implementations/README.md` for current experimental features
-
-### Contributing Improvements
-
-1. **Develop** new features in `future_implementations/`
-2. **Test** thoroughly with `npm test`
-3. **Document** changes in relevant guides
-4. **Merge** into `services/` only after peer review
-5. **Update** this guide and cross-references
-
-### Testing Requirements
-
-- All new features must pass `npm test`
-- Integration tests must cover error conditions
-- Performance benchmarks required for model changes
-- Documentation updates mandatory for API changes
 
 ## Changelog
 Version 1.0.0 (Initial Release)

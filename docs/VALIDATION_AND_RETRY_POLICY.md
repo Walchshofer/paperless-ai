@@ -117,6 +117,10 @@ The ValidationEngine emits the following structure:
 * Retry reasons must be **logged**
 * Retry scope is always **"document"**
 
+**Implementation binding**
+- Extraction retries are orchestrated via `ExpertPipelineExecutor._executeWithValidation()` using `ValidationEngine.validate()`.
+- Stage-level `retryCount` must not be used to implement validation-driven extraction retries.
+
 ### Forbidden
 
 * Infinite retries

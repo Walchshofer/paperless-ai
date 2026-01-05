@@ -339,6 +339,41 @@ class ExpertPipelineExecutor {
         // Build input from mappings
         const stageInput = this._buildStageInput(stage.inputMapping, context);
 
+        // Validation-driven retries for extraction stages (Stage 5)
+        if (stage.type === StageType.TEXT_EXTRACTION && stage.useParallelOcr !== true) {
+            const extractionFn = async () => this._executeLLMStage(stage, stageInput, context);
+            const validationResult = await this._executeWithValidation(
+                stage,
+                context,
+                pipeline,
+                extractionFn
+            );
+
+            const timing = Date.now() - stageStart;
+            context.setStageOutput(stage.outputKey, validationResult.output, timing);
+
+            logger.debug({
+                event: 'stage_execution_with_validation_complete',
+                stageId: stage.id,
+                terminalState: validationResult.terminalState,
+                attempts: validationResult.attempts,
+                timingMs: timing
+            });
+
+            const status = validationResult.terminalState === 'manual_review_required'
+                ? 'error'
+                : (validationResult.terminalState === 'accepted_with_warnings'
+                    ? 'warning'
+                    : 'success');
+
+            return {
+                status,
+                output: validationResult.output,
+                abort: false,
+                terminalState: validationResult.terminalState
+            };
+        }
+
         // Execute LLM stage with retry logic
         let lastError = null;
         const maxRetries = stage.retryCount || 1;
@@ -719,14 +754,17 @@ class ExpertPipelineExecutor {
                 imageBuffer: context.document?.imageBuffer
             };
 
-            // Extract document type from classification or metadata
-            const documentType = context.getStageOutput('classification')?.primary_domain ||
-                                context.document?.documentType ||
-                                'general';
+            // Extract document type from router classification or metadata
+            const routerDomain =
+                context?.classification?.classification?.primary_domain ||
+                context?.classification?.domain ||
+                context?.classification?.classification?.domain ||
+                null;
+            const documentType = (routerDomain || context.document?.documentType || 'general');
 
             const metadata = {
                 documentType,
-                classification: context.getStageOutput('classification'),
+                classification: context.classification,
                 ...stage.metadata
             };
 
@@ -736,12 +774,20 @@ class ExpertPipelineExecutor {
             const timing = Date.now() - stageStart;
 
             // Store OCR result in context
+            const ocrMetadata = {
+                source: result.ocr.source,
+                conflict_rate: result.ocr.reconciliation?.conflictRate ?? null,
+                latency_ms: timing,
+                reconciliation: result.ocr.reconciliation || null,
+                visual_elements_available: !!result.visualElements
+            };
             const ocrOutput = {
                 text: result.ocr.text,
                 source: result.ocr.source,
                 confidence: result.ocr.confidence,
                 reconciliation: result.ocr.reconciliation,
                 visualElements: result.visualElements,
+                ocr_metadata: ocrMetadata,
                 metadata: {
                     ...result.metadata,
                     executionTimeMs: timing
@@ -750,10 +796,16 @@ class ExpertPipelineExecutor {
 
             context.setStageOutput(stage.outputKey || 'ocr', ocrOutput, timing);
 
-            // Also set backward-compatible fields for existing pipeline stages
+            // Persist enhanced OCR and metadata for downstream stages
             if (result.ocr.text) {
-                context.document.ocr_text = result.ocr.text;
-                context.document.text = result.ocr.text;
+                context.document.enhanced_ocr_text = result.ocr.text;
+                context.document._ocr_metadata = ocrMetadata;
+                if (!context.document.ocr_text) {
+                    context.document.ocr_text = result.ocr.text;
+                }
+                if (!context.document.text) {
+                    context.document.text = result.ocr.text;
+                }
             }
 
             logger.info({
@@ -800,6 +852,13 @@ class ExpertPipelineExecutor {
                     text: fallbackText,
                     source: 'fallback-existing',
                     confidence: 0.5,
+                    ocr_metadata: {
+                        source: 'fallback-existing',
+                        conflict_rate: null,
+                        latency_ms: timing,
+                        reconciliation: null,
+                        visual_elements_available: false
+                    },
                     metadata: {
                         fallback: true,
                         originalError: error.message
@@ -807,8 +866,14 @@ class ExpertPipelineExecutor {
                 };
 
                 context.setStageOutput(stage.outputKey || 'ocr', fallbackOutput, timing);
-                context.document.ocr_text = fallbackText;
-                context.document.text = fallbackText;
+                context.document.enhanced_ocr_text = fallbackText;
+                context.document._ocr_metadata = fallbackOutput.ocr_metadata;
+                if (!context.document.ocr_text) {
+                    context.document.ocr_text = fallbackText;
+                }
+                if (!context.document.text) {
+                    context.document.text = fallbackText;
+                }
 
                 return {
                     status: 'warning',

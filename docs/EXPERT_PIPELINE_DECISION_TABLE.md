@@ -72,6 +72,24 @@ Lower layers must never override higher layers.
 
 ---
 
+## Context Pack (Canonical)
+
+All Guidance and VLM calls must use a Context Pack as the sole context source:
+- Document identity: `doc_id`, `source`, timestamps, tenant/user
+- Classification priors: doc type candidates + confidence
+- Evidence bundle:
+  - Visual hits: `page_id`, `bbox`, `score`
+  - OCR snippets for those hits
+  - Text retrieval snippets (if used)
+  - Normalization metadata (rotate, deskew angle, crop box)
+- Policy constraints: allowed roots, naming templates, retention rules
+- User preferences: vendors, taxonomy, locale/currency
+- System state: existing tags, duplicates, related docs
+
+Raw OCR dumps are forbidden; only evidence snippets are allowed.
+
+---
+
 ## Stage 3: Pre-Vision Normalization
 
 **Guards**
@@ -87,6 +105,17 @@ Lower layers must never override higher layers.
 - Must not loop
 - Re-ingest only if geometry changes
 - Skipped entirely for text-only documents
+
+---
+
+## Asset Derivation (Deterministic)
+
+After normalization, derive deterministic artifacts:
+- Page images and thumbnails
+- Normalized renditions for visual indexing
+- Normalization metadata persisted for evidence tracing
+
+Artifacts are input to both visual indexing and OCR reconciliation.
 
 ---
 
@@ -134,8 +163,12 @@ Visual OCR and Tesseract outputs are reconciled using:
 - `ocr_metadata` = Source attribution, conflict rate, latency
 - `visual_elements` = Tables, images, layout structure
 
+**Implementation Notes**
+- Invoke Stage 4 via a `TEXT_EXTRACTION` stage with `useParallelOcr: true` (or an explicit `parallel-ocr` stage) so the executor routes to `ParallelOcrExecutor`.
+- Executor must persist `document.enhanced_ocr_text` and `document._ocr_metadata` (or equivalent) and store `ocr_metadata` in the stage output for downstream stages.
+
 **Circuit Breaker**
-- States: CLOSED (normal) → OPEN (failing) → HALF_OPEN (testing recovery)
+- States: CLOSED (normal) → OPEN (failing) → HALF_OPEN (testing recovery)       
 - 3 consecutive failures trigger OPEN state
 - 30 second cooldown before HALF_OPEN attempt
 - Exponential backoff: 100ms, 200ms, 400ms
@@ -153,6 +186,28 @@ Visual OCR and Tesseract outputs are reconciled using:
 - Same `promptId` in both paths
 - No silent failures
 - Output must match schema
+- Field outputs must include evidence refs
+
+---
+
+## Guidance Output Contracts (V2)
+
+Guidance produces three separate outputs to keep tasks small and testable:
+
+1) **Classification + Tagging**
+```
+{ doc_type, tags[], entities[], confidence, rationale, evidence_refs[] }
+```
+
+2) **Field Extraction**
+```
+{ fields: [{ name, value, confidence, evidence_ref }] }
+```
+
+3) **Autonomous Storage Plan**
+```
+{ folder_path, filename, actions[], confidence, safety_checks[] }
+```
 
 ---
 
@@ -281,6 +336,35 @@ Base K values:
 - No pipeline failure if unavailable
 - Evidence only (no OCR, no extraction)
 - Graceful degradation if circuit breaker OPEN
+
+---
+
+## Stage 9: Finalization
+
+**Purpose**
+Persist results back to Paperless-ngx and apply approved actions.
+
+**Outputs**
+- PATCH requests and/or bulk actions with evidence refs
+- Action audit log entries (`document_actions`)
+
+**Rules**
+- Only apply actions that pass policy constraints
+- Evidence refs must be attached to each action
+- Non-destructive by default; destructive actions require confirmation
+
+---
+
+## Retrieval + Answering (Visual-first, V2)
+
+**Default**: Visual retriever is primary; text is fallback or validation.
+
+Flow:
+- Query Router → Visual Retrieval (pgvector visual index → topK pages/regions)
+- Optional Text Retrieval → Context Pack Builder
+- Guidance Response Generator → Action Orchestrator → Audit Log
+
+ColQwen3 locates relevant regions; Qwen3-VL/Guidance decide actions.
 
 ---
 

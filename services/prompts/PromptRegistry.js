@@ -937,6 +937,63 @@ Respond with this exact JSON structure:
 };
 
 /**
+ * VISUAL_QUERY_GENERATOR_V1: Visual Query Generation (Stage 5.5 fallback)
+ *
+ * Purpose: Generate targeted visual queries for missing/low-confidence fields
+ * Model: general fallback (text-only)
+ * Output: JSON with queries[] for visual search
+ */
+const VISUAL_QUERY_GENERATOR_V1 = {
+    id: 'VISUAL_QUERY_GENERATOR_V1',
+    version: '1.0.0',
+    domain: DomainType.SYSTEM,
+    model: MODEL_NAMES.general,
+    modelType: ModelType.TEXT_ONLY,
+
+    systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+You generate targeted visual queries for field validation.
+Output MUST be valid JSON only and match the required schema.
+Rules:
+- Minimum 3 queries.
+- Queries must target missing or low-confidence fields.
+- field_target must exist in the provided schema or extraction output.
+- expected_element_type must be one of: field_extraction, validation, exploration.
+<|eot_id|>`,
+
+    userTemplate: `<|start_header_id|>user<|end_header_id|>
+Generate visual queries using the inputs below.
+
+EXTRACTION_RESULT (JSON):
+{{extraction_result}}
+
+OCR_TEXT (string):
+{{ocr_text}}
+
+FIELD_SCHEMA / TAXONOMY (JSON):
+{{field_schema}}
+
+VISUAL_ELEMENTS (JSON):
+{{visual_elements}}
+
+Return this exact JSON structure:
+{
+  "queries": [
+    {
+      "question": "<natural language question>",
+      "field_target": "<field name>",
+      "expected_element_type": "field_extraction|validation|exploration",
+      "priority": <0.0-1.0>,
+      "confidence": <0.0-1.0>,
+      "rarity_factor": <0.0-1.0>
+    }
+  ]
+}
+<|eot_id|>`,
+
+    config: { temperature: 0.0, maxTokens: 768, topK: 40 }
+};
+
+/**
  * FIN_EXTRACT_V1: Financial Document Extraction
  *
  * Purpose: Extract structured data from financial documents
@@ -1248,6 +1305,7 @@ class PromptRegistry {
         this.register(LEGAL_ORCHESTRATOR_V1);
         this.register(LEGAL_EXTRACTOR_V1);
         this.register(GEN_FALLBACK_V1);
+        this.register(VISUAL_QUERY_GENERATOR_V1);
 
         logger.info(`PromptRegistry initialized with ${this.prompts.size} prompts`);
     }
@@ -1504,5 +1562,6 @@ module.exports = {
     FIN_VAT_EXPERT_V1,
     LEGAL_ORCHESTRATOR_V1,
     LEGAL_EXTRACTOR_V1,
-    GEN_FALLBACK_V1
+    GEN_FALLBACK_V1,
+    VISUAL_QUERY_GENERATOR_V1
 };

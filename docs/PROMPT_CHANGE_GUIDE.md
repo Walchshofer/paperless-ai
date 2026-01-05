@@ -45,6 +45,7 @@ This guide applies to changes in:
 - Changing field meaning without schema versioning
 - Introducing undocumented output formats
 - Creating prompt-only behavior changes
+- Introducing geometry without provenance (LLMs must not invent boxes/coords)
 
 ---
 

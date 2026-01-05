@@ -61,6 +61,63 @@ metadata.
 
 ---
 
+## RAGZ Health Check (Required)
+
+RAGZ must expose a `/health` endpoint that validates:
+- PostgreSQL connectivity
+- pgvector extension availability
+- `document_embeddings` table readiness
+
+---
+
+## V2 Storage Schema (Planned)
+
+Additive schema for Visual-first RAG:
+
+```
+documents(id, source, original_filename, mime_type, created_at, checksum_sha256,
+  doc_type, tags[], storage_path, extracted_fields jsonb)
+
+document_pages(id, document_id, page_number, width_px, height_px,
+  image_uri, thumb_uri, ocr_text, text_layer, normalization jsonb)
+
+text_chunks(id, document_id, page_id, chunk_index, content, span jsonb,
+  embedding vector(384))
+
+visual_pages(id, document_id, page_id, embedding vector(320), visual_meta jsonb)
+
+visual_regions(id, document_id, page_id, bbox jsonb, label, score,
+  embedding vector(320), meta jsonb)
+
+document_actions(id, document_id, action_type, payload jsonb, status,
+  confidence, evidence_refs jsonb, created_at, executed_at)
+```
+
+---
+
+## Retrieval Queries (Visual-first)
+
+Visual-first page retrieval:
+```
+SELECT vp.page_id, vp.document_id,
+       1 - (vp.embedding <=> :query_embedding) AS score
+FROM visual_pages vp
+ORDER BY vp.embedding <=> :query_embedding
+LIMIT :k;
+```
+
+Hybrid fallback (visual narrows, text validates):
+```
+SELECT tc.id, tc.document_id, tc.page_id,
+       1 - (tc.embedding <=> :query_embedding) AS score
+FROM text_chunks tc
+WHERE tc.document_id = ANY(:candidate_docs)
+ORDER BY tc.embedding <=> :query_embedding
+LIMIT :k;
+```
+
+---
+
 ## Fallbacks & contracts
 - **Authority**: `PromptRegistry` remains the source of truth for prompts and schemas.
 - **Fallback chain**: Guidance (optional) → PromptRegistry → `JsonRepair`.
@@ -121,7 +178,7 @@ CREATE INDEX idx_vision_pages_gin ON vision_extractions USING GIN(pages);
 ---
 
 ## Migration & re-ingest strategy (recommended)
-- **Approach**: Re-ingest all documents end-to-end into the new `vision_extractions` table (do NOT export embeddings from Chroma).
+- **Approach**: Re-ingest all documents end-to-end into the new `vision_extractions` table (do not reuse legacy embeddings; re-embed with the new model).
 - **Steps**:
   1. Deploy migration SQL to create `vision_extractions` with feature flag disabled.
   2. Implement `scripts/reingest_documents.js` (idempotent, batched, `--dry-run`, `--verify`).
@@ -143,7 +200,7 @@ CREATE INDEX idx_vision_pages_gin ON vision_extractions USING GIN(pages);
 
 ---
 
-## Observability & telemetry
+## Telemetry & observability
 - Events: `vision_reingest.batch.start/complete`, `vision_extraction.created/validated/failed`, `vision_extraction.validation_error`.
 - Metrics: `vision_reingested_documents_total`, `vision_extraction_failures_total`, `vision_extract_latency_ms`, `vision_pages_per_document_avg`.
 - Alerts: high failure rate or large fraction in `status='failed'`.
@@ -199,7 +256,7 @@ Pick an implementation starting point (recommended):
   - New embeddings are not byte-compatible with the old index. We recommend a planned re-ingest of documents to refresh vectors with `tomoro-colqwen3-embed-8b`.
   - Migration steps (high level):
     1. Tag existing indexes as `archive/colqwen2-*` and keep them as a rollback snapshot.
-    2. Update ingestion pipeline config to set `EMBEDDING_MODEL=tomoro-colqwen3-embed-8b`.
+    2. Confirm the Visual RAG sidecar is locked to `TomoroAI/tomoro-colqwen3-embed-8b`. Do not set `VISUAL_RAG_MODEL=vidore/colqwen2-v1.0` (startup will fail).
     3. Re-ingest documents in batches (run `node scripts/migrate_visual_rag_colqwen3.js --doc-ids 1,2,3` first, then full migration).
     4. Monitor telemetry reason codes (`sidecar_upgrade`, `sidecar_migration`) and fallback metrics.
   - If re-ingest is infeasible, consider a phased approach: re-ingest high-value docs first and keep the old index referenced as a fallback during the transition.

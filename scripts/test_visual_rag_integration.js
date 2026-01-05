@@ -46,7 +46,7 @@ async function runTest() {
 
         // 3. Insert Test Data
         console.log('[Test] Inserting overlay with vector embedding...');
-        const embedding = Array(768).fill(0);
+        const embedding = Array(320).fill(0);
         embedding[0] = 1.0; // Unit vector on dimension 0
 
         const overlay = {
@@ -66,7 +66,7 @@ async function runTest() {
 
         // 4. Search
         console.log('[Test] Searching by embedding...');
-        const searchEmbedding = Array(768).fill(0);
+        const searchEmbedding = Array(320).fill(0);
         searchEmbedding[0] = 1.0; // Exact match
 
         const results = await visualOverlayRepository.searchByEmbedding(searchEmbedding, 5);

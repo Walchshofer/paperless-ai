@@ -42,9 +42,9 @@ async function verify() {
     console.log(`[Verify] Connecting to ${config.host}:${config.port}/${config.database}...`);
     const client = await pool.connect();
     
-    // Test Data: 768-dimensional vector
+    // Test Data: 320-dimensional vector (matches visual_overlays.embedding)
     // We'll use a simple pattern: [1, 0, 0, ...], [0, 1, 0, ...]
-    const dim = 768;
+    const dim = 320;
     const vecA = Array(dim).fill(0); vecA[0] = 1; // Vector pointing along X axis
     const vecB = Array(dim).fill(0); vecB[1] = 1; // Vector pointing along Y axis
     const vecC = Array(dim).fill(0); vecC[0] = 0.9; vecC[1] = 0.1; // Close to A

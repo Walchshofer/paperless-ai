@@ -68,13 +68,13 @@ class TestVectorStorage:
         conn = psycopg2.connect(pg_connection_string)
         cur = conn.cursor()
 
-        # Create test table
+        # Create test table (aligns with document_embeddings.vector(384))
         cur.execute("""
             CREATE TABLE IF NOT EXISTS test_embeddings (
                 id SERIAL PRIMARY KEY,
                 document_id INTEGER,
                 content TEXT,
-                embedding vector(768)
+                embedding vector(384)
             )
         """)
         conn.commit()
@@ -91,8 +91,8 @@ class TestVectorStorage:
         """Should insert vector successfully."""
         conn, cur = test_table
 
-        # Create a 768-dimensional test vector
-        test_vector = [0.1] * 768
+        # Create a 384-dimensional test vector
+        test_vector = [0.1] * 384
 
         sql = (
             "INSERT INTO test_embeddings (document_id,"
@@ -112,7 +112,7 @@ class TestVectorStorage:
         """Should reject vectors with wrong dimensions."""
         conn, cur = test_table
 
-        # Wrong dimension (128 instead of 768)
+        # Wrong dimension (128 instead of 384)
         wrong_vector = [0.1] * 128
 
         with pytest.raises(Exception):  # DataError or similar
@@ -137,20 +137,20 @@ class TestSimilaritySearch:
         conn = psycopg2.connect(pg_connection_string)
         cur = conn.cursor()
 
-        # Create test table
+        # Create test table (aligns with document_embeddings.vector(384))
         cur.execute("""
             CREATE TABLE IF NOT EXISTS test_similarity (
                 id SERIAL PRIMARY KEY,
                 content TEXT,
-                embedding vector(768)
+                embedding vector(384)
             )
         """)
 
         # Insert test vectors
         vectors = [
-            ("medical document", [1.0] + [0.0] * 767),
-            ("financial document", [0.0, 1.0] + [0.0] * 766),
-            ("legal document", [0.0, 0.0, 1.0] + [0.0] * 765),
+            ("medical document", [1.0] + [0.0] * 383),
+            ("financial document", [0.0, 1.0] + [0.0] * 382),
+            ("legal document", [0.0, 0.0, 1.0] + [0.0] * 381),
         ]
 
         for content, vec in vectors:
@@ -175,7 +175,7 @@ class TestSimilaritySearch:
         conn, cur = populated_table
 
         # Search for medical-like vector
-        query_vector = [0.9] + [0.1] * 767
+        query_vector = [0.9] + [0.1] * 383
 
         cur.execute("""
             SELECT content, 1 - (embedding <=> %s::vector) as similarity
@@ -193,7 +193,7 @@ class TestSimilaritySearch:
         """Should find similar vectors using inner product."""
         conn, cur = populated_table
 
-        query_vector = [0.0, 0.9] + [0.0] * 766
+        query_vector = [0.0, 0.9] + [0.0] * 382
 
         cur.execute("""
             SELECT content, (embedding <#> %s::vector) * -1 as similarity

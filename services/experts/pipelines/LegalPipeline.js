@@ -25,6 +25,17 @@ const LegalPipeline = {
 
     stages: [
         {
+            id: 'parallel_ocr',
+            name: 'Parallel OCR',
+            type: StageType.TEXT_EXTRACTION,
+            useParallelOcr: true,
+            executionMode: ExecutionMode.SEQUENTIAL,
+            inputMapping: {},
+            outputKey: 'ocr',
+            timeout: 30000,
+            retryCount: 1
+        },
+        {
             id: 'legal_orchestrator',
             name: 'Legal Orchestrator',
             type: StageType.CLASSIFICATION,

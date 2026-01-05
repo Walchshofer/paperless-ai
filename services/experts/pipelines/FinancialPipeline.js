@@ -25,6 +25,17 @@ const FinancialPipeline = {
 
     stages: [
         {
+            id: 'parallel_ocr',
+            name: 'Parallel OCR',
+            type: StageType.TEXT_EXTRACTION,
+            useParallelOcr: true,
+            executionMode: ExecutionMode.SEQUENTIAL,
+            inputMapping: {},
+            outputKey: 'ocr',
+            timeout: 30000,
+            retryCount: 1
+        },
+        {
             id: 'financial_visual',
             name: 'Financial Document Visual Analysis',
             type: StageType.VISUAL_ANALYSIS,

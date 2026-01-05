@@ -18,7 +18,6 @@ export default [
     files: [
       "**/*.test.js",
       "**/*.spec.js",
-      "future_implementations/tests/**/*.js",
     ],
     languageOptions: {
       globals: {

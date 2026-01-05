@@ -1,6 +1,6 @@
 # Visual RAG Sidecar Service
 
-A FastAPI service that provides visual document retrieval using ColQwen3/ColPali via the Byaldi library. This service indexes PDF pages as images and enables semantic search that understands document layout, tables, charts, and formatting.
+A FastAPI service that provides visual document retrieval using ColQwen3 via the Byaldi library. This service indexes PDF pages as images and enables semantic search that understands document layout, tables, charts, and formatting. ColQwen3 is the only supported model.
 
 ## Architecture
 
@@ -36,7 +36,8 @@ A FastAPI service that provides visual document retrieval using ColQwen3/ColPali
 ## Requirements
 
 - **GPU**: NVIDIA GPU with 12GB+ VRAM (RTX 3090 Ti recommended)
-- **CUDA**: 12.1+
+- **CUDA**: 12.4+ (PyTorch cu124 wheels)
+- **flash-attn**: 2.4.0+ built against the same CUDA toolkit
 - **Docker**: With NVIDIA Container Toolkit
 
 ## API Endpoints
@@ -85,7 +86,7 @@ curl -X DELETE http://localhost:8001/index
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VISUAL_RAG_MODEL` | `TomoroAI/tomoro-colqwen3-embed-8b` | ColQwen3 model to use |
+| `VISUAL_RAG_MODEL` | `TomoroAI/tomoro-colqwen3-embed-8b` | Fixed model (override not supported). Setting `vidore/colqwen2-v1.0` triggers a startup error. |
 | `INDEX_DIR` | `/data/indices` | Directory for storing indices |
 | `MEDIA_DIR` | `/media/paperless` | Directory containing PDFs |
 | `DEFAULT_INDEX_NAME` | `paperless_visual` | Name of the index |
@@ -129,8 +130,11 @@ visual-rag:
 # Install dependencies
 pip install -r requirements.txt
 
-# Install PyTorch with CUDA
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# Install PyTorch with CUDA 12.4
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+
+# Install flash-attn (must match CUDA toolkit)
+pip install "flash-attn>=2.4.0" --no-build-isolation
 
 # Install poppler (for PDF processing)
 # Ubuntu: sudo apt-get install poppler-utils
@@ -152,15 +156,17 @@ python main.py
 - VRAM: 12GB+ recommended
 - Strength: Zero-loss visual retrieval (finds charts, layouts, and handwriting without OCR)
 
-**Legacy**
-- `vidore/colqwen2-v1.0` is deprecated and no longer supported. Re-index on ColQwen3.
+**Compatibility break**
+- `vidore/colqwen2-v1.0` is rejected at startup with a breaking-change error.
+- Re-index all ColQwen2 indices on ColQwen3.
+- Startup logs emit a breaking-change warning banner on boot.
 
 ## Troubleshooting: flash-attn / CUDA build
 
-Some deployments use `flash-attn` or CUDA-accelerated kernels to improve Latency and VRAM usage. If you encounter build-time or runtime errors related to `flash-attn` (e.g. build failures, missing CUDA symbols, or illegal instruction / segfault while loading the extension), try the following:
+The sidecar build requires `flash-attn>=2.4.0` on CUDA 12.4. If you encounter build-time or runtime errors related to `flash-attn` (e.g. build failures, missing CUDA symbols, or illegal instruction / segfault while loading the extension), try the following:
 
 1. Verify your CUDA toolkit and driver versions match the PyTorch wheel. Use `nvidia-smi` and `python -c "import torch;print(torch.version.cuda)"`.
-2. Install a PyTorch wheel that matches CUDA (e.g. `pip install torch --index-url https://download.pytorch.org/whl/cu121`).
+2. Install a PyTorch wheel that matches CUDA (e.g. `pip install torch --index-url https://download.pytorch.org/whl/cu124`).
 3. Reinstall `flash-attn` against the same environment (prefer a binary wheel), for example `pip install flash-attn --no-build-isolation` or use a prebuilt wheel for your CUDA version.
 4. If build fails due to compiler flags, ensure you have a recent `gcc`/`clang` and CUDA toolchain available in the build image.
 5. As a fallback, disable accelerated kernels and run on plain PyTorch CPU/CUDA kernels while debugging.

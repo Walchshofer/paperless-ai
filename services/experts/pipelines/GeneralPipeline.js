@@ -24,6 +24,17 @@ const GeneralPipeline = {
 
     stages: [
         {
+            id: 'parallel_ocr',
+            name: 'Parallel OCR',
+            type: StageType.TEXT_EXTRACTION,
+            useParallelOcr: true,
+            executionMode: ExecutionMode.SEQUENTIAL,
+            inputMapping: {},
+            outputKey: 'ocr',
+            timeout: 30000,
+            retryCount: 1
+        },
+        {
             id: 'general_classifier',
             name: 'General Classification',
             type: StageType.CLASSIFICATION,
@@ -82,6 +93,10 @@ const GeneralPipeline = {
             id: 'visual_query_generation',
             name: 'Visual Query Generation',
             type: StageType.VISUAL_QUERY_GENERATION,
+            guidanceTemplate: 'visual_query_generator_de',
+            promptId: 'VISUAL_QUERY_GENERATOR_V1',
+            model: MODEL_NAMES.general,
+            modelType: ModelType.TEXT_ONLY,
             executionMode: ExecutionMode.SEQUENTIAL,
             inputMapping: {
                 extraction: 'stages.general_extraction.output',

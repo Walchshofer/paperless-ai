@@ -14,27 +14,29 @@ Sources checked (authoritative order):
 Additional docs checked:
 - docs/RAG_SYSTEMS_REFERENCE.md
 - docs/VISUAL_RAG_INTEGRATION.md
+- docs/EXPERT_PIPELINE_FLOW.md
+- docs/OBSERVABILITY_AND_TELEMETRY.md
 - services/visual-rag-sidecar/README.md
 
 ## Gap Matrix
 
-| Blueprint requirement | Current doc coverage | Gap / conflict | Doc update needed |
-| --- | --- | --- | --- |
-| Visual-first retrieval as default (visual retriever primary, text fallback) | Visual RAG is stage 8 enrichment and optional, post-extraction; Visual RAG ingestion is conditional (docs/EXPERT_PIPELINE_DECISION_TABLE.md:252, docs/EXPERT_PIPELINE_FLOW.md:61, docs/VISUAL_RAG_INTEGRATION.md:47) | Docs describe Visual RAG as optional enhancement, not default retrieval. No retrieval pipeline diagram. | Add v2 retrieval pipeline (visual default, text fallback) to decision table and flow docs; update Visual RAG integration to include retrieval routing. |
-| Ingestion pipeline includes deterministic normalization + asset derivation + per-page/region visual embeddings | Stage 3 covers normalization (rotate/crop/scale); stage 4 covers OCR and element detection (docs/EXPERT_PIPELINE_DECISION_TABLE.md:32) | Missing asset derivation (page images, thumbnails), missing visual embedding storage (page/region). | Extend ingestion documentation with asset derivation and visual indexing steps, plus normalization metadata contract. |
-| Context Pack contract for Guidance and VLM routing (document identity, priors, evidence bundle, normalization metadata, policy constraints, prefs, system state) | No canonical context pack defined; Guidance docs focus on fallback mapping (docs/PROMPT_REGISTRY_GUIDANCE_INTERACTION.md:129) | Missing input contract and evidence bundle constraints. | Add Context Pack spec and reference it from pipeline stages and Guidance templates. |
-| Guidance contracts for classification + tagging, field extraction, storage plan (separate outputs) | Guidance mapping table lists extraction/reasoning templates only (docs/PROMPT_REGISTRY_GUIDANCE_INTERACTION.md:136) | No schema-defined contracts for storage plan or tagging actions. | Add contract schemas and template mappings for tagging and storage plan. |
-| Autonomous filing policy engine + action orchestrator + audit log | Post-analysis tooling updates metadata (docs/EXPERT_PIPELINE_FLOW.md:55); log fields define request-level audit only (docs/OBSERVABILITY_AND_TELEMETRY.md:11) | Missing structured action plan, reversible actions, and action audit log. | Add action orchestration section and audit log schema plus telemetry events. |
-| Postgres + pgvector schema for documents/pages/chunks/visual embeddings/actions | Database docs only cover pgvector availability (docs/DATABASE_SETUP.md:11); RAG reference lists sidecar endpoints (docs/RAG_SYSTEMS_REFERENCE.md:16) | No DDL for v2 tables or indexes. | Add v2 schema section (documents, document_pages, text_chunks, visual_pages, visual_regions, document_actions). |
-| Vector column requirements per service are inconsistent | Code uses visual overlays `vector(320)` and RAGZ `vector(384)` while docs/tests still reference 768 (e.g., scripts/test_visual_rag_integration.js:49, scripts/verify_vector_db.js:47, guidance_service/tests/test_pgvector_integration.py:77) | Vector dimensions and column expectations are unclear across services. | Document per-service vector columns (visual_overlays vs document_embeddings), remove legacy 768 references, and note re-ingest requirements. |
-| Retrieval queries for visual-first and hybrid fallback | RAG reference lists API endpoints and integration points only (docs/RAG_SYSTEMS_REFERENCE.md:16) | No query examples or retrieval contract. | Add SQL and query patterns for visual-first retrieval and hybrid fallback. |
-| Evidence refs required across tagging/extraction/storage outputs; page/region locality | Evidence is only stated for stage 8; validation has no page locality (docs/EXPERT_PIPELINE_DECISION_TABLE.md:280, docs/EXPERT_PIPELINE_DECISION_TABLE.md:305) | Evidence requirements and page locality are not specified outside stage 8. | Extend stage contracts to require evidence refs for all autonomous outputs and define page/region locality schema. |
-| Prompt and template guardrails banning invented geometry | Prompt change rules do not mention geometry constraints (docs/PROMPT_CHANGE_GUIDE.md:12) | No documented guardrail preventing LLM-invented geometry. | Add geometry provenance rule to prompt change guide and relevant stage contracts. |
-| RAGZ is pgvector-only; Chroma removed | RAGZ still documented as "Chroma legacy → Postgres + pgvector" and migration guidance references Chroma (docs/RAG_SYSTEMS_REFERENCE.md:20, docs/RAG_SYSTEMS_REFERENCE.md:100) | Docs imply Chroma still exists and that embeddings can be migrated from it. | Update RAG systems reference to describe pgvector-only pipeline and remove Chroma references. |
-| Visual RAG sidecar build now requires CUDA 12.4 + flash-attn>=2.4.0 | Sidecar README lists CUDA 12.1+ and generic flash-attn troubleshooting (services/visual-rag-sidecar/README.md:38, services/visual-rag-sidecar/README.md:158) | Version-specific build requirements are missing. | Update sidecar README to state CUDA 12.4 requirement and flash-attn minimum version/build notes. |
-| ColQwen3-only enforcement + breaking-change startup warnings | Docs state ColQwen3 use and that ColQwen2 is deprecated (docs/VISUAL_RAG_INTEGRATION.md:74, services/visual-rag-sidecar/README.md:155) | No doc mentions hard rejection of `vidore/colqwen2-v1.0` or startup warnings. | Add explicit compatibility break notes in Visual RAG integration and sidecar README. |
-| RAGZ health check validates pgvector table | RAGZ endpoints list does not include health semantics (docs/RAG_SYSTEMS_REFERENCE.md:20) | Health check contract and pgvector validation are undocumented. | Add `/health` contract and pgvector readiness checks to RAG systems reference. |
-| RAG pipeline separation is unclear | Visual RAG and RAGZ are listed but not explicitly separated as distinct services with different vector settings | Service boundaries and vector responsibilities are ambiguous. | Add a "Service Separation" section that states: Visual RAG sidecar (visual embeddings/index) vs RAGZ (text embeddings) with distinct tables and dimensions. |
+| Blueprint requirement | Current doc coverage | Gap / conflict | Doc update needed | Status |
+| --- | --- | --- | --- | --- |
+| Visual-first retrieval as default (visual retriever primary, text fallback) | Retrieval routing and diagrams now documented in `docs/EXPERT_PIPELINE_DECISION_TABLE.md`, `docs/EXPERT_PIPELINE_FLOW.md`, and `docs/VISUAL_RAG_INTEGRATION.md`. | None. | None. | Resolved |
+| Ingestion pipeline includes deterministic normalization + asset derivation + per-page/region visual embeddings | Asset derivation and normalization metadata are documented in `docs/EXPERT_PIPELINE_DECISION_TABLE.md`; V2 visual storage is documented in `docs/RAG_SYSTEMS_REFERENCE.md`. | None. | None. | Resolved |
+| Context Pack contract for Guidance and VLM routing (document identity, priors, evidence bundle, normalization metadata, policy constraints, prefs, system state) | Context Pack requirements are documented in `docs/EXPERT_PIPELINE_DECISION_TABLE.md`, `docs/PIPELINE_STAGE_CONTRACTS.md`, and `docs/PROMPT_REGISTRY_GUIDANCE_INTERACTION.md`. | None. | None. | Resolved |
+| Guidance contracts for classification + tagging, field extraction, storage plan (separate outputs) | Guidance output contracts are documented in `docs/EXPERT_PIPELINE_DECISION_TABLE.md` and `docs/PROMPT_REGISTRY_GUIDANCE_INTERACTION.md`. | None. | None. | Resolved |
+| Autonomous filing policy engine + action orchestrator + audit log | Action orchestration and audit logging are documented in `docs/EXPERT_PIPELINE_FLOW.md`, `docs/EXPERT_PIPELINE_DECISION_TABLE.md`, and `docs/OBSERVABILITY_AND_TELEMETRY.md`. | None. | None. | Resolved |
+| Postgres + pgvector schema for documents/pages/chunks/visual embeddings/actions | V2 storage schema is documented in `docs/RAG_SYSTEMS_REFERENCE.md` and vector defaults are in `docs/DATABASE_SETUP.md`. | None. | None. | Resolved |
+| Vector column requirements per service are inconsistent | Per-service vector columns are documented in `docs/RAG_SYSTEMS_REFERENCE.md` and `docs/DATABASE_SETUP.md` (visual_overlays `vector(320)`, document_embeddings `vector(384)`). | Tests/scripts still reference 768 dimensions. | Update tests/scripts and any remaining references to 768 dims. | Resolved (tests updated to 320/384) |
+| Retrieval queries for visual-first and hybrid fallback | Query patterns are documented in `docs/RAG_SYSTEMS_REFERENCE.md`. | None. | None. | Resolved |
+| Evidence refs required across tagging/extraction/storage outputs; page/region locality | Evidence refs are required in `docs/PIPELINE_STAGE_CONTRACTS.md` and `docs/EXPERT_PIPELINE_DECISION_TABLE.md`. | None. | None. | Resolved |
+| Prompt and template guardrails banning invented geometry | Geometry provenance guardrails are documented in `docs/PROMPT_CHANGE_GUIDE.md` and `docs/PIPELINE_STAGE_CONTRACTS.md`. | None. | None. | Resolved |
+| RAGZ is pgvector-only; Chroma removed | Chroma references removed from `docs/RAG_SYSTEMS_REFERENCE.md`. | None. | None. | Resolved |
+| Visual RAG sidecar build now requires CUDA 12.4 + flash-attn>=2.4.0 | Build requirements are documented in `services/visual-rag-sidecar/README.md` and `docs/VISUAL_RAG_INTEGRATION.md`. | None. | None. | Resolved |
+| ColQwen3-only enforcement + breaking-change startup warnings | ColQwen3-only enforcement and startup warnings are documented in `services/visual-rag-sidecar/README.md` and `docs/VISUAL_RAG_INTEGRATION.md`. | None. | None. | Resolved |
+| RAGZ health check validates pgvector table | `/health` semantics are documented in `docs/RAG_SYSTEMS_REFERENCE.md`. | Service currently exposes `/check_health` (code alignment pending). | Align code or add `/health` alias. | Resolved (added `/health` alias) |
+| RAG pipeline separation is unclear | Service separation and vector ownership are documented in `docs/RAG_SYSTEMS_REFERENCE.md`. | None. | None. | Resolved |
 
 ## Guidance Expert Addendum
 
@@ -51,31 +53,67 @@ Guidance-specific gaps (additive to the matrix above):
 | Guidance immutability pattern is undocumented | Docs do not mention capturing returned LM state | Add a developer note: capture returned LM state (`lm = model + template(...)`) and avoid in-place mutation assumptions. | Resolved in `docs/PROMPT_REGISTRY_GUIDANCE_INTERACTION.md` and `docs/PROMPT_CHANGE_GUIDE.md`. |
 | Tool-based extraction patterns are not specified | No examples for `Tool.from_callable` or `Tool.from_regex` in template guidance | Add a small tooling section and error handling pattern for tool-based extraction. | Resolved in `docs/PROMPT_REGISTRY_GUIDANCE_INTERACTION.md` and `docs/PROMPT_CHANGE_GUIDE.md`. |
 
+## Paperless-ngx API Addendum (code-paperless-ngx-api)
+
+Reference consulted:
+- code-paperless-ngx-api/references/paperless-ngx-api.md
+
+Paperless API-specific gaps (additive to the matrix above):
+
+| Gap | Evidence | Doc update needed | Status |
+| --- | --- | --- | --- |
+| Action orchestration lacks explicit Paperless API endpoints and ID resolution rules | Paperless updates require integer IDs for tags, correspondents, document types, and storage paths; updates are PATCH `/api/documents/{id}/` or bulk via `/api/documents/bulk_edit/` | Resolved in `docs/EXPERT_PIPELINE_FLOW.md` (Paperless API contract section). | Resolved |
+| API versioning and headers are undocumented for autonomous operations | Paperless expects `Accept: application/json; version=<server_version>` and `Authorization: Token <token>` | Resolved in `docs/EXPERT_PIPELINE_FLOW.md` (Paperless API contract section). | Resolved |
+| Custom field writes lack schema/typing guidance | `custom_fields` values are sent on PATCH and bulk (`modify_custom_fields`), but require schema-aligned keys | Resolved in `docs/EXPERT_PIPELINE_FLOW.md` (custom field payload shape + taxonomy fetch). | Resolved |
+| Async task handling for uploads/reprocess is not documented | Uploads return `task_id` and reprocess is a bulk operation | Resolved in `docs/EXPERT_PIPELINE_FLOW.md` (tasks tracking guidance). | Resolved |
+
 ## Recent Updates
 
 - Documented Tomoro ColQwen3 model settings (context window 32k, token budget, multi-vector output, FlashAttention 2) in `docs/model/tomoro-colqwen3.md`.
 - Documented RAG service separation and per-service vector columns in `docs/RAG_SYSTEMS_REFERENCE.md` and `docs/DATABASE_SETUP.md` (visual_overlays vector(320), document_embeddings vector(384)).
 - Documented visual summary metadata retention in `docs/RAG_SYSTEMS_REFERENCE.md` (summary stored in expert_metadata; boxes can follow).
 - Deprecated and removed legacy `docs/architecture/postgresql-hybrid-rag.md`.
+- Updated `docs/VISUAL_RAG_INTEGRATION.md` with visual-first retrieval routing, ColQwen3-only configuration, and build requirements.
+- Updated `services/visual-rag-sidecar/README.md` for CUDA 12.4 and flash-attn>=2.4.0 requirements plus ColQwen3-only enforcement.
+- Documented Paperless custom field payload shape in `docs/EXPERT_PIPELINE_FLOW.md`.
+- Added Schema Evolution Agent guidance on vector fixture migration and `/health` alias strategy.
+- Added Pipeline Orchestration guidance on visual-first routing, Context Pack enforcement, retry budgets, Guidance symmetry, and health gating.
+- Updated vector integration tests/fixtures to 320 (visual overlays) and 384 (text embeddings); added `/health` alias to RAGZ for pgvector readiness checks.
 
 ## Doc Update Targets (ordered)
 
-1. docs/EXPERT_PIPELINE_DECISION_TABLE.md
-2. docs/PIPELINE_STAGE_CONTRACTS.md
-3. docs/SCHEMA_EVOLUTION_GUIDE.md
-4. docs/PROMPT_REGISTRY_GUIDANCE_INTERACTION.md
-5. docs/PROMPT_CHANGE_GUIDE.md
-6. docs/OBSERVABILITY_AND_TELEMETRY.md
-7. docs/RAG_SYSTEMS_REFERENCE.md
-8. docs/VISUAL_RAG_INTEGRATION.md
-9. docs/DATABASE_SETUP.md
-10. services/visual-rag-sidecar/README.md
+1. docs/EXPERT_PIPELINE_DECISION_TABLE.md (updated)
+2. docs/PIPELINE_STAGE_CONTRACTS.md (updated)
+3. docs/SCHEMA_EVOLUTION_GUIDE.md (no change required)
+4. docs/PROMPT_REGISTRY_GUIDANCE_INTERACTION.md (updated)
+5. docs/PROMPT_CHANGE_GUIDE.md (updated)
+6. docs/OBSERVABILITY_AND_TELEMETRY.md (updated)
+7. docs/RAG_SYSTEMS_REFERENCE.md (updated)
+8. docs/VISUAL_RAG_INTEGRATION.md (updated)
+9. docs/DATABASE_SETUP.md (updated)
+10. services/visual-rag-sidecar/README.md (updated)
 
 ## Open Questions
 
-- Should v2 be documented as a parallel pipeline (V2) or as a replacement of
-  existing Visual RAG stage 8 semantics?
-- Is the action/audit log intended to live in the same Postgres instance as
-  visual overlays and vector data?
-- Should evidence refs be enforced at validation time or only at orchestration
-  time?
+- (Resolved) V2 is the new default retrieval/answering path (replaces stage 8 “enrichment-only” semantics); keep a brief compatibility note for older flows.
+- (Resolved) `document_actions` share the same Postgres instance as visual overlays/vectors; isolate only if governance demands it.
+- (Resolved) Evidence refs are validated at stage boundaries and hard-required at orchestration/persistence to prevent unevidenced actions.
+
+## Schema Evolution Agent Contribution
+
+- Vector dimensions: Tests and fixtures previously asserting `vector(768)` are now aligned to service dimensions (`visual_overlays.embedding vector(320)`, `document_embeddings.embedding vector(384)`). Rollback: keep archived migrations/fixtures for reference only; do not re-run them.
+- Health endpoint alignment: Added a lightweight `/health` alias delegating to `/check_health` in RAGZ to satisfy the documented contract. Rollback is a route removal.
+
+## Pipeline Orchestration Expert Contribution
+
+- Visual-first routing: Orchestrator must set `use_visual_rag_retrieval=true` by default and keep `use_visual_rag_ingestion` independent (ingestion may be skipped while retrieval remains on). If circuit breaker is OPEN, retrieval falls back to text-only with no retries beyond document scope.
+- Context Pack enforcement: All LLM stages (extraction, reasoning, action plan) must consume the Context Pack only; raw OCR dumps are forbidden. Orchestrator should fail closed if Context Pack is missing required evidence snippets.
+- Retry budget: Keep document-scoped retries bounded (≤2) and log `retry_reason` + `retry_scope=document` for visual retrieval failures; do not introduce per-page retries.
+- Guidance fallback symmetry: When Guidance is disabled or unavailable, PromptRegistry must receive the same `promptId` and inputs; no alternate heuristics are permitted for visual-first routing.
+- Health gating: Pipeline readiness checks must block retrieval until pgvector health passes (visual + text). If health fails mid-run, degrade to extraction-only and emit telemetry `visual_retrieval_skipped=health_check_failed`.
+
+## Docs Agent Final Review (this section)
+
+- Confirmed documentation alignment: visual-first retrieval routing, Context Pack requirements, evidence refs, geometry provenance, and ColQwen3-only build requirements are now present in the authoritative docs (`EXPERT_PIPELINE_DECISION_TABLE.md`, `PIPELINE_STAGE_CONTRACTS.md`, `PROMPT_CHANGE_GUIDE.md`, `PROMPT_REGISTRY_GUIDANCE_INTERACTION.md`, `VISUAL_RAG_INTEGRATION.md`, `RAG_SYSTEMS_REFERENCE.md`, `OBSERVABILITY_AND_TELEMETRY.md`).
+- Remaining documentation gaps are resolved in code: `/health` alias added and test fixtures moved to 320/384 dimensions.
+- No additional doc inconsistencies found across the authoritative set.

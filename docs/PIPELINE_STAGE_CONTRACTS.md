@@ -20,6 +20,18 @@ Execution order, retries, and fallback behavior are defined in
 - If Guidance is used, templates must follow the Guidance authoring rules:
   `temperature=0.0` for classification/extraction, `select()` for fixed options,
   regex constraints for identifiers, and `guidance_json` for schema outputs.
+- Geometry must be provenance-based (normalization metadata or sidecar boxes);
+  LLMs must not invent coordinates.
+- Evidence refs are required for any extracted field, tag, or storage action.
+
+---
+
+## Context Pack (Required for LLM Stages)
+
+LLM stages must consume a Context Pack with: document identity, classification
+priors, evidence bundle (visual hits + OCR snippets + text snippets),
+normalization metadata, policy constraints, user preferences, and system state.
+Full OCR dumps are forbidden; only evidence snippets may be passed.
 
 ---
 
@@ -116,6 +128,10 @@ Execute OCR and visual element detection in parallel with circuit breaker protec
 - `ocr_metadata` - Source attribution, conflict rate, latency metrics
 - `visual_elements` - Detected tables, images, layout structure
 
+### Implementation Notes
+- Execute Stage 4 through a `TEXT_EXTRACTION` stage with `useParallelOcr: true` (or an explicit parallel-ocr stage) so the executor routes to `ParallelOcrExecutor`.
+- Persist `document.enhanced_ocr_text` and `document._ocr_metadata` for downstream stage inputs.
+
 ### Allowed
 - **Track 1: Visual OCR**
   - Direct Ollama vision model calls (qwen3-vl:8b via ollama_visual)
@@ -169,6 +185,7 @@ Produce structured data from OCR text.
 ### Outputs
 - Schema-compliant structured fields
 - Field confidence scores
+- `evidence_refs[]` for each field (page_id+bbox, chunk_id, or OCR offset)
 
 ### Allowed
 - Guidance execution
@@ -179,6 +196,10 @@ Produce structured data from OCR text.
 - Silent failure
 - Partial schema emission
 - Skipping validation
+
+### Execution Notes
+- Validation-driven retries are orchestrated by the executor via `_executeWithValidation()` and `ValidationEngine.validate()`.
+- Stage-level `retryCount` must not be used to implement validation-driven extraction retries.
 
 ---
 
@@ -345,6 +366,7 @@ Persist results back to Paperless-ngx.
 - Metadata updates
 - Tag assignment
 - Custom field updates
+- Actions must carry evidence refs and pass policy constraints
 
 ### Forbidden
 - Business logic

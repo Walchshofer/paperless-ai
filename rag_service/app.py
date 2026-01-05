@@ -388,3 +388,9 @@ async def check_health():
         )
 
     return health_status
+
+
+@app.get("/health")
+async def health():
+    """Alias for health check (read-only)"""
+    return await check_health()

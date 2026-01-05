@@ -528,6 +528,12 @@ const TEMPLATE_TO_PROMPT_FALLBACK = {
     'general_extractor_v2': 'GEN_FALLBACK_V1',
     'cross_pipeline_router': 'SYS_ROUTER_V1',
 
+    // Visual query generation
+    'visual_query_generator_de': 'VISUAL_QUERY_GENERATOR_V1',
+    'financial_visual_query_generator_de': 'VISUAL_QUERY_GENERATOR_V1',
+    'medical_visual_query_generator_de': 'VISUAL_QUERY_GENERATOR_V1',
+    'legal_visual_query_generator_de': 'VISUAL_QUERY_GENERATOR_V1',
+
     // Normalization
     'normalization_geometry': 'SYS_ROUTER_V1'
 };

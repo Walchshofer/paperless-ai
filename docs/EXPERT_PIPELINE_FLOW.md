@@ -36,9 +36,10 @@ Sources of truth:
    - Actions: rotate, crop, scale/normalize DPI.
    - Output: normalized images + normalization metadata for downstream steps.
 
-4) **Visual OCR (conditional)**
-   - Enabled when orchestrator sets `use_visual_ocr=true` and images exist.
-   - Uses normalized images when available.
+4) **Parallel OCR + Visual Element Detection (conditional)**
+   - Enabled when orchestrator sets `use_visual_ocr=true` and images exist.     
+   - Executes Visual OCR + Tesseract OCR + Visual Element Detection in parallel via `ParallelOcrExecutor`.
+   - Persists `document.enhanced_ocr_text` + `document._ocr_metadata` for downstream stages.
 
 5) **Pipeline selection**
    - Uses orchestrator override if present, else `ExpertRegistry.route()`       
@@ -61,6 +62,11 @@ Sources of truth:
 8) **Visual RAG ingestion and overlays (conditional)**
    - Sidecar visual indexing + overlay extraction, based on orchestration gates.
    - Colored overlays require positions stored as metadata AND embeddings.
+
+9) **Retrieval & answering (Visual-first, V2)**
+   - Query router selects visual retrieval by default.
+   - Visual hits + OCR snippets + metadata → Context Pack → Guidance response.
+   - Text retrieval is optional for validation and fallback.
 
 ## Diagrams
 
@@ -90,6 +96,18 @@ flowchart TD
 ```
 
 ```mermaid
+flowchart TD
+  Q[User Query] --> R[Query Router]
+  R --> V[Visual Retrieval (default)]
+  R --> T[Text Retrieval (optional)]
+  V --> C[Context Pack Builder]
+  T --> C
+  C --> G[Guidance Response Generator]
+  G --> A[Action Orchestrator]
+  A --> L[Audit Log + Human-in-loop]
+```
+
+```mermaid
 flowchart LR
   A[Stage has guidanceTemplate] --> B{guidanceEnabled?}
   B -->|No| F[PromptRegistry]
@@ -116,6 +134,19 @@ flowchart LR
   needed. Actions: rotate, crop, scale/normalize DPI.
 - Post-analysis tools update Paperless metadata (tags, correspondents, document
   types, storage paths, custom fields) and can optionally trigger reprocess.
+
+## Paperless API contract (for autonomous actions)
+
+- Base URL must include `/api/`.
+- Headers: `Authorization: Token <token>` and `Accept: application/json; version=<server_version>`.
+- Resolve names to IDs before PATCH/bulk:
+  `/tags/`, `/correspondents/`, `/document_types/`, `/storage_paths/`.
+- Use PATCH `/api/documents/{id}/` for single updates, `/api/documents/bulk_edit/` for bulk.
+- Custom fields: fetch `/custom_fields/` first, then PATCH with
+  `custom_fields: { "cf_<id>": <value> }`. For bulk, use
+  `method=modify_custom_fields` with
+  `parameters: { add_custom_fields: { "cf_<id>": <value> }, remove_custom_fields: ["cf_<id>"] }`.
+- Uploads and reprocess create tasks; track via `/api/tasks/` and acknowledge when required.
 
 ## Visual RAG overlay requirements
 

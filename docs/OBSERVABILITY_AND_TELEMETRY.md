@@ -19,6 +19,9 @@ All pipeline-related log entries MUST include:
 - `retry_count`
 - `fallback_reason` (if applicable)
 - `ocr_source_selected` (`visual` | `tesseract`)
+- `action_id` (if action event)
+- `action_type` (if action event)
+- `action_status` (proposed|executed|reverted|failed)
 
 ---
 
@@ -62,6 +65,33 @@ The system must emit structured telemetry for the following events:
 - original token count
 - truncated token count
 - stage
+
+---
+
+### `action_proposed`
+- action_type
+- confidence
+- evidence_refs
+- policy_checks
+
+---
+
+### `action_executed`
+- action_type
+- execution_time_ms
+- result_status
+
+---
+
+### `action_reverted`
+- action_type
+- revert_reason
+
+---
+
+### `action_failed`
+- action_type
+- error
 
 ---
 
