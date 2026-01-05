@@ -17,15 +17,15 @@ describe('Phase 5 Accuracy Metrics', function() {
         const output = await metrics.getMetrics();
 
         assert.ok(
-            output.includes('user_correction_rate{pipeline_id="financial"}'),
+            /user_correction_rate\{[^}]*pipeline_id="financial"[^}]*\}/.test(output),
             'Expected user correction rate to be recorded'
         );
         assert.ok(
-            output.includes('extraction_accuracy_per_field_type{field_type="total_amount"}'),
+            /extraction_accuracy_per_field_type\{[^}]*field_type="total_amount"[^}]*\}/.test(output),
             'Expected per-field accuracy to be recorded'
         );
         assert.ok(
-            output.includes('field_detection_f1{document_type="unknown"}'),
+            /field_detection_f1\{[^}]*document_type="unknown"[^}]*\}/.test(output),
             'Expected field detection F1 to be recorded'
         );
     });

@@ -111,7 +111,13 @@ The system must emit structured telemetry for the following events:
 
 ## Prometheus Metrics (Canonical Names)
 
+- retry_rate
+- fallback_rate
+- guidance_success_rate
+- average_pipeline_duration
 - ocr_reconciliation_conflict_rate
+- ocr_visual_latency_ms
+- ocr_tesseract_latency_ms
 - sidecar_availability
 - field_detection_f1
 - embedding_query_latency_ms
@@ -122,6 +128,7 @@ The system must emit structured telemetry for the following events:
 - circuit_breaker_transitions_total
 - circuit_breaker_open_total
 - visual_confirmation_rate
+- visual_ocr_selection_rate
 - visual_query_timeouts_total
 - ocr_source_attribution_rate
 - ocr_conflicts_total
@@ -156,8 +163,10 @@ paperless-ai exposes Prometheus metrics at:
 
 - `/metrics` (text/plain; version=0.0.4)
 
-Metrics collection is non-blocking. If the exporter fails, the pipeline must
+Metrics collection is non-blocking. If the exporter fails, the pipeline must    
 continue without error.
+If `ENABLE_MODEL_METRICS` is set to `no`, metrics recording is disabled and
+`/metrics` returns HTTP 204.
 
 ## Dashboards
 

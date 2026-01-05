@@ -298,6 +298,8 @@ class ParallelOcrExecutor {
             event: 'visual_ocr_track_start',
             documentId: document.id || document.filename
         });
+        const trackStart = Date.now();
+        const documentType = metadata.documentType || DocumentType.GENERAL;
 
         const operation = async () => {
             // Prepare image for Ollama
@@ -332,6 +334,11 @@ class ParallelOcrExecutor {
 
         // Execute with circuit breaker protection
         const result = await this.circuitBreakers.visualOcr.execute(operation);
+
+        const trackDuration = Date.now() - trackStart;
+        if (this.metricsCollector?.observeOcrVisualLatency) {
+            this.metricsCollector.observeOcrVisualLatency(documentType, trackDuration);
+        }
 
         if (result.success) {
             logger.debug({
@@ -372,6 +379,8 @@ class ParallelOcrExecutor {
             event: 'tesseract_ocr_track_start',
             documentId: document.id || document.filename
         });
+        const trackStart = Date.now();
+        const fallbackDocumentType = metadata.documentType || DocumentType.GENERAL;
 
         const operation = async () => {
             // Initialize Paperless service
@@ -412,6 +421,14 @@ class ParallelOcrExecutor {
 
         // Execute with circuit breaker protection
         const result = await this.circuitBreakers.tesseractOcr.execute(operation);
+
+        const trackDuration = Date.now() - trackStart;
+        const durationDocumentType = result.success
+            ? result.data.documentType
+            : fallbackDocumentType;
+        if (this.metricsCollector?.observeOcrTesseractLatency) {
+            this.metricsCollector.observeOcrTesseractLatency(durationDocumentType, trackDuration);
+        }
 
         if (result.success) {
             logger.debug({
@@ -669,6 +686,8 @@ class ParallelOcrExecutor {
                 logMetrics: true
             }
         );
+        const visualScore = scoreOcrQuality(visualText, tesseractText, { logMetrics: false });
+        const tesseractScore = scoreOcrQuality(tesseractText, visualText, { logMetrics: false });
 
         // Calculate conflict rate
         const conflict = this._calculateConflictRate(visualText, tesseractText);
@@ -684,6 +703,14 @@ class ParallelOcrExecutor {
             conflictRate: conflict,
             visualLength: visualText.length,
             tesseractLength: tesseractText.length
+        });
+        logger.info({
+            event: 'ocr_comparison',
+            documentType,
+            visual_ocr_score: visualScore.score,
+            tesseract_ocr_score: tesseractScore.score,
+            selected_source: mergedResult.source,
+            threshold: reconciliationOptions.minQuality
         });
 
         recordOcrMetrics(mergedResult.source, conflict);

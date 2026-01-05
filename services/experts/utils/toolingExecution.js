@@ -149,6 +149,11 @@ async function executeToolCalls({
             const skipReason = REVIEW_SKIP_REASONS.INVALID_TOOL_CALL;
             const skip = { reason: skipReason, tool: call?.tool || null };
             summary.skipped.push(skip);
+            logger.info({
+                event: 'action_reverted',
+                action_type: call?.tool || 'unknown',
+                revert_reason: skipReason
+            });
 
             if (requiresHumanReview(skipReason)) {
                 reviewSkips.push(skip);
@@ -156,10 +161,27 @@ async function executeToolCalls({
             continue;
         }
 
+        logger.info({
+            event: 'action_proposed',
+            action_type: call.tool,
+            confidence: call.confidence ?? null,
+            evidence_refs: call.evidence_refs ?? [],
+            policy_checks: {
+                allowlisted: allowlist.has(call.tool),
+                enabled,
+                phase
+            }
+        });
+
         if (!allowlist.has(call.tool)) {
             const skipReason = REVIEW_SKIP_REASONS.TOOL_NOT_ALLOWED;
             const skip = { reason: skipReason, tool: call.tool };
             summary.skipped.push(skip);
+            logger.info({
+                event: 'action_reverted',
+                action_type: call.tool,
+                revert_reason: skipReason
+            });
 
             if (requiresHumanReview(skipReason)) {
                 reviewSkips.push(skip);
@@ -172,6 +194,11 @@ async function executeToolCalls({
             const skipReason = 'normalization_disabled';
             const skip = { reason: skipReason, tool: call.tool };
             summary.skipped.push(skip);
+            logger.info({
+                event: 'action_reverted',
+                action_type: call.tool,
+                revert_reason: skipReason
+            });
 
             // normalization_disabled is a configuration choice, not a review-worthy problem
             if (requiresHumanReview(skipReason)) {
@@ -184,6 +211,11 @@ async function executeToolCalls({
             const skipReason = REVIEW_SKIP_REASONS.UNKNOWN_TOOL;
             const skip = { reason: skipReason, tool: call.tool };
             summary.skipped.push(skip);
+            logger.info({
+                event: 'action_reverted',
+                action_type: call.tool,
+                revert_reason: skipReason
+            });
 
             if (requiresHumanReview(skipReason)) {
                 reviewSkips.push(skip);
@@ -201,6 +233,11 @@ async function executeToolCalls({
             const skipReason = REVIEW_SKIP_REASONS.MISSING_DOCUMENT_ID;
             const skip = { reason: skipReason, tool: call.tool };
             summary.skipped.push(skip);
+            logger.info({
+                event: 'action_reverted',
+                action_type: call.tool,
+                revert_reason: skipReason
+            });
 
             if (requiresHumanReview(skipReason)) {
                 reviewSkips.push(skip);
@@ -249,6 +286,12 @@ async function executeToolCalls({
                 documentId: document?.id,
                 durationMs
             });
+            logger.info({
+                event: 'action_executed',
+                action_type: call.tool,
+                execution_time_ms: durationMs,
+                result_status: 'success'
+            });
         } else {
             logger.warn({
                 event: 'orchestrator_tool_failed',
@@ -256,6 +299,11 @@ async function executeToolCalls({
                 tool: call.tool,
                 documentId: document?.id,
                 durationMs,
+                error: outcome.error
+            });
+            logger.info({
+                event: 'action_failed',
+                action_type: call.tool,
                 error: outcome.error
             });
         }

@@ -5,7 +5,10 @@
   "main": "server.js",
   "scripts": {
     "test": "mocha --require test/setup-env.js test/**/*.test.js --timeout 30000 --reporter spec --exit",
-    "test:integration": "cross-env GUIDANCE_ENABLED=true GUIDANCE_SERVICE_ENABLED=yes RAG_SERVICE_ENABLED=true mocha --require test/setup-env.js test/**/*.test.js --timeout 60000 --reporter spec"
+    "test:integration": "cross-env GUIDANCE_ENABLED=true GUIDANCE_SERVICE_ENABLED=yes RAG_SERVICE_ENABLED=true mocha --require test/setup-env.js test/**/*.test.js --timeout 60000 --reporter spec",
+    "test:performance": "mocha --require test/setup-env.js \"test/performance/**/*.test.js\" --timeout 60000 --reporter spec --exit",
+    "test:coverage": "c8 --reporter=text --reporter=lcov npm test",
+    "test:report": "node scripts/test-report.js"
   },
   "keywords": [
     "paperless-ngx",
@@ -58,7 +61,10 @@
     "tiktoken": "^1.0.20"
   },
   "devDependencies": {
+    "@grpc/grpc-js": "^1.11.5",
+    "@grpc/proto-loader": "^0.7.13",
     "@eslint/js": "^9.22.0",
+    "c8": "^9.1.0",
     "cross-env": "^7.0.3",
     "eslint": "^9.22.0",
     "eslint-config-prettier": "^10.1.1",

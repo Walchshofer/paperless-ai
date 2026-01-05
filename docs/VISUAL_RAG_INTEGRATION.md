@@ -463,7 +463,7 @@ Keep Query 1 Result (score 0.85 > 0.78)
 | `embedding_query_latency_ms` | Histogram | Visual embedding query latency | query_type |
 | `visual_query_execution_time_ms` | Histogram | Total visual query execution time | document_type |
 | `visual_element_detection_latency_ms` | Histogram | Visual element detection latency | element_type |
-| `visual_queries_executed_total` | Gauge | Total queries executed per document | document_type |
+| `visual_queries_executed_total` | Counter | Total queries executed | document_type, query_type |
 
 #### Circuit Breaker Metrics
 

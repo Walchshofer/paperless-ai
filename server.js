@@ -723,6 +723,8 @@ app.get('/health', async (req, res) => {
  *           text/plain:
  *             schema:
  *               type: string
+ *       204:
+ *         description: Metrics disabled by configuration
  *       500:
  *         description: Metrics export failed
  *         content:
@@ -732,6 +734,10 @@ app.get('/health', async (req, res) => {
  */
 app.get('/metrics', async (_req, res) => {
   try {
+    if (metricsCollector.enabled === false) {
+      res.status(204).send('');
+      return;
+    }
     const payload = await metricsCollector.getMetrics();
     res.setHeader('Content-Type', metricsCollector.contentType);
     res.status(200).send(payload);

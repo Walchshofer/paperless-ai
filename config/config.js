@@ -253,6 +253,15 @@ const externalApiConfig = {
   transformationTemplate: process.env.EXTERNAL_API_TRANSFORM || ''
 };
 
+const metricsEnabled = parseEnvBoolean(
+  process.env.ENABLE_MODEL_METRICS,
+  'yes'
+);
+const metricsRetentionDays = parseEnvInt(
+  process.env.METRICS_RETENTION_DAYS,
+  30
+);
+
 console.log('Loaded environment variables:', {
   PAPERLESS_API_URL: process.env.PAPERLESS_API_URL,
   PAPERLESS_API_TOKEN: '******',
@@ -344,6 +353,10 @@ module.exports = {
     }
   },
   expertPipelineEnabled: parseEnvBoolean(process.env.EXPERT_PIPELINE_ENABLED, 'yes'),
+  metrics: {
+    enabled: metricsEnabled,
+    retentionDays: metricsRetentionDays
+  },
   vatRag: {
     corpusPath: path.join(currentDir, 'data', 'austrian_vat')
   },

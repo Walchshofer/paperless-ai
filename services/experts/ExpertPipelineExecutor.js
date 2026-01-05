@@ -261,6 +261,12 @@ class ExpertPipelineExecutor {
 
             // Update statistics
             this._updateStats(result);
+            if (this.metricsCollector?.recordPipelineCompletion) {
+                this.metricsCollector.recordPipelineCompletion(
+                    pipelineId,
+                    result.metadata.execution_time_ms
+                );
+            }
 
             // Log completion
             logger.info({
@@ -413,6 +419,21 @@ class ExpertPipelineExecutor {
                     validation_triggered: false,
                     error: stageError.message
                 });
+                logger.info({
+                    event: 'retry_triggered',
+                    stage: stage.id,
+                    reason: stageError.code || 'execution_failed',
+                    severity: 'high',
+                    retry_scope: 'document'
+                });
+                if (this.metricsCollector?.recordRetry) {
+                    this.metricsCollector.recordRetry({
+                        pipelineId: pipeline?.id || context?.options?.pipelineId,
+                        stageName: stage.id,
+                        reason: stageError.code || 'execution_failed',
+                        severity: 'high'
+                    });
+                }
 
                 if (attempt < maxRetries) {
                     // Wait before retry (exponential backoff)
@@ -583,66 +604,120 @@ class ExpertPipelineExecutor {
             normalizeBoolean(context?.options?.guidanceEnabled, true) &&
             normalizeBoolean(context?.options?.orchestration?.use_guidance, true) &&
             normalizeBoolean(context?.options?.orchestration?.useGuidance, true);
+        const hasGuidanceTemplate = !!stage.guidanceTemplate;
+        let guidanceAttempted = false;
+        let guidanceSucceeded = false;
+        let fallbackReason = null;
 
-        if (stage.guidanceTemplate && guidanceEnabled && await guidanceClient.isAvailable()) {
-            const resolvedTemplate = resolveGuidanceTemplateName(stage.guidanceTemplate);
-            logger.debug({
-                event: 'stage_using_guidance',
-                stageId: stage.id,
-                template: resolvedTemplate,
-                baseTemplate: stage.guidanceTemplate
-            });
+        if (hasGuidanceTemplate) {
+            let guidanceAvailable = false;
+            if (guidanceEnabled) {
+                guidanceAvailable = await guidanceClient.isAvailable();
+            }
 
-            try {
-                const streamingThreshold = parseInt(
-                    process.env.GUIDANCE_STREAMING_THRESHOLD || '2000',
-                    10
-                );
-                const tokenCount = calculateTokens(textForContext || '');
-                const enableStreaming =
-                    Number.isFinite(streamingThreshold) &&
-                    tokenCount > streamingThreshold;
+            if (!guidanceEnabled) {
+                fallbackReason = 'guidance_disabled';
+            } else if (!guidanceAvailable) {
+                fallbackReason = 'guidance_unavailable';
+            } else {
+                const resolvedTemplate = resolveGuidanceTemplateName(stage.guidanceTemplate);
+                logger.debug({
+                    event: 'stage_using_guidance',
+                    stageId: stage.id,
+                    template: resolvedTemplate,
+                    baseTemplate: stage.guidanceTemplate
+                });
 
-                // Determine temperature based on template type
-                // Extraction/classification templates benefit from deterministic output (0.0)
-                // Reasoning/creative templates may need some variability (0.1-0.3)
-                const isExtractionTemplate = resolvedTemplate.includes('extractor') ||
-                                              resolvedTemplate.includes('classifier') ||
-                                              resolvedTemplate.includes('validator');
-                const templateTemperature = isExtractionTemplate ? 0.0 : 0.1;
+                guidanceAttempted = true;
+                try {
+                    const streamingThreshold = parseInt(
+                        process.env.GUIDANCE_STREAMING_THRESHOLD || '2000',
+                        10
+                    );
+                    const tokenCount = calculateTokens(textForContext || '');
+                    const enableStreaming =
+                        Number.isFinite(streamingThreshold) &&
+                        tokenCount > streamingThreshold;
 
-                const guidanceResult = await guidanceClient.generate(
-                    resolvedTemplate,
-                    variables,
-                    {
-                        model: modelName,
-                        temperature: templateTemperature,
-                        stream: enableStreaming
+                    // Determine temperature based on template type
+                    // Extraction/classification templates benefit from deterministic output (0.0)
+                    // Reasoning/creative templates may need some variability (0.1-0.3)
+                    const isExtractionTemplate = resolvedTemplate.includes('extractor') ||
+                                                  resolvedTemplate.includes('classifier') ||
+                                                  resolvedTemplate.includes('validator');
+                    const templateTemperature = isExtractionTemplate ? 0.0 : 0.1;
+
+                    const guidanceResult = await guidanceClient.generate(
+                        resolvedTemplate,
+                        variables,
+                        {
+                            model: modelName,
+                            temperature: templateTemperature,
+                            stream: enableStreaming
+                        }
+                    );
+
+                    if (guidanceResult.success) {
+                        guidanceSucceeded = true;
+                        logger.info({
+                            event: 'guidance_extraction_success',
+                            stageId: stage.id,
+                            template: resolvedTemplate,
+                            baseTemplate: stage.guidanceTemplate,
+                            valid: guidanceResult.validation?.valid,
+                            source: guidanceResult.source,
+                            temperature: templateTemperature
+                        });
+
+                        if (this.metricsCollector?.recordGuidanceResult) {
+                            this.metricsCollector.recordGuidanceResult(stage.id, true);
+                        }
+
+                        return guidanceResult.generated;
                     }
-                );
 
-                if (guidanceResult.success) {
-                    logger.info({
-                        event: 'guidance_extraction_success',
+                    fallbackReason = guidanceResult.error || 'guidance_invalid_output';
+                    logger.warn({
+                        event: 'guidance_extraction_fallback',
                         stageId: stage.id,
                         template: resolvedTemplate,
                         baseTemplate: stage.guidanceTemplate,
-                        valid: guidanceResult.validation?.valid,
-                        source: guidanceResult.source,
-                        temperature: templateTemperature
+                        error: fallbackReason
                     });
-
-                    return guidanceResult.generated;
+                } catch (guidanceError) {
+                    fallbackReason = guidanceError.message;
+                    logger.warn({
+                        event: 'guidance_extraction_fallback',
+                        stageId: stage.id,
+                        template: resolvedTemplate,
+                        baseTemplate: stage.guidanceTemplate,
+                        error: guidanceError.message
+                    });
                 }
-            } catch (guidanceError) {
-                logger.warn({
-                    event: 'guidance_extraction_fallback',
-                    stageId: stage.id,
-                    template: resolvedTemplate,
-                    baseTemplate: stage.guidanceTemplate,
-                    error: guidanceError.message
+            }
+        }
+
+        if (guidanceAttempted && !guidanceSucceeded &&
+            this.metricsCollector?.recordGuidanceResult) {
+            this.metricsCollector.recordGuidanceResult(stage.id, false);
+        }
+
+        if (hasGuidanceTemplate && fallbackReason) {
+            const pipelineId = context?.options?.pipelineId;
+            logger.info({
+                event: 'fallback_executed',
+                stage: stage.id,
+                from: 'guidance',
+                to: 'prompt_registry',
+                reason: fallbackReason
+            });
+            if (this.metricsCollector?.recordFallback) {
+                this.metricsCollector.recordFallback({
+                    pipelineId,
+                    from: 'guidance',
+                    to: 'prompt_registry',
+                    reason: fallbackReason
                 });
-                // Fall through to PromptRegistry path
             }
         }
 
@@ -2263,14 +2338,32 @@ class ExpertPipelineExecutor {
                     stageId: stage.id,
                     attempt,
                     retry_scope: 'document',
-                    retry_reason: validationResult.missingFields.length > 0 
-                        ? 'missing_required_fields' 
+                    retry_reason: validationResult.missingFields.length > 0
+                        ? 'missing_required_fields'
                         : 'low_validation_score',
                     missingFields: validationResult.missingFields,
                     score: validationResult.score,
                     severity: 'high',
                     validation_triggered: true
                 });
+                const retryReason = validationResult.missingFields.length > 0
+                    ? 'missing_required_fields'
+                    : 'low_validation_score';
+                logger.info({
+                    event: 'retry_triggered',
+                    stage: stage.id,
+                    reason: retryReason,
+                    severity: 'high',
+                    retry_scope: 'document'
+                });
+                if (this.metricsCollector?.recordRetry) {
+                    this.metricsCollector.recordRetry({
+                        pipelineId: pipeline?.id || context?.options?.pipelineId,
+                        stageName: stage.id,
+                        reason: retryReason,
+                        severity: 'high'
+                    });
+                }
 
                 // Implement escalation strategy per VALIDATION_AND_RETRY_POLICY.md
                 if (attempt === 1) {
@@ -2305,6 +2398,21 @@ class ExpertPipelineExecutor {
                     severity: 'medium',
                     validation_triggered: true
                 });
+                logger.info({
+                    event: 'retry_triggered',
+                    stage: stage.id,
+                    reason: 'low_confidence_fields',
+                    severity: 'medium',
+                    retry_scope: 'document'
+                });
+                if (this.metricsCollector?.recordRetry) {
+                    this.metricsCollector.recordRetry({
+                        pipelineId: pipeline?.id || context?.options?.pipelineId,
+                        stageName: stage.id,
+                        reason: 'low_confidence_fields',
+                        severity: 'medium'
+                    });
+                }
 
                 // Single retry for medium severity
                 if (attempt === 1) {

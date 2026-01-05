@@ -18,44 +18,154 @@
  */
 
 const assert = require('assert');
+const http = require('http');
+const path = require('path');
 
 // ============================================================================
 // TEST CONFIGURATION
 // ============================================================================
 
-const BIAS_ENGINE_URL = process.env.BIAS_ENGINE_URL || 'localhost:50051';
-const BIAS_ENGINE_ENABLED = process.env.BIAS_ENGINE_ENABLED === 'yes';
+process.env.BIAS_ENGINE_ENABLED = process.env.BIAS_ENGINE_ENABLED || 'yes';
+const BIAS_ENGINE_TEST_MODE = process.env.BIAS_ENGINE_TEST_MODE || 'mock';
 
-// Skip tests if bias engine is not enabled
-const describeOrSkip = BIAS_ENGINE_ENABLED ? describe : describe.skip;
+const getBiasEngineUrl = () =>
+    process.env.BIAS_ENGINE_URL || 'localhost:50051';
+const getMetricsUrl = () =>
+    process.env.BIAS_ENGINE_METRICS_URL || 'http://localhost:8003/metrics';
+const getGuidanceUrl = () =>
+    process.env.GUIDANCE_SERVICE_URL || 'http://localhost:8002';
+
+let grpc;
+let protoLoader;
+let biasServer;
+let metricsServer;
+let guidanceServer;
+
+before(async function() {
+    // Arrange: Load gRPC dependencies
+    grpc = require('@grpc/grpc-js');
+    protoLoader = require('@grpc/proto-loader');
+
+    if (BIAS_ENGINE_TEST_MODE === 'external') {
+        return;
+    }
+
+    const protoPath = path.join(
+        __dirname,
+        '../../guidance-bias-engine/guidance/ipc/proto/bias_service.proto'
+    );
+    const packageDef = protoLoader.loadSync(protoPath, {
+        keepCase: true,
+        longs: String,
+        enums: String,
+        defaults: true,
+        oneofs: true
+    });
+    const proto = grpc.loadPackageDefinition(packageDef).guidance.ipc;
+
+    biasServer = new grpc.Server();
+    biasServer.addService(proto.LogitBiasService.service, {
+        ComputeBiases: (_call, callback) => {
+            callback(null, {
+                token_biases: { 1234: 100.0 },
+                computation_time_ms: 5,
+                cache_hit: false
+            });
+        },
+        HealthCheck: (_call, callback) => {
+            callback(null, { status: 'SERVING' });
+        }
+    });
+
+    await new Promise((resolve, reject) => {
+        biasServer.bindAsync(
+            '127.0.0.1:0',
+            grpc.ServerCredentials.createInsecure(),
+            (err, port) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                process.env.BIAS_ENGINE_URL = `localhost:${port}`;
+                biasServer.start();
+                resolve();
+            }
+        );
+    });
+
+    metricsServer = http.createServer((req, res) => {
+        if (req.url !== '/metrics') {
+            res.statusCode = 404;
+            res.end();
+            return;
+        }
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'text/plain');
+        res.end(
+            '# HELP bias_requests_total total requests\n' +
+            '# TYPE bias_requests_total counter\n' +
+            'bias_requests_total 1\n' +
+            '# HELP bias_computation_seconds compute time\n' +
+            '# TYPE bias_computation_seconds histogram\n' +
+            'bias_computation_seconds_bucket{le=\"0.01\"} 1\n' +
+            'bias_computation_seconds_bucket{le=\"0.1\"} 1\n' +
+            'bias_computation_seconds_bucket{le=\"+Inf\"} 1\n' +
+            'bias_computation_seconds_sum 0.005\n' +
+            'bias_computation_seconds_count 1\n'
+        );
+    });
+
+    await new Promise((resolve) => {
+        metricsServer.listen(0, '127.0.0.1', () => {
+            const { port } = metricsServer.address();
+            process.env.BIAS_ENGINE_METRICS_URL = `http://localhost:${port}/metrics`;
+            resolve();
+        });
+    });
+
+    guidanceServer = http.createServer((req, res) => {
+        if (req.url === '/health') {
+            res.statusCode = 200;
+            res.end('ok');
+            return;
+        }
+        res.statusCode = 404;
+        res.end();
+    });
+
+    await new Promise((resolve) => {
+        guidanceServer.listen(0, '127.0.0.1', () => {
+            const { port } = guidanceServer.address();
+            process.env.GUIDANCE_SERVICE_URL = `http://localhost:${port}`;
+            resolve();
+        });
+    });
+});
+
+after(async function() {
+    if (biasServer) {
+        await new Promise((resolve) => biasServer.tryShutdown(resolve));
+    }
+    if (metricsServer) {
+        await new Promise((resolve) => metricsServer.close(resolve));
+    }
+    if (guidanceServer) {
+        await new Promise((resolve) => guidanceServer.close(resolve));
+    }
+});
 
 // ============================================================================
 // BIAS ENGINE INTEGRATION TESTS
 // ============================================================================
 
-describeOrSkip('Bias Engine Integration', function() {
+describe('Bias Engine Integration', function() {
     this.timeout(30000); // 30s timeout for gRPC operations
-
-    let grpc;
-    let protoLoader;
-    let biasClient;
-
-    before(async function() {
-        // Arrange: Load gRPC dependencies
-        try {
-            grpc = require('@grpc/grpc-js');
-            protoLoader = require('@grpc/proto-loader');
-        } catch (err) {
-            console.log('gRPC dependencies not installed, skipping bias-engine tests');
-            this.skip();
-        }
-    });
 
     describe('Health Check', function() {
         it('should respond to health check requests', async function() {
             // Arrange
             const client = new grpc.Client(
-                BIAS_ENGINE_URL,
+                getBiasEngineUrl(),
                 grpc.credentials.createInsecure()
             );
 
@@ -66,7 +176,7 @@ describeOrSkip('Bias Engine Integration', function() {
             return new Promise((resolve, reject) => {
                 client.waitForReady(deadline, (err) => {
                     if (err) {
-                        console.log(`Bias engine not reachable at ${BIAS_ENGINE_URL}`);
+                        console.log(`Bias engine not reachable at ${getBiasEngineUrl()}`);
                         this.skip();
                         return;
                     }
@@ -83,8 +193,7 @@ describeOrSkip('Bias Engine Integration', function() {
     describe('Metrics Endpoint', function() {
         it('should expose prometheus metrics on port 8003', async function() {
             // Arrange
-            const http = require('http');
-            const metricsUrl = process.env.BIAS_ENGINE_METRICS_URL || 'http://localhost:8003/metrics';
+            const metricsUrl = getMetricsUrl();
 
             // Act & Assert
             return new Promise((resolve, reject) => {
@@ -188,15 +297,14 @@ describeOrSkip('Bias Engine Integration', function() {
 // GUIDANCE SERVICE + BIAS ENGINE INTEGRATION
 // ============================================================================
 
-describeOrSkip('Guidance Service with Bias Engine', function() {
+describe('Guidance Service with Bias Engine', function() {
     this.timeout(60000); // 60s timeout for LLM operations
 
     it('should use bias engine for constrained generation', async function() {
         // This test verifies the integration between guidance-service and bias-engine
         // It requires both services to be running
 
-        const http = require('http');
-        const guidanceUrl = process.env.GUIDANCE_SERVICE_URL || 'http://localhost:8002';
+        const guidanceUrl = getGuidanceUrl();
 
         return new Promise((resolve, reject) => {
             const req = http.get(`${guidanceUrl}/health`, (res) => {

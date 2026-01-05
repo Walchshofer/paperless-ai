@@ -1,5 +1,7 @@
 const client = require('prom-client');
 const logger = require('../logger');
+const config = require('../../config/config');
+const metricsEnabled = config?.metrics?.enabled !== 'no';
 
 const DEFAULT_LABELS = { app: 'paperless-ai' };
 const CIRCUIT_STATE_VALUES = {
@@ -9,14 +11,22 @@ const CIRCUIT_STATE_VALUES = {
 };
 
 class PrometheusMetrics {
-    constructor(registry = client.register) {
+    constructor(registry = client.register, options = {}) {
+        const { enabled = metricsEnabled } = options;
         this.registry = registry;
+        this.enabled = enabled !== false;
         this._initialized = false;
         this._ocrSourceTotals = {};
         this._ocrSourceCounts = {};
         this._feedbackTotals = {};
         this._fieldCorrectionCounts = {};
-        this._initMetrics();
+        this._retryTotals = {};
+        this._fallbackTotals = {};
+        this._guidanceTotals = {};
+        this._pipelineTotals = {};
+        if (this.enabled) {
+            this._initMetrics();
+        }
     }
 
     _initMetrics() {
@@ -31,6 +41,18 @@ class PrometheusMetrics {
             'ocr_reconciliation_conflict_rate',
             'Conflict rate between OCR sources (0-1).',
             ['document_type']
+        );
+        this.ocrVisualLatency = this._getOrCreateHistogram(
+            'ocr_visual_latency_ms',
+            'Visual OCR latency (ms).',
+            ['document_type'],
+            [50, 100, 200, 500, 1000, 2000, 5000]
+        );
+        this.ocrTesseractLatency = this._getOrCreateHistogram(
+            'ocr_tesseract_latency_ms',
+            'Tesseract OCR latency (ms).',
+            ['document_type'],
+            [50, 100, 200, 500, 1000, 2000, 5000]
         );
         this.sidecarAvailability = this._getOrCreateGauge(
             'sidecar_availability',
@@ -85,6 +107,11 @@ class PrometheusMetrics {
             'Visual confirmation rate (0-1).',
             ['document_type']
         );
+        this.visualOcrSelectionRate = this._getOrCreateGauge(
+            'visual_ocr_selection_rate',
+            'Visual OCR selection rate (0-1).',
+            ['document_type']
+        );
         this.ocrSourceAttributionRate = this._getOrCreateGauge(
             'ocr_source_attribution_rate',
             'OCR source attribution rate (0-1).',
@@ -125,6 +152,26 @@ class PrometheusMetrics {
             'Pipeline stage latency (ms).',
             ['stage_name', 'stage_type'],
             [50, 100, 200, 500, 1000, 2000, 5000, 10000]
+        );
+        this.retryRate = this._getOrCreateGauge(
+            'retry_rate',
+            'Retry rate (0-1).',
+            ['pipeline_id']
+        );
+        this.fallbackRate = this._getOrCreateGauge(
+            'fallback_rate',
+            'Fallback rate (0-1).',
+            ['pipeline_id']
+        );
+        this.guidanceSuccessRate = this._getOrCreateGauge(
+            'guidance_success_rate',
+            'Guidance success rate (0-1).',
+            ['stage_name']
+        );
+        this.averagePipelineDuration = this._getOrCreateGauge(
+            'average_pipeline_duration',
+            'Average pipeline duration (ms).',
+            ['pipeline_id']
         );
     }
 
@@ -174,6 +221,7 @@ class PrometheusMetrics {
     }
 
     _safeRun(fn, context) {
+        if (!this.enabled) return;
         try {
             fn();
         } catch (error) {
@@ -200,6 +248,7 @@ class PrometheusMetrics {
     }
 
     recordStageLatency(stageName, stageType, durationMs) {
+        if (!this.enabled) return;
         if (!Number.isFinite(durationMs)) return;
         const name = stageName || 'unknown';
         const type = stageType || 'unknown';
@@ -209,6 +258,7 @@ class PrometheusMetrics {
     }
 
     recordOcrConflictRate(documentType, conflictRate) {
+        if (!this.enabled) return;
         if (!Number.isFinite(conflictRate)) return;
         const docType = this._normalizeDocumentType(documentType);
         const value = Math.max(0, Math.min(1, conflictRate));
@@ -223,6 +273,7 @@ class PrometheusMetrics {
     }
 
     recordOcrSource(documentType, source) {
+        if (!this.enabled) return;
         const docType = this._normalizeDocumentType(documentType);
         const normalizedSource = this._normalizeSource(source);
         if (!this._ocrSourceTotals[docType]) {
@@ -244,9 +295,16 @@ class PrometheusMetrics {
                 this.ocrSourceAttributionRate.labels(docType, src).set(rate);
             });
         }, 'ocr_source_attribution_rate');
+        const visualRate = total
+            ? (counts.visual || 0) / total
+            : 0;
+        this._safeRun(() => {
+            this.visualOcrSelectionRate.labels(docType).set(visualRate);
+        }, 'visual_ocr_selection_rate');
     }
 
     recordSidecarAvailability(service, available) {
+        if (!this.enabled) return;
         const serviceLabel = service || 'visual-rag';
         const value = available ? 1 : 0;
         this._safeRun(() => {
@@ -255,6 +313,7 @@ class PrometheusMetrics {
     }
 
     recordCircuitBreakerState(service, state) {
+        if (!this.enabled) return;
         const serviceLabel = service || 'unknown';
         const value = CIRCUIT_STATE_VALUES[state] ?? null;
         if (value === null) return;
@@ -264,6 +323,7 @@ class PrometheusMetrics {
     }
 
     recordCircuitBreakerStateTransition(service, fromState, toState) {
+        if (!this.enabled) return;
         const serviceLabel = service || 'unknown';
         this._safeRun(() => {
             this.circuitBreakerTransitionsTotal
@@ -279,11 +339,13 @@ class PrometheusMetrics {
     }
 
     recordCircuitBreakerOperation(service, _type, state) {
+        if (!this.enabled) return;
         if (!state) return;
         this.recordCircuitBreakerState(service, state);
     }
 
     observeEmbeddingQueryLatency(queryType, durationMs) {
+        if (!this.enabled) return;
         if (!Number.isFinite(durationMs)) return;
         const type = queryType || 'unknown';
         this._safeRun(() => {
@@ -292,6 +354,7 @@ class PrometheusMetrics {
     }
 
     observeVisualQueryExecutionTime(documentType, durationMs) {
+        if (!this.enabled) return;
         if (!Number.isFinite(durationMs)) return;
         const docType = this._normalizeDocumentType(documentType);
         this._safeRun(() => {
@@ -300,6 +363,7 @@ class PrometheusMetrics {
     }
 
     incrementVisualQueriesExecuted(documentType, queryType) {
+        if (!this.enabled) return;
         const docType = this._normalizeDocumentType(documentType);
         const type = queryType || 'unknown';
         this._safeRun(() => {
@@ -308,6 +372,7 @@ class PrometheusMetrics {
     }
 
     observeVisualElementDetectionLatency(elementType, durationMs) {
+        if (!this.enabled) return;
         if (!Number.isFinite(durationMs)) return;
         const type = elementType || 'mixed';
         this._safeRun(() => {
@@ -316,6 +381,7 @@ class PrometheusMetrics {
     }
 
     recordVisualConfirmationRate(documentType, rate) {
+        if (!this.enabled) return;
         if (!Number.isFinite(rate)) return;
         const docType = this._normalizeDocumentType(documentType);
         const value = Math.max(0, Math.min(1, rate));
@@ -325,6 +391,7 @@ class PrometheusMetrics {
     }
 
     recordVisualQueryTimeout(documentType, queryType) {
+        if (!this.enabled) return;
         const docType = this._normalizeDocumentType(documentType);
         const type = queryType || 'unknown';
         this._safeRun(() => {
@@ -333,6 +400,7 @@ class PrometheusMetrics {
     }
 
     recordExtractionError(stageName) {
+        if (!this.enabled) return;
         const name = stageName || 'unknown';
         this._safeRun(() => {
             this.extractionErrorsTotal.labels(name).inc();
@@ -340,6 +408,7 @@ class PrometheusMetrics {
     }
 
     recordIntegrationError(stageName) {
+        if (!this.enabled) return;
         const name = stageName || 'unknown';
         this._safeRun(() => {
             this.integrationErrorsTotal.labels(name).inc();
@@ -347,6 +416,7 @@ class PrometheusMetrics {
     }
 
     recordFeedback({ pipelineId, accuracyScore, corrections }) {
+        if (!this.enabled) return;
         const pipelineKey = pipelineId || 'unknown';
         if (!this._feedbackTotals[pipelineKey]) {
             this._feedbackTotals[pipelineKey] = {
@@ -400,7 +470,117 @@ class PrometheusMetrics {
         }, 'field_accuracy');
     }
 
+    observeOcrVisualLatency(documentType, durationMs) {
+        if (!this.enabled) return;
+        if (!Number.isFinite(durationMs)) return;
+        const docType = this._normalizeDocumentType(documentType);
+        this._safeRun(() => {
+            this.ocrVisualLatency.labels(docType).observe(durationMs);
+        }, 'ocr_visual_latency');
+    }
+
+    observeOcrTesseractLatency(documentType, durationMs) {
+        if (!this.enabled) return;
+        if (!Number.isFinite(durationMs)) return;
+        const docType = this._normalizeDocumentType(documentType);
+        this._safeRun(() => {
+            this.ocrTesseractLatency.labels(docType).observe(durationMs);
+        }, 'ocr_tesseract_latency');
+    }
+
+    recordRetry({ pipelineId, stageName, reason, severity }) {
+        if (!this.enabled) return;
+        const pipelineKey = pipelineId || 'unknown';
+        if (!this._retryTotals[pipelineKey]) {
+            this._retryTotals[pipelineKey] = { count: 0 };
+        }
+        this._retryTotals[pipelineKey].count += 1;
+        this._updateRetryRate(pipelineKey);
+        this._safeRun(() => {
+            this.retryRate.labels(pipelineKey).set(this._getRetryRate(pipelineKey));
+        }, 'retry_rate');
+    }
+
+    recordFallback({ pipelineId, from, to, reason }) {
+        if (!this.enabled) return;
+        const pipelineKey = pipelineId || 'unknown';
+        if (!this._fallbackTotals[pipelineKey]) {
+            this._fallbackTotals[pipelineKey] = { count: 0 };
+        }
+        this._fallbackTotals[pipelineKey].count += 1;
+        this._updateFallbackRate(pipelineKey);
+        this._safeRun(() => {
+            this.fallbackRate.labels(pipelineKey).set(this._getFallbackRate(pipelineKey));
+        }, 'fallback_rate');
+    }
+
+    recordGuidanceResult(stageName, success) {
+        if (!this.enabled) return;
+        const stageKey = stageName || 'unknown';
+        if (!this._guidanceTotals[stageKey]) {
+            this._guidanceTotals[stageKey] = { attempts: 0, successes: 0 };
+        }
+        const totals = this._guidanceTotals[stageKey];
+        totals.attempts += 1;
+        if (success) {
+            totals.successes += 1;
+        }
+        const rate = totals.attempts ? totals.successes / totals.attempts : 0;
+        this._safeRun(() => {
+            this.guidanceSuccessRate.labels(stageKey).set(rate);
+        }, 'guidance_success_rate');
+    }
+
+    recordPipelineCompletion(pipelineId, durationMs) {
+        if (!this.enabled) return;
+        if (!Number.isFinite(durationMs)) return;
+        const pipelineKey = pipelineId || 'unknown';
+        if (!this._pipelineTotals[pipelineKey]) {
+            this._pipelineTotals[pipelineKey] = { runs: 0, durationTotalMs: 0 };
+        }
+        const totals = this._pipelineTotals[pipelineKey];
+        totals.runs += 1;
+        totals.durationTotalMs += durationMs;
+        const average = totals.durationTotalMs / totals.runs;
+        this._safeRun(() => {
+            this.averagePipelineDuration.labels(pipelineKey).set(average);
+        }, 'average_pipeline_duration');
+        this._updateRetryRate(pipelineKey);
+        this._updateFallbackRate(pipelineKey);
+    }
+
+    _getRetryRate(pipelineKey) {
+        const retries = this._retryTotals[pipelineKey]?.count || 0;
+        const runs = this._pipelineTotals[pipelineKey]?.runs || 0;
+        return runs ? retries / runs : 0;
+    }
+
+    _getFallbackRate(pipelineKey) {
+        const fallbacks = this._fallbackTotals[pipelineKey]?.count || 0;
+        const runs = this._pipelineTotals[pipelineKey]?.runs || 0;
+        return runs ? fallbacks / runs : 0;
+    }
+
+    _updateRetryRate(pipelineKey) {
+        if (!this.retryRate) return;
+        const rate = this._getRetryRate(pipelineKey);
+        this._safeRun(() => {
+            this.retryRate.labels(pipelineKey).set(rate);
+        }, 'retry_rate');
+    }
+
+    _updateFallbackRate(pipelineKey) {
+        if (!this.fallbackRate) return;
+        const rate = this._getFallbackRate(pipelineKey);
+        this._safeRun(() => {
+            this.fallbackRate.labels(pipelineKey).set(rate);
+        }, 'fallback_rate');
+    }
+
     async getMetrics() {
+        if (!this.enabled) {
+            return '';
+        }
         if (!this.registry || typeof this.registry.metrics !== 'function') {
             return '';
         }
@@ -412,7 +592,7 @@ class PrometheusMetrics {
     }
 }
 
-const metricsCollector = new PrometheusMetrics();
+const metricsCollector = new PrometheusMetrics(undefined, { enabled: metricsEnabled });
 
 module.exports = {
     PrometheusMetrics,
