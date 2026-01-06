@@ -1,17 +1,28 @@
 // Prompt Rating System and Analyzer combined in one file
 class PromptRatingSystem {
     constructor() {
+        console.log('[PromptRatingSystem] Initializing...');
+        this._uiInitialized = false;
+        this._eventsInitialized = false;
         this.localStorageKey = 'savedPrompts';
         this.savedPrompts = this.loadSavedPrompts();
         this.currentPrompt = '';
         
-        // Erst Modal erstellen, dann UI Setup
+        // Erst Modal erstellen, dann UI Setup (deferred until DOM ready)
         this.createRatingModal();
-        this.setupUI();
-        this.setupEventListeners();
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                this.setupUI();
+                this.setupEventListeners();
+            });
+        } else {
+            this.setupUI();
+            this.setupEventListeners();
+        }
     }
 
     loadSavedPrompts() {
+        console.log('[PromptRatingSystem] Loading saved prompts from localStorage');
         try {
             const saved = localStorage.getItem(this.localStorageKey);
             return saved ? JSON.parse(saved) : [];
@@ -22,11 +33,15 @@ class PromptRatingSystem {
     }
 
     setupUI() {
+        if (this._uiInitialized) return;
+        console.log('[PromptRatingSystem] Setting up UI...');
         try {
             // Rate Button hinzufügen
             const analyzeButton = document.getElementById('analyzeButton');
             if (!analyzeButton) {
-                console.error('Analyze button not found');
+                console.warn('Analyze button not found, deferring UI setup');
+                // Try again shortly if the DOM isn't fully ready
+                setTimeout(() => this.setupUI(), 100);
                 return;
             }
 
@@ -39,6 +54,10 @@ class PromptRatingSystem {
             // Saved Prompts Section erstellen
             this.createSavedPromptsSection();
             this.addStyles();
+
+            // Only mark UI as initialized after successful setup
+            this._uiInitialized = true;
+            console.log('[PromptRatingSystem] UI setup completed');
         } catch (error) {
             console.error('Error setting up UI:', error);
         }
@@ -175,11 +194,17 @@ class PromptRatingSystem {
             <div id="savedPromptsList"></div>
         `;
 
+        console.log('[PromptRatingSystem] Creating Saved Prompts section');
         // Nach der Analyse-Sektion einfügen
         const analysisSection = document.querySelector('.material-card');
-        if (analysisSection) {
-            analysisSection.parentNode.insertBefore(promptsSection, analysisSection.nextSibling);
+        if (!analysisSection) {
+            console.warn('[PromptRatingSystem] Analysis section not found, deferring Saved Prompts section creation');
+            // Retry after a short delay
+            setTimeout(() => this.createSavedPromptsSection(), 100);
+            return;
         }
+
+        analysisSection.parentNode.insertBefore(promptsSection, analysisSection.nextSibling);
 
         this.refreshSavedPrompts();
     }
@@ -301,12 +326,11 @@ class PromptRatingSystem {
     }
 
     savePromptRating(rating, comment) {
-        // Debug-Ausgabe
-        console.log('Saving prompt:', this.currentPrompt);
+        console.log('[PromptRatingSystem] Saving prompt rating:', { rating, comment });
         
         // Sicherstellen, dass wir einen Prompt haben
         if (!this.currentPrompt) {
-            console.error('No prompt to save');
+            console.error('[PromptRatingSystem] No prompt to save');
             return;
         }
     
@@ -318,8 +342,7 @@ class PromptRatingSystem {
             id: Date.now()
         };
     
-        // Debug-Ausgabe
-        console.log('Saving prompt data:', promptData);
+        console.log('[PromptRatingSystem] Saving prompt data:', promptData);
     
         this.savedPrompts.unshift(promptData);
         try {
@@ -570,9 +593,9 @@ class PlaygroundAnalyzer {
                 behavior: 'smooth'
             });
             
-            // Hier ist die wichtige Änderung - speichere den Prompt direkt
-            window.promptRating.currentPrompt = prompt;  // Direkter Zugriff
-            window.promptRating.setCurrentPrompt(prompt);  // Aktiviere den Rate Button
+            // Update the prompt rating system with current prompt using the analyzer's instance
+            this.promptRating.currentPrompt = prompt;
+            this.promptRating.setCurrentPrompt(prompt);
             
             this.showMessage('Analysis completed successfully', 'success');
         } catch (error) {
@@ -760,5 +783,6 @@ class PlaygroundAnalyzer {
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.playgroundAnalyzer = new PlaygroundAnalyzer();
-    window.promptRating = new PromptRatingSystem();
+    // Expose the same PromptRatingSystem instance used by the analyzer
+    window.promptRating = window.playgroundAnalyzer.promptRating;
 });
