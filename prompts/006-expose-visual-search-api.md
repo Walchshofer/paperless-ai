@@ -19,8 +19,8 @@ The Python sidecar now supports image queries (from Prompt 005). The Node.js app
    - Add ``POST /api/visual-rag/search/visual``.
    - Body: `{ image: "base64...", limit: 5 }`.
    - Validation: Ensure image data is present and valid.
-   - Implementation: Call ``VisualSearchClient.searchImage`` and return results.
-
+   - Implementation: Call ``VisualSearchClient.searchImage`` and return results.   - **Circuit Breaker:** Integrate a circuit breaker on this API route so that if the Visual Sidecar is unavailable or repeatedly failing, this endpoint returns a graceful 503 with a clear fallback message and emits `circuit_breaker_open_total` and `sidecar_availability` metrics per `docs/VISUAL_RAG_INTEGRATION.md`.
+- **Telemetry & Request Propagation:** Propagate `X-Request-Id` to the sidecar, include `request_id` in structured logs for each request, and record visual query metrics (`visual_query_execution_time_ms`, `visual_queries_executed_total`).
 3. **Documentation**:
    - Update ``paperless-ai/docs/VISUAL_RAG_INTEGRATION.md`` to document this new internal API contract.
 </requirements>

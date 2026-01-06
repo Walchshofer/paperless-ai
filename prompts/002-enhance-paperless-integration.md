@@ -12,10 +12,18 @@ Reference: @MANUAL-ROUTE-UI-ENHANCEMENT-PLAN.md
 
 <requirements>
 1. **PaperlessService Upgrade**:
-   - Analyze @paperless-ai/services/paperlessService.js.
-   - Locate the `updateDocument` method.
-   - Enable/Fix the logic for updating `custom_fields`. It may be commented out or incomplete.
-   - Ensure it strictly follows the Paperless-ngx API requirements for custom fields (formatting, IDs vs values).
+   - Analyze `@paperless-ai/services/paperlessService.js`.
+   - Locate the `updateDocument` method and **uncomment/fix** the `custom_fields` handling. Note: earlier implementations were commented out; restore safe, idempotent handling: attempt to delete existing custom fields via `DELETE /documents/{id}/custom_fields/`, fall back to `PATCH` with `custom_fields: []`, and ensure incoming `custom_fields` are normalized to an array of `{name, value}` objects before sending to Paperless.
+   - Ensure it strictly follows the Paperless-ngx API requirements for custom fields (formatting, IDs vs values). Add unit tests covering both deletion-fallback and normalization.
+
+### Error Handling & Transactional Policy
+- The orchestrator should default to **best-effort** semantics: Paperless update is primary; feedback persistence may fail without failing the update. Emit structured logs and metrics on failures.
+- Support an opt-in `transactional: true` mode: in this mode, feedback persistence must succeed before the Paperless update proceeds; if persistence fails, abort with an error and do not update Paperless (caller must retry or take manual action).
+
+### Telemetry
+- Propagate `X-Request-Id` into `PaperlessService.updateDocument` and include `request_id` in all logs related to this flow.
+- Emit Prometheus metrics: `integration_errors_total{stage='manual_orchestration'}` on failure and `pipeline_stage_latency_ms` for the orchestrator flow.
+
 
 2. **Orchestrator Route**:
    - Identify the route handling `/manual/updateDocument` (Search for it in @paperless-ai/server.js or `routes/`).

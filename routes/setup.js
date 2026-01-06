@@ -4226,15 +4226,94 @@ router.post('/manual/playground', express.json(), async (req, res) => {
  *               $ref: '#/components/schemas/Error'
  */
 router.post('/manual/updateDocument', express.json(), async (req, res) => {
+  const crypto = require('crypto');
+  const feedbackService = require('../services/feedback/FeedbackService');
+  const requestId = req.headers['x-request-id'] || (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.floor(Math.random()*10000)}`);
+
+  logger.info('manual.updateDocument.request', { requestId, bodySummary: Object.keys(req.body) });
+
   try {
-    var { documentId, tags, correspondent, title } = req.body;
-    console.log("TITLE: ", title);
+    // Support both legacy and unified payload formats
+    let documentId = req.body.documentId || req.body.document_id || (req.body.document_updates && req.body.document_updates.documentId);
+    if (!documentId) return res.status(400).json({ error: 'documentId is required' });
+
+    // If unified payload
+    if (req.body.document_updates || req.body.feedback_events || req.body.visual_annotations) {
+      const documentUpdates = req.body.document_updates || {};
+      const feedbackEvents = req.body.feedback_events || req.body.feedbackEvents || [];
+      const transactional = Boolean(req.body.transactional);
+
+      logger.debug('manual.updateDocument.unifiedPayload', { requestId, documentId, transactional, events: feedbackEvents.length });
+
+      // If transactional, persist feedback first (local) to avoid external partial failures
+      if (transactional) {
+        const feedbackResult = await feedbackService.recordGranularFeedback(documentId, feedbackEvents, { requestId, transactional: true });
+        if (feedbackResult.errors && feedbackResult.errors.length > 0) {
+          logger.error('manual.updateDocument.feedback_failed_transactional', { requestId, documentId, errors: feedbackResult.errors });
+          return res.status(500).json({ error: 'Failed to persist feedback transactionally', details: feedbackResult.errors });
+        }
+      }
+
+      // Proceed to update Paperless (primary source of truth)
+      const updateDocument = await paperlessService.updateDocument(documentId, documentUpdates, { requestId });
+
+      if (!updateDocument) {
+        const msg = 'Failed to update document in Paperless';
+        logger.error('manual.updateDocument.paperless_update_failed', { requestId, documentId });
+        try {
+          const { metricsCollector } = require('../services/metrics/PrometheusMetrics');
+          metricsCollector && metricsCollector.integrationErrorsTotal && metricsCollector.integrationErrorsTotal.labels && metricsCollector.integrationErrorsTotal.labels('manual_orchestration').inc();
+        } catch (mErr) {
+          logger.debug('metrics_increment_failed', { error: mErr.message });
+        }
+        if (transactional) {
+          // In transactional mode, we fail the whole operation
+          return res.status(500).json({ error: msg });
+        }
+        // Otherwise, best-effort: return partial success
+        // Attempt to persist feedback events if not already done
+        if (!transactional && feedbackEvents.length > 0) {
+          try {
+            const feedbackResult = await feedbackService.recordGranularFeedback(documentId, feedbackEvents, { requestId });
+            logger.info('manual.updateDocument.feedback_persisted_after_paperless_failure', { requestId, documentId, result: feedbackResult });
+          } catch (feedErr) {
+            logger.error('manual.updateDocument.feedback_persist_after_paperless_failed', { requestId, documentId, error: feedErr.message });
+            try {
+              const { metricsCollector } = require('../services/metrics/PrometheusMetrics');
+              metricsCollector && metricsCollector.integrationErrorsTotal && metricsCollector.integrationErrorsTotal.labels && metricsCollector.integrationErrorsTotal.labels('manual_orchestration').inc();
+            } catch (mErr) { logger.debug('metrics_increment_failed', { error: mErr.message }); }
+          }
+        }
+        return res.status(500).json({ error: msg });
+      }
+
+      // If non-transactional, attempt feedback persistence but do not fail the update if it errors
+      if (!transactional && feedbackEvents.length > 0) {
+        try {
+          const feedbackResult = await feedbackService.recordGranularFeedback(documentId, feedbackEvents, { requestId });
+          if (feedbackResult.errors && feedbackResult.errors.length > 0) {
+            logger.warn('manual.updateDocument.feedback_errors', { requestId, documentId, errors: feedbackResult.errors });
+          }
+        } catch (feedErr) {
+          logger.error('manual.updateDocument.feedback_failed', { requestId, documentId, error: feedErr.message });
+        }
+      }
+
+      // Mark document as processed
+      await documentModel.addProcessedDocument(documentId, documentUpdates.title || null);
+
+      logger.info('manual.updateDocument.completed', { requestId, documentId });
+      return res.json(updateDocument);
+    }
+
+    // Legacy behavior for backward compatibility
+    var { tags, correspondent, title } = req.body;
+    tags = tags || [];
+
     // Convert all tags to names if they are IDs
-    tags = await Promise.all(tags.map(async tag => {
-      console.log('Processing tag:', tag);
+    tags = await Promise.all((tags || []).map(async tag => {
       if (!isNaN(tag)) {
         const tagName = await paperlessService.getTagTextFromId(Number(tag));
-        console.log('Converted tag ID:', tag, 'to name:', tagName);
         return tagName;
       }
       return tag;
@@ -4246,15 +4325,15 @@ router.post('/manual/updateDocument', express.json(), async (req, res) => {
     // Process new tags to get their IDs
     const { tagIds, errors } = await paperlessService.processTags(tags);
     if (errors.length > 0) {
+      logger.warn('manual.updateDocument.tag_processing_errors', { requestId, documentId, errors });
       return res.status(400).json({ errors });
     }
 
     // Process correspondent if provided
     const correspondentData = correspondent ? await paperlessService.getOrCreateCorrespondent(correspondent) : null;
 
-
     await paperlessService.removeUnusedTagsFromDocument(documentId, tagIds);
-    
+
     // Then update with new tags (this will only add new ones since we already removed unused ones)
     const updateData = {
       tags: tagIds,
@@ -4265,14 +4344,15 @@ router.post('/manual/updateDocument', express.json(), async (req, res) => {
     if(updateData.tags === null && updateData.correspondent === null && updateData.title === null) {
       return res.status(400).json({ error: 'No changes provided' });
     }
-    const updateDocument = await paperlessService.updateDocument(documentId, updateData);
-    
+    const updateDocument = await paperlessService.updateDocument(documentId, updateData, { requestId });
+
     // Mark document as processed
     await documentModel.addProcessedDocument(documentId, updateData.title);
 
+    logger.info('manual.updateDocument.completed.legacy', { requestId, documentId });
     res.json(updateDocument);
   } catch (error) {
-    console.error('Update error:', error);
+    logger.error('manual.updateDocument.error', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });

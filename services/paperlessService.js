@@ -1642,9 +1642,10 @@ async getOrCreateDocumentType(name) {
   }
 
 
-  async updateDocument(documentId, updates, options = { triggerFilenameReprocess: true }) {
+  async updateDocument(documentId, updates, options = { triggerFilenameReprocess: true, requestId: null }) {
     this.initialize();
     if (!this.client) return;
+    const requestId = options.requestId || null;
     try {
       const currentDoc = await this.getDocument(documentId);
       
@@ -1700,19 +1701,40 @@ async getOrCreateDocumentType(name) {
         };
       }
 
-      // // Handle custom fields update
-      // if (updateData.custom_fields) {
-      //   logger.debug('Custom fields update detected');
-      //   try {
-      //     // First, delete existing custom fields
-      //     logger.debug('Deleting existing custom fields for document %s', documentId);
-      //     await this.client.delete(`/documents/${documentId}/custom_fields/`);
-      //   } catch (error) {
-      //     // If deletion fails, try updating with empty array first
-      //     console.warn('[WARN] Could not delete custom fields, trying to clear them:', error.message);
-      //     await this.client.patch(`/documents/${documentId}/`, { custom_fields: [] });
-      //   }
-      // }
+      // Handle custom fields update (safe, idempotent)
+      if (updateData.custom_fields) {
+        logger.debug('Custom fields update detected', { documentId });
+        try {
+          // Try to delete existing custom fields (preferred) - some Paperless API versions provide this endpoint
+          try {
+            await this.client.delete(`/documents/${documentId}/custom_fields/`);
+            logger.debug('Deleted existing custom fields for document %s', documentId);
+          } catch (delError) {
+            // Fallback: clear via patching an empty array
+            logger.debug('Could not delete custom fields, attempting to clear via patch', { documentId, error: delError.message });
+            await this.client.patch(`/documents/${documentId}/`, { custom_fields: [] });
+          }
+
+          // Ensure provided custom_fields are in the expected format (array of objects)
+          if (!Array.isArray(updateData.custom_fields)) {
+            logger.warn('custom_fields should be an array; attempting to convert', { documentId });
+            // Attempt to coerce an object map into array
+            if (typeof updateData.custom_fields === 'object' && updateData.custom_fields !== null) {
+              updateData.custom_fields = Object.entries(updateData.custom_fields).map(([name, value]) => ({ name, value }));
+            } else {
+              // If we can't coerce, clear to empty array to avoid breaking the API
+              updateData.custom_fields = [];
+            }
+          }
+
+          // Some Paperless deployments accept direct patching with custom_fields payload
+          // We'll include `custom_fields` as part of the normal patch payload below (apiPayload)
+        } catch (err) {
+          logger.warn('Failed to normalize or clear existing custom fields for document %s: %s', documentId, err.message);
+          // Do not fail the whole update; proceed without custom_fields modifications
+          delete updateData.custom_fields;
+        }
+      }
       
       // Validate title length before sending to API
       if (updateData.title && updateData.title.length > 128) {
@@ -1729,8 +1751,11 @@ async getOrCreateDocumentType(name) {
       }
 
       logger.debug('Final update data: %o', apiPayload);
-      await this.client.patch(`/documents/${documentId}/`, apiPayload);
-      logger.info('Updated document %s with: %o', documentId, updateData);
+      // Propagate request-id if provided to Paperless API
+      const headers = {};
+      if (requestId) headers['X-Request-Id'] = requestId;
+      await this.client.patch(`/documents/${documentId}/`, apiPayload, { headers });
+      logger.info('Updated document %s with: %o', documentId, updateData, { requestId });
       if (options.triggerFilenameReprocess !== false &&
           this._shouldTriggerFilenameReprocess(apiPayload)) {
         try {

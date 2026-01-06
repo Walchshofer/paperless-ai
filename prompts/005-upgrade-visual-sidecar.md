@@ -27,6 +27,7 @@ The current sidecar (``main.py``) only supports text-to-visual search. To allow 
 - Use the `PIL` (Pillow) library for image handling.
 - Ensure strict type checking with Pydantic models.
 - Maintain existing logging standards.
+- Integrate circuit breaker signals and health propagation: the sidecar must expose health endpoints and emit metrics compatible with `docs/VISUAL_RAG_INTEGRATION.md` (`sidecar_availability`, `circuit_breaker_state`). Clients should honor the circuit breaker state when proxying visual search requests.
 </implementation>
 
 <output>

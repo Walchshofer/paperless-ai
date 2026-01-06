@@ -60,4 +60,15 @@ Reference docs:
 - Run the migration.
 - Run the new test: `npm test test/feedback_persistence.test.js`
 - Verify database tables have the correct columns.
+- Verify telemetry and metrics: send a sample feedback payload and confirm `feedback_ingest` logs include `request_id` and that Prometheus metrics capture a `pipeline_stage_latency` for `feedback_ingest`.
 </verification>
+
+
+### Error Handling Strategy
+- **Default (recommended):** Best-effort persistence. The Paperless update is the primary success criteria; feedback recording is attempted and failures are logged and emitted as telemetry (integration errors).
+- **Transactional (opt-in):** If the orchestrator sets `transactional: true`, feedback persistence MUST succeed before Paperless update proceeds; any failure should abort the operation and return an error to the caller. This mode is for controlled scenarios only and should be used cautiously.
+
+### Telemetry & Structured Logging
+- Include `request_id` (from `X-Request-Id` or generated server-side) on all feedback-related logs.
+- Emit Prometheus metrics for `feedback_ingest` duration (use `metricsCollector.recordStageLatency('feedback_ingest', 'integration', durationMs)`) and increment `integration_errors_total` on failures.
+

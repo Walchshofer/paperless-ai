@@ -152,4 +152,91 @@ class FeedbackService {
     }
 }
 
+// Record granular feedback (field-level & visual annotations)
+FeedbackService.prototype.recordGranularFeedback = async function(documentId, feedbackEvents = [], options = {}) {
+    // options: { transactional: false, requestId: string }
+    const start = Date.now();
+    const requestId = options.requestId || null;
+    const results = { inserted: [], overlays: [], errors: [] };
+
+    try {
+        // Lazy import to avoid circular deps where tests may not have pg available
+        const visualOverlayRepository = require('../visual-rag/VisualOverlayRepository');
+        const { metricsCollector } = require('../metrics/PrometheusMetrics');
+
+        for (const evt of feedbackEvents) {
+            try {
+                // Normalize event shape
+                const eventType = evt.type || evt.event_type || 'correction';
+                const fieldName = evt.field || evt.field_name || null;
+                const originalValue = evt.original || evt.original_value || null;
+                const correctedValue = evt.corrected || evt.corrected_value || null;
+                const context = evt.context || evt.meta || evt || {};
+
+                // If visual annotation, store in visual_overlays
+                if (eventType === 'annotation' || (context && context.bbox)) {
+                    // bbox expected as [x,y,w,h] or {bbox:[]}
+                    const bbox = Array.isArray(context.bbox) ? context.bbox : (Array.isArray(evt.bbox) ? evt.bbox : null);
+                    const page = context.page || evt.page || 1;
+                    const overlayData = {
+                        label: fieldName || (context.label || 'annotation'),
+                        box: bbox || null,
+                        metadata: context
+                    };
+                    try {
+                        const saved = await visualOverlayRepository.saveOverlay(Number(documentId), page, overlayData, overlayData.label, null);
+                        results.overlays.push(saved);
+                    } catch (ovErr) {
+                        logger.error('visual_overlay_save_failed', { requestId, documentId, error: ovErr.message });
+                        results.errors.push({ type: 'overlay_save_failed', error: ovErr.message });
+                        if (options.transactional) throw ovErr;
+                    }
+                }
+
+                // Insert feedback event (best-effort)
+                try {
+                    const inserted = await require('../../models/document').insertFeedback({
+                        document_id: Number(documentId),
+                        user_id: evt.user_id || null,
+                        event_type: eventType,
+                        field_name: fieldName,
+                        original_value: originalValue ? JSON.stringify(originalValue) : null,
+                        corrected_value: correctedValue ? JSON.stringify(correctedValue) : null,
+                        context: context ? JSON.stringify(context) : null
+                    });
+                    results.inserted.push(inserted);
+                } catch (insErr) {
+                    logger.error('feedback_db_insert_failed', { requestId, documentId, error: insErr.message });
+                    results.errors.push({ type: 'feedback_db_insert_failed', error: insErr.message });
+                    if (options.transactional) throw insErr;
+                }
+
+                // Metrics: record user correction count
+                try {
+                    if (metricsCollector?.recordVisualConfirmationRate) {
+                        // Placeholder usage - increment a counter indirectly
+                        metricsCollector.userCorrectionRate && metricsCollector.userCorrectionRate.labels && metricsCollector.userCorrectionRate.set(1);
+                    }
+                } catch (mErr) {
+                    logger.debug('metrics_record_feedback_failed', { requestId, error: mErr.message });
+                }
+            } catch (evtErr) {
+                logger.error('feedback_event_processing_error', { requestId, documentId, error: evtErr.message });
+                results.errors.push({ type: 'event_processing_failed', error: evtErr.message });
+            }
+        }
+
+        const duration = Date.now() - start;
+        if (metricsCollector && metricsCollector.recordStageLatency) {
+            metricsCollector.recordStageLatency('feedback_ingest', 'integration', duration);
+        }
+
+        logger.info('feedback_ingest_completed', { requestId, documentId, inserted: results.inserted.length, overlays: results.overlays.length, duration });
+        return results;
+    } catch (err) {
+        logger.error('recordGranularFeedback_failed', { requestId, documentId, error: err.message });
+        return { inserted: [], overlays: [], errors: [{ type: 'fatal', error: err.message }] };
+    }
+};
+
 module.exports = new FeedbackService();
