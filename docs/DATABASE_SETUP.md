@@ -234,6 +234,15 @@ docker exec paperless_ai node migrations/run-migration.js
 
 # Or execute SQL directly
 docker exec -i paperless_db psql -U elfman -d paperless < migrations/init_council_storage.sql
+
+# Ensure pgcrypto (gen_random_uuid) extension is installed before running PostgreSQL migrations
+docker exec paperless_db psql -U elfman -d paperless -c "CREATE EXTENSION IF NOT EXISTS \"pgcrypto\";"
+
+# Apply the feedback_events migration directly (Postgres)
+docker exec -i paperless_db psql -U elfman -d paperless < migrations/002_create_feedback_events.sql
+
+# Rollback (if needed)
+docker exec -i paperless_db psql -U elfman -d paperless < migrations/002_rollback_feedback_events.sql
 ```
 
 ## Health Monitoring

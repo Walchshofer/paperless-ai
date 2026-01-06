@@ -49,7 +49,8 @@ Reference docs:
 </implementation>
 
 <output>
-- `./paperless-ai/migrations/[timestamp]_create_feedback_events.sql` (or .js if that's the project style)
+- `./paperless-ai/migrations/002_create_feedback_events.sql` (Created/Modified)
+- `./paperless-ai/migrations/002_rollback_feedback_events.sql` (Created - rollback script)
 - `./paperless-ai/services/feedback/FeedbackService.js` (Modified)
 - `./paperless-ai/routes/api/visual-rag.js` (Modified/Created)
 - `./paperless-ai/test/feedback_persistence.test.js` (Created)
