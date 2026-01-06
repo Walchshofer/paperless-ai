@@ -223,7 +223,8 @@ let PUBLIC_ROUTES = [
   '/login',
   '/logout',
   '/setup',
-  '/api/visual-rag'
+  '/api/visual-rag',
+  '/api/feedback'
 ];
 
 // Combined middleware to check authentication and setup

@@ -78,6 +78,33 @@ async function migrate() {
     // IVFFLAT for large-scale batch retrieval (lists tuning may be needed)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_visual_overlays_embedding_ivfflat ON visual_overlays USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)`);
 
+    // Create feedback_events table to capture user feedback events
+    console.log('[Migration] Creating feedback_events table (if not exists)...');
+    try {
+      await client.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS feedback_events (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          doc_id INT NOT NULL,
+          user_id INT,
+          event_type VARCHAR(50) NOT NULL,
+          field_name VARCHAR(100),
+          original_value JSONB,
+          corrected_value JSONB,
+          context JSONB,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          processed BOOLEAN DEFAULT FALSE
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_feedback_doc_id ON feedback_events(doc_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_feedback_processed_false ON feedback_events(created_at) WHERE processed = FALSE`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_feedback_event_type ON feedback_events(event_type)`);
+      console.log('[Migration] feedback_events table ensured');
+    } catch (e) {
+      console.warn('[Migration] feedback_events creation warning:', e.message);
+      // continue - table might already exist or permission issues may exist
+    }
+
     if (!DRY_RUN) await client.query('COMMIT');
 
     console.log('[Migration] Done. Note: Existing embeddings are preserved as backups (embedding_legacy_backup, embedding_vector_legacy_backup).');

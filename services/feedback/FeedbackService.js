@@ -5,6 +5,8 @@
  */
 
 const logger = require('../logger');
+
+const documentModel = require('../../models/document');
 const path = require('path');
 const fs = require('fs').promises;
 const { metricsCollector } = require('../metrics/PrometheusMetrics');
@@ -33,6 +35,9 @@ class FeedbackService {
      * @param {string} documentId - The Paperless document ID
      * @param {Object} feedback - { rating, accuracyScore, corrections, comments, pipelineId }
      */
+
+
+
     async submitFeedback(documentId, feedback) {
         await this._init();
 
@@ -52,6 +57,21 @@ class FeedbackService {
             const filePath = path.join(this.feedbackDir, fileName);
             
             await fs.writeFile(filePath, JSON.stringify(record, null, 2));
+
+            // Persist as feedback_event in DB (best-effort)
+            try {
+                await documentModel.insertFeedback({
+                    doc_id: parseInt(documentId, 10),
+                    user_id: null,
+                    event_type: 'correction',
+                    field_name: 'general_feedback',
+                    original_value: null,
+                    corrected_value: JSON.stringify({ rating: record.rating, accuracyScore: record.accuracyScore, corrections: record.corrections }),
+                    context: JSON.stringify({ pipelineId: record.pipelineId, comments: record.comments, metadata: record.metadata })
+                });
+            } catch (err) {
+                logger.error({ event: 'feedback_db_insert_failed', error: err.message, documentId });
+            }
 
             logger.info({
                 event: 'user_feedback_submitted',

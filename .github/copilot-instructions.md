@@ -118,3 +118,8 @@ Pattern-based instructions in `.github/instructions/` are auto-applied based on 
 | `routes.instructions.md` | `routes/**/*.js` | Express routes, Swagger/JSDoc standards |
 
 Instructions are automatically included when editing matching files.
+
+## 8) Docker Build Safety
+- **Critical**: Dockerfiles in this repo depend on `requirements.txt` being present in the build context.
+- **Rule**: Never run `docker build .` from the repo root for sub-services.
+- **Correct usage**: Always set the build context to the service directory (e.g., `services/visual-rag-sidecar`) or use `docker-compose build` which is configured correctly.

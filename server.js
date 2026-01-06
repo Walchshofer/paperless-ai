@@ -952,12 +952,21 @@ async function startScanning() {
 
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
-  process.exit(1);
+  // In test mode or when running under npm test we don't want to exit the process — allow the test runner to handle failures.
+  if (process.env.NODE_ENV !== 'test' && process.env.npm_lifecycle_event !== 'test') {
+    process.exit(1);
+  } else {
+    console.error('Test mode or npm test: skipping process.exit on uncaughtException');
+  }
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
+  if (process.env.NODE_ENV !== 'test' && process.env.npm_lifecycle_event !== 'test') {
+    process.exit(1);
+  } else {
+    console.error('Test mode or npm test: skipping process.exit on unhandledRejection');
+  }
 });
 
 async function gracefulShutdown(signal) {
@@ -1059,4 +1068,11 @@ async function startServer() {
   }
 }
 
-startServer();
+if (require.main === module) {
+  // Only start the server when run directly (node server.js). This prevents
+  // automatic startup (and DB validation) when the module is required by tests.
+  startServer();
+}
+
+// Export the Express app for tests that require the app directly
+module.exports = app;

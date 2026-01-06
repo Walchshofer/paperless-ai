@@ -28,7 +28,8 @@ graph TD
     E -->|Columns| H[domain_signals JSONB]
     D -->|Stores| I[document_embeddings Table]
     I -->|Columns| J[embedding vector 384]
-```
+    D -->|Stores| K[feedback_events Table]
+    K -->|Columns| L[original_value vs corrected_value]
 
 ## Configuration
 

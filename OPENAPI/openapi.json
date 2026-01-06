@@ -641,6 +641,41 @@
         }
       }
     },
+    "/metrics": {
+      "get": {
+        "summary": "Prometheus metrics export",
+        "description": "Exposes Prometheus-formatted metrics for pipeline observability.\nMetrics are collected on a best-effort basis and never block pipeline processing.\n",
+        "tags": [
+          "System",
+          "API"
+        ],
+        "responses": {
+          "200": {
+            "description": "Prometheus metrics payload",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Metrics disabled by configuration"
+          },
+          "500": {
+            "description": "Metrics export failed",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health/database": {
       "get": {
         "summary": "Database and pg_vector extension health check",

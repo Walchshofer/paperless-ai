@@ -11,6 +11,55 @@
 
 const express = require('express');
 const router = express.Router();
+
+// Public: ingest a feedback event (correction, annotation, verification)
+router.post('/events', async (req, res) => {
+    try {
+        const { doc_id, user_id, event_type, field_name, original_value, corrected_value, context } = req.body;
+        if (!doc_id || !event_type) return res.status(400).json({ success: false, error: 'doc_id and event_type are required' });
+
+        const inserted = await require('../../models/document').insertFeedback({
+            doc_id,
+            user_id: user_id || null,
+            event_type,
+            field_name: field_name || null,
+            original_value: original_value || null,
+            corrected_value: corrected_value || null,
+            context: context || {}
+        });
+
+        res.json({ success: true, inserted });
+    } catch (err) {
+        logger.error({ event: 'feedback_event_ingest_error', error: err.message });
+        res.status(500).json({ success: false, error: 'Failed to ingest feedback event' });
+    }
+});
+
+// Internal: get pending feedback events for Bias Engine
+router.get('/pending', async (req, res) => {
+    try {
+        // TODO: protect with service auth
+        const rows = await require('../../models/document').getPendingFeedback();
+        res.json({ success: true, pending: rows });
+    } catch (err) {
+        logger.error({ event: 'feedback_pending_error', error: err.message });
+        res.status(500).json({ success: false, error: 'Failed to fetch pending feedback' });
+    }
+});
+
+// Internal: mark events processed
+router.post('/process', async (req, res) => {
+    try {
+        // TODO: protect with service auth
+        const { ids } = req.body;
+        if (!Array.isArray(ids)) return res.status(400).json({ success: false, error: 'ids array is required' });
+        const count = await require('../../models/document').markFeedbackProcessed(ids);
+        res.json({ success: true, processed: count });
+    } catch (err) {
+        logger.error({ event: 'feedback_process_error', error: err.message });
+        res.status(500).json({ success: false, error: 'Failed to mark feedback as processed' });
+    }
+});
 const feedbackService = require('../../services/feedback/FeedbackService');
 const logger = require('../../services/logger');
 

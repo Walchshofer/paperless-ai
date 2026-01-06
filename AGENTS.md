@@ -62,6 +62,8 @@
   indices on volumes.
 - guidance-service connects to host Ollama via `OLLAMA_API_URL`
   (`http://host.docker.internal:11434`).
+- **Build Safety**: Always build services with the correct context (service dir)
+  to ensure the correct `requirements.txt` is used. Prefer `docker-compose build`.
 
 ## Repo layout and tooling
 - Node/Express app entrypoint: `server.js`.

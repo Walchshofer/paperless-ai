@@ -293,6 +293,83 @@ describe('Bias Engine Integration', function() {
     });
 });
 
+describe('Feedback endpoints', function() {
+    it('should ingest an event and allow pending/process operations', async function() {
+        // If a test server is configured, use external fetch; otherwise use the app directly via supertest
+        const base = process.env.TEST_SERVER_URL;
+        if (base) {
+            const fetch = require('node-fetch');
+
+            // Ingest event
+            const resp = await fetch(`${base}/api/feedback/events`, {
+                method: 'POST',
+                body: JSON.stringify({ doc_id: 12345, event_type: 'test_event', corrected_value: { test: true }, context: { page: 4 } }),
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const body = await resp.json();
+            assert.strictEqual(body.success, true);
+            assert.ok(body.inserted);
+
+            // Fetch pending
+            const pendingResp = await fetch(`${base}/api/feedback/pending`);
+            const pendingBody = await pendingResp.json();
+            assert.strictEqual(pendingBody.success, true);
+            const found = pendingBody.pending.find(p => p.doc_id === 12345);
+            assert.ok(found, 'Inserted event should be pending');
+
+            // Verify corrected_value and context are JSON strings and parse back
+            assert.ok(typeof found.corrected_value === 'string' || found.corrected_value === null);
+            if (found.corrected_value) {
+                const parsed = JSON.parse(found.corrected_value);
+                assert.strictEqual(parsed.test, true);
+            }
+            assert.ok(typeof found.context === 'string' || found.context === null);
+            if (found.context) {
+                const ctx = JSON.parse(found.context);
+                assert.strictEqual(ctx.page, 4);
+            }
+
+            // Process
+            const processResp = await fetch(`${base}/api/feedback/process`, {
+                method: 'POST',
+                body: JSON.stringify({ ids: [found.id] }),
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const processBody = await processResp.json();
+            assert.strictEqual(processBody.success, true);
+        } else {
+            const request = require('supertest');
+            const app = require('../../server');
+            // Ingest
+            const resp = await request(app).post('/api/feedback/events').send({ doc_id: 12345, event_type: 'test_event', corrected_value: { test: true }, context: { page: 4 } }).expect(200);
+            assert.strictEqual(resp.body.success, true);
+            assert.ok(resp.body.inserted);
+
+            // Fetch pending
+            const pending = await request(app).get('/api/feedback/pending').expect(200);
+            assert.strictEqual(pending.body.success, true);
+            const found = pending.body.pending.find(p => p.document_id === 12345 || p.doc_id === 12345 || p.documentId === 12345 || p.docId === 12345);
+            assert.ok(found, 'Inserted event should be pending');
+
+            // Verify corrected_value and context are JSON strings and parse back
+            assert.ok(typeof found.corrected_value === 'string' || found.corrected_value === null);
+            if (found.corrected_value) {
+                const parsed = JSON.parse(found.corrected_value);
+                assert.strictEqual(parsed.test, true);
+            }
+            assert.ok(typeof found.context === 'string' || found.context === null);
+            if (found.context) {
+                const ctx = JSON.parse(found.context);
+                assert.strictEqual(ctx.page, 4);
+            }
+
+            // Process
+            const processResp = await request(app).post('/api/feedback/process').send({ ids: [found.id || found.ID || found.id] }).expect(200);
+            assert.strictEqual(processResp.body.success, true);
+        }
+    });
+});
+
 // ============================================================================
 // GUIDANCE SERVICE + BIAS ENGINE INTEGRATION
 // ============================================================================

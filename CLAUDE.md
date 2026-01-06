@@ -12,6 +12,11 @@ paperless-ai and its AI sidecars. paperless-ai is built from `../paperless-ai`,
 and the Visual RAG sidecar is built from
 `../paperless-ai/services/visual-rag-sidecar`.
 
+### Build Context Safety
+To prevent incorrect `requirements.txt` usage, always build with the specific
+service directory as the build context (e.g., `services/visual-rag-sidecar`).
+The safest method is running `docker-compose build` from `paperless-ngx/`.
+
 ## Service Architecture
 
 | # | Service | Container | Host Port(s) | Purpose |

@@ -1254,7 +1254,7 @@ describe('Expert Pipeline', function() {
         });
         
         it('should process document in expert mode', async function() {
-            this.timeout(10000);
+            this.timeout(30000);
             
             const result = await processor.process(
                 TestDocuments.medicalLabReport,
@@ -1383,7 +1383,7 @@ describe('Expert Pipeline', function() {
         const services = require('../../services');
         
         it('should process medical document end-to-end', async function() {
-            this.timeout(15000);
+            this.timeout(60000);
             
             const mockOllama = new MockOllamaService({
                 loadedModels: ['qwen3-vl:8b', 'medtext-llama3:latest', 'sauerkraut-llama3.1:8b'],

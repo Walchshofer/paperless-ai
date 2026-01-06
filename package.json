@@ -71,7 +71,8 @@
     "eslint-plugin-jsdoc": "^50.6.3",
     "globals": "^16.0.0",
     "mocha": "^11.7.5",
-    "prettier": "^3.5.3"
+    "prettier": "^3.5.3",
+    "supertest": "^6.3.3"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

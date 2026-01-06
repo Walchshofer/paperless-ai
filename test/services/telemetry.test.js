@@ -29,3 +29,29 @@ describe('TelemetryCollector normalization metrics', function () {
     assert.strictEqual(t2.getChangeDetectionRate(), 0);
   });
 });
+
+const documentModel = require('../../models/document');
+
+describe('Feedback model', function() {
+    it('can insert and fetch pending feedback', async function() {
+        // This test assumes a test DB is available and migrations applied
+        const row = await documentModel.insertFeedback({
+            doc_id: 999999,
+            user_id: null,
+            event_type: 'test_event',
+            field_name: 'unit_test',
+            original_value: 'old',
+            corrected_value: 'new',
+            context: { reason: 'unit test' }
+        });
+
+        assert.ok(row.id, 'Inserted row should have id');
+
+        const pending = await documentModel.getPendingFeedback(10);
+        const found = pending.find(r => r.id === row.id);
+        assert.ok(found, 'Inserted feedback should appear in pending');
+
+        const processed = await documentModel.markFeedbackProcessed([row.id]);
+        assert.strictEqual(processed, 1, 'Should mark one row as processed');
+    });
+});
