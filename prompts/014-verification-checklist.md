@@ -1,11 +1,7 @@
-# Deprecated: Verification Checklist (legacy)
-
-**This file has been replaced by the numbered checklist**: `prompts/014-verification-checklist.md`.
-
-Please use and reference `prompts/014-verification-checklist.md` going forward. The legacy checklist will be removed in a follow-up cleanup commit once references have been migrated.
+# Verification Checklist — Paperless-AI Implementation
 
 <objective>
-(Deprecated) See `prompts/014-verification-checklist.md` for the authoritative checklist.
+Provide a consolidated, CI-friendly checklist that references verification prompts and enables fast pass/fail gating for changes touching DB, frontend islands, telemetry, circuit breaker, and feedback E2E flows.
 </objective>
 
 <context>
@@ -16,7 +12,6 @@ References:
 - prompts/011-verification-telemetry.md
 - prompts/012-verification-circuit-breaker.md
 - prompts/013-integration-feedback-e2e.md
-- prompts/014-verification-checklist.md
 </context>
 
 <requirements>

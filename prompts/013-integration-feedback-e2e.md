@@ -1,9 +1,7 @@
-# Deprecated: Integration Test Prompt (legacy)
-
-**This prompt has been replaced by** `prompts/013-integration-feedback-e2e.md`.
+# Integration Test Prompt: Feedback Flow E2E
 
 <objective>
-(Deprecated) See `prompts/013-integration-feedback-e2e.md` for the authoritative integration test prompt.
+Verify the full feedback ingestion path end-to-end from UI action through API and DB persistence, including Paperless-ngx metadata updates, `request_id` propagation, and telemetry.
 </objective>
 
 <context>

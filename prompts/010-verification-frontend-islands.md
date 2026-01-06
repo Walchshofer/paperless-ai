@@ -1,9 +1,7 @@
-# Deprecated: Frontend Islands Verification (legacy)
-
-**This prompt has been replaced by** `prompts/010-verification-frontend-islands.md`.
+# Verification: Frontend Islands & Contracts
 
 <objective>
-(Deprecated) See `prompts/010-verification-frontend-islands.md` for the authoritative frontend verification steps.
+Ensure Island anchors, Zod contracts, and `data-testid` coverage are implemented and testable; provide automated checks that prevent staleness and contract drift.
 </objective>
 
 <context>

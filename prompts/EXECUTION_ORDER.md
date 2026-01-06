@@ -19,6 +19,21 @@ graph TD
     007v --> 008[008: Implement Visual Red Pen]
     006 --> 008
 
+    001 --> 009[009: Verify DB Schema]
+    009 --> 002
+
+    002 --> 011[011: Verify Telemetry]
+    011 --> 003
+
+    004 --> 010[010: Verify Islands]
+    010 --> 007
+
+    006 --> 012[012: Verify Circuit Breaker]
+    012 --> 007
+
+    007v --> 013[013: Feedback E2E Test]
+    009 & 010 & 011 & 012 & 013 --> 014[014: Verification Checklist]
+
     001 -.->|Shared DB Schema| 005
     004 -.->|UI Patterns| 007
 

@@ -1,9 +1,7 @@
-# Deprecated: DB Schema Verification (legacy)
-
-**This prompt has been replaced by** `prompts/009-verification-db-schema.md`.
+# Verification: Database Schema & pg_vector
 
 <objective>
-(Deprecated) See `prompts/009-verification-db-schema.md` for the authoritative DB verification steps.
+Validate that PostgreSQL and pg_vector are installed and configured, the `feedback_events` and `visual_overlays` schemas match the spec, and migrations/rollback scripts work in staging.
 </objective>
 
 <context>

@@ -1,9 +1,7 @@
-# Deprecated: Telemetry Verification (legacy)
-
-**This prompt has been replaced by** `prompts/011-verification-telemetry.md`.
+# Verification: Telemetry, Request IDs & Prometheus Metrics
 
 <objective>
-(Deprecated) See `prompts/011-verification-telemetry.md` for the authoritative telemetry verification steps.
+Validate `request_id` propagation, required structured logging fields, and presence and correctness of Prometheus metrics for key events.
 </objective>
 
 <context>

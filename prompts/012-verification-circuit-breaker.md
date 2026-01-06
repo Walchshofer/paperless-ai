@@ -1,9 +1,7 @@
-# Deprecated: Circuit Breaker Verification (legacy)
-
-**This prompt has been replaced by** `prompts/012-verification-circuit-breaker.md`.
+# Verification: Circuit Breaker Behaviour for Visual Sidecar & Visual Queries
 
 <objective>
-(Deprecated) See `prompts/012-verification-circuit-breaker.md` for the authoritative circuit breaker verification steps.
+Verify the circuit breaker implementation protects the pipeline from Visual RAG sidecar failures, provides observable state transitions, and drives graceful degradation with appropriate telemetry.
 </objective>
 
 <context>
