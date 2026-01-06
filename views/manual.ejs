@@ -102,6 +102,11 @@
                 <div id="messageArea" class="mb-6 hidden">
                     <!-- Messages will be inserted here -->
                 </div>
+
+                <!-- Island anchors (auditable via data-testid) -->
+                <div data-island="visual-annotation-island" data-testid="visual-annotation-island" data-props='<%- JSON.stringify({ documentId: vm && vm.documentId ? vm.documentId : null }) %>'></div>
+                <div data-island="feedback-controls-island" data-testid="feedback-controls-island" data-props='<%- JSON.stringify({ documentId: vm && vm.documentId ? vm.documentId : null }) %>'></div>
+                <div data-island="manual-editor-island" data-testid="manual-editor-island" data-props='<%- JSON.stringify({ documentId: vm && vm.documentId ? vm.documentId : null }) %>'></div>
         
                 <!-- Document Selection -->
                 <div class="material-card mb-6">
@@ -158,6 +163,8 @@
                             </div>
                             <div class="flex flex-col lg:flex-row gap-4">
                                 <div id="overlayContainer" class="flex-1 min-h-[600px] bg-bg-primary rounded border border-border-color p-4 overflow-auto">
+                                    <div data-island="visual-annotation-island" data-testid="visual-annotation-island" data-props='<%- JSON.stringify({ documentId: vm && vm.documentId ? vm.documentId : null, page: 1 }) %>'></div>
+
                                     <div id="overlayLoading" class="flex items-center justify-center h-[400px] text-text-secondary">
                                         <i class="fas fa-spinner fa-spin mr-2"></i> Rendering high-resolution preview...
                                     </div>
@@ -220,7 +227,7 @@
                             <div class="mb-4">
                                 <div class="flex justify-between items-center mb-2">
                                     <h3 class="text-sm font-medium text-text-secondary">Current Tags</h3>
-                                    <button id="saveTagsBtn" 
+                                    <button id="saveTagsBtn" data-testid="save-tags-btn"
                                             class="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200">
                                         Save Tags
                                     </button>
@@ -755,6 +762,7 @@ return object;
     <script src="js/dashboard.js"></script>
     <script src="js/components/OverlayViewer.js"></script>
     <script src="js/components/OverlayLegend.js"></script>
+    <script type="module" src="/js/dist/island-runtime.js"></script>
     <script>
         // Overlay Viewer Integration
         let overlayViewer = null;

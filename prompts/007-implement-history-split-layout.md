@@ -1,53 +1,61 @@
 <objective>
-Refactor the History Document View to use a modern split-screen layout, preparing the stage for visual interaction.
-This is Phase 3 (Part 1) of the History Route Enhancement Plan.
+Refactor the History Document View into Preact Islands: `OverlayViewerIsland` and `HistoryTabsIsland`, each validated by Zod contracts and mountable via `data-island` anchors.
+This aligns the History Route with the Islands architecture for better testability and maintainability.
 </objective>
 
 <context>
-The current ``history/doc`/:id` view is text-heavy. We need to introduce a split layout: High-res visual document on the left, data/results on the right. This prompts focuses on layout and component integration without the complex drawing logic.
-**Plan Reference:** @paperless-ai/prompts/planning/HISTORY-ROUTE-ENHANCEMENT-PLAN.md (Phase 3)
-**Compliance:** Adhere to @paperless-ai/docs/FRONTEND_ARCHITECTURE.md (Islands architecture if applicable, or standard EJS/Vanilla JS components).
-**Previous Context:** Read summary: @paperless-ai/prompts/summaries/006-expose-visual-search-api-summary.md
+Per `docs/FRONTEND_ARCHITECTURE.md`, History view interactive pieces should be implemented as islands. This prompt will create `src/islands/OverlayViewerIsland.tsx` and `src/islands/HistoryTabsIsland.tsx` and corresponding contracts under `src/ui/contracts/` and update `views/history-document.ejs` to mount them.
+
+**References:**
+- Architecture: `docs/FRONTEND_ARCHITECTURE.md`
+- History Route Plan: `prompts/planning/HISTORY-ROUTE-ENHANCEMENT-PLAN.md`
 </context>
 
 <requirements>
-1. **Layout Overhaul**:
-   - Modify ``paperless-ai/views/history-document.ejs``.
-   - Implement a CSS Grid/Flex layout:
-     - **Left Pane (60%)**: Container for `OverlayViewer` (Visual representation).
-     - **Right Pane (40%)**: Tabbed interface.
+1. **OverlayViewer Island**:
+   - Create `src/islands/OverlayViewerIsland.tsx` and `src/ui/contracts/OverlayViewer.contract.ts`.
+   - Props: `{ documentId: number, page?: number }` validated by Zod.
+   - Responsibilities: load page image, render overlays, and expose methods/events for the Red Pen island to use.
+   - Add `data-testid="overlay-viewer"` to the island root.
 
-2. **Right Pane Tabs**:
-   - Implement navigation tabs: "Text" (existing normalized text), "Metadata" (fields), "Similar" (placeholder for search results).
-   - Ensure the "Text" tab displays the existing `<pre>` content correctly.
+2. **HistoryTabs Island**:
+   - Create `src/islands/HistoryTabsIsland.tsx` and `src/ui/contracts/HistoryTabs.contract.ts`.
+   - Render tabs: Text, Metadata, Similar. The Similar tab will accept search results and render them.
+   - Add `data-testid="history-tabs"` to the island root.
 
-3. **Component Integration**:
-   - Import `OverlayViewer` (from ``public/js/components`/`) to display the document image in the Left Pane.
-   - Ensure it loads the image for the current document ID.
+3. **Template Integration**:
+   - Replace the existing single `<pre>` content area in `views/history-document.ejs` with a split layout that mounts the two islands:
+     ```html
+     <div class="grid md:grid-cols-5 gap-4">
+       <div class="md:col-span-3" data-island="overlay-viewer-island" data-testid="overlay-viewer" data-props='<%- JSON.stringify({ documentId, page: 1 }) %>'></div>
+       <div class="md:col-span-2" data-island="history-tabs-island" data-testid="history-tabs" data-props='<%- JSON.stringify({ documentId, content }) %>'></div>
+     </div>
+     ```
 
-4. **Styling**:
-   - Use Tailwind CSS for the grid structure.
-   - Ensure responsiveness (stack vertically on mobile).
+4. **Testing & Automation**:
+   - Add Zod contract unit tests and an E2E skeleton that verifies `data-testid` values and that tabs render correctly.
+   - Ensure `history-tabs-island` has `data-testid` for each tab (e.g., `data-testid="tab-similar"`).
+
+5. **Documentation**:
+   - Update prompt content and add example `data-island` mounting snippets to `prompts/007-implement-history-split-layout.md`.
 </requirements>
 
 <implementation>
-- Reuse existing frontend components where possible (`OverlayViewer`).
-- Keep the page lightweight; do not load the "Similar" data yet.
+- Islands must validate props at mount using Zod and throw console warnings on invalid props.
+- Ensure `overlay-viewer-island` exposes an API (custom events) for the Red Pen island to request crops and triggers search calls.
 </implementation>
 
 <output>
-- ``./paperless-ai/views/history-document.ejs`` (Modified)
-- ``./paperless-ai/public/css/history.css`` (Optional/If needed)
+- `src/islands/OverlayViewerIsland.tsx` (Created)
+- `src/ui/contracts/OverlayViewer.contract.ts` (Created)
+- `src/islands/HistoryTabsIsland.tsx` (Created)
+- `src/ui/contracts/HistoryTabs.contract.ts` (Created)
+- `views/history-document.ejs` (Updated to mount islands and include `data-testid` attributes)
+- `test/e2e/history_islands.spec.js` (Created - E2E skeleton)
 </output>
 
 <verification>
-- Load a document in the history route.
-- Verify the split pane appears.
-- Verify the document image loads on the left.
-- Verify the text content is accessible in the right tab.
+- Unit: Run contract tests for OverlayViewer and HistoryTabs contracts.
+- E2E: Run the history islands spec and assert `data-testid="overlay-viewer"` and `data-testid="history-tabs"` exist and that `tab-similar` can accept and render a stubbed result set.
+- Manual: Open a history document and verify the split layout renders and islands mount in their respective anchors.
 </verification>
-
-<lifecycle>
-1. Upon completion, generate summary: ``./paperless-ai/prompts/summaries/007-implement-history-split-layout-summary.md``
-2. Move this prompt to ``./paperless-ai/prompts/completed/``
-</lifecycle>
