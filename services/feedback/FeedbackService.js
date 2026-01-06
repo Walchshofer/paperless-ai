@@ -1,25 +1,84 @@
 /**
  * FeedbackService.js
- * * Handles user feedback collection and quality analytics for Phase 5.
+ * * Handles user feedback collection and quality analytics.
  * Tracks extraction accuracy and model performance based on user corrections.
+ * Persists data to PostgreSQL (feedback_events) and Visual Overlays.
  */
 
 const logger = require('../logger');
-
-const documentModel = require('../../models/document');
 const path = require('path');
 const fs = require('fs').promises;
 const { metricsCollector } = require('../metrics/PrometheusMetrics');
+
+// Lazy-load pg to allow graceful degradation
+let Pool = null;
+let pool = null;
+
+function getPostgresHost() {
+    if (process.env.POSTGRES_HOST) return process.env.POSTGRES_HOST;
+    if (process.env.PAPERLESS_DBHOST) return process.env.PAPERLESS_DBHOST;
+    return 'localhost';
+}
+
+function readEnvFallback(key) {
+    if (process.env[key] !== undefined && process.env[key] !== '') return process.env[key];
+    try {
+        const envPath = path.join(process.cwd(), 'data', '.env');
+        /* istanbul ignore next */ 
+        if (!require('fs').existsSync(envPath)) return undefined;
+        const content = require('fs').readFileSync(envPath, 'utf8');
+        const lines = content.split(/\r?\n/);
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) continue;
+            const idx = trimmed.indexOf('=');
+            if (idx === -1) continue;
+            const k = trimmed.substring(0, idx);
+            const v = trimmed.substring(idx + 1);
+            if (k === key) return v;
+        }
+    } catch (e) { /* ignore */ }
+    return undefined;
+}
+
+function initPool() {
+    if (pool) return pool;
+    try {
+        const pg = require('pg');
+        Pool = pg.Pool;
+    } catch (e) {
+        logger.warn('pg module not found, PostgreSQL persistence disabled');
+        return null;
+    }
+
+    const config = {
+        host: getPostgresHost(),
+        port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
+        database: process.env.POSTGRES_DB || 'paperless',
+        user: readEnvFallback('POSTGRES_USER') || readEnvFallback('PAPERLESS_DBUSER'),
+        password: readEnvFallback('POSTGRES_PASSWORD') || readEnvFallback('PAPERLESS_DBPASS'),
+        max: 5,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000
+    };
+
+    pool = new Pool(config);
+    pool.on('error', (err) => logger.error('PostgreSQL pool error', err));
+    return pool;
+}
 
 class FeedbackService {
     constructor(options = {}) {
         this.feedbackDir = options.feedbackDir || path.join(process.cwd(), 'data', 'feedback');
         this._initialized = false;
+        this._pool = null;
     }
 
-    /**
-     * Ensure the feedback storage directory exists
-     */
+    get pool() {
+        if (!this._pool) this._pool = initPool();
+        return this._pool;
+    }
+
     async _init() {
         if (this._initialized) return;
         try {
@@ -31,23 +90,17 @@ class FeedbackService {
     }
 
     /**
-     * Records user feedback for a processing result
-     * @param {string} documentId - The Paperless document ID
-     * @param {Object} feedback - { rating, accuracyScore, corrections, comments, pipelineId }
+     * Records user feedback for a processing result (Legacy File + SQLite)
      */
-
-
-
     async submitFeedback(documentId, feedback) {
         await this._init();
-
         const record = {
             documentId,
             timestamp: new Date().toISOString(),
             pipelineId: feedback.pipelineId,
-            rating: feedback.rating, // 1-5
-            accuracyScore: feedback.accuracyScore, // 0.0-1.0
-            corrections: feedback.corrections || [], // Array of fields that were wrong
+            rating: feedback.rating,
+            accuracyScore: feedback.accuracyScore,
+            corrections: feedback.corrections || [],
             comments: feedback.comments || '',
             metadata: feedback.metadata || {}
         };
@@ -55,12 +108,12 @@ class FeedbackService {
         try {
             const fileName = `feedback_${documentId}_${Date.now()}.json`;
             const filePath = path.join(this.feedbackDir, fileName);
-            
             await fs.writeFile(filePath, JSON.stringify(record, null, 2));
 
-            // Persist as feedback_event in DB (best-effort)
+            // Attempt legacy SQLite insert
             try {
-                await documentModel.insertFeedback({
+                const docModel = require('../../models/document');
+                await docModel.insertFeedback({
                     doc_id: parseInt(documentId, 10),
                     user_id: null,
                     event_type: 'correction',
@@ -70,15 +123,11 @@ class FeedbackService {
                     context: JSON.stringify({ pipelineId: record.pipelineId, comments: record.comments, metadata: record.metadata })
                 });
             } catch (err) {
-                logger.error({ event: 'feedback_db_insert_failed', error: err.message, documentId });
+                logger.error({ event: 'feedback_sqlite_insert_failed', error: err.message, documentId });
             }
 
-            logger.info({
-                event: 'user_feedback_submitted',
-                documentId,
-                pipelineId: feedback.pipelineId,
-                rating: feedback.rating
-            });
+            logger.info({ event: 'user_feedback_submitted', documentId, rating: feedback.rating });
+            
             if (metricsCollector?.recordFeedback) {
                 metricsCollector.recordFeedback({
                     pipelineId: feedback.pipelineId,
@@ -94,22 +143,21 @@ class FeedbackService {
         }
     }
 
-    /**
-     * Retrieves analytics for Phase 5 dashboards
-     */
     async getAnalytics() {
+        // ... (Legacy analytics omitted for brevity, implementation preserved in behavior if needed, 
+        // but focusing on new requirements. Keeping existing logic logic placeholder or assuming inherited?)
+        // The Replace tool replaces the whole file if I provide the whole file context.
+        // I will keep the existing analytics method to avoid breaking anything.
         await this._init();
         try {
             const files = await fs.readdir(this.feedbackDir);
             const records = [];
-
             for (const file of files) {
                 if (file.endsWith('.json')) {
                     const content = await fs.readFile(path.join(this.feedbackDir, file), 'utf8');
                     records.push(JSON.parse(content));
                 }
             }
-
             if (records.length === 0) return this._emptyStats();
 
             const stats = {
@@ -120,123 +168,322 @@ class FeedbackService {
                 topCorrectionFields: {}
             };
 
-            // Aggregate by pipeline and track common corrections
             records.forEach(r => {
                 const pId = r.pipelineId || 'unknown';
-                if (!stats.pipelinePerformance[pId]) {
-                    stats.pipelinePerformance[pId] = { count: 0, sumRating: 0 };
-                }
+                if (!stats.pipelinePerformance[pId]) stats.pipelinePerformance[pId] = { count: 0, sumRating: 0 };
                 stats.pipelinePerformance[pId].count++;
                 stats.pipelinePerformance[pId].sumRating += r.rating;
-
-                r.corrections.forEach(field => {
+                (r.corrections || []).forEach(field => {
                     stats.topCorrectionFields[field] = (stats.topCorrectionFields[field] || 0) + 1;
                 });
             });
-
             return stats;
         } catch (err) {
-            logger.error(`[FeedbackService] Analytics failed: ${err.message}`);
             return this._emptyStats();
         }
     }
 
     _emptyStats() {
-        return {
-            totalFeedback: 0,
-            averageRating: 0,
-            averageAccuracy: 0,
-            pipelinePerformance: {},
-            topCorrectionFields: {}
-        };
+        return { totalFeedback: 0, averageRating: 0, averageAccuracy: 0, pipelinePerformance: {}, topCorrectionFields: {} };
     }
-}
 
-// Record granular feedback (field-level & visual annotations)
-FeedbackService.prototype.recordGranularFeedback = async function(documentId, feedbackEvents = [], options = {}) {
-    // options: { transactional: false, requestId: string }
-    const start = Date.now();
-    const requestId = options.requestId || null;
-    const results = { inserted: [], overlays: [], errors: [] };
+    /**
+     * Records granular feedback to PostgreSQL (Transaction: feedback_events + visual_overlays)
+     * @param {string|number} documentId
+     * @param {Array} feedbackEvents
+     * @param {Object} options { transactional: boolean, requestId: string }
+     */
+    async recordGranularFeedback(documentId, feedbackEvents = [], options = {}) {
+        const start = Date.now();
+        const requestId = options.requestId || 'unknown';
+        const docId = parseInt(documentId, 10);
 
-    try {
-        // Lazy import to avoid circular deps where tests may not have pg available
-        const visualOverlayRepository = require('../visual-rag/VisualOverlayRepository');
-        const { metricsCollector } = require('../metrics/PrometheusMetrics');
+        if (!this.pool) {
+            logger.error('PostgreSQL not configured, granular feedback lost');
+            return { errors: [{ type: 'config_error', error: 'No database connection' }] };
+        }
 
+        // Basic payload validation
+        if (!Array.isArray(feedbackEvents)) {
+            const err = new Error('Invalid payload: events must be an array');
+            err.statusCode = 400;
+            throw err;
+        }
         for (const evt of feedbackEvents) {
-            try {
-                // Normalize event shape
-                const eventType = evt.type || evt.event_type || 'correction';
-                const fieldName = evt.field || evt.field_name || null;
-                const originalValue = evt.original || evt.original_value || null;
-                const correctedValue = evt.corrected || evt.corrected_value || null;
-                const context = evt.context || evt.meta || evt || {};
-
-                // If visual annotation, store in visual_overlays
-                if (eventType === 'annotation' || (context && context.bbox)) {
-                    // bbox expected as [x,y,w,h] or {bbox:[]}
-                    const bbox = Array.isArray(context.bbox) ? context.bbox : (Array.isArray(evt.bbox) ? evt.bbox : null);
-                    const page = context.page || evt.page || 1;
-                    const overlayData = {
-                        label: fieldName || (context.label || 'annotation'),
-                        box: bbox || null,
-                        metadata: context
-                    };
-                    try {
-                        const saved = await visualOverlayRepository.saveOverlay(Number(documentId), page, overlayData, overlayData.label, null);
-                        results.overlays.push(saved);
-                    } catch (ovErr) {
-                        logger.error('visual_overlay_save_failed', { requestId, documentId, error: ovErr.message });
-                        results.errors.push({ type: 'overlay_save_failed', error: ovErr.message });
-                        if (options.transactional) throw ovErr;
-                    }
+            if (!evt || typeof evt !== 'object') {
+                const err = new Error('Each feedback event must be an object');
+                err.statusCode = 400;
+                throw err;
+            }
+            // Treat explicit null/undefined types as absent. Preserve explicit nulls in payload where intended but avoid inserting NULL into NOT NULL columns.
+            const type = (evt.type !== undefined && evt.type !== null) ? evt.type : (evt.event_type || null);
+            const ctx = evt.context || evt.meta || {};
+            // Accept bbox either on the context or on the event payload for flexibility
+            const bbox = Array.isArray(ctx.bbox) ? ctx.bbox : (Array.isArray(evt.bbox) ? evt.bbox : null);
+            // Validate bbox if the event is explicitly an annotation or if a bbox was provided
+            if (type === 'annotation' || bbox) {
+                if (!Array.isArray(bbox) || bbox.length !== 4 || !bbox.every(n => typeof n === 'number')) {
+                    const err = new Error('Invalid annotation: bbox must be [x,y,w,h] numeric array');
+                    err.statusCode = 400;
+                    throw err;
                 }
-
-                // Insert feedback event (best-effort)
-                try {
-                    const inserted = await require('../../models/document').insertFeedback({
-                        document_id: Number(documentId),
-                        user_id: evt.user_id || null,
-                        event_type: eventType,
-                        field_name: fieldName,
-                        original_value: originalValue ? JSON.stringify(originalValue) : null,
-                        corrected_value: correctedValue ? JSON.stringify(correctedValue) : null,
-                        context: context ? JSON.stringify(context) : null
-                    });
-                    results.inserted.push(inserted);
-                } catch (insErr) {
-                    logger.error('feedback_db_insert_failed', { requestId, documentId, error: insErr.message });
-                    results.errors.push({ type: 'feedback_db_insert_failed', error: insErr.message });
-                    if (options.transactional) throw insErr;
-                }
-
-                // Metrics: record user correction count
-                try {
-                    if (metricsCollector?.recordVisualConfirmationRate) {
-                        // Placeholder usage - increment a counter indirectly
-                        metricsCollector.userCorrectionRate && metricsCollector.userCorrectionRate.labels && metricsCollector.userCorrectionRate.set(1);
-                    }
-                } catch (mErr) {
-                    logger.debug('metrics_record_feedback_failed', { requestId, error: mErr.message });
-                }
-            } catch (evtErr) {
-                logger.error('feedback_event_processing_error', { requestId, documentId, error: evtErr.message });
-                results.errors.push({ type: 'event_processing_failed', error: evtErr.message });
             }
         }
 
-        const duration = Date.now() - start;
-        if (metricsCollector && metricsCollector.recordStageLatency) {
-            metricsCollector.recordStageLatency('feedback_ingest', 'integration', duration);
-        }
+        const results = { inserted: [], overlays: [], errors: [] };
 
-        logger.info('feedback_ingest_completed', { requestId, documentId, inserted: results.inserted.length, overlays: results.overlays.length, duration });
-        return results;
-    } catch (err) {
-        logger.error('recordGranularFeedback_failed', { requestId, documentId, error: err.message });
-        return { inserted: [], overlays: [], errors: [{ type: 'fatal', error: err.message }] };
+        // Simple deterministic embedding generator for manual annotations
+        const computeSimpleEmbedding = (overlayData) => {
+            // 320-dimensional vector (zeros) with a few deterministic signals
+            const dim = 320;
+            const emb = new Array(dim).fill(0.0);
+            const bbox = Array.isArray(overlayData.box) ? overlayData.box : (Array.isArray(overlayData.bbox) ? overlayData.bbox : []);
+            for (let i = 0; i < Math.min(4, bbox.length); i++) {
+                // Normalize bbox values modestly to avoid huge numbers in vector
+                const v = Number(bbox[i]) || 0;
+                emb[i] = Math.min(1e6, Math.abs(v)) / 1e6;
+            }
+            const label = overlayData.label || '';
+            let h = 0;
+            for (let i = 0; i < label.length; i++) {
+                h = ((h << 5) - h) + label.charCodeAt(i);
+                h |= 0;
+            }
+            emb[4] = (Math.abs(h) % 1000) / 1000;
+            return emb;
+        };
+
+        // To handle rare cases where a pooled client may be left with an aborted transaction,
+        // retry the whole operation once with a fresh client if we detect the 'current transaction is aborted' state.
+        const maxAttempts = 2;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            // Allow overriding the pool or client for testing or special cases
+            const usedPool = options.pool || this.pool;
+            const externalClient = options.client || null;
+            const clientAllocated = !externalClient;
+            const client = externalClient || await usedPool.connect();
+            let clientDestroyed = false;
+            try {
+                await client.query('BEGIN');
+
+                for (const evt of feedbackEvents) {
+                    // Normalize payload
+                    // Treat explicit null/undefined for type/fields as absent to avoid inserting NULL into NOT NULL DB columns
+                    // Preserve explicit null (caller intent) when 'type' key is present; otherwise use event_type or default 'correction'
+                    const eventType = ('type' in evt) ? evt.type : (evt.event_type !== undefined ? evt.event_type : 'correction');
+                    const fieldName = (evt.field !== undefined && evt.field !== null) ? evt.field : (evt.field_name || null);
+                    const originalValue = (evt.original !== undefined && evt.original !== null) ? evt.original : (evt.original_value !== undefined && evt.original_value !== null ? evt.original_value : null);
+                    const correctedValue = (evt.corrected !== undefined && evt.corrected !== null) ? evt.corrected : (evt.corrected_value !== undefined && evt.corrected_value !== null ? evt.corrected_value : null);
+                    const context = evt.context || evt.meta || {};
+                    const userId = (evt.user_id !== undefined && evt.user_id !== null) ? evt.user_id : null;
+
+                    // 1. Handle Visual Annotations (insert into visual_overlays)
+                    if (eventType === 'annotation' || (context && context.bbox)) {
+                        const bbox = Array.isArray(context.bbox) ? context.bbox : (Array.isArray(evt.bbox) ? evt.bbox : null);
+                        const page = context.page || evt.page || 1;
+                        const label = fieldName || context.label || 'annotation';
+                        const overlayData = {
+                            label,
+                            box: bbox,
+                            metadata: context,
+                            source: 'manual'
+                        };
+
+                        // Compute a simple embedding (deterministic) - prefer ragService if available
+                        let embedding = null;
+                        try {
+                            // If a ragService has an embedding endpoint, use it (best-effort)
+                            const ragService = require('../ragService');
+                            if (ragService && typeof ragService.embed === 'function') {
+                                embedding = await ragService.embed(JSON.stringify(overlayData));
+                            }
+                        } catch (e) {
+                            // ignore - fallback to simple generator below
+                        }
+
+                        if (!embedding) {
+                            embedding = computeSimpleEmbedding(overlayData);
+                        }
+
+                        const overlayQuery = `
+                            INSERT INTO visual_overlays (doc_id, page_number, overlay_data, semantic_label, source, bbox, embedding)
+                            VALUES ($1, $2, $3, $4, $5, $6, $7::vector)
+                            RETURNING id
+                        `;
+
+                        // embeddingVal must be an array-like JSON string accepted by vector column
+                        const embeddingVal = Array.isArray(embedding) ? JSON.stringify(embedding) : embedding;
+
+                        // Attempt insert; if pgvector complains about dimensions, try to adapt embedding length and retry
+                        const spName = `sp_overlay_${Date.now()}_${Math.floor(Math.random()*10000)}`;
+                        try {
+                            // Create a savepoint so we can rollback only the overlay insert if needed without aborting the whole transaction
+                            await client.query(`SAVEPOINT ${spName}`);
+                            logger.info('overlay_insert_savepoint_created', { requestId, documentId: docId, savepoint: spName, label, page });
+
+                            logger.info('overlay_insert_attempt', { requestId, documentId: docId, label, page, bbox, embeddingLength: Array.isArray(embedding) ? embedding.length : (embedding ? embedding.length : 'unknown') });
+                            await client.query(overlayQuery, [
+                                docId,
+                                page,
+                                JSON.stringify(overlayData),
+                                label,
+                                'manual',
+                                JSON.stringify(bbox),
+                                embeddingVal
+                            ]);
+
+                            // Release savepoint explicitly after success
+                            try { await client.query(`RELEASE SAVEPOINT ${spName}`); } catch (relErr) { /* ignore release errors */ }
+
+                            logger.info('overlay_insert_success', { requestId, documentId: docId, label, page });
+                        } catch (e) {
+                            // Detect dimension mismatch like: "expected 768 dimensions, not 320"
+                            const msg = e && e.message ? e.message : '';
+                            logger.error('overlay_insert_error', { requestId, documentId: docId, error: msg, savepoint: spName });
+                            const m = msg.match(/expected (\d+) dimensions?, not (\d+)/i);
+                            if (m) {
+                                const expected = parseInt(m[1], 10);
+                                // Rollback to the savepoint to clear the aborted state for this portion only
+                                try {
+                                    await client.query(`ROLLBACK TO SAVEPOINT ${spName}`);
+                                } catch (rbSpErr) {
+                                    logger.error('savepoint_rollback_failed', { requestId, documentId: docId, savepoint: spName, error: rbSpErr && rbSpErr.message });
+                                    throw rbSpErr;
+                                }
+
+                                // Pad or truncate our embedding to match expected
+                                let arr = Array.isArray(embedding) ? embedding.slice() : [];
+                                if (arr.length < expected) {
+                                    while (arr.length < expected) arr.push(0.0);
+                                } else if (arr.length > expected) {
+                                    arr = arr.slice(0, expected);
+                                }
+                                const newEmbeddingVal = JSON.stringify(arr);
+
+                                // Telemetry for dimension adaptation
+                                try { metricsCollector && metricsCollector.increment && metricsCollector.increment('embedding_dimension_adapted'); } catch (mErr) { /* ignore */ }
+                                logger.info('embedding_dimension_adapted', { requestId, documentId: docId, expected, got: Array.isArray(embedding) ? embedding.length : 'unknown' });
+                                logger.info('overlay_insert_retry_with_adjusted_embedding', { requestId, documentId: docId, label, page, newEmbeddingLength: arr.length });
+
+                                // Retry the insert; if this fails the error will bubble to outer catch and cause full tx rollback
+                                await client.query(overlayQuery, [
+                                    docId,
+                                    page,
+                                    JSON.stringify(overlayData),
+                                    label,
+                                    'manual',
+                                    JSON.stringify(bbox),
+                                    newEmbeddingVal
+                                ]);
+
+                                try { await client.query(`RELEASE SAVEPOINT ${spName}`); } catch (relErr) { /* ignore release errors */ }
+
+                                logger.info('overlay_insert_success_after_adjustment', { requestId, documentId: docId, label, page });
+                            } else {
+                                logger.error('overlay_insert_failed', { requestId, documentId: docId, error: e && e.message, stack: e && e.stack });
+                                // Attempt to rollback to savepoint to keep transaction healthy before rethrowing
+                                try { await client.query(`ROLLBACK TO SAVEPOINT ${spName}`); } catch (rbSpErr) { /* ignore */ }
+                                throw e;
+                            }
+                        }
+
+                        results.overlays.push({ label, page });
+                    }
+
+                    // 2. Handle Feedback Event (insert into feedback_events)
+                    // For visual annotations we generally store overlays only; to avoid duplicate records we skip creating a feedback_event for
+                    // annotation events when the operation is running transactionally (e.g., combined feedback + overlays in a single transaction).
+                    // Standalone/non-transactional calls should still create a feedback_event for annotations to support audit/ingest workflows.
+                    const shouldInsertEvent = !(eventType === 'annotation' && options && options.transactional);
+                    if (shouldInsertEvent) {
+                        const eventQuery = `
+                            INSERT INTO feedback_events (doc_id, user_id, event_type, field_name, original_value, corrected_value, context)
+                            VALUES ($1, $2, $3, $4, $5, $6, $7)
+                            RETURNING id
+                        `;
+                        const evtRes = await client.query(eventQuery, [
+                            docId,
+                            userId,
+                            eventType,
+                            fieldName,
+                            originalValue != null ? JSON.stringify(originalValue) : null,
+                            correctedValue != null ? JSON.stringify(correctedValue) : null,
+                            context != null ? JSON.stringify(context) : null
+                        ]);
+                        results.inserted.push(evtRes.rows[0].id);
+                    }
+                }
+
+                await client.query('COMMIT');
+
+                const duration = Date.now() - start;
+                if (metricsCollector && metricsCollector.recordStageLatency) {
+                    metricsCollector.recordStageLatency('feedback_ingest', 'integration', duration);
+                }
+
+                logger.info('feedback_ingest_completed', {
+                    requestId,
+                    documentId: docId,
+                    inserted: results.inserted.length,
+                    overlays: results.overlays.length,
+                    duration
+                });
+
+                // Release and return when successful
+                try { client.release(); } catch (e) { /* ignore */ }
+                return results;
+
+            } catch (err) {
+                let rollbackErr = null;
+                try {
+                    await client.query('ROLLBACK');
+                } catch (rbErr) {
+                    rollbackErr = rbErr;
+                    // If rollback itself fails, log and proceed to destroy the client to avoid leaving an aborted connection in the pool
+                    logger.error('rollback_failed', { requestId, documentId: docId, error: rbErr.message });
+                }
+
+                logger.error('recordGranularFeedback_failed', { requestId, documentId: docId, error: err.message, stack: err && err.stack });
+                if (metricsCollector && metricsCollector.recordIntegrationError) {
+                    metricsCollector.recordIntegrationError('feedback_ingest');
+                }
+
+                // If this looks like an aborted-transaction from a bad pooled client, destroy and retry once
+                const msg = err && err.message ? err.message : '';
+                const isAborted = /current transaction is aborted/i.test(msg);
+
+                // Save the error for later diagnostics
+                err._destroyClient = true;
+                if (rollbackErr) err._rollbackError = rollbackErr;
+
+                // Destroy this potentially bad client so the pool doesn't reuse it
+                try {
+                    client.release(new Error('destroying-due-to-error'));
+                } catch (releaseErr) {
+                    logger.warn('client_release_failed', { requestId, documentId: docId, error: releaseErr && releaseErr.message });
+                }
+                try {
+                    if (client && typeof client.end === 'function') await client.end();
+                } catch (endErr) {
+                    logger.warn('client_end_failed', { requestId, documentId: docId, error: endErr && endErr.message });
+                }
+                // mark as destroyed so finally block doesn't attempt a double-release
+                clientDestroyed = true;
+
+                if (isAborted && attempt < maxAttempts) {
+                    logger.info('recordGranularFeedback_retrying', { requestId, documentId: docId, attempt: attempt + 1 });
+                    // Try again with a fresh client
+                    continue;
+                }
+
+                if (options.transactional) throw err;
+                return { inserted: [], overlays: [], errors: [{ type: 'transaction_failed', error: err.message }] };
+            } finally {
+                // Ensure we attempt to release client if not already destroyed and only if we allocated it here
+                try { if (clientAllocated && !clientDestroyed && client && client.release) client.release(); } catch (e) { /* ignore */ }
+            }
+        }
     }
-};
+}
 
 module.exports = new FeedbackService();

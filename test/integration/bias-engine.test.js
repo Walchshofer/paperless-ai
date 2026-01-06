@@ -107,9 +107,9 @@ before(async function() {
             'bias_requests_total 1\n' +
             '# HELP bias_computation_seconds compute time\n' +
             '# TYPE bias_computation_seconds histogram\n' +
-            'bias_computation_seconds_bucket{le=\"0.01\"} 1\n' +
-            'bias_computation_seconds_bucket{le=\"0.1\"} 1\n' +
-            'bias_computation_seconds_bucket{le=\"+Inf\"} 1\n' +
+            'bias_computation_seconds_bucket{le="0.01"} 1\n' +
+            'bias_computation_seconds_bucket{le="0.1"} 1\n' +
+            'bias_computation_seconds_bucket{le="+Inf"} 1\n' +
             'bias_computation_seconds_sum 0.005\n' +
             'bias_computation_seconds_count 1\n'
         );
@@ -173,7 +173,7 @@ describe('Bias Engine Integration', function() {
             const deadline = Date.now() + 5000;
 
             // Assert
-            return new Promise((resolve, reject) => {
+            return new Promise((resolve) => {
                 client.waitForReady(deadline, (err) => {
                     if (err) {
                         console.log(`Bias engine not reachable at ${getBiasEngineUrl()}`);
@@ -196,7 +196,7 @@ describe('Bias Engine Integration', function() {
             const metricsUrl = getMetricsUrl();
 
             // Act & Assert
-            return new Promise((resolve, reject) => {
+            return new Promise((resolve) => {
                 const req = http.get(metricsUrl, (res) => {
                     assert.strictEqual(res.statusCode, 200, 'Metrics endpoint should return 200');
 
@@ -209,7 +209,7 @@ describe('Bias Engine Integration', function() {
                     });
                 });
 
-                req.on('error', (err) => {
+                req.on('error', () => {
                     console.log('Metrics endpoint not reachable, skipping');
                     this.skip();
                 });
@@ -224,11 +224,6 @@ describe('Bias Engine Integration', function() {
 
     describe('Bias Computation (Mock)', function() {
         it('should compute valid biases for simple regex pattern', function() {
-            // Arrange
-            const pattern = '(Invoice|Contract|Report)';
-            const generatedText = '';
-            const vocabSize = 50257; // GPT-2 vocab size
-
             // Act - Mock the expected response format
             const mockResponse = {
                 token_biases: {
@@ -383,7 +378,7 @@ describe('Guidance Service with Bias Engine', function() {
 
         const guidanceUrl = getGuidanceUrl();
 
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             const req = http.get(`${guidanceUrl}/health`, (res) => {
                 if (res.statusCode === 200) {
                     assert.ok(true, 'Guidance service is healthy');

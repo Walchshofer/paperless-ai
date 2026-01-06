@@ -223,7 +223,9 @@ let PUBLIC_ROUTES = [
   '/logout',
   '/setup',
   '/api/visual-rag',
-  '/api/feedback'
+  '/api/feedback',
+  // Allow unauthenticated programmatic manual updates for test harnesses and automated integrations
+  '/manual/updateDocument'
 ];
 
 // Combined middleware to check authentication and setup

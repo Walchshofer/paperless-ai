@@ -1,41 +1,37 @@
 # Prompt Execution Order and Dependencies
 
 ## Overview
-This document defines the authoritative execution order for implementation prompts 001-007, including dependencies, parallel execution opportunities, and integration checkpoints.
+This document defines the authoritative execution order for implementation and verification prompts 001-017, including dependencies, parallel execution opportunities, and integration checkpoints.
 
 ## Dependency Graph
 
 ```mermaid
 graph TD
+    %% Phase 1: Backend Foundation
     001[001: Feedback Persistence] --> 002[002: Paperless Integration]
+    001 --> 011[011: Verify DB Schema]
+    002 --> 013[013: Verify Telemetry]
+
+    %% Phase 2: Manual Route UI
     002 --> 003[003: Visual Annotation UI]
     002 --> 004[004: Manual Feedback UI]
     003 --> 004
+    004 --> 015[015: Feedback E2E Test]
 
-    005[005: Upgrade Visual Sidecar] --> 006[006: Expose Visual Search API]
-    006 --> 006v[006: Verify Visual Search API]
-    006v --> 007[007: History Split Layout]
-    007 --> 007v[007: Final Integration Test]
-    007v --> 008[008: Implement Visual Red Pen]
-    006 --> 008
+    %% Phase 3: History Route Enhancement
+    005[005: Visual Sidecar] --> 006[006: Visual Search API]
+    006 --> 007[007: Verify Visual Search API]
+    006 --> 014[014: Verify Circuit Breaker]
+    007 --> 008[008: History Split Layout]
+    008 --> 009[009: Visual Red Pen]
+    008 --> 012[012: Verify Frontend Islands]
+    009 --> 010[010: Final Integration Test]
 
-    001 --> 009[009: Verify DB Schema]
-    009 --> 002
-
-    002 --> 011[011: Verify Telemetry]
-    011 --> 003
-
-    004 --> 010[010: Verify Islands]
-    010 --> 007
-
-    006 --> 012[012: Verify Circuit Breaker]
-    012 --> 007
-
-    007v --> 013[013: Feedback E2E Test]
-    009 & 010 & 011 & 012 & 013 --> 014[014: Verification Checklist]
-
-    001 -.->|Shared DB Schema| 005
-    004 -.->|UI Patterns| 007
+    %% Phase 4: Final Verification & Cleanup
+    011 & 012 & 013 & 014 & 015 & 010 --> 016[016: Verification Checklist]
+    
+    %% Independent / Cleanup
+    017[017: Refactor Playground]
 
     style 001 fill:#e1f5ff
     style 002 fill:#e1f5ff
@@ -43,208 +39,76 @@ graph TD
     style 004 fill:#e1f5ff
     style 005 fill:#fff4e1
     style 006 fill:#fff4e1
-    style 006v fill:#dff0d8
-    style 007 fill:#fff4e1
-    style 007v fill:#dff0d8
+    style 007 fill:#dff0d8
     style 008 fill:#fff4e1
+    style 009 fill:#fff4e1
+    style 010 fill:#dff0d8
+    style 011 fill:#dff0d8
+    style 012 fill:#dff0d8
+    style 013 fill:#dff0d8
+    style 014 fill:#dff0d8
+    style 015 fill:#dff0d8
+    style 016 fill:#dff0d8
+    style 017 fill:#f9f9f9
 ```
 
 ## Execution Phases
 
 ### Phase 1: Backend Foundation (Sequential)
-**Prompts:** 001 → 002
-**Duration:** ~2-3 days
+**Prompts:** 001, 011, 002, 013
 **Blocking:** Must complete before Phase 2
 
-**001: Implement Feedback Persistence**
-- **Dependencies:** None (foundation)
-- **Outputs:** Database migration, FeedbackService, API endpoint
-- **Verification:** Run migration, execute tests, verify schema
-- **Blocks:** 002, 003, 004
-
-**002: Enhance Paperless Integration**
-- **Dependencies:** 001 (requires FeedbackService)
-- **Outputs:** Updated PaperlessService, orchestrator route
-- **Verification:** Test custom fields update, orchestration flow
-- **Blocks:** 003, 004
+- **001: Implement Feedback Persistence** (Foundation)
+- **011: Verification: Database Schema** (Verifies 001)
+- **002: Enhance Paperless Integration** (Depends on 001)
+- **013: Verification: Telemetry** (Verifies 002/System)
 
 ### Phase 2: Manual Route UI (Parallel Possible)
-**Prompts:** 003 + 004 (can start 003 early, but 004 depends on 003)
-**Duration:** ~3-4 days
+**Prompts:** 003, 004, 015
 **Blocking:** Independent from History Route (Phase 3)
 
-**003: Implement Visual Annotation UI**
-- **Dependencies:** 002 (requires orchestrator route)
-- **Outputs:** Updated manual.ejs, annotation JavaScript
-- **Verification:** Test drawing, coordinate capture, modal display
-- **Blocks:** 004
-- **Parallel Opportunity:** Can start while 002 is in verification
-
-**004: Implement Manual Feedback UI**
-- **Dependencies:** 002, 003 (requires orchestrator + annotation state)
-- **Outputs:** Updated manual.ejs, form logic, unified payload
-- **Verification:** Test payload structure, feedback controls, save flow
-- **Blocks:** None (end of Manual Route sequence)
+- **003: Implement Visual Annotation UI** (Depends on 002)
+- **004: Implement Manual Feedback UI** (Depends on 003)
+- **015: Integration Feedback E2E** (Verifies 004 + 001 flow)
 
 ### Phase 3: History Route Enhancement (Parallel with Phase 2)
-**Prompts:** 005 → 006 → 006-verify → 007 → 007-final-test → 008
-**Duration:** ~3-5 days
-**Blocking:** Independent from Manual Route (can run in parallel)
+**Prompts:** 005, 006, 007, 014, 008, 012, 009, 010
 
-**005: Upgrade Visual Sidecar**
-- **Dependencies:** None (independent Python service)
-- **Outputs:** Updated main.py, image search endpoint
-- **Verification:** Test image query endpoint, verify results
-- **Blocks:** 006
-- **Parallel Opportunity:** Can execute simultaneously with 003-004
+- **005: Upgrade Visual Sidecar** (Independent Python service)
+- **006: Expose Visual Search API** (Depends on 005)
+- **007: Verify Visual Search API** (Standalone verification for 006)
+- **014: Verification: Circuit Breaker** (Verifies 006 resilience)
+- **008: Implement History Split Layout** (Depends on 007)
+- **012: Verification: Frontend Islands** (Verifies 008/Islands architecture)
+- **009: Implement Visual Red Pen** (Depends on 008)
+- **010: Final Integration Test** (Verifies History Route E2E)
 
-**006: Expose Visual Search API**
-- **Dependencies:** 005 (requires sidecar image search)
-- **Outputs:** Updated VisualSearchClient, API route
-- **Verification:** Test API endpoint, proxy to sidecar
-- **Blocks:** 006-verify
+### Phase 4: Final Verification & Cleanup
+**Prompts:** 016, 017
 
-**006-verify: Verify Visual Search API (Standalone Verification Prompt)**
-- **Dependencies:** 006 (implementation)
-- **Outputs:** Contract tests, scripts, verification summary
-- **Verification:** Run `006-verify-existing-logic.md` verification steps
-- **Blocks:** 007
-
-**007: Implement History Split Layout**
-- **Dependencies:** 006-verify (requires verified API)
-- **Outputs:** Updated history-document.ejs, layout CSS
-- **Verification:** Test split pane, image loading, tab navigation
-- **Blocks:** 007-final-test
-
-**007-final-test: Final Integration Test (Standalone Verification Prompt)**
-- **Dependencies:** 007 (implementation), 006-verify, 008 (Red Pen) ideally available
-- **Outputs:** E2E test artifacts, verification summary
-- **Verification:** Run `007-final-integration-test.md` verification steps
-- **Blocks:** 008 (if not yet executed) or Completion
-
-**008: Implement Visual Red Pen**
-- **Dependencies:** 006 (API) and 007 (layout)
-- **Outputs:** `history-document` client-side drawing, search trigger, results UI
-- **Verification:** Test drawing to search flow and results rendering
-- **Blocks:** None (end of History Route sequence)
-
-## Parallel Execution Strategy
-
-### Optimal Parallelization
-```
-Timeline:
-Day 1-2:   001 (Sequential - Foundation)
-Day 2-3:   002 (Sequential - Orchestration)
-Day 3-5:   003 + 005 (Parallel - Independent tracks)
-Day 5-7:   004 + 006 (Parallel - Independent tracks)
-Day 7-8:   007 (Final - History Route completion)
-```
-
-### Team Assignment (if multiple developers)
-- **Developer A (Backend Focus):** 001 → 002 → Support 003/004
-- **Developer B (Python/Sidecar):** 005 → 006 → 007
-- **Developer C (Frontend):** 003 → 004 (starts after 002)
+- **016: Verification Checklist** (Consolidated gates for all previous steps)
+- **017: Refactor Playground** (Cleanup task, can be done anytime, ideally after core features)
 
 ## Integration Checkpoints
 
-### Checkpoint 1: Database Schema Validation
-**After:** 001
-**Verify:**
-- PostgreSQL migration successful
-- `feedback_events` table exists with correct schema
-- `visual_overlays` table supports manual annotations
-- Indexes created correctly
+### Checkpoint 1: Database & Telemetry
+**After:** 001, 011, 002, 013
+**Verify:** Schema correct, Telemetry propagating.
 
-### Checkpoint 2: Orchestration Flow
-**After:** 002
-**Verify:**
-- PaperlessService custom fields logic functional
-- Orchestrator route handles unified payload
-- Feedback recording integrated with Paperless updates
-- Error handling for partial failures
+### Checkpoint 2: Manual Feedback Loop
+**After:** 004, 015
+**Verify:** Full E2E flow from Manual UI to DB to Paperless.
 
-### Checkpoint 3: Manual Route UI Complete
-**After:** 004
-**Verify:**
-- Visual annotation drawing works end-to-end
-- Feedback controls capture user input
-- Unified payload sent to orchestrator
-- Database records created correctly
+### Checkpoint 3: Visual Search Pipeline
+**After:** 006, 007, 014
+**Verify:** Sidecar integration, API contracts, Circuit Breaker.
 
-### Checkpoint 4: Visual Search Pipeline
-**After:** 006
-**Verify:**
-- Sidecar accepts image queries
-- Node.js API proxies correctly
-- Results returned with proper format
-- Circuit breaker integration (if applicable)
-
-### Checkpoint 5: Full Integration
-**After:** 007
-**Verify:**
-- Manual Route: Complete feedback loop (UI → API → DB → Paperless)
-- History Route: Visual search functional (UI → API → Sidecar → Results)
-- Cross-route consistency (shared components, styling)
-- No regressions in existing functionality
+### Checkpoint 4: History Route & Islands
+**After:** 008, 009, 012, 010
+**Verify:** Split layout, Islands architecture, Red Pen interaction.
 
 ## Rollback Procedures
-
-### Database Rollback (001)
-If migration fails or schema issues detected:
-1. Create rollback migration: `migrations/002_rollback_feedback_events.sql`
-2. Drop tables: `DROP TABLE IF EXISTS feedback_events;`
-3. Remove indexes
-4. Document rollback in summary
-
-### Service Rollback (002, 005, 006)
-If service changes cause issues:
-1. Revert file changes via git
-2. Restart affected services
-3. Verify existing functionality restored
-4. Document issues in summary
-
-### UI Rollback (003, 004, 007)
-If UI changes cause issues:
-1. Revert EJS template changes
-2. Remove new JavaScript files
-3. Clear browser cache
-4. Verify existing UI functional
-
-## Verification Checklist
-
-### Per-Prompt Verification
-- [ ] All inline `<verification>` steps completed
-- [ ] Tests passing (if applicable)
-- [ ] Manual testing confirms expected behavior
-- [ ] No console errors or warnings
-- [ ] Summary document generated
-
-### Integration Verification
-- [ ] Database schema matches documentation
-- [ ] API endpoints respond correctly
-- [ ] UI components render without errors
-- [ ] Feedback loop complete (Manual Route)
-- [ ] Visual search functional (History Route)
-- [ ] No performance regressions
-
-## Next Steps After Completion
-
-### Documentation Updates
-- Update `docs/FEEDBACK_PERSISTENCE_STRATEGY.md` with actual implementation details
-- Update `docs/VISUAL_RAG_INTEGRATION.md` with new API contracts
-- Update `docs/FRONTEND_ARCHITECTURE.md` if UI patterns changed
-
-### Testing
-- Add integration tests for feedback flow
-- Add E2E tests for visual search
-- Update test documentation
-
-### Monitoring
-- Verify telemetry hooks emitting events
-- Check Prometheus metrics recording
-- Validate structured logging
-
-## References
-- Enhancement Plans: `planning/MANUAL-ROUTE-UI-ENHANCEMENT-PLAN.md`, `planning/HISTORY-ROUTE-ENHANCEMENT-PLAN.md`
-- Architecture: `docs/FRONTEND_ARCHITECTURE.md`, `docs/FEEDBACK_PERSISTENCE_STRATEGY.md`
-- Prompt Structure: `README.md` (this directory)
+See individual prompts for specific rollback steps. Generally:
+- **DB:** Run rollback migrations.
+- **Code:** Revert git commits.
+- **Services:** Restart services.

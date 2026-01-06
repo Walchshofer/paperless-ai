@@ -1,100 +1,70 @@
 # Implementation Prompts Directory
 
 ## Purpose
-This directory contains structured implementation prompts for AI agents executing feature development tasks. Each prompt follows a standardized format to ensure consistency, traceability, and verification.
+This directory contains structured implementation and verification prompts for AI agents executing feature development tasks.
 
 ## Directory Structure
-- `001-008`: Active implementation prompts (numbered sequence)
+- `001-017`: Active prompts (numbered sequence)
 - `planning/`: Enhancement plans and architectural documents
 - `completed/`: Archived prompts after successful execution
 - `summaries/`: Machine-readable summaries generated after prompt completion
 
+## Current Prompt Sequence
+
+### Active Prompts (001-017)
+See `EXECUTION_ORDER.md` for detailed sequencing and dependencies.
+
+**Phase 1: Backend Foundation**
+- `001-implement-feedback-persistence.md`
+- `011-verification-db-schema.md`
+- `002-enhance-paperless-integration.md`
+- `013-verification-telemetry.md`
+
+**Phase 2: Manual Route UI**
+- `003-implement-visual-annotation-ui.md`
+- `004-implement-manual-feedback-ui.md`
+- `015-integration-feedback-e2e.md`
+
+**Phase 3: History Route Enhancement**
+- `005-upgrade-visual-sidecar.md`
+- `006-expose-visual-search-api.md`
+- `007-verify-visual-search-api.md`
+- `014-verification-circuit-breaker.md`
+- `008-implement-history-split-layout.md`
+- `012-verification-frontend-islands.md`
+- `009-implement-visual-red-pen.md`
+- `010-final-integration-test.md`
+
+**Phase 4: Final Verification & Cleanup**
+- `016-verification-checklist.md`
+- `017-refactor-playground.md`
+
 ## Prompt Naming Convention
 Format: `NNN-brief-description.md`
-- NNN: Three-digit sequence number (001, 002, etc.)
-- brief-description: Kebab-case summary of the prompt's objective
+- NNN: Three-digit sequence number
+- brief-description: Kebab-case summary
 
 ## Prompt Structure (Standard Format)
 All implementation prompts follow this XML-like structure:
-
-<objective>
-  Clear, concise statement of what this prompt accomplishes
-  Reference to the enhancement plan phase
-</objective>
-
-<context>
-  Background information, current state, and references to related documentation
-  Links to planning documents and previous prompts
-</context>
-
-<requirements>
-  Numbered list of specific implementation requirements
-  Technical specifications and constraints
-</requirements>
-
-<implementation>
-  Implementation guidelines and patterns to follow
-  References to existing code patterns
-</implementation>
-
-<output>
-  List of files to be created or modified
-  Use relative paths from project root
-</output>
-
-<verification>
-  Manual verification steps to confirm implementation success
-  Test commands and expected outcomes
-</verification>
-
-<lifecycle>
-  Post-completion actions (summary generation, archival)
-</lifecycle>
-
-## Current Prompt Sequence
-
-### Active Prompts (001-008)
-See `EXECUTION_ORDER.md` for detailed sequencing and dependencies.
-
-**Manual Route UI Enhancement (Prompts 001-004):**
-- 001: Implement feedback persistence (PostgreSQL + pgvector)
-- 002: Enhance Paperless integration (custom fields + orchestration)
-- 003: Implement visual annotation UI (Red Pen drawing tool)
-- 004: Implement manual feedback UI (unified editor + save logic)
-
-**History Route Visual Enhancement (Prompts 005-008):**
-- 005: Upgrade visual sidecar (image-based search capability)
-- 006: Expose visual search API (Node.js gateway + client)
-- 007: Implement history split layout (split-screen UI preparation)
-- 008: Implement visual Red Pen (draw-to-search interaction)
+- `<objective>`
+- `<context>`
+- `<requirements>`
+- `<implementation>`
+- `<output>`
+- `<verification>`
+- `<lifecycle>`
 
 ## Verification Strategy
-Most prompts include an inline `<verification>` section with manual verification steps. Additionally, standalone verification prompt files exist for certain implementation prompts (e.g., `006-verify-existing-logic.md` and `007-final-integration-test.md`) when dedicated verification is required. Verification is performed:
-1. **During implementation:** Developer follows inline verification steps (or runs standalone verification prompts where applicable)
-2. **After completion:** Summary document confirms verification results
-3. **Before archival:** Prompt is moved to `completed/` only after successful verification
+- **Inline Verification:** Most implementation prompts include a `<verification>` section.
+- **Standalone Verification:** Specific prompts (e.g., `007`, `010-016`) are dedicated to verification and testing of complex subsystems or integration flows.
+- **Checklist:** Prompt `016` provides a consolidated checklist for all verification gates.
 
 ## Lifecycle Management
-
-### Prompt Execution Flow
-1. **Pre-execution:** Review prompt requirements and context
-2. **Implementation:** Follow requirements and implementation guidelines
-3. **Verification:** Execute inline verification steps
-4. **Summary Generation:** Create machine-readable summary in `summaries/`
-5. **Archival:** Move completed prompt to `completed/`
-
-### Summary Document Format
-Location: `prompts/summaries/NNN-brief-description-summary.md`
-Content: Machine-readable summary of changes, verification results, and next steps
-
-## Dependencies and Sequencing
-See `EXECUTION_ORDER.md` for:
-- Detailed dependency graph
-- Parallel vs sequential execution guidance
-- Integration checkpoints
-- Rollback procedures
+1. **Pre-execution:** Review prompt and `EXECUTION_ORDER.md`.
+2. **Implementation/Verification:** Execute the prompt.
+3. **Summary:** Generate a summary with a .md fileending`summaries/`.
+4. **Archival:** Move to `completed/` upon success.
 
 ## References
-- Enhancement Plans: `planning/MANUAL-ROUTE-UI-ENHANCEMENT-PLAN.md`, `planning/HISTORY-ROUTE-ENHANCEMENT-PLAN.md`
-- Architecture: `docs/FRONTEND_ARCHITECTURE.md`, `docs/FEEDBACK_PERSISTENCE_STRATEGY.md`
-- Execution Order: `EXECUTION_ORDER.md` (this directory)
+- `EXECUTION_ORDER.md`: Authoritative dependency graph.
+- `docs/`: Project documentation.
