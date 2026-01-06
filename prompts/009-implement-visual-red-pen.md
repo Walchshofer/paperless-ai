@@ -4,9 +4,9 @@ This is Phase 3 (Part 2) of the History Route Enhancement Plan.
 </objective>
 
 <context>
-With the layout established (Prompt 007) and the API ready (Prompts 005-006), we now connect the pieces. Users will draw on the document, and the system will search for visually similar matches.
+With the layout established (Prompt 008) and the API ready (Prompts 005-006), we now connect the pieces. Users will draw on the document, and the system will search for visually similar matches.
 **Plan Reference:** `prompts/planning/HISTORY-ROUTE-ENHANCEMENT-PLAN.md` (Phase 3)
-**Previous Context:** `prompts/summaries/007-implement-history-split-layout-summary.md`
+**Previous Context:** `prompts/summaries/008-implement-history-split-layout-summary.md`
 </context>
 
 <requirements>
@@ -47,7 +47,7 @@ With the layout established (Prompt 007) and the API ready (Prompts 005-006), we
 </verification>
 
 <lifecycle>
-1. Upon completion, generate summary: `prompts/summaries/008-implement-visual-red-pen-summary.md`
+1. Upon completion, generate summary: `prompts/summaries/009-implement-visual-red-pen-summary.md`
 2. Update `docs/RAG_SYSTEMS_REFERENCE.md` with usage details.
-3. Move this prompt to `prompts/completed/008-implement-visual-red-pen.md`
+3. Move this prompt to `prompts/completed/009-implement-visual-red-pen.md`
 </lifecycle>

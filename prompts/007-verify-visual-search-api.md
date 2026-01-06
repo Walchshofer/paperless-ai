@@ -46,7 +46,7 @@ This prompt validates `006-expose-visual-search-api.md` implementation and the s
 - `test/visual-search.contract.test.js` (Created)
 - `test/fixtures/visual_search/*` (Created)
 - `scripts/test_visual_search.sh` (Created)
-- `prompts/summaries/006-verify-existing-logic-summary.md` (Created after verification)
+- `prompts/summaries/007-verify-visual-search-api-summary.md` (Created after verification)
 </output>
 
 <verification>
@@ -58,6 +58,6 @@ This prompt validates `006-expose-visual-search-api.md` implementation and the s
 </verification>
 
 <lifecycle>
-1. Upon completion, generate summary: `prompts/summaries/006-verify-existing-logic-summary.md` with test results and metrics.
-2. Move this prompt to `prompts/completed/006-verify-existing-logic.md` after successful verification.
+1. Upon completion, generate summary: `prompts/summaries/007-verify-visual-search-api-summary.md` with test results and metrics.
+2. Move this prompt to `prompts/completed/007-verify-visual-search-api.md` after successful verification.
 </lifecycle>

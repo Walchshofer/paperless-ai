@@ -12,7 +12,7 @@ Current state:
 - `feedback_events` table does NOT exist.
 Reference docs:
 - @paperless-ai/docs/FEEDBACK_PERSISTENCE_STRATEGY.md (Authoritative schema)
-- @MANUAL-ROUTE-UI-ENHANCEMENT-PLAN.md
+- @prompts/planning/MANUAL-ROUTE-UI-ENHANCEMENT-PLAN.md
 </context>
 
 <requirements>

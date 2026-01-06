@@ -6,7 +6,7 @@ Validate `request_id` propagation, required structured logging fields, and prese
 
 <context>
 Observability is critical for debugging and auditability. The checks below align with docs/OBSERVABILITY_AND_TELEMETRY.md and validate that tracing and metrics exist for feedback ingestion and visual pipeline events.
-References: docs/OBSERVABILITY_AND_TELEMETRY.md, prompts/014-verification-checklist.md
+References: docs/OBSERVABILITY_AND_TELEMETRY.md, prompts/016-verification-checklist.md
 </context>
 
 <requirements>

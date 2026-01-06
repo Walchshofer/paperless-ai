@@ -31,13 +31,14 @@ Per `docs/FRONTEND_ARCHITECTURE.md`, History view interactive pieces should be i
        <div class="md:col-span-2" data-island="history-tabs-island" data-testid="history-tabs" data-props='<%- JSON.stringify({ documentId, content }) %>'></div>
      </div>
      ```
+   - **Registry**: Register `OverlayViewerIsland` and `HistoryTabsIsland` in `src/islands/runtime.ts` mapping to `overlay-viewer-island` and `history-tabs-island`.
 
 4. **Testing & Automation**:
    - Add Zod contract unit tests and an E2E skeleton that verifies `data-testid` values and that tabs render correctly.
    - Ensure `history-tabs-island` has `data-testid` for each tab (e.g., `data-testid="tab-similar"`).
 
 5. **Documentation**:
-   - Update prompt content and add example `data-island` mounting snippets to `prompts/007-implement-history-split-layout.md`.
+   - Update prompt content and add example `data-island` mounting snippets to `prompts/008-implement-history-split-layout.md`.
 </requirements>
 
 <implementation>

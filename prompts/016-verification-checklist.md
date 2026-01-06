@@ -7,11 +7,11 @@ Provide a consolidated, CI-friendly checklist that references verification promp
 <context>
 This file consolidates verification steps created as individual prompts for auditability and CI gating. It is intended to be referenced by reviewers and CI jobs implementing verification gates.
 References:
-- prompts/009-verification-db-schema.md
-- prompts/010-verification-frontend-islands.md
-- prompts/011-verification-telemetry.md
-- prompts/012-verification-circuit-breaker.md
-- prompts/013-integration-feedback-e2e.md
+- prompts/011-verification-db-schema.md
+- prompts/012-verification-frontend-islands.md
+- prompts/013-verification-telemetry.md
+- prompts/014-verification-circuit-breaker.md
+- prompts/015-integration-feedback-e2e.md
 </context>
 
 <requirements>

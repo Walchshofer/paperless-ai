@@ -7,7 +7,7 @@ This is Phase 2 of the Manual Route UI Enhancement Plan.
 The "Manual Route" allows users to edit document metadata. We need to upgrade this to:
 1. Support writing Custom Fields back to Paperless-ngx.
 2. Act as an orchestrator that saves changes to Paperless-ngx AND persists feedback signals to our local `feedback_events` table simultaneously.
-Reference: @MANUAL-ROUTE-UI-ENHANCEMENT-PLAN.md
+Reference: @prompts/planning/MANUAL-ROUTE-UI-ENHANCEMENT-PLAN.md
 </context>
 
 <requirements>

@@ -12,6 +12,17 @@ on:
 jobs:
   verification-fast:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: elfman
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: paperless_test
+        options: >-
+          --health-cmd "pg_isready -U elfman -d paperless_test" --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
@@ -22,11 +33,13 @@ jobs:
         run: npm ci
       - name: Run DB schema check
         env:
-          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
+          POSTGRES_URL: 'postgres://elfman:password@localhost:5432/paperless_test'
         run: node scripts/check-db-schema.js || true
       - name: Run Islands check
         run: node scripts/check-islands.js || true
       - name: Run unit tests
+        env:
+          POSTGRES_URL: 'postgres://elfman:password@localhost:5432/paperless_test'
         run: npm test
       - name: Upload test artifacts
         if: failure()

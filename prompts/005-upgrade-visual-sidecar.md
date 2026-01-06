@@ -21,6 +21,9 @@ The current sidecar (``main.py``) only supports text-to-visual search. To allow 
 
 3. **Documentation**:
    - Update docstrings in ``main.py``.
+
+4. **Model Constraint**:
+   - **CRITICAL**: Ensure the model used is strictly `TomoroAI/tomoro-colqwen3-embed-8b`. Raise a startup error if `VISUAL_RAG_MODEL` is set to `vidore/colqwen2-v1.0` or any other unsupported model, as per `docs/VISUAL_RAG_INTEGRATION.md`.
 </requirements>
 
 <implementation>

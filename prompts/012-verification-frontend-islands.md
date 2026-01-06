@@ -13,6 +13,7 @@ References: docs/FRONTEND_ARCHITECTURE.md
 1. `src/ui/contracts/*.contract.ts` must exist for every island and export a Zod schema.
 2. Views must render `data-island` anchors with `data-props` JSON and `data-testid` attributes for interactive elements.
 3. Playwright available to run an inventory crawler and baseline comparisons.
+4. **Registry Verification**: Ensure `src/islands/runtime.ts` contains mappings for all detected islands.
 </requirements>
 
 <implementation>
@@ -30,6 +31,7 @@ References: docs/FRONTEND_ARCHITECTURE.md
 <verification>
 - Unit tests: all Zod schemas accept valid example props and reject invalid props.
 - Inventory: Playwright crawler yields the expected islands and `data-testid` values matching the baseline.
+- Registry: Verify `src/islands/runtime.ts` imports and maps all islands found in `src/islands/*.tsx`.
 - Server: Rendering a view with malformed `vm` results in a logged parsing error and a 500 response in dev/test modes.
 </verification>
 

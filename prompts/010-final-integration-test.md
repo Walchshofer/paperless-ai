@@ -1,15 +1,15 @@
 <objective>
-Perform end-to-end integration and acceptance verification for the History Split Layout (Prompt 007) and the Visual Search pipeline (Prompts 005-006).
+Perform end-to-end integration and acceptance verification for the History Split Layout (Prompt 008) and the Visual Search pipeline (Prompts 005-006).
 This final integration test ensures that the user flow (UI draw → search API → results UI) works end-to-end and that telemetry, persistence, and error handling are correct.
 </objective>
 
 <context>
-This prompt validates the integration between the history split layout, the visual search API, and the visual "Red Pen" tool (Prompt 008). It should be executed after Prompts 005, 006, 007, and 008 are implemented and after `006-verify-existing-logic.md` has run.
+This prompt validates the integration between the history split layout, the visual search API, and the visual "Red Pen" tool (Prompt 009). It should be executed after Prompts 005, 006, 008, and 009 are implemented and after `007-verify-visual-search-api.md` has run.
 
 **References:**
-- `prompts/007-implement-history-split-layout.md`
-- `prompts/008-implement-visual-red-pen.md`
-- `prompts/006-verify-existing-logic.md`
+- `prompts/008-implement-history-split-layout.md`
+- `prompts/009-implement-visual-red-pen.md`
+- `prompts/007-verify-visual-search-api.md`
 - Architecture: `docs/VISUAL_RAG_INTEGRATION.md`
 </context>
 
@@ -41,7 +41,7 @@ This prompt validates the integration between the history split layout, the visu
 <output>
 - `test/e2e/history_visual_search.spec.js` (Created)
 - `test/fixtures/e2e/*` (Created)
-- `prompts/summaries/007-final-integration-test-summary.md` (Created after verification)
+- `prompts/summaries/010-final-integration-test-summary.md` (Created after verification)
 </output>
 
 <verification>
@@ -52,6 +52,6 @@ This prompt validates the integration between the history split layout, the visu
 </verification>
 
 <lifecycle>
-1. Upon completion, generate summary: `prompts/summaries/007-final-integration-test-summary.md`.
-2. Move this prompt to `prompts/completed/007-final-integration-test.md` after successful verification.
+1. Upon completion, generate summary: `prompts/summaries/010-final-integration-test-summary.md`.
+2. Move this prompt to `prompts/completed/010-final-integration-test.md` after successful verification.
 </lifecycle>

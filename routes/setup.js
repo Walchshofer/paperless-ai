@@ -16,8 +16,6 @@ const fs = require('fs').promises;
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const cookieParser = require('cookie-parser');
-const { authenticateJWT, isAuthenticated } = require('./auth.js');
 const logger = require('../services/logger');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const customService = require('../services/customService.js');
@@ -27,6 +25,9 @@ const { pdfRenderer } = require('../services/visual-rag/PDFRenderer');
 const axios = require('axios');
 const config = require('../config/config.js');
 require('dotenv').config({ path: '../data/.env' });
+
+// Global task lock
+let runningTask = false;
 
 // Simple in-memory cache for expert models to avoid frequent registry scans
 const _expertModelsCache = {
@@ -215,8 +216,6 @@ const upsertModelLimit = (limits, modelName, kind, contextWindowInput, maxRespon
  *           example: "#FF5733"
  */
 
-// API endpoints that should not redirect
-const API_ENDPOINTS = ['/health'];
 // Routes that don't require authentication
 let PUBLIC_ROUTES = [
   '/health',
@@ -249,7 +248,7 @@ router.use(async (req, res, next) => {
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
       req.user = decoded;
-    } catch (error) {
+    } catch {
       res.clearCookie('jwt');
       return res.redirect('/login');
     }
@@ -284,7 +283,7 @@ const protectApiRoute = (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
     next();
-  } catch (error) {
+  } catch {
     return res.status(403).json({ message: 'Invalid or expired token' });
   }
 };
@@ -572,6 +571,11 @@ router.get('/sampleData/:id', async (req, res) => {
     //get all correspondents from one document by id
     const document = await paperlessService.getDocument(req.params.id);
     const correspondents = await paperlessService.getCorrespondentsFromDocument(document.id);
+    
+    res.json({
+      document,
+      correspondents
+    });
 
   } catch (error) {
     console.error('[ERRO] loading sample data:', error);
@@ -710,7 +714,7 @@ router.get('/thumb/:documentId', async (req, res) => {
       res.setHeader('Content-Type', 'image/png');
       return res.sendFile(path.resolve(cachePath));
       
-    } catch (err) {
+    } catch {
       // File existiert nicht im Cache, hole es von Paperless
       console.log('Thumbnail not cached, fetching from Paperless');
       
@@ -1348,7 +1352,6 @@ router.get('/api/ollama/models', async (req, res) => {
 router.get('/history', async (req, res) => {
   try {
     const allTags = await paperlessService.getTags();
-    const tagMap = new Map(allTags.map(tag => [tag.id, tag]));
 
     // Get all correspondents for filter dropdown
     const historyDocuments = await documentModel.getAllHistory();
@@ -1860,6 +1863,11 @@ try {
       console.error('Failed to get own user ID. Abort scanning.');
       return;
     }
+
+    if (runningTask) {
+      return res.status(409).json({ error: 'Scan already in progress' });
+    }
+    runningTask = true;
     
       try {
         let [existingTags, documents, ownUserId, existingCorrespondentList, existingDocumentTypes] = await Promise.all([
@@ -3232,7 +3240,6 @@ async function processQueue(customPrompt) {
 router.post('/api/webhook/document', async (req, res) => {
   try {
     const { url, prompt } = req.body;
-    let usePrompt = false;
     if (!url) {
       return res.status(400).send('Missing document URL');
     }
@@ -3247,7 +3254,6 @@ router.post('/api/webhook/document', async (req, res) => {
       
       documentQueue.push(document);
       if (prompt) {
-        usePrompt = true;
         logger.debug('Using custom prompt: %s', prompt);
         await processQueue(prompt);
       } else {
@@ -3394,12 +3400,7 @@ router.get('/dashboard', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/settings', async (req, res) => {
-  const processSystemPrompt = (prompt) => {
-    if (!prompt) return '';
-    return prompt.replace(/\\n/g, '\n');
-  };
-
+router.get('/settings', protectApiRoute, async (req, res) => {
   const normalizeArray = (value) => {
     if (!value) return [];
     if (Array.isArray(value)) return value;
@@ -3838,7 +3839,7 @@ router.get('/debug/correspondents', async (req, res) => {
  */
 router.post('/manual/analyze', express.json(), async (req, res) => {
   try {
-    const { content, existingTags, id } = req.body;
+    const { content, id } = req.body;
     let existingCorrespondentList = await paperlessService.listCorrespondentsNames();
     existingCorrespondentList = existingCorrespondentList.map(correspondent => correspondent.name);
     let existingTagsList = await paperlessService.listTagNames();
@@ -4101,7 +4102,7 @@ router.post('/manual/analyze-visual', express.json(), async (req, res) => {
  */
 router.post('/manual/playground', express.json(), async (req, res) => {
   try {
-    const { content, existingTags, prompt, documentId } = req.body;
+    const { content, prompt, documentId } = req.body;
     
     if (!content || typeof content !== 'string') {
       console.log('Invalid content received:', content);
@@ -4422,7 +4423,7 @@ router.get('/health', async (req, res) => {
     // }
     try {
       await documentModel.isDocumentProcessed(1);
-    } catch (error) {
+    } catch {
       return res.status(503).json({ 
         status: 'database_error',
         message: 'Database check failed'
@@ -4714,7 +4715,9 @@ router.post('/setup', express.json(), async (req, res) => {
 
 
     // Initialize paperlessService with the new credentials
-    const paperlessApiUrl = paperlessUrl + '/api';
+    const cleanPaperlessUrl = paperlessUrl ? paperlessUrl.replace(/\/+$/, '') : '';
+    const paperlessApiUrl = cleanPaperlessUrl + '/api';
+    
     const initSuccess = await paperlessService.initializeWithCredentials(paperlessApiUrl, paperlessToken);
     
     if (!initSuccess) {
@@ -4805,6 +4808,49 @@ router.post('/setup', express.json(), async (req, res) => {
       OLLAMA_EXPERT_MAX_RESPONSE_TOKENS: ollamaExpertMaxResponseTokens || '',
       TRANSLATION_CONTEXT_WINDOW: translationContextWindow || '',
       TRANSLATION_MAX_TOKENS: translationMaxTokens || '',
+      
+      // Medical Domain
+      MEDICAL_VISION_MODEL: medicalVisionModel || '',
+      MEDICAL_ANALYSIS_MODEL: medicalAnalysisModel || '',
+      MEDICAL_RADIOLOGY_MODEL: medicalRadiologyModel || '',
+      MEDICAL_VISION_CONTEXT_WINDOW: medicalVisionContextWindow || '',
+      MEDICAL_VISION_MAX_RESPONSE_TOKENS: medicalVisionMaxResponseTokens || '',
+      MEDICAL_ANALYSIS_CONTEXT_WINDOW: medicalAnalysisContextWindow || '',
+      MEDICAL_ANALYSIS_MAX_RESPONSE_TOKENS: medicalAnalysisMaxResponseTokens || '',
+      MEDICAL_RADIOLOGY_CONTEXT_WINDOW: medicalRadiologyContextWindow || '',
+      MEDICAL_RADIOLOGY_MAX_RESPONSE_TOKENS: medicalRadiologyMaxResponseTokens || '',
+      
+      // Financial Domain
+      FINANCIAL_VISION_MODEL: financialVisionModel || '',
+      FINANCIAL_ANALYSIS_MODEL: financialAnalysisModel || '',
+      VAT_EXPERT_MODEL: financialVatExpertModel || '',
+      FINANCIAL_VISION_CONTEXT_WINDOW: financialVisionContextWindow || '',
+      FINANCIAL_VISION_MAX_RESPONSE_TOKENS: financialVisionMaxResponseTokens || '',
+      FINANCIAL_ANALYSIS_CONTEXT_WINDOW: financialAnalysisContextWindow || '',
+      FINANCIAL_ANALYSIS_MAX_RESPONSE_TOKENS: financialAnalysisMaxResponseTokens || '',
+      VAT_EXPERT_CONTEXT_WINDOW: financialVatExpertContextWindow || '',
+      VAT_EXPERT_MAX_RESPONSE_TOKENS: financialVatExpertMaxResponseTokens || '',
+      
+      // Legal Domain
+      LEGAL_VISION_MODEL: legalVisionModel || '',
+      LEGAL_ANALYSIS_MODEL: legalAnalysisModel || '',
+      LEGAL_ORCHESTRATOR_MODEL: legalOrchestratorModel || '',
+      LEGAL_VISION_CONTEXT_WINDOW: legalVisionContextWindow || '',
+      LEGAL_VISION_MAX_RESPONSE_TOKENS: legalVisionMaxResponseTokens || '',
+      LEGAL_ANALYSIS_CONTEXT_WINDOW: legalAnalysisContextWindow || '',
+      LEGAL_ANALYSIS_MAX_RESPONSE_TOKENS: legalAnalysisMaxResponseTokens || '',
+      LEGAL_ORCHESTRATOR_CONTEXT_WINDOW: legalOrchestratorContextWindow || '',
+      LEGAL_ORCHESTRATOR_MAX_RESPONSE_TOKENS: legalOrchestratorMaxResponseTokens || '',
+      
+      // Routing & Planning
+      PLANNER_MODEL: plannerModel || '',
+      ROUTER_MODEL: routerModel || '',
+      PLANNER_CONTEXT_WINDOW: plannerContextWindow || '',
+      PLANNER_MAX_RESPONSE_TOKENS: plannerMaxResponseTokens || '',
+      ROUTER_CONTEXT_WINDOW: routerContextWindow || '',
+      ROUTER_MAX_RESPONSE_TOKENS: routerMaxResponseTokens || '',
+
+      EXPERT_PIPELINE_ENABLED: (expertPipelineEnabled === 'on' || expertPipelineEnabled === 'yes') ? 'yes' : 'no',
       TAGS: normalizeArray(tags),
       ADD_AI_PROCESSED_TAG: aiProcessedTag || 'no',
       AI_PROCESSED_TAG_NAME: aiTagName || 'ai-processed',
@@ -5099,12 +5145,42 @@ router.post('/settings', express.json(), async (req, res) => {
       translationContextWindow,
       translationMaxTokens,
       expertPipelineEnabled,
-      medicalVisionModel,
+      medicalVisionModel: medicalVisionModelInput,
       medicalAnalysisModel,
       medicalRadiologyModel,
+      medicalVisionContextWindow,
+      medicalVisionMaxResponseTokens,
+      medicalAnalysisContextWindow,
+      medicalAnalysisMaxResponseTokens,
+      medicalRadiologyContextWindow,
+      medicalRadiologyMaxResponseTokens,
       orchestratorModel,
       orchestratorContextWindow,
       orchestratorMaxResponseTokens,
+      plannerModel,
+      routerModel,
+      plannerContextWindow,
+      plannerMaxResponseTokens,
+      routerContextWindow,
+      routerMaxResponseTokens,
+      financialVisionModel,
+      financialAnalysisModel,
+      financialVatExpertModel,
+      financialVisionContextWindow,
+      financialVisionMaxResponseTokens,
+      financialAnalysisContextWindow,
+      financialAnalysisMaxResponseTokens,
+      financialVatExpertContextWindow,
+      financialVatExpertMaxResponseTokens,
+      legalVisionModel,
+      legalAnalysisModel,
+      legalOrchestratorModel,
+      legalVisionContextWindow,
+      legalVisionMaxResponseTokens,
+      legalAnalysisContextWindow,
+      legalAnalysisMaxResponseTokens,
+      legalOrchestratorContextWindow,
+      legalOrchestratorMaxResponseTokens,
       scanInterval,
       systemPrompt,
       showTags,
@@ -5338,7 +5414,7 @@ router.post('/settings', express.json(), async (req, res) => {
     if (customModel) updatedConfig.CUSTOM_MODEL = customModel;
     if (disableAutomaticProcessing) updatedConfig.DISABLE_AUTOMATIC_PROCESSING = disableAutomaticProcessing;
     updatedConfig.EXPERT_PIPELINE_ENABLED = (expertPipelineEnabled === 'on' || expertPipelineEnabled === 'yes') ? 'yes' : 'no';
-    const resolvedMedicalVisionModel = medicalVisionModel || 'qwen3-vl:8b';
+    const resolvedMedicalVisionModel = medicalVisionModelInput || 'qwen3-vl:8b';
     const resolvedMedicalAnalysisModel = medicalAnalysisModel || 'medtext-llama3';
     const resolvedMedicalRadiologyModel = medicalRadiologyModel || 'llava-med-v1.6';
     const resolvedPlannerModel = plannerModel || 'qwen3-vl:8b';
@@ -5526,7 +5602,7 @@ router.get('/api/processing-status', async (req, res) => {
   try {
       const status = await documentModel.getCurrentProcessingStatus();
       res.json(status);
-  } catch (error) {
+  } catch {
       res.status(500).json({ error: 'Failed to fetch processing status' });
   }
 });
@@ -5539,7 +5615,7 @@ router.get('/api/rag-test', async (req, res) => {
     }else{
       res.status(500).json({ success: false });
     }    
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to fetch processing status' });
   }
 }

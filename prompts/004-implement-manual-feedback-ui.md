@@ -26,6 +26,7 @@ Moving interactive bits into islands improves testability and reduces fragile in
    - Update `views/manual.ejs` to add anchors for the islands:
      - `<div data-island="feedback-controls-island" data-testid="feedback-controls-island" data-props='<%- JSON.stringify({ documentId: vm.documentId || null }) %>'></div>`
      - `<div data-island="manual-editor-island" data-testid="manual-editor-island" data-props='<%- JSON.stringify({ documentId: vm.documentId || null }) %>'></div>`
+   - **Registry**: Register both `FeedbackControlsIsland` and `ManualEditorIsland` in `src/islands/runtime.ts` mapping to their respective IDs (`feedback-controls-island`, `manual-editor-island`).
 
 4. **Testing**:
    - Add contract unit tests for `FeedbackControls` and `ManualEditor`.

@@ -9,7 +9,7 @@ The `feedback_events` migration is in the repo and front-end Islands scaffolding
 References:
 - docs/FEEDBACK_PERSISTENCE_STRATEGY.md
 - docs/OBSERVABILITY_AND_TELEMETRY.md
-- prompts/014-verification-checklist.md
+- prompts/016-verification-checklist.md
 </context>
 
 <requirements>
@@ -41,7 +41,7 @@ References:
 </verification>
 
 <lifecycle>
-1. On completion, create a short summary `prompts/summaries/011-feedback-e2e-summary.md`.
+1. On completion, create a short summary `prompts/summaries/015-feedback-e2e-summary.md`.
 2. Add the test to CI job `verification-e2e` (gated) and mark prompt as completed in `prompts/completed/`.
 3. Update docs if additional fields were required to support the test (e.g., retention cleanup guidance).
 </lifecycle>

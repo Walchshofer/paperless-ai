@@ -5,6 +5,7 @@ This replaces the previous inline script approach with a mountable island that p
 
 <context>
 Per `docs/FRONTEND_ARCHITECTURE.md`, complex interactive UI should be implemented as Preact Islands and validated with Zod contracts. This prompt implements `VisualAnnotationIsland.tsx` and `src/ui/contracts/VisualAnnotation.contract.ts` and updates `manual.ejs` to include a `data-island` anchor and `data-testid` values for automated auditing.
+Note: `VisualAnnotationIsland` is the specific implementation of the `VisualViewer` concept for the Manual Route, adhering to the Islands architecture.
 
 **References:**
 - Architecture: `docs/FRONTEND_ARCHITECTURE.md`
@@ -25,6 +26,7 @@ Per `docs/FRONTEND_ARCHITECTURE.md`, complex interactive UI should be implemente
    - Update `views/manual.ejs` to add an island anchor:
      `<div data-island="visual-annotation-island" data-testid="visual-annotation-island" data-props='<%- JSON.stringify({ documentId: vm.documentId || null }) %>'></div>`
    - Ensure the island anchor is placed in the Visual Preview area and that `OverlayViewer` continues to be used or is delegated to the island.
+   - **Registry**: Register the new component in `src/islands/runtime.ts` to map `visual-annotation-island` to `VisualAnnotationIsland.tsx`.
 
 4. **Testing & Test IDs**:
    - Add `data-testid` attributes to interactive elements inside the island (e.g., draw-toggle, save-annotation-btn).
