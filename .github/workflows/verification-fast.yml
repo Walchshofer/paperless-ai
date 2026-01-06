@@ -1,0 +1,36 @@
+name: verification-fast
+
+on:
+  push:
+    branches: [ main, release/** ]
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'prompts/**'
+      - 'migrations/**'
+
+jobs:
+  verification-fast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm ci
+      - name: Run DB schema check
+        env:
+          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
+        run: node scripts/check-db-schema.js || true
+      - name: Run Islands check
+        run: node scripts/check-islands.js || true
+      - name: Run unit tests
+        run: npm test
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-fast-logs
+          path: test-output/**

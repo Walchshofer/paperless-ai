@@ -8,7 +8,9 @@
     "test:integration": "cross-env GUIDANCE_ENABLED=true GUIDANCE_SERVICE_ENABLED=yes RAG_SERVICE_ENABLED=true mocha --require test/setup-env.js test/**/*.test.js --timeout 60000 --reporter spec",
     "test:performance": "mocha --require test/setup-env.js \"test/performance/**/*.test.js\" --timeout 60000 --reporter spec --exit",
     "test:coverage": "c8 --reporter=text --reporter=lcov npm test",
-    "test:report": "node scripts/test-report.js"
+    "test:report": "node scripts/test-report.js",
+    "verification:fast": "node scripts/check-db-schema.js && node scripts/check-islands.js && npm test",
+    "verification:e2e": "npx playwright test --config=test/playwright.config.ts"
   },
   "keywords": [
     "paperless-ngx",
