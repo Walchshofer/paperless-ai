@@ -1,0 +1,2701 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<handoff-prompt priority="critical" type="multi-agent-coordination-handoff">
+  
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- EXECUTIVE SUMMARY and CONTEXT                                     -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <executive-summary>
+    <title>Paperless-AI: SSOT Retrieval Broker + Visual RAG Integration</title>
+    <scope>
+      Complete implementation of unified document processing pipeline with:
+      - SSOT (Single Source of Truth) Retrieval Broker for normalized retrieval
+      - Visual RAG sidecar integration for intelligent field detection
+      - Small model optimization (accuracy-focused, not latency)
+      - Sequential execution for deterministic behavior
+      - Circuit breaker pattern for graceful degradation
+    </scope>
+    <current-status>
+      ✅ Architecture designed and documented
+      ✅ Expert agent deliverables completed (4 parallel agents)
+      ✅ Documentation system updated
+      ⏳ Implementation phase ready to begin
+    </current-status>
+    <handoff-objective>
+      Coordinate implementation of all remaining components across specialized expert agents
+      using phased execution with explicit handoff between phases and agents.
+    </handoff-objective>
+  </executive-summary>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- CRITICAL CONSTRAINTS and SYSTEM REQUIREMENTS                       -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <system-constraints>
+    <constraint type="model">
+      <description>Small models only (4.7-8.7GB footprint)</description>
+      <implication>Prioritize ACCURACY over latency</implication>
+      <implication>Use sequential execution to ensure deterministic behavior</implication>
+      <implication>Optimize context window usage for every call</implication>
+    </constraint>
+    
+    <constraint type="execution">
+      <description>Sequential pipeline execution preferred</description>
+      <exception>Parallel OCR tracks (Visual + Tesseract) only - must have circuit breaker</exception>
+      <exception>Parallel visual element detection - must have 500ms timeout</exception>
+      <implication>No unbounded parallelism</implication>
+      <implication>Max 5 concurrent sidecar requests per document</implication>
+    </constraint>
+
+    <constraint type="latency">
+      <description>Visual Sidecar: 500ms budget, 1000ms hard timeout</description>
+      <description>End-to-end pipeline: 2000ms max per document</description>
+      <fallback>Circuit breaker gracefully degrades to Tesseract-only mode</fallback>
+    </constraint>
+
+    <constraint type="token-management">
+      <description>Claude context window: 32,000 tokens max</description>
+      <reserved-for-response>28,000 tokens (87.5%)</reserved-for-response>
+      <reserved-for-planning>4,000 tokens (12.5%)</reserved-for-planning>
+      <safety-margin>500 tokens minimum</safety-margin>
+      <protocol>PHASED RESPONSES - Stop at 25,000 tokens, request continuation</protocol>
+    </constraint>
+  </system-constraints>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- ARCHITECTURE OVERVIEW                                            -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <architecture>
+    <component name="SSOT Retrieval Broker">
+      <responsibility>Unified retrieval interface for all queries</responsibility>
+      <stages>
+        <stage num="1">Intent Classification - Determine query type (visual|text|hybrid|expert)</stage>
+        <stage num="2">Path Selection - Route to appropriate retrieval strategy</stage>
+        <stage num="3">Parallel OCR Extraction - Visual OCR + Tesseract in parallel</stage>
+        <stage num="4">OCR Reconciliation - Merge OCR sources with document-type awareness</stage>
+        <stage num="5">Extraction - Structured field extraction from reconciled OCR</stage>
+        <stage num="5.5">Visual Query Generation - Generate targeted visual queries for missing fields</stage>
+        <stage num="6">Reasoning - Optional domain-specific analysis</stage>
+        <stage num="7">Validation - Schema compliance checks</stage>
+        <stage num="8">Visual Query Execution - Execute visual searches via sidecar</stage>
+        <stage num="9">Result Aggregation - Merge visual confirmations with extraction</stage>
+      </stages>
+      <outputs>
+        - Unified normalized result schema
+        - Field confidence scores
+        - Visual overlay positions
+        - Audit trail with provenance
+      </outputs>
+    </component>
+
+    <component name="Visual RAG Sidecar">
+      <responsibility>Visual question-answering for field detection and validation</responsibility>
+      <capabilities>
+        - Table detection and structure extraction
+        - Image/figure detection and cataloging
+        - Layout analysis (spatial zones, text blocks)
+        - Visual Named Entity Recognition (Visual NER)
+        - Bounding box calculation with pixel accuracy
+      </capabilities>
+      <integration-point>
+        Stage 5.5: Query generation receives custom_field_taxonomy
+        Stage 8: Visual query execution with dynamic k selection
+      </integration-point>
+      <constraints>
+        - 500ms per image timeout (hard: 1000ms)
+        - Circuit breaker protection
+        - Exponential backoff: 100ms, 200ms, 400ms
+        - Max 5 concurrent requests per document
+      </constraints>
+    </component>
+
+    <component name="Circuit Breaker Infrastructure">
+      <responsibility>Graceful degradation when Visual Sidecar fails</responsibility>
+      <states>
+        <state name="CLOSED">Normal operation, all visual operations allowed</state>
+        <state name="OPEN">Sidecar failing, skip visual operations gracefully</state>
+        <state name="HALF_OPEN">Testing recovery, limited visual operations</state>
+      </states>
+      <transitions>
+        - 3 consecutive failures → OPEN state
+        - 30 second cooldown before HALF_OPEN attempt
+        - Successful HALF_OPEN query → transition to CLOSED
+        - Failed HALF_OPEN query → transition back to OPEN
+      </transitions>
+      <fallback-behavior>
+        - When OPEN: Use Tesseract OCR + cached embeddings
+        - No pipeline failure
+        - Continue with extraction-only results
+      </fallback-behavior>
+    </component>
+  </architecture>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- COMPLETED DELIVERABLES FROM EXPERT AGENTS                        -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <completed-phase name="Expert Agent Deliverables">
+    <status>✅ COMPLETE - Ready for integration</status>
+    
+    <deliverable agent="pipeline-orchestration-expert">
+      <name>Infrastructure Design</name>
+      <includes>
+        - ExpertPipelineExecutor.js architecture (680+ lines)
+        - Circuit Breaker pattern specification
+        - Parallel OCR execution flow
+        - Visual element detection tasks
+        - Error handling and retry logic
+        - State machine for circuit breaker
+      </includes>
+      <files-to-create>
+        - CircuitBreaker.js (~200 lines)
+        - Enhanced ExpertPipelineExecutor.js (~680 lines)
+        - Updated MetricsClient.js (11 new metrics)
+        - Domain-specific pipeline variants
+      </files-to-create>
+    </deliverable>
+
+    <deliverable agent="guidance-expert">
+      <name>Visual Query Generation Templates</name>
+      <includes>
+        - Base template: visual_query_generator_de.py
+        - Financial domain variant
+        - Medical domain variant
+        - Legal domain variant
+        - Pydantic schema validation
+        - Validator implementation
+        - Integration tests
+      </includes>
+      <logit-bias>
+        ✅ All templates include logit bias configuration
+        ✅ Boost tokens for structured JSON output
+        ✅ Field name token prioritization
+        ✅ Confidence score estimation
+      </logit-bias>
+      <validation>
+        - Minimum 3 queries per document
+        - Field targets must exist in taxonomy
+        - Question, field_target, expected_element_type required
+        - Dynamic k selection parameters included
+      </validation>
+    </deliverable>
+
+    <deliverable agent="schema-evolution-expert">
+      <name>Visual Query Database Schema</name>
+      <includes>
+        - 4 new tables with backward compatibility
+        - visual_queries table (query definitions and results)
+        - visual_query_results table (execution results)
+        - query_performance table (metrics)
+        - field_evolution table (tracking over time)
+        - Migration scripts with rollback
+        - VisualQueryRepository.js (CRUD operations)
+        - JSON schema definitions
+      </includes>
+      <validation>
+        ✅ Zero breaking changes to existing schema
+        ✅ Views for backward compatibility
+        ✅ Indexes for performance
+        ✅ Foreign key constraints enforced
+      </validation>
+    </deliverable>
+
+    <deliverable agent="paperless-api-expert">
+      <name>Paperless-NGX API Integration</name>
+      <includes>
+        - PaperlessService.js (570+ lines)
+        - Tesseract OCR endpoint fetching
+        - Custom field taxonomy loading
+        - Field rarity calculation
+        - Caching layer (Redis)
+        - Error handling and retry logic
+        - Metrics collection
+      </includes>
+      <capabilities>
+        - Fetch OCR from `/api/documents/{id}/` endpoint
+        - Load custom_field_taxonomy for field biasing
+        - Track document type (scanned vs. digital)
+        - Calculate field frequency distribution
+        - Generate logit bias configurations
+      </capabilities>
+    </deliverable>
+  </completed-phase>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- REMAINING IMPLEMENTATION WORK                                    -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <remaining-work>
+    <phase name="Phase 1: CircuitBreaker Implementation">
+      <status>⏳ PENDING</status>
+      <owner>Coordination required</owner>
+      <tasks>
+        <task>Create CircuitBreaker.js (~200 lines)</task>
+        <task>Implement state machine (CLOSED → OPEN → HALF_OPEN)</task>
+        <task>Configure failure thresholds and timeouts</task>
+        <task>Add metrics collection for circuit state</task>
+      </tasks>
+      <estimated-tokens>2000-3000</estimated-tokens>
+    </phase>
+
+    <phase name="Phase 2: Parallel OCR Execution">
+      <status>⏳ PENDING</status>
+      <owner>@agent-pipeline-orchestration-expert</owner>
+      <tasks>
+        <task>Implement Visual OCR track (qwen3-vl:8b via ollama_visual)</task>
+        <task>Implement Tesseract OCR fetch from Paperless API</task>
+        <task>Implement mergeOcrResults() reconciliation logic</task>
+        <task>Add OCR metadata (source attribution, conflict rate)</task>
+        <task>Implement document-type-aware biasing (scanned docs favor Visual OCR)</task>
+      </tasks>
+      <success-criteria>
+        - Both OCR tracks execute in parallel
+        - Circuit breaker protects both
+        - Reconciliation accuracy ≥ 95%
+        - Conflict rate < 10%
+      </success-criteria>
+      <estimated-tokens>4000-5000</estimated-tokens>
+    </phase>
+
+    <phase name="Phase 3: Visual Query Generation Integration">
+      <status>⏳ PENDING</status>
+      <owner>@agent-guidance-expert (coordination)</owner>
+      <tasks>
+        <task>Add STAGE_VISUAL_QUERY_GENERATION to ExpertRegistry</task>
+        <task>Integrate Guidance template system</task>
+        <task>Load custom_field_taxonomy from PaperlessService</task>
+        <task>Implement query prioritization (missing fields first)</task>
+        <task>Add logit bias configuration per query</task>
+      </tasks>
+      <dependencies>
+        - PaperlessService.js (field taxonomy)
+        - GuidanceTemplates system (query generation)
+        - Extraction results (field confidence scores)
+      </dependencies>
+      <validation>
+        ✓ Minimum 3 queries generated per document
+        ✓ Each query has: question, field_target, expected_element_type
+        ✓ Field targets exist in schema
+        ✓ Graceful degradation if generation fails
+      </validation>
+      <estimated-tokens>4000-6000</estimated-tokens>
+    </phase>
+
+    <phase name="Phase 4: Visual Query Execution">
+      <status>⏳ PENDING</status>
+      <owner>@agent-pipeline-orchestration-expert</owner>
+      <tasks>
+        <task>Implement visual query executor stage</task>
+        <task>Calculate dynamic k using formula: K = base_K * (1 + (1 - confidence) * 0.5) * (1 + rarity_factor)</task>
+        <task>Execute queries with circuit breaker protection</task>
+        <task>Implement IoU deduplication for overlapping boxes (threshold: 0.7)</task>
+        <task>Merge visual results with extraction output</task>
+        <task>Update field confidence scores with visual confirmations</task>
+        <task>Add overlay positions to field metadata</task>
+      </tasks>
+      <base-k-values>
+        - field_extraction: k=3 (high precision)
+        - validation: k=5 (moderate)
+        - exploration: k=10 (high recall)
+      </base-k-values>
+      <success-criteria>
+        - Field detection precision > 0.95
+        - Field detection recall > 0.90
+        - Overlay position accuracy ± 5 pixels
+        - Visual confirmation rate > 0.80 for extracted fields
+      </success-criteria>
+      <estimated-tokens>5000-7000</estimated-tokens>
+    </phase>
+
+    <phase name="Phase 5: Metrics and Monitoring">
+      <status>⏳ PENDING</status>
+      <owner>Coordination required</owner>
+      <tasks>
+        <task>Register 11 new Prometheus metrics</task>
+        <task>Implement latency tracking per stage</task>
+        <task>Track accuracy metrics (schema compliance, F1 score)</task>
+        <task>Monitor circuit breaker state transitions</task>
+        <task>Collect visual sidecar availability metrics</task>
+        <task>Track user correction rate for model drift detection</task>
+      </tasks>
+      <metrics>
+        - ocr_reconciliation_conflict_rate (target < 10%)
+        - sidecar_availability (target > 99.5%)
+        - field_detection_f1 (target > 0.92, alert if < 0.85)
+        - embedding_query_latency (target < 100ms)
+        - visual_query_success_rate (track for quality)
+        - circuit_breaker_state_transitions (track for debugging)
+      </metrics>
+      <estimated-tokens>2000-3000</estimated-tokens>
+    </phase>
+
+    <phase name="Phase 6: Testing and Validation">
+      <status>⏳ PENDING</status>
+      <owner>@agent-test-agent</owner>
+      <tasks>
+        <task>Create CircuitBreaker unit tests</task>
+        <task>Create parallel OCR integration tests</task>
+        <task>Create visual query generation tests</task>
+        <task>Create visual query execution tests</task>
+        <task>Create end-to-end pipeline tests</task>
+        <task>Performance testing (target: 2s per document)</task>
+      </tasks>
+      <test-categories>
+        - Unit: CircuitBreaker state transitions
+        - Unit: Dynamic k calculation
+        - Integration: Parallel OCR reconciliation
+        - Integration: Visual query generation + execution
+        - E2E: Complete pipeline with all stages
+        - Performance: Latency and throughput
+      </test-categories>
+      <estimated-tokens>6000-8000</estimated-tokens>
+    </phase>
+  </remaining-work>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- SUBAGENT DELEGATION and EXPERTISE MAPPING                          -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <subagent-delegation-strategy>
+    <instruction priority="critical">
+      **MANDATORY: Use sequential delegation with explicit handoffs**
+      
+      1. Complete Phase 1 (CircuitBreaker) - FOUNDATION
+      2. Upon completion → Invoke Phase 2 owner
+      3. Wait for Phase 2 completion → Invoke Phase 3 owner
+      4. Continue sequentially through Phase 6
+      
+      NO PARALLEL PHASE EXECUTION (except for sub-tasks within phases)
+    </instruction>
+
+    <subagent id="agent-pipeline-orchestration-expert">
+      <expertise>
+        ✓ Asynchronous execution patterns
+        ✓ Circuit breaker design and implementation
+        ✓ Parallel task coordination
+        ✓ Error handling and retry logic
+        ✓ State machine implementation
+        ✓ Performance optimization for small models
+      </expertise>
+      <phases-owns>
+        - Phase 1: CircuitBreaker Implementation (PRIMARY)
+        - Phase 2: Parallel OCR Execution (PRIMARY)
+        - Phase 4: Visual Query Execution (PRIMARY)
+      </phases-owns>
+      <phase-1-context>
+        OBJECTIVE: Create CircuitBreaker.js infrastructure
+        
+        REQUIREMENTS:
+        - State machine: CLOSED → OPEN → HALF_OPEN
+        - Failure threshold: 3 consecutive failures
+        - Cooldown: 30 seconds before HALF_OPEN
+        - Exponential backoff: 100ms, 200ms, 400ms
+        - Metrics collection for Prometheus
+        
+        DELIVERABLES:
+        - CircuitBreaker.js (~200 lines)
+        - Unit tests (3+ scenarios)
+        - Metrics hooks
+        
+        SUCCESS CRITERIA:
+        ✓ All state transitions work correctly
+        ✓ Graceful degradation to Tesseract-only mode
+        ✓ No deadlocks or race conditions
+        ✓ Metrics collected per transition
+      </phase-1-context>
+    </subagent>
+
+    <subagent id="agent-guidance-expert">
+      <expertise>
+        ✓ LLM guidance template design
+        ✓ Structured output optimization
+        ✓ Logit bias configuration
+        ✓ Query generation and ranking
+        ✓ Field mapping and validation
+      </expertise>
+      <phases-owns>
+        - Phase 3: Visual Query Generation Integration (PRIMARY)
+      </phases-owns>
+      <deliverables-from-phase-1>
+        - visual_query_generator_de.py (base template)
+        - Financial/Medical/Legal domain variants
+        - Pydantic schema for validation
+        - ALL must include logit bias configuration
+      </deliverables-from-phase-1>
+      <phase-3-context>
+        OBJECTIVE: Integrate visual query generation into pipeline
+        
+        INPUTS FROM PREVIOUS PHASES:
+        - PaperlessService.js (custom_field_taxonomy)
+        - Extraction results (field confidence scores)
+        - Visual elements (tables, images, layout)
+        
+        TASKS:
+        1. Add STAGE_VISUAL_QUERY_GENERATION to ExpertRegistry
+        2. Load custom_field_taxonomy dynamically
+        3. Generate minimum 3 queries per document
+        4. Target missing or low-confidence fields
+        5. Use Guidance template system with logit bias
+        6. Implement graceful degradation if generation fails
+        
+        VALIDATION RULES:
+        ✓ Every query has: question, field_target, expected_element_type
+        ✓ Field targets exist in extraction schema or custom taxonomy
+        ✓ Logit bias tokens are appropriate for structured output
+        ✓ Priority scoring (0-1) for query ordering
+        ✓ Rarity factor included for dynamic k calculation
+        
+        SUCCESS CRITERIA:
+        ✓ 95%+ query generation success rate
+        ✓ Zero pipeline failures if generation fails
+        ✓ All queries valid for visual sidecar execution
+      </phase-3-context>
+    </subagent>
+
+    <subagent id="agent-paperless-api-expert">
+      <expertise>
+        ✓ Paperless-NGX API integration
+        ✓ OCR endpoint management
+        ✓ Schema and field taxonomy
+        ✓ Caching and performance optimization
+        ✓ Error handling for external APIs
+        ✓ Field frequency distribution analysis
+      </expertise>
+      <phases-owns>
+        - Phase 2: Parallel OCR Execution (COORDINATION)
+        - Phase 3: Visual Query Generation Integration (DEPENDENCY)
+      </phases-owns>
+      <deliverables-from-phase-1>
+        - PaperlessService.js (~570 lines)
+        - Tesseract OCR endpoint integration
+        - Custom field taxonomy loading
+        - Field rarity calculation
+        - Caching layer (Redis)
+        - Error handling and retry logic
+        - Metrics collection
+      </deliverables-from-phase-1>
+      <phase-2-context>
+        OBJECTIVE: Implement Tesseract OCR track in parallel execution
+        
+        TRACK 2 RESPONSIBILITIES:
+        - Fetch OCR text from Paperless-ngx `/api/documents/{id}/` endpoint
+        - Extract `content` field for Tesseract OCR output
+        - Execute in PARALLEL with Visual OCR track
+        - Apply document metadata for reconciliation hinting
+        
+        INTEGRATION POINTS:
+        1. Load document type (scanned vs. digital) from Paperless API
+        2. Fetch existing Tesseract OCR if available
+        3. Pass to mergeOcrResults() for reconciliation
+        4. Document-type awareness: scanned docs favor Visual OCR in reconciliation
+        
+        CONSTRAINTS:
+        - Parallel execution with Visual OCR (no sequential dependency)
+        - No additional timeout beyond circuit breaker
+        - Caching for field taxonomy (TTL: 1 hour)
+        - Handle API unavailability gracefully
+        
+        SUCCESS CRITERIA:
+        ✓ Tesseract OCR fetched without blocking Visual OCR
+        ✓ Document type correctly identified
+        ✓ Reconciliation biasing works (scanned docs favor vis_ocr)
+        ✓ Cache hit rate > 80% for field taxonomy
+        ✓ Zero API timeout failures
+      </phase-2-context>
+      <phase-3-context>
+        OBJECTIVE: Provide custom field taxonomy for query generation
+        
+        DEPENDENCIES:
+        - Phase 2 must complete (OCR done)
+        - Field taxonomy must be loaded and cached
+        
+        TASKS FOR QUERY GENERATION:
+        1. Expose custom_field_taxonomy for @agent-guidance-expert
+        2. Calculate field rarity (frequency distribution)
+        3. Provide field data types and validation rules
+        4. Track field mutations over time
+        
+        OUTPUT TO PHASE 3:
+        - Field metadata: {
+            field_name: string,
+            data_type: enum|text|number|date,
+            rarity_factor: 0-1,
+            frequency_in_taxonomy: number,
+            validation_rules: array,
+            suggested_queries: array
+          }
+        
+        USED BY PHASE 3:
+        - Rarity factor drives dynamic k calculation
+        - Data type informs query type (field_extraction|validation|exploration)
+        - Frequency distribution creates logit bias weights
+      </phase-3-context>
+    </subagent>
+
+    <subagent id="agent-test-agent">
+      <expertise>
+        ✓ Integration testing
+        ✓ End-to-end testing
+        ✓ Performance testing
+        ✓ Test coverage analysis
+        ✓ Failure analysis and auditing
+        ✓ Code quality assessment
+      </expertise>
+      <phases-owns>
+        - Phase 6: Testing and Validation (PRIMARY)
+      </phases-owns>
+      <phase-6-context>
+        OBJECTIVE: Comprehensive testing of all pipeline components
+        
+        MUST WAIT FOR:
+        ✓ Phase 1: CircuitBreaker implementation
+        ✓ Phase 2: Parallel OCR execution
+        ✓ Phase 3: Visual Query Generation
+        ✓ Phase 4: Visual Query Execution
+        ✓ Phase 5: Metrics collection
+        
+        TEST SUITE STRUCTURE:
+        
+        **Unit Tests:**
+        - CircuitBreaker state machine (6+ scenarios)
+          - Failure threshold triggering
+          - State transitions
+          - Cooldown behavior
+          - Metrics collection
+        - Dynamic K calculation
+          - Base K values per type
+          - Confidence adjustment
+          - Rarity factor application
+        - OCR reconciliation scoring
+          - Length ratio calculation
+          - Structural integrity checks
+          - Garbage detection
+        - Query validation
+          - Required fields present
+          - Field targets exist in schema
+          - Logit bias tokens valid
+        
+        **Integration Tests:**
+        - Parallel OCR execution
+          - Visual OCR + Tesseract in parallel
+          - Reconciliation merging
+          - Document-type biasing
+          - Conflict rate < 10%
+        - Visual Query Generation + Execution
+          - Generate 3+ queries
+          - Execute via sidecar
+          - Dynamic k selection
+          - Result aggregation
+        - End-to-end pipeline
+          - Classification → Extraction → Visual Queries → Results
+          - Circuit breaker graceful degradation
+          - Field confidence updates
+          - Overlay position accuracy ± 5 pixels
+        
+        **Performance Tests:**
+        - Parallel OCR latency (target: < 1s total)
+        - Visual query execution (target: < 500ms per query, 5 concurrent)
+        - End-to-end latency (target: < 2s per document)
+        - Memory footprint under load
+        - Cache hit rates for field taxonomy
+        
+        **Failure Scenarios:**
+        - Visual Sidecar timeout (500ms+)
+          - Circuit breaker should OPEN
+          - Pipeline should continue with Tesseract only
+          - No permanent failures
+        - OCR reconciliation conflict > 50%
+          - Should flag for manual review
+          - Should use most confident source
+          - Should continue processing
+        - Query generation failure
+          - Should gracefully skip visual validation
+          - Should continue with extraction-only results
+          - Should log warning but not fail
+        - Visual query execution failure
+          - Individual query failures should not block pipeline
+          - Partial results accepted
+          - Confidence score adjusted for missing visual confirmations
+        
+        SUCCESS CRITERIA:
+        ✓ All unit tests pass (100% coverage for critical paths)
+        ✓ All integration tests pass (E2E < 2s)
+        ✓ Performance tests meet targets
+        ✓ Failure scenarios handled gracefully
+        ✓ Zero deadlocks or race conditions
+        ✓ Circuit breaker never blocks indefinitely
+        ✓ Field detection F1 score > 0.92
+        ✓ Overlay accuracy ± 5 pixels
+      </phase-6-context>
+      <issue-reporting>
+        Upon failure discovery:
+        1. Document issue in ISSUES_AUDIT_REPORT.md
+        2. Categorize by: Severity, Component, Root Cause
+        3. Sub-invoke @agent-debug-agent with findings
+        4. Wait for root cause analysis
+        5. Re-test after fixes applied
+      </issue-reporting>
+    </subagent>
+
+    <subagent id="agent-debug-agent">
+      <expertise>
+        ✓ Root cause analysis
+        ✓ Bug investigation
+        ✓ Error log analysis
+        ✓ Issue categorization
+        ✓ Fix strategy development
+        ✓ Regression prevention
+      </expertise>
+      <phases-owns>
+        - Phase 6: Testing and Validation (REACTIVE - called by @agent-test-agent)
+      </phases-owns>
+      <trigger-point>
+        Invoked by @agent-test-agent when failures are discovered
+        Input: ISSUES_AUDIT_REPORT.md with failure details
+      </trigger-point>
+      <responsibilities>
+        1. Intake test failures from @agent-test-agent
+        2. Perform root cause analysis per issue
+        3. Categorize by severity and component
+        4. Identify duplicates and dependencies
+        5. Create ISSUES_MASTER_LIST.md
+        6. Generate fix recommendations
+        7. Create FIX_DELEGATION_PLAN.md
+        8. Verify fixes applied
+        9. Re-run affected tests
+      </responsibilities>
+    </subagent>
+
+    <subagent id="agent-docs-agent">
+      <expertise>
+        ✓ Technical documentation
+        ✓ Architecture documentation
+        ✓ API reference design
+        ✓ Database schema documentation
+        ✓ Migration runbooks
+        ✓ Diagram creation (Mermaid)
+      </expertise>
+      <phases-owns>
+        - CROSS-PHASE: Documentation validation and updates
+      </phases-owns>
+      <responsibilities>
+        BEFORE IMPLEMENTATION STARTS:
+        1. Audit existing documentation against PLAN.md
+        2. Validate architecture alignment
+        3. Create/update key documentation:
+           - SSOT_RETRIEVAL_BROKER.md (architecture)
+           - VISUAL_RAG_INTEGRATION.md (complete spec)
+           - CIRCUIT_BREAKER_PATTERN.md (design and usage)
+           - API_RETRIEVAL.md (endpoint reference)
+           - MIGRATION_GUIDE.md (deployment steps)
+        4. Create Mermaid diagrams:
+           - Query flow through all stages
+           - Circuit breaker state machine
+           - Visual query generation flow
+           - Result aggregation process
+        
+        DURING IMPLEMENTATION:
+        5. Review completed phases for documentation gaps
+        6. Update EXPERT_PIPELINE_DECISION_TABLE.md
+        7. Update PIPELINE_STAGE_CONTRACTS.md
+        8. Update VALIDATION_AND_RETRY_POLICY.md
+        9. Create API documentation with examples
+        
+        AFTER TESTING:
+        10. Document test suite and coverage
+        11. Create troubleshooting guide
+        12. Document monitoring and metrics
+        13. Create runbooks for operations
+      </responsibilities>
+      <timing>
+        - BEFORE Phase 1: Audit and validate existing docs
+        - AFTER Each Phase: Update documentation
+        - AFTER Phase 6: Complete final documentation
+      </timing>
+    </subagent>
+  </subagent-delegation-strategy>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- PHASED EXECUTION PROTOCOL                                        -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <execution-protocol>
+    <instruction priority="critical" name="Phase Sequencing">
+      **STRICT SEQUENTIAL EXECUTION - NO DEVIATION**
+      
+      Phase 1: CircuitBreaker Implementation
+      ├─ Assigned to: @agent-pipeline-orchestration-expert
+      ├─ Estimated: 2000-3000 tokens
+      ├─ SUCCESS: All state transitions tested
+      └─ SIGNAL: "PHASE 1 COMPLETE" → Proceed to Phase 2
+
+      Phase 2: Parallel OCR Execution
+      ├─ Assigned to: @agent-pipeline-orchestration-expert
+      ├─ Prerequisite: Phase 1 complete
+      ├─ Estimated: 4000-5000 tokens
+      ├─ DEPENDENCIES:
+      │  ├─ CircuitBreaker.js (Phase 1)
+      │  ├─ PaperlessService.js (already delivered)
+      │  └─ Visual OCR via ollama_visual (qwen3-vl:8b)
+      ├─ SUCCESS: Both tracks execute in parallel, reconciliation works
+      └─ SIGNAL: "PHASE 2 COMPLETE" → Proceed to Phase 3
+      
+      Phase 3: Visual Query Generation Integration
+      ├─ Assigned to: @agent-guidance-expert
+      ├─ Prerequisite: Phase 2 complete
+      ├─ Estimated: 4000-6000 tokens
+      ├─ DEPENDENCIES:
+      │  ├─ Extraction results (field confidence)
+      │  ├─ PaperlessService custom_field_taxonomy
+      │  ├─ GuidanceTemplates system (already delivered)
+      │  └─ CircuitBreaker (Phase 1)
+      ├─ SUCCESS: 3+ queries generated, all valid for sidecar
+      └─ SIGNAL: "PHASE 3 COMPLETE" → Proceed to Phase 4
+      
+      Phase 4: Visual Query Execution
+      ├─ Assigned to: @agent-pipeline-orchestration-expert
+      ├─ Prerequisite: Phase 3 complete
+      ├─ Estimated: 5000-7000 tokens
+      ├─ DEPENDENCIES:
+      │  ├─ Visual queries (Phase 3)
+      │  ├─ CircuitBreaker (Phase 1)
+      │  ├─ Dynamic K calculation logic
+      │  └─ Visual RAG sidecar integration
+      ├─ SUCCESS: Queries execute, results merge with extraction
+      └─ SIGNAL: "PHASE 4 COMPLETE" → Proceed to Phase 5
+      
+      Phase 5: Metrics and Monitoring
+      ├─ Assigned to: Coordination (can run parallel with Phase 4 final stages)
+      ├─ Prerequisite: Phase 4 implementation started
+      ├─ Estimated: 2000-3000 tokens
+      ├─ DEPENDENCIES:
+      │  ├─ All pipeline stages (Phases 1-4)
+      │  ├─ MetricsClient.js
+      │  └─ Prometheus configuration
+      ├─ SUCCESS: 11 new metrics registered, collection works
+      └─ SIGNAL: "PHASE 5 COMPLETE" → Proceed to Phase 6
+      
+      Phase 6: Testing and Validation
+      ├─ Assigned to: @agent-test-agent
+      ├─ Prerequisite: Phases 1-5 complete
+      ├─ Estimated: 6000-8000 tokens
+      ├─ DEPENDENCIES:
+      │  ├─ All implemented components (Phases 1-5)
+      │  ├─ Full pipeline operational
+      │  └─ Visual sidecar available
+      ├─ ISSUES DISCOVERY:
+      │  ├─ Log failures in ISSUES_AUDIT_REPORT.md
+      │  ├─ Sub-invoke @agent-debug-agent
+      │  ├─ Wait for root cause analysis
+      │  └─ Re-test after fixes
+      └─ SIGNAL: "PHASE 6 COMPLETE - All Tests Pass" → Implementation Done
+    </instruction>
+
+    <instruction priority="critical" name="Token Management Protocol">
+      **CRITICAL: Stop BEFORE 28,000 tokens to allow continuation**
+      
+      Token Budget Per Response:
+      - Max output: 28,000 tokens
+      - Safe stopping point: 25,000 tokens
+      - Reserve: 3,000 tokens minimum
+      
+      When Approaching 25,000 Tokens:
+      1. Finish current section/task
+      2. Generate COMPLETION CHECKPOINT
+      3. Explicitly state phase status
+      4. DO NOT continue to next phase
+      5. Request user to invoke next phase
+      
+      Checkpoint Format (MANDATORY):
+      ```
+      ═══════════════════════════════════════════════════════════════
+      PHASE [X] STATUS: [COMPLETE | IN PROGRESS | BLOCKED]
+      AGENT: @[agent-id] | [Agent Name]
+      ═══════════════════════════════════════════════════════════════
+      
+      ✓ Deliverables Completed:
+        • [deliverable 1]
+        • [deliverable 2]
+        • [deliverable 3]
+      
+      ⚠️ Remaining Work (if any):
+        • [item 1]
+        • [item 2]
+      
+      🔗 Next Step:
+        Ready for PHASE [X+1]
+        Invoke: @[next-agent-id] with context below
+      
+      📊 Token Usage: ~[estimate]K / 28K tokens
+      ═══════════════════════════════════════════════════════════════
+      ```
+      
+      Continuation Format (NEXT RESPONSE):
+      ```
+      CONTINUATION: Phase [X] - Resuming from [checkpoint name]
+      Previous completion: [what was done]
+      Now resuming: [specific task]
+      
+      [Continue with remaining work]
+      ```
+    </instruction>
+
+    <instruction priority="critical" name="Subagent Handoff Format">
+      **EXPLICIT HANDOFF AT PHASE COMPLETION**
+      
+      At end of each phase, include:
+      
+      ```
+      ═══════════════════════════════════════════════════════════════
+      READY FOR NEXT PHASE INVOCATION
+      ═══════════════════════════════════════════════════════════════
+      
+      Current Phase: [Phase X - Description]
+      Status: ✓ COMPLETE
+      
+      Completed Deliverables:
+      ✓ [file/component 1]
+      ✓ [file/component 2]
+      ✓ [test/validation 1]
+      
+      Next Phase: [Phase X+1 - Description]
+      Assigned Agent: @[next-agent-id]
+      
+      Context for Next Agent:
+      - Depends on: [list completed items]
+      - Must deliver: [list expected outputs]
+      - Success criteria: [acceptance criteria]
+      - Estimated tokens: [estimate]
+      
+      ➜ INVOKE NEXT PHASE:
+      @[next-agent-id]:
+      
+      PHASE [X+1] INITIATED
+      Triggered by: PHASE [X] COMPLETION
+      
+      EXPERTISE REQUIRED:
+      [Domain description from subagent registry]
+      
+      CONTEXT FROM PREVIOUS PHASES:
+      [Key dependencies and outputs]
+      
+      PROCEED WITH: [Phase objectives]
+      ```
+    </instruction>
+
+    <instruction priority="high" name="Error Handling and Escalation">
+      **IF PHASE BLOCKED OR FAILS**
+      
+      Immediate Actions:
+      1. Declare: "PHASE [X] BLOCKED"
+      2. Explain blocker: "Cannot proceed because [specific reason]"
+      3. Root cause: "Root cause: [detailed explanation]"
+      4. Recommendation: "Required action: [specific action needed]"
+      5. DO NOT skip to next phase
+      6. DO NOT attempt workaround
+      7. Escalate: "Awaiting resolution before proceeding"
+      
+      Example:
+      ```
+      ⛔ PHASE 2 BLOCKED
+      
+      Blocker: Visual Sidecar unavailable
+      Root Cause: ollama_visual service not responding
+      Impact: Cannot execute Visual OCR track
+      
+      Required Resolution:
+      - Verify ollama_visual is running
+      - Check network connectivity to sidecar
+      - Confirm qwen3-vl:8b model is loaded
+      
+      Status: Awaiting manual intervention before Phase 2 can proceed
+      ```
+    </instruction>
+
+    <instruction priority="high" name="Quality Checkpoints">
+      **MANDATORY VALIDATION AT EACH PHASE END**
+      
+      Before declaring phase complete, verify:
+      
+      ✓ All deliverables exist and are complete
+      ✓ Code follows project style guidelines
+      ✓ No TODO markers or incomplete sections
+      ✓ Tests pass (unit and integration)
+      ✓ Documentation is updated
+      ✓ No breaking changes to existing code
+      ✓ Backward compatibility maintained (where applicable)
+      ✓ Error handling implemented
+      ✓ Logging/metrics included
+      ✓ No performance regressions
+      
+      If any checkpoint fails:
+      → Phase marked as "IN PROGRESS"
+      → Specific issue documented
+      → Agent continues fixing until all pass
+      → Then marked "COMPLETE"
+    </instruction>
+  </execution-protocol>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- CRITICAL DEPENDENCIES and INTEGRATION POINTS                       -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <dependency-graph>
+    <dependency from="Phase 2" to="PaperlessService.js">
+      <reason>Tesseract OCR fetching requires API integration</reason>
+      <status>✅ Already delivered by @agent-paperless-api-expert</status>
+      <integration-point>
+        Phase 2 calls: PaperlessService.fetchTesseractOCR(documentId)
+        Returns: OCR text + document metadata
+      </integration-point>
+    </dependency>
+
+    <dependency from="Phase 2" to="CircuitBreaker.js">
+      <reason>OCR execution must be protected from sidecar failures</reason>
+      <status>⏳ To be created in Phase 1</status>
+      <integration-point>
+        Phase 2 wraps Visual OCR calls with: circuitBreaker.execute(visualOcrCall)
+        Fallback: Tesseract-only mode when circuit opens
+      </integration-point>
+    </dependency>
+
+    <dependency from="Phase 3" to="custom_field_taxonomy">
+      <reason>Query generation requires knowledge of available fields</reason>
+      <status>✅ Available via PaperlessService.getFieldTaxonomy()</status>
+      <integration-point>
+        Phase 3 calls: PaperlessService.getFieldTaxonomy()
+        Returns: Field metadata {name, type, rarity, frequency, validation_rules}
+        Used by: @agent-guidance-expert for query targeting
+      </integration-point>
+    </dependency>
+
+    <dependency from="Phase 3" to="GuidanceTemplates">
+      <reason>Visual query generation uses structured templates</reason>
+      <status>✅ Already delivered by @agent-guidance-expert</status>
+      <integration-point>
+        Phase 3 calls: GuidanceTemplate.generateQueries(extraction, fieldTaxonomy, ocrText)
+        Returns: Array of query objects with logit bias config
+      </integration-point>
+    </dependency>
+
+    <dependency from="Phase 4" to="Phase 3">
+      <reason>Must have generated queries before executing them</reason>
+      <status>⏳ Depends on Phase 3 completion</status>
+      <integration-point>
+        Phase 4 input: context.visual_queries (from Phase 3)
+        Phase 4 task: Execute each query via Visual RAG sidecar
+      </integration-point>
+    </dependency>
+
+    <dependency from="Phase 4" to="CircuitBreaker.js">
+      <reason>Visual query execution must degrade gracefully on timeout</reason>
+      <status>⏳ Created in Phase 1</status>
+      <integration-point>
+        Phase 4 wraps visual queries: circuitBreaker.execute(sidecarQuery, {timeout: 500ms})
+        On timeout/failure: Skip query, continue with partial results
+      </integration-point>
+    </dependency>
+
+    <dependency from="Phase 5" to="All Phases 1-4">
+      <reason>Metrics must track all components</reason>
+      <status>⏳ Depends on implementation completion</status>
+      <integration-point>
+        Phase 5 instrumentsall stages for:
+        - latency per stage
+        - accuracy metrics (F1, precision, recall)
+        - circuit breaker state changes
+        - sidecar availability
+        - field detection success rate
+      </integration-point>
+    </dependency>
+
+    <dependency from="Phase 6" to="All Phases 1-5">
+      <reason>Testing requires complete implementation</reason>
+      <status>⏳ Depends on all phases complete</status>
+      <integration-point>
+        Phase 6 tests all components:
+        - Unit tests for individual functions
+        - Integration tests for stage interactions
+        - E2E tests for complete pipeline
+        - Performance tests for latency targets
+      </integration-point>
+    </dependency>
+
+    <circular-dependency name="Visual Query Generation Feedback Loop">
+      <description>User corrections inform future query generation</description>
+      <constraint>NOT REQUIRED for initial implementation</constraint>
+      <future-enhancement>
+        After Phase 6 complete:
+        - Track user corrections
+        - Update embedding logit biases based on F1 scores
+        - Fine-tune Qwen prompt templates per document class
+        - Persist learnings for next batch
+      </future-enhancement>
+    </circular-dependency>
+  </dependency-graph>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- KEY SUCCESS CRITERIA and ACCEPTANCE TESTS                          -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <success-criteria>
+    <category name="Architecture">
+      <criterion id="arch-1">
+        SSOT Retrieval Broker successfully normalizes all retrieval paths
+        → Visual, Text, Hybrid, and Expert queries all return unified schema
+        → Acceptance: Sample queries from each type produce consistent output
+      </criterion>
+      <criterion id="arch-2">
+        Circuit Breaker prevents cascading failures
+        → Visual Sidecar failures don't crash pipeline
+        → Pipeline degrades to Tesseract-only mode gracefully
+        → Acceptance: Sidecar timeout triggers OPEN state, pipeline continues
+      </criterion>
+    </category>
+
+    <category name="Performance">
+      <criterion id="perf-1">
+        Parallel OCR execution: Both tracks complete within 1000ms
+        → Visual OCR: ~500ms (budget: 500ms, hard: 1000ms)
+        → Tesseract: ~300ms (API fetch)
+        → Reconciliation: ~100ms
+        → Acceptance: 95th percentile latency < 1s
+      </criterion>
+      <criterion id="perf-2">
+        End-to-end pipeline: < 2000ms per document
+        → All 9 stages combined
+        → Acceptance: P95 latency < 2s
+      </criterion>
+      <criterion id="perf-3">
+        Visual query execution: < 500ms per query (5 concurrent)
+        → Max 5 queries executing in parallel
+        → Total time: < 500ms for all 5
+        → Acceptance: P95 latency < 500ms
+      </criterion>
+    </category>
+
+    <category name="Accuracy and Quality">
+      <criterion id="acc-1">
+        OCR reconciliation: Conflict rate < 10%
+        → Divergence between Visual OCR and Tesseract
+        → Acceptance: < 10% of fields flagged for manual review
+      </criterion>
+      <criterion id="acc-2">
+        Field detection: Precision > 0.95
+        → Extracted fields are correct (false positive rate < 5%)
+        → Acceptance: Manual review of 100 documents shows > 95% accuracy
+      </criterion>
+      <criterion id="acc-3">
+        Field detection: Recall > 0.90
+        → Missing fields correctly identified (false negative rate < 10%)
+        → Acceptance: Visual queries catch > 90% of actual fields on document
+      </criterion>
+      <criterion id="acc-4">
+        Field detection: F1 Score > 0.92
+        → Combined precision/recall metric
+        → Acceptance: Calculated F1 from test suite > 0.92
+      </criterion>
+      <criterion id="acc-5">
+        Overlay position accuracy: ± 5 pixels
+        → Bounding box coordinates match visual reality
+        → Acceptance: UI highlights align with actual field position
+      </criterion>
+    </category>
+
+    <category name="Reliability">
+      <criterion id="rel-1">
+        Zero deadlocks or race conditions
+        → Parallel OCR tracks don't create timing issues
+        → Circuit breaker state machine is thread-safe
+        → Acceptance: 1000+ concurrent operations, zero deadlocks
+      </criterion>
+      <criterion id="rel-2">
+        Visual Sidecar availability: > 99.5%
+        → Sidecar uptime monitoring
+        → Graceful degradation when unavailable
+        → Acceptance: Monitored over 7 days, > 99.5% availability
+      </criterion>
+      <criterion id="rel-3">
+        Graceful degradation: No pipeline failures
+        → All failures are handled and logged
+        → Extraction-only results are valid terminal state
+        → Acceptance: 1000 documents processed, zero pipeline crashes
+      </criterion>
+    </category>
+
+    <category name="Integration">
+      <criterion id="int-1">
+        SSOT Retrieval Broker integrates with RetrievalBroker
+        → Unified interface for all retrieval types
+        → Intent classification routes to correct handler
+        → Acceptance: RetrievalBroker tests pass
+      </criterion>
+      <criterion id="int-2">
+        Visual RAG sidecar integration complete
+        → Query generation → Execution → Result aggregation
+        → Overlay positions calculable for UI
+        → Acceptance: UI can render all field highlights
+      </criterion>
+      <criterion id="int-3">
+        Database schema compatible
+        → New tables created without breaking existing queries
+        → Migrations execute without data loss
+        → Acceptance: All existing queries still work
+      </criterion>
+    </category>
+
+    <category name="Documentation">
+      <criterion id="doc-1">
+        All components documented
+        → Code comments on critical paths
+        → README files for each component
+        → API documentation with examples
+        → Acceptance: Zero undocumented functions
+      </criterion>
+      <criterion id="doc-2">
+        Operations runbooks created
+        → Deployment instructions
+        → Monitoring setup
+        → Troubleshooting guides
+        → Acceptance: Ops team can follow runbook successfully
+      </criterion>
+    </category>
+  </success-criteria>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- COMMUNICATION and ESCALATION PATHS                                 -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <communication-protocol>
+    <instruction priority="high" name="Status Reporting">
+      **REPORT STATUS AT EVERY PHASE END**
+      
+      Required Information:
+      1. Phase number and name
+      2. Completion status (COMPLETE / IN PROGRESS / BLOCKED)
+      3. What was delivered (specific files, functions, tests)
+      4. What passed validation
+      5. What issues were encountered and resolved
+      6. Token usage estimate
+      7. Ready signal for next phase (yes/no)
+      
+      Format:
+      ```
+      PHASE [X] STATUS REPORT
+      ══════════════════════════════════════════
+      
+      Phase: [X] - [Name]
+      Status: ✓ COMPLETE
+      
+      Deliverables:
+      ✓ [File 1] - [Line count] lines
+      ✓ [File 2] - [Line count] lines
+      ✓ [Test Suite] - [Test count] tests
+      ✓ [Documentation] - [Doc name]
+      
+      Validation Results:
+      ✓ Unit tests: 12/12 passed
+      ✓ Integration tests: 8/8 passed
+      ✓ Code review: Complete
+      ✓ Documentation: Complete
+      
+      Issues Encountered and Resolved:
+      - [Issue 1]: [Resolution]
+      - [Issue 2]: [Resolution]
+      
+      Token Usage: ~6,500 / 28,000 tokens
+      
+      ➜ READY FOR PHASE [X+1]: YES
+      ```
+    </instruction>
+
+    <instruction priority="high" name="Blocker Escalation">
+      **IMMEDIATE ESCALATION IF BLOCKED**
+      
+      When Phase Cannot Continue:
+      1. Stop all work
+      2. Document blocker clearly
+      3. Explain why phase is blocked
+      4. Recommend resolution steps
+      5. Request user intervention
+      6. DO NOT skip to next phase
+      7. DO NOT attempt workarounds without approval
+      
+      Blocker Report Format:
+      ```
+      ⛔ PHASE [X] BLOCKED
+      ══════════════════════════════════════════
+      
+      Blocker: [Specific issue]
+      
+      Root Cause: [Detailed explanation]
+      
+      Why This Blocks Phase: [Impact analysis]
+      
+      Required to Proceed:
+      - [Action 1]
+      - [Action 2]
+      - [Action 3]
+      
+      Recommendation: [What should be done]
+      
+      Awaiting: [Manual intervention / Code review / Deployment / etc.]
+      ```
+    </instruction>
+
+    <instruction priority="high" name="Issue Discovery in Testing">
+      **PROTOCOL FOR @agent-test-agent FAILURES**
+      
+      When Test Fails During Phase 6:
+      1. Log failure in ISSUES_AUDIT_REPORT.md
+      2. Include: Test name, expected vs actual, stack trace
+      3. Sub-invoke @agent-debug-agent with failure report
+      4. @agent-debug-agent performs root cause analysis
+      5. @agent-debug-agent creates fix recommendations
+      6. Original component owner fixes issue
+      7. @agent-test-agent re-runs test to verify
+      8. If test passes: Mark as fixed, move to next test
+      9. If test fails: Update analysis, iterate
+      
+      Format for Issue Report:
+      ```
+      ISSUE: [Component] - [Test Name]
+      
+      Test: [test_name]
+      Status: ❌ FAILED
+      
+      Expected Behavior:
+      [Description of expected result]
+      
+      Actual Behavior:
+      [What actually happened]
+      
+      Stack Trace:
+      [Error trace or assertion failure]
+      
+      Affected Component:
+      [Which phase/component]
+      
+      Severity: [CRITICAL | HIGH | MEDIUM | LOW]
+      
+      Sub-invoked: @agent-debug-agent for analysis
+      ```
+    </instruction>
+
+    <instruction priority="medium" name="Cross-Agent Communication">
+      **HOW AGENTS REFERENCE EACH OTHER'S WORK**
+      
+      When referencing completed phase:
+      - Always cite: "Per Phase [X] by @[agent-id]"
+      - Include file names and key outputs
+      - Link to specific code sections if applicable
+      
+      Example:
+      ```
+      Per Phase 1 by @agent-pipeline-orchestration-expert:
+      - CircuitBreaker.js implements state machine
+      - States: CLOSED, OPEN, HALF_OPEN
+      - Failure threshold: 3 consecutive failures
+      - We integrate this in Phase 2 as: circuitBreaker.execute(ocrCall)
+      ```
+      
+      When requesting data from previous phase:
+      - Be specific about what you need
+      - Include reason for dependency
+      - Ask for specific functions/fields
+      
+      Example:
+      ```
+      From Phase 2 @agent-pipeline-orchestration-expert:
+      Need: mergeOcrResults() function
+      For: Reconciling Visual OCR + Tesseract output
+      Expected input: {vis_ocr_text, tesseract_text, document_type}
+      Expected output: {reconciled_text, conflict_rate, source_attribution}
+      ```
+    </instruction>
+  </communication-protocol>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- SPECIAL HANDLING: SMALL MODEL CONSTRAINTS                        -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <small-model-optimization>
+    <principle>
+      Small models (4.7-8.7GB) require different strategies than large models.
+      Focus on ACCURACY, not speed.
+      Use structured prompts and validation to compensate for model limitations.
+    </principle>
+
+    <strategy name="Context Management">
+      <problem>Small models have limited context windows</problem>
+      <solution>
+        - Keep prompts concise and focused
+        - Use guidance templates for structured output
+        - Apply logit bias to guide token selection
+        - Pre-process OCR text to remove noise before visual queries
+      </solution>
+      <implementation>
+        ✓ All guidance templates use brief, focused prompts
+        ✓ Visual queries are 1-2 sentences max
+        ✓ Logit bias boosts JSON structure tokens
+        ✓ OCR preprocessing removes duplicate/garbage text
+      </implementation>
+    </strategy>
+
+    <strategy name="Output Validation">
+      <problem>Small models more likely to produce malformed JSON or missing fields</problem>
+      <solution>
+        - Always validate output against schema
+        - Apply JsonRepair on failures
+        - Retry with alternative prompt on validation failure
+        - Fall back to heuristic extraction if LLM fails
+      </solution>
+      <implementation>
+        ✓ All LLM outputs validated against Pydantic schemas
+        ✓ JsonRepair applied to malformed JSON
+        ✓ Retry policy: 3 attempts with different prompts
+        ✓ Fallback: heuristic field extraction
+      </implementation>
+    </strategy>
+
+    <strategy name="Sequential Execution">
+      <problem>Parallel operations increase likelihood of timeout/failure</problem>
+      <solution>
+        - Prefer sequential stages where possible
+        - Only parallelize where circuit breaker protects (OCR tracks)
+        - Implement conservative timeouts (500ms budget, 1000ms hard)
+        - Cache results to avoid recomputation
+      </solution>
+      <implementation>
+        ✓ Pipeline stages execute sequentially (except OCR tracks)
+        ✓ OCR tracks protected by circuit breaker
+        ✓ 500ms timeout for visual element detection
+        ✓ Field taxonomy cached for query generation
+      </implementation>
+    </strategy>
+
+    <strategy name="Logit Bias Optimization">
+      <problem>Small models easily distracted by unlikely tokens</problem>
+      <solution>
+        - Use logit bias to guide token selection toward structured output
+        - Boost JSON structure markers: {, }, [, ], :, "
+        - Boost field names from schema
+        - Boost enum values
+        - Suppress common error patterns
+      </solution>
+      <implementation>
+        ✓ All guidance templates include logit_bias configuration
+        ✓ Token IDs identified for: JSON markers, field names, enum values
+        ✓ Bias values calibrated: 1.0-5.0 range
+        ✓ Tested on sample queries for effectiveness
+        ✓ Fallback: no logit bias if configuration fails
+      </implementation>
+    </strategy>
+
+    <strategy name="Graceful Degradation">
+      <problem>Small models more likely to fail on edge cases</problem>
+      <solution>
+        - Never fail pipeline on LLM-related issues
+        - Always have fallback: heuristic, cached, or extraction-only
+        - Log degradation for monitoring
+        - Continue with best-effort results
+      </solution>
+      <implementation>
+        ✓ Visual query generation fails: Skip visual validation, continue
+        ✓ Visual sidecar timeout: Use cached embeddings, continue
+        ✓ Extraction fails: Use raw OCR text, continue
+        ✓ Field detection: Return partial results, continue
+        ✓ All degradations logged for analysis
+      </implementation>
+    </strategy>
+
+    <strategy name="Monitoring and Feedback">
+      <problem>Small models drift in accuracy over time</problem>
+      <solution>
+        - Track user corrections as signal of model drift
+        - Monitor F1 scores per document type
+        - Collect metrics on failure modes
+        - Update logit biases based on real-world performance
+      </solution>
+      <implementation>
+        ✓ User correction rate tracked (indicator of F1 score)
+        ✓ Per-document-type accuracy metrics
+        ✓ Failure mode categorization
+        ✓ Weekly logit bias adjustment (exponential decay: 0.95x)
+        ✓ Fine-tuning recommendations based on patterns
+      </implementation>
+    </strategy>
+  </small-model-optimization>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- HOW TO USE THIS HANDOFF PROMPT                                   -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <usage-instructions>
+    <step num="1">
+      **SAVE THIS PROMPT**
+      
+      Save this entire XML as: HANDOFF_PROMPT.xml
+      Location: /.claude/ directory
+      Reference: Use for invoking all phases and agents
+    </step>
+
+    <step num="2">
+      **START WITH DOCUMENTATION VALIDATION**
+      
+      Invoke: @agent-docs-agent
+      Command: "Audit existing documentation against this PLAN"
+      Tasks:
+      - Review EXPERT_PIPELINE_DECISION_TABLE.md alignment
+      - Review PIPELINE_STAGE_CONTRACTS.md alignment
+      - Create VISUAL_RAG_INTEGRATION.md (complete spec)
+      - Create CIRCUIT_BREAKER_PATTERN.md (design guide)
+      - Create Mermaid diagrams for all flows
+      
+      Wait for: Documentation approval before Phase 1
+    </step>
+
+    <step num="3">
+      **INVOKE PHASE 1: CircuitBreaker Implementation**
+      
+      Command to copy/paste:
+      ```
+      @agent-pipeline-orchestration-expert:
+      
+      PHASE 1: CircuitBreaker Implementation
+      
+      [Paste entire Phase 1 context from <phase-1-context> section above]
+      
+      This is PHASE 1 OF 6 - FOUNDATION PHASE
+      
+      Expected Deliverables:
+      - CircuitBreaker.js (~200 lines)
+      - Unit tests (3+ scenarios)
+      - Integration with ExpertRegistry
+      
+      Success Criteria:
+      ✓ State transitions work correctly
+      ✓ Graceful degradation to Tesseract-only mode
+      ✓ No deadlocks or race conditions
+      ✓ Metrics collected per transition
+      
+      Stop when complete and report status.
+      ```
+      
+      Wait for: "PHASE 1 COMPLETE" signal
+    </step>
+
+    <step num="4">
+      **INVOKE PHASE 2: Parallel OCR Execution**
+      
+      Command to copy/paste:
+      ```
+      @agent-pipeline-orchestration-expert:
+      
+      PHASE 2: Parallel OCR Execution
+      
+      [Paste entire Phase 2 context from <phase-2-context> section above]
+      
+      This is PHASE 2 OF 6 - EXECUTION PHASE
+      
+      Prerequisites Met:
+      ✓ Phase 1: CircuitBreaker.js complete
+      ✓ Dependency: PaperlessService.js (from previous deliverables)
+      ✓ Dependency: Visual OCR via ollama_visual
+      
+      Expected Deliverables:
+      - Parallel OCR track implementation
+      - mergeOcrResults() reconciliation function
+      - OCR metadata collection (source, conflict rate)
+      - Document-type-aware biasing
+      
+      Success Criteria:
+      ✓ Both tracks execute in parallel
+      ✓ Reconciliation accuracy ≥ 95%
+      ✓ Conflict rate < 10%
+      ✓ Circuit breaker protects both tracks
+      
+      Stop when complete and report status.
+      ```
+      
+      Wait for: "PHASE 2 COMPLETE" signal
+    </step>
+
+    <step num="5">
+      **INVOKE PHASE 3: Visual Query Generation Integration**
+      
+      Command to copy/paste:
+      ```
+      @agent-guidance-expert:
+      
+      PHASE 3: Visual Query Generation Integration
+      
+      [Paste entire Phase 3 context from <phase-3-context> section in subagent-delegation-strategy above]
+      
+      This is PHASE 3 OF 6 - INTEGRATION PHASE
+      
+      Prerequisites Met:
+      ✓ Phase 2: Parallel OCR execution complete
+      ✓ Dependency: GuidanceTemplates system (from previous deliverables)
+      ✓ Dependency: PaperlessService.js custom_field_taxonomy
+      
+      Expected Deliverables:
+      - STAGE_VISUAL_QUERY_GENERATION added to ExpertRegistry
+      - Guidance template integration
+      - Custom field taxonomy loading
+      - Query prioritization logic
+      - Logit bias configuration per query
+      
+      Success Criteria:
+      ✓ 95%+ query generation success rate
+      ✓ Minimum 3 queries generated per document
+      ✓ All queries have: question, field_target, expected_element_type
+      ✓ Zero pipeline failures if generation fails (graceful degradation)
+      
+      Stop when complete and report status.
+      ```
+      
+      Wait for: "PHASE 3 COMPLETE" signal
+    </step>
+
+    <step num="6">
+      **INVOKE PHASE 4: Visual Query Execution**
+      
+      Command to copy/paste:
+      ```
+      @agent-pipeline-orchestration-expert:
+      
+      PHASE 4: Visual Query Execution
+      
+      [Paste entire Phase 4 context from <remaining-work><phase> section above]
+      
+      This is PHASE 4 OF 6 - EXECUTION PHASE
+      
+      Prerequisites Met:
+      ✓ Phase 3: Visual Query Generation complete
+      ✓ Dependency: CircuitBreaker.js (Phase 1)
+      ✓ Dependency: Visual RAG sidecar available
+      
+      Expected Deliverables:
+      - Visual query executor stage
+      - Dynamic K calculation: K = base_K * (1 + (1 - confidence) * 0.5) * (1 + rarity_factor)
+      - IoU deduplication (threshold: 0.7)
+      - Result aggregation with extraction
+      - Field confidence score updates
+      - Overlay position calculation
+      
+      Base K Values:
+      - field_extraction: k=3 (high precision)
+      - validation: k=5 (moderate)
+      - exploration: k=10 (high recall)
+      
+      Success Criteria:
+      ✓ Field detection precision > 0.95
+      ✓ Field detection recall > 0.90
+      ✓ Overlay accuracy ± 5 pixels
+      ✓ Visual confirmation rate > 0.80
+      
+      Stop when complete and report status.
+      ```
+      
+      Wait for: "PHASE 4 COMPLETE" signal
+    </step>
+
+    <step num="7">
+      **INVOKE PHASE 5: Metrics and Monitoring**
+      
+      Command to copy/paste:
+      ```
+      PHASE 5: Metrics and Monitoring Setup
+      
+      [Paste entire Phase 5 context from <remaining-work><phase> section above]
+      
+      This is PHASE 5 OF 6 - INSTRUMENTATION PHASE
+      
+      Prerequisites Met:
+      ✓ Phases 1-4: All components implemented
+      
+      Expected Deliverables:
+      - 11 new Prometheus metrics registered
+      - Latency tracking per stage
+      - Accuracy metrics (F1, precision, recall)
+      - Circuit breaker state transitions
+      - Sidecar availability monitoring
+      - User correction rate tracking
+      
+      Metrics to Implement:
+      - ocr_reconciliation_conflict_rate (target < 10%)
+      - sidecar_availability (target > 99.5%)
+      - field_detection_f1 (target > 0.92, alert if < 0.85)
+      - embedding_query_latency (target < 100ms)
+      - visual_query_success_rate
+      - circuit_breaker_state_transitions
+      - pipeline_stage_latency (per stage)
+      - extraction_accuracy_per_field_type
+      - visual_confirmation_rate
+      - ocr_source_attribution_rate
+      - user_correction_rate (for drift detection)
+
+      Success Criteria:
+      ✓ All metrics registered and collecting data
+      ✓ No performance impact from metrics collection (< 5% overhead)
+      ✓ Dashboards created for monitoring
+      
+      Stop when complete and report status.
+      ```
+      
+      Wait for: "PHASE 5 COMPLETE" signal
+    </step>
+
+    <step num="8">
+      **INVOKE PHASE 6: Testing and Validation**
+      
+      Command to copy/paste:
+      ```
+      @agent-test-agent:
+      
+      PHASE 6: Testing and Validation
+      
+      [Paste entire Phase 6 context from <subagent-delegation-strategy><subagent id="agent-test-agent"><phase-6-context> section above]
+      
+      This is PHASE 6 OF 6 - FINAL VALIDATION PHASE
+      
+      Prerequisites Met:
+      ✓ Phases 1-5: All components implemented and instrumented
+      ✓ Full pipeline operational
+      ✓ Visual sidecar available
+      
+      Expected Deliverables:
+      - Unit tests: CircuitBreaker, Dynamic K, OCR reconciliation, Query validation
+      - Integration tests: Parallel OCR, Visual queries, End-to-end pipeline
+      - Performance tests: Latency targets, throughput, memory
+      - Failure scenario tests: Timeouts, degradation, partial failures
+      - Test results report: TEST_RESULTS.md
+      - Issue audit report: ISSUES_AUDIT_REPORT.md
+      - Code quality audit: CODE_QUALITY_AUDIT.md
+      
+      Test Categories:
+      - Unit Tests (40+ scenarios)
+      - Integration Tests (20+ scenarios)
+      - Performance Tests (10+ scenarios)
+      - Failure Scenarios (15+ scenarios)
+      - E2E Tests (5+ scenarios)
+      
+      Success Criteria:
+      ✓ All unit tests pass (100% on critical paths)
+      ✓ All integration tests pass (E2E < 2s)
+      ✓ Performance tests meet targets
+      ✓ Failure scenarios handled gracefully
+      ✓ Zero deadlocks or race conditions
+      ✓ Field detection F1 > 0.92
+      ✓ Overlay accuracy ± 5 pixels
+      ✓ Circuit breaker never blocks indefinitely
+      
+      Issue Handling:
+      - Log failures in ISSUES_AUDIT_REPORT.md
+      - Sub-invoke @agent-debug-agent for root cause analysis
+      - Wait for fix recommendations
+      - Re-test after fixes applied
+      - Continue until all tests pass
+      
+      Stop when all tests pass and report final status.
+      ```
+      
+      Wait for: "PHASE 6 COMPLETE - All Tests Pass" signal
+    </step>
+
+    <step num="9">
+      **FINAL VERIFICATION and HANDOFF**
+      
+      Upon "PHASE 6 COMPLETE" signal:
+      
+      Verification Checklist:
+      ☐ All 6 phases completed
+      ☐ All deliverables present and functional
+      ☐ All tests passing
+      ☐ All metrics collecting data
+      ☐ Documentation complete and accurate
+      ☐ No blocking issues remaining
+      ☐ Performance targets met
+      ☐ Accuracy targets met
+      ☐ Reliability targets met
+      
+      Create Final Summary:
+      ```
+      ═════════════════════════════════════════════════════════════════
+      SSOT RETRIEVAL BROKER + VISUAL RAG INTEGRATION
+      IMPLEMENTATION COMPLETE
+      ═════════════════════════════════════════════════════════════════
+      
+      ✓ Phase 1: CircuitBreaker Implementation - COMPLETE
+      ✓ Phase 2: Parallel OCR Execution - COMPLETE
+      ✓ Phase 3: Visual Query Generation - COMPLETE
+      ✓ Phase 4: Visual Query Execution - COMPLETE
+      ✓ Phase 5: Metrics and Monitoring - COMPLETE
+      ✓ Phase 6: Testing and Validation - COMPLETE
+      
+      Total Lines of Code: [X]
+      Total Tests Written: [Y]
+      Total Metrics Implemented: 11
+      Total Documentation Pages: [Z]
+      
+      Performance Targets:
+      ✓ Parallel OCR: < 1s (P95)
+      ✓ End-to-end: < 2s (P95)
+      ✓ Visual queries: < 500ms (P95)
+      ✓ Sidecar availability: > 99.5%
+      
+      Accuracy Targets:
+      ✓ Field detection precision: > 0.95
+      ✓ Field detection recall: > 0.90
+      ✓ F1 Score: > 0.92
+      ✓ Overlay accuracy: ± 5 pixels
+      ✓ OCR conflict rate: < 10%
+      
+      Reliability:
+      ✓ Zero deadlocks/race conditions
+      ✓ Graceful degradation on failure
+      ✓ Circuit breaker preventing cascades
+      ✓ 1000+ documents processed successfully
+      
+      System Ready for:
+      - Production deployment
+      - Monitoring and operations
+      - User feedback collection
+      - Continuous improvement
+      ═════════════════════════════════════════════════════════════════
+      ```
+    </step>
+  </usage-instructions>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- QUICK REFERENCE: KEY INTEGRATION POINTS                          -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <quick-reference>
+    <integration-point name="CircuitBreaker Usage">
+      **Location:** Phase 2 (OCR execution), Phase 4 (Visual queries)
+      
+      **Pattern:**
+      ```javascript
+      try {
+        result = await circuitBreaker.execute(
+          () => visualOcrCall(),
+          { timeout: 500, operation: 'visual-ocr' }
+        );
+      } catch (error) {
+        if (error.type === 'CircuitBreakerOpen') {
+          // Gracefully skip visual operations
+          return { result: null, source: 'tesseract-only' };
+        }
+        throw error;
+      }
+      ```
+    </integration-point>
+
+    <integration-point name="Parallel OCR Reconciliation">
+      **Location:** Phase 2
+      
+      **Flow:**
+      ```
+      Start Parallel Tasks:
+      ├─ Task 1: Visual OCR (qwen3-vl:8b via ollama_visual)
+      ├─ Task 2: Tesseract OCR (from Paperless API)
+      └─ Task 3: Visual Elements Detection
+      
+      Wait for both to complete (or timeout)
+      
+      Call: mergeOcrResults({
+        vis_ocr_text,
+        tesseract_text,
+        document_type,
+        visual_elements
+      })
+      
+      Returns: {
+        reconciled_text,
+        conflict_rate,
+        source_attribution,
+        ocr_metadata
+      }
+      ```
+    </integration-point>
+
+    <integration-point name="Visual Query Generation">
+      **Location:** Phase 3
+      
+      **Flow:**
+      ```
+      Input: {
+        extraction_result,      // From Stage 5
+        ocr_text,               // Reconciled from Stage 4
+        field_schema,           // From PaperlessService.getFieldTaxonomy()
+        visual_elements         // From Stage 4
+      }
+      
+      Call: GuidanceTemplate.visual_query_generator_de(input)
+      
+      Returns: {
+        visual_queries: [
+          {
+            question,               // Natural language query
+            field_target,           // Target field name
+            expected_element_type,  // field_extraction|validation|exploration
+            priority,               // 0-1 ranking
+            confidence,             // Expected confidence for dynamic
+            rarity_factor,          // Field rarity in taxonomy
+            logit_bias              // Token biasing config
+          },
+          ...
+        ]
+      }
+      ```
+    </integration-point>
+
+    <integration-point name="Dynamic K Calculation">
+      **Location:** Phase 4
+      
+      **Formula:**
+      ```
+      K = base_K * (1 + (1 - confidence) * 0.5) * (1 + rarity_factor)
+      
+      Base K Values:
+      - field_extraction: k=3 (high precision)
+      - validation: k=5 (moderate)
+      - exploration: k=10 (high recall)
+      
+      Example:
+      - Query type: field_extraction (base_K=3)
+      - Confidence: 0.6 → (1 - 0.6) = 0.4 → factor = 1.2
+      - Rarity: 0.3 → factor = 1.3
+      - Final K = 3 * 1.2 * 1.3 = 4.68 ≈ 5
+      ```
+    </integration-point>
+
+    <integration-point name="Result Aggregation">
+      **Location:** Phase 4 (Stage 8/9)
+      
+      **Process:**
+      ```
+      Input: {
+        extraction_result,      // From extraction (Stage 5)
+        visual_queries,         // From query generation (Stage 5.5)
+        visual_search_results   // From sidecar (Stage 8)
+      }
+      
+      For each visual search result:
+      1. Deduplicate overlapping boxes (IoU > 0.7)
+      2. Match to extraction result by field_name
+      3. If match found:
+         - Boost field confidence score
+         - Add visual confirmation flag
+         - Add overlay positions to metadata
+      4. If no match found:
+         - Flag as newly discovered field
+         - Include in results for UI
+      
+      Output: {
+        ...extraction_result,
+        fields: [
+          ...extraction_fields_with_visual_boost,
+          ...newly_discovered_fields
+        ],
+        visual_confirmations: [...],
+        overlay_positions: {...}
+      }
+      ```
+    </integration-point>
+
+    <integration-point name="Graceful Degradation">
+      **Location:** All phases
+      
+      **Pattern:**
+      ```
+      Level 1: Full Pipeline (all stages, all components)
+      └─ If Visual Sidecar timeout
+        ├─ Level 2: No Visual Queries (skip Stage 5.5)
+        ├─ Use: Extraction + OCR reconciliation only
+        └─ Continue: To next stages normally
+      
+      Level 2: No Visual Sidecar (circuit breaker OPEN)
+      └─ If visual query generation fails
+        ├─ Level 3: Extraction Only
+        ├─ Use: OCR reconciliation + extraction
+        └─ Continue: To reasoning/validation
+      
+      Level 3: Extraction Only
+      └─ If extraction fails
+        ├─ Level 4: Raw OCR (best source)
+        ├─ Use: Highest confidence OCR text
+        └─ Continue: With reduced confidence
+      
+      Level 4: Minimal (never pipeline failure)
+      └─ Return: Partial results + logs
+      ```
+    </integration-point>
+
+    <integration-point name="Metrics Collection">
+      **Location:** All phases
+      
+      **Key Metrics to Track:**
+      ```
+      Per Stage:
+      - Stage latency (p50, p95, p99)
+      - Success/failure rates
+      - Error categorization
+      
+      Per Component:
+      - CircuitBreaker: state transitions, failures, recoveries
+      - OCR: reconciliation conflict rate, source attribution
+      - Visual Queries: generation success, execution latency
+      - Sidecar: availability, timeout rate, success rate
+      
+      Per Document:
+      - Field detection accuracy (F1, precision, recall)
+      - User corrections (vs predicted)
+      - Processing time breakdown
+      
+      System Level:
+      - Sidecar availability (uptime %)
+      - Field detection F1 trend (for drift)
+      - User correction rate (for drift)
+      ```
+    </integration-point>
+  </quick-reference>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- TROUBLESHOOTING GUIDE                                            -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <troubleshooting>
+    <issue name="Visual Sidecar Timeout">
+      <symptom>Queries taking > 1000ms, circuit breaker opening frequently</symptom>
+      <root-causes>
+        1. Sidecar service unavailable or overloaded
+        2. Network latency to sidecar
+        3. Large images requiring long processing
+        4. Query complexity too high
+      </root-causes>
+      <solutions>
+        1. Check sidecar service status: `curl http://sidecar:8000/health`
+        2. Monitor sidecar CPU/memory: should be < 80% usage
+        3. Reduce image size: resize before sending to sidecar
+        4. Reduce query complexity: break into smaller queries
+        5. Increase timeout budget (if acceptable for use case)
+        6. Enable caching for repeated queries
+      </solutions>
+      <metrics-to-check>
+        - sidecar_availability (should be > 99.5%)
+        - visual_query_latency_p95 (should be < 500ms)
+        - circuit_breaker_state (should be CLOSED)
+        - circuit_breaker_open_count (should be stable/low)
+      </metrics-to-check>
+    </issue>
+
+    <issue name="OCR Reconciliation Conflict Rate High">
+      <symptom>OCR reconciliation flags > 10% of fields for manual review</symptom>
+      <root-causes>
+        1. Visual OCR (qwen3-vl) quality issues
+        2. Tesseract OCR quality issues
+        3. Document type detection wrong (scanned vs digital)
+        4. Reconciliation thresholds too strict (20% divergence)
+      </root-causes>
+      <solutions>
+        1. Check Visual OCR output: Is qwen3-vl:8b model loaded correctly?
+        2. Check Tesseract output: Verify Paperless-ngx OCR is working
+        3. Review document type detection logic: Verify metadata is correct
+        4. Adjust reconciliation threshold (if data supports)
+        5. Log samples of high-conflict documents for analysis
+        6. Fine-tune logit bias for Visual OCR prompts
+      </solutions>
+      <metrics-to-check>
+        - ocr_reconciliation_conflict_rate (target < 10%)
+        - visual_ocr_confidence_scores (should be > 0.8 average)
+        - document_type_classification_accuracy
+        - reconciliation_flag_count_per_field_type
+      </metrics-to-check>
+    </issue>
+
+    <issue name="Field Detection Accuracy Low (F1 < 0.92)">
+      <symptom>Extracted fields have many false positives or false negatives</symptom>
+      <root-causes>
+        1. Query generation not targeting right fields
+        2. Custom field taxonomy incomplete
+        3. Visual sidecar not finding fields visually
+        4. Extraction logic has bugs
+        5. Logit bias not configured correctly
+      </root-causes>
+      <solutions>
+        1. Review visual queries: Are they specific enough?
+        2. Verify custom_field_taxonomy is complete: Check Paperless API
+        3. Test visual sidecar manually: Query specific fields on test documents
+        4. Review extraction logic: Check for regex or parsing bugs
+        5. Check logit bias configuration: Verify token IDs are correct
+        6. Increase dynamic K for low-confidence fields
+        7. Collect user corrections and analyze patterns
+      </solutions>
+      <metrics-to-check>
+        - field_detection_f1 (target > 0.92)
+        - field_detection_precision (target > 0.95)
+        - field_detection_recall (target > 0.90)
+        - per_field_type_accuracy (identify weak fields)
+        - user_correction_rate (indicates accuracy issues)
+      </metrics-to-check>
+    </issue>
+
+    <issue name="Visual Query Execution Failing">
+      <symptom>Visual queries generated but not executing, or returning empty results</symptom>
+      <root-causes>
+        1. Sidecar not responding to queries
+        2. Query format incompatible with sidecar
+        3. Circuit breaker OPEN due to previous failures
+        4. Embedding model not loading correctly
+        5. Field targets don't exist in document
+      </root-causes>
+      <solutions>
+        1. Check sidecar query format: Verify API compatibility
+        2. Test sidecar manually: Send test query directly
+        3. Check circuit breaker state: Should be CLOSED or HALF_OPEN
+        4. Verify embedding model: Check if clip-vit-large-patch14 is available
+        5. Review field targets: Verify they match actual document structure
+        6. Check dynamic K calculation: May be too low for search
+        7. Increase logging on query execution for debugging
+      </solutions>
+      <metrics-to-check>
+        - visual_query_success_rate (should be > 0.95)
+        - visual_query_latency_p95 (should be < 500ms)
+        - sidecar_query_response_rate (should be 100%)
+        - circuit_breaker_state (should be CLOSED)
+        - query_result_empty_rate (should be low)
+      </metrics-to-check>
+    </issue>
+
+    <issue name="Circuit Breaker Stuck in OPEN State">
+      <symptom>Pipeline degraded to Tesseract-only, not recovering</symptom>
+      <root-causes>
+        1. Sidecar service completely down
+        2. Network connectivity issue to sidecar
+        3. Circuit breaker cooldown period active
+        4. Repeated failures on HALF_OPEN test
+      </root-causes>
+      <solutions>
+        1. Check sidecar service: `systemctl status sidecar` or equivalent
+        2. Verify network: `ping sidecar-host` and check firewall
+        3. Check cooldown timer: Waiting for 30 second cooldown
+        4. Wait for HALF_OPEN test: Should automatically try after cooldown
+        5. If stuck: Manually restart circuit breaker
+        6. Check logs for root cause of initial failures
+        7. Once sidecar recovered: Circuit will auto-recover to CLOSED
+      </solutions>
+      <metrics-to-check>
+        - circuit_breaker_state (should eventually return to CLOSED)
+        - circuit_breaker_open_count (increasing = stuck)
+        - sidecar_availability (must return to > 0)
+        - circuit_breaker_last_state_change_timestamp
+        - time_since_circuit_opened (if > 30s + random backoff, investigate)
+      </metrics-to-check>
+    </issue>
+
+    <issue name="Pipeline Latency > 2 Seconds">
+      <symptom>End-to-end processing slower than target (< 2s)</symptom>
+      <root-causes>
+        1. Visual sidecar responses slow (> 500ms)
+        2. Query generation taking too long
+        3. Extraction stage slow
+        4. Multiple retries due to failures
+        5. Database queries slow
+        6. Image preprocessing expensive
+      </root-causes>
+      <solutions>
+        1. Profile each stage: Check stage-level latency metrics
+        2. If visual queries slow: Reduce query count or optimize queries
+        3. If extraction slow: Check LLM response times
+        4. If retries: Fix underlying failures
+        5. Optimize images: Reduce size before visual processing
+        6. Add caching: Field taxonomy, embeddings, results
+        7. Consider sequential vs parallel tradeoffs
+      </solutions>
+      <metrics-to-check>
+        - pipeline_end_to_end_latency_p95 (target < 2000ms)
+        - stage_latency breakdown (identify bottleneck stage)
+        - visual_query_latency_p95 (target < 500ms)
+        - extraction_latency (should be < 500ms)
+        - retry_rate (should be < 5%)
+      </metrics-to-check>
+    </issue>
+
+    <issue name="Overlay Positions Inaccurate">
+      <symptom>UI highlights don't align with actual field positions (> 5 pixel error)</symptom>
+      <root-causes>
+        1. Bounding box coordinates not normalized correctly
+        2. Image resolution mismatch between sidecar and UI
+        3. Coordinate system different (0-1 vs pixels)
+        4. Page number mismatch
+        5. Sidecar returning wrong coordinates
+      </root-causes>
+      <solutions>
+        1. Verify coordinate normalization: 0-1 scale vs pixel scale
+        2. Check image resolution: Ensure consistency sidecar → UI
+        3. Validate page numbers: Correct page for each overlay
+        4. Test sidecar directly: Get raw bounding boxes
+        5. Implement coordinate validation in aggregation stage
+        6. Add visual testing: Automated screenshots comparing prediction vs actual
+        7. Consider applying calibration offset if systematic error
+      </solutions>
+      <metrics-to-check>
+        - overlay_position_accuracy (target ± 5 pixels)
+        - coordinate_normalization_errors (should be 0)
+        - page_number_mismatch_rate (should be 0)
+        - bounding_box_iou_with_manual (ground truth comparison)
+      </metrics-to-check>
+    </issue>
+
+    <issue name="Memory Usage High">
+      <symptom>Pipeline consuming > expected memory during execution</symptom>
+      <root-causes>
+        1. Large image files cached in memory
+        2. Visual embeddings not cleaned up
+        3. Query results accumulating without cleanup
+        4. Memory leak in circuit breaker or state management
+        5. No garbage collection between documents
+      </root-causes>
+      <solutions>
+        1. Profile memory usage: `node --inspect` for heap snapshots
+        2. Implement cleanup: Delete large objects after use
+        3. Stream large data: Don't load entire documents in memory
+        4. Reduce image cache: TTL and size limits
+        5. Garbage collection tuning: Adjust Node.js GC settings
+        6. Monitor per-document memory: Ensure cleanup between documents
+      </solutions>
+      <metrics-to-check>
+        - heap_memory_usage (track growth over documents)
+        - heap_memory_peak (should not grow unbounded)
+        - cache_size (field taxonomy, embeddings)
+        - object_count (growing = leak indicator)
+      </metrics-to-check>
+    </issue>
+  </troubleshooting>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- FINAL CHECKLIST                                                  -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <final-checklist>
+    <section name="Before Starting Implementation">
+      ☐ Save this entire HANDOFF_PROMPT.xml to /.claude/ directory
+      ☐ Review PLAN.md and understand architecture
+      ☐ Review completed expert agent deliverables (4 files/systems)
+      ☐ Verify Paperless-NGX API access and credentials
+      ☐ Verify Visual RAG sidecar is deployed and accessible
+      ☐ Verify ollama_visual service with qwen3-vl:8b model
+      ☐ Verify test document corpus available
+      ☐ Verify Prometheus metrics collection configured
+      ☐ Create .claude/phase-tracking.md for status tracking
+    </section>
+
+    <section name="Phase 1: CircuitBreaker">
+      ☐ CircuitBreaker.js created (~200 lines)
+      ☐ State machine implemented (CLOSED → OPEN → HALF_OPEN)
+      ☐ Failure threshold set to 3 consecutive failures
+      ☐ Cooldown period set to 30 seconds
+      ☐ Exponential backoff configured (100ms, 200ms, 400ms)
+      ☐ Metrics hooks implemented
+      ☐ Unit tests created (3+ scenarios)
+      ☐ No deadlocks or race conditions
+      ☐ Integration with ExpertRegistry.js
+      ☐ Phase 1 marked COMPLETE in tracking file
+    </section>
+
+    <section name="Phase 2: Parallel OCR">
+      ☐ Visual OCR track implemented (qwen3-vl:8b via ollama_visual)
+      ☐ Tesseract OCR track implemented (Paperless API fetch)
+      ☐ Both tracks execute in parallel
+      ☐ mergeOcrResults() function implemented
+      ☐ Length ratio scoring working
+      ☐ Structural integrity checks implemented
+      ☐ Garbage detection working
+      ☐ Document-type-aware biasing (scanned docs favor Visual OCR)
+      ☐ OCR metadata collected (source, conflict rate, latency)
+      ☐ CircuitBreaker protects both tracks
+      ☐ Reconciliation accuracy ≥ 95%
+      ☐ Conflict rate < 10%
+      ☐ Integration tests passing
+      ☐ Phase 2 marked COMPLETE in tracking file
+    </section>
+
+    <section name="Phase 3: Visual Query Generation">
+      ☐ STAGE_VISUAL_QUERY_GENERATION added to ExpertRegistry
+      ☐ GuidanceTemplate system integrated
+      ☐ custom_field_taxonomy loaded from PaperlessService
+      ☐ Minimum 3 queries generated per document
+      ☐ Queries target missing or low-confidence fields
+      ☐ Query structure: {question, field_target, expected_element_type, priority, confidence, rarity_factor, logit_bias}
+      ☐ Logit bias configured for all queries
+      ☐ Query prioritization working
+      ☐ Graceful degradation if generation fails
+      ☐ Query validation: all required fields present
+      ☐ 95%+ generation success rate
+      ☐ Integration tests passing
+      ☐ Phase 3 marked COMPLETE in tracking file
+    </section>
+
+    <section name="Phase 4: Visual Query Execution">
+      ☐ Visual query executor stage implemented
+      ☐ Dynamic K calculation: K = base_K * (1 + (1 - confidence) * 0.5) * (1 + rarity_factor)
+      ☐ Base K values: extraction=3, validation=5, exploration=10
+      ☐ CircuitBreaker protects query execution
+      ☐ Max 5 concurrent queries per document
+      ☐ IoU deduplication implemented (threshold: 0.7)
+      ☐ Result aggregation with extraction working
+      ☐ Field confidence scores updated with visual confirmations
+      ☐ Overlay positions calculated (x, y, width, height)
+      ☐ Newly discovered fields flagged
+      ☐ Field detection precision > 0.95
+      ☐ Field detection recall > 0.90
+      ☐ F1 Score > 0.92
+      ☐ Overlay accuracy ± 5 pixels
+      ☐ Visual confirmation rate > 0.80
+      ☐ Integration tests passing
+      ☐ Phase 4 marked COMPLETE in tracking file
+    </section>
+
+    <section name="Phase 5: Metrics and Monitoring">
+      ☐ 11 new Prometheus metrics registered
+      ☐ ocr_reconciliation_conflict_rate (target < 10%)
+      ☐ sidecar_availability (target > 99.5%)
+      ☐ field_detection_f1 (target > 0.92, alert if < 0.85)
+      ☐ embedding_query_latency (target < 100ms)
+      ☐ visual_query_success_rate
+      ☐ circuit_breaker_state_transitions
+      ☐ pipeline_stage_latency (per stage)
+      ☐ extraction_accuracy_per_field_type
+      ☐ visual_confirmation_rate
+      ☐ ocr_source_attribution_rate
+      ☐ user_correction_rate
+      ☐ Per-stage latency tracking (p50, p95, p99)
+      ☐ No performance impact (< 5% overhead)
+      ☐ Dashboards created for monitoring
+      ☐ Alerts configured for key thresholds
+      ☐ Phase 5 marked COMPLETE in tracking file
+    </section>
+
+    <section name="Phase 6: Testing and Validation">
+      ☐ Unit tests: CircuitBreaker state machine (6+ scenarios)
+      ☐ Unit tests: Dynamic K calculation
+      ☐ Unit tests: OCR reconciliation scoring
+      ☐ Unit tests: Query validation
+      ☐ Integration tests: Parallel OCR execution
+      ☐ Integration tests: Visual query generation + execution
+      ☐ Integration tests: End-to-end pipeline
+      ☐ Performance tests: Latency targets met
+      ☐ Performance tests: Throughput adequate
+      ☐ Performance tests: Memory footprint acceptable
+      ☐ Failure scenario tests: Timeouts
+      ☐ Failure scenario tests: Degradation
+      ☐ Failure scenario tests: Partial failures
+      ☐ All unit tests passing (100%)
+      ☐ All integration tests passing
+      ☐ All performance tests passing
+      ☐ All failure scenario tests passing
+      ☐ Zero deadlocks or race conditions
+      ☐ TEST_RESULTS.md created
+      ☐ ISSUES_AUDIT_REPORT.md created (if any issues)
+      ☐ CODE_QUALITY_AUDIT.md created
+      ☐ All issues resolved or documented
+      ☐ Phase 6 marked COMPLETE in tracking file
+    </section>
+
+    <section name="Documentation">
+      ☐ SSOT_RETRIEVAL_BROKER.md created
+      ☐ VISUAL_RAG_INTEGRATION.md complete
+      ☐ CIRCUIT_BREAKER_PATTERN.md created
+      ☐ API_RETRIEVAL.md with examples
+      ☐ MIGRATION_GUIDE.md for deployment
+      ☐ Mermaid diagrams: Query flow
+      ☐ Mermaid diagrams: Circuit breaker state machine
+      ☐ Mermaid diagrams: Visual query generation flow
+      ☐ Mermaid diagrams: Result aggregation process
+      ☐ EXPERT_PIPELINE_DECISION_TABLE.md updated
+      ☐ PIPELINE_STAGE_CONTRACTS.md updated
+      ☐ VALIDATION_AND_RETRY_POLICY.md updated
+      ☐ Troubleshooting guide created
+      ☐ Operations runbook created
+      ☐ Code comments on critical paths
+      ☐ README files for each component
+      ☐ Zero undocumented functions
+    </section>
+
+    <section name="Code Quality">
+      ☐ All code follows project style guidelines
+      ☐ No TODO markers or incomplete sections
+      ☐ No hardcoded values (use config/environment)
+      ☐ Error handling implemented throughout
+      ☐ Logging/debugging output comprehensive
+      ☐ No performance regressions
+      ☐ No breaking changes to existing code
+      ☐ Backward compatibility maintained
+      ☐ Dependencies properly managed
+      ☐ No memory leaks (verified by profiling)
+      ☐ All functions documented
+      ☐ All complex logic has inline comments
+    </section>
+
+    <section name="Performance Validation">
+      ☐ Parallel OCR: < 1000ms (P95)
+      ☐ Visual queries: < 500ms per query (P95)
+      ☐ End-to-end: < 2000ms per document (P95)
+      ☐ Sidecar availability: > 99.5%
+      ☐ Memory footprint: Acceptable for deployment
+      ☐ CPU usage: Normal load profile
+      ☐ Cache hit rates: > 80% for field taxonomy
+      ☐ No degradation with concurrent documents
+    </section>
+
+    <section name="Accuracy Validation">
+      ☐ OCR reconciliation: Conflict rate < 10%
+      ☐ Field detection: Precision > 0.95
+      ☐ Field detection: Recall > 0.90
+      ☐ Field detection: F1 Score > 0.92
+      ☐ Overlay positions: ± 5 pixels accuracy
+      ☐ Visual confirmations: > 80% of fields
+      ☐ Query generation: 3+ queries per document
+      ☐ Zero false positive circuits (circuit doesn't open unnecessarily)
+    </section>
+
+    <section name="Reliability Validation">
+      ☐ Zero deadlocks or race conditions
+      ☐ Graceful degradation on all failure types
+      ☐ Circuit breaker prevents cascading failures
+      ☐ 1000+ documents processed without crashes
+      ☐ Extraction-only results are valid fallback
+      ☐ All component failures logged appropriately
+      ☐ Monitoring and alerting functional
+      ☐ Recovery procedures documented and tested
+    </section>
+
+    <section name="Deployment Readiness">
+      ☐ All code committed and reviewed
+      ☐ All tests passing in CI/CD pipeline
+      ☐ All dependencies documented
+      ☐ Migration scripts tested and validated
+      ☐ Rollback procedures documented and tested
+      ☐ Database schema changes backward compatible
+      ☐ Configuration management in place
+      ☐ Environment variables documented
+      ☐ Secrets management configured
+      ☐ Deployment runbook created
+      ☐ Staging environment validated
+      ☐ Production monitoring configured
+      ☐ Alerting thresholds set
+      ☐ On-call documentation ready
+      ☐ Incident response procedures documented
+    </section>
+
+    <section name="Final Sign-Off">
+      ☐ All 6 phases completed successfully
+      ☐ All deliverables present and functional
+      ☐ All tests passing (100%)
+      ☐ All metrics collecting data
+      ☐ All documentation complete and accurate
+      ☐ All performance targets met
+      ☐ All accuracy targets met
+      ☐ All reliability targets met
+      ☐ No blocking issues remaining
+      ☐ Ready for production deployment
+      ☐ Final summary document created
+      ☐ Stakeholders notified
+    </section>
+  </final-checklist>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- CONTACT and ESCALATION                                             -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <escalation-path>
+    <contact type="Technical Blocker">
+      **If a phase is blocked due to technical issue:**
+      
+      1. Document the blocker clearly (use BLOCKED format from protocol)
+      2. Identify which component is blocked
+      3. List what action is needed to unblock
+      4. Do NOT skip to next phase
+      5. Escalate with full context
+      
+      Example:
+      ```
+      ⛔ PHASE [X] BLOCKED - [Component]
+      
+      Blocker: [Technical issue]
+      Root Cause: [Explanation]
+      Required Action: [What needs to be fixed]
+      
+      Awaiting: [Manual intervention / Deployment / etc.]
+      ```
+    </contact>
+
+    <contact type="Performance Issue">
+      **If performance targets not met:**
+      
+      1. Document which target is missed (latency/accuracy/reliability)
+      2. Profile to identify bottleneck
+      3. Propose optimization
+      4. Either: Implement optimization, OR document as known limitation
+      5. Do NOT proceed to next phase without addressing
+      
+      Report Format:
+      ```
+      ⚠️ PERFORMANCE ISSUE - [Metric]
+      
+      Target: [What should be achieved]
+      Actual: [Current measurement]
+      Gap: [X%]
+      
+      Bottleneck: [Identified component]
+      Proposed Fix: [Optimization strategy]
+      ```
+    </contact>
+
+    <contact type="Accuracy Issue">
+      **If accuracy targets not met:**
+      
+      1. Document F1 score and precision/recall breakdown
+      2. Analyze error patterns (false positives vs false negatives)
+      3. Identify which field types are affected
+      4. Propose adjustment to queries, logit bias, or thresholds
+      5. Re-test and verify improvement
+      
+      Report Format:
+      ```
+      ⚠️ ACCURACY ISSUE - Field Detection
+      
+      Target: F1 > 0.92
+      Actual: F1 = [X]
+      
+      Precision: [X] (target > 0.95)
+      Recall: [X] (target > 0.90)
+      
+      Error Analysis: [Pattern in failures]
+      Proposed Fix: [Adjustment strategy]
+      ```
+    </contact>
+
+    <contact type="Integration Issue">
+      **If integration between phases fails:**
+      
+      1. Identify which interface is broken
+      2. Verify input/output contracts match
+      3. Check data flow between components
+      4. Test interface in isolation
+      5. Debug and fix
+      
+      Report Format:
+      ```
+      ⛔ INTEGRATION ISSUE - [Phase X] → [Phase Y]
+      
+      Interface: [Component A] calls [Component B]
+      Expected Input: [Schema]
+      Actual Input: [What was received]
+      Expected Output: [Schema]
+      Actual Output: [What was returned]
+      
+      Root Cause: [Analysis]
+      Fix: [Correction needed]
+      ```
+    </contact>
+  </escalation-path>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- SUMMARY and NEXT STEPS                                             -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <summary>
+    <title>SSOT Retrieval Broker + Visual RAG Integration - Complete Implementation Plan</title>
+    
+    <what-this-is>
+      This is a comprehensive handoff prompt for implementing a complex multi-phase architecture
+      integrating SSOT (Single Source of Truth) Retrieval Broker with Visual RAG sidecar.
+      
+      It provides:
+      ✓ Complete architecture specifications
+      ✓ Phased implementation breakdown (6 phases)
+      ✓ Expert agent delegation strategy
+      ✓ Token management and context optimization
+      ✓ Success criteria and validation checkpoints
+      ✓ Troubleshooting guides
+      ✓ Integration patterns and quick references
+    </what-this-is>
+
+    <how-to-use>
+      1. Save this entire XML as: HANDOFF_PROMPT.xml
+      2. Follow the usage instructions step-by-step
+      3. Invoke each phase sequentially (don't skip phases)
+      4. Wait for COMPLETE signal before next phase
+      5. If blocked: Use escalation path
+      6. When all 6 phases complete: System is ready for production
+    </how-to-use>
+
+    <key-principles>
+      1. SEQUENTIAL EXECUTION: Phases must complete in order (1→2→3→4→5→6)
+      2. EXPERT DELEGATION: Each agent owns specific expertise area
+      3. TOKEN MANAGEMENT: Stop at 25K tokens, request continuation
+      4. GRACEFUL DEGRADATION: Never fail pipeline, always degrade gracefully
+      5. SMALL MODEL FOCUS: Prioritize accuracy over latency
+      6. CIRCUIT BREAKER: Prevent cascading failures from Visual Sidecar
+      7. COMPREHENSIVE TESTING: Phase 6 validates everything
+      8. CLEAR HANDOFFS: Each phase explicitly signals completion to next
+    </key-principles>
+
+    <timeline>
+      Phase 1: CircuitBreaker Implementation
+      └─ Estimated: 2-3 hours + token usage
+      
+      Phase 2: Parallel OCR Execution
+      └─ Estimated: 3-4 hours + token usage (depends on Phase 1)
+      
+      Phase 3: Visual Query Generation Integration
+      └─ Estimated: 3-4 hours + token usage (depends on Phase 2)
+      
+      Phase 4: Visual Query Execution
+      └─ Estimated: 4-5 hours + token usage (depends on Phase 3)
+      
+      Phase 5: Metrics and Monitoring
+      └─ Estimated: 2-3 hours + token usage (can overlap with Phase 4)
+      
+      Phase 6: Testing and Validation
+      └─ Estimated: 4-6 hours + token usage (depends on Phases 1-5)
+      
+      **Total Estimated: 18-25 hours of implementation**
+      **With reviews/fixes: 25-35 hours realistic**
+    </timeline>
+
+    <risks-and-mitigations>
+      <risk name="Visual Sidecar Unavailability">
+        <probability>MEDIUM</probability>
+        <impact>HIGH - Pipeline degrades</impact>
+        <mitigation>Circuit breaker pattern handles gracefully</mitigation>
+      </risk>
+
+      <risk name="OCR Reconciliation Accuracy">
+        <probability>MEDIUM</probability>
+        <impact>HIGH - Field detection accuracy</impact>
+        <mitigation>Comprehensive testing and validation in Phase 6</mitigation>
+      </risk>
+
+      <risk name="Small Model Performance">
+        <probability>MEDIUM</probability>
+        <impact>MEDIUM - Accuracy targets</impact>
+        <mitigation>Logit bias optimization and structured prompts</mitigation>
+      </risk>
+
+      <risk name="Integration Complexity">
+        <probability>HIGH</probability>
+        <impact>MEDIUM - Delayed completion</impact>
+        <mitigation>Clear integration points and quick reference guide</mitigation>
+      </risk>
+
+      <risk name="Token Budget Exceeded">
+        <probability>LOW</probability>
+        <impact>HIGH - Incomplete work</impact>
+        <mitigation>Strict token management protocol with checkpoints</mitigation>
+      </risk>
+    </risks-and-mitigations>
+
+    <success-definition>
+      ✓ All 6 phases completed
+      ✓ All deliverables present and functional
+      ✓ All tests passing (100% pass rate)
+      ✓ Performance targets met:
+        - Parallel OCR: < 1s (P95)
+        - End-to-end: < 2s (P95)
+        - Visual queries: < 500ms (P95)
+      ✓ Accuracy targets met:
+        - Precision: > 0.95
+        - Recall: > 0.90
+        - F1 Score: > 0.92
+      ✓ Reliability targets met:
+        - Zero deadlocks
+        - Graceful degradation on failures
+        - Sidecar availability: > 99.5%
+      ✓ Documentation complete and tested
+      ✓ Monitoring and alerting configured
+      ✓ Ready for production deployment
+    </success-definition>
+
+    <post-implementation>
+      After implementation complete:
+      
+      **Immediate (Day 1):**
+      ☐ Deploy to staging environment
+      ☐ Run full test suite in staging
+      ☐ Verify monitoring and alerting
+      ☐ Document any production-specific settings
+      
+      **Week 1:**
+      ☐ Deploy to production (blue-green or canary)
+      ☐ Monitor key metrics
+      ☐ Collect user feedback
+      ☐ Document any operational procedures
+      
+      **Ongoing:**
+      ☐ Track user correction rate (indicates drift)
+      ☐ Monitor F1 scores (identify accuracy issues)
+      ☐ Maintain circuit breaker health
+      ☐ Tune logit biases based on real-world data
+      ☐ Collect metrics for continuous improvement
+
+      **Future Enhancements:**
+      ☐ Implement feedback loop (user corrections → model tuning)
+      ☐ Add per-document-type fine-tuning
+      ☐ Implement A/B testing for query generation strategies
+      ☐ Add support for additional document types (invoices, contracts, etc.)
+      ☐ Implement distributed sidecar (multi-instance load balancing)
+      ☐ Add advanced caching (semantic similarity caching)
+      ☐ Implement query result ranking optimization
+      ☐ Add confidence calibration based on actual accuracy
+      ☐ Implement active learning (high-uncertainty documents flagged for review)
+    </post-implementation>
+  </summary>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- END OF HANDOFF PROMPT                                            -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <metadata>
+    <version>1.0</version>
+    <created-date>2025-01-present</created-date>
+    <framework>Claude Code v2.0.76 (Sonnet 4.5)</framework>
+    <context-window>32,000 tokens</context-window>
+    <estimated-total-tokens>~100,000 tokens (across all 6 phases)</estimated-total-tokens>
+    <last-updated>Upon handoff</last-updated>
+    
+    <deliverables-summary>
+      From Expert Agents (Completed):
+      1. PaperlessService.js (~570 lines)
+      2. GuidanceTemplates system (base + 3 variants)
+      3. Visual query database schema (4 tables)
+      4. Infrastructure design documentation
+      
+      To Be Implemented (6 Phases):
+      1. CircuitBreaker.js (~200 lines)
+      2. Parallel OCR execution (~400 lines)
+      3. Visual query generation integration (~300 lines)
+      4. Visual query execution (~350 lines)
+      5. Metrics instrumentation (~200 lines)
+      6. Testing suite (~800 lines)
+      
+      Total New Code: ~2,250 lines
+      Total Tests: 40+ unit tests, 20+ integration tests
+      Total Documentation: 10+ documents + diagrams
+    </deliverables-summary>
+
+    <integration-checklist>
+      ✓ SSOT Retrieval Broker architecture complete
+      ✓ Visual RAG sidecar integration designed
+      ✓ Circuit breaker pattern specified
+      ✓ Parallel execution strategy defined
+      ✓ Small model optimization documented
+      ✓ Token management protocol established
+      ✓ Phased execution plan created
+      ✓ Success criteria defined
+      ✓ Troubleshooting guides provided
+      ✓ Escalation paths documented
+      ✓ Quick reference created
+      ✓ Ready for phase-by-phase implementation
+    </integration-checklist>
+
+    <critical-success-factors>
+      1. **Sequential Phase Execution**: Do not skip phases or execute out of order
+      2. **Token Management**: Stop at 25K tokens, request continuation - CRITICAL
+      3. **Circuit Breaker First**: Phase 1 must complete before Phase 2
+      4. **Clear Handoffs**: Each phase must explicitly signal completion
+      5. **Testing Completeness**: Phase 6 must test all failure scenarios
+      6. **Accuracy Focus**: Prioritize field detection accuracy over latency
+      7. **Graceful Degradation**: Never fail pipeline - always have fallback
+      8. **Documentation Currency**: Update docs after each phase completes
+    </critical-success-factors>
+  </metadata>
+
+</handoff-prompt>

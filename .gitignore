@@ -52,9 +52,9 @@ surya_models.py
 !/.planning/**
 
 # Ignore repository `prompts/` folder (non-hidden) and all its contents
-/prompts/
-/prompts/**
-!/prompts/README.md
+#/prompts/
+#/prompts/**
+#!prompts/README.md
 
 # Local archive for dev-only items (kept locally, not tracked)
 /.archive/
