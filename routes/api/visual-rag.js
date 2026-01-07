@@ -137,6 +137,90 @@ router.post('/search', async (req, res) => {
 
 /**
  * @swagger
+ * /api/visual-rag/search/visual:
+ *   post:
+ *     summary: Visual-based document search (Find Similar)
+ *     description: |
+ *       Search for documents using an image region (base64) as the query.
+ *       Proxies to the Visual RAG Sidecar.
+ *     tags: [Visual RAG]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - image
+ *             properties:
+ *               image:
+ *                 type: string
+ *                 description: Base64 encoded image
+ *               k:
+ *                 type: integer
+ *                 default: 5
+ *               includeOverlays:
+ *                 type: boolean
+ *                 default: true
+ *     responses:
+ *       200:
+ *         description: Search results
+ *       503:
+ *         description: Sidecar unavailable (Circuit Breaker)
+ */
+router.post('/search/visual', async (req, res) => {
+    const { visualSearchClient } = require('../../services/visual-rag/VisualSearchClient');
+    const { metricsCollector } = require('../../services/metrics/PrometheusMetrics');
+    
+    try {
+        const { image, k = 5, includeOverlays = true } = req.body;
+        const requestId = req.headers['x-request-id'] || `req-${Date.now()}`;
+
+        if (!image) {
+            return res.status(400).json({ success: false, error: 'Image (base64) is required' });
+        }
+
+        // Circuit Breaker Check
+        const isAvailable = await visualSearchClient.isAvailable();
+        if (!isAvailable) {
+            logger.warn('[Visual-RAG API] Sidecar unavailable (Circuit Breaker Open)', { requestId });
+            
+            if (metricsCollector?.circuitBreakerOpenTotal) {
+                metricsCollector.circuitBreakerOpenTotal.inc({ service: 'visual-rag' });
+            }
+            
+            return res.status(503).json({
+                success: false,
+                error: 'Visual search service is temporarily unavailable',
+                circuit_breaker: 'open'
+            });
+        }
+
+        logger.info(`[Visual-RAG API] Visual Search (k=${k})`, { requestId });
+
+        // Execute Search
+        const results = await visualSearchClient.searchImage(image, { k });
+        
+        // Metrics
+        if (metricsCollector?.visualQueriesExecutedTotal) {
+            metricsCollector.visualQueriesExecutedTotal.inc({ type: 'image' });
+        }
+
+        res.json({
+            success: true,
+            query: '[IMAGE]',
+            results: results.results,
+            totalResults: results.totalResults
+        });
+
+    } catch (error) {
+        logger.error('[Visual-RAG API] Visual search failed:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * @swagger
  * /api/visual-rag/health:
  *   get:
  *     summary: Visual RAG health check

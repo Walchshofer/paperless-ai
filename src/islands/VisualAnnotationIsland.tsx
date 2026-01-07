@@ -12,7 +12,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
 
   return (
     <div data-testid="visual-annotation-island-root">
-      <!-- Visual Annotation Island (stub) -->
+      {/* Visual Annotation Island (stub) */}
       <button data-testid="draw-toggle">Draw Mode</button>
       <div data-testid="annotation-canvas">(canvas placeholder)</div>
     </div>

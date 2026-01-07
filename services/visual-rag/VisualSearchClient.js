@@ -137,6 +137,66 @@ class VisualSearchClient {
     // =========================================================================
 
     /**
+     * Search indexed documents visually using a query image (find similar)
+     * @param {string} base64Image - Base64 encoded query image
+     * @param {Object} options - Search options
+     * @param {number} options.k - Number of results (default: 5)
+     * @param {boolean} options.includeBase64 - Include page images (default: false)
+     * @returns {Promise<Object>} Search results
+     */
+    async searchImage(base64Image, options = {}) {
+        const { k = 5, includeBase64 = false } = options;
+
+        if (!base64Image || typeof base64Image !== 'string') {
+            throw new Error('base64Image must be a non-empty string');
+        }
+
+        try {
+            const startTime = Date.now();
+            logger.debug(`[VisualSearchClient] Searching via image (k=${k})`);
+
+            const response = await this.client.post('/search', {
+                query_image: base64Image,
+                k,
+                include_base64: includeBase64
+            });
+
+            const results = response.data;
+            const durationMs = Date.now() - startTime;
+            
+            if (this.metricsCollector?.observeEmbeddingQueryLatency) {
+                this.metricsCollector.observeEmbeddingQueryLatency(
+                    'image-to-image',
+                    durationMs
+                );
+            }
+            if (this.metricsCollector?.recordSidecarAvailability) {
+                this.metricsCollector.recordSidecarAvailability('visual-rag', true);
+            }
+
+            logger.info(`[VisualSearchClient] Found ${results.total_results} results for image query`);
+
+            return {
+                query: results.query, // "[IMAGE]"
+                results: results.results.map(r => ({
+                    docId: r.doc_id,
+                    pageNum: r.page_num,
+                    score: r.score,
+                    filePath: r.file_path,
+                    metadata: r.metadata,
+                    base64: r.base64
+                })),
+                totalResults: results.total_results
+            };
+        } catch (error) {
+            if (this.metricsCollector?.recordSidecarAvailability) {
+                this.metricsCollector.recordSidecarAvailability('visual-rag', false);
+            }
+            throw this._wrapError('Visual image search failed', error);
+        }
+    }
+
+    /**
      * Search indexed documents visually
      * @param {string} query - Search query text
      * @param {Object} options - Search options

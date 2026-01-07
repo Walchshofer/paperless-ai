@@ -14,7 +14,7 @@ const { chromium } = require('playwright');
   page.on('requestfailed', req => console.log('[requestfailed]', req.url(), req.failure() && req.failure().errorText));
 
   console.log('Navigating to', `${base}/manual`);
-  let response = await page.goto(`${base}/manual`, { waitUntil: 'load', timeout: 15000 }).catch(e => null);
+  let response = await page.goto(`${base}/manual`, { waitUntil: 'load', timeout: 15000 }).catch(() => null);
   if (!response) {
     console.log('No initial response for /manual');
   } else {
@@ -42,7 +42,7 @@ const { chromium } = require('playwright');
   response = await page.goto(`${base}/manual`, { waitUntil: 'load', timeout: 15000 }).catch(() => null);
   console.log('Manual response after auth:', response ? response.status() : 'no response', response ? response.url() : '');
 
-  // Check for anchor and runtime placeholder
+  // Check for anchor and runtime placeholder (visual)
   const anchorCount = await page.locator('[data-testid="visual-annotation-island"]').count();
   console.log('Anchor count:', anchorCount);
 
@@ -53,6 +53,17 @@ const { chromium } = require('playwright');
   if (anchorCount > 0) {
     const snippet = await page.locator('[data-testid="visual-annotation-island"]').first().evaluate(node => node.outerHTML);
     console.log('Anchor HTML snippet:\n', snippet.substring(0, 1000));
+  }
+
+  // Manual Editor checks
+  const manualAnchorCount = await page.locator('[data-testid="manual-editor-island"]').count();
+  console.log('Manual anchor count:', manualAnchorCount);
+  const manualRootAttached = await page.evaluate(() => !!document.querySelector('[data-testid="manual-editor-island-root"]'));
+  const manualRootVisible = await page.isVisible('[data-testid="manual-editor-island-root"]').catch(() => false);
+  console.log('Manual root attached:', manualRootAttached, 'visible:', manualRootVisible);
+  if (manualRootAttached) {
+    const snippet = await page.locator('[data-testid="manual-editor-island"]').first().evaluate(node => node.outerHTML);
+    console.log('Manual anchor HTML snippet:\n', snippet.substring(0, 1000));
   }
 
   // Check scripts loaded (e.g., manual.js)

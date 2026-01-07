@@ -51,11 +51,11 @@ test.describe('Manual - Visual Annotation island', () => {
           console.log('DEBUG: in-page fetch failed', e.message);
         }
 
-        test.skip(`Manual page not available at ${url} after login - skipping E2E skeleton`);
+        test.skip(true, `Manual page not available at ${url} after login - skipping E2E skeleton`);
         return;
       }
     } else if (!response || response.status() >= 400) {
-      test.skip(`Manual page not available at ${url} - skipping E2E skeleton`);
+      test.skip(true, `Manual page not available at ${url} - skipping E2E skeleton`);
       return;
     }
 
@@ -63,7 +63,7 @@ test.describe('Manual - Visual Annotation island', () => {
     const anchor = page.locator('[data-testid="visual-annotation-island"]');
     const count = await anchor.count();
     if (count === 0) {
-      test.skip('Manual page does not include visual annotation island anchor; skipping runtime mount assertions');
+      test.skip(true, 'Manual page does not include visual annotation island anchor; skipping runtime mount assertions');
       return;
     }
 
@@ -72,7 +72,7 @@ test.describe('Manual - Visual Annotation island', () => {
     try {
       await page.waitForSelector('[data-testid="visual-annotation-island-root"]', { timeout: 5000 });
     } catch (e) {
-      test.skip('Visual annotation island anchor present but runtime placeholder not mounted; skipping interaction assertions');
+      test.skip(true, 'Visual annotation island anchor present but runtime placeholder not mounted; skipping interaction assertions');
       return;
     }
 

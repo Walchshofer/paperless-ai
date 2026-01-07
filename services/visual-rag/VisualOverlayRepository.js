@@ -401,6 +401,25 @@ class VisualOverlayRepository {
     }
 
     /**
+     * Convenience wrapper for legacy callers that pass a POJO to `save()`
+     * Accepts object with keys like: doc_id, page_number, field_type, bbox, raw_value, normalized_value, confidence
+     */
+    async save(overlayObj = {}) {
+        const docId = overlayObj.doc_id || overlayObj.docId;
+        const pageNumber = overlayObj.page_number || overlayObj.pageNumber || 1;
+        const overlayData = {
+            label: overlayObj.field_type || overlayObj.semantic_label || overlayObj.label || null,
+            box: overlayObj.bbox || overlayObj.box || null,
+            raw_value: overlayObj.raw_value || overlayObj.rawValue || '',
+            normalized_value: overlayObj.normalized_value || overlayObj.normalizedValue || '',
+            confidence: overlayObj.confidence || 0,
+            domain: overlayObj.domain || 'general',
+            extraction_model: overlayObj.extraction_model || null
+        };
+        return this.saveOverlay(docId, pageNumber, overlayData, overlayData.label);
+    }
+
+    /**
      * Save multiple overlays for a document (batch insert)
      * @param {number} docId - Paperless document ID
      * @param {Array<Object>} overlays - Array of {pageNumber, overlayData, semanticLabel}

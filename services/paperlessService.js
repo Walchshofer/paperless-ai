@@ -1333,6 +1333,49 @@ class PaperlessService {
     }
   }
 
+  /**
+   * Get lightweight document metadata useful for other services
+   * @param {number} documentId
+   * @returns {Promise<Object|null>} {id,title,tags,original_file_name,content,page_count}
+   */
+  async getDocumentMetadata(documentId) {
+    try {
+      const doc = await this.getDocument(documentId);
+      if (!doc) return null;
+      return {
+        id: doc.id,
+        title: doc.title || (doc.metadata && doc.metadata.title) || '',
+        tags: doc.tags || [],
+        original_file_name: doc.original_file_name || '',
+        content: doc.content || '',
+        page_count: doc.page_count || doc.pageCount || 1
+      };
+    } catch (err) {
+      console.warn(`[PAPERLESS] getDocumentMetadata failed for ${documentId}:`, err && err.message ? err.message : err);
+      return null;
+    }
+  }
+
+  /**
+   * Get correspondents associated with a document
+   * @param {number} documentId
+   * @returns {Promise<Array>} Array of correspondents (objects or strings)
+   */
+  async getCorrespondentsFromDocument(documentId) {
+    try {
+      const doc = await this.getDocument(documentId);
+      if (!doc) return [];
+      if (Array.isArray(doc.correspondents) && doc.correspondents.length > 0) return doc.correspondents;
+      if (doc.correspondent) return [doc.correspondent];
+      // Paperless older versions may store correspondents in metadata
+      if (doc.metadata && doc.metadata.correspondent) return [doc.metadata.correspondent];
+      return [];
+    } catch (err) {
+      console.warn(`[PAPERLESS] getCorrespondentsFromDocument failed for ${documentId}:`, err && err.message ? err.message : err);
+      return [];
+    }
+  }
+
   async searchForCorrespondentById(id) {
     try {
       const response = await this.client.get('/correspondents/', {

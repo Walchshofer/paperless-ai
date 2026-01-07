@@ -120,7 +120,13 @@ app.get('/api-docs/openapi.json', (req, res) => {
   // Try to serve the static file first
   fs.readFile(openApiPath)
     .then(data => {
-      res.send(JSON.parse(data));
+      try {
+        const text = data && typeof data.toString === 'function' ? data.toString('utf8') : String(data);
+        res.send(JSON.parse(text));
+      } catch (e) {
+        console.warn('Error parsing OpenAPI file, falling back to generated spec:', e && e.message ? e.message : e);
+        res.send(swaggerSpec);
+      }
     })
     .catch(err => {
       console.warn('Error reading OpenAPI file, generating dynamically:', err.message);

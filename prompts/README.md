@@ -22,12 +22,12 @@ See `EXECUTION_ORDER.md` for detailed sequencing and dependencies.
 
 **Phase 2: Manual Route UI**
 - `003-implement-visual-annotation-ui.md` ✅ (completed — see `prompts/summaries/003-summary.md`)
-- `004-implement-manual-feedback-ui.md`
-- `015-integration-feedback-e2e.md`
+- `004-implement-manual-feedback-ui.md` ✅ (completed — see `prompts/summaries/004-summary.md`)
+- `015-integration-feedback-e2e.md` ✅ (completed — see `prompts/summaries/015-feedback-e2e-summary.md`)
 
 **Phase 3: History Route Enhancement**
-- `005-upgrade-visual-sidecar.md`
-- `006-expose-visual-search-api.md`
+- `005-upgrade-visual-sidecar.md` ✅ (completed — see `prompts/summaries/005-upgrade-visual-sidecar-summary.md`)
+- `006-expose-visual-search-api.md` 🔄 (in-progress)
 - `007-verify-visual-search-api.md`
 - `014-verification-circuit-breaker.md`
 - `008-implement-history-split-layout.md`

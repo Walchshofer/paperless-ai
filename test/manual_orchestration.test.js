@@ -10,11 +10,11 @@ describe('Manual Orchestration Route /manual/updateDocument', function() {
     const docId = 12345;
     // Stub paperless update to succeed
     const origUpdate = paperlessService.updateDocument;
-    paperlessService.updateDocument = async (documentId, updates, options) => ({ success: true, id: documentId });
+    paperlessService.updateDocument = async (documentId, _updates, _options) => ({ success: true, id: documentId });
 
     // Stub feedbackService to fail
     const origFeedback = feedbackService.recordGranularFeedback;
-    feedbackService.recordGranularFeedback = async (documentId, events, options) => ({ errors: [{ type: 'insertion', error: 'DB down' }] });
+    feedbackService.recordGranularFeedback = async (documentId, _events, _options) => ({ errors: [{ type: 'insertion', error: 'DB down' }] });
 
     const res = await request(app)
       .post('/manual/updateDocument')
@@ -37,7 +37,7 @@ describe('Manual Orchestration Route /manual/updateDocument', function() {
 
     // Stub feedbackService to return errors
     const origFeedback = feedbackService.recordGranularFeedback;
-    feedbackService.recordGranularFeedback = async (documentId, events, options) => ({ errors: [{ type: 'insertion', error: 'DB down' }] });
+    feedbackService.recordGranularFeedback = async (documentId, _events, _options) => ({ errors: [{ type: 'insertion', error: 'DB down' }] });
 
     const res = await request(app)
       .post('/manual/updateDocument')
@@ -55,7 +55,7 @@ describe('Manual Orchestration Route /manual/updateDocument', function() {
     const docId = 33333;
     // Stub feedback to succeed
     const origFeedback = feedbackService.recordGranularFeedback;
-    feedbackService.recordGranularFeedback = async (documentId, events, options) => ({ inserted: ['id1'] });
+    feedbackService.recordGranularFeedback = async (documentId, _events, _options) => ({ inserted: ['id1'] });
 
     // Stub paperless update to succeed
     const origUpdate = paperlessService.updateDocument;

@@ -108,7 +108,30 @@
                 <!-- Island anchors (auditable via data-testid) -->
                 <div data-island="visual-annotation-island" data-testid="visual-annotation-island" data-props='<%- JSON.stringify({ documentId: vm && vm.documentId ? vm.documentId : null }) %>'></div>
                 <div data-island="feedback-controls-island" data-testid="feedback-controls-island" data-props='<%- JSON.stringify({ documentId: vm && vm.documentId ? vm.documentId : null }) %>'></div>
-                <div data-island="manual-editor-island" data-testid="manual-editor-island" data-props='<%- JSON.stringify({ documentId: vm && vm.documentId ? vm.documentId : null }) %>'></div>
+                <div data-island="manual-editor-island" data-testid="manual-editor-island" data-props='<%- JSON.stringify({ documentId: vm && vm.documentId ? vm.documentId : null }) %>'>
+                  <!-- Server-side placeholder for Manual Editor Island -->
+                  <div data-testid="manual-editor-island-root">
+                    <div role="tablist" aria-label="Manual Editor Tabs" style="display:flex;gap:8px;margin-bottom:8px">
+                      <button role="tab" data-testid="tab-metadata" aria-selected="true">Metadata</button>
+                      <button role="tab" data-testid="tab-content" aria-selected="false">Content</button>
+                      <button role="tab" data-testid="tab-fields" aria-selected="false">Fields</button>
+                    </div>
+                    <div id="manual-editor-panel">
+                      <div data-panel="metadata">
+                        <label>Title <input data-testid="manual-title-input" type="text"/></label>
+                      </div>
+                      <div data-panel="content" style="display:none">
+                        <textarea data-testid="manual-content-input" rows="4" style="width:100%"></textarea>
+                      </div>
+                      <div data-panel="fields" style="display:none">
+                        <div><input data-testid="field-name-0" placeholder="Field name"/><input data-testid="field-value-0" placeholder="Field value"/></div>
+                      </div>
+                    </div>
+                    <div style="margin-top:8px">
+                      <button data-testid="manual-save-btn">Save</button>
+                    </div>
+                  </div>
+                </div>
         
                 <!-- Document Selection -->
                 <div class="material-card mb-6">
@@ -1092,6 +1115,47 @@ return object;
           document.querySelectorAll('[data-island="visual-annotation-island"]').forEach(el => {
             if (!el.querySelector('[data-testid="visual-annotation-island-root"]')) {
               el.innerHTML = "\n                <div data-testid=\"visual-annotation-island-root\">\n                  <button data-testid=\"draw-toggle\">Draw Mode</button>\n                  <div data-testid=\"annotation-canvas\">(canvas placeholder)</div>\n                </div>\n              ";
+            }
+          });
+
+          // Dev fallback for Manual Editor island (inject interactive markup and listeners)
+          document.querySelectorAll('[data-island="manual-editor-island"]').forEach(el => {
+            if (!el.querySelector('[data-testid="manual-editor-island-root"]')) {
+              el.innerHTML = "\n                <div data-testid=\"manual-editor-island-root\">\n                  <div role=\"tablist\" aria-label=\"Manual Editor Tabs\" style=\"display:flex;gap:8px;margin-bottom:8px\">\n                    <button role=\"tab\" data-testid=\"tab-metadata\" aria-selected=\"true\">Metadata</button>\n                    <button role=\"tab\" data-testid=\"tab-content\" aria-selected=\"false\">Content</button>\n                    <button role=\"tab\" data-testid=\"tab-fields\" aria-selected=\"false\">Fields</button>\n                  </div>\n                  <div id=\"manual-editor-panel\">\n                    <div data-panel=\"metadata\">\n                      <label>Title <input data-testid=\"manual-title-input\" type=\"text\"/></label>\n                    </div>\n                    <div data-panel=\"content\" style=\"display:none\">\n                      <textarea data-testid=\"manual-content-input\" rows=\"4\" style=\"width:100%\"></textarea>\n                    </div>\n                    <div data-panel=\"fields\" style=\"display:none\">\n                      <div><input data-testid=\"field-name-0\" placeholder=\"Field name\"/><input data-testid=\"field-value-0\" placeholder=\"Field value\"/></div>\n                    </div>\n                  </div>\n                  <div style=\"margin-top:8px\">\n                    <button data-testid=\"manual-save-btn\">Save</button>\n                  </div>\n                </div>\n              ";
+
+              try {
+                const root = el.querySelector('[data-testid="manual-editor-island-root"]');
+                if (root) {
+                  const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
+                  const panels = Array.from(root.querySelectorAll('[data-panel]'));
+                  function setActive(i){ tabs.forEach((t,ii)=>t.setAttribute('aria-selected', String(ii===i))); panels.forEach((p,ii)=>p.style.display = ii===i ? '' : 'none'); }
+                  tabs.forEach((t,i)=>{ t.addEventListener('click', ()=> setActive(i)); t.addEventListener('keydown', (e)=>{ if(e.key==='ArrowLeft'){ setActive((i+tabs.length-1)%tabs.length); } if(e.key==='ArrowRight'){ setActive((i+1)%tabs.length); }}); });
+                  const save = root.querySelector('[data-testid="manual-save-btn"]');
+                  if (save) save.addEventListener('click', ()=>{
+                    const payload = { documentId: null, metadata:{}, content:'', fields:[] };
+                    const title = root.querySelector('[data-testid="manual-title-input"]'); if(title) payload.metadata.title = title.value||'';
+                    const content = root.querySelector('[data-testid="manual-content-input"]'); if(content) payload.content = content.value||'';
+                    const fname = root.querySelector('[data-testid="field-name-0"]'); const fval = root.querySelector('[data-testid="field-value-0"]'); if(fname && fname.value) payload.fields.push({ name: fname.value, value: fval ? fval.value : '' });
+                    document.dispatchEvent(new CustomEvent('payload:ready', { detail: payload }));
+                  });
+                }
+              } catch(e){ console.warn('Dev manual editor setup failed', e); }
+            }
+          });
+
+          // Dev fallback for Feedback Controls island (inject listeners)
+          document.querySelectorAll('[data-island="feedback-controls-island"]').forEach(el => {
+            if (!el.querySelector('[data-testid="feedback-controls-island-root"]')) {
+              el.innerHTML = "\n                <div data-testid=\"feedback-controls-island-root\">\n                  <button data-testid=\"thumbs-up-tags\">👍 Tags</button>\n                  <button data-testid=\"thumbs-down-tags\">👎 Tags</button>\n                </div>\n              ";
+              try {
+                const root = el.querySelector('[data-testid="feedback-controls-island-root"]');
+                if (root) {
+                  const up = root.querySelector('[data-testid="thumbs-up-tags"]');
+                  const down = root.querySelector('[data-testid="thumbs-down-tags"]');
+                  if (up) up.addEventListener('click', ()=> document.dispatchEvent(new CustomEvent('feedback:updated', { detail:{ component:'tags', feedback_type:'thumbs_up' } }))); 
+                  if (down) down.addEventListener('click', ()=> document.dispatchEvent(new CustomEvent('feedback:updated', { detail:{ component:'tags', feedback_type:'thumbs_down' } }))); 
+                }
+              } catch(e){ console.warn('Dev feedback setup failed', e); }
             }
           });
         } catch (e) {

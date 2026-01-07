@@ -1,7 +1,7 @@
 """
 Visual RAG Sidecar Service
 
-A FastAPI service that provides visual document retrieval using ColQwen2/
+A FastAPI service that provides visual document retrieval using ColQwen3/
 ColPali via the Byaldi library. This service indexes PDF pages as images and
 enables semantic search that understands document layout, tables, charts,
 and formatting.
@@ -11,18 +11,22 @@ Architecture:
 - Shares GPU with Ollama (RTX 3090 Ti 24GB)
 - Stores indices in /data/indices (persisted volume)
 - Reads PDFs from /media/paperless (read-only mount)
+- Supports Text-to-Image AND Image-to-Image retrieval
 """
 
 import os
 import logging
 import asyncio
+import base64
+import io
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from PIL import Image
 
 # Configure logging
 logging.basicConfig(
@@ -30,6 +34,9 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger("visual_rag")
+
+# Force offline mode for Hugging Face to prevent unexpected downloads in prod
+os.environ["HF_HUB_OFFLINE"] = "1"
 
 # =============================================================================
 # Configuration
@@ -46,15 +53,16 @@ class Config:
     MODEL_NAME = "TomoroAI/tomoro-colqwen3-embed-8b"
 
     # Log warning if user tries to override with old model
-    if os.getenv("VISUAL_RAG_MODEL") == "vidore/colqwen2-v1.0":
-        logger.warning(
-            "BREAKING CHANGE: vidore/colqwen2-v1.0 is no longer supported"
-        )
-        raise ValueError(
-            "BREAKING CHANGE: vidore/colqwen2-v1.0 is no longer supported. "
-            "Please upgrade to TomoroAI/tomoro-colqwen3-embed-8b and re-index documents. "
-            "See migration guide: docs/RAG_SYSTEMS_REFERENCE.md"
-        )
+    requested_model = os.getenv("VISUAL_RAG_MODEL", MODEL_NAME)
+    if requested_model != MODEL_NAME:
+         logger.error(
+             f"Unsupported model requested: {requested_model}. "
+             f"Strictly enforcing {MODEL_NAME}."
+         )
+         raise ValueError(
+             f"Unsupported model: {requested_model}. "
+             f"Only {MODEL_NAME} is supported for this version of visual-rag-sidecar."
+         )
 
     # Paths
     INDEX_DIR = Path(os.getenv("INDEX_DIR", "/data/indices"))
@@ -145,10 +153,17 @@ class IndexDirectoryRequest(BaseModel):
 
 
 class SearchRequest(BaseModel):
-    query: str = Field(
-        ...,
+    query: Optional[str] = Field(
+        None,
         description=(
-            "Search query text"
+            "Search query text. Required if query_image is not provided."
+        ),
+    )
+    query_image: Optional[str] = Field(
+        None,
+        description=(
+            "Base64 encoded image for visual similarity search. "
+            "If provided, takes precedence over query text."
         ),
     )
     k: int = Field(
@@ -574,7 +589,7 @@ async def index_directory(
 
 @app.post("/search", response_model=SearchResponse)
 async def search(request: SearchRequest):
-    """Search indexed documents visually."""
+    """Search indexed documents visually using text OR image query."""
     ensure_model_loaded()
 
     if not state.index_loaded:
@@ -583,12 +598,35 @@ async def search(request: SearchRequest):
             detail="No documents indexed yet. Please index documents first."
         )
 
-    try:
-        logger.info(f"Searching for: {request.query}")
+    if not request.query and not request.query_image:
+        raise HTTPException(
+            status_code=400,
+            detail="Either 'query' (text) or 'query_image' (base64) must be provided."
+        )
 
-        # Perform search
+    try:
+        # Determine query input (Text or Image)
+        query_input: Union[str, Image.Image] = request.query
+        
+        if request.query_image:
+            try:
+                # Decode base64 image
+                image_data = base64.b64decode(request.query_image)
+                query_input = Image.open(io.BytesIO(image_data)).convert("RGB")
+                logger.info("Performing Image-to-Image visual search")
+            except Exception as e:
+                logger.error(f"Failed to decode query image: {e}")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid base64 image string"
+                )
+        else:
+            logger.info(f"Performing Text-to-Image search: {request.query}")
+
+        # Perform search using Byaldi
+        # Byaldi's search() method handles both text string and PIL.Image automatically
         raw_results = state.model.search(
-            request.query,
+            query_input,
             k=request.k
         )
 
@@ -614,14 +652,16 @@ async def search(request: SearchRequest):
             )
             results.append(result)
 
-        logger.info(f"Found {len(results)} results for query: {request.query}")
+        logger.info(f"Found {len(results)} results")
 
         return SearchResponse(
-            query=request.query,
+            query=request.query or "[IMAGE]",
             results=results,
             total_results=len(results)
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Search failed: {e}")
         raise HTTPException(

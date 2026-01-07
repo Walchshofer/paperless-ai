@@ -9,7 +9,7 @@ export default function OverlayViewerIsland(props: Partial<OverlayViewerContract
 
   return (
     <div data-testid="overlay-viewer-root">
-      <!-- Overlay Viewer Island (stub) -->
+      {/* Overlay Viewer Island (stub) */}
       <div id="overlayContainer" data-testid="overlay-container">(image placeholder)</div>
       <div id="overlayLoading" data-testid="overlay-loading" class="hidden">Loading...</div>
     </div>

@@ -9,7 +9,7 @@ export default function HistoryTabsIsland(props: Partial<HistoryTabsContract>) {
 
   return (
     <div data-testid="history-tabs-root">
-      <!-- History Tabs Island (stub) -->
+      {/* History Tabs Island (stub) */}
       <button data-testid="tab-text">Text</button>
       <button data-testid="tab-metadata">Metadata</button>
       <button data-testid="tab-similar">Similar</button>
