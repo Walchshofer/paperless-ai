@@ -10,7 +10,8 @@
     "test:coverage": "c8 --reporter=text --reporter=lcov npm test",
     "test:report": "node scripts/test-report.js",
     "verification:fast": "node scripts/check-db-schema.js && node scripts/check-islands.js && npm test",
-    "verification:e2e": "npx playwright test --config=test/playwright.config.ts"
+    "verification:e2e": "npx playwright test --config=test/playwright.config.ts",
+    "dev": "node scripts/dev-server.js"
   },
   "keywords": [
     "paperless-ngx",
@@ -60,12 +61,15 @@
     "sqlite3": "^5.1.7",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
-    "tiktoken": "^1.0.20"
+    "tiktoken": "^1.0.20",
+    "zod": "^3.22.2"
   },
   "devDependencies": {
+    "jsdom": "^22.1.0",
     "@grpc/grpc-js": "^1.11.5",
     "@grpc/proto-loader": "^0.7.13",
     "@eslint/js": "^9.22.0",
+    "@playwright/test": "^1.43.0",
     "c8": "^9.1.0",
     "cross-env": "^7.0.3",
     "eslint": "^9.22.0",
@@ -74,7 +78,8 @@
     "globals": "^16.0.0",
     "mocha": "^11.7.5",
     "prettier": "^3.5.3",
-    "supertest": "^6.3.3"
+    "supertest": "^6.3.3",
+    "ts-node": "^10.9.1"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

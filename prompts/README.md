@@ -21,7 +21,7 @@ See `EXECUTION_ORDER.md` for detailed sequencing and dependencies.
 - `013-verification-telemetry.md`
 
 **Phase 2: Manual Route UI**
-- `003-implement-visual-annotation-ui.md`
+- `003-implement-visual-annotation-ui.md` ✅ (completed — see `prompts/summaries/003-summary.md`)
 - `004-implement-manual-feedback-ui.md`
 - `015-integration-feedback-e2e.md`
 

@@ -1,4 +1,4 @@
-<!-- ARCHIVED: moved to prompts/completed/003-implement-visual-annotation-ui.md on 2026-01-07 -->
+<!-- ARCHIVED: Moved from prompts root on 2026-01-07 -->
 
 <objective>
 Create a Preact "VisualAnnotation" Island component and Zod contract, then integrate it via the Islands mounting strategy into the Manual UI (`manual.ejs`).
@@ -59,4 +59,4 @@ Note: `VisualAnnotationIsland` is the specific implementation of the `VisualView
 - Unit: `npm test -- test/contracts/visual-annotation.contract.test.js` (Zod schema validation tests should pass).
 - Integration: Run E2E skeleton (`npm run test:e2e -- test/e2e/manual_visual_annotation.spec.js`) to assert the island mounts and `data-testid="visual-annotation-island"` exists.
 - Manual: Open Manual UI, enable Draw Mode (via toggle), draw a bounding box, enter comment, and verify `annotation:created` events are emitted with bbox normalized to image natural size.
-</verification> 
+</verification>
