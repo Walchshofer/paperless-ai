@@ -1,0 +1,42 @@
+name: Block large files & disallowed paths
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check-files:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find large files (>5MB)
+        run: |
+          echo "Searching for files larger than 5MB..."
+          files=$(git ls-files -z | xargs -0 -n1 -I{} bash -lc 'du -b "{}" 2>/dev/null || echo "0 {}"' | awk '$1 > 5242880 { print $2 }')
+          if [ -n "$files" ]; then
+            echo "Error: repository contains files larger than 5MB:";
+            echo "$files";
+            exit 1
+          fi
+
+      - name: Disallow models/hf path
+        run: |
+          if git ls-files models/hf | grep -q . ; then
+            echo "Error: tracked files under models/hf are not allowed. Remove them and add to .gitignore.";
+            git ls-files models/hf;
+            exit 1
+          fi
+
+      - name: Lint staged changes for model path
+        run: |
+          modified=$(git diff --name-only origin/main...HEAD)} || true
+          if echo "$modified" | grep -E '^models/hf/' >/dev/null; then
+            echo "PR modifies models/hf which is not allowed. Move model artifacts to external cache or volume.";
+            exit 1
+          fi
