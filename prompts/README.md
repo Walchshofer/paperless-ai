@@ -27,8 +27,8 @@ See `EXECUTION_ORDER.md` for detailed sequencing and dependencies.
 
 **Phase 3: History Route Enhancement**
 - `005-upgrade-visual-sidecar.md` ✅ (completed — see `prompts/summaries/005-upgrade-visual-sidecar-summary.md`)
-- `006-expose-visual-search-api.md` 🔄 (in-progress)
-- `007-verify-visual-search-api.md`
+- `006-expose-visual-search-api.md` ✅ (completed — see `prompts/summaries/006-expose-visual-search-api-summary.md`)
+- `007-verify-visual-search-api.md` 🔄 (in-progress)
 - `014-verification-circuit-breaker.md`
 - `008-implement-history-split-layout.md`
 - `012-verification-frontend-islands.md`

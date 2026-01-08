@@ -108,6 +108,7 @@ These components are located in `public/js/components/`. They must be included v
 -   **Custom:**
     -   `expert-components.css`: Specific complex styles for the Chat components (accordions, message bubbles) that are too verbose for inline Tailwind.
     -   `overlay-viewer.css`: Positioning logic for the document visualizer layers.
+-   **CSS Modules (Islands Pilot):** For Preact islands, prefer locally-scoped CSS Modules (`*.module.css`) to avoid global leakage and enable deterministic builds. Use class name tokens and attribute selectors for ARIA-driven state (for example `button[aria-pressed="true"]`). Import CSS modules in TSX with a runtime-safe fallback during server/test runs (e.g., a `try { styles = require('./X.module.css') } catch {}` pattern) so server-side rendering & tests don't fail prior to bundling. Add a `src/types/css.d.ts` declaration for `*.module.css`.
 -   **Theming:** Dark/Light mode is supported via a `data-theme` attribute on the `<html>` tag, toggled by local storage state.
 
 ## Data Flow & State

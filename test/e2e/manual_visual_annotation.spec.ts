@@ -29,8 +29,8 @@ test.describe('Manual - Visual Annotation island', () => {
       try {
         // Use DOMContentLoaded to avoid hanging on slow external subresources (e.g. external API calls)
         resp2 = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-      } catch (e) {
-        console.log('DEBUG: manual goto failed:', e.message);
+      } catch (e:any) {
+        console.log('DEBUG: manual goto failed:', (e as any).message);
         resp2 = null;
       }
       console.log('DEBUG: manual after login response', resp2 ? resp2.status() : 'no response', resp2 ? resp2.url() : '');
@@ -43,12 +43,12 @@ test.describe('Manual - Visual Annotation island', () => {
               const r = await fetch(u, { credentials: 'same-origin' });
               return { status: r.status };
             } catch (err) {
-              return { error: err.message };
+              return { error: (err as any).message };
             }
           }, url);
           console.log('DEBUG: in-page fetch result', fetchStatus);
-        } catch (e) {
-          console.log('DEBUG: in-page fetch failed', e.message);
+        } catch (e:any) {
+          console.log('DEBUG: in-page fetch failed', (e as any).message);
         }
 
         test.skip(true, `Manual page not available at ${url} after login - skipping E2E skeleton`);

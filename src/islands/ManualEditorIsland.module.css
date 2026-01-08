@@ -1,0 +1,31 @@
+.container {
+  padding: 8px;
+}
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.tab {
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.tabActive {
+  border-color: #6366f1; /* indigo-500 */
+  background: rgba(99,102,241,0.08);
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.06);
+}
+.textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  resize: vertical;
+}
+.save {
+  margin-top: 8px;
+}

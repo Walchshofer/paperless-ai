@@ -489,6 +489,52 @@ Keep Query 1 Result (score 0.85 > 0.78)
 
 ---
 
+## Internal API Reference
+
+### Visual Search Endpoint (Sidecar Proxy)
+
+**POST** `/api/visual-rag/search/visual`
+
+Internal endpoint that proxies requests to the Visual RAG Sidecar, protected by the Circuit Breaker.
+
+**Request Headers:**
+- `X-Request-Id`: Request ID for tracing (propagated to sidecar)
+
+**Request Body:**
+```json
+{
+  "image": "base64_encoded_image_string...",
+  "k": 5,
+  "includeOverlays": true
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "query": "[IMAGE]",
+  "results": [
+    {
+      "docId": 123,
+      "score": 0.85,
+      "base64": "..."
+    }
+  ],
+  "totalResults": 1
+}
+```
+
+**Response (503 Service Unavailable):**
+Returned when the Circuit Breaker is OPEN or the sidecar is unreachable.
+```json
+{
+  "success": false,
+  "error": "Visual search service is temporarily unavailable",
+  "circuit_breaker": "open"
+}
+```
+
 ## Configuration
 
 ### Environment Variables

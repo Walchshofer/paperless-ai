@@ -15,6 +15,7 @@
 const axios = require('axios');
 const logger = require('../logger');
 const { metricsCollector } = require('../metrics/PrometheusMetrics');
+const { CircuitBreaker } = require('../experts/CircuitBreaker');
 const config = require('../../config/config');
 
 class VisualSearchClient {
@@ -34,7 +35,15 @@ class VisualSearchClient {
             }
         });
 
-        // Track service availability
+        // Initialize Circuit Breaker
+        this.circuitBreaker = new CircuitBreaker('visual-rag', {
+            failureThreshold: config.visualRagSidecar?.failureThreshold || 3,
+            cooldownPeriod: config.visualRagSidecar?.cooldownPeriod || 30000,
+            timeout: this.timeout,
+            hardTimeout: this.timeout * 2
+        }, this.metricsCollector);
+
+        // Track service availability (legacy check)
         this._available = null;
         this._lastHealthCheck = 0;
         this._healthCheckInterval = 60000; // 1 minute
@@ -49,6 +58,12 @@ class VisualSearchClient {
      * @returns {Promise<boolean>}
      */
     async isAvailable() {
+        // First check Circuit Breaker state
+        if (this.circuitBreaker.isOpen()) {
+            logger.warn('[VisualSearchClient] Circuit breaker is OPEN, sidecar considered unavailable');
+            return false;
+        }
+
         const now = Date.now();
 
         // Use cached result if recent
@@ -111,12 +126,14 @@ class VisualSearchClient {
      * @returns {Promise<Object>} Health response
      */
     async health() {
-        try {
-            const response = await this.client.get('/health');
-            return response.data;
-        } catch (error) {
-            throw this._wrapError('Health check failed', error);
-        }
+        return this.circuitBreaker.execute(async () => {
+            try {
+                const response = await this.client.get('/health');
+                return response.data;
+            } catch (error) {
+                throw this._wrapError('Health check failed', error);
+            }
+        });
     }
 
     /**
@@ -124,12 +141,14 @@ class VisualSearchClient {
      * @returns {Promise<Object>} Status response
      */
     async status() {
-        try {
-            const response = await this.client.get('/status');
-            return response.data;
-        } catch (error) {
-            throw this._wrapError('Status check failed', error);
-        }
+        return this.circuitBreaker.execute(async () => {
+            try {
+                const response = await this.client.get('/status');
+                return response.data;
+            } catch (error) {
+                throw this._wrapError('Status check failed', error);
+            }
+        });
     }
 
     // =========================================================================
@@ -142,54 +161,67 @@ class VisualSearchClient {
      * @param {Object} options - Search options
      * @param {number} options.k - Number of results (default: 5)
      * @param {boolean} options.includeBase64 - Include page images (default: false)
+     * @param {string} options.requestId - Request ID for tracing
      * @returns {Promise<Object>} Search results
      */
     async searchImage(base64Image, options = {}) {
-        const { k = 5, includeBase64 = false } = options;
+        const { k = 5, includeBase64 = false, requestId } = options;
 
         if (!base64Image || typeof base64Image !== 'string') {
             throw new Error('base64Image must be a non-empty string');
         }
 
-        try {
-            const startTime = Date.now();
-            logger.debug(`[VisualSearchClient] Searching via image (k=${k})`);
+        const headers = requestId ? { 'X-Request-Id': requestId } : {};
 
-            const response = await this.client.post('/search', {
-                query_image: base64Image,
-                k,
-                include_base64: includeBase64
+        try {
+            const result = await this.circuitBreaker.execute(async () => {
+                const startTime = Date.now();
+                logger.debug(`[VisualSearchClient] Searching via image (k=${k})`, { requestId });
+
+                const response = await this.client.post('/search', {
+                    query_image: base64Image,
+                    k,
+                    include_base64: includeBase64
+                }, { headers });
+
+                const results = response.data;
+                const durationMs = Date.now() - startTime;
+                
+                if (this.metricsCollector?.observeEmbeddingQueryLatency) {
+                    this.metricsCollector.observeEmbeddingQueryLatency(
+                        'image-to-image',
+                        durationMs
+                    );
+                }
+                if (this.metricsCollector?.recordSidecarAvailability) {
+                    this.metricsCollector.recordSidecarAvailability('visual-rag', true);
+                }
+
+                logger.info(`[VisualSearchClient] Found ${results.total_results} results for image query`, { requestId });
+
+                return {
+                    query: results.query, // "[IMAGE]"
+                    results: results.results.map(r => ({
+                        docId: r.doc_id,
+                        pageNum: r.page_num,
+                        score: r.score,
+                        filePath: r.file_path,
+                        metadata: r.metadata,
+                        base64: r.base64
+                    })),
+                    totalResults: results.total_results
+                };
             });
 
-            const results = response.data;
-            const durationMs = Date.now() - startTime;
+            if (result.fallback) {
+                throw result.error || new Error('Circuit breaker fallback triggered');
+            }
             
-            if (this.metricsCollector?.observeEmbeddingQueryLatency) {
-                this.metricsCollector.observeEmbeddingQueryLatency(
-                    'image-to-image',
-                    durationMs
-                );
-            }
-            if (this.metricsCollector?.recordSidecarAvailability) {
-                this.metricsCollector.recordSidecarAvailability('visual-rag', true);
-            }
+            return result.data;
 
-            logger.info(`[VisualSearchClient] Found ${results.total_results} results for image query`);
-
-            return {
-                query: results.query, // "[IMAGE]"
-                results: results.results.map(r => ({
-                    docId: r.doc_id,
-                    pageNum: r.page_num,
-                    score: r.score,
-                    filePath: r.file_path,
-                    metadata: r.metadata,
-                    base64: r.base64
-                })),
-                totalResults: results.total_results
-            };
         } catch (error) {
-            if (this.metricsCollector?.recordSidecarAvailability) {
+            // Error handling is partly done by Circuit Breaker, but we re-throw for API response
+            if (this.metricsCollector?.recordSidecarAvailability && !this.circuitBreaker.isOpen()) {
                 this.metricsCollector.recordSidecarAvailability('visual-rag', false);
             }
             throw this._wrapError('Visual image search failed', error);
@@ -202,53 +234,65 @@ class VisualSearchClient {
      * @param {Object} options - Search options
      * @param {number} options.k - Number of results (default: 5)
      * @param {boolean} options.includeBase64 - Include page images (default: false)
+     * @param {string} options.requestId - Request ID for tracing
      * @returns {Promise<Object>} Search results with doc_id, page_num, score
      */
     async search(query, options = {}) {
-        const { k = 5, includeBase64 = false, queryType } = options;
+        const { k = 5, includeBase64 = false, queryType, requestId } = options;
 
         if (!query || typeof query !== 'string') {
             throw new Error('Query must be a non-empty string');
         }
 
-        try {
-            const startTime = Date.now();
-            logger.debug(`[VisualSearchClient] Searching: "${query}" (k=${k})`);
+        const headers = requestId ? { 'X-Request-Id': requestId } : {};
 
-            const response = await this.client.post('/search', {
-                query,
-                k,
-                include_base64: includeBase64
+        try {
+            const result = await this.circuitBreaker.execute(async () => {
+                const startTime = Date.now();
+                logger.debug(`[VisualSearchClient] Searching: "${query}" (k=${k})`, { requestId });
+
+                const response = await this.client.post('/search', {
+                    query,
+                    k,
+                    include_base64: includeBase64
+                }, { headers });
+
+                const results = response.data;
+                const durationMs = Date.now() - startTime;
+                if (this.metricsCollector?.observeEmbeddingQueryLatency) {
+                    this.metricsCollector.observeEmbeddingQueryLatency(
+                        queryType || 'unknown',
+                        durationMs
+                    );
+                }
+                if (this.metricsCollector?.recordSidecarAvailability) {
+                    this.metricsCollector.recordSidecarAvailability('visual-rag', true);
+                }
+
+                logger.info(`[VisualSearchClient] Found ${results.total_results} results for "${query}"`, { requestId });
+
+                return {
+                    query: results.query,
+                    results: results.results.map(r => ({
+                        docId: r.doc_id,
+                        pageNum: r.page_num,
+                        score: r.score,
+                        filePath: r.file_path,
+                        metadata: r.metadata,
+                        base64: r.base64
+                    })),
+                    totalResults: results.total_results
+                };
             });
 
-            const results = response.data;
-            const durationMs = Date.now() - startTime;
-            if (this.metricsCollector?.observeEmbeddingQueryLatency) {
-                this.metricsCollector.observeEmbeddingQueryLatency(
-                    queryType || 'unknown',
-                    durationMs
-                );
-            }
-            if (this.metricsCollector?.recordSidecarAvailability) {
-                this.metricsCollector.recordSidecarAvailability('visual-rag', true);
+            if (result.fallback) {
+                throw result.error || new Error('Circuit breaker fallback triggered');
             }
 
-            logger.info(`[VisualSearchClient] Found ${results.total_results} results for "${query}"`);
+            return result.data;
 
-            return {
-                query: results.query,
-                results: results.results.map(r => ({
-                    docId: r.doc_id,
-                    pageNum: r.page_num,
-                    score: r.score,
-                    filePath: r.file_path,
-                    metadata: r.metadata,
-                    base64: r.base64
-                })),
-                totalResults: results.total_results
-            };
         } catch (error) {
-            if (this.metricsCollector?.recordSidecarAvailability) {
+            if (this.metricsCollector?.recordSidecarAvailability && !this.circuitBreaker.isOpen()) {
                 this.metricsCollector.recordSidecarAvailability('visual-rag', false);
             }
             throw this._wrapError('Visual search failed', error);

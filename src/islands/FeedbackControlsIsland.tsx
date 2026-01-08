@@ -1,51 +1,59 @@
 import { h } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
-import { FeedbackControlsSchema, type FeedbackControlsContract } from '../ui/contracts/FeedbackControls.contract';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import type { FeedbackControlsContract } from '../ui/contracts/FeedbackControls.contract';
+
+let styles: Record<string, string> = {};
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  styles = require('./FeedbackControlsIsland.module.css');
+} catch (e) {
+  // Server/test: CSS module may not be available at runtime
+}
 
 export default function FeedbackControlsIsland(props: Partial<FeedbackControlsContract>) {
   const [thumbsUp, setThumbsUp] = useState(false);
   const [thumbsDown, setThumbsDown] = useState(false);
+  const upRef = useRef(null as HTMLButtonElement | null);
+  const downRef = useRef(null as HTMLButtonElement | null);
 
   useEffect(() => {
-    try {
-      const result = FeedbackControlsSchema.safeParse(props);
-      if (!result.success) {
-        console.warn('FeedbackControlsIsland: invalid props', result.error.errors);
-        return;
-      }
-    } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : String(e);
-      console.warn('FeedbackControlsIsland: validation failed', errorMessage);
-      return;
-    }
-  }, [props]);
+    // Ensure aria-pressed is set as a literal string on the DOM element to satisfy Axe
+    if (upRef.current) upRef.current.setAttribute('aria-pressed', thumbsUp ? 'true' : 'false');
+    if (downRef.current) downRef.current.setAttribute('aria-pressed', thumbsDown ? 'true' : 'false');
+  }, [thumbsUp, thumbsDown]);
 
   function emitFeedback(component: string, feedback_type: 'thumbs_up' | 'thumbs_down') {
     const detail = { component, feedback_type };
-    const ev = new CustomEvent('feedback:updated', { detail });
-    document.dispatchEvent(ev);
+    document.dispatchEvent(new CustomEvent('feedback:updated', { detail }));
   }
 
   return (
-    <div data-testid="feedback-controls-island-root" role="group" aria-label="Feedback Controls">
+    <div data-testid="feedback-controls-island-root" role="group" aria-label="Feedback Controls" className={styles.root ?? ''}>
       <button
+        type="button"
         data-testid="thumbs-up-tags"
-        aria-pressed={thumbsUp ? 'true' : 'false'}
-        onClick={() => { 
-          setThumbsUp(!thumbsUp); 
-          setThumbsDown(false); 
-          emitFeedback('tags', 'thumbs_up'); 
+        ref={upRef}
+        className={`${styles.button ?? ''} ${thumbsUp ? styles.buttonPressed ?? '' : ''}`}
+        onClick={() => {
+          const newState = !thumbsUp;
+          setThumbsUp(newState);
+          if (newState) setThumbsDown(false);
+          emitFeedback('tags', 'thumbs_up');
         }}
       >
         👍 Tags
       </button>
+
       <button
+        type="button"
         data-testid="thumbs-down-tags"
-        aria-pressed={thumbsDown ? 'true' : 'false'}
-        onClick={() => { 
-          setThumbsDown(!thumbsDown); 
-          setThumbsUp(false); 
-          emitFeedback('tags', 'thumbs_down'); 
+        ref={downRef}
+        className={`${styles.button ?? ''} ${thumbsDown ? styles.buttonPressed ?? '' : ''}`}
+        onClick={() => {
+          const newState = !thumbsDown;
+          setThumbsDown(newState);
+          if (newState) setThumbsUp(false);
+          emitFeedback('tags', 'thumbs_down');
         }}
       >
         👎 Tags

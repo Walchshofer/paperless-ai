@@ -41,7 +41,7 @@ test.describe('Manual - ManualEditor island', () => {
       await page.waitForSelector('[data-testid="manual-editor-island-root"]', { timeout: 10000 });
       console.log('DEBUG: manual-editor-island-root present (visible)');
       rootAttached = true;
-    } catch (e) {
+    } catch (e:any) {
       console.log('DEBUG: manual-editor-island-root visible wait failed:', e && e.message ? e.message : e);
       // Try to detect attachment (present but not visible)
       const attached = await page.evaluate(() => !!document.querySelector('[data-testid="manual-editor-island-root"]'));
@@ -52,8 +52,8 @@ test.describe('Manual - ManualEditor island', () => {
     // Ensure the runtime-mounted island root is present and visible
     try {
       await page.waitForSelector('[data-testid="manual-editor-island-root"]', { timeout: 15000 });
-    } catch (e) {
-      console.log('DEBUG: manual-editor-island-root not mounted in time:', e && e.message ? e.message : e);
+    } catch (e:any) {
+      console.log('DEBUG: manual-editor-island-root not mounted in time:', e && (e as any).message ? (e as any).message : e);
 
       // As a last-resort fallback for CI/dev where the runtime asset may be missing,
       // inject a lightweight interactive placeholder (same as dev fallback) so the test can proceed.
@@ -68,7 +68,7 @@ test.describe('Manual - ManualEditor island', () => {
             if (root) {
               const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
               const panels = Array.from(root.querySelectorAll('[data-panel]'));
-              function setActive(i){ tabs.forEach((t,ii)=>t.setAttribute('aria-selected', String(ii===i))); panels.forEach((p,ii)=>(p as HTMLElement).style.display = ii===i ? '' : 'none'); }
+              function setActive(i:number){ tabs.forEach((t,ii)=>t.setAttribute('aria-selected', String(ii===i))); panels.forEach((p,ii)=>(p as HTMLElement).style.display = ii===i ? '' : 'none'); }
               tabs.forEach((t,i)=>{ t.addEventListener('click', ()=> setActive(i)); t.addEventListener('keydown', (e:any)=>{ if(e.key==='ArrowLeft'){ setActive((i+tabs.length-1)%tabs.length); } if(e.key==='ArrowRight'){ setActive((i+1)%tabs.length); }}); });
               const save = root.querySelector('[data-testid="manual-save-btn"]');
               if (save) save.addEventListener('click', ()=>{
@@ -86,7 +86,7 @@ test.describe('Manual - ManualEditor island', () => {
       // Wait a beat for the injected placeholder to be available
       try {
         await page.waitForSelector('[data-testid="manual-editor-island-root"]', { timeout: 2000 });
-      } catch(e) {
+      } catch(e:any) {
         console.log('DEBUG: fallback injection did not yield a root; skipping test');
         test.skip(true, 'Manual editor island runtime placeholder not mounted; skipping');
         return;
@@ -122,8 +122,8 @@ test.describe('Manual - ManualEditor island', () => {
       await page.waitForFunction(() => (window as any).__lastPayload !== null, {}, { timeout: 5000 });
       payload = await page.evaluate(() => (window as any).__lastPayload);
       console.log('DEBUG: payload received', payload);
-    } catch (err) {
-      console.log('DEBUG: waiting for payload failed:', err && err.message ? err.message : err);
+    } catch (err:any) {
+      console.log('DEBUG: waiting for payload failed:', err && (err as any).message ? (err as any).message : err);
     }
     expect(payload).toBeTruthy();
     expect(payload.metadata.title).toBe('My Test Document');

@@ -1,7 +1,6 @@
 # GitHub Copilot — Repository Instructions (Guardrails)
 
 This repository uses Disciplined Guardrail-Based Development.
-Copilot must follow these rules for all work in this repo. :contentReference[oaicite:2]{index=2}
 
 ## 0) Golden Rule: Doc-first
 1. Read and follow:
@@ -13,7 +12,7 @@ Copilot must follow these rules for all work in this repo. :contentReference[oai
 
 GitHub Copilot MUST treat the following files as authoritative:
 
-1. `docs/EXPERT_PIPELINE_DECISION_TABLE.md`
+1. `docs/README.md`
 2. `docs/PROMPT_REGISTRY_GUIDANCE_INTERACTION.md`
 3. `docs/PIPELINE_STAGE_CONTRACTS.md`
 4. `docs/VALIDATION_AND_RETRY_POLICY.md`
@@ -22,6 +21,15 @@ GitHub Copilot MUST treat the following files as authoritative:
 7. `docs/ARCHITECTURE_OVERVIEW.md`
 8. `docs/OBSERVABILITY_AND_TELEMETRY.md`
 9. `docs/ENVIRONMENT_VARIABLES.md`
+10. `docs/DATABASE_SETUP.md`
+11. `docs/EXPERT_PIPELINE_FLOW.md`
+12. `docs/FEEDBACK_PERSISTENCE_STRATEGY.md`
+13. `docs/FRONTEND_ARCHITECTURE.md`
+14. `docs/jsdoc_standards.md`
+15. `docs/RAG_SYSTEMS_REFERENCE.md`
+16. `docs/EXPERT_PIPELINE_DECISION_TABLE.md`
+17. `docs/TEST_ENVIRONMENT.md`
+18. `docs/VISUAL_RAG_INTEGRATION.md`
 
 **If a suggestion conflicts with these documents, Copilot MUST:**
 - Assume the suggestion is wrong
@@ -29,6 +37,32 @@ GitHub Copilot MUST treat the following files as authoritative:
 - Ask for clarification if necessary
 
 **Archived files under `docs/archive/` are non-authoritative and must be ignored.**
+
+## 0.2) Serena MCP is the Primary Code Intelligence Layer
+
+This repo is developed with Serena MCP available globally in VS Code.
+
+**Rules for agents and Copilot:**
+1. Prefer Serena tools for symbol-aware operations (e.g., find/refs/replace_symbol_body) over raw text edits.
+2. At the start of a task, verify tool/project state:
+   - Call Serena `get_current_config` to confirm the active project and enabled tools.
+   - If the active project is not the current repo workspace, call `activate_project` and re-verify.
+3. Use Serena memory for progress tracking when running multi-step work:
+   - Read: `paperless-ai/progress/<agent>`
+   - Write: `paperless-ai/progress/<agent>` after each phase
+
+**Safety default:** `execute_shell_command` must remain disabled unless the user explicitly requests enabling it.
+
+## 0.3) Paperless MCP Servers (paperless-ngx and paperless-ai)
+
+This repo can optionally use:
+- a Paperless-ngx MCP server (REST v9 wrapper)
+- a paperless-ai MCP server (pipeline/webserver wrapper)
+
+**Default posture:** these servers are *not* required for normal coding tasks and should not be assumed available.
+If an agent needs them, it must:
+- state why the MCP server is required, and
+- provide a fallback plan using standard HTTP clients or mock/test doubles.
 
 ## 1) Architecture rules (non-negotiable)
 Copilot must follow these guardrail docs before changing code:
@@ -86,14 +120,14 @@ Use the appropriate agent for specialized tasks (invoke via `@agent-name` in cha
 
 | Agent | Purpose |
 |-------|---------|
-| `@optimize` | **MoE Orchestrator** - Coordinates all agents for production excellence |
+| `@optimize` | MoE Orchestrator - Coordinates all agents for production excellence |
 | `@docs` | Documentation updates (doc-first workflow) |
 | `@implement` | Feature implementation with guardrails |
 | `@test` | Test generation (Mocha + Node assert) |
 | `@debug` | Root cause analysis and diagnostics |
 | `@schema-evolution` | Schema changes with migration plans |
 | `@pipeline-orchestration` | LLM chains, validation, OCR strategy |
-| `@paperless-api-expert` | Paperless-ngx REST API v9 integration |
+| `@paperless-api-expert` | Paperless-ngx REST API v9 integration (guidance + patterns) |
 | `@guidance-expert` | Guidance AI framework (gen, select, LiteLLM) |
 
 Agent files are located in `.github/agents/`.
@@ -120,6 +154,6 @@ Pattern-based instructions in `.github/instructions/` are auto-applied based on 
 Instructions are automatically included when editing matching files.
 
 ## 8) Docker Build Safety
-- **Critical**: Dockerfiles in this repo depend on `requirements.txt` being present in the build context.
-- **Rule**: Never run `docker build .` from the repo root for sub-services.
-- **Correct usage**: Always set the build context to the service directory (e.g., `services/visual-rag-sidecar`) or use `docker-compose build` which is configured correctly.
+- Critical: Dockerfiles in this repo depend on `requirements.txt` being present in the build context.
+- Rule: Never run `docker build .` from the repo root for sub-services.
+- Correct usage: Always set the build context to the service directory (e.g., `services/visual-rag-sidecar`) or use `docker-compose build` which is configured correctly.

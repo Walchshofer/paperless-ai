@@ -1,0 +1,18 @@
+.root {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.button {
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.buttonPressed,
+.button[aria-pressed="true"] {
+  background: #eef2ff;
+  border-color: #6366f1;
+  color: #3730a3;
+}

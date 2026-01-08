@@ -199,7 +199,7 @@ router.post('/search/visual', async (req, res) => {
         logger.info(`[Visual-RAG API] Visual Search (k=${k})`, { requestId });
 
         // Execute Search
-        const results = await visualSearchClient.searchImage(image, { k });
+        const results = await visualSearchClient.searchImage(image, { k, requestId });
         
         // Metrics
         if (metricsCollector?.visualQueriesExecutedTotal) {

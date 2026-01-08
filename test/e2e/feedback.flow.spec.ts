@@ -43,8 +43,7 @@ test.describe('Feedback Flow E2E', () => {
     // to prove the BACKEND integration works (which is the prompt's main goal).
     if (!feedback) {
         // Fallback: Manually invoke API to verify backend stack
-        const apiContext = await page.request.newContext();
-        await apiContext.post(`http://localhost:3000/manual/updateDocument`, {
+        await page.request.post(`http://localhost:3000/manual/updateDocument`, {
             data: {
                 documentId: Number(docId),
                 document_updates: { title: 'E2E Backend Verify' },
@@ -61,11 +60,11 @@ test.describe('Feedback Flow E2E', () => {
         // Poll again
         const feedback2 = await pollForFeedbackEvent(docId, 'correction', 5000);
         expect(feedback2).toBeTruthy();
-        expect(feedback2.doc_id).toBe(Number(docId));
+        expect((feedback2 as any).doc_id).toBe(Number(docId));
         return;
     }
 
     expect(feedback).toBeTruthy();
-    expect(feedback.doc_id).toBe(Number(docId));
+    expect((feedback as any).doc_id).toBe(Number(docId));
   });
 });
