@@ -50,6 +50,8 @@ surya_models.py
 !/.github/**
 !/.planning/
 !/.planning/**
+# Allow pre-commit config to be tracked
+!.pre-commit-config.yaml
 
 # Ignore repository `prompts/` folder (non-hidden) and all its contents
 #/prompts/
