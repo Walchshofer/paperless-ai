@@ -7,6 +7,16 @@
         <primary_strength>Medical definitions, Drug interactions, Clinical guidelines</primary_strength>
     </technical_specs>
 
+    <token_limits>
+        <context_window>128000</context_window>
+        <output_limit>4096</output_limit>
+        <note>Based on Meta Llama 3.1 model cards which report a 128K context window for Llama 3.1 family models.</note>
+    </token_limits>
+
+    <references>
+        <reference url="https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct">Meta Llama 3.1 model card (context length 128k)</reference>
+    </references>
+
     <usage_guide>
         <description>
             A pure text model trained on medical textbooks and guidelines. 

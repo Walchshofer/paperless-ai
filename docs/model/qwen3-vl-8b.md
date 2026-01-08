@@ -10,8 +10,15 @@
     </technical_specs>
 
     <token_limits>
-        <context_window>32000</context_window> <output_limit>-1</output_limit>
+        <context_window>256000</context_window>
+        <output_limit>-1</output_limit>
+        <source>Vendor model cards and release notes (Qwen3 family) report native 256K context windows for Qwen3-VL series; extrapolation methods extend to larger windows. See: https://github.com/QwenLM/Qwen3 and https://ollama.com/library/qwen3</source>
     </token_limits>
+
+    <references>
+        <reference url="https://github.com/QwenLM/Qwen3">Qwen3 GitHub (QwenLM)</reference>
+        <reference url="https://ollama.com/library/qwen3">Ollama model listing: qwen3 (library)</reference>
+    </references>
 
     <usage_guide>
         <description>

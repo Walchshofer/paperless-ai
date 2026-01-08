@@ -9,6 +9,16 @@
         <primary_strength>Task Delegation, Tool Selection, Planning</primary_strength>
     </technical_specs>
 
+    <token_limits>
+        <context_window>256000</context_window>
+        <output_limit>2048</output_limit>
+        <note>Aligned with Qwen3-VL (router/orchestrator use-cases benefit from Qwen3 family 256K context windows where available).</note>
+    </token_limits>
+
+    <references>
+        <reference url="https://github.com/QwenLM/Qwen3">Qwen3 GitHub</reference>
+    </references>
+
     <usage_guide>
         <description>
             This model does not "do" the work; it "assigns" the work. 
