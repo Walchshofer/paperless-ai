@@ -77,7 +77,7 @@ All endpoints must include request-id telemetry and be access-controlled (intern
 ## Migration & Implementation Plan
 
 1. Add migration `migrations/002_create_feedback_events.sql` with the schema above.
-2. Add model `models/feedback.js` with insertion and query helpers (or use `models/document.js` helpers).
+2. Add model `models/feedback.js` with insertion and query helpers (or use `services/documentModel.js` helpers).
 3. Add routes/service `routes/feedback.js` or `services/feedback.js` (POST `/api/feedback`, internal endpoints).
 4. Add a Bias Engine job to consume unprocessed events and mark them processed.
 5. Add unit + integration tests (Mocha + Node assert) and telemetry entries.
