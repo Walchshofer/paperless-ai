@@ -1,5 +1,6 @@
 <model_profile>
     <id>fino1-8b-q8</id>
+    <aliases>fino1-8b</aliases>
     <name>Fino1-8B (The Calculator)</name>
     
     <technical_specs>
