@@ -1,0 +1,21 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=5120'] # 5 MB max per file
+      - id: check-case-conflict
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v2.8.8
+    hooks:
+      - id: prettier
+        files: '\\.(js|ts|json|md|py|jsx|tsx|css|scss)$'
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-added-large-files
+        name: block-model-artifacts
+        entry: bash -c "if git diff --cached --name-only | grep -E '^models/hf/' >/dev/null; then echo 'ERROR: committing model artifacts under models/hf is forbidden. Remove them or add to model cache.'; exit 1; fi"
+        language: system
+        always_run: true
+        stages: [commit]
