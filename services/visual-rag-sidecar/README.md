@@ -52,6 +52,16 @@ curl http://localhost:8001/health
 curl http://localhost:8001/status
 ```
 
+#### Offline-first behavior
+- The sidecar is designed to run fully offline in production. On first run, if a cached model is not found in the mapped Hugging Face cache volume, the sidecar will temporarily allow downloads from the Hugging Face Hub to fetch the model and any required artifacts.
+- After the initial successful model load, the sidecar writes a marker file to the indices directory (`.hf_hub_download_complete`) which enforces `HF_HUB_OFFLINE=1` for subsequent restarts, preventing any further network calls to the Hub.
+- If you prefer to remain fully offline from the start, pre-populate the Hugging Face cache volume (`visual_model_cache`) with the model files and create the marker file manually:
+
+```bash
+# create the marker file to indicate model already cached
+touch ./data/indices/.hf_hub_download_complete
+```
+
 ### Document Indexing
 
 ```bash

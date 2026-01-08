@@ -618,6 +618,21 @@ PAPERLESS_API_TOKEN=<your-token>
 
 **Model & Index Notes:** When migrating from older embeddings (ColQwen2), the new ColQwen3 vectors are 320 dimensions and are not byte-compatible with previous indexes — plan a re-ingest and re-index. After applying the migration in `migrations/04_change_embeddings_to_320.js`, re-run `node scripts/check_pgvector.js` to validate the vector column and indexes.
 
+**Offline-first model policy:** The Visual RAG sidecar is designed to run fully offline in production. To support this, the sidecar will:
+
+- **Allow a one-time initial download** from the Hugging Face Hub if the required model artifacts are **not present** in the supplied Hugging Face cache volume (e.g., `visual_model_cache` mapped to `/root/.cache/huggingface`).
+- **Create a marker file** after the first successful model load at: `\<INDEX_DIR\>/.hf_hub_download_complete` (default index dir: `/data/indices`). Once this marker exists, the sidecar enforces `HF_HUB_OFFLINE=1` and **will not attempt further downloads**.
+- **Pre-seed for offline deployments:** If you must be fully offline from first start, pre-populate the Hugging Face cache and create the marker on the host before starting the container:
+
+```bash
+# Pre-populate model cache and mark as complete
+# (assumes ./data/indices is the host mount for INDEX_DIR)
+touch ./data/indices/.hf_hub_download_complete
+# ensure visual model cache has model files under the cache volume
+```
+
+**Index loading fallback:** If an index path exists but is missing Byaldi metadata (e.g., `.byaldi/index_config.json.gz`), the sidecar will now log a warning and **fall back** to loading the model-only (enabling you to re-index documents with the new model using the `/index` endpoints). This prevents a hard crash on startup due to incomplete indices.
+
 **Flash-attn / CUDA issues:** See `services/visual-rag-sidecar/README.md` for common flash-attn and CUDA build troubleshooting steps.
 
 

@@ -52,7 +52,9 @@ Adjust these values when operating in high-latency or resource-constrained envir
 - `ENABLE_VISUAL_RETRIEVAL` - Feature flag for visual search capabilities (default: `no`)
 - `ENABLE_ORCHESTRATOR` - Feature flag for intelligent expert routing (default: `no`)
 - `ORCHESTRATOR_PREVISION_NORMALIZATION_ENABLED` - Enable pre-vision image normalization tool calls (default: `no`, inherits `ORCHESTRATOR_PREVISION_TOOLS_ENABLED`)
+- `HF_HUB_OFFLINE` - When set to `1|true`, the sidecar will run in offline-only mode and not contact Hugging Face Hub; if unset, the sidecar may allow an initial one-time download for first-run setup (default: **not set**)
 
+**Offline runtime behavior:** The Visual RAG sidecar writes a marker file (`.hf_hub_download_complete`) into the configured `INDEX_DIR` (default `/data/indices`) after the first successful model load. If the marker is present, the sidecar will set `HF_HUB_OFFLINE=1` on subsequent starts and refuse further downloads. To pre-seed a fully offline system, populate the Hugging Face cache volume and create the marker file before starting the container (e.g., `touch ./data/indices/.hf_hub_download_complete`).
 ### Guidance Service Configuration
 - `GUIDANCE_MODEL` - Model for structured extraction in guidance-service (default: `sauerkraut-llama3.1:8b`)
 - `OLLAMA_API_URL` - Ollama API endpoint for guidance-service container (default: `http://host.docker.internal:11434`)

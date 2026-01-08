@@ -35,8 +35,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger("visual_rag")
 
-# Force offline mode for Hugging Face to prevent unexpected downloads in prod
-os.environ["HF_HUB_OFFLINE"] = "1"
+# Respect HF_HUB_OFFLINE env var; allow downloads by default for initial first-loads
+# Set HF_HUB_OFFLINE=1 if you explicitly want the sidecar to run completely offline
+hf_env = os.getenv("HF_HUB_OFFLINE")
+if hf_env and hf_env.strip().lower() in ("1", "true", "yes"):
+    os.environ["HF_HUB_OFFLINE"] = "1"
+else:
+    # Ensure we don't force offline mode so first-run downloads can proceed
+    os.environ.pop("HF_HUB_OFFLINE", None)
+# Helpful logging to indicate behavior
+logger.info(f"HF_HUB_OFFLINE set to: {os.getenv('HF_HUB_OFFLINE', 'False')}")
 
 # =============================================================================
 # Configuration
@@ -229,19 +237,40 @@ def load_model():
         # Check if existing index exists
         index_path = config.INDEX_DIR / config.DEFAULT_INDEX_NAME
 
-        if index_path.exists():
+        def is_valid_index(p: Path) -> bool:
+            byaldi_meta = p / ".byaldi" / "index_config.json.gz"
+            return p.exists() and byaldi_meta.exists()
+
+        if is_valid_index(index_path):
             logger.info(f"Loading existing index from: {index_path}")
-            state.model = RAGMultiModalModel.from_index(
-                str(index_path),
-                verbose=1
-            )
-            state.index_loaded = True
-            logger.info("Existing index loaded successfully")
+            try:
+                state.model = RAGMultiModalModel.from_index(
+                    str(index_path),
+                    verbose=1
+                )
+                state.index_loaded = True
+                logger.info("Existing index loaded successfully")
+            except FileNotFoundError as e:
+                logger.warning(
+                    f"Index at {index_path} looks incomplete (missing files). "
+                    "Falling back to model-only load and will allow re-indexing."
+                )
+                logger.debug("Index load exception: %s", e)
+                state.model = RAGMultiModalModel.from_pretrained(
+                    config.MODEL_NAME,
+                    verbose=1
+                )
         else:
-            logger.info(
-                "No existing index found, loading model for new "
-                "indexing"
-            )
+            if index_path.exists():
+                logger.warning(
+                    f"Index path {index_path} exists but is not a valid Byaldi index. "
+                    "To migrate old indices, run the migration script. Proceeding to load model only."
+                )
+            else:
+                logger.info(
+                    "No existing index found, loading model for new "
+                    "indexing"
+                )
             state.model = RAGMultiModalModel.from_pretrained(
                 config.MODEL_NAME,
                 verbose=1
@@ -249,6 +278,15 @@ def load_model():
 
         state.model_loaded = True
         logger.info("Visual retrieval model loaded successfully")
+
+        # Create marker so subsequent restarts run in offline mode only
+        try:
+            marker_file = config.INDEX_DIR / ".hf_hub_download_complete"
+            marker_file.write_text(f"hf_downloaded_at={__import__('datetime').datetime.utcnow().isoformat()}\nmodel={config.MODEL_NAME}\n")
+            os.environ["HF_HUB_OFFLINE"] = "1"
+            logger.info(f"Model cache marker created: {marker_file}; HF_HUB_OFFLINE enforced for future runs")
+        except Exception as e:
+            logger.warning(f"Failed to write HF cache marker: {e}")
 
     except ImportError as e:
         state.last_error = f"Failed to import Byaldi: {e}"
@@ -293,6 +331,22 @@ async def lifespan(app: FastAPI):
 
     # Ensure directories exist
     config.INDEX_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Marker file that indicates initial HF model download completed and we should run offline thereafter
+    marker_file = config.INDEX_DIR / ".hf_hub_download_complete"
+
+    # If marker exists or env explicitly requests offline, enforce HF offline mode.
+    hf_env = os.getenv("HF_HUB_OFFLINE")
+    if hf_env and hf_env.strip().lower() in ("1", "true", "yes"):
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        logger.info("HF_HUB_OFFLINE explicitly set via environment; running in offline-only mode")
+    elif marker_file.exists():
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        logger.info(f"HF hub downloads disabled via marker file: {marker_file}")
+    else:
+        # Allow downloads for initial model pull
+        os.environ.pop("HF_HUB_OFFLINE", None)
+        logger.info("HF hub downloads allowed for first-run model pull (remove access if you want fully offline runs)")
 
     # Load model in background to not block startup
     asyncio.create_task(asyncio.to_thread(load_model))
