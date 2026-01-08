@@ -9,7 +9,7 @@
 - `more_like_id={id}` similar docs
 - `page={n}` (default 1)
 - `page_size={n}` (default 25)
-- `custom_field_query=[...]` custom field filter (JSON array)
+- `custom_field_query=["due_date","range",["2024-08-01","2024-09-01"]]` custom field filter (JSON array)
 - `ordering=-created` sort (prefix `-` for desc)
 
 ## Get document

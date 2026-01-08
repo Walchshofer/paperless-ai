@@ -42,7 +42,7 @@ describe('Visual Search API Contract', () => {
 
     it('should return 200 and results for valid image payload', async () => {
         const payload = {
-            image: 'base64imagestring',
+            image: 'VGhpcyBpcyBhIHRlc3QgYmFzZTY0IHN0cmluZy4=',
             k: 5
         };
 
@@ -74,12 +74,27 @@ describe('Visual Search API Contract', () => {
         assert.match(res.body.error, /required/i);
     });
 
+    it('should return 400 if image payload is not valid base64', async () => {
+        const payload = {
+            image: 'not-valid-base64!@#'
+        };
+
+        const res = await request(app)
+            .post('/api/visual-rag/search/visual')
+            .send(payload)
+            .expect('Content-Type', /json/)
+            .expect(400);
+
+        assert.strictEqual(res.body.success, false);
+        assert.match(res.body.error, /invalid image/i);
+    });
+
     it('should return 503 if sidecar is unavailable', async () => {
         // Mock unavailability
         visualSearchClient.isAvailable = async () => false;
 
         const payload = {
-            image: 'base64imagestring'
+            image: 'VGhpcyBpcyBhIHRlc3QgYmFzZTY0IHN0cmluZy4='
         };
 
         const res = await request(app)

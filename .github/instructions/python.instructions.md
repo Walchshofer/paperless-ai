@@ -61,7 +61,7 @@ with assistant():
 - Always use `name=` parameter with `gen()`
 - Use `temperature=0.0` for classification/extraction
 - Prefer `select()` over `gen()` for fixed options
-- Never modify model state in place: `lm2 = lm + ...`
+- Never modify model state in place: `lm2 = lm + delta`
 
 ## RAG Service Specific
 

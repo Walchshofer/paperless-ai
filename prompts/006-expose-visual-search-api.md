@@ -45,3 +45,8 @@ The Python sidecar now supports image queries (from Prompt 005). The Node.js app
 1. Upon completion, generate a concise machine-readable summary: ``./paperless-ai/prompts/summaries/006-expose-visual-search-api-summary.md``
 2. Move this prompt to ``./paperless-ai/prompts/completed`/`
 </lifecycle>
+
+<!-- STATUS: Completed 2026-01-08 by GitHub Copilot -->
+
+> Note: This prompt has been completed and a copy has been placed at `prompts/completed/006-expose-visual-search-api.md`. See `prompts/summaries/006-expose-visual-search-api-summary.md` for a machine-readable summary and verification checklist.
+

@@ -440,6 +440,25 @@ Keep Query 1 Result (score 0.85 > 0.78)
 
 ---
 
+## Internal API: Visual Image Search
+
+### POST /api/visual-rag/search/visual ⚡️
+
+- Description: Search for documents using an image region (base64) as the query. Proxies to the Visual RAG Sidecar and is protected by the circuit breaker.
+- Request Body (application/json):
+  - `image` (string, required): Base64-encoded image region (recommended min size 1KB). Whitespace is ignored.
+  - `k` (integer, optional): Number of results to return (default: 5).
+  - `includeOverlays` (boolean, optional): Whether to include overlays in returned results.
+- Headers:
+  - `X-Request-Id` (optional): Correlation id; forwarded to the sidecar and included in structured logs.
+- Responses:
+  - 200: { success: true, query: "[IMAGE]", results: [...], totalResults }
+  - 400: Missing or invalid `image` (base64)
+  - 503: Circuit breaker open; service temporarily unavailable. Response includes `circuit_breaker: 'open'` and metrics are emitted (`circuit_breaker_open_total`, `sidecar_availability`).
+
+> Notes: The server accepts large payloads up to the configured body-parser limit (default 50MB). The route performs a lightweight base64 sanity check and returns 400 for malformed images.
+
+
 ## Metrics Reference
 
 ### Prometheus Metrics

@@ -25,8 +25,8 @@ export async function listAllDocuments(client, params = {}) {
   let url = "documents/";
   const out = [];
   while (url) {
-    const res = await client.get(url, { params: { page_size: 25, ...params } });
-    out.push(...(res.data?.results ?? []));
+    const res = await client.get(url, { params: Object.assign({ page_size: 25 }, params) });
+    out = out.concat(res.data?.results ?? []);
     url = res.data?.next ? res.data.next.replace(client.defaults.baseURL, "") : null;
   }
   return out;
@@ -49,9 +49,9 @@ export async function uploadDocument(client, filePath, meta = {}) {
   if (Array.isArray(meta.tags)) meta.tags.forEach(t => form.append("tags", String(t)));
 
   const res = await client.post("documents/post_document/", form, {
-    headers: { ...form.getHeaders() },
+    headers: Object.assign({}, form.getHeaders()),
   });
-  return res.data; // typically { task_id: ... }
+  return res.data; // typically { task_id: "a1b2c3d4-e5f6-7890-1234-567890abcdef" }
 }
 ```
 

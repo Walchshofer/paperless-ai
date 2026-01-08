@@ -27,6 +27,27 @@ const resolveRelativePdfPath = (doc, docId) => {
   return path.posix.join('documents', 'originals', originalFileName);
 };
 
+// Simple base64 validator - allows padded base64 strings and ignores whitespace
+const BASE64_RE = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+function isValidBase64(s) {
+  if (!s || typeof s !== 'string') return false;
+  const stripped = s.replace(/\s+/g, '');
+  // Reject obviously too-short strings (not a real image) — allow small test fixtures
+  if (stripped.length < 8) return false;
+  // First try simple regex check
+  if (!BASE64_RE.test(stripped)) return false;
+  // Then try a lightweight decode/encode roundtrip to be more robust
+  try {
+    const decoded = Buffer.from(stripped, 'base64');
+    if (!decoded || decoded.length === 0) return false;
+    const reencoded = decoded.toString('base64').replace(/=+$/, '');
+    const originalNoPad = stripped.replace(/=+$/, '');
+    return reencoded === originalNoPad || reencoded === originalNoPad.replace(/\s+/g, '');
+  } catch (err) {
+    return false;
+  }
+}
+
 // Store active batch jobs (in production, consider using Redis or database)
 const activeJobs = new Map();
 
@@ -176,19 +197,41 @@ router.post('/search/visual', async (req, res) => {
         const { image, k = 5, includeOverlays = true } = req.body;
         const requestId = req.headers['x-request-id'] || `req-${Date.now()}`;
 
+        // Validate presence
         if (!image) {
             return res.status(400).json({ success: false, error: 'Image (base64) is required' });
+        }
+
+        // Validate simple base64 shape to provide early feedback for malformed requests
+        if (!isValidBase64(image)) {
+            logger.warn('[Visual-RAG API] Invalid base64 image payload', { request_id: requestId });
+            return res.status(400).json({ success: false, error: 'Invalid image (not valid base64)' });
         }
 
         // Circuit Breaker Check
         const isAvailable = await visualSearchClient.isAvailable();
         if (!isAvailable) {
-            logger.warn('[Visual-RAG API] Sidecar unavailable (Circuit Breaker Open)', { requestId });
+            logger.warn('[Visual-RAG API] Sidecar unavailable (Circuit Breaker Open)', { request_id: requestId });
             
-            if (metricsCollector?.circuitBreakerOpenTotal) {
-                metricsCollector.circuitBreakerOpenTotal.inc({ service: 'visual-rag' });
+            // Emit circuit breaker open metric (labels API)
+            try {
+                if (metricsCollector?.circuitBreakerOpenTotal && typeof metricsCollector.circuitBreakerOpenTotal.labels === 'function') {
+                    metricsCollector.circuitBreakerOpenTotal.labels('visual-rag').inc();
+                } else if (metricsCollector?.recordCircuitBreakerStateTransition) {
+                    // Best-effort (may record only transitions when available)
+                    metricsCollector.recordCircuitBreakerStateTransition('visual-rag', 'CLOSED', 'OPEN');
+                }
+            } catch (mErr) {
+                logger.debug('[Visual-RAG API] Metrics emit failed for circuit breaker open', { error: mErr.message });
             }
-            
+
+            // Record sidecar availability explicitly
+            try {
+                if (metricsCollector?.recordSidecarAvailability) metricsCollector.recordSidecarAvailability('visual-rag', false);
+            } catch (mErr) {
+                logger.debug('[Visual-RAG API] Metrics emit failed for sidecar availability', { error: mErr.message });
+            }
+
             return res.status(503).json({
                 success: false,
                 error: 'Visual search service is temporarily unavailable',
@@ -196,14 +239,30 @@ router.post('/search/visual', async (req, res) => {
             });
         }
 
-        logger.info(`[Visual-RAG API] Visual Search (k=${k})`, { requestId });
+        logger.info(`[Visual-RAG API] Visual Search (k=${k})`, { request_id: requestId });
 
-        // Execute Search
+        // Execute Search (measure at route-level for visual_query_execution_time_ms)
+        const start = Date.now();
         const results = await visualSearchClient.searchImage(image, { k, requestId });
-        
-        // Metrics
-        if (metricsCollector?.visualQueriesExecutedTotal) {
-            metricsCollector.visualQueriesExecutedTotal.inc({ type: 'image' });
+        const durationMs = Date.now() - start;
+
+        // Metrics: visual query execution and query counters
+        try {
+            if (metricsCollector?.observeVisualQueryExecutionTime) {
+                metricsCollector.observeVisualQueryExecutionTime('unknown', durationMs);
+            }
+        } catch (mErr) {
+            logger.debug('[Visual-RAG API] Metrics emit failed for visual query execution time', { error: mErr.message });
+        }
+
+        try {
+            if (metricsCollector?.incrementVisualQueriesExecuted) {
+                metricsCollector.incrementVisualQueriesExecuted('unknown', 'image');
+            } else if (metricsCollector?.visualQueriesExecutedTotal && typeof metricsCollector.visualQueriesExecutedTotal.labels === 'function') {
+                metricsCollector.visualQueriesExecutedTotal.labels('unknown', 'image').inc();
+            }
+        } catch (mErr) {
+            logger.debug('[Visual-RAG API] Metrics emit failed for visual queries executed', { error: mErr.message });
         }
 
         res.json({

@@ -16,8 +16,8 @@
 ```json
 {
   "details": [
-    { "id": 123, "status": "success", "message": "..." },
-    { "id": 456, "status": "error", "message": "..." }
+    { "id": 123, "status": "success", "message": "Tag added successfully." },
+    { "id": 456, "status": "error", "message": "Tag ID not found." }
   ]
 }
 ```
@@ -32,12 +32,12 @@
 - `delete` → `{}` / omitted parameters
 - `reprocess` → `{}` / omitted parameters
 - `set_permissions` → `{ "set_permissions": <object>, "owner": <int>, "merge": <bool> }`
-- `edit_pdf` → `{ "doc_ids": [...], "operations": [...] }`
+- `edit_pdf` → `{ "doc_ids": [123,456], "operations": [{"op":"rotate","degrees":90}] }`
 - `merge` → `{ "metadata_document_id": <int>, "delete_originals": <bool> }`
-- `split` → `{ "pages": [...], "delete_originals": <bool> }`
-- `rotate` → `{ "degrees": <int> }`
+- `split` → `{ "pages": [2,3], "delete_originals": false }`
+- `rotate` → `{ "degrees": 90 }`
 - `delete_pages` → `{ "pages": [..] }`
-- `modify_custom_fields` → `{ "add_custom_fields": ..., "remove_custom_fields": ... }`
+- `modify_custom_fields` → `{ "add_custom_fields": [{"field": 10, "value": "Paid"}], "remove_custom_fields": [11] }`
 
 ## Operational constraints (recommended)
 - Throttle bulk calls to ~1 request/second to reduce 429 risk.

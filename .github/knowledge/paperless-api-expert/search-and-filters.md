@@ -14,7 +14,7 @@
 - **GET** `/api/documents/?more_like_id=<id>`
 
 ## Custom field query (JSON array)
-Send as query param `custom_field_query=[...]` (URL-encoded).
+Send as query param `custom_field_query=["invoice_total","gte",1000]` (URL-encoded).
 
 ### Operators
 - `exact` `["customer","exact","bob"]`
