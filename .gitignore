@@ -58,3 +58,4 @@ surya_models.py
 
 # Local archive for dev-only items (kept locally, not tracked)
 /.archive/
+models/hf/
