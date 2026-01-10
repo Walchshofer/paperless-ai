@@ -100,6 +100,13 @@ async function buildVisOcrMetadata(text, languageHint, translator, options = {})
     // Validate and normalize options
     const validatedOptions = validateOcrOptions(options);
 
+    if (!validatedOptions.includeTranslations) {
+        logger.info({
+            event: 'ocr_translations_disabled',
+            reason: 'config'
+        });
+    }
+
     const rawText = typeof text === 'string' ? text : '';
     const sourceLang = normalizeLanguageHint(languageHint) || 'de';
 
