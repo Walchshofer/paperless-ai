@@ -12,10 +12,28 @@ paperless-ai and its AI sidecars. paperless-ai is built from `../paperless-ai`,
 and the Visual RAG sidecar is built from
 `../paperless-ai/services/visual-rag-sidecar`.
 
-### Build Context Safety
-To prevent incorrect `requirements.txt` usage, always build with the specific
-service directory as the build context (e.g., `services/visual-rag-sidecar`).
-The safest method is running `docker-compose build` from `paperless-ngx/`.
+### Build Context Strategy
+The Visual RAG sidecar uses a **parent-directory build context** to enable access to both repositories:
+
+```yaml
+visual-rag:
+  build:
+    context: ..  # Parent directory (contains both paperless-ai and paperless-ngx)
+    dockerfile: paperless-ai/services/visual-rag-sidecar/Dockerfile
+```
+
+**Why parent context?**
+- Allows Dockerfile to reference `paperless-ai/` code and dependencies
+- Enables access to shared resources across both repositories
+- Prevents "COPY failed: file not found" errors during multi-repo builds
+
+**Best Practice**: Always build from `paperless-ngx/` directory:
+```bash
+cd C:\Users\pwalc\MyApps\paperless-ngx
+docker-compose build visual-rag
+```
+
+This ensures the context path `..` correctly resolves to the parent directory containing both `paperless-ai/` and `paperless-ngx/` repositories.
 
 ## Service Architecture
 

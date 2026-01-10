@@ -1,0 +1,58 @@
+name: Validate environment
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  linux:
+    name: validate-env (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: List repo root (debug)
+        run: ls -la
+      - name: Attempt to generate compatibility .env (POSIX)
+        run: |
+          bash scripts/sync_dotenv_from_compose_env.sh
+      - name: Validate env file (Python)
+        run: python scripts/validate_env_py.py
+      - name: Install npm deps
+        run: npm ci
+      - name: Run unit tests
+        run: npm test
+
+  windows:
+    name: validate-env (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Attempt to generate compatibility .env (PowerShell)
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/sync_dotenv_from_compose_env.ps1
+      - name: Validate env file (Python)
+        shell: pwsh
+        run: python scripts/validate_env_py.py
+      - name: Install npm deps
+        run: npm ci
+      - name: Run unit tests
+        run: npm test

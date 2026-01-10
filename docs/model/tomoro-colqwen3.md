@@ -33,13 +33,58 @@
             This model indexes PDF pages as *images*. It preserves the spatial layout of invoices, tables, and charts.
             When you search "Total amount at the bottom", it finds the pixels at the bottom, even if OCR failed.
         </description>
-        
+
         <strategic_role>
             <role_name>Deep Visual Search</role_name>
             <function>
-                Serves as the "Level 2" retrieval layer. 
+                Serves as the "Level 2" retrieval layer.
                 If the standard PostgreSQL text search fails to find a document, this visual index is queried.
             </function>
         </strategic_role>
+
+        <capabilities>
+            <what_it_can_do>
+                <item>Find visually similar document pages or regions</item>
+                <item>Match text by visual appearance ("total at bottom")</item>
+                <item>Locate handwriting, stamps, logos, signatures</item>
+                <item>Understand spatial relationships in layouts</item>
+                <item>Retrieve pages using image queries (visual similarity)</item>
+                <item>Generate 320-d embeddings for image patches</item>
+            </what_it_can_do>
+
+            <what_it_cannot_do>
+                <item>Extract text from images (NOT an OCR model)</item>
+                <item>Detect specific elements (tables, figures) with bounding boxes</item>
+                <item>Perform structured layout analysis</item>
+                <item>Generate semantic labels for document regions</item>
+                <item>Provide element-level classification</item>
+                <item>Replace layout analysis models like LayoutLMv3 or Detectron2</item>
+            </what_it_cannot_do>
+        </capabilities>
+
+        <architecture_note>
+            This is a Late Interaction retrieval model using MaxSim scoring.
+            It produces MULTIPLE vectors per page (one per visual patch), enabling fine-grained matching.
+            This is fundamentally different from object detection or layout analysis.
+        </architecture_note>
     </usage_guide>
+
+    <implementation_notes>
+        <pipeline_integration>
+            <stage>Stage 8: Visual Query Execution</stage>
+            <purpose>Execute targeted visual queries for field validation</purpose>
+            <endpoint>/search (Visual RAG Sidecar)</endpoint>
+            <not_used_for>
+                Stage 4 Track 3 (Visual Element Detection) - requires LayoutLMv3 instead
+            </not_used_for>
+        </pipeline_integration>
+
+        <common_confusion>
+            ColQwen3 is often confused with layout analysis models.
+            - Visual Retrieval (ColQwen3): "Find pages that look like this"
+            - Layout Analysis (LayoutLMv3): "Find all tables and figures with bounding boxes"
+
+            See docs/VISUAL_RAG_ARCHITECTURE_AND_COLQWEN3.md for clarification.
+        </common_confusion>
+    </implementation_notes>
 </model_profile>

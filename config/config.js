@@ -389,6 +389,10 @@ module.exports = {
       process.env.ANALYSIS_RENDER_DPI || process.env.VISION_RENDER_DPI || '300',
       10
     ),
+    // Video sampling: seconds between sampled frames. Use 1s for typical coverage and reduce for large archives.
+    videoFrameInterval: parseEnvInt(process.env.VIDEO_FRAME_INTERVAL, 1),
+    // Enable keyframe-based sampling to reduce redundant frames (yes|no)
+    videoKeyframeDetection: parseEnvBoolean(process.env.VIDEO_KEYFRAME_DETECTION, 'yes'),
     maxVisionPages: parseInt(process.env.MAX_VISION_PAGES || '4', 10),
     maxRetriesPlanner: parseInt(process.env.VISUAL_RAG_MAX_RETRIES_PLANNER || '1', 10),
     maxRetriesExtractor: parseInt(process.env.VISUAL_RAG_MAX_RETRIES_EXTRACTOR || '1', 10)
@@ -398,6 +402,8 @@ module.exports = {
     enabled: parseEnvBoolean(process.env.ENABLE_VISUAL_RAG_SIDECAR, 'no'),
     url: process.env.VISUAL_RAG_URL || 'http://visual-rag:8001',
     timeout: parseInt(process.env.VISUAL_RAG_TIMEOUT || '30000', 10),
+    queryTimeout: parseInt(process.env.VISUAL_RAG_QUERY_TIMEOUT || '500', 10),
+    maxConcurrent: parseEnvInt(process.env.VISUAL_RAG_MAX_CONCURRENT, 5),
     enableOverlayExtraction: parseEnvBoolean(process.env.ENABLE_OVERLAY_EXTRACTION, 'yes'),
     parallelIngestion: parseEnvBoolean(process.env.VISUAL_RAG_PARALLEL_INGESTION, 'yes')
   },

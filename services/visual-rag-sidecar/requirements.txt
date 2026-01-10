@@ -1,32 +1,33 @@
-# Visual RAG Sidecar Dependencies
-# ================================
-
 # Core Framework
-fastapi>=0.109.0
-uvicorn[standard]>=0.27.0
-python-multipart>=0.0.6
-pydantic>=2.5.0
+fastapi==0.128.0
+uvicorn[standard]==0.40.0
+python-multipart==0.0.21
+pydantic==2.12.5
 
-# Byaldi - ColPali/ColQwen2 wrapper
-# Provides multi-modal document retrieval
-byaldi>=0.0.6
+# Byaldi is installed from a pinned commit in the Dockerfile to avoid
+# inconsistent git-package metadata during dependency resolution.
 
-# PyTorch with CUDA support
-# Note: Install separately with proper CUDA version
-# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-torch>=2.1.0
-torchvision>=0.16.0
+# Aligned ML Stack for RTX 3090 Ti & ColPali-Engine
+# Torch must be < 2.9.0 and Numpy must be < 2.0.0
+# Dockerfile pre-installs torch==2.6.0 to match available cu124 wheels
+torch==2.6.0
+numpy==1.26.4
+transformers==4.57.3
 
-# Transformers for model loading
-transformers>=4.36.0
+# Dynamic Registry Injection Dependencies (for ColQwen3 support)
+# accelerate: Required for device_map and model loading
+accelerate>=0.20.0
 
-# PDF processing (pdf2image)
-pdf2image>=1.16.3
-Pillow>=10.0.0
+# NOTE: colpali is installed from source in the Dockerfile to ensure latest Qwen2.5/ColQwen3 definitions
+# Byaldi and AWQ support (install from Dockerfile for GPU builds; also useful for dev envs)
+byaldi>=0.0.7
+autoawq
 
-# Flash Attention is installed separately in the Dockerfile with build flags
-# See Dockerfile for the explicit `pip install --no-build-isolation flash-attn>=2.4.0`
+# NOTE: qwen_vl_utils is optional - only needed for generative Qwen3-VL models
+# For embedding models (ColQwen3), it's not critical but can be added if needed
+# qwen-vl-utils  # Uncomment if using generative Qwen3-VL models
 
-# Utilities
-python-dotenv>=1.0.0
-numpy>=1.24.0
+# Image & PDF
+pdf2image==1.17.0
+Pillow==11.0.0
+python-dotenv==1.2.1

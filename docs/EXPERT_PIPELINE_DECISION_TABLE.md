@@ -137,14 +137,32 @@ Artifacts are input to both visual indexing and OCR reconciliation.
 - Uses `content` field for Tesseract OCR output
 - Parallel execution with Visual OCR
 
-### Track 3: Visual Element Detection (parallel with OCR)
+### Track 3: Visual Element Detection (parallel with OCR) ⚠️ NOT IMPLEMENTED
 
-**Execution**
-- Table detection via Visual RAG sidecar queries
+**Status**: Feature gap - `/detect_elements` endpoint not implemented in visual-rag-sidecar
+
+**Intended Execution**
+- Table detection with bounding boxes
 - Image/figure detection
-- Layout analysis
+- Layout zone analysis
 - 500ms timeout per detection task
 - Circuit breaker protected
+
+**Current Behavior**
+- Endpoint call fails with HTTP 404/503
+- Circuit breaker opens after 3 failures
+- Pipeline continues gracefully without layout elements
+- OCR reconciliation proceeds normally
+
+**Implementation Gap**
+- ColQwen3 is a visual retrieval model, not a layout analysis model
+- Requires dedicated layout model (LayoutLMv3, Detectron2, or Table Transformer)
+- See `docs/VISUAL_RAG_ARCHITECTURE_AND_COLQWEN3.md` for implementation options
+
+**Graceful Degradation**
+- Track 3 failure does NOT fail the pipeline
+- `visual_elements` will be null in output
+- Stages 5-9 proceed with OCR-only results
 
 **OCR Reconciliation**
 Visual OCR and Tesseract outputs are reconciled using:
@@ -400,6 +418,9 @@ Current intentional limitations:
 All future changes must follow:
 - `SCHEMA_EVOLUTION_GUIDE.md`
 - Schema Evolution Agent guardrails
+
+- NOTE: Upgrading to ColQwen3 / Qwen2.5 (Byaldi/Colpali) requires updating the Visual RAG sidecar build to install `colpali` from source and use `byaldi>=0.0.7` with `autoawq` and `flash-attn`; ensure GPU smoke tests pass before promoting to production.
+- **ColQwen3 Integration**: The sidecar uses native Byaldi v0.0.7+ integration with Dynamic Registry Injection as fallback. See `docs/VISUAL_RAG_ARCHITECTURE_AND_COLQWEN3.md` section "ColQwen3 Integration Strategy" for architecture decision, dependency validation, and operational validation protocol. Critical: `trust_remote_code=True`, `load_in_4bit=False`, and `attn_implementation="flash_attention_2"` are MANDATORY parameters for AWQ 4B variant.
 
 ---
 

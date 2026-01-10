@@ -1,0 +1,43 @@
+name: Visual RAG E2E
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'test/integration/visual-rag/**'
+      - 'services/visual-rag-sidecar/**'
+
+jobs:
+  visual-rag-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker-compose-plugin
+
+      - name: Start Visual RAG sidecar
+        run: |
+          # Adjust path to the compose file in your mono-repo environment if needed
+          docker compose up -d visual-rag
+
+      - name: Wait for sidecar readiness
+        run: |
+          timeout=600
+          i=0
+          until curl -fsS http://localhost:8001/ready || [ $i -gt $timeout ]; do
+            echo "Waiting for sidecar readiness... ($i)"
+            i=$((i+5))
+            sleep 5
+          done
+
+      - name: Run Visual RAG integration tests
+        run: |
+          npm ci
+          npm test -- test/integration/visual-rag --reporter spec
+
+      - name: Teardown
+        if: always()
+        run: docker compose down -v

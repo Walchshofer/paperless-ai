@@ -257,7 +257,12 @@ def create_app():
     formatter = jsonlogger.JsonFormatter()
     handler.setFormatter(formatter)
     app.logger.addHandler(handler)
-    app.logger.setLevel(os.getenv('LOG_LEVEL', 'INFO'))
+    # Read service-specific variable first, fallback to generic LOG_LEVEL, then default to INFO
+    # This handles empty strings defensively (strip() or fallback)
+    log_level = (os.getenv('GUIDANCE_LOG_LEVEL') or
+                 os.getenv('LOG_LEVEL') or
+                 'INFO').strip().upper()
+    app.logger.setLevel(log_level)
 
     # Cache Initialization
     cache_manager = GuidanceCacheManager(

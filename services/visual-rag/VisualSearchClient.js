@@ -27,6 +27,12 @@ class VisualSearchClient {
         this.retries = options.retries || 2;
         this.metricsCollector = options.metricsCollector || metricsCollector || null;
 
+        // Concurrency + query timeout settings
+        this._maxConcurrent = options.maxConcurrent || config.visualRagSidecar?.maxConcurrent || 5;
+        this._active = 0;
+        this._queue = [];
+        this.queryTimeout = options.queryTimeout || config.visualRagSidecar?.queryTimeout || 500;
+
         this.client = axios.create({
             baseURL: this.baseUrl,
             timeout: this.timeout,
@@ -35,12 +41,12 @@ class VisualSearchClient {
             }
         });
 
-        // Initialize Circuit Breaker
+        // Initialize Circuit Breaker (use short query-level timeout by default)
         this.circuitBreaker = new CircuitBreaker('visual-rag', {
             failureThreshold: config.visualRagSidecar?.failureThreshold || 3,
             cooldownPeriod: config.visualRagSidecar?.cooldownPeriod || 30000,
-            timeout: this.timeout,
-            hardTimeout: this.timeout * 2
+            timeout: this.queryTimeout,
+            hardTimeout: Math.max(1000, this.queryTimeout * 2)
         }, this.metricsCollector);
 
         // Track service availability (legacy check)
@@ -73,7 +79,8 @@ class VisualSearchClient {
 
         try {
             // Use retry helper to tolerate transient startup timing
-            const health = await this._retry(() => this.health(), this.retries);
+            // Health checks are more tolerant: use a longer timeout than query timeout
+            const health = await this._retry(() => this.health({ timeout: Math.max(3000, this.timeout) }), this.retries);
             this._available = health.model_loaded;
             this._lastHealthCheck = now;
             if (this.metricsCollector?.recordSidecarAvailability) {
@@ -164,6 +171,25 @@ class VisualSearchClient {
      * @param {string} options.requestId - Request ID for tracing
      * @returns {Promise<Object>} Search results
      */
+    // Simple in-process concurrency limiter (semaphore)
+    _acquire() {
+        if (this._active < this._maxConcurrent) {
+            this._active++;
+            return Promise.resolve();
+        }
+        return new Promise(resolve => {
+            this._queue.push(resolve);
+        }).then(() => { this._active++; });
+    }
+
+    _release() {
+        this._active = Math.max(0, this._active - 1);
+        if (this._queue.length > 0) {
+            const next = this._queue.shift();
+            if (typeof next === 'function') next();
+        }
+    }
+
     async searchImage(base64Image, options = {}) {
         const { k = 5, includeBase64 = false, requestId } = options;
 
@@ -173,6 +199,7 @@ class VisualSearchClient {
 
         const headers = requestId ? { 'X-Request-Id': requestId } : {};
 
+        await this._acquire();
         try {
             const result = await this.circuitBreaker.execute(async () => {
                 const startTime = Date.now();
@@ -211,7 +238,7 @@ class VisualSearchClient {
                     })),
                     totalResults: results.total_results
                 };
-            });
+            }, { timeout: options.timeout || this.queryTimeout, retries: options.retries || this.retries });
 
             if (result.fallback) {
                 throw result.error || new Error('Circuit breaker fallback triggered');
@@ -225,6 +252,8 @@ class VisualSearchClient {
                 this.metricsCollector.recordSidecarAvailability('visual-rag', false);
             }
             throw this._wrapError('Visual image search failed', error);
+        } finally {
+            this._release();
         }
     }
 
@@ -246,6 +275,7 @@ class VisualSearchClient {
 
         const headers = requestId ? { 'X-Request-Id': requestId } : {};
 
+        await this._acquire();
         try {
             const result = await this.circuitBreaker.execute(async () => {
                 const startTime = Date.now();
@@ -283,7 +313,7 @@ class VisualSearchClient {
                     })),
                     totalResults: results.total_results
                 };
-            });
+            }, { timeout: options.timeout || this.queryTimeout, retries: options.retries || this.retries });
 
             if (result.fallback) {
                 throw result.error || new Error('Circuit breaker fallback triggered');
@@ -296,6 +326,8 @@ class VisualSearchClient {
                 this.metricsCollector.recordSidecarAvailability('visual-rag', false);
             }
             throw this._wrapError('Visual search failed', error);
+        } finally {
+            this._release();
         }
     }
 

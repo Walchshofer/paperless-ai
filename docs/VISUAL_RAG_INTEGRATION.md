@@ -137,13 +137,28 @@ The circuit breaker protects the pipeline from Visual Sidecar failures and imple
 const circuitBreakerConfig = {
   failureThreshold: 3,        // Consecutive failures to open circuit
   cooldownPeriod: 30000,      // 30 seconds before attempting recovery
-  timeout: 500,               // 500ms latency budget
+  timeout: 500,               // 500ms query-level latency budget
   hardTimeout: 1000,          // 1000ms hard limit
   maxRetries: 3,              // Maximum retry attempts
   backoffMultiplier: 2,       // Exponential backoff multiplier
   initialBackoff: 100         // Initial backoff in ms (100, 200, 400)
 };
+
+const visualSearchClientConfig = {
+  baseUrl: 'http://visual-rag:8001',
+  timeout: 30000,             // 30s for long operations (indexing)
+  queryTimeout: 500,          // 500ms for search queries (default)
+  maxConcurrent: 5,           // Max concurrent visual queries
+  retries: 2,                 // Retry attempts for transient failures
+  healthCheckInterval: 60000  // 1 minute cache for availability checks
+};
 ```
+
+**Timeout Hierarchy:**
+- Query operations: 500ms (soft), 1000ms (hard) - used for search
+- Health checks: 3000ms minimum - more tolerant for startup
+- Indexing operations: 30000ms - allow for large documents
+- Circuit breaker respects operation-specific timeouts via options
 
 ### Graceful Degradation
 
@@ -188,8 +203,14 @@ Three tracks execute concurrently using `Promise.all()` with circuit breaker pro
 - **Method**: `_executeTesseractOcrTrack()`
 - **Metadata**: Document type inference from tags/title
 
-#### Track 3: Visual Element Detection
+#### Track 3: Visual Element Detection ⚠️ NOT IMPLEMENTED (Feature Gap)
+
+**Status**: The `/detect_elements` endpoint is called by `ParallelOcrExecutor` but NOT implemented in the visual-rag-sidecar.
+
+**Intended Design**:
 - **Endpoint**: `POST /detect_elements` on Visual RAG sidecar
+- **Request**: `{ image: <base64>, detect_types: [...] }`
+- **Response**: `{ elements: [], layout: {}, confidence: <0..1> }`
 - **Timeout**: 500ms
 - **Circuit Breaker**: `visual-elements` service
 - **Detection Types**:
@@ -197,8 +218,32 @@ Three tracks execute concurrently using `Promise.all()` with circuit breaker pro
   - Images/figures
   - Text blocks
   - Layout zones
-- **Method**: `_executeVisualElementsTrack()`
-- **Output**: Elements array with bounding boxes and confidence
+- **Method**: `_executeVisualElementsTrack()` (services/experts/ParallelOcrExecutor.js:467-548)
+
+**Why It's Missing**:
+- ColQwen3 (TomoroAI/tomoro-colqwen3-embed-8b) is a **visual retrieval model**, not a layout analysis model
+- Visual retrieval (finding similar pages) ≠ Element detection (finding tables/figures with bounding boxes)
+- Requires dedicated layout model: LayoutLMv3, Detectron2, or Table Transformer
+
+**Current Behavior**:
+- HTTP 404/503 on `/detect_elements` call
+- Circuit breaker opens after 3 failures
+- Pipeline continues gracefully without layout elements
+- `visual_elements` will be null in Stage 4 output
+- OCR reconciliation proceeds normally with Track 1 + Track 2 results
+
+**Implementation Options**:
+1. **Add LayoutLMv3 to sidecar** (recommended for production quality)
+2. **Use visual queries instead** (leverage ColQwen3 search for "pseudo-element" detection)
+3. **Disable Track 3 formally** (accept current state as interim solution)
+
+See `docs/VISUAL_RAG_ARCHITECTURE_AND_COLQWEN3.md` for detailed implementation guidance.
+
+**Note: PDF DPI & Video Sampling**
+
+- **PDF Rendering DPI**: For ColQwen3 (Tomoro) indexing, we recommend rendering PDFs at **300 DPI** (`VISION_RENDER_DPI`) as a sensible default. Higher DPI improves detection of tables, small fonts and charts but increases memory usage and index size; tune based on your documents and available GPU memory.
+
+- **Video Frame Sampling**: When indexing videos, sample frames at a configurable interval (e.g., one frame per second or every Nth frame). Use domain-aware sampling (keyframe detection or scene change detection) to reduce index size while retaining relevant frames.
 
 ### Integration in ExpertPipelineExecutor
 
@@ -564,6 +609,39 @@ VISUAL_RAG_URL=http://visual-rag:8001
 VISUAL_RAG_ENABLED=yes
 VISUAL_RAG_MODEL=TomoroAI/tomoro-colqwen3-embed-8b  # fixed; colqwen2 rejected
 
+# ---- Visual RAG Tuning & Safety (Recommended for RTX 3090 Ti) ----
+# IMPORTANT: Do NOT leave INDEX_DIR empty in docker-compose.env. An empty
+# INDEX_DIR entry (e.g. `INDEX_DIR=`) results in os.getenv returning an empty
+# string and Python's Path('') resolves to '.' (the container cwd), which can
+# cause index mis-detection and 'invalid index' startup errors. Always set
+# INDEX_DIR to the container index mount (default below).
+#
+# Recommended values (adjust conservatively for other GPUs):
+# INDEX_DIR=/data/indices               # Container mount (must match docker-compose.yml)
+# VISUAL_RAG_INDEX_DIR=/data/indices    # Keep aligned with INDEX_DIR to avoid mismatches
+# VISUAL_RAG_INDEX_NAME=paperless_visual
+# HF_HUB_OFFLINE=                       # Leave blank for initial run to allow one-time download; set to '1' after marker is created
+# MAX_SPLIT_SIZE_MB=512                 # Mirrors PYTORCH_CUDA_ALLOC_CONF for fragmentation reduction
+# PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+# VISION_RENDER_DPI=300                 # Recommended for ColQwen3 (Tomoro); higher fidelity for tables/charts (increases memory/index size)
+# VIDEO_FRAME_INTERVAL=1                # Seconds between sampled frames when indexing video (lower => more frames / larger index)
+# VIDEO_KEYFRAME_DETECTION=yes          # Enable keyframe/scene-change sampling to reduce redundant frames (yes|no)
+# MAX_VISION_PAGES=5                    # Conservative page limit to fit multi-page docs in 24GB VRAM
+# VISUAL_RAG_TIMEOUT=600000             # 10 min for long indexing / initial loads
+#
+# Notes:
+# - Create the marker file after first successful model load:
+#   /data/indices/.hf_hub_download_complete
+#   (The sidecar will enforce offline behavior if the marker exists.)
+# - For fully-offline deployments pre-seed the Hugging Face cache and create
+#   the marker on the host before starting the container.
+#
+# Package requirements (see services/visual-rag-sidecar/requirements.txt):
+# - byaldi >= 0.4.0        # required for ColQwen3 name patterns and API compatibility
+# - transformers == 4.57.3 # Qwen2.5-VL / ColQwen3 compatibility
+# - flash-attn >= 2.4.0    # if used (build for your CUDA toolkit)
+# -----------------------------------------------------------------------
+
 # Circuit Breaker
 VISUAL_SIDECAR_TIMEOUT_MS=500
 VISUAL_SIDECAR_HARD_TIMEOUT_MS=1000
@@ -611,6 +689,109 @@ PAPERLESS_API_TOKEN=<your-token>
 - Startup logs include explicit breaking-change warnings for ColQwen2 removal.
 - CUDA 12.4+ is required for the sidecar build; use PyTorch `cu124` wheels.
 - `flash-attn>=2.4.0` must be built against the same CUDA toolkit as PyTorch.
+
+---
+
+## Audit Gaps Addressed (2026-01)
+
+The following audit gaps in the Visual RAG sidecar were identified and resolved:
+
+### 1. Model Loading Stability (Native Detox Path)
+
+**Problem:** The sidecar relied on fragile git-based package metadata and dynamic model loading through Byaldi's abstraction layer, causing symbol mismatches and dimension errors with ColQwen3's 320-d embeddings.
+
+**Resolution:**
+- Implemented "Native Detox Path" (C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag-sidecar\main.py:174-316)
+- Direct instantiation of `ColQwen2_5` model with explicit `projection_dim=320` config override
+- Manual state dict "seaming" to translate checkpoint keys (e.g., `vlm.model.*` → base keys, `embedding_proj_layer` → `custom_text_proj`)
+- Validation of shard loading with match counts logged for diagnostics
+- Graceful error handling that records failures in `state.last_error` without crashing the service
+
+**Files Modified:**
+- C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag-sidecar\main.py:178-316
+- C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag-sidecar\Dockerfile:45-53 (Byaldi PyPI install with version pin)
+
+### 2. Flash Attention Build Reliability
+
+**Problem:** Flash Attention builds failed due to ABI mismatches, missing CUDA symbols, and incorrect wheel selection for PyTorch 2.6 + CUDA 12.4.
+
+**Resolution:**
+- Automatic ABI detection at build time matching installed PyTorch (C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag-sidecar\Dockerfile:62-78)
+- Prioritized optimized v0.7.2 wheels from mjun0812/flash-attention-prebuild-wheels
+- Three-tier fallback: optimized wheel → simplified wheel → source build
+- Build-time smoke test to fail fast on symbol errors
+- Added diagnostic script for VRAM verification (C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag-sidecar\scripts\verify_flash_attn_vram.sh)
+
+**Files Modified:**
+- C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag-sidecar\Dockerfile:62-90
+- C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag-sidecar\scripts\verify_flash_attn_vram.sh (new)
+
+### 3. Model Dimension Configuration
+
+**Problem:** ColQwen3 (TomoroAI) uses 320-dimensional embeddings but model config could default to incorrect dimensions, causing shape mismatches.
+
+**Resolution:**
+- Explicit `projection_dim=320` override in model config (C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag-sidecar\main.py:236)
+- Dynamic `custom_text_proj` layer rebuild if `model.dim` doesn't match config
+- Diagnostic scripts to inspect shard keys and validate config overrides
+- Health endpoint now exposes `flash_attn_version` for runtime validation
+
+**Files Modified:**
+- C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag-sidecar\main.py:236-237
+- C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag-sidecar\scripts\test_config_override.py (new)
+- C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag-sidecar\scripts\inspect_shard_keys.py (new)
+
+### 4. Build Context Safety
+
+**Problem:** Incorrect `requirements.txt` could be used if build context wasn't properly scoped to the sidecar directory.
+
+**Resolution:**
+- Explicit COPY from `paperless-ai/services/visual-rag-sidecar/requirements.txt` with full path (C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag-sidecar\Dockerfile:56)
+- Documentation emphasizes building from parent docker-compose directory
+- Line ending normalization and syntax validation at build time (C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag-sidecar\Dockerfile:95)
+
+**Files Modified:**
+- C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag-sidecar\Dockerfile:56, 92-95
+- C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag-sidecar\README.md:121-129
+
+### 5. Integration Testing Coverage
+
+**Problem:** No automated tests for sidecar health checks or element detection endpoints.
+
+**Resolution:**
+- Health check integration test with 90s timeout for first-run downloads (C:\Users\pwalc\MyApps\paperless-ai\test\integration\visual-rag\health.test.js)
+- Element detection payload validation test (C:\Users\pwalc\MyApps\paperless-ai\test\integration\visual-rag\detect_elements.test.js)
+- CI workflow for visual-rag E2E tests (C:\Users\pwalc\MyApps\paperless-ai\.github\workflows\visual-rag-e2e.yml)
+
+**Files Added:**
+- C:\Users\pwalc\MyApps\paperless-ai\test\integration\visual-rag\health.test.js
+- C:\Users\pwalc\MyApps\paperless-ai\test\integration\visual-rag\detect_elements.test.js
+- C:\Users\pwalc\MyApps\paperless-ai\.github\workflows\visual-rag-e2e.yml
+
+### 6. Client-Side Resilience
+
+**Problem:** Visual search client lacked concurrency limiting and query-specific timeouts.
+
+**Resolution:**
+- In-process semaphore limiting concurrent queries to 5 (configurable via `maxConcurrent`) (C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag\VisualSearchClient.js:174-191)
+- Separate query timeout (500ms default) vs health check timeout (3000ms+)
+- Circuit breaker integration with query-level timeout override support
+- Localhost fallback for DNS/container networking issues (C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag\VisualSearchClient.js:99-128)
+
+**Files Modified:**
+- C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag\VisualSearchClient.js:30-56, 174-257, 269-332
+
+### 7. Health Endpoint Enhancements
+
+**Problem:** Health checks lacked visibility into flash attention status and model loading state.
+
+**Resolution:**
+- Added `flash_attn_available` and `flash_attn_version` fields to health response (C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag-sidecar\main.py:141-142, 368-371)
+- Health endpoint returns service state even during model loading
+- Version detection at startup stored in environment variable
+
+**Files Modified:**
+- C:\Users\pwalc\MyApps\paperless-ai\services\visual-rag-sidecar\main.py:135-143, 360-372
 
 ---
 

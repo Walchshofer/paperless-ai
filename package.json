@@ -13,7 +13,9 @@
     "verification:e2e": "npx playwright test --config=test/playwright.config.ts",
     "dev": "node scripts/dev-server.js",
     "build:island-runtime": "node scripts/build-island-runtime.js",
-    "check:island-runtime": "node scripts/check-island-runtime.js"
+    "check:island-runtime": "node scripts/check-island-runtime.js",
+    "env:sync": "bash scripts/sync_dotenv_from_compose_env.sh || pwsh -NoProfile -File scripts/sync_dotenv_from_compose_env.ps1",
+    "env:validate": "python scripts/validate_env_py.py"
   },
   "keywords": [
     "paperless-ngx",
