@@ -8,7 +8,11 @@ if [ ! -f "$SRC" ]; then
   echo "WARNING: source env file not found at $SRC" >&2
   # In CI environments we prefer to continue with a minimal, safe fallback so tests can run.
   # Create destination directory if missing and emit a minimal .env for CI/testing.
-  mkdir -p "$(dirname \"$DST\")"
+  mkdir -p "$(dirname "$DST")"
+  if [ ! -d "$(dirname "$DST")" ]; then
+    echo "ERROR: failed to create directory $(dirname "$DST")" >&2
+    exit 2
+  fi
   cat > "$DST" <<'EOF'
 # Auto-generated fallback .env for CI (safe defaults)
 POSTGRES_USER=elfman

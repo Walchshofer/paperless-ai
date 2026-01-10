@@ -13,6 +13,9 @@ if (-not $SRC) {
         TRANSLATION_MIN_CHARS = '3'
     }
     $DST = Join-Path (Split-Path $RootDir -Parent) 'paperless-ngx\.env'
+    # Ensure parent directory exists
+    $dstDir = Split-Path $DST -Parent
+    if (-not (Test-Path -Path $dstDir)) { New-Item -ItemType Directory -Path $dstDir -Force | Out-Null }
     Set-Content -Path $DST -Value $header -Encoding UTF8
     foreach ($k in $fallback.Keys) {
         Add-Content -Path $DST -Value ("$k=$($fallback[$k])") -Encoding UTF8
