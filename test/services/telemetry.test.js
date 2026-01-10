@@ -30,7 +30,7 @@ describe('TelemetryCollector normalization metrics', function () {
   });
 });
 
-const documentModel = require('../../models/document');
+const documentModel = require('../../services/documentModel');
 
 describe('Feedback model', function() {
     it('can insert and fetch pending feedback', async function() {

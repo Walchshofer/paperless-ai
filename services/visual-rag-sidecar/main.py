@@ -99,8 +99,12 @@ logger.info(
 
 
 class Config:
-    MODEL_NAME = os.getenv("VISUAL_RAG_MODEL", "TomoroAI/tomoro-colqwen3-embed-4b-awq")
-    HF_TOKEN = os.getenv("HF_TOKEN", None)  # Hugging Face token for private models
+    MODEL_NAME = os.getenv(
+        "VISUAL_RAG_MODEL",
+        "TomoroAI/tomoro-colqwen3-embed-4b-awq"
+    )
+    # Hugging Face token for private models
+    HF_TOKEN = os.getenv("HF_TOKEN", None)
     INDEX_DIR = Path(os.getenv("INDEX_DIR", "/data/indices"))
     MEDIA_DIR = Path(os.getenv("MEDIA_DIR", "/media/paperless"))
     DEFAULT_INDEX_NAME = os.getenv(
@@ -207,15 +211,18 @@ def check_dependencies() -> None:
 
     # Check qwen_vl_utils (CRITICAL for Qwen3 visual processing)
     try:
-        import qwen_vl_utils
+        import qwen_vl_utils  # noqa: F401  # type: ignore
         logger.info("✅ qwen_vl_utils available")
     except ImportError:
-        logger.warning("⚠️ qwen_vl_utils not available (optional but recommended for Qwen3-VL)")
+        logger.warning(
+            "⚠️ qwen_vl_utils not available "
+            "(optional but recommended for Qwen3-VL)"
+        )
         # Not critical for embedding model, only for generative VL models
 
     # Check accelerate
     try:
-        import accelerate
+        import accelerate  # noqa: F401  # type: ignore
         version = getattr(accelerate, "__version__", "unknown")
         logger.info(f"✅ accelerate {version}")
     except ImportError:
@@ -224,16 +231,20 @@ def check_dependencies() -> None:
 
     # Check flash-attn (prevents OOM on 1280 tokens)
     try:
-        import flash_attn
+        import flash_attn  # noqa: F401  # type: ignore
         version = getattr(flash_attn, "__version__", "unknown")
         logger.info(f"✅ flash-attn {version}")
     except ImportError:
-        logger.warning("⚠️ flash-attn not available (performance will be degraded)")
+        logger.warning(
+            "⚠️ flash-attn not available "
+            "(performance will be degraded)"
+        )
         # Not critical but highly recommended
 
     if missing:
         error_msg = (
-            f"Missing critical dependencies: {', '.join(missing)}\n\n"
+            f"Missing critical dependencies: "
+            f"{', '.join(missing)}\n\n"
             f"Install with:\n" + "\n".join(install_commands)
         )
         raise EnvironmentError(error_msg)

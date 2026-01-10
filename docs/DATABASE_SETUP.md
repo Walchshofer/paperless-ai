@@ -23,13 +23,40 @@ graph TD
     B -->|pgvector/pgvector:pg16| C[PostgreSQL 16]
     C -->|Extension| D[pg_vector]
     D -->|Stores| E[visual_overlays Table]
-    E -->|Columns| F[embedding vector 320]
+    E -->|Columns| F[embedding vector 320 - ACTIVE]
     E -->|Columns| G[expert_metadata JSONB]
     E -->|Columns| H[domain_signals JSONB]
-    D -->|Stores| I[document_embeddings Table]
-    I -->|Columns| J[embedding vector 384]
-    D -->|Stores| K[feedback_events Table]
-    K -->|Columns| L[original_value vs corrected_value]
+    E -->|Legacy| I[embedding_vector vector 768 - PURPOSE UNCLEAR]
+    D -->|Stores| J[document_embeddings Table]
+    J -->|Columns| K[embedding vector 384]
+    D -->|Stores| L[feedback_events Table]
+    L -->|Columns| M[original_value vs corrected_value]
+
+## Visual Overlays Vector Columns
+
+The `visual_overlays` table currently contains **two vector columns** with different purposes:
+
+| Column Name | Vector Dimension | Status | Purpose | Usage |
+|-------------|------------------|--------|---------|-------|
+| `embedding` | `vector(320)` | **ACTIVE** | Visual embedding storage for ColQwen3 model | Used by Visual RAG sidecar for all search and indexing operations |
+| `embedding_vector` | `vector(768)` | **LEGACY** | Purpose unclear; likely from previous schema iteration | **Not actively used**; candidate for deprecation |
+
+**Active Column:** `embedding vector(320)`
+- This is the **authoritative** column for visual embeddings
+- Used by `VisualOverlayRepository.js` for all CRUD operations
+- Indexed with HNSW for fast similarity search
+- Compatible with `TomoroAI/tomoro-colqwen3-embed-8b` model output
+
+**Legacy Column:** `embedding_vector vector(768)`
+- Purpose and origin are unclear from current codebase
+- No active code references found in services or sidecar
+- May have been used by a previous embedding model or early prototype
+- **Recommendation:** Audit usage and deprecate if unused (see migration `05_deprecate_embedding_vector.sql`)
+
+**Migration Notes:**
+- The 320-dimensional column was introduced in `migrations/04_change_embeddings_to_320.js`
+- Legacy 768-dimensional column may be safe to drop after confirming no external dependencies
+- Always back up data before schema changes
 
 ## Configuration
 

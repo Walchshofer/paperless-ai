@@ -112,7 +112,7 @@ class FeedbackService {
 
             // Attempt legacy SQLite insert
             try {
-                const docModel = require('../../models/document');
+                const docModel = require('../documentModel');
                 await docModel.insertFeedback({
                     doc_id: parseInt(documentId, 10),
                     user_id: null,

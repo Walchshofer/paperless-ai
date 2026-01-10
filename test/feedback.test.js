@@ -1,5 +1,5 @@
 const assert = require('assert');
-const documentModel = require('../models/document');
+const documentModel = require('../services/documentModel');
 
 describe('Feedback events', function () {
   it('inserts, retrieves pending feedback and marks processed', async function () {
