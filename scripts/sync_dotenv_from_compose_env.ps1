@@ -3,8 +3,22 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RootDir = Split-Path -Parent $ScriptDir
 $SRC = Join-Path $RootDir '..\paperless-ngx\docker-compose.env' | Resolve-Path -ErrorAction SilentlyContinue
 if (-not $SRC) {
-    Write-Error "Source env file not found at: $($RootDir)\..\paperless-ngx\docker-compose.env"
-    exit 2
+    Write-Warning "Source env file not found at: $($RootDir)\..\paperless-ngx\docker-compose.env"
+    # Emit a minimal fallback .env for CI/testing so workflows can continue with safe defaults
+    $fallback = @{
+        POSTGRES_USER = 'elfman'
+        POSTGRES_PASSWORD = 'password'
+        POSTGRES_DB = 'paperless_test'
+        OCR_CHECKPOINT_TRANSLATIONS_ENABLED = 'yes'
+        TRANSLATION_MIN_CHARS = '3'
+    }
+    $DST = Join-Path (Split-Path $RootDir -Parent) 'paperless-ngx\.env'
+    Set-Content -Path $DST -Value $header -Encoding UTF8
+    foreach ($k in $fallback.Keys) {
+        Add-Content -Path $DST -Value ("$k=$($fallback[$k])") -Encoding UTF8
+    }
+    Write-Host "Generated fallback $DST";
+    exit 0
 }
 $SRC = $SRC.Path
 $DST = Join-Path (Split-Path $SRC -Parent) '.env'
