@@ -18,7 +18,7 @@ router.post('/events', async (req, res) => {
         const { doc_id, user_id, event_type, field_name, original_value, corrected_value, context } = req.body;
         if (!doc_id || !event_type) return res.status(400).json({ success: false, error: 'doc_id and event_type are required' });
 
-        const inserted = await require('../../models/document').insertFeedback({
+        const inserted = await require('../../services/documentModel').insertFeedback({
             doc_id,
             user_id: user_id || null,
             event_type,
@@ -39,7 +39,7 @@ router.post('/events', async (req, res) => {
 router.get('/pending', async (req, res) => {
     try {
         // TODO: protect with service auth
-        const rows = await require('../../models/document').getPendingFeedback();
+        const rows = await require('../../services/documentModel').getPendingFeedback();
         res.json({ success: true, pending: rows });
     } catch (err) {
         logger.error({ event: 'feedback_pending_error', error: err.message });
@@ -53,7 +53,7 @@ router.post('/process', async (req, res) => {
         // TODO: protect with service auth
         const { ids } = req.body;
         if (!Array.isArray(ids)) return res.status(400).json({ success: false, error: 'ids array is required' });
-        const count = await require('../../models/document').markFeedbackProcessed(ids);
+        const count = await require('../../services/documentModel').markFeedbackProcessed(ids);
         res.json({ success: true, processed: count });
     } catch (err) {
         logger.error({ event: 'feedback_process_error', error: err.message });

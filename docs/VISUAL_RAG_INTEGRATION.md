@@ -795,6 +795,97 @@ The following audit gaps in the Visual RAG sidecar were identified and resolved:
 
 ---
 
+## Vector Dimension Migration Checklist
+
+When migrating vector embeddings (e.g., from 768-d ColQwen2 to 320-d ColQwen3), follow this checklist to ensure safe migration:
+
+### Pre-Migration
+
+- [ ] **Backup database** - Full PostgreSQL backup before any schema changes
+- [ ] **Document current state** - Record current vector dimensions, index configurations, and document counts
+- [ ] **Verify migration files** - Ensure `migrations/04_change_embeddings_to_320.js` exists and is tested
+- [ ] **Check disk space** - Ensure sufficient space for re-indexing (estimate: ~2x current index size)
+- [ ] **Review dependencies** - Identify all services that read/write visual embeddings
+- [ ] **Plan downtime window** - Schedule maintenance window for schema migration
+- [ ] **Prepare rollback plan** - Document rollback procedure and test on staging
+
+### Migration Execution
+
+- [ ] **Stop write traffic** - Stop Visual RAG sidecar and any indexing processes
+- [ ] **Run schema migration** - Execute `node migrations/run-migration.js 04`
+- [ ] **Verify schema change** - Confirm `embedding` column is now `vector(320)`
+- [ ] **Check index creation** - Verify HNSW and IVFFLAT indexes exist
+- [ ] **Update environment variables** - Set `VISUAL_RAG_MODEL=TomoroAI/tomoro-colqwen3-embed-8b`
+- [ ] **Restart Visual RAG sidecar** - Verify clean startup with new model
+- [ ] **Test health endpoint** - Confirm `/health` returns `embedding_dim: 320`
+
+### Post-Migration
+
+- [ ] **Re-index documents** - Run `node scripts/reingest_visual_overlays.js --all` (or batched)
+- [ ] **Monitor re-indexing progress** - Track completion percentage and error rate
+- [ ] **Verify embedding dimensions** - Run SQL query to confirm all embeddings are 320-d
+- [ ] **Check search quality** - Test visual search on sample documents
+- [ ] **Monitor metrics** - Ensure `embedding_dimension_adapted` metric is 0
+- [ ] **Resume write traffic** - Re-enable document processing and indexing
+- [ ] **Performance validation** - Verify search latency meets SLO (p95 < 500ms)
+- [ ] **Clean up legacy data** - (Optional) Drop legacy `embedding_vector` column if unused
+
+### Verification Commands
+
+```sql
+-- Verify vector column dimension
+SELECT column_name, udt_name
+FROM information_schema.columns
+WHERE table_name = 'visual_overlays' AND column_name = 'embedding';
+
+-- Check stored embedding dimensions
+SELECT
+  id,
+  array_length(embedding::real[], 1) as dimension,
+  document_id
+FROM visual_overlays
+WHERE embedding IS NOT NULL
+LIMIT 10;
+
+-- Verify index status
+SELECT indexname, indexdef
+FROM pg_indexes
+WHERE tablename = 'visual_overlays' AND indexname LIKE '%embedding%';
+
+-- Count indexed documents
+SELECT COUNT(DISTINCT document_id) as indexed_docs
+FROM visual_overlays
+WHERE embedding IS NOT NULL;
+```
+
+```bash
+# Check pgvector setup
+node scripts/check_pgvector.js
+
+# Test visual search
+curl -X POST http://localhost:8001/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "invoice", "k": 5}'
+
+# Monitor sidecar health
+curl http://localhost:8001/health
+```
+
+### Rollback Procedure
+
+If migration fails or data integrity issues are discovered:
+
+1. **Stop all services** immediately
+2. **Restore database from backup** (preferred) OR run migration rollback
+3. **Revert environment variables** to previous model configuration
+4. **Restart services** with original configuration
+5. **Verify rollback success** - Test search and indexing
+6. **Document rollback reason** for post-mortem analysis
+
+**Critical:** Vector dimension changes are **destructive**. Always maintain backups before migration.
+
+---
+
 ## Troubleshooting
 
 **Model & Index Notes:** When migrating from older embeddings (ColQwen2), the new ColQwen3 vectors are 320 dimensions and are not byte-compatible with previous indexes — plan a re-ingest and re-index. After applying the migration in `migrations/04_change_embeddings_to_320.js`, re-run `node scripts/check_pgvector.js` to validate the vector column and indexes.

@@ -29,6 +29,59 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Load CI environment (secrets or fallback .env)
+        shell: bash
+        run: |
+          echo "Loading CI env (secrets preferred)"
+          # Prefer repository secrets if provided
+          if [ -n "${{ secrets.POSTGRES_USER }}" ]; then
+            USER="${{ secrets.POSTGRES_USER }}"
+            PASS="${{ secrets.POSTGRES_PASSWORD }}"
+            DBNAME="${{ secrets.POSTGRES_DB }}"
+            HOST="${{ secrets.POSTGRES_HOST }}"
+          elif [ -f paperless-ngx/.env ]; then
+            set -o allexport
+            source paperless-ngx/.env
+            set +o allexport
+            USER="$POSTGRES_USER"
+            PASS="$POSTGRES_PASSWORD"
+            DBNAME="$POSTGRES_DB"
+            HOST="${POSTGRES_HOST:-localhost}"
+          elif [ -f paperless-ngx/docker-compose.env ]; then
+            set -o allexport
+            source paperless-ngx/docker-compose.env
+            set +o allexport
+            USER="$POSTGRES_USER"
+            PASS="$POSTGRES_PASSWORD"
+            DBNAME="$POSTGRES_DB"
+            HOST="${POSTGRES_HOST:-localhost}"
+          else
+            echo "WARNING: No secrets or .env found; using safe test fallback values" >&2
+            USER="elfman"
+            PASS="password"
+            DBNAME="paperless_test"
+            HOST="localhost"
+          fi
+
+          # Normalize host and export to GITHUB_ENV for subsequent steps
+          HOST="${HOST:-localhost}"
+          echo "POSTGRES_USER=$USER" >> $GITHUB_ENV
+          echo "POSTGRES_PASSWORD=$PASS" >> $GITHUB_ENV
+          echo "POSTGRES_DB=$DBNAME" >> $GITHUB_ENV
+          echo "POSTGRES_HOST=$HOST" >> $GITHUB_ENV
+          echo "POSTGRES_URL=postgres://$USER:$PASS@$HOST:5432/$DBNAME" >> $GITHUB_ENV
+
+      - name: Verify DB credentials present
+        shell: bash
+        run: |
+          echo "Verifying DB credentials..."
+          if [ -z "$POSTGRES_USER" ] || [ -z "$POSTGRES_PASSWORD" ] || [ -z "$POSTGRES_DB" ]; then
+            echo "ERROR: required DB credentials missing (POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB)" >&2
+            exit 1
+          fi
+          echo "OK: DB credentials present"
+
       - name: Install dependencies
         run: npm ci
       - name: Run DB schema check

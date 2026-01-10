@@ -49,6 +49,28 @@ Visual RAG and RAGZ are separate services with separate vector storage:
 Do not share vector columns or indexes across these services. Each service owns
 its own schema and lifecycle.
 
+### Runtime Dimension Adaptation (Temporary Workaround)
+
+The Visual RAG sidecar includes runtime dimension adaptation logic to handle embeddings that don't match the configured schema dimension. This is a **temporary workaround** to maintain backward compatibility during migration periods.
+
+**Expected State:**
+- `embedding_dimension_adapted` metric should be **0** in steady state
+- All new embeddings should be 320-dimensional (matching `TomoroAI/tomoro-colqwen3-embed-8b`)
+- No padding or truncation should occur during normal operation
+
+**Action Required if `embedding_dimension_adapted` > 0:**
+1. Check Visual RAG sidecar logs for dimension mismatch warnings
+2. Verify `VISUAL_RAG_MODEL=TomoroAI/tomoro-colqwen3-embed-8b` is set correctly
+3. Confirm database schema has been migrated to `vector(320)` (see `migrations/04_change_embeddings_to_320.js`)
+4. Re-index affected documents to replace legacy embeddings
+5. Monitor metric until it returns to 0
+
+**Migration Context:**
+- Legacy ColQwen2 embeddings were 768-dimensional
+- Current ColQwen3 embeddings are 320-dimensional
+- Runtime adaptation allows gradual migration without service interruption
+- Once migration is complete, adaptation logic can be removed
+
 ---
 
 ## Visual Summary Metadata (Required)
