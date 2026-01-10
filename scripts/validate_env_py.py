@@ -5,9 +5,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = ROOT.parent / 'paperless-ngx' / 'docker-compose.env'
+FALLBACK_ENV = ROOT.parent / 'paperless-ngx' / '.env'
 if not ENV_FILE.exists():
-    print(f"ERROR: expected env file at {ENV_FILE}", file=sys.stderr)
-    sys.exit(2)
+    if FALLBACK_ENV.exists():
+        print(f"WARNING: source env file not found at {ENV_FILE}; using fallback {FALLBACK_ENV}", file=sys.stderr)
+        ENV_FILE = FALLBACK_ENV
+    else:
+        print(f"ERROR: expected env file at {ENV_FILE}", file=sys.stderr)
+        sys.exit(2)
 
 # Parse file (ignore comments and empty lines)
 env = {}

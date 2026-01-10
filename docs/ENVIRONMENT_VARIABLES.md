@@ -12,6 +12,8 @@ All runtime variables for Paperless-NGX + paperless-ai should live there. Other
 
 > Compatibility note: some environments (notably older `docker-compose`/`docker-compose` hyphen clients on Windows) automatically load a `.env` file from the compose directory. To keep `docker-compose.env` as the single source of truth, we provide `scripts/sync_dotenv_from_compose_env.sh` (and a PowerShell variant) which generates `paperless-ngx/.env` from `docker-compose.env` as-needed. Run `scripts/sync_dotenv_from_compose_env.sh` to create/update the compatibility `.env` file. The generated `.env` is ignored by Git (see `.gitignore`).
 
+> If the source `docker-compose.env` is missing (for example on hosted CI runners), the sync scripts now emit a warning and create a **minimal, safe fallback** `.env` (containing test DB credentials and translation test defaults) so validation workflows can proceed. This fallback is intended for CI/testing only and should not be used in production.
+
 ## Gaps found between docs and compose files (summary) ⚠️
 We audited `docs/ENVIRONMENT_VARIABLES.md` against the authoritative `paperless-ngx/docker-compose.env` and `paperless-ngx/docker-compose.yml` and found these practical gaps and pain points:
 
