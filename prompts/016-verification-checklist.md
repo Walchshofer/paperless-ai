@@ -43,3 +43,5 @@ References:
 1. When a verification fails in CI, block the PR and record a reproducible failure case.
 2. Update this checklist when adding new islands, migrations, or telemetry events.
 3. Archive completed checks in `prompts/completed/` and add a summary to `prompts/summaries/`.
+
+<!-- CI trigger: touch this file to cause verification-fast to run for PR testing -->
