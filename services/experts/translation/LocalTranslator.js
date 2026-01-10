@@ -14,10 +14,18 @@ class LocalTranslator {
         const minChars = parseInt(this.config.minChars || 3, 10);
 
         if (!trimmed || trimmed.length < minChars) {
+            logger.debug('[LocalTranslator] Skipping translation due to minChars', {
+                textLength: trimmed.length,
+                minChars
+            });
             return rawText;
         }
 
         if (!sourceLang || !targetLang || sourceLang === targetLang) {
+            logger.debug('[LocalTranslator] No translation needed: source === target or missing language', {
+                sourceLang,
+                targetLang
+            });
             return rawText;
         }
 
