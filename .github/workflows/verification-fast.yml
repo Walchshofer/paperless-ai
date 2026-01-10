@@ -36,33 +36,41 @@ jobs:
           echo "Loading CI env (secrets preferred)"
           # Prefer repository secrets if provided
           if [ -n "${{ secrets.POSTGRES_USER }}" ]; then
-            echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> $GITHUB_ENV
-            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> $GITHUB_ENV
-            echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> $GITHUB_ENV
-            echo "POSTGRES_HOST=${{ secrets.POSTGRES_HOST || 'db' }}" >> $GITHUB_ENV
+            USER="${{ secrets.POSTGRES_USER }}"
+            PASS="${{ secrets.POSTGRES_PASSWORD }}"
+            DBNAME="${{ secrets.POSTGRES_DB }}"
+            HOST="${{ secrets.POSTGRES_HOST }}"
           elif [ -f paperless-ngx/.env ]; then
             set -o allexport
             source paperless-ngx/.env
             set +o allexport
-            echo "POSTGRES_USER=$POSTGRES_USER" >> $GITHUB_ENV
-            echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" >> $GITHUB_ENV
-            echo "POSTGRES_DB=$POSTGRES_DB" >> $GITHUB_ENV
-            echo "POSTGRES_HOST=${POSTGRES_HOST:-db}" >> $GITHUB_ENV
+            USER="$POSTGRES_USER"
+            PASS="$POSTGRES_PASSWORD"
+            DBNAME="$POSTGRES_DB"
+            HOST="${POSTGRES_HOST:-localhost}"
           elif [ -f paperless-ngx/docker-compose.env ]; then
             set -o allexport
             source paperless-ngx/docker-compose.env
             set +o allexport
-            echo "POSTGRES_USER=$POSTGRES_USER" >> $GITHUB_ENV
-            echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" >> $GITHUB_ENV
-            echo "POSTGRES_DB=$POSTGRES_DB" >> $GITHUB_ENV
-            echo "POSTGRES_HOST=${POSTGRES_HOST:-db}" >> $GITHUB_ENV
+            USER="$POSTGRES_USER"
+            PASS="$POSTGRES_PASSWORD"
+            DBNAME="$POSTGRES_DB"
+            HOST="${POSTGRES_HOST:-localhost}"
           else
             echo "WARNING: No secrets or .env found; using safe test fallback values" >&2
-            echo "POSTGRES_USER=elfman" >> $GITHUB_ENV
-            echo "POSTGRES_PASSWORD=password" >> $GITHUB_ENV
-            echo "POSTGRES_DB=paperless_test" >> $GITHUB_ENV
-            echo "POSTGRES_HOST=db" >> $GITHUB_ENV
+            USER="elfman"
+            PASS="password"
+            DBNAME="paperless_test"
+            HOST="localhost"
           fi
+
+          # Normalize host and export to GITHUB_ENV for subsequent steps
+          HOST="${HOST:-localhost}"
+          echo "POSTGRES_USER=$USER" >> $GITHUB_ENV
+          echo "POSTGRES_PASSWORD=$PASS" >> $GITHUB_ENV
+          echo "POSTGRES_DB=$DBNAME" >> $GITHUB_ENV
+          echo "POSTGRES_HOST=$HOST" >> $GITHUB_ENV
+          echo "POSTGRES_URL=postgres://$USER:$PASS@$HOST:5432/$DBNAME" >> $GITHUB_ENV
 
       - name: Verify DB credentials present
         shell: bash
