@@ -1,0 +1,356 @@
+# Qdrant Migration Guide
+
+## Overview
+
+This document describes the migration from the current PostgreSQL/pgVector setup to Qdrant for vector storage. This is a **BREAKING CHANGE** that requires re-ingestion of all documents from the original paperless-ngx backup.
+
+## Current Vector Store Architecture
+
+### 1. Text RAG (RAGZ) - Python Service
+- **Location**: `rag_service/`
+- **Vector Storage**: PostgreSQL + pgVector
+- **Table**: `document_embeddings`
+- **Embedding Model**: `paraphrase-multilingual-MiniLM-L12-v2` (384 dimensions)
+- **Key Files**:
+  - `rag_service/data_manager.py` - pgVector initialization and document embedding
+  - `rag_service/search_engine.py` - Semantic search using pgVector
+  - `rag_service/state.py` - System status tracking (pgvector_ready flag)
+
+### 2. Visual RAG Sidecar - Python Service
+- **Location**: `services/visual-rag-sidecar/`
+- **Vector Storage**: In-memory tensor registry (`.pt` files on disk)
+- **Embedding Model**: `TomoroAI/tomoro-ai-colqwen3-embed-4b-awq` (320 dimensions)
+- **Key Files**:
+  - `services/visual-rag-sidecar/main.py` - Native ColQwen3 embeddings with MaxSim scoring
+  - Stores embeddings as `.pt` files in `/data/indices/`
+
+### 3. Visual Overlay Repository - JavaScript Service
+- **Location**: `services/visual-rag/`
+- **Vector Storage**: PostgreSQL + pgVector
+- **Table**: `visual_overlays`
+- **Embedding Column**: `vector(320)`
+- **Key Files**:
+  - `services/visual-rag/VisualOverlayRepository.js` - Overlay storage with vector search
+  - `services/visual-rag/IngestionManager.js` - Dual-path ingestion coordinator
+  - `services/visual-rag/HybridSearchService.js` - RRF-based hybrid search
+
+---
+
+## Legacy ChromaDB References (To Remove)
+
+### Files with ChromaDB References:
+
+| File | Line | Context | Action Required |
+|------|------|---------|-----------------|
+| `.gitignore` | 23, 32, 33 | `/chromadb` directory exclusion | Keep (harmless) |
+| `Dockerfile.rag` | 20 | `mkdir -p /app/data/chromadb` | **REMOVE** |
+| `main.py` | 72 | `--rebuild-indexes` help text mentions "ChromaDB" | **UPDATE** |
+| `services/visual-rag/migrate-legacy-docs.js` | 4 | Comment mentions "deprecated ChromaDB source location" | **UPDATE** |
+| `docs/archive/V2_VISUAL_FIRST_RAG_GAP_AUDIT.md` | 35 | Historical reference | Keep (archive) |
+| `services/prompts/MedicalPrompts.js` | 285 | False positive: "chromatin" (medical term) | No action |
+
+### Cleanup Tasks:
+1. Remove `mkdir -p /app/data/chromadb` from `Dockerfile.rag`
+2. Update `main.py` help text to remove ChromaDB reference
+3. Update `migrate-legacy-docs.js` comments to reflect Qdrant migration
+
+---
+
+## pgVector Dependencies (To Replace)
+
+### Python Dependencies (`requirements.txt`):
+```
+psycopg2-binary>=2.9.0  # PostgreSQL driver
+```
+
+### JavaScript Dependencies (`package.json`):
+```json
+"pg": "^8.16.3"  // PostgreSQL client
+```
+
+### Database Schema (Current):
+
+#### Table: `document_embeddings` (RAGZ)
+```sql
+CREATE TABLE document_embeddings (
+    id SERIAL PRIMARY KEY,
+    doc_id INTEGER NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    correspondent TEXT,
+    created DATE,
+    content TEXT,
+    embedding vector(384),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_embedding_cosine
+ON document_embeddings USING ivfflat (embedding vector_cosine_ops)
+WITH (lists = 100);
+```
+
+#### Table: `visual_overlays` (Visual RAG)
+```sql
+CREATE TABLE visual_overlays (
+    id SERIAL PRIMARY KEY,
+    doc_id INTEGER NOT NULL,
+    page_number INTEGER NOT NULL,
+    overlay_data JSONB,
+    semantic_label TEXT,
+    enhanced_ocr_text TEXT,
+    expert_metadata JSONB DEFAULT '{}',
+    domain_view JSONB DEFAULT '{}',
+    domain_signals JSONB DEFAULT '[]',
+    retrieval_quality_score FLOAT DEFAULT 0.0,
+    expert_routing_weights JSONB DEFAULT '{}',
+    embedding vector(320),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_visual_overlays_embedding
+ON visual_overlays USING hnsw (embedding vector_cosine_ops);
+
+CREATE INDEX idx_visual_overlays_embedding_ivfflat
+ON visual_overlays USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+```
+
+---
+
+## Files Requiring Modification for Qdrant Migration
+
+### High Priority (Core Vector Operations):
+
+| File | Vector Operations | Migration Effort |
+|------|-------------------|------------------|
+| `rag_service/data_manager.py` | `_ensure_pgvector_schema()`, `_add_documents_to_pgvector()` | High |
+| `rag_service/search_engine.py` | `semantic_search()`, `_pgvector_initialized()`, `validate_state()` | High |
+| `rag_service/state.py` | `pgvector_ready` status flag | Low |
+| `services/visual-rag/VisualOverlayRepository.js` | `checkPgVectorExtension()`, `searchByEmbedding()`, `ensureEnhancedSchema()` | High |
+| `services/visual-rag-sidecar/main.py` | In-memory tensor storage | High |
+
+### Medium Priority (Configuration & Status):
+
+| File | Dependencies | Migration Effort |
+|------|--------------|------------------|
+| `rag_service/settings.py` | No direct pgVector refs | None |
+| `services/visual-rag/IngestionManager.js` | Uses VisualOverlayRepository | Low (indirect) |
+| `services/visual-rag/HybridSearchService.js` | Uses ragService | Low (indirect) |
+| `config/config.js` | Database config | Medium |
+
+### Low Priority (Documentation & Scripts):
+
+| File | Purpose | Action |
+|------|---------|--------|
+| `docs/RAG_SYSTEMS_REFERENCE.md` | Architecture docs | Update |
+| `docs/DATABASE_SETUP.md` | Setup instructions | Rewrite |
+| `docs/VISUAL_RAG_INTEGRATION.md` | Integration guide | Update |
+| `migrations/*.sql` | Schema migrations | Archive |
+| `scripts/check_pgvector.js` | Health check | Replace |
+| `scripts/verify_visual_overlays_schema.js` | Schema verification | Replace |
+
+---
+
+## Qdrant Adapter Files (Placeholder)
+
+Empty placeholder files have been created:
+- `rag_service/qdrant_adapter.py` (0 bytes)
+- `services/visual-rag/QdrantAdapter.js` (0 bytes)
+
+---
+
+## Migration Strategy
+
+### Phase 1: Preparation
+
+1. **Backup Original Documents**
+   - Ensure all original PDFs/documents are backed up from paperless-ngx
+   - These will be re-ingested after migration
+
+2. **Deploy Qdrant**
+   - Add Qdrant container to `docker-compose.yml`
+   - Configure persistence volumes
+
+3. **Implement Qdrant Adapters**
+   - Complete `rag_service/qdrant_adapter.py`
+   - Complete `services/visual-rag/QdrantAdapter.js`
+
+### Phase 2: Collection Schema
+
+Create Qdrant collections with appropriate configuration:
+
+#### Collection: `document_embeddings` (Text RAG)
+```python
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams
+
+client = QdrantClient(host="qdrant", port=6333)
+
+client.create_collection(
+    collection_name="document_embeddings",
+    vectors_config=VectorParams(size=384, distance=Distance.COSINE),
+)
+```
+
+#### Collection: `visual_overlays` (Visual RAG)
+```python
+client.create_collection(
+    collection_name="visual_overlays",
+    vectors_config=VectorParams(size=320, distance=Distance.COSINE),
+)
+```
+
+#### Collection: `visual_pages` (Visual RAG Sidecar)
+```python
+# Multi-vector support for ColQwen3 late-interaction
+client.create_collection(
+    collection_name="visual_pages",
+    vectors_config={
+        "page_embedding": VectorParams(size=320, distance=Distance.DOT)
+    },
+)
+```
+
+### Phase 3: Code Migration
+
+1. **Python RAGZ Service**
+   - Replace pgVector queries in `data_manager.py`
+   - Replace pgVector queries in `search_engine.py`
+   - Update status flags in `state.py`
+
+2. **Visual RAG Sidecar**
+   - Replace tensor file storage with Qdrant upsert
+   - Implement MaxSim scoring via Qdrant
+
+3. **JavaScript Visual RAG**
+   - Replace pg client with qdrant-js client
+   - Update VisualOverlayRepository methods
+
+### Phase 4: Re-ingestion
+
+1. **Clear Old Data**
+   - Drop pgVector tables (or archive)
+   - Clear Qdrant collections
+
+2. **Re-ingest Documents**
+   - Process all documents from paperless-ngx backup
+   - Generate fresh embeddings with current models
+   - Store in Qdrant
+
+3. **Verify**
+   - Test search functionality
+   - Validate overlay extraction
+   - Check hybrid search results
+
+---
+
+## Docker Compose Changes
+
+Add Qdrant service:
+
+```yaml
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: paperless_qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    environment:
+      - QDRANT__STORAGE__ON_DISK_PAYLOAD=true
+    restart: unless-stopped
+
+volumes:
+  qdrant_storage:
+```
+
+---
+
+## Environment Variables
+
+Add new variables:
+
+```env
+# Qdrant Configuration
+QDRANT_HOST=qdrant
+QDRANT_PORT=6333
+QDRANT_API_KEY=  # Optional, for cloud deployments
+
+# Feature Flags
+VECTOR_STORE=qdrant  # Options: pgvector, qdrant
+```
+
+---
+
+## Dependency Updates
+
+### Python (`requirements.txt`):
+```
+# Remove or keep for metadata storage:
+# psycopg2-binary>=2.9.0
+
+# Add:
+qdrant-client>=1.7.0
+```
+
+### JavaScript (`package.json`):
+```json
+{
+  "dependencies": {
+    "@qdrant/js-client-rest": "^1.7.0"
+  }
+}
+```
+
+### Visual RAG Sidecar (`services/visual-rag-sidecar/requirements.txt`):
+```
+# Add:
+qdrant-client>=1.7.0
+```
+
+---
+
+## Rollback Plan
+
+1. Keep pgVector tables intact until migration is verified
+2. Maintain feature flag for vector store selection
+3. Document rollback procedure in runbook
+
+---
+
+## Post-Migration Cleanup
+
+After successful migration and verification:
+
+1. Remove pgVector extension usage (optional - may keep for metadata)
+2. Archive old migration files
+3. Update all documentation
+4. Remove ChromaDB directory creation from Dockerfile.rag
+5. Update CLAUDE.md with new architecture
+
+---
+
+## Testing Checklist
+
+- [ ] Qdrant container starts successfully
+- [ ] Collections created with correct schemas
+- [ ] Document ingestion works (text embeddings)
+- [ ] Visual RAG sidecar stores page embeddings
+- [ ] Overlay extraction stores in Qdrant
+- [ ] Text semantic search returns results
+- [ ] Visual search returns results
+- [ ] Hybrid search (RRF) works correctly
+- [ ] Expert knowledge storage works
+- [ ] Domain signal filtering works
+- [ ] All existing tests pass
+
+---
+
+## References
+
+- [Qdrant Documentation](https://qdrant.tech/documentation/)
+- [qdrant-client Python](https://github.com/qdrant/qdrant-client)
+- [qdrant-js JavaScript](https://github.com/qdrant/qdrant-js)
+- Current architecture: `docs/RAG_SYSTEMS_REFERENCE.md`
+- Visual RAG: `docs/VISUAL_RAG_ARCHITECTURE_AND_COLQWEN3.md`

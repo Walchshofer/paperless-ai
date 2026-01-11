@@ -74,7 +74,8 @@ The Visual RAG integration enhances the document processing pipeline with visual
 | Service | Port | Purpose |
 |---------|------|---------|
 | Visual RAG Sidecar | 8001 | ColQwen3-only visual retrieval (`TomoroAI/tomoro-colqwen3-embed-8b`). Rejects `vidore/colqwen2-v1.0` at startup; 320-d embeddings, 32k context. |
-| RAGZ Text Retrieval | Configurable | Text retrieval fallback (pgvector `document_embeddings.embedding vector(384)`). |
+| RAGZ Text Retrieval | Configurable | Text retrieval fallback via **Qdrant** `document_embeddings` collection (384D, Cosine). |
+| Qdrant | 6333/6334 | Vector database for all embedding storage (`document_embeddings`, `visual_overlays`, `visual_pages`). |
 | Paperless-ngx API | 8000 | Document metadata and Tesseract OCR |
 | Guidance Service | 8002 | Constrained query generation |
 | Bias Engine | 50051 | Logit bias for deterministic generation |
@@ -795,94 +796,92 @@ The following audit gaps in the Visual RAG sidecar were identified and resolved:
 
 ---
 
-## Vector Dimension Migration Checklist
+## Qdrant Migration Checklist
 
-When migrating vector embeddings (e.g., from 768-d ColQwen2 to 320-d ColQwen3), follow this checklist to ensure safe migration:
+When migrating to Qdrant from pgVector (or updating collection schemas), follow this checklist:
 
 ### Pre-Migration
 
-- [ ] **Backup database** - Full PostgreSQL backup before any schema changes
-- [ ] **Document current state** - Record current vector dimensions, index configurations, and document counts
-- [ ] **Verify migration files** - Ensure `migrations/04_change_embeddings_to_320.js` exists and is tested
-- [ ] **Check disk space** - Ensure sufficient space for re-indexing (estimate: ~2x current index size)
-- [ ] **Review dependencies** - Identify all services that read/write visual embeddings
-- [ ] **Plan downtime window** - Schedule maintenance window for schema migration
-- [ ] **Prepare rollback plan** - Document rollback procedure and test on staging
+- [ ] **Backup original documents** - Ensure paperless-ngx backup contains all original documents
+- [ ] **Document current state** - Record current Qdrant collection info and document counts
+- [ ] **Start Qdrant** - Ensure Qdrant container is running (`docker-compose up -d qdrant`)
+- [ ] **Check disk space** - Ensure sufficient space for Qdrant storage (estimate: ~2x current data)
+- [ ] **Review adapter files** - Verify `QdrantAdapter.js` and `qdrant_adapter.py` are implemented
+- [ ] **Test connection** - Run `node scripts/check-qdrant-collections.js`
 
 ### Migration Execution
 
-- [ ] **Stop write traffic** - Stop Visual RAG sidecar and any indexing processes
-- [ ] **Run schema migration** - Execute `node migrations/run-migration.js 04`
-- [ ] **Verify schema change** - Confirm `embedding` column is now `vector(320)`
-- [ ] **Check index creation** - Verify HNSW and IVFFLAT indexes exist
-- [ ] **Update environment variables** - Set `VISUAL_RAG_MODEL=TomoroAI/tomoro-colqwen3-embed-8b`
-- [ ] **Restart Visual RAG sidecar** - Verify clean startup with new model
-- [ ] **Test health endpoint** - Confirm `/health` returns `embedding_dim: 320`
+- [ ] **Stop write traffic** - Stop all ingestion and indexing processes
+- [ ] **Initialize collections** - Adapters auto-create collections on first use
+- [ ] **Update environment** - Set `QDRANT_HOST`, `QDRANT_PORT`, `VECTOR_STORE=qdrant`
+- [ ] **Restart services** - Restart RAGZ, Visual RAG, and paperless-ai
+- [ ] **Verify health** - Check all `/health` endpoints return `qdrant: healthy`
 
-### Post-Migration
+### Post-Migration (Re-ingestion Required)
 
-- [ ] **Re-index documents** - Run `node scripts/reingest_visual_overlays.js --all` (or batched)
-- [ ] **Monitor re-indexing progress** - Track completion percentage and error rate
-- [ ] **Verify embedding dimensions** - Run SQL query to confirm all embeddings are 320-d
-- [ ] **Check search quality** - Test visual search on sample documents
-- [ ] **Monitor metrics** - Ensure `embedding_dimension_adapted` metric is 0
-- [ ] **Resume write traffic** - Re-enable document processing and indexing
+- [ ] **Re-ingest documents** - Run `node scripts/reingest_to_qdrant.js --batch-size 20`
+- [ ] **Monitor progress** - Track ingestion completion and error rate
+- [ ] **Verify collection sizes** - Use `node scripts/check-qdrant-collections.js`
+- [ ] **Test search** - Execute sample searches on each collection
 - [ ] **Performance validation** - Verify search latency meets SLO (p95 < 500ms)
-- [ ] **Clean up legacy data** - (Optional) Drop legacy `embedding_vector` column if unused
+- [ ] **Archive pgVector tables** - Keep for rollback, mark as deprecated
 
 ### Verification Commands
 
-```sql
--- Verify vector column dimension
-SELECT column_name, udt_name
-FROM information_schema.columns
-WHERE table_name = 'visual_overlays' AND column_name = 'embedding';
-
--- Check stored embedding dimensions
-SELECT
-  id,
-  array_length(embedding::real[], 1) as dimension,
-  document_id
-FROM visual_overlays
-WHERE embedding IS NOT NULL
-LIMIT 10;
-
--- Verify index status
-SELECT indexname, indexdef
-FROM pg_indexes
-WHERE tablename = 'visual_overlays' AND indexname LIKE '%embedding%';
-
--- Count indexed documents
-SELECT COUNT(DISTINCT document_id) as indexed_docs
-FROM visual_overlays
-WHERE embedding IS NOT NULL;
-```
-
 ```bash
-# Check pgvector setup
-node scripts/check_pgvector.js
+# Check Qdrant collections
+node scripts/check-qdrant-collections.js
 
-# Test visual search
+# Run integration tests
+QDRANT_HOST=localhost npm test -- test/integration/qdrant-adapter.spec.js
+
+# Dry run re-ingestion
+node scripts/reingest_to_qdrant.js --dry-run
+
+# Test visual search via sidecar
 curl -X POST http://localhost:8001/search \
   -H "Content-Type: application/json" \
   -d '{"query": "invoice", "k": 5}'
 
 # Monitor sidecar health
 curl http://localhost:8001/health
+
+# Check Qdrant health directly
+curl http://localhost:6333/health
+```
+
+### Qdrant API Examples
+
+```python
+from qdrant_client import QdrantClient
+
+client = QdrantClient(host="localhost", port=6333)
+
+# List collections
+collections = client.get_collections()
+
+# Get collection info
+info = client.get_collection("document_embeddings")
+print(f"Points: {info.points_count}, Vectors: {info.vectors_count}")
+
+# Search
+results = client.search(
+    collection_name="document_embeddings",
+    query_vector=[0.1] * 384,  # 384D vector
+    limit=5
+)
 ```
 
 ### Rollback Procedure
 
-If migration fails or data integrity issues are discovered:
+If migration fails:
 
-1. **Stop all services** immediately
-2. **Restore database from backup** (preferred) OR run migration rollback
-3. **Revert environment variables** to previous model configuration
-4. **Restart services** with original configuration
-5. **Verify rollback success** - Test search and indexing
-6. **Document rollback reason** for post-mortem analysis
+1. **Set environment** - `VECTOR_STORE=pgvector`
+2. **Restart services** - Revert to pgVector-based adapters
+3. **Verify** - Test search and indexing with pgVector
+4. **Investigate** - Review Qdrant logs for root cause
 
-**Critical:** Vector dimension changes are **destructive**. Always maintain backups before migration.
+**Note:** This is a **BREAKING CHANGE**. All documents must be re-ingested from the paperless-ngx backup.
 
 ---
 

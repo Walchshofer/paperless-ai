@@ -1,10 +1,35 @@
 # Implementation Prompts Directory
 
+## BREAKING CHANGE (2026-01): Qdrant Migration
+
+Vector storage is migrating from PostgreSQL/pgVector to **Qdrant**. This affects:
+- All prompts referencing vector storage or embeddings
+- Database schema verification (011)
+- Visual RAG sidecar (005, 006)
+- Feedback persistence (001)
+
+See `docs/QDRANT_MIGRATION.md` for full migration details.
+
+---
+
 ## Purpose
 This directory contains structured implementation and verification prompts for AI agents executing feature development tasks.
 
+## Quick Start
+
+To execute all prompts with Serena memory integration, use:
+
+```
+@implement Read and execute prompts/KICKOFF.md
+```
+
+See `KICKOFF.md` for full instructions on agent selection, Serena memory usage, and execution order.
+
+---
+
 ## Directory Structure
-- `001-017`: Active prompts (numbered sequence)
+- `KICKOFF.md`: Reusable kick-off prompt for full implementation runs
+- `001-018`: Active prompts (numbered sequence)
 - `planning/`: Enhancement plans and architectural documents
 - `completed/`: Archived prompts after successful execution
 - `summaries/`: Machine-readable summaries generated after prompt completion
@@ -38,6 +63,9 @@ See `EXECUTION_ORDER.md` for detailed sequencing and dependencies.
 **Phase 4: Final Verification & Cleanup**
 - `016-verification-checklist.md`
 - `017-refactor-playground.md`
+
+**Phase 5: Qdrant Migration (BREAKING CHANGE)**
+- `018-qdrant-migration.md` - Vector store migration from pgVector to Qdrant
 
 ## Prompt Naming Convention
 Format: `NNN-brief-description.md`

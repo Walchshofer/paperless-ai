@@ -413,8 +413,19 @@ Use this to set precise per-model budgets without changing global defaults.
 
 ## Database Configuration Variables
 
-### PostgreSQL Connection
-- `DATABASE_URL` - PostgreSQL connection string (required for RAG features)
+### Qdrant Vector Database (Primary Vector Storage)
+- `QDRANT_HOST` - Qdrant server host (default: `qdrant` for Docker, `localhost` for host)
+- `QDRANT_PORT` - Qdrant HTTP API port (default: `6333`)
+- `QDRANT_API_KEY` - Optional API key for Qdrant Cloud deployments
+- `VECTOR_STORE` - Vector store backend selection (default: `qdrant`, options: `qdrant`, `pgvector` for rollback)
+
+**Qdrant Collections:**
+- `document_embeddings` - 384D, Cosine distance (Text RAG)
+- `visual_overlays` - 320D, Cosine distance (Visual overlay embeddings)
+- `visual_pages` - 320D, Dot product (Visual RAG sidecar)
+
+### PostgreSQL Connection (Metadata Storage)
+- `DATABASE_URL` - PostgreSQL connection string (required for metadata storage)
 - `DB_SSL` - Enable SSL for database connections (default: `false`)
 - `DB_MAX_CONNECTIONS` - Maximum database connections (default: `10`)
 
@@ -424,7 +435,7 @@ Use this to set precise per-model budgets without changing global defaults.
 - `RAG_TOP_K` - Number of similar documents to retrieve (default: `5`)
 - `RAG_SIMILARITY_THRESHOLD` - Minimum similarity score (default: `0.7`)
 
-### PostgreSQL + pg_vector Configuration
+### PostgreSQL Configuration (Metadata Only)
 
 - `POSTGRES_HOST` - PostgreSQL server host (default: `db` for Docker, `localhost` for host)
 - `POSTGRES_PORT` - PostgreSQL server port (default: `5432`)
@@ -438,14 +449,14 @@ Use this to set precise per-model budgets without changing global defaults.
 - `PAPERLESS_DBPASS` - Paperless-NGX database password (fallback for `POSTGRES_PASSWORD`)
 
 **Requirements:**
-- PostgreSQL 16+ with pg_vector extension
-- Docker image: `pgvector/pgvector:pg16`
-- User must have CREATE EXTENSION privilege
+- Qdrant 1.7.0+ (Docker image: `qdrant/qdrant:latest`)
+- PostgreSQL 16+ (Docker image: `postgres:16` - pgvector no longer required)
 
 **Troubleshooting:**
-- Check health: `curl http://localhost:3000/health/database`
-- Verify extension: `docker exec paperless_db psql -U <user> -d <db> -c "SELECT extversion FROM pg_extension WHERE extname = 'vector'"`
-- See `docs/DATABASE_SETUP.md` for detailed troubleshooting guide
+- Check Qdrant health: `curl http://localhost:6333/health`
+- Check collections: `node scripts/check-qdrant-collections.js`
+- Check PostgreSQL: `curl http://localhost:3000/health/database`
+- See `docs/DATABASE_SETUP.md` and `docs/QDRANT_MIGRATION.md` for detailed guides
 
 ## Security and Access Control
 
@@ -481,8 +492,15 @@ ORCHESTRATOR_MODEL=nemotron-orchestrator:8b
 OLLAMA_MODEL=sauerkraut-llama3.1:8b
 OLLAMA_VISION_MODEL=qwen3-vl:8b
 
-# Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/paperless
+# Qdrant (Vector Storage)
+QDRANT_HOST=qdrant
+QDRANT_PORT=6333
+VECTOR_STORE=qdrant
+
+# PostgreSQL (Metadata Storage)
+POSTGRES_HOST=db
+POSTGRES_USER=paperless
+POSTGRES_PASSWORD=your-password
 
 # Security
 JWT_SECRET=your-secret-key-here
@@ -518,8 +536,17 @@ ENABLE_OPENAI_FALLBACK=yes
 MAX_CONCURRENT_REQUESTS=5
 GPU_DEVICE=0
 
-# Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/paperless
+# Qdrant Vector Database
+QDRANT_HOST=qdrant
+QDRANT_PORT=6333
+VECTOR_STORE=qdrant
+
+# PostgreSQL (Metadata)
+POSTGRES_HOST=db
+POSTGRES_USER=paperless
+POSTGRES_PASSWORD=your-secure-password
+
+# RAG Configuration
 RAG_CHUNK_SIZE=512
 RAG_TOP_K=5
 

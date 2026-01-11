@@ -98,14 +98,7 @@ If queries return poor hits:
 
 ## Acceptance & migration notes ✅
 
-- When changing model or BYALDI, update the docs first (`docs/ENVIRONMENT_VARIABLES.md` and `docs/VISUAL_RAG_INTEGRATION.md`), then update `paperless-ngx/docker-compose.env`, `services/visual-rag-sidecar/Dockerfile` (preferred) or `requirements.txt`, and open a PR with a short migration checklist and CI validation steps.
-
-**Important (Byaldi / Colpali upgrades):** When adopting ColQwen3 / Qwen2.5 backbones prefer installing the Colpali engine from source and using native AWQ weight handling. Example Dockerfile steps:
-
-- Install `colpali` from source: `pip install --upgrade git+https://github.com/illuin-tech/colpali.git`
-- Install wrapper and quantization support: `pip install --upgrade "byaldi>=0.0.7" "transformers>=4.46.0" autoawq flash-attn`
-
-This avoids forcing BnB conversion and allows `trust_remote_code=True` to correctly register ColQwen model classes. Ensure CI rebuilds the sidecar image and runs GPU smoke tests (see `docs/TEST_ENVIRONMENT.md`).
+- When changing model or BYALDI, update the docs first (`docs/ENVIRONMENT_VARIABLES.md` and `docs/VISUAL_RAG_INTEGRATION.md`), then update `paperless-ngx/docker-compose.env`, `services/visual-rag-sidecar/requirements.txt`, and open a PR with a short migration checklist and CI validation steps.
 
 ---
 

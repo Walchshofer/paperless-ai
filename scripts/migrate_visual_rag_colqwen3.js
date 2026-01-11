@@ -11,7 +11,7 @@ const DEFAULT_BATCH_SIZE = 10;
 const DEFAULT_INDEX_NAME = 'paperless_visual';
 const DEFAULT_INDEX_DIR = '/data/indices';
 const DEFAULT_INDEX_DIR_FALLBACK = path.join(process.cwd(), 'data', 'visual_indices');
-const MODEL_NAME = process.env.VISUAL_RAG_MODEL || 'TomoroAI/tomoro-colqwen3-embed-8b';
+const MODEL_NAME = process.env.VISUAL_RAG_MODEL || 'TomoroAI/tomoro-ai-colqwen3-embed-4b-awq';
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 

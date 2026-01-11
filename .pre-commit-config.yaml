@@ -15,7 +15,12 @@ repos:
     hooks:
       - id: check-added-large-files
         name: block-model-artifacts
-        entry: bash -c "if git diff --cached --name-only | grep -E '^models/hf/' >/dev/null; then echo 'ERROR: committing model artifacts under models/hf is forbidden. Remove them or add to model cache.'; exit 1; fi"
+        entry: >-
+          bash -c "if git diff --cached --name-only |
+          grep -E '^models/hf/' >/dev/null; then
+          echo 'ERROR: committing model artifacts under models/hf
+          is forbidden. Remove them or add to model cache.';
+          exit 1; fi"
         language: system
         always_run: true
         stages: [commit]

@@ -15,9 +15,10 @@
 
 | RAG System | Purpose | Key files / API contract |
 |---|---|---|
-| **Visual RAG Sidecar** 🔎 | Page-level element detection & visual indexing (tables, figures, zones) | `services/visual-rag-sidecar/main.py` — FastAPI endpoints: `/health`, `/index/document`, `/index/directory`, `/search`. Pydantic models: `IndexRequest`, `SearchRequest`, `SearchResponse`. Postgres overlays: `visual_overlays.embedding vector(320)` via `services/visual-rag/VisualOverlayRepository.js`. |
+| **Visual RAG Sidecar** 🔎 | Page-level element detection & visual indexing (tables, figures, zones) | `services/visual-rag-sidecar/main.py` — FastAPI endpoints: `/health`, `/index/document`, `/index/directory`, `/search`. Pydantic models: `IndexRequest`, `SearchRequest`, `SearchResponse`. **Qdrant**: `visual_pages` collection (320D, Dot) via `rag_service/qdrant_adapter.py`. |
 | **Ollama Visual / Visual OCR** 🖼️ | Vision-model-based OCR, geometry, overlay extraction (e.g., `qwen3-vl`) | `services/ollama/vision.js` (planner, rendering, `_callOllamaVisionAPI`, truncation+repair), `services/experts/ParallelOcrExecutor.js` (visual OCR track), `services/experts/normalization/PreVisionNormalizer.js` (geometry). Internal function contract: `ollamaService._callOllamaVisionAPI(prompt, images, options)` |
-| **Python Text RAG (RAGZ)** 📚 | Text semantic search / QA (Postgres + `pgvector`) | `rag_service/app.py`, `rag_service/models.py` — endpoints: `/search`, `/context`. RAGZ stores text vectors in `document_embeddings.embedding vector(384)` via `rag_service/data_manager.py`. |
+| **Python Text RAG (RAGZ)** 📚 | Text semantic search / QA via **Qdrant** | `rag_service/app.py`, `rag_service/models.py` — endpoints: `/search`, `/context`. RAGZ stores text vectors in **Qdrant** `document_embeddings` collection (384D, Cosine) via `rag_service/qdrant_adapter.py`. |
+| **Visual Overlay Repository** 🗂️ | Visual overlay embeddings for JS services | `services/visual-rag/VisualOverlayRepository.js`, `services/visual-rag/QdrantAdapter.js`. **Qdrant**: `visual_overlays` collection (320D, Cosine). PostgreSQL retains metadata only. |
 | **Internal Domain RAGs** 🗂️ | Local corpus retrievers (VAT, legal) used to augment prompts | `services/rag/InternalVatRag.js`, `services/rag/InternalLegalRag.js` — internal JS APIs (not HTTP) |
 
 > See `docs/EXPERT_PIPELINE_DECISION_TABLE.md` for pipeline stage gating and retry semantics.
@@ -37,17 +38,19 @@
 
 ---
 
-## Service Separation and Vector Columns (Required)
+## Service Separation and Vector Storage (Required)
 
-Visual RAG and RAGZ are separate services with separate vector storage:
+Visual RAG and RAGZ are separate services with separate vector storage in **Qdrant**:
 
-| Service | Table | Column | Vector size | Index |
+| Service | Qdrant Collection | Vector Size | Distance Metric | Adapter |
 | --- | --- | --- | --- | --- |
-| Visual RAG overlays | `visual_overlays` | `embedding` | `vector(320)` | HNSW + IVFFLAT |
-| RAGZ text retrieval | `document_embeddings` | `embedding` | `vector(384)` | IVFFLAT |
+| Visual RAG overlays | `visual_overlays` | 320 | Cosine | `services/visual-rag/QdrantAdapter.js` |
+| Visual RAG pages | `visual_pages` | 320 | Dot | `rag_service/qdrant_adapter.py` |
+| RAGZ text retrieval | `document_embeddings` | 384 | Cosine | `rag_service/qdrant_adapter.py` |
 
-Do not share vector columns or indexes across these services. Each service owns
-its own schema and lifecycle.
+Do not share collections across these services. Each service owns its own collection and lifecycle.
+
+**PostgreSQL Role**: PostgreSQL is retained for metadata storage only (document info, overlay metadata, feedback events). All vector operations use Qdrant.
 
 ### Runtime Dimension Adaptation (Temporary Workaround)
 
@@ -86,15 +89,33 @@ metadata.
 ## RAGZ Health Check (Required)
 
 RAGZ must expose a `/health` endpoint that validates:
-- PostgreSQL connectivity
-- pgvector extension availability
-- `document_embeddings` table readiness
+- Qdrant connectivity (`QDRANT_HOST:QDRANT_PORT`)
+- `document_embeddings` collection exists and is ready
+- Collection schema matches expected dimensions (384D, Cosine)
+
+Health check example:
+```python
+from rag_service.qdrant_adapter import qdrant_adapter
+
+health = qdrant_adapter.health_check()
+# Returns: { "healthy": true, "collections": { "document_embeddings": { "exists": true, "pointCount": 1234 } } }
+```
 
 ---
 
-## V2 Storage Schema (Planned)
+## V2 Storage Schema (Qdrant + PostgreSQL)
 
-Additive schema for Visual-first RAG:
+Hybrid storage for Visual-first RAG using Qdrant for vectors and PostgreSQL for metadata:
+
+### Qdrant Collections (Vector Storage)
+
+| Collection | Dimensions | Distance | Purpose |
+|------------|------------|----------|---------|
+| `document_embeddings` | 384 | Cosine | Text RAG chunk embeddings |
+| `visual_overlays` | 320 | Cosine | Visual overlay embeddings (JS) |
+| `visual_pages` | 320 | Dot | Visual page embeddings (Python sidecar) |
+
+### PostgreSQL Tables (Metadata Only)
 
 ```
 documents(id, source, original_filename, mime_type, created_at, checksum_sha256,
@@ -103,13 +124,9 @@ documents(id, source, original_filename, mime_type, created_at, checksum_sha256,
 document_pages(id, document_id, page_number, width_px, height_px,
   image_uri, thumb_uri, ocr_text, text_layer, normalization jsonb)
 
-text_chunks(id, document_id, page_id, chunk_index, content, span jsonb,
-  embedding vector(384))
-
-visual_pages(id, document_id, page_id, embedding vector(320), visual_meta jsonb)
-
-visual_regions(id, document_id, page_id, bbox jsonb, label, score,
-  embedding vector(320), meta jsonb)
+visual_overlays(id, doc_id, page_number, overlay_data jsonb, semantic_label,
+  enhanced_ocr_text, expert_metadata jsonb, domain_signals jsonb, created_at)
+  -- Note: embedding column removed; vectors stored in Qdrant
 
 document_actions(id, document_id, action_type, payload jsonb, status,
   confidence, evidence_refs jsonb, created_at, executed_at)
@@ -117,25 +134,45 @@ document_actions(id, document_id, action_type, payload jsonb, status,
 
 ---
 
-## Retrieval Queries (Visual-first)
+## Retrieval Queries (Visual-first) - Qdrant
 
-Visual-first page retrieval:
-```
-SELECT vp.page_id, vp.document_id,
-       1 - (vp.embedding <=> :query_embedding) AS score
-FROM visual_pages vp
-ORDER BY vp.embedding <=> :query_embedding
-LIMIT :k;
+Visual-first page retrieval using Qdrant:
+```python
+from qdrant_client import QdrantClient
+
+client = QdrantClient(host="qdrant", port=6333)
+
+# Visual page search (320D, Dot product)
+results = client.search(
+    collection_name="visual_pages",
+    query_vector=query_embedding,  # 320D vector
+    limit=k,
+    with_payload=True
+)
+# Returns: [ScoredPoint(id, score, payload={document_id, page_id, ...})]
 ```
 
 Hybrid fallback (visual narrows, text validates):
+```python
+# Text chunk search with document filter (384D, Cosine)
+results = client.search(
+    collection_name="document_embeddings",
+    query_vector=query_embedding,  # 384D vector
+    query_filter=Filter(
+        must=[FieldCondition(key="document_id", match=MatchAny(any=candidate_docs))]
+    ),
+    limit=k,
+    with_payload=True
+)
 ```
-SELECT tc.id, tc.document_id, tc.page_id,
-       1 - (tc.embedding <=> :query_embedding) AS score
-FROM text_chunks tc
-WHERE tc.document_id = ANY(:candidate_docs)
-ORDER BY tc.embedding <=> :query_embedding
-LIMIT :k;
+
+JavaScript equivalent (using QdrantAdapter):
+```javascript
+const { qdrantAdapter } = require('./services/visual-rag/QdrantAdapter');
+
+// Visual overlay search
+const results = await qdrantAdapter.searchVisualOverlays(queryVector, { limit: 5 });
+// Returns: [{ id, score, docId, pageNumber, semanticLabel, ... }]
 ```
 
 ---
@@ -261,8 +298,10 @@ Pick an implementation starting point (recommended):
 - `docs/EXPERT_PIPELINE_DECISION_TABLE.md`
 - `docs/PROMPT_REGISTRY_GUIDANCE_INTERACTION.md`
 - `docs/SCHEMA_EVOLUTION_GUIDE.md`
+- `docs/QDRANT_MIGRATION.md` - Migration guide from pgVector to Qdrant
+- `services/visual-rag/QdrantAdapter.js` - JavaScript Qdrant adapter
+- `rag_service/qdrant_adapter.py` - Python Qdrant adapter
 - `.github/knowledge/guidance-expert/references/litellm-ollama.md`
-- `.github/knowledge/guidance-expert/references/postgresql-pgvector.md`
 
 
 ---

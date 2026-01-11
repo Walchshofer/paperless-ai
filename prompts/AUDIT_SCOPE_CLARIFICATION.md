@@ -63,10 +63,13 @@ Each prompt must reference relevant authoritative documentation:
 
 ### Pattern Compliance
 Prompts must follow established patterns:
-- Database: PostgreSQL with pgvector, UUID primary keys
+- Database: PostgreSQL for metadata (UUID primary keys, JSONB fields)
+- Vector Store: **Qdrant** for embeddings (BREAKING CHANGE - replaces pgVector)
 - Frontend: Preact Islands for complex components (per FRONTEND_ARCHITECTURE.md)
 - API: RESTful endpoints with proper validation
 - Testing: Mocha + Node assert, integration tests where applicable
+
+**Note (2026-01):** Vector storage has migrated from pgVector to Qdrant. See `docs/QDRANT_MIGRATION.md`.
 
 ## Future Audit Recommendations
 

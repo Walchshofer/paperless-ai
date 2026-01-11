@@ -1,62 +1,88 @@
-# PostgreSQL + pg_vector Setup Guide
+# Database Setup Guide (Qdrant + PostgreSQL)
 
 ## Overview
 
-Paperless-AI uses PostgreSQL with the pg_vector extension for:
-- Visual RAG overlay storage (`visual_overlays`)
-- RAGZ text embeddings (`document_embeddings`)
+Paperless-AI uses a hybrid database architecture:
+
+- **Qdrant** (Vector Storage): All embedding vectors for RAG operations
+  - `document_embeddings` collection (384D, Cosine) - Text RAG
+  - `visual_overlays` collection (320D, Cosine) - Visual overlay embeddings
+  - `visual_pages` collection (320D, Dot) - Visual RAG sidecar
+
+- **PostgreSQL** (Metadata Storage): Document metadata, overlay info, feedback events
+  - `visual_overlays` table (metadata only, no embedding column)
+  - `feedback_events` table
+  - Other application tables
 
 This guide covers setup, troubleshooting, and common issues.
 
+> **Migration Note**: pgVector is deprecated. See `docs/QDRANT_MIGRATION.md` for migration instructions.
+
 ## Requirements
 
+### Qdrant (Vector Storage)
+- **Qdrant Version:** 1.7.0+
+- **Docker Image:** `qdrant/qdrant:latest`
+- **Ports:** 6333 (HTTP API), 6334 (gRPC)
+- **Storage:** Persistent volume for `/qdrant/storage`
+
+### PostgreSQL (Metadata Storage)
 - **PostgreSQL Version:** 16+
-- **Required Extension:** pg_vector (vector similarity search)
-- **Docker Image:** `pgvector/pgvector:pg16`
-- **Minimum Credentials:** User with CREATE EXTENSION privilege
+- **Docker Image:** `postgres:16` (pgvector no longer required for new deployments)
+- **Legacy:** `pgvector/pgvector:pg16` (for rollback capability)
+- **Minimum Credentials:** User with CREATE TABLE privilege
 
 ## Architecture
 
 ```mermaid
 graph TD
-    A[paperless-ai Container] -->|POSTGRES_HOST=db| B[paperless_db Container]
-    B -->|pgvector/pgvector:pg16| C[PostgreSQL 16]
-    C -->|Extension| D[pg_vector]
-    D -->|Stores| E[visual_overlays Table]
-    E -->|Columns| F[embedding vector 320 - ACTIVE]
+    A[paperless-ai Container] -->|QDRANT_HOST=qdrant| Q[Qdrant Container]
+    A -->|POSTGRES_HOST=db| B[paperless_db Container]
+
+    Q -->|qdrant/qdrant:latest| R[Qdrant Vector DB]
+    R -->|Collection| S[document_embeddings 384D Cosine]
+    R -->|Collection| T[visual_overlays 320D Cosine]
+    R -->|Collection| U[visual_pages 320D Dot]
+
+    B -->|postgres:16| C[PostgreSQL 16]
+    C -->|Table| E[visual_overlays - metadata only]
     E -->|Columns| G[expert_metadata JSONB]
     E -->|Columns| H[domain_signals JSONB]
-    E -->|Legacy| I[embedding_vector vector 768 - PURPOSE UNCLEAR]
-    D -->|Stores| J[document_embeddings Table]
-    J -->|Columns| K[embedding vector 384]
-    D -->|Stores| L[feedback_events Table]
+    C -->|Table| L[feedback_events Table]
     L -->|Columns| M[original_value vs corrected_value]
 
-## Visual Overlays Vector Columns
+## Qdrant Collections
 
-The `visual_overlays` table currently contains **two vector columns** with different purposes:
+All vector embeddings are now stored in Qdrant collections:
 
-| Column Name | Vector Dimension | Status | Purpose | Usage |
-|-------------|------------------|--------|---------|-------|
-| `embedding` | `vector(320)` | **ACTIVE** | Visual embedding storage for ColQwen3 model | Used by Visual RAG sidecar for all search and indexing operations |
-| `embedding_vector` | `vector(768)` | **LEGACY** | Purpose unclear; likely from previous schema iteration | **Not actively used**; candidate for deprecation |
+| Collection | Dimensions | Distance | Purpose | Adapter |
+|------------|------------|----------|---------|---------|
+| `document_embeddings` | 384 | Cosine | Text RAG embeddings | `rag_service/qdrant_adapter.py` |
+| `visual_overlays` | 320 | Cosine | Visual overlay embeddings | `services/visual-rag/QdrantAdapter.js` |
+| `visual_pages` | 320 | Dot | Visual RAG sidecar embeddings | `rag_service/qdrant_adapter.py` |
 
-**Active Column:** `embedding vector(320)`
-- This is the **authoritative** column for visual embeddings
-- Used by `VisualOverlayRepository.js` for all CRUD operations
-- Indexed with HNSW for fast similarity search
-- Compatible with `TomoroAI/tomoro-colqwen3-embed-8b` model output
+### Collection Schema
 
-**Legacy Column:** `embedding_vector vector(768)`
-- Purpose and origin are unclear from current codebase
-- No active code references found in services or sidecar
-- May have been used by a previous embedding model or early prototype
-- **Recommendation:** Audit usage and deprecate if unused (see migration `05_deprecate_embedding_vector.sql`)
+Each collection stores points with:
+- **ID**: UUID (generated from doc_id + page_number or chunk_index)
+- **Vector**: Embedding array (384D or 320D depending on collection)
+- **Payload**: Metadata (doc_id, title, content, page_number, etc.)
 
-**Migration Notes:**
-- The 320-dimensional column was introduced in `migrations/04_change_embeddings_to_320.js`
-- Legacy 768-dimensional column may be safe to drop after confirming no external dependencies
-- Always back up data before schema changes
+### PostgreSQL Visual Overlays Table (Metadata Only)
+
+The `visual_overlays` PostgreSQL table now stores metadata only:
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `id` | SERIAL | Primary key |
+| `doc_id` | INTEGER | Document reference |
+| `page_number` | INTEGER | Page number |
+| `overlay_data` | JSONB | Overlay bounding boxes |
+| `semantic_label` | TEXT | Content classification |
+| `expert_metadata` | JSONB | Expert knowledge |
+| `domain_signals` | JSONB | Domain-specific signals |
+
+**Note**: The `embedding` column has been removed. Vectors are stored in Qdrant `visual_overlays` collection.
 
 ## Configuration
 
@@ -65,16 +91,21 @@ The `visual_overlays` table currently contains **two vector columns** with diffe
 Required variables in `docker-compose.env`:
 
 ```bash
-# Standard PostgreSQL convention (preferred)
+# Qdrant Configuration (Vector Storage)
+QDRANT_HOST=qdrant
+QDRANT_PORT=6333
+VECTOR_STORE=qdrant  # Options: qdrant, pgvector (for rollback)
+
+# Standard PostgreSQL convention (Metadata Storage)
 POSTGRES_USER=elfman
-POSTGRES_PASSWORD=P2tr3ck!1976
+POSTGRES_PASSWORD=<your-password>
 POSTGRES_DB=paperless
 POSTGRES_HOST=db
 POSTGRES_PORT=5432
 
 # Paperless-NGX convention (fallback)
 PAPERLESS_DBUSER=elfman
-PAPERLESS_DBPASS=P2tr3ck!1976
+PAPERLESS_DBPASS=<your-password>
 PAPERLESS_DBNAME=paperless
 PAPERLESS_DBHOST=db
 PAPERLESS_DBPORT=5432
@@ -85,19 +116,37 @@ COMPOSE_PROJECT_NAME=paperless-ngx
 
 ### Docker Compose Configuration
 
-Ensure `docker-compose.yml` uses the correct image:
+Add Qdrant and PostgreSQL services to `docker-compose.yml`:
 
 ```yaml
-db:
-  image: pgvector/pgvector:pg16  #  Must use pgvector image
-  container_name: paperless_db
-  ports:
-    - "5432:5432"
-  env_file: docker-compose.env
-  environment:
-    - POSTGRES_DB=${POSTGRES_DB}
-    - POSTGRES_USER=${POSTGRES_USER}
-    - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+services:
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: paperless_qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    environment:
+      - QDRANT__STORAGE__ON_DISK_PAYLOAD=true
+    restart: unless-stopped
+
+  # PostgreSQL (Metadata Only)
+  db:
+    image: postgres:16
+    container_name: paperless_db
+    ports:
+      - "5432:5432"
+    env_file: docker-compose.env
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+
+volumes:
+  qdrant_storage:
 ```
 
 ## Verification
@@ -105,21 +154,27 @@ db:
 ### 1. Check Container Status
 
 ```bash
-# Verify container is running
-docker ps | grep paperless_db
+# Verify Qdrant is running
+docker ps | grep paperless_qdrant
 
-# Expected output:
-# paperless_db   pgvector/pgvector:pg16   ...   Up   0.0.0.0:5432->5432/tcp
+# Verify PostgreSQL is running
+docker ps | grep paperless_db
 ```
 
-### 2. Verify pg_vector Extension
+### 2. Verify Qdrant Collections
 
 ```bash
-# Check if extension is available
-docker exec paperless_db psql -U elfman -d paperless -c "SELECT * FROM pg_available_extensions WHERE name = 'vector'"
+# Check Qdrant health
+curl http://localhost:6333/health
 
-# Check if extension is installed
-docker exec paperless_db psql -U elfman -d paperless -c "SELECT extversion FROM pg_extension WHERE extname = 'vector'"
+# List collections
+curl http://localhost:6333/collections
+
+# Check collection info using verification script
+node scripts/check-qdrant-collections.js
+
+# Run integration tests
+QDRANT_HOST=localhost npm test -- test/integration/qdrant-adapter.spec.js
 ```
 
 ### 3. Test Application Health
@@ -128,83 +183,85 @@ docker exec paperless_db psql -U elfman -d paperless -c "SELECT extversion FROM 
 # Check database health endpoint
 curl http://localhost:3000/health/database
 
-# Expected response:
+# Expected response includes Qdrant status:
 # {
 #   "status": "healthy",
-#   "database": { "connected": true, ... },
-#   "pgvector": { "available": true, "version": "0.5.1" },
-#   "schema": { "ready": true }
+#   "qdrant": { "healthy": true, "collections": {...} },
+#   "postgres": { "connected": true }
 # }
 ```
 
 ## Troubleshooting
 
-### Issue: "pgvector extension not available"
+### Issue: "Qdrant connection failed"
 
 **Symptoms:**
-- Startup logs show: `[STARTUP]  pg_vector extension not available`
-- Health check returns: `"pgvector": { "available": false }`
+- Startup logs show: `[STARTUP] Qdrant connection failed`
+- Health check returns: `"qdrant": { "healthy": false }`
 
 **Solution:**
 
-1. Verify Docker image:
+1. Verify Qdrant container is running:
    ```bash
-   docker inspect paperless_db | grep Image
-   # Should show: pgvector/pgvector:pg16
+   docker ps | grep paperless_qdrant
    ```
 
-2. If using wrong image, update `docker-compose.yml` and recreate:
+2. Check Qdrant health directly:
    ```bash
-   docker-compose down
-   docker-compose up -d db
+   curl http://localhost:6333/health
    ```
 
-3. Manually install extension:
+3. Check container logs:
    ```bash
-   docker exec paperless_db psql -U elfman -d paperless -c "CREATE EXTENSION IF NOT EXISTS vector"
+   docker logs paperless_qdrant
    ```
 
-### Issue: "Type 'vector' does not exist"
+4. Verify environment variables:
+   ```bash
+   docker exec paperless_ai env | grep QDRANT
+   # Should show: QDRANT_HOST=qdrant, QDRANT_PORT=6333
+   ```
+
+### Issue: "Collection not found"
 
 **Symptoms:**
-- Error code: `42704`
-- Schema creation fails with type error
+- Search returns empty or error
+- Health check shows collection missing
 
 **Solution:**
 
-Extension is available but not installed:
+Collections are auto-created on first use. Restart the service:
 
 ```bash
-# Install extension
-docker exec paperless_db psql -U elfman -d paperless -c "CREATE EXTENSION vector"
+docker-compose restart paperless-ai
 
-# Verify installation
-docker exec paperless_db psql -U elfman -d paperless -c "SELECT extversion FROM pg_extension WHERE extname = 'vector'"
+# Or manually initialize via adapter
+node -e "require('./services/visual-rag/QdrantAdapter').qdrantAdapter.initialize()"
 ```
 
-### Issue: "Permission denied for database"
+### Issue: "PostgreSQL connection failed"
 
 **Symptoms:**
-- Error code: `42501`
-- User cannot create extension
+- `[STARTUP] Database connection failed`
+- Cannot store metadata
 
 **Solution:**
 
-Grant required privileges:
+1. Check PostgreSQL container:
+   ```bash
+   docker ps | grep paperless_db
+   docker logs paperless_db
+   ```
 
-```bash
-# Option 1: Grant CREATE privilege
-docker exec paperless_db psql -U postgres -d paperless -c "GRANT CREATE ON DATABASE paperless TO elfman"
-
-# Option 2: Use superuser credentials in docker-compose.env
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=<superuser_password>
-```
+2. Test connection:
+   ```bash
+   docker exec -it paperless_db psql -U elfman -d paperless
+   ```
 
 ### Issue: "Database connection failed"
 
 **Symptoms:**
-- `[STARTUP]  Database connection failed`
+- `[STARTUP]  Database connection failed`
 - Cannot connect to PostgreSQL
 
 **Solution:**
@@ -276,51 +333,52 @@ docker exec -i paperless_db psql -U elfman -d paperless < migrations/002_rollbac
 
 ### Startup Validation
 
-The application validates database connectivity at startup:
+The application validates both Qdrant and PostgreSQL connectivity at startup:
 
 ```
-[STARTUP] Validating database connection...
-[STARTUP] Database credentials: { host: 'db', port: 5432, ... }
-[STARTUP] ✓ Database connection successful
-[STARTUP] Checking pg_vector extension...
-[STARTUP] ✓ pg_vector extension available (version: 0.5.1)
-[STARTUP] Ensuring database schema...
-[STARTUP] ✓ Database schema ready
+[STARTUP] Validating Qdrant connection...
+[STARTUP] Qdrant credentials: { host: 'qdrant', port: 6333 }
+[STARTUP] ✓ Qdrant connection successful
+[STARTUP] Checking Qdrant collections...
+[STARTUP] ✓ document_embeddings: ready (1234 points)
+[STARTUP] ✓ visual_overlays: ready (567 points)
+[STARTUP] ✓ visual_pages: ready (890 points)
+[STARTUP] Validating PostgreSQL connection...
+[STARTUP] ✓ PostgreSQL connection successful
+[STARTUP] ✓ Metadata schema ready
 ```
 
 ### Health Check Endpoints
 
 - **Basic health:** `GET /health`
 - **Database health:** `GET /health/database`
+- **Qdrant health (direct):** `GET http://qdrant:6333/health`
 
-### Monitoring Queries
+### Monitoring Commands
 
-```sql
--- Check table structure
-\d visual_overlays
+```bash
+# Check Qdrant collections
+node scripts/check-qdrant-collections.js
 
--- Count overlays
-SELECT COUNT(*) FROM visual_overlays;
+# Qdrant collection stats
+curl http://localhost:6333/collections/document_embeddings
 
--- Check pg_vector version
-SELECT extversion FROM pg_extension WHERE extname = 'vector';
-
--- List all extensions
-SELECT * FROM pg_extension;
+# PostgreSQL metadata queries
+docker exec -it paperless_db psql -U elfman -d paperless -c "SELECT COUNT(*) FROM visual_overlays;"
 ```
 
 ## Performance Tuning
 
-### Index Optimization
+### Qdrant Configuration
 
-The schema creates HNSW indexes for vector search:
+Qdrant automatically optimizes indexes. Key settings in environment:
 
-```sql
--- Check index status
-SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'visual_overlays';
+```bash
+# Enable on-disk payload storage for large datasets
+QDRANT__STORAGE__ON_DISK_PAYLOAD=true
 
--- Rebuild index if needed
-REINDEX INDEX idx_visual_overlays_embedding;
+# Increase memory limit if needed
+QDRANT__SERVICE__MAX_REQUEST_SIZE_MB=100
 ```
 
 ### Connection Pool Settings
@@ -337,6 +395,9 @@ postgres: {
 
 ## References
 
-- [pg_vector Documentation](https://github.com/pgvector/pgvector)
-- [PostgreSQL Extensions](https://www.postgresql.org/docs/current/sql-createextension.html)
+- [Qdrant Documentation](https://qdrant.tech/documentation/)
+- [qdrant-client Python](https://github.com/qdrant/qdrant-client)
+- [qdrant-js JavaScript](https://github.com/qdrant/qdrant-js)
+- [QDRANT_MIGRATION.md](./QDRANT_MIGRATION.md) - Migration guide from pgVector
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/current/)
 - [Docker Compose Networking](https://docs.docker.com/compose/networking/)

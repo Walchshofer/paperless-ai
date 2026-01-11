@@ -1,7 +1,9 @@
 # Prompt Execution Order and Dependencies
 
 ## Overview
-This document defines the authoritative execution order for implementation and verification prompts 001-017, including dependencies, parallel execution opportunities, and integration checkpoints.
+This document defines the authoritative execution order for implementation and verification prompts 001-018, including dependencies, parallel execution opportunities, and integration checkpoints.
+
+**BREAKING CHANGE (2026-01):** Prompt 018 introduces Qdrant migration. For new deployments, execute 018 first. See `docs/QDRANT_MIGRATION.md`.
 
 ## Dependency Graph
 
@@ -29,9 +31,14 @@ graph TD
 
     %% Phase 4: Final Verification & Cleanup
     011 & 012 & 013 & 014 & 015 & 010 --> 016[016: Verification Checklist]
-    
+
     %% Independent / Cleanup
     017[017: Refactor Playground]
+
+    %% Phase 5: Qdrant Migration (BREAKING CHANGE)
+    018[018: Qdrant Migration] --> 001
+    018 --> 005
+    018 --> 011
 
     style 001 fill:#e1f5ff
     style 002 fill:#e1f5ff
@@ -50,6 +57,7 @@ graph TD
     style 015 fill:#dff0d8
     style 016 fill:#dff0d8
     style 017 fill:#f9f9f9
+    style 018 fill:#ffcccc
 ```
 
 ## Execution Phases
@@ -89,6 +97,16 @@ graph TD
 - **016: Verification Checklist** (Consolidated gates for all previous steps)
 - **017: Refactor Playground** (Cleanup task, can be done anytime, ideally after core features)
 
+### Phase 5: Qdrant Migration (BREAKING CHANGE)
+**Prompts:** 018
+**Blocking:** Should be executed BEFORE Phases 1-4 for new deployments
+
+- **018: Qdrant Migration** (Vector store migration from pgVector to Qdrant)
+  - Implements QdrantAdapter (JS and Python)
+  - Updates all services to use Qdrant
+  - Requires re-ingestion of all documents from paperless-ngx backup
+  - See `docs/QDRANT_MIGRATION.md` for details
+
 ## Integration Checkpoints
 
 ### Checkpoint 1: Database & Telemetry
@@ -107,8 +125,18 @@ graph TD
 **After:** 008, 009, 012, 010
 **Verify:** Split layout, Islands architecture, Red Pen interaction.
 
+### Checkpoint 5: Qdrant Migration
+**After:** 018
+**Verify:**
+- Qdrant container running and healthy
+- Collections created with correct dimensions
+- QdrantAdapter (JS and Python) passing tests
+- Re-ingestion completed successfully
+- Search functionality working with Qdrant backend
+
 ## Rollback Procedures
 See individual prompts for specific rollback steps. Generally:
 - **DB:** Run rollback migrations.
 - **Code:** Revert git commits.
 - **Services:** Restart services.
+- **Qdrant Migration:** If rollback needed, switch `VECTOR_STORE=pgvector` and restore pgVector tables from backup.

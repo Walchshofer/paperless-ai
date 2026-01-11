@@ -1,17 +1,23 @@
 <objective>
-Implement the backend persistence layer for granular user feedback and visual annotations using PostgreSQL and pgvector.
+Implement the backend persistence layer for granular user feedback and visual annotations using PostgreSQL (metadata) and Qdrant (vector storage).
 This is Phase 1 of the Manual Route UI Enhancement Plan.
+
+**BREAKING CHANGE (2026-01):** Vector storage is migrating from pgVector to Qdrant. See `docs/QDRANT_MIGRATION.md` for details.
 </objective>
 
 <context>
 The project is upgrading its feedback system from simple document-level ratings to granular, field-level feedback (e.g., specific tags, custom fields) and visual annotations (bounding boxes).
-This data will be stored in PostgreSQL to enable future Reinforcement Learning (RLHF) and logit bias optimization.
+- **Metadata storage:** PostgreSQL (feedback_events table)
+- **Vector storage:** Qdrant (replacing pgVector - BREAKING CHANGE)
+
 Current state:
 - `FeedbackService.js` exists but only handles document-level ratings.
-- `visual_overlays` table exists (for RAG) but needs to support manual user annotations.
+- `visual_overlays` table exists (for RAG metadata) - vector column moving to Qdrant.
 - `feedback_events` table does NOT exist.
+
 Reference docs:
 - @paperless-ai/docs/FEEDBACK_PERSISTENCE_STRATEGY.md (Authoritative schema)
+- @paperless-ai/docs/QDRANT_MIGRATION.md (Vector store migration)
 - @prompts/planning/MANUAL-ROUTE-UI-ENHANCEMENT-PLAN.md
 </context>
 
@@ -25,10 +31,11 @@ Reference docs:
    - Modify @paperless-ai/services/feedback/FeedbackService.js.
    - Add method `recordGranularFeedback(documentId, feedbackData)` that handles the transaction.
    - Logic:
-     - Start Transaction.
-     - If `visual_annotation` is present: Generate embedding (using `ragService` or similar) and insert into `visual_overlays`.
-     - Insert field-level feedback items into `feedback_events`.
+     - Start Transaction (PostgreSQL for metadata).
+     - If `visual_annotation` is present: Generate embedding and store in **Qdrant** (via QdrantAdapter).
+     - Insert field-level feedback items into `feedback_events` (PostgreSQL).
      - Commit Transaction.
+   - **Note:** Use `services/visual-rag/QdrantAdapter.js` for vector operations.
 
 3. **API Endpoint**:
    - Implement `POST /api/visual-rag/feedback` in @paperless-ai/routes/api/visual-rag.js (create if missing, or add to existing).
@@ -43,14 +50,17 @@ Reference docs:
 </requirements>
 
 <implementation>
-- Use `pg` client for database interactions.
+- Use `pg` client for PostgreSQL metadata operations.
+- Use `@qdrant/js-client-rest` for vector storage operations via `QdrantAdapter.js`.
 - Reuse existing service patterns (e.g., `db.query`, transaction helpers if available).
-- Ensure strictly typed JSONB handling.
+- Ensure strictly typed JSONB handling for PostgreSQL.
+- Vector embeddings are stored in Qdrant collection `visual_overlays` (320 dimensions).
 </implementation>
 
 <output>
 - `./paperless-ai/migrations/002_create_feedback_events.sql` (Created/Modified)
 - `./paperless-ai/migrations/002_rollback_feedback_events.sql` (Created - rollback script)
+- `./paperless-ai/services/visual-rag/QdrantAdapter.js` (Implemented - vector storage)
 - `./paperless-ai/services/feedback/FeedbackService.js` (Modified)
 - `./paperless-ai/routes/api/visual-rag.js` (Modified/Created)
 - `./paperless-ai/test/feedback_persistence.test.js` (Created)
@@ -59,7 +69,8 @@ Reference docs:
 <verification>
 - Run the migration.
 - Run the new test: `npm test test/feedback_persistence.test.js`
-- Verify database tables have the correct columns.
+- Verify PostgreSQL tables have the correct columns (feedback_events, visual_overlays metadata).
+- Verify Qdrant collection `visual_overlays` exists and accepts 320-dim vectors.
 - Verify telemetry and metrics: send a sample feedback payload and confirm `feedback_ingest` logs include `request_id` and that Prometheus metrics capture a `pipeline_stage_latency` for `feedback_ingest`.
 </verification>
 
