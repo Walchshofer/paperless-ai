@@ -1,0 +1,33 @@
+name: Python tests (unit & integration)
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: [3.11]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run unit tests
+        run: |
+          python -m pytest test/unit -q
+
+      - name: Run integration tests
+        run: |
+          python -m pytest test/integration -q
