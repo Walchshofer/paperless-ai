@@ -14,6 +14,7 @@ from .settings import (
     DATA_DIR,
     DOCUMENTS_FILE,
     BM25_FILE,
+    ensure_nltk_resources,
 )
 from .qdrant_adapter import qdrant_adapter
 from .state import global_state
@@ -100,6 +101,7 @@ async def startup_event():
     logger.info("Starting RAGZ Document Search API")
 
     try:
+        ensure_nltk_resources()
         # Load saved system state if it exists
         global_state.load_state()
 
