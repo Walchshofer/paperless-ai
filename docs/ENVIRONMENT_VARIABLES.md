@@ -362,6 +362,11 @@ Below are the advanced variables (section 20 in `docker-compose.env`) with recom
 - `OPENAI_BASE_URL` - Custom OpenAI API base URL (optional)
 
 ### Service Configuration
+
+### Bridge (CODEX ↔ Serena)
+
+See `docs/bridge/ENVIRONMENT_VARIABLES.md` for bridge-specific environment variables, recommended defaults, and deployment examples.
+
 - `ENABLE_OPENAI_FALLBACK` - Enable OpenAI as fallback when Ollama models fail (default: `yes`)
 - `OPENAI_MAX_TOKENS` - Maximum tokens for OpenAI requests (default: `4096`)
 - `OPENAI_TEMPERATURE` - Temperature setting for OpenAI models (default: `0.7`)
