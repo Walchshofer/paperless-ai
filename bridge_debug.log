@@ -201,3 +201,9 @@ f3e0c14ba9bbe
 [2026-01-12T12:22:34.244506] [CODEX-BRIDGE] SUCCESS: 28 tools available
 [2026-01-12T12:22:34.244857] [CODEX-BRIDGE] Starting stdin handler...
 [2026-01-12T12:22:34.244932] [CODEX-BRIDGE] Tools include: read_file, create_text_file, list_dir, find_file, replace_content...
+[2026-01-12T17:01:53.289834] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=1)
+[2026-01-12T17:01:53.290313] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=2)
+[2026-01-12T17:01:53.290642] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=3)
+[2026-01-12T17:02:12.067089] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=1)
+[2026-01-12T17:02:12.068523] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=2)
+[2026-01-12T17:02:12.068852] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=3)
