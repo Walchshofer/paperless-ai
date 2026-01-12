@@ -217,3 +217,495 @@ f3e0c14ba9bbe
 [2026-01-12T17:17:58.544941] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=3: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
 [2026-01-12T17:17:58.546812] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=42: simulated timeout
 [2026-01-12T17:17:58.547085] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=42: simulated timeout
+[2026-01-12T17:25:17.835154] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:25:17.835581] [CODEX-BRIDGE] [INFO] SSE connection error: 'coroutine' object does not support the asynchronous context manager protocol
+[2026-01-12T17:25:19.836125] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:25:19.836840] [CODEX-BRIDGE] [INFO] SSE connection error: 'coroutine' object does not support the asynchronous context manager protocol
+[2026-01-12T17:25:23.839130] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:25:23.839910] [CODEX-BRIDGE] [INFO] SSE connection error: 'coroutine' object does not support the asynchronous context manager protocol
+[2026-01-12T17:25:27.930222] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:25:27.930565] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:25:27.930824] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:26:54.265070] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:26:54.265562] [CODEX-BRIDGE] [INFO] SSE connection error: 'coroutine' object does not support the asynchronous context manager protocol
+[2026-01-12T17:26:56.267347] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:26:56.267900] [CODEX-BRIDGE] [INFO] SSE connection error: 'coroutine' object does not support the asynchronous context manager protocol
+[2026-01-12T17:27:00.270093] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:27:00.270709] [CODEX-BRIDGE] [INFO] SSE connection error: 'coroutine' object does not support the asynchronous context manager protocol
+[2026-01-12T17:27:04.363918] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:27:04.364244] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:27:04.364536] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:27:16.896672] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:27:16.897057] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:27:18.899168] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:27:18.899755] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:27:22.900288] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:27:22.900882] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:27:26.988078] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:27:26.988464] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:27:26.988764] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:27:52.133683] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:27:52.134035] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:27:52.234668] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:27:52.235231] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:27:52.435808] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:27:52.436330] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:27:52.637046] [CODEX-BRIDGE] [INFO] Max SSE retries exceeded, stopping bridge
+[2026-01-12T17:27:52.641014] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:27:52.641360] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:27:52.641648] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:28:06.276566] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:28:06.276887] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:28:06.277144] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:28:21.003165] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:28:21.003517] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:28:21.104079] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:28:21.104630] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:28:21.305847] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:28:21.306356] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:28:21.506800] [CODEX-BRIDGE] [INFO] Max SSE retries exceeded, stopping bridge
+[2026-01-12T17:28:21.510818] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:28:21.511184] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:28:21.511462] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:34:39.440324] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:34:39.440778] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:34:39.541487] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:34:39.542232] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:34:39.743511] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:34:39.744111] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:34:39.945172] [CODEX-BRIDGE] [INFO] Max SSE retries exceeded, stopping bridge
+[2026-01-12T17:34:39.948662] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:34:39.948998] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:34:39.949282] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:34:39.966151] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=1)
+[2026-01-12T17:34:39.966556] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=2)
+[2026-01-12T17:34:39.966944] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=3)
+[2026-01-12T17:34:39.967332] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:34:39.967747] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:34:39.968043] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=3: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:34:39.970089] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=42: simulated timeout
+[2026-01-12T17:34:39.970393] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=42: simulated timeout
+[2026-01-12T17:37:42.003960] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=1)
+[2026-01-12T17:37:42.004433] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=2)
+[2026-01-12T17:37:42.004758] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=3)
+[2026-01-12T17:37:42.005082] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:37:42.005408] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:37:42.005854] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=3: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:37:42.007850] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=42: simulated timeout
+[2026-01-12T17:37:42.008175] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=42: simulated timeout
+[2026-01-12T17:37:42.010572] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:37:42.010898] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:37:42.111390] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:37:42.111957] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:37:42.312533] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:37:42.313017] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:37:42.513582] [CODEX-BRIDGE] [INFO] Max SSE retries exceeded, stopping bridge
+[2026-01-12T17:37:42.516989] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:37:42.517374] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:37:42.517756] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:44:30.317424] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:44:30.318042] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:44:30.318425] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:44:30.327033] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:44:30.327624] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:44:30.327989] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:44:30.328503] [CODEX-BRIDGE] [INFO] Error forwarding tools/call: forced failure on tools/call
+[2026-01-12T17:44:31.449929] [CODEX-BRIDGE] [INFO] SSE connector cancelled
+[2026-01-12T17:44:31.453658] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:44:31.454060] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:44:31.505564] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:44:31.506067] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:44:31.606844] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:44:31.607426] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:44:31.809438] [CODEX-BRIDGE] [INFO] Max SSE retries exceeded, stopping bridge
+[2026-01-12T17:44:31.814854] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:44:31.815321] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:44:31.815620] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:44:32.024804] [CODEX-BRIDGE] [INFO] SSE connector cancelled
+[2026-01-12T17:44:32.028044] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:44:32.028420] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:44:32.028785] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:44:32.033082] [CODEX-BRIDGE] [INFO] CODEX request: tools/list (id=tools-list)
+[2026-01-12T17:44:32.054280] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:44:32.054766] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:44:32.055087] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:44:32.055544] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: permanent fail
+[2026-01-12T17:44:56.061799] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:44:56.062236] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:44:56.062554] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:44:56.062952] [CODEX-BRIDGE] [INFO] Error forwarding tools/call: forced failure on tools/call
+[2026-01-12T17:44:58.176258] [CODEX-BRIDGE] [INFO] SSE connector cancelled
+[2026-01-12T17:44:58.179807] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:44:58.180141] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:44:58.180450] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:44:58.384587] [CODEX-BRIDGE] [INFO] SSE connector cancelled
+[2026-01-12T17:44:58.387761] [CODEX-BRIDGE] [INFO] CODEX request: tools/list (id=tools-list)
+[2026-01-12T17:44:58.398230] [CODEX-BRIDGE] [INFO] Not connected while handling tools/list
+[2026-01-12T17:44:58.402294] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:44:58.402611] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:44:58.403029] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:44:58.403437] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: permanent fail
+[2026-01-12T17:45:16.179902] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:45:16.180371] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:45:16.180667] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:45:16.181017] [CODEX-BRIDGE] [INFO] Error forwarding tools/call: forced failure on tools/call
+[2026-01-12T17:45:21.290332] [CODEX-BRIDGE] [INFO] SSE connector cancelled
+[2026-01-12T17:45:49.264753] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:45:49.265296] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:45:49.265598] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:45:49.266002] [CODEX-BRIDGE] [INFO] Error forwarding tools/call: forced failure on tools/call
+[2026-01-12T17:45:49.317112] [CODEX-BRIDGE] [INFO] Reconnect requested from forwarder
+[2026-01-12T17:45:49.317545] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:45:49.317906] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:45:49.318313] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:45:54.166376] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:45:54.166815] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:45:54.167081] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:45:54.171898] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:45:54.172202] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:45:54.172506] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:45:54.172822] [CODEX-BRIDGE] [INFO] Error forwarding tools/call: forced failure on tools/call
+[2026-01-12T17:45:54.223439] [CODEX-BRIDGE] [INFO] Reconnect requested from forwarder
+[2026-01-12T17:45:54.224162] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:45:54.224510] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:45:54.224932] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:45:54.229901] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:45:54.230301] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:45:54.282506] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:45:54.283057] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:45:54.383717] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:45:54.384218] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:45:54.585387] [CODEX-BRIDGE] [INFO] Max SSE retries exceeded, stopping bridge
+[2026-01-12T17:45:54.590507] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:45:54.590881] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:45:54.591134] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:45:54.794195] [CODEX-BRIDGE] [INFO] SSE connector cancelled
+[2026-01-12T17:45:54.797910] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:45:54.798237] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:45:54.798488] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:45:54.802121] [CODEX-BRIDGE] [INFO] CODEX request: tools/list (id=tools-list)
+[2026-01-12T17:45:54.812613] [CODEX-BRIDGE] [INFO] Not connected while handling tools/list
+[2026-01-12T17:45:54.817438] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:45:54.817844] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:45:54.818128] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:45:54.818428] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: permanent fail
+[2026-01-12T17:49:49.248964] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=1)
+[2026-01-12T17:49:49.249733] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=2)
+[2026-01-12T17:49:49.250131] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=3)
+[2026-01-12T17:49:49.250502] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:49:49.250855] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:49:49.251467] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=3: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:49:49.253617] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=42: simulated timeout
+[2026-01-12T17:49:49.253973] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=42: simulated timeout
+[2026-01-12T17:49:49.276778] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:49:49.277284] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:49:49.277737] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:49:49.283751] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:49:49.284165] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:49:49.284507] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:49:49.284948] [CODEX-BRIDGE] [INFO] Error forwarding tools/call: forced failure on tools/call
+[2026-01-12T17:49:49.336079] [CODEX-BRIDGE] [INFO] Reconnect requested from forwarder
+[2026-01-12T17:49:49.336555] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:49:49.336931] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:49:49.337260] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:49:49.342094] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:49:49.342524] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:49:49.393949] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:49:49.394507] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:49:49.495185] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:49:49.495837] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:49:49.696484] [CODEX-BRIDGE] [INFO] Max SSE retries exceeded, stopping bridge
+[2026-01-12T17:49:49.701558] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:49:49.701950] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:49:49.702293] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:49:49.904886] [CODEX-BRIDGE] [INFO] SSE connector cancelled
+[2026-01-12T17:49:49.908490] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:49:49.908841] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:49:49.909118] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:49:49.913501] [CODEX-BRIDGE] [INFO] CODEX request: tools/list (id=tools-list)
+[2026-01-12T17:49:49.924070] [CODEX-BRIDGE] [INFO] Not connected while handling tools/list
+[2026-01-12T17:49:49.929123] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:49:49.929503] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:49:49.929792] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:49:49.930064] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: permanent fail
+[2026-01-12T17:51:57.297621] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=1)
+[2026-01-12T17:51:57.298183] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=2)
+[2026-01-12T17:51:57.298554] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=3)
+[2026-01-12T17:51:57.298901] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:51:57.299297] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:51:57.299819] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=3: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:51:57.302930] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=42: simulated timeout
+[2026-01-12T17:51:57.303362] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=42: simulated timeout
+[2026-01-12T17:51:57.336899] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:51:57.337427] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:51:57.337739] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:51:57.347664] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:51:57.348135] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:51:57.348463] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:51:57.348916] [CODEX-BRIDGE] [INFO] Error forwarding tools/call: forced failure on tools/call
+[2026-01-12T17:51:57.399918] [CODEX-BRIDGE] [INFO] Reconnect requested from forwarder
+[2026-01-12T17:51:57.400435] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:51:57.400787] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:51:57.401139] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:51:57.408376] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:51:57.408837] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:51:57.459655] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:51:57.460120] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:51:57.561327] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:51:57.561795] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:51:57.762571] [CODEX-BRIDGE] [INFO] Max SSE retries exceeded, stopping bridge
+[2026-01-12T17:51:57.771739] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:51:57.772214] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:51:57.874574] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:51:57.875142] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:51:58.075889] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:51:58.076611] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:51:58.277865] [CODEX-BRIDGE] [INFO] Max SSE retries exceeded, stopping bridge
+[2026-01-12T17:51:58.282365] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:51:58.282653] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:51:58.282941] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:51:58.288248] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:51:58.288678] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:51:58.288996] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:51:58.493464] [CODEX-BRIDGE] [INFO] SSE connector cancelled
+[2026-01-12T17:51:58.499552] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:51:58.500016] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:51:58.500279] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:51:58.507677] [CODEX-BRIDGE] [INFO] CODEX request: tools/list (id=tools-list)
+[2026-01-12T17:51:58.519563] [CODEX-BRIDGE] [INFO] Not connected while handling tools/list
+[2026-01-12T17:51:58.527162] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:51:58.527590] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:51:58.527879] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:51:58.528219] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: permanent fail
+[2026-01-12T17:52:10.514767] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=1)
+[2026-01-12T17:52:10.515398] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=2)
+[2026-01-12T17:52:10.515793] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=3)
+[2026-01-12T17:52:10.516246] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:52:10.516670] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:52:10.517244] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=3: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:52:10.520328] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=42: simulated timeout
+[2026-01-12T17:52:10.520670] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=42: simulated timeout
+[2026-01-12T17:52:10.555357] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:52:10.555875] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:52:10.556155] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:52:10.566249] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:52:10.566741] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:52:10.567020] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:52:10.567456] [CODEX-BRIDGE] [INFO] Error forwarding tools/call: forced failure on tools/call
+[2026-01-12T17:52:10.618018] [CODEX-BRIDGE] [INFO] Reconnect requested from forwarder
+[2026-01-12T17:52:10.618565] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:52:10.619092] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:52:10.619577] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:52:10.626204] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:52:10.626584] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:52:10.678612] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:52:10.679123] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:52:10.780437] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:52:10.781029] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:52:10.982083] [CODEX-BRIDGE] [INFO] Max SSE retries exceeded, stopping bridge
+[2026-01-12T17:52:10.989868] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:52:10.990257] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:52:11.091379] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:52:11.091921] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:52:11.292655] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:52:11.293198] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:52:11.494690] [CODEX-BRIDGE] [INFO] Max SSE retries exceeded, stopping bridge
+[2026-01-12T17:52:11.498809] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:52:11.499093] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:52:11.499415] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:52:11.504891] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:52:11.505375] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:52:11.505622] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:52:11.710881] [CODEX-BRIDGE] [INFO] SSE connector cancelled
+[2026-01-12T17:52:11.716259] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:52:11.716666] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:52:11.716930] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:52:11.722129] [CODEX-BRIDGE] [INFO] CODEX request: tools/list (id=tools-list)
+[2026-01-12T17:52:11.732916] [CODEX-BRIDGE] [INFO] Not connected while handling tools/list
+[2026-01-12T17:52:11.739427] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:52:11.739829] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:52:11.740085] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:52:11.740420] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: permanent fail
+[2026-01-12T17:52:39.069001] [CODEX-BRIDGE] [INFO] CODEX request: initialize (id=i1)
+[2026-01-12T17:52:39.069450] [CODEX-BRIDGE] [INFO] CODEX request: nope (id=i2)
+[2026-01-12T17:52:39.073972] [CODEX-BRIDGE] [INFO] Failed to write response: io
+[2026-01-12T17:52:39.129807] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=5: try
+[2026-01-12T17:52:41.130567] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=5: try
+[2026-01-12T17:52:56.479413] [CODEX-BRIDGE] [INFO] CODEX request: initialize (id=i1)
+[2026-01-12T17:52:56.479895] [CODEX-BRIDGE] [INFO] CODEX request: nope (id=i2)
+[2026-01-12T17:52:56.485389] [CODEX-BRIDGE] [INFO] Failed to write response: io
+[2026-01-12T17:52:56.543777] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=5: try
+[2026-01-12T17:52:58.547085] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=5: try
+[2026-01-12T17:53:02.608247] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=1)
+[2026-01-12T17:53:02.608680] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=2)
+[2026-01-12T17:53:02.608968] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=3)
+[2026-01-12T17:53:02.609341] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:53:02.609641] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:53:02.610090] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=3: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:53:02.612724] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=42: simulated timeout
+[2026-01-12T17:53:02.613099] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=42: simulated timeout
+[2026-01-12T17:53:02.642751] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:53:02.643211] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:53:02.643469] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:53:02.651672] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:53:02.652007] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:53:02.652259] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:53:02.655028] [CODEX-BRIDGE] [INFO] Error forwarding tools/call: forced failure on tools/call
+[2026-01-12T17:53:02.703384] [CODEX-BRIDGE] [INFO] Reconnect requested from forwarder
+[2026-01-12T17:53:02.703883] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:53:02.704355] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:53:02.704638] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:53:02.710652] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:53:02.710964] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:53:02.761380] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:53:02.761872] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:53:02.863228] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:53:02.863785] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:53:03.064306] [CODEX-BRIDGE] [INFO] Max SSE retries exceeded, stopping bridge
+[2026-01-12T17:53:03.072016] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:53:03.072341] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:53:03.173165] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:53:03.173890] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:53:03.374970] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:53:03.375482] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:53:03.575899] [CODEX-BRIDGE] [INFO] Max SSE retries exceeded, stopping bridge
+[2026-01-12T17:53:03.579975] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:53:03.580256] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:53:03.580511] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:53:03.585495] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:53:03.585890] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:53:03.586171] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:53:03.790654] [CODEX-BRIDGE] [INFO] SSE connector cancelled
+[2026-01-12T17:53:03.795961] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:53:03.796325] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:53:03.796578] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:53:03.801688] [CODEX-BRIDGE] [INFO] CODEX request: tools/list (id=tools-list)
+[2026-01-12T17:53:03.812105] [CODEX-BRIDGE] [INFO] Not connected while handling tools/list
+[2026-01-12T17:53:03.818873] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:53:03.819264] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:53:03.819535] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:53:03.819842] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: permanent fail
+[2026-01-12T17:53:38.038366] [CODEX-BRIDGE] [INFO] CODEX request: initialize (id=i1)
+[2026-01-12T17:53:38.038913] [CODEX-BRIDGE] [INFO] CODEX request: nope (id=i2)
+[2026-01-12T17:53:38.043763] [CODEX-BRIDGE] [INFO] Failed to write response: io
+[2026-01-12T17:53:38.098844] [CODEX-BRIDGE] [INFO] ============================================================
+[2026-01-12T17:53:38.099215] [CODEX-BRIDGE] [INFO] CODEX-Serena Bridge v3.0 starting...
+[2026-01-12T17:53:38.099520] [CODEX-BRIDGE] [INFO] Serena SSE endpoint: http://127.0.0.1:9121/sse
+[2026-01-12T17:53:38.099763] [CODEX-BRIDGE] [INFO] ============================================================
+[2026-01-12T17:53:38.601077] [CODEX-BRIDGE] [INFO] Bridge stopped
+[2026-01-12T17:53:38.605967] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=p1)
+[2026-01-12T17:53:38.666517] [CODEX-BRIDGE] [INFO] Tool fetch failed: bad
+[2026-01-12T17:53:38.672622] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=5: try
+[2026-01-12T17:53:40.673427] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=5: try
+[2026-01-12T17:53:44.735062] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=1)
+[2026-01-12T17:53:44.735515] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=2)
+[2026-01-12T17:53:44.735871] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=3)
+[2026-01-12T17:53:44.736266] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:53:44.736606] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:53:44.737128] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=3: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:53:44.739857] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=42: simulated timeout
+[2026-01-12T17:53:44.740159] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=42: simulated timeout
+[2026-01-12T17:53:44.770713] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:53:44.771182] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:53:44.771420] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:53:44.780016] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:53:44.780369] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:53:44.780613] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:53:44.780985] [CODEX-BRIDGE] [INFO] Error forwarding tools/call: forced failure on tools/call
+[2026-01-12T17:53:44.832206] [CODEX-BRIDGE] [INFO] Reconnect requested from forwarder
+[2026-01-12T17:53:44.832620] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:53:44.832988] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:53:44.833270] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:53:44.840320] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:53:44.840695] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:53:44.892236] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:53:44.892764] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:53:44.993869] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:53:44.994468] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:53:45.195068] [CODEX-BRIDGE] [INFO] Max SSE retries exceeded, stopping bridge
+[2026-01-12T17:53:45.202792] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:53:45.203136] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:53:45.304340] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:53:45.304938] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:53:45.506114] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:53:45.506603] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:53:45.707186] [CODEX-BRIDGE] [INFO] Max SSE retries exceeded, stopping bridge
+[2026-01-12T17:53:45.711437] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:53:45.711707] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:53:45.711989] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:53:45.716913] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:53:45.717291] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:53:45.717531] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:53:45.920379] [CODEX-BRIDGE] [INFO] SSE connector cancelled
+[2026-01-12T17:53:45.926329] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:53:45.926729] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:53:45.927046] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:53:45.932261] [CODEX-BRIDGE] [INFO] CODEX request: tools/list (id=tools-list)
+[2026-01-12T17:53:45.943326] [CODEX-BRIDGE] [INFO] Not connected while handling tools/list
+[2026-01-12T17:53:45.950338] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:53:45.950736] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:53:45.950986] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:53:45.951314] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: permanent fail
+[2026-01-12T17:54:06.774945] [CODEX-BRIDGE] [INFO] CODEX request: initialize (id=i1)
+[2026-01-12T17:54:06.775416] [CODEX-BRIDGE] [INFO] CODEX request: nope (id=i2)
+[2026-01-12T17:54:06.780443] [CODEX-BRIDGE] [INFO] Starting stdin handler...
+[2026-01-12T17:54:06.784563] [CODEX-BRIDGE] [INFO] CODEX request: initialize (id=stdin1)
+[2026-01-12T17:54:06.797427] [CODEX-BRIDGE] [INFO] Failed to write response: io
+[2026-01-12T17:54:06.852851] [CODEX-BRIDGE] [INFO] ============================================================
+[2026-01-12T17:54:06.853237] [CODEX-BRIDGE] [INFO] CODEX-Serena Bridge v3.0 starting...
+[2026-01-12T17:54:06.853534] [CODEX-BRIDGE] [INFO] Serena SSE endpoint: http://127.0.0.1:9121/sse
+[2026-01-12T17:54:06.853782] [CODEX-BRIDGE] [INFO] ============================================================
+[2026-01-12T17:54:07.355527] [CODEX-BRIDGE] [INFO] Bridge stopped
+[2026-01-12T17:54:07.362678] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=p1)
+[2026-01-12T17:54:07.417863] [CODEX-BRIDGE] [INFO] Tool fetch failed: bad
+[2026-01-12T17:54:07.421946] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=5: try
+[2026-01-12T17:54:09.423438] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=5: try
+[2026-01-12T17:54:13.484301] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=1)
+[2026-01-12T17:54:13.484775] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=2)
+[2026-01-12T17:54:13.485136] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=3)
+[2026-01-12T17:54:13.485728] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:54:13.486052] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:54:13.486543] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=3: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:54:13.489279] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=42: simulated timeout
+[2026-01-12T17:54:13.489648] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=42: simulated timeout
+[2026-01-12T17:54:13.519559] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:54:13.520036] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:54:13.520280] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:54:13.529268] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:54:13.529613] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:54:13.529843] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:54:13.530230] [CODEX-BRIDGE] [INFO] Error forwarding tools/call: forced failure on tools/call
+[2026-01-12T17:54:13.580244] [CODEX-BRIDGE] [INFO] Reconnect requested from forwarder
+[2026-01-12T17:54:13.580655] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:54:13.580977] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:54:13.581245] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:54:13.587757] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:54:13.588165] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:54:13.639405] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:54:13.639880] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:54:13.740315] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:54:13.740864] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:54:13.941814] [CODEX-BRIDGE] [INFO] Max SSE retries exceeded, stopping bridge
+[2026-01-12T17:54:13.949632] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:54:13.949997] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:54:14.050890] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 2)...
+[2026-01-12T17:54:14.051460] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:54:14.252433] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 3)...
+[2026-01-12T17:54:14.252921] [CODEX-BRIDGE] [INFO] SSE connection error: connect failed
+[2026-01-12T17:54:14.453871] [CODEX-BRIDGE] [INFO] Max SSE retries exceeded, stopping bridge
+[2026-01-12T17:54:14.458157] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:54:14.458483] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:54:14.458809] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:54:14.464122] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:54:14.464560] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:54:14.464815] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:54:14.668324] [CODEX-BRIDGE] [INFO] SSE connector cancelled
+[2026-01-12T17:54:14.673614] [CODEX-BRIDGE] [INFO] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T17:54:14.673996] [CODEX-BRIDGE] [INFO] Fetched 2 tools: search_code, ping
+[2026-01-12T17:54:14.674248] [CODEX-BRIDGE] [INFO] Serena session ready
+[2026-01-12T17:54:14.679332] [CODEX-BRIDGE] [INFO] CODEX request: tools/list (id=tools-list)
+[2026-01-12T17:54:14.690541] [CODEX-BRIDGE] [INFO] Not connected while handling tools/list
+[2026-01-12T17:54:14.696669] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: simulated
+[2026-01-12T17:54:14.697009] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=1: simulated
+[2026-01-12T17:54:14.697317] [CODEX-BRIDGE] [WARN] Retry attempt 3 for id=1: simulated
+[2026-01-12T17:54:14.697723] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: permanent fail
