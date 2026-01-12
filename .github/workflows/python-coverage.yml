@@ -48,3 +48,49 @@ if percent < 80.0:
     print('Coverage threshold not met: failing')
     sys.exit(1)
 PY
+
+
+  e2e:
+    name: Optional Serena E2E
+    needs: coverage
+    runs-on: ubuntu-latest
+    if: ${{ secrets.SERENA_E2E == 'true' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt || true
+          pip install pytest pytest-asyncio
+
+      - name: Verify Serena endpoint
+        env:
+          SERENA_BASE: ${{ secrets.SERENA_BASE }}
+        run: |
+          if [ -z "$SERENA_BASE" ]; then echo "SERENA_BASE secret not set" >&2; exit 1; fi
+          echo "Checking Serena base: $SERENA_BASE"
+          for i in 1 10; do
+            if curl --fail --silent "$SERENA_BASE/health" >/dev/null 2>&1; then
+              echo "Serena health check passed"
+              exit 0
+            fi
+            echo "Waiting for Serena... ($i)"
+            sleep 3
+          done
+          echo "Serena not reachable at $SERENA_BASE" >&2
+          exit 1
+
+      - name: Run Serena E2E tests
+        env:
+          SERENA_E2E: '1'
+          SERENA_BASE: ${{ secrets.SERENA_BASE }}
+        run: |
+          pytest test/e2e -q -k test_serena_e2e.py
+
