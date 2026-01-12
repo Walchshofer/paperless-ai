@@ -1,6 +1,5 @@
-Added E2E test (guarded by SERENA_E2E env) and a PR-level Python coverage job that enforces >= 80% coverage for `codex-bridge.py`.
+Enabled CI gating for E2E tests on PRs. The E2E job runs only when the `SERENA_E2E` secret is set to `true` and a `SERENA_BASE` URL (secret) is configured. The job performs a health check against `${{ secrets.SERENA_BASE }}/health` before running the single guarded E2E test.
 
-- E2E test: `test/e2e/test_serena_e2e.py` (skipped unless `SERENA_E2E` env var set and `SERENA_BASE` configured)
-- CI: `.github/workflows/python-coverage.yml` runs python tests and checks `codex-bridge.py` coverage >= 80%
-
-Local validation: all bridge unit + integration tests pass and local coverage for `codex-bridge.py` is >=80%.
+Notes:
+- This avoids running E2E by default in PRs that do not have access to a real Serena instance.
+- To run E2E in CI, set repository secret `SERENA_E2E=true` and `SERENA_BASE` to the Serena base URL.
