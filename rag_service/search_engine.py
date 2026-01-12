@@ -12,7 +12,13 @@ from nltk.corpus import stopwords
 
 from .logging_utils import logger
 from .models import SearchRequest, SearchResult
-from .settings import BM25_FILE, BM25_WEIGHT, SEMANTIC_WEIGHT, MAX_RESULTS
+from .settings import (
+    BM25_FILE,
+    BM25_WEIGHT,
+    SEMANTIC_WEIGHT,
+    MAX_RESULTS,
+    ensure_nltk_resources,
+)
 from .qdrant_adapter import qdrant_adapter
 from .state import global_state
 
@@ -102,6 +108,10 @@ class SearchEngine:
             global_state.system_status.bm25_ready = self.bm25_initialized
         else:
             logger.warning("Search engine validation failed")
+            self.is_initialized = False
+            self.bm25_initialized = False
+            global_state.system_status.index_ready = False
+            global_state.system_status.bm25_ready = False
 
         return valid
 
@@ -195,6 +205,7 @@ class SearchEngine:
     def _setup_bm25(self):
         """Set up BM25 index"""
         logger.info("Initializing BM25 index")
+        ensure_nltk_resources()
 
         # Make sure we have documents
         if not self.documents or len(self.documents) == 0:
@@ -304,6 +315,7 @@ class SearchEngine:
     def _add_new_documents_to_bm25(self):
         """Add only new documents to the BM25 index"""
         try:
+            ensure_nltk_resources()
             logger.info(
                 "Adding %s new documents to BM25 index",
                 len(self.data_manager.new_document_ids),
