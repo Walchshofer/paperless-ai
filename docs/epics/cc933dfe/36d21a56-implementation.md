@@ -1,11 +1,6 @@
-Implemented integration tests per ticket 36d21a56.
+Added E2E test (guarded by SERENA_E2E env) and a PR-level Python coverage job that enforces >= 80% coverage for `codex-bridge.py`.
 
-- Added new tests (connection lifecycle, pipelined concurrency, timeouts & error handling)
-- Tests use `MockSerenaServer` fixture
-- Local run: all new integration tests pass (7 passed)
+- E2E test: `test/e2e/test_serena_e2e.py` (skipped unless `SERENA_E2E` env var set and `SERENA_BASE` configured)
+- CI: `.github/workflows/python-coverage.yml` runs python tests and checks `codex-bridge.py` coverage >= 80%
 
-Acceptance checklist:
-- [x] Integration tests added
-- [x] Mock server used for deterministic testing
-- [ ] End-to-end tests (manual / optional)
-- [ ] Ensure >= 80% coverage for bridge code (follow-up)
+Local validation: all bridge unit + integration tests pass and local coverage for `codex-bridge.py` is >=80%.
