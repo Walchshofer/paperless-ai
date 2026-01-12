@@ -207,3 +207,13 @@ f3e0c14ba9bbe
 [2026-01-12T17:02:12.067089] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=1)
 [2026-01-12T17:02:12.068523] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=2)
 [2026-01-12T17:02:12.068852] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=3)
+[2026-01-12T17:17:45.886550] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=42: simulated timeout
+[2026-01-12T17:17:45.886945] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=42: simulated timeout
+[2026-01-12T17:17:58.543048] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=1)
+[2026-01-12T17:17:58.543575] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=2)
+[2026-01-12T17:17:58.543874] [CODEX-BRIDGE] [INFO] CODEX request: tools/call (id=3)
+[2026-01-12T17:17:58.544238] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=1: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:17:58.544537] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=2: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:17:58.544941] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=3: test_pipelined_response_ordering.<locals>.scenario.<locals>.fake_forward() got an unexpected keyword argument 'raise_on_error'
+[2026-01-12T17:17:58.546812] [CODEX-BRIDGE] [WARN] Retry attempt 1 for id=42: simulated timeout
+[2026-01-12T17:17:58.547085] [CODEX-BRIDGE] [WARN] Retry attempt 2 for id=42: simulated timeout

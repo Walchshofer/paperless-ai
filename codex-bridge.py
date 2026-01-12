@@ -257,19 +257,28 @@ async def ensure_connected(timeout: int = 10) -> bool:
         return False
 
 
-async def forward_request(request: Dict[str, Any]) -> Dict[str, Any]:
-    """Forward MCP requests to Serena via the SDK."""
+async def forward_request(request: Dict[str, Any], *, raise_on_error: bool = False) -> Dict[str, Any]:
+    """Forward MCP requests to Serena via the SDK.
+
+    If `raise_on_error` is True, exceptions are re-raised so a retry
+    loop can classify and decide on retry behavior. Otherwise, a
+    JSON-RPC error dict is returned.
+    """
     msg_id = request.get("id")
     method = request.get("method")
     params = request.get("params") or {}
 
     if not await ensure_connected(timeout=5):
+        if raise_on_error:
+            raise RuntimeError("Not connected to Serena")
         return jsonrpc_error(msg_id, -32603, "Not connected to Serena")
 
     async with state.session_lock:
         session = state.session
 
     if session is None:
+        if raise_on_error:
+            raise RuntimeError("Missing Serena session")
         return jsonrpc_error(msg_id, -32603, "Missing Serena session")
 
     try:
@@ -306,9 +315,11 @@ async def forward_request(request: Dict[str, Any]) -> Dict[str, Any]:
             f"Method not found: {method}",
         )
 
-    except asyncio.TimeoutError:
+    except asyncio.TimeoutError as exc:
         log(f"Timeout forwarding {method} (id={msg_id})")
         state.clear_session()
+        if raise_on_error:
+            raise
         return jsonrpc_error(
             msg_id,
             -32603,
@@ -317,7 +328,62 @@ async def forward_request(request: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as exc:
         log(f"Error forwarding {method}: {exc}")
         state.clear_session()
+        if raise_on_error:
+            raise
         return jsonrpc_error(msg_id, -32603, str(exc))
+
+
+# -----------------------------------------------------------------------------
+# Error classification and smart retry logic
+# -----------------------------------------------------------------------------
+
+from dataclasses import dataclass
+
+
+class PermanentError(Exception):
+    """Signal that an error is permanent and should not be retried."""
+
+
+@dataclass
+class RetryState:
+    attempts: int = 0
+
+
+def classify_error(exc: Exception) -> str:
+    """Classify exception as 'transient' or 'permanent'."""
+    # Transient errors: timeouts, connection issues, 429/503
+    if isinstance(exc, asyncio.TimeoutError):
+        return "transient"
+    status = getattr(exc, "status", None)
+    if status in (429, 503):
+        return "transient"
+    if isinstance(exc, PermanentError):
+        return "permanent"
+    # Conservative default: unknown treated as permanent
+    return "permanent"
+
+
+def should_retry(exc: Exception, retry_state: RetryState, *, max_attempts: int = 3):
+    """Return (bool, backoff_seconds) whether to retry and how long to wait."""
+    cls = classify_error(exc)
+    if cls == "permanent":
+        return False, 0.0
+    if retry_state.attempts >= max_attempts:
+        return False, 0.0
+    backoff = float(1 * (2 ** retry_state.attempts))
+    return True, backoff
+
+
+def enrich_error(exc: Exception, context: Dict[str, Any]) -> Dict[str, Any]:
+    """Return enriched error payload with bridge context."""
+    msg = str(exc)
+    data = {"context": context}
+    if isinstance(exc, asyncio.TimeoutError):
+        msg = f"Bridge timeout waiting for Serena response: {msg}"
+    status = getattr(exc, "status", None)
+    if status is not None:
+        msg = f"Serena HTTP {status}: {msg}"
+    return {"message": msg, "data": data}
 
 
 # -----------------------------------------------------------------------------
@@ -325,10 +391,25 @@ async def forward_request(request: Dict[str, Any]) -> Dict[str, Any]:
 # -----------------------------------------------------------------------------
 
 async def _forward_and_match(request: Dict[str, Any]) -> None:
-    """Forward a request and register its response via matching logic."""
+    """Forward a request with retries and register its response."""
     msg_id = request.get("id")
-    response = await forward_request(request)
-    await match_response(msg_id, response)
+    retry = RetryState()
+    while True:
+        try:
+            response = await forward_request(request, raise_on_error=True)
+            await match_response(msg_id, response)
+            return
+        except Exception as exc:
+            retry.attempts += 1
+            do_retry, backoff = should_retry(exc, retry)
+            log(f"Retry attempt {retry.attempts} for id={msg_id}: {exc}", "WARN")
+            if not do_retry:
+                enriched = enrich_error(exc, {"id": msg_id, "method": request.get("method")})
+                err = jsonrpc_error(msg_id, -32603, enriched["message"])
+                err["data"] = enriched.get("data")
+                await match_response(msg_id, err)
+                return
+            await asyncio.sleep(backoff)
 
 
 async def match_response(msg_id: Any, response: Dict[str, Any]) -> None:
