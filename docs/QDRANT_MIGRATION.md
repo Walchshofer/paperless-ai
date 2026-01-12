@@ -18,11 +18,18 @@ This document describes the migration from the current PostgreSQL/pgVector setup
 
 ### 2. Visual RAG Sidecar - Python Service
 - **Location**: `services/visual-rag-sidecar/`
-- **Vector Storage**: In-memory tensor registry (`.pt` files on disk)
-- **Embedding Model**: `TomoroAI/tomoro-ai-colqwen3-embed-4b-awq` (320 dimensions)
+- **Vector Storage**: In-memory tensor registry (`.pt` files on disk`), syncs to Qdrant for SOT
+- **Embedding Model**: `TomoroAI/tomoro-ai-colqwen3-embed-4b-awq` (320 dimensions, 4B-AWQ quantized)
 - **Key Files**:
-  - `services/visual-rag-sidecar/main.py` - Native ColQwen3 embeddings with MaxSim scoring
+  - `services/visual-rag-sidecar/main.py` - Native ColQwen3 embeddings with MaxSim scoring (`processor.score_multi_vector`)
   - Stores embeddings as `.pt` files in `/data/indices/`
+
+#### Native Protocol Alpha-9 (Unified Qdrant + ColQwen3)
+- **Summary**: A unified design where **Qdrant** is the persistent SOT for vectors and the **ColQwen3 sidecar** performs native late-interaction (MaxSim) scoring and local indexing. This is referred to in the repository as **Native Protocol Alpha-9**.
+- **Hardware**: Optimized for **RTX 3090 Ti / Ampere SM86** (baseline optimized runtime memory profile ~3.5 GB for quantized 4B-AWQ workloads).
+- **Page footprint**: Expect approximately **~840 KB per page** for 1,280 patches stored in bfloat16 multi-vector form (320-dim × 1280 × 2 bytes + payload overhead).
+- **Guardrails**: Follow Schema Evolution guidance — **Distance Metric Locks** (enforce collection distance semantics) and **Payload Mirroring** (mirror minimal audit payload to PostgreSQL only when required).
+- **Why native PyTorch MaxSim?** Late-interaction MaxSim scoring requires patch-wise cross-similarity computations that are inefficient and lossy to emulate with single-vector SQL similarity; computing MaxSim natively with `processor.score_multi_vector` in PyTorch preserves retrieval fidelity and enables optimized GPU-accelerated scoring.
 
 ### 3. Visual Overlay Repository - JavaScript Service
 - **Location**: `services/visual-rag/`

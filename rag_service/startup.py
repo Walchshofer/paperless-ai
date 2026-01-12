@@ -15,6 +15,7 @@ from .settings import (
     DOCUMENTS_FILE,
     BM25_FILE,
 )
+from .qdrant_adapter import qdrant_adapter
 from .state import global_state
 
 POST_STARTUP_INDEX_INIT = False
@@ -146,21 +147,25 @@ async def startup_event():
 
         documents_exist = os.path.exists(DOCUMENTS_FILE)
         bm25_exists = os.path.exists(BM25_FILE)
-        pgvector_initialized = False
+        qdrant_initialized = False
 
-        if global_state.data_manager.db_pool:
-            try:
-                conn = global_state.data_manager.db_pool.getconn()
-                cursor = conn.cursor()
-                cursor.execute("SELECT COUNT(*) FROM document_embeddings;")
-                count = cursor.fetchone()[0]
-                cursor.close()
-                global_state.data_manager.db_pool.putconn(conn)
-                pgvector_initialized = count > 0
-            except Exception as exc:
-                logger.error("Error checking pgvector table: %s", str(exc))
-                logger.error(traceback.format_exc())
-        global_state.system_status.pgvector_ready = pgvector_initialized
+        try:
+            qdrant_health = qdrant_adapter.health_check()
+            doc_coll = qdrant_health.get("collections", {}).get(
+                "document_embeddings",
+                {},
+            )
+            qdrant_initialized = (
+                qdrant_health.get("healthy")
+                and doc_coll.get("exists")
+                and doc_coll.get("point_count", 0) > 0
+            )
+        except Exception as exc:
+            logger.error("Error checking Qdrant: %s", str(exc))
+            logger.error(traceback.format_exc())
+
+        global_state.system_status.qdrant_ready = qdrant_initialized
+        global_state.system_status.pgvector_ready = qdrant_initialized
 
         if documents_exist:
             logger.info("Found existing data, loading without reindexing")
@@ -214,13 +219,14 @@ async def startup_event():
             if (
                 global_state.data_manager.documents
                 and len(global_state.data_manager.documents) > 0
-                and pgvector_initialized
+                and qdrant_initialized
                 and bm25_exists
             ):
 
                 logger.info(
                     "Found valid documents and indexes, attempting to load"
                 )
+                global_state.system_status.qdrant_ready = True
                 global_state.system_status.pgvector_ready = True
 
                 if bm25_exists and global_state.search_engine:
@@ -274,7 +280,7 @@ async def startup_event():
             if (
                 not global_state.search_engine.is_initialized
                 or not global_state.search_engine.bm25_initialized
-                or not pgvector_initialized
+                or not qdrant_initialized
             ):
 
                 logger.info("Search engine needs initialization after startup")
@@ -283,8 +289,8 @@ async def startup_event():
             logger.info("Not all required data found for auto-loading")
             if not documents_exist:
                 logger.info("Documents file not found")
-            if not pgvector_initialized:
-                logger.info("pgvector table not initialized")
+            if not qdrant_initialized:
+                logger.info("Qdrant collections not initialized")
 
             global_state.search_engine = SearchEngine(
                 global_state.data_manager, initialize_on_start=False

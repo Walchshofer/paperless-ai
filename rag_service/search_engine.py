@@ -3,8 +3,6 @@ import pickle
 import time
 import traceback
 from typing import List
-import psycopg2
-from psycopg2.pool import SimpleConnectionPool
 
 import numpy as np
 from tqdm import tqdm
@@ -15,13 +13,13 @@ from nltk.corpus import stopwords
 from .logging_utils import logger
 from .models import SearchRequest, SearchResult
 from .settings import BM25_FILE, BM25_WEIGHT, SEMANTIC_WEIGHT, MAX_RESULTS
+from .qdrant_adapter import qdrant_adapter
 from .state import global_state
 
 
 class SearchEngine:
     def __init__(self, data_manager, initialize_on_start=False):
         self.data_manager = data_manager
-        self.db_pool = data_manager.db_pool  # Use shared connection pool
         self.documents = None
         self.bm25 = None
         self.tokenized_corpus = None
@@ -42,34 +40,35 @@ class SearchEngine:
             logger.error("Documents not loaded or empty")
             valid = False
 
-        # Check pgvector
-        if not self.db_pool:
-            logger.error("PostgreSQL + pgvector not initialized")
-            global_state.system_status.pgvector_ready = False
-            valid = False
-        else:
-            try:
-                conn = self.db_pool.getconn()
-                cursor = conn.cursor()
-                cursor.execute("SELECT COUNT(*) FROM document_embeddings;")
-                count = cursor.fetchone()[0]
-                cursor.close()
-                self.db_pool.putconn(conn)
+        # Check Qdrant
+        qdrant_ready = False
+        try:
+            health = qdrant_adapter.health_check()
+            collections = health.get("collections", {}) if health else {}
+            doc_coll = collections.get("document_embeddings", {})
+            point_count = doc_coll.get("point_count", 0)
 
-                if count == 0:
-                    logger.error("pgvector table is empty")
-                    global_state.system_status.pgvector_ready = False
-                    valid = False
-                else:
-                    logger.info(
-                        "pgvector table contains %s documents",
-                        count,
-                    )
-                    global_state.system_status.pgvector_ready = True
-            except Exception as e:
-                logger.error(f"Error accessing pgvector: {str(e)}")
-                global_state.system_status.pgvector_ready = False
+            if not health.get("healthy"):
+                logger.error("Qdrant not initialized")
                 valid = False
+            elif not doc_coll.get("exists"):
+                logger.error("Qdrant document_embeddings missing")
+                valid = False
+            elif point_count == 0:
+                logger.error("Qdrant document_embeddings is empty")
+                valid = False
+            else:
+                logger.info(
+                    "Qdrant document_embeddings contains %s documents",
+                    point_count,
+                )
+                qdrant_ready = True
+        except Exception as exc:
+            logger.error("Error accessing Qdrant: %s", str(exc))
+            valid = False
+
+        global_state.system_status.qdrant_ready = qdrant_ready
+        global_state.system_status.pgvector_ready = qdrant_ready
 
         # Check BM25
         if (
@@ -107,7 +106,7 @@ class SearchEngine:
         return valid
 
     def initialize(self, force_update=False):
-        """Initialize search engine with pgvector."""
+        """Initialize search engine with Qdrant."""
         try:
             # Ensure we have documents
             if not self.data_manager.documents:
@@ -119,14 +118,14 @@ class SearchEngine:
                 logger.error("No documents loaded")
                 return False
 
-            # Add documents to pgvector
-            if force_update or not self._pgvector_initialized():
-                logger.info("Initializing pgvector with documents")
-                success = self.data_manager._add_documents_to_pgvector(
+            # Add documents to Qdrant
+            if force_update or not self._qdrant_initialized():
+                logger.info("Initializing Qdrant with documents")
+                success = self.data_manager._add_documents_to_qdrant(
                     self.documents
                 )
                 if not success:
-                    logger.error("Failed to add documents to pgvector")
+                    logger.error("Failed to add documents to Qdrant")
                     return False
 
             # Load or create BM25 index
@@ -175,18 +174,22 @@ class SearchEngine:
             global_state.save_state()
             return False
 
-    def _pgvector_initialized(self) -> bool:
-        """Check if pgvector has documents indexed."""
+    def _qdrant_initialized(self) -> bool:
+        """Check if Qdrant has documents indexed."""
         try:
-            conn = self.db_pool.getconn()
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM document_embeddings;")
-            count = cursor.fetchone()[0]
-            cursor.close()
-            self.db_pool.putconn(conn)
-            return count > 0
-        except Exception as e:
-            logger.error(f"Error checking pgvector: {str(e)}")
+            health = qdrant_adapter.health_check()
+            if not health.get("healthy"):
+                return False
+            doc_coll = health.get("collections", {}).get(
+                "document_embeddings",
+                {},
+            )
+            return (
+                doc_coll.get("exists")
+                and doc_coll.get("point_count", 0) > 0
+            )
+        except Exception as exc:
+            logger.error("Error checking Qdrant: %s", str(exc))
             return False
 
     def _setup_bm25(self):
@@ -447,69 +450,56 @@ class SearchEngine:
         return results
 
     def semantic_search(self, query, top_k=MAX_RESULTS):
-        """Perform semantic search using PostgreSQL + pgvector"""
+        """Perform semantic search using Qdrant."""
         if not self.is_initialized:
             logger.error("Search engine not initialized for semantic search")
             raise Exception("Search engine not initialized")
 
-        if not self.db_pool:
-            logger.error("PostgreSQL + pgvector not properly initialized")
-            raise Exception("PostgreSQL + pgvector not properly initialized")
-
         try:
-            # Generate embedding for query
-            query_embedding = self.data_manager.sentence_transformer.encode(query)
+            query_embedding = (
+                self.data_manager.sentence_transformer.encode(query)
+            )
+            results = qdrant_adapter.search_document_embeddings(
+                query_embedding.tolist(),
+                limit=top_k,
+            )
 
-            conn = self.db_pool.getconn()
-            cursor = conn.cursor()
-
-            # Perform vector similarity search using cosine distance
-            cursor.execute("""
-                SELECT 
-                    doc_id,
-                    title,
-                    correspondent,
-                    created,
-                    content,
-                    1 - (embedding <=> %s::vector) as similarity_score
-                FROM document_embeddings
-                ORDER BY embedding <=> %s::vector
-                LIMIT %s;
-            """, (query_embedding.tolist(), query_embedding.tolist(), top_k))
-
-            results = []
-            for row in cursor.fetchall():
-                doc_id, title, correspondent, created, content, score = row
-
-                # Find document in our list for additional metadata
+            formatted = []
+            for row in results:
+                payload = row.get("payload") or {}
+                doc_id = payload.get("doc_id", row.get("id"))
                 doc = next(
                     (d for d in self.documents if d["id"] == doc_id),
                     None,
                 )
+                if not doc:
+                    continue
 
-                if doc:
-                    results.append({
+                created = doc.get("created") or doc.get("created_date") or ""
+                if hasattr(created, "isoformat"):
+                    created = created.isoformat()
+
+                formatted.append(
+                    {
                         "id": doc_id,
-                        "title": title,
-                        "correspondent": correspondent,
-                        "date": created.isoformat() if created else "",
-                        "score": float(score),
-                        "content": content,
-                    })
+                        "title": doc.get("title") or "",
+                        "correspondent": doc.get("correspondent") or "",
+                        "date": created,
+                        "score": float(row.get("score", 0)),
+                        "content": doc.get("content") or "",
+                    }
+                )
 
-            cursor.close()
-            self.db_pool.putconn(conn)
+            logger.info("Semantic search found %s results", len(formatted))
+            return formatted
 
-            logger.info(f"Semantic search found {len(results)} results")
-            return results
-
-        except Exception as e:
-            logger.error(f"Error in semantic search: {str(e)}")
+        except Exception as exc:
+            logger.error("Error in semantic search: %s", str(exc))
             logger.error(traceback.format_exc())
             return []
 
     def hybrid_search(self, query, top_k=MAX_RESULTS):
-        """Perform hybrid search combining BM25 and pgvector"""
+        """Perform hybrid search combining BM25 and Qdrant."""
         logger.info(f"Performing hybrid search for query: '{query}'")
 
         if not self.is_initialized:
@@ -526,8 +516,8 @@ class SearchEngine:
                 logger.warning("Falling back to semantic search only")
                 return self.semantic_search(query, top_k)
 
-        if not self.db_pool:
-            logger.error("pgvector not available for hybrid search")
+        if not global_state.system_status.qdrant_ready:
+            logger.error("Qdrant not available for hybrid search")
             logger.warning("Falling back to keyword search only")
             return self.keyword_search(query, top_k)
 

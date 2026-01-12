@@ -1,54 +1,88 @@
-<!-- STARTED: 2026-01-07 - lifecycle initiated (scaffolding & tests) -->
+---
+name: implement-manual-feedback-ui
+stage: 050-implement
+agent: implement-agent
+prompt_id: 004-native-alpha-9-manual-ui
+---
 
 <objective>
-Implement Preact Islands for feedback controls and the unified manual editor: `FeedbackControlsIsland` and `ManualEditorIsland`, each with Zod contracts and `data-testid` markers for automated auditing.
-This aligns Manual UI behavior with `docs/FRONTEND_ARCHITECTURE.md` (Islands, Zod contracts, data-island mounting strategy).
+Implement the Native Protocol Alpha-9 Manual Feedback UI using Preact Islands. 
+Enable granular feedback loops that synchronize metadata between the 
+Manual Editor and the Qdrant Vector Store (320-dim) via the Hybrid SOT.
 </objective>
 
 <context>
-Moving interactive bits into islands improves testability and reduces fragile inline scripts. This prompt details creation of `src/islands/FeedbackControlsIsland.tsx`, `src/islands/ManualEditorIsland.tsx` and accompanying Zod contracts in `src/ui/contracts/`.
+The Manual Route is the core for RLHF (Reinforcement Learning from Human 
+Feedback). Under the Alpha-9 standard, the UI must manage the hardware-aware 
+handshake of the RTX 3090 Ti and ensure that "Confirm Match" actions trigger 
+synchronous updates across PostgreSQL and Qdrant payloads.
 
-**References:**
-- Architecture: `docs/FRONTEND_ARCHITECTURE.md`
-- Manual Route Plan: `prompts/planning/MANUAL-ROUTE-UI-ENHANCEMENT-PLAN.md`
+**Hardware Profile:** RTX 3090 Ti (Ampere SM86).
+**Hybrid SOT:** Postgres (Relational Metadata) + Qdrant (Vector Payloads).
 </context>
 
 <requirements>
-1. **Feedback Controls Island**:
-   - Create `src/islands/FeedbackControlsIsland.tsx` and `src/ui/contracts/FeedbackControls.contract.ts`.
-   - UI: Thumbs Up / Thumbs Down per card (Tags, Custom Fields, Summary). Each control emits an event (`feedback:updated`) with `{ component, feedback_type }`.
-   - Elements must include `data-testid` attributes (e.g., `data-testid="thumbs-up-tags"`).
+1. **FeedbackControls Island (Multimodal Feedback)**:
+   - Create `src/islands/FeedbackControlsIsland.tsx`.
+   - **Capability:** Implement Thumbs Up/Down for every metadata field.
+   - **Alpha-9 Logic:** On "Thumbs Up," emit a `feedback:confirmed` event. 
+     This event must trigger a payload update in Qdrant to improve 
+     future "Expert Filtering" for this document's Correspondent/Tags.
+   - **Visuals:** Include `data-testid` markers for every granular control.
 
-2. **Manual Editor Island**:
-   - Create `src/islands/ManualEditorIsland.tsx` and `src/ui/contracts/ManualEditor.contract.ts`.
-   - Responsibilities: provide the tabbed editor (Metadata, Content, Fields), validate inputs against a Zod contract at save time, and expose a `getUnifiedPayload()` method or event `payload:ready` that returns the unified payload.
-   - Add `data-testid` attributes for tabs and important controls.
+2. **ManualEditor Island (Orchestrator UI)**:
+   - Create `src/islands/ManualEditorIsland.tsx`.
+   - **Responsibilities:** Provide the tabbed editor (Metadata, Content, 
+     Fields, and AI Debug).
+   - **Handshake Logic:** Listen for the **503 Initializing** state. If the 
+     sidecar is warming up the ColQwen3 model, display a "GPU Initializing" 
+     loader in the "AI Debug" tab instead of showing a connection error.
+   - **Validation:** Use a Zod contract to ensure the `unifiedPayload` 
+     matches the Alpha-9 schema before submission.
 
-3. **Template Integration**:
-   - Update `views/manual.ejs` to add anchors for the islands:
-     - `<div data-island="feedback-controls-island" data-testid="feedback-controls-island" data-props='<%- JSON.stringify({ documentId: vm.documentId || null }) %>'></div>`
-     - `<div data-island="manual-editor-island" data-testid="manual-editor-island" data-props='<%- JSON.stringify({ documentId: vm.documentId || null }) %>'></div>`
-   - **Registry**: Register both `FeedbackControlsIsland` and `ManualEditorIsland` in `src/islands/runtime.ts` mapping to their respective IDs (`feedback-controls-island`, `manual-editor-island`).
+3. **Hybrid SOT Synchronization**:
+   - The UI must ensure that a "Save" action updates Paperless-ngx 
+     (Primary SOT) and immediately reflects those changes in the 
+     **Qdrant Payload** via the orchestrator.
 
-4. **Testing**:
-   - Add contract unit tests for `FeedbackControls` and `ManualEditor`.
-   - Add E2E test skeleton verifying `data-testid` presence and that `payload:ready` event provides the unified payload when Save is clicked.
+4. **Islands Runtime & Templates**:
+   - Mount both islands in `views/manual.ejs` using `data-island` anchors.
+   - Map both components in `src/islands/runtime.ts` for hydration.
 
-5. **Accessibility & Auditability**:
-   - Ensure all interactive elements have `aria-*` where appropriate and `data-testid` for Playwright crawling.
+5. **"Detox" Standards**:
+   - Adhere to the 79-character line limit for all TypeScript logic.
+   - Use strict typing for the cross-island event bus (Custom Events).
 </requirements>
 
+
+
+<implementation>
+- **Event Bus:** Use a unified `payload:ready` event that aggregates 
+  metadata changes and granular feedback.
+- **State Management:** Use `useSignal` for high-performance UI updates 
+  during high-load GPU tasks.
+- **Styling:** Use Tailwind CSS to ensure a responsive "Split Pane" 
+  layout between the viewer and the editor.
+</implementation>
+
 <output>
-- `src/islands/FeedbackControlsIsland.tsx` (Created)
-- `src/ui/contracts/FeedbackControls.contract.ts` (Created)
-- `src/islands/ManualEditorIsland.tsx` (Created)
-- `src/ui/contracts/ManualEditor.contract.ts` (Created)
-- `views/manual.ejs` (Updated to include islands)
-- `test/e2e/manual_save_payload.spec.js` (Created - E2E skeleton)
+- `src/islands/FeedbackControlsIsland.tsx`
+- `src/islands/ManualEditorIsland.tsx`
+- `src/ui/contracts/ManualEditor.contract.ts`
+- `views/manual.ejs` (Modified for Alpha-9 hydration)
 </output>
 
 <verification>
-- Unit: Run contract tests for Feedback and ManualEditor contracts.
-- E2E: Run the Save flow skeleton and confirm `data-testid="manual-editor-island"` and that `payload:ready` yields the unified payload.
-- Manual: Toggle thumbs up/down and confirm they are present in the unified payload before submission.
+- **Contract Test:** Run `npm test test/unit/contracts.spec.ts` to verify 
+  unified payload structure.
+- **E2E Test:** Use Playwright to verify that clicking "Save" emits 
+  a payload containing both `document_updates` and `feedback_events`.
+- **Sync Verification:** Confirm that a Correspondent change in the 
+  UI triggers a `qdrant_payload_sync_total` metric increment.
 </verification>
+
+<lifecycle>
+1. Generate machine-readable summary: `prompts/summaries/004-manual-feedback-ui-summary.md`.
+2. Update `docs/FRONTEND_ARCHITECTURE.md` with the Alpha-9 feedback event schema.
+3. Move to `prompts/completed/`.
+</lifecycle>

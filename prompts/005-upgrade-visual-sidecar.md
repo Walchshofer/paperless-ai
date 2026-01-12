@@ -1,49 +1,76 @@
+---
+name: upgrade-visual-sidecar
+stage: 050-implement
+agent: implement-agent
+prompt_id: 005-native-alpha-9-upgrade
+---
+
 <objective>
-Upgrade the Python Visual RAG Sidecar to support image-based queries, enabling "Find Similar" functionality for the History Route.
-This is Phase 1 of the History Route Enhancement Plan.
+Upgrade the Python Visual RAG Sidecar to support Native Protocol Alpha-9. 
+Enable image-to-image "Find Similar" functionality for the History Route 
+utilizing ColQwen3-4B-AWQ and Unified Qdrant (320-dim) storage.
 </objective>
 
 <context>
-The current sidecar (``main.py``) only supports text-to-visual search. To allow users to find similar documents based on visual regions (logos, handwriting), we need an endpoint that accepts an image embedding or raw image crop.
-**Plan Reference:** @paperless-ai/prompts/planning/HISTORY-ROUTE-ENHANCEMENT-PLAN.md (Phase 1)
-**Previous Context:** Read the summary of the Manual Route completion: @paperless-ai/prompts/summaries/004-implement-manual-feedback-ui-summary.md
+The sidecar (``main.py``) must be upgraded from a text-only prototype to a 
+production-ready multi-vector retrieval service. We are transitioning from 
+legacy pgvector to a Hybrid SOT: PostgreSQL for metadata and Qdrant for 
+late-interaction MaxSim retrieval.
+
+**Hardware Baseline:** RTX 3090 Ti (24GB VRAM) 
+**VRAM Baseline:** ~3.5GB for Sidecar initialization.
+**Dimensions:** 320-dimensional multi-vectors (ColQwen3 native).
 </context>
 
 <requirements>
-1. **Update Search Request Schema**:
-   - Modify `SearchRequest` class in ``paperless-ai/services/visual-rag-sidecar/main.py`` (or equivalent).
-   - Add an optional field `query_image` (string, base64 encoded) to the request model.
+1. **Model Enforcement (Critical)**:
+   - Ensure the model is strictly `TomoroAI/tomoro-colqwen3-4b-awq`.
+   - Implement a startup check: Raise `RuntimeError` if dimensions or 
+     architecture do not match ColQwen3 requirements.
+   - **Offline Mode:** Set `local_files_only=True` in the processor and 
+     model loaders. No external hub connectivity permitted.
 
-2. **Implement Image Search Logic**:
-   - In the ``/search`` endpoint, detect if `query_image` is present.
-   - If present, decode the base64 image and pass it to the model's search function instead of the text query.
-   - Ensure the underlying ``state.model.search`()` can handle PIL Images or raw bytes.
+2. **Schema & API Upgrade**:
+   - Add `query_image` (Base64 string) to the `SearchRequest` Pydantic model.
+   - Add `collection_name` to allow switching between `visual_overlays` 
+     and `visual_pages`.
+   - Ensure `SearchResponse` returns the native MaxSim score (late interaction).
 
-3. **Documentation**:
-   - Update docstrings in ``main.py``.
+3. **Unified Qdrant Integration**:
+   - Utilize the singleton `rag_service/qdrant_adapter.py` for all lookups.
+   - Implement metadata mirroring: If a `doc_id` or `tag_id` filter is 
+     provided, apply it as a Qdrant `Payload` filter.
 
-4. **Model Constraint**:
-   - **CRITICAL**: Ensure the model used is strictly `TomoroAI/tomoro-colqwen3-embed-8b`. Raise a startup error if `VISUAL_RAG_MODEL` is set to `vidore/colqwen2-v1.0` or any other unsupported model, as per `docs/VISUAL_RAG_INTEGRATION.md`.
-   - **OFFLINE ONLY**: The sidecar must operate completely offline. It must NOT attempt to connect to any external APIs (OpenAI, HuggingFace Hub inference, etc.). Model weights should be loaded from the local cache/filesystem. Explicitly disable any "auto-download" features in production mode if applicable.
+4. **The Python Detox (Standards)**:
+   - **Flake8 Compliance:** All lines must be ≤ 79 characters.
+   - **Pylance Resolution:** Use `typing.cast` and `Any` proxies for 
+     `qdrant_client.models` to ensure zero "Unknown Type" diagnostics.
+   - **Lifespan:** Migrate from `@app.on_event` to `asynccontextmanager` 
+     lifespan for model loading into VRAM.
+
+5. **Visual RAG Guardrails**:
+   - Implement a 5-second timeout for retrieval calls.
+   - Emit `503 Initializing` while the model is loading into VRAM to trigger 
+     orchestrator fallback (Text-Only RAG).
+</requirements>
 
 <implementation>
-- Use the `PIL` (Pillow) library for image handling.
-- Ensure strict type checking with Pydantic models.
-- Maintain existing logging standards.
-- Integrate circuit breaker signals and health propagation: the sidecar must expose health endpoints and emit metrics compatible with `docs/VISUAL_RAG_INTEGRATION.md` (`sidecar_availability`, `circuit_breaker_state`). Clients should honor the circuit breaker state when proxying visual search requests.
+- **Pillow (PIL):** Handle Base64 decoding and image resizing.
+- **Torch Optimization:** Ensure `weights_only=True` in any `torch.load` 
+  calls to prevent arbitrary code execution.
+- **MaxSim Scoring:** The `/search` endpoint must return scores generated 
+  by `processor.score_multi_vector`.
 </implementation>
 
+
+
 <output>
-- ``./paperless-ai/services/visual-rag-sidecar/main.py`` (Modified)
+- ``services/visual-rag-sidecar/main.py`` (Modified)
+- ``rag_service/qdrant_adapter.py`` (Reference/Sync)
 </output>
 
-<verification>
-- Create a test script or use `curl` to send a POST request with a base64 image to the sidecar.
-- Verify it returns search results (list of document IDs/scores).
-</verification>
-
 <lifecycle>
-1. Upon completion, generate a concise machine-readable summary of changes in: ``./paperless-ai/prompts/summaries/005-upgrade-visual-sidecar-summary.md``
-2. Update `@`paperless-ai/docs/FEEDBACK_PERSISTENCE_STRATEGY.md`` if any data flow assumptions changed (unlikely for this step).
-3. Move this prompt to ``./paperless-ai/prompts/completed`/`
+1. Generate machine-readable summary in: ``prompts/summaries/005-upgrade-visual-sidecar-summary.md``
+2. Update `docs/QDRANT_MIGRATION.md` if payload index assumptions change.
+3. Move to ``prompts/completed/``
 </lifecycle>

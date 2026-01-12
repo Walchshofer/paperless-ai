@@ -12,7 +12,7 @@ class GlobalState:
         self.search_engine = None
         self.system_status = SystemStatus()
         self.indexing_status = IndexingStatus()
-        self.state_schema_version = 2
+        self.state_schema_version = 3
         self._indexed_document_ids = set()
 
     def save_state(self):
@@ -30,6 +30,7 @@ class GlobalState:
                 "system_status": {
                     "data_loaded": self.system_status.data_loaded,
                     "index_ready": self.system_status.index_ready,
+                    "qdrant_ready": self.system_status.qdrant_ready,
                     "pgvector_ready": self.system_status.pgvector_ready,
                     "bm25_ready": self.system_status.bm25_ready,
                 },
@@ -96,8 +97,13 @@ class GlobalState:
                     self.system_status.index_ready = sys_status.get(
                         "index_ready", False
                     )
+                    qdrant_ready = sys_status.get("qdrant_ready")
+                    if qdrant_ready is None:
+                        qdrant_ready = sys_status.get("pgvector_ready", False)
+                    self.system_status.qdrant_ready = qdrant_ready
                     self.system_status.pgvector_ready = sys_status.get(
-                        "pgvector_ready", False
+                        "pgvector_ready",
+                        qdrant_ready,
                     )
                     self.system_status.bm25_ready = sys_status.get(
                         "bm25_ready", False

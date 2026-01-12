@@ -19,6 +19,9 @@ npm test -- --reporter spec --verbose
 
 # Run with coverage (if istanbul/mocha-istanbul is installed)
 npm test -- --coverage
+
+# Run the CODEX Serena bridge integration test (Python)
+pytest test/integration/codex-bridge.test.py -v
 ```
 
 ## Test Structure

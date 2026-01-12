@@ -138,11 +138,11 @@ class ChatService {
         
         // Always create a new client instance for this request to ensure it works
         const openai = new OpenAI({
-          apiKey: process.env.OPENAI_API_KEY
+          apiKey: process.env.PAPERLESS_OPENAI_API_KEY
         });
         
         const stream = await openai.chat.completions.create({
-          model: process.env.OPENAI_MODEL || 'gpt-4',
+          model: process.env.PAPERLESS_OPENAI_MODEL || 'gpt-4',
           messages: chatData.messages,
           stream: true,
         });

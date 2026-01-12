@@ -760,14 +760,14 @@ app.get('/metrics', async (_req, res) => {
  * @swagger
  * /health/database:
  *   get:
- *     summary: Database and pg_vector extension health check
+ *     summary: Database and Qdrant health check
  *     description: |
- *       Detailed health check for PostgreSQL database connection and pg_vector extension.
- *       Returns connection status, pg_vector availability, and schema readiness.
+ *       Detailed health check for PostgreSQL connection and Qdrant availability.
+ *       Returns connection status, Qdrant availability, and schema readiness.
  *     tags: [System, Database]
  *     responses:
  *       200:
- *         description: Database is healthy and pg_vector is available
+ *         description: Database is healthy and Qdrant is available
  *         content:
  *           application/json:
  *             schema:
@@ -787,7 +787,7 @@ app.get('/metrics', async (_req, res) => {
  *                       type: number
  *                     database:
  *                       type: string
- *                 pgvector:
+ *                 qdrant:
  *                   type: object
  *                   properties:
  *                     available:
@@ -800,7 +800,7 @@ app.get('/metrics', async (_req, res) => {
  *                     ready:
  *                       type: boolean
  *       503:
- *         description: Database connection failed or pg_vector not available
+ *         description: Database connection failed or Qdrant not available
  */
 app.get('/health/database', async (req, res) => {
   try {

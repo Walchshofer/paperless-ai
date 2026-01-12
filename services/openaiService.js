@@ -86,7 +86,7 @@ class OpenAIService {
 
       let systemPrompt = '';
       let promptTags = '';
-      const model = process.env.OPENAI_MODEL;
+      const model = process.env.PAPERLESS_OPENAI_MODEL;
 
       // Parse CUSTOM_FIELDS from environment variable
       let customFieldsObj;
@@ -275,11 +275,11 @@ class OpenAIService {
       : String(apiData);
 
     // Calculate tokens for the data
-    const dataTokens = await calculateTokens(dataString, process.env.OPENAI_MODEL);
+    const dataTokens = await calculateTokens(dataString, process.env.PAPERLESS_OPENAI_MODEL);
 
     if (dataTokens > maxTokens) {
       console.warn(`[WARNING] External API data (${dataTokens} tokens) exceeds limit (${maxTokens}), truncating`);
-      return await truncateToTokenLimit(dataString, maxTokens, process.env.OPENAI_MODEL);
+      return await truncateToTokenLimit(dataString, maxTokens, process.env.PAPERLESS_OPENAI_MODEL);
     }
 
     console.log(`[DEBUG] External API data validated: ${dataTokens} tokens`);
@@ -318,7 +318,7 @@ class OpenAIService {
 
       // Truncate content if necessary
       const truncatedContent = await truncateToTokenLimit(content, availableTokens);
-      const model = process.env.OPENAI_MODEL;
+      const model = process.env.PAPERLESS_OPENAI_MODEL;
       // Make API request
       const response = await this.client.chat.completions.create({
         model: model,
@@ -397,7 +397,7 @@ class OpenAIService {
         throw new Error('OpenAI client not initialized - missing API key');
       }
 
-      const model = process.env.OPENAI_MODEL || config.openai.model;
+      const model = process.env.PAPERLESS_OPENAI_MODEL || config.openai.model;
 
       const response = await this.client.chat.completions.create({
         model: model,
@@ -430,7 +430,7 @@ class OpenAIService {
         throw new Error('OpenAI client not initialized - missing API key');
       }
       const response = await this.client.chat.completions.create({
-        model: process.env.OPENAI_MODEL,
+        model: process.env.PAPERLESS_OPENAI_MODEL,
         messages: [
           {
             role: "user",
@@ -442,7 +442,7 @@ class OpenAIService {
       if (!response?.choices?.[0]?.message?.content) {
         throw new Error('Invalid API response structure');
       }
-      return { status: 'ok', model: process.env.OPENAI_MODEL };
+      return { status: 'ok', model: process.env.PAPERLESS_OPENAI_MODEL };
     } catch (error) {
       console.error('Error checking OpenAI status:', error);
       return { status: 'error', error: error.message };

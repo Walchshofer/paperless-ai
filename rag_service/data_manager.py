@@ -5,10 +5,7 @@ import traceback
 from datetime import datetime
 from typing import Tuple
 
-import psycopg2
 import requests
-from psycopg2.extras import execute_values
-from psycopg2.pool import SimpleConnectionPool
 from sentence_transformers import CrossEncoder, SentenceTransformer
 from tqdm import tqdm
 
@@ -19,6 +16,7 @@ from .settings import (
     EMBEDDING_MODEL_NAME,
 )
 from .state import global_state
+from .qdrant_adapter import qdrant_adapter
 
 
 class DataManager:
@@ -73,13 +71,6 @@ class DataManager:
         self.document_hashes = {}
         self.last_sync = None
         self.is_initialized = False
-        self.db_pool = None
-        self.db_host = os.getenv("POSTGRES_HOST", "db")
-        self.db_port = int(os.getenv("POSTGRES_PORT", "5432"))
-        self.db_name = os.getenv("POSTGRES_DB", "paperless")
-        self.db_user = os.getenv("POSTGRES_USER", "paperless")
-        self.db_password = os.getenv("POSTGRES_PASSWORD", "")
-
         self.sentence_transformer = None
         self.cross_encoder = None
 
@@ -94,7 +85,7 @@ class DataManager:
             self.initialize_models()
 
     def initialize_models(self) -> bool:
-        """Initialize NLP models and PostgreSQL + pgvector."""
+        """Initialize NLP models and Qdrant + PostgreSQL (metadata)."""
         try:
             if self.sentence_transformer is None:
                 logger.info("Initializing sentence transformer model")
@@ -108,20 +99,15 @@ class DataManager:
                     CROSS_ENCODER_MODEL_NAME
                 )
 
-            # Initialize PostgreSQL + pgvector connection pool
-            if self.db_pool is None:
-                logger.info("Initializing PostgreSQL + pgvector connection pool")
-                self.db_pool = SimpleConnectionPool(
-                    1, 20,
-                    host=self.db_host,
-                    port=self.db_port,
-                    database=self.db_name,
-                    user=self.db_user,
-                    password=self.db_password
+            # Initialize Qdrant for vector storage
+            logger.info("Initializing Qdrant vector store")
+            qdrant_initialized = qdrant_adapter.initialize()
+            if qdrant_initialized:
+                logger.info("Qdrant initialized successfully")
+            else:
+                logger.warning(
+                    "Qdrant initialization failed - vector search may not work"
                 )
-
-                # Ensure pgvector extension and schema are initialized
-                self._ensure_pgvector_schema()
 
             self.is_initialized = True
             global_state.save_state()
@@ -131,46 +117,39 @@ class DataManager:
             self.is_initialized = False
             return False
 
-    def _ensure_pgvector_schema(self) -> bool:
-        """Ensure pgvector extension and document_embeddings table exist."""
+    def _extract_correspondent_id(self, doc: dict) -> Optional[int]:
+        value = doc.get("correspondent_id", doc.get("correspondent"))
+        if isinstance(value, dict):
+            value = value.get("id")
+        if value is None:
+            return None
         try:
-            conn = self.db_pool.getconn()
-            cursor = conn.cursor()
+            return int(value)
+        except (TypeError, ValueError):
+            return None
 
-            # Enable pgvector extension
-            cursor.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+    def _extract_tag_ids(self, doc: dict) -> List[int]:
+        tags = doc.get("tag_ids", doc.get("tags", []))
+        if tags is None:
+            return []
+        if isinstance(tags, dict):
+            tags = tags.get("results") or list(tags.values())
+        if not isinstance(tags, list):
+            try:
+                return [int(tags)]
+            except (TypeError, ValueError):
+                return []
 
-            # Create document_embeddings table if not exists
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS document_embeddings (
-                    id SERIAL PRIMARY KEY,
-                    doc_id INTEGER NOT NULL UNIQUE,
-                    title TEXT NOT NULL,
-                    correspondent TEXT,
-                    created DATE,
-                    content TEXT,
-                    embedding vector(384),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-
-            # Create index for vector similarity search
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_embedding_cosine 
-                ON document_embeddings USING ivfflat (embedding vector_cosine_ops)
-                WITH (lists = 100);
-            """)
-
-            conn.commit()
-            cursor.close()
-            self.db_pool.putconn(conn)
-
-            logger.info("pgvector schema initialized successfully")
-            return True
-        except Exception as exc:
-            logger.error("Error ensuring pgvector schema: %s", str(exc))
-            return False
+        tag_ids: List[int] = []
+        for tag in tags:
+            tag_id = tag.get("id") if isinstance(tag, dict) else tag
+            if tag_id is None:
+                continue
+            try:
+                tag_ids.append(int(tag_id))
+            except (TypeError, ValueError):
+                continue
+        return tag_ids
 
     def _get_headers(self) -> dict:
         return {"Authorization": f"Token {self.paperless_token}"}
@@ -494,12 +473,9 @@ class DataManager:
             DOCUMENTS_FILE,
         )
 
-    def _add_documents_to_pgvector(self, documents) -> bool:
-        """Add documents and embeddings to PostgreSQL + pgvector."""
+    def _add_documents_to_qdrant(self, documents) -> bool:
+        """Add documents and embeddings to Qdrant."""
         try:
-            conn = self.db_pool.getconn()
-            cursor = conn.cursor()
-
             batch_size = 100
             total_docs = len(documents)
 
@@ -512,55 +488,41 @@ class DataManager:
                     len(batch),
                 )
 
-                # Generate embeddings for batch
                 texts = [
                     f"{doc['title']} {doc['correspondent']} {doc['content']}"
                     for doc in batch
                 ]
                 embeddings = self.sentence_transformer.encode(texts)
 
-                # Prepare data for insertion
-                data = [
-                    (
-                        doc["id"],
-                        doc["title"],
-                        doc["correspondent"],
-                        doc["created"],
-                        doc["content"],
-                        embedding.tolist()
+                points = []
+                for doc, embedding in zip(batch, embeddings):
+                    doc_id = doc["id"]
+                    correspondent_id = self._extract_correspondent_id(doc)
+                    tag_ids = self._extract_tag_ids(doc)
+                    points.append(
+                        {
+                            "id": str(doc_id),
+                            "embedding": embedding.tolist(),
+                            "payload": {
+                                "doc_id": doc_id,
+                                "correspondent_id": correspondent_id,
+                                "tag_ids": tag_ids,
+                            },
+                            "doc_id": doc_id,
+                            "correspondent_id": correspondent_id,
+                            "tag_ids": tag_ids,
+                        }
                     )
-                    for doc, embedding in zip(batch, embeddings)
-                ]
 
-                # Upsert documents and embeddings
-                execute_values(
-                    cursor,
-                    """
-                    INSERT INTO document_embeddings 
-                    (doc_id, title, correspondent, created, content, embedding)
-                    VALUES %s
-                    ON CONFLICT (doc_id) DO UPDATE SET
-                        title = EXCLUDED.title,
-                        correspondent = EXCLUDED.correspondent,
-                        created = EXCLUDED.created,
-                        content = EXCLUDED.content,
-                        embedding = EXCLUDED.embedding,
-                        updated_at = CURRENT_TIMESTAMP
-                    """,
-                    data
-                )
-                conn.commit()
-
-            cursor.close()
-            self.db_pool.putconn(conn)
+                qdrant_adapter.upsert_document_embeddings(points)
 
             logger.info(
-                "Added/updated %s documents to pgvector",
+                "Added/updated %s documents to Qdrant",
                 total_docs,
             )
             return True
         except Exception as exc:
-            logger.error("Error adding documents to pgvector: %s", str(exc))
+            logger.error("Error adding documents to Qdrant: %s", str(exc))
             return False
 
 

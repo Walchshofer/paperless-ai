@@ -1,147 +1,82 @@
+---
+name: qdrant-migration
+stage: 020-schema
+agent: schema-evolution
+prompt_id: 018-native-alpha-9-vector-migration
+---
+
 <objective>
-Migrate vector storage from PostgreSQL/pgVector to Qdrant for all RAG systems.
-This is a **BREAKING CHANGE** requiring re-ingestion of all documents from the paperless-ngx backup.
+Migrate vector storage from PostgreSQL/pgVector to a Unified Qdrant (Alpha-9) 
+stack. Establish the Hybrid SOT architecture to support 320-dim ColQwen3 
+MaxSim retrieval and 384-dim Text RAG on the RTX 3090 Ti.
 </objective>
 
 <context>
-The project is migrating from pgVector (PostgreSQL extension) to Qdrant for vector storage to support:
-- Visual RAG with ColQwen3 embeddings (320 dimensions)
-- Text RAG with multilingual embeddings (384 dimensions)
-- Better scalability and native multi-vector support
+We are deprecating pgVector to unlock the performance of the **Native Protocol Alpha-9**. 
+This migration is a **BREAKING CHANGE** that establishes Qdrant as the primary 
+Vector SOT, while PostgreSQL remains the Relational/Metadata SOT.
 
-**Current State:**
-- Text RAG (RAGZ): pgVector `document_embeddings` table (384-dim)
-- Visual RAG Sidecar: In-memory tensors with `.pt` file persistence
-- Visual Overlays: pgVector `visual_overlays.embedding` column (320-dim)
-
-**Target State:**
-- Text RAG: Qdrant `document_embeddings` collection (384-dim)
-- Visual RAG Sidecar: Qdrant `visual_pages` collection (320-dim)
-- Visual Overlays: Qdrant `visual_overlays` collection (320-dim)
-
-**Pre-requisites:**
-- Original documents backed up from paperless-ngx
-- Qdrant container deployed
-
-Reference docs:
-- @paperless-ai/docs/QDRANT_MIGRATION.md (Authoritative migration guide)
-- @paperless-ai/docs/RAG_SYSTEMS_REFERENCE.md
+**Hardware Baseline:** RTX 3090 Ti (Ampere SM86).
+**Critical Architecture:** Hybrid SOT with Payload Mirroring.
 </context>
 
 <requirements>
-1. **Deploy Qdrant Container**:
-   - Add Qdrant service to `docker-compose.yml` in paperless-ngx directory
-   - Configure persistence volume for data
-   - Expose ports 6333 (REST) and 6334 (gRPC)
+1. **Unified Qdrant Deployment**:
+   - Add Qdrant to `docker-compose.yml`.
+   - **Persistence:** Configure optimized volumes for fast NVMe I/O.
+   - **Optimization:** Configure `mmap_threshold` for the RTX 3090 Ti profile.
 
-2. **Implement JavaScript QdrantAdapter**:
-   - Complete `services/visual-rag/QdrantAdapter.js`
-   - Methods: `createCollection()`, `upsert()`, `search()`, `delete()`, `healthCheck()`
-   - Use `@qdrant/js-client-rest` package
+2. **Distance Metric Lock (Critical)**:
+   - `visual_pages`: Strictly **DOT** product (required for ColQwen3 MaxSim).
+   - `visual_overlays`: Strictly **COSINE** (320-dim).
+   - `document_embeddings`: Strictly **COSINE** (384-dim).
+   - Implement a startup check to prevent initialization if metrics are mismatched.
 
-3. **Implement Python QdrantAdapter**:
-   - Complete `rag_service/qdrant_adapter.py`
-   - Methods: `create_collection()`, `upsert()`, `search()`, `delete()`, `health_check()`
-   - Use `qdrant-client` package
+3. **Hybrid SOT & Payload Mirroring**:
+   - Implement "Expert Filtering" in both JS and Python adapters.
+   - **Mirroring:** Every `upsert` must include `doc_id`, `correspondent_id`, 
+     and `tag_ids` in the Qdrant Payload.
+   - Create payload indexes for these fields in Qdrant.
 
-4. **Update Visual RAG Sidecar**:
-   - Modify `services/visual-rag-sidecar/main.py` to use Qdrant instead of tensor files
-   - Store page embeddings in `visual_pages` collection
-   - Implement MaxSim scoring via Qdrant
+4. **Adapter Refactoring (The Detox)**:
+   - **Python:** `rag_service/qdrant_adapter.py` must follow **Flake8 (79-char)** and **Pylance typing** standards (use `typing.cast` for Qdrant models).
+   - **JavaScript:** `services/visual-rag/QdrantAdapter.js` must implement 
+     the Alpha-9 singleton pattern.
 
-5. **Update RAGZ Service**:
-   - Modify `rag_service/data_manager.py` to use QdrantAdapter
-   - Modify `rag_service/search_engine.py` to query Qdrant
-   - Update `rag_service/state.py` status flags
-
-6. **Update VisualOverlayRepository**:
-   - Modify `services/visual-rag/VisualOverlayRepository.js` to use QdrantAdapter
-   - Remove pgVector-specific code
-   - Keep PostgreSQL for metadata only
-
-7. **Database Schema Migration**:
-   - Create migration to remove `embedding` column from `visual_overlays` table
-   - Archive old pgVector indexes
-   - Update `document_embeddings` table to remove vector column
-
-8. **Re-ingestion Script**:
-   - Create `scripts/reingest_to_qdrant.js` for batch re-ingestion
-   - Support `--dry-run`, `--batch-size`, `--verify` flags
-   - Process documents from paperless-ngx backup
-
-9. **Testing**:
-   - Unit tests for QdrantAdapter (JS and Python)
-   - Integration tests for collection creation and search
-   - E2E test for full ingestion flow
+5. **Data Re-ingestion Strategy**:
+   - Create `scripts/reingest_to_qdrant.js`.
+   - **Logic:** Batch process from Paperless-ngx backup, generating 320-dim 
+     embeddings via the sidecar and 384-dim text embeddings via Ollama.
+   - Implement a "Verification Phase" that compares the first 10 MaxSim 
+     scores against a known baseline.
 </requirements>
 
+
+
 <implementation>
-- Phase 1: Deploy Qdrant, implement adapters (no data migration yet)
-- Phase 2: Update services to use Qdrant adapters with feature flag
-- Phase 3: Run re-ingestion from paperless-ngx backup
-- Phase 4: Remove pgVector code and feature flag
-
-**Qdrant Collections:**
-
-```javascript
-// document_embeddings (Text RAG - 384 dimensions)
-{
-  collection_name: "document_embeddings",
-  vectors: { size: 384, distance: "Cosine" }
-}
-
-// visual_overlays (Visual RAG overlays - 320 dimensions)
-{
-  collection_name: "visual_overlays",
-  vectors: { size: 320, distance: "Cosine" }
-}
-
-// visual_pages (Visual RAG sidecar - 320 dimensions)
-{
-  collection_name: "visual_pages",
-  vectors: { size: 320, distance: "Dot" }
-}
-```
-
-**Environment Variables:**
-```env
-QDRANT_HOST=qdrant
-QDRANT_PORT=6333
-VECTOR_STORE=qdrant  # Options: pgvector, qdrant
-```
+- **Phase 1:** Deploy Qdrant and apply the **Distance Metric Lock**.
+- **Phase 2:** Implement "Detoxed" adapters with Payload Mirroring.
+- **Phase 3:** Execute re-ingestion script with hardware monitoring.
+- **Phase 4:** Remove legacy `embedding` columns from PostgreSQL `visual_overlays`.
 </implementation>
 
 <output>
-- `services/visual-rag/QdrantAdapter.js` (Implemented)
-- `rag_service/qdrant_adapter.py` (Implemented)
-- `services/visual-rag-sidecar/main.py` (Modified)
-- `rag_service/data_manager.py` (Modified)
-- `rag_service/search_engine.py` (Modified)
-- `services/visual-rag/VisualOverlayRepository.js` (Modified)
-- `migrations/005_remove_pgvector_columns.sql` (Created)
-- `scripts/reingest_to_qdrant.js` (Created)
-- `test/integration/qdrant-adapter.spec.js` (Created)
-- `test/integration/qdrant-adapter.spec.py` (Created)
+- `rag_service/qdrant_adapter.py` (Alpha-9 Compliant)
+- `services/visual-rag/QdrantAdapter.js` (Alpha-9 Compliant)
+- `migrations/005_remove_pgvector_columns.sql`
+- `scripts/reingest_to_qdrant.js`
 </output>
 
 <verification>
-- Qdrant container starts and `/health` returns 200
-- Collections created with correct dimensions:
-  - `document_embeddings`: 384-dim, cosine
-  - `visual_overlays`: 320-dim, cosine
-  - `visual_pages`: 320-dim, dot
-- Unit tests pass for both JS and Python adapters
-- Re-ingestion script processes documents without errors
-- Text search returns results from Qdrant
-- Visual search returns results from Qdrant
-- Hybrid search (RRF) works with Qdrant backend
-- PostgreSQL tables retain metadata but no vector columns
+- **Audit:** Run `node scripts/verify-qdrant-alpha9.js`.
+- **Latency:** Confirm MaxSim search on `visual_pages` is < 200ms on RTX 3090 Ti.
+- **Filtering:** Perform a vector search with a `correspondent_id` filter and 
+  verify no results from other correspondents are returned.
+- **Schema:** Confirm Postgres `visual_overlays` has 0 vector columns.
 </verification>
 
 <lifecycle>
-1. Upon completion, generate summary: `prompts/summaries/018-qdrant-migration-summary.md`
-2. Update `docs/RAG_SYSTEMS_REFERENCE.md` to reflect Qdrant architecture
-3. Update `docs/DATABASE_SETUP.md` with Qdrant setup instructions
-4. Archive pgVector-related migrations
-5. Move this prompt to `prompts/completed/018-qdrant-migration.md`
+1. Generate machine-readable summary: `prompts/summaries/018-qdrant-migration-summary.md`.
+2. Update `docs/QDRANT_MIGRATION.md` with final collection UUIDs.
+3. Move to `prompts/completed/`.
 </lifecycle>

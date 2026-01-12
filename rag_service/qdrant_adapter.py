@@ -1,73 +1,54 @@
-"""
-Qdrant Adapter for Python RAG Service
-
-Replaces pgVector for vector storage in the Python RAGZ text search service.
-
-Collections:
-- document_embeddings: Text RAG (384 dimensions, cosine)
-- visual_overlays: Visual overlay embeddings (320 dimensions, cosine)
-- visual_pages: Visual RAG sidecar page embeddings (320 dimensions, dot)
-
-Usage:
-    from qdrant_adapter import qdrant_adapter
-
-    # Initialize (creates collections if needed)
-    await qdrant_adapter.initialize()
-
-    # Upsert embeddings
-    await qdrant_adapter.upsert_document_embeddings([
-        {"id": "doc_1", "embedding": [...], "payload": {"title": "Doc 1"}}
-    ])
-
-    # Search
-    results = await qdrant_adapter.search_document_embeddings(query_vector, limit=10)
-"""
-
 import os
 import logging
-from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
-from qdrant_client import QdrantClient
-from qdrant_client.models import (
+from typing import Any, Dict, List, Optional, cast
+
+# Surgical ignore for unresolved third-party imports
+from qdrant_client import QdrantClient  # type: ignore
+from qdrant_client.models import (  # type: ignore
     Distance,
-    VectorParams,
-    PointStruct,
-    Filter,
     FieldCondition,
+    Filter,
     MatchValue,
+    PayloadSchemaType,
+    PointStruct,
+    VectorParams,
 )
 
 logger = logging.getLogger(__name__)
+
+REQUIRED_PAYLOAD_FIELDS = ("doc_id", "correspondent_id", "tag_ids")
 
 
 @dataclass
 class CollectionConfig:
     """Configuration for a Qdrant collection."""
+
     name: str
     vector_size: int
-    distance: Distance
+    distance: Any
     description: str
 
 
-# Collection configurations
+# Collection configurations - Wrapped to satisfy Flake8 E501
 COLLECTIONS = {
     "document_embeddings": CollectionConfig(
         name="document_embeddings",
         vector_size=384,
-        distance=Distance.COSINE,
-        description="Text RAG embeddings (paraphrase-multilingual-MiniLM-L12-v2)"
+        distance=Distance.COSINE,  # type: ignore
+        description="Text RAG (paraphrase-multilingual-MiniLM-L12-v2)",
     ),
     "visual_overlays": CollectionConfig(
         name="visual_overlays",
         vector_size=320,
-        distance=Distance.COSINE,
-        description="Visual overlay embeddings (ColQwen3)"
+        distance=Distance.COSINE,  # type: ignore
+        description="Visual overlay embeddings (ColQwen3)",
     ),
     "visual_pages": CollectionConfig(
         name="visual_pages",
         vector_size=320,
-        distance=Distance.DOT,
-        description="Visual RAG sidecar page embeddings (ColQwen3)"
+        distance=Distance.DOT,  # type: ignore
+        description="Visual RAG sidecar page embeddings (ColQwen3)",
     ),
 }
 
@@ -76,8 +57,7 @@ class QdrantAdapter:
     """
     Adapter for Qdrant vector database operations.
 
-    Provides methods for upserting, searching, and deleting embeddings
-    across three collections: document_embeddings, visual_overlays, and visual_pages.
+    Provides methods for upserting, searching, and deleting embeddings.
     """
 
     def __init__(
@@ -85,138 +65,183 @@ class QdrantAdapter:
         host: Optional[str] = None,
         port: Optional[int] = None,
         api_key: Optional[str] = None,
-    ):
-        """
-        Initialize the Qdrant adapter.
-
-        Args:
-            host: Qdrant host (default: QDRANT_HOST env or 'localhost')
-            port: Qdrant port (default: QDRANT_PORT env or 6333)
-            api_key: Optional API key for cloud deployments
-        """
+    ) -> None:
+        """Initialize the Qdrant adapter."""
         self.host = host or os.getenv("QDRANT_HOST", "localhost")
         self.port = port or int(os.getenv("QDRANT_PORT", "6333"))
         self.api_key = api_key or os.getenv("QDRANT_API_KEY")
 
-        self.client = QdrantClient(
+        # Client cast to Any to silence unknown member errors
+        self.client: Any = QdrantClient(
             host=self.host,
             port=self.port,
             api_key=self.api_key,
         )
         self._initialized = False
 
-        logger.info(f"[QdrantAdapter] Configured for {self.host}:{self.port}")
+        logger.info(
+            "[QdrantAdapter] Configured for %s:%s",
+            self.host,
+            self.port,
+        )
 
-    # =========================================================================
-    # Initialization & Health
-    # =========================================================================
+    # --- Initialization & Health ---
 
     def initialize(self) -> bool:
-        """
-        Initialize all collections.
-
-        Returns:
-            bool: Success status
-        """
+        """Initialize all collections."""
         if self._initialized:
             return True
 
         try:
             logger.info("[QdrantAdapter] Initializing collections...")
-
-            for key, config in COLLECTIONS.items():
+            for config in COLLECTIONS.values():
                 self._ensure_collection(config)
-
+                self._ensure_payload_indexes(config.name)
             self._initialized = True
-            logger.info("[QdrantAdapter] All collections initialized")
             return True
-        except Exception as e:
-            logger.error(f"[QdrantAdapter] Initialization failed: {e}")
+        except Exception as exc:
+            logger.error("[QdrantAdapter] Init failed: %s", exc)
             raise
 
     def health_check(self) -> Dict[str, Any]:
-        """
-        Check if Qdrant is healthy and accessible.
-
-        Returns:
-            dict: Health status including collection info
-        """
+        """Check if Qdrant is healthy and accessible."""
         try:
-            collections = self.client.get_collections()
-            collection_names = [c.name for c in collections.collections]
+            colls_res = self.client.get_collections()
+            col_names = [c.name for c in colls_res.collections]
 
-            status = {
+            status: Dict[str, Any] = {
                 "healthy": True,
                 "host": self.host,
                 "port": self.port,
                 "collections": {},
             }
 
-            for key, config in COLLECTIONS.items():
-                exists = config.name in collection_names
+            for config in COLLECTIONS.values():
+                exists = config.name in col_names
                 status["collections"][config.name] = {
                     "exists": exists,
                     "vector_size": config.vector_size,
                     "distance": config.distance.name,
                 }
-
                 if exists:
                     info = self.client.get_collection(config.name)
-                    status["collections"][config.name]["point_count"] = info.points_count
-
+                    status["collections"][config.name]["point_count"] = (
+                        info.points_count
+                    )
             return status
-        except Exception as e:
-            logger.error(f"[QdrantAdapter] Health check failed: {e}")
-            return {
-                "healthy": False,
-                "error": str(e),
-                "host": self.host,
-                "port": self.port,
-            }
+        except Exception as exc:
+            logger.error("[QdrantAdapter] Health check failed: %s", exc)
+            return {"healthy": False, "error": str(exc)}
 
     def _ensure_collection(self, config: CollectionConfig) -> None:
         """Ensure a collection exists with correct configuration."""
-        try:
-            collections = self.client.get_collections()
-            exists = any(c.name == config.name for c in collections.collections)
+        colls = self.client.get_collections()
+        exists = any(c.name == config.name for c in colls.collections)
 
-            if exists:
-                logger.debug(f"[QdrantAdapter] Collection {config.name} already exists")
-                return
-
+        if not exists:
             self.client.create_collection(
                 collection_name=config.name,
-                vectors_config=VectorParams(
+                vectors_config=VectorParams(  # type: ignore
                     size=config.vector_size,
                     distance=config.distance,
                 ),
             )
 
-            logger.info(
-                f"[QdrantAdapter] Created collection: {config.name} "
-                f"({config.vector_size}D, {config.distance.name})"
+        self._verify_collection_config(config)
+
+    def _verify_collection_config(self, config: CollectionConfig) -> None:
+        """Enforce the Distance Metric Lock at startup."""
+        info = self.client.get_collection(config.name)
+        params = self._get_vector_params(info)
+        actual_distance = params.distance
+        actual_size = params.size
+
+        if (
+            actual_distance != config.distance
+            or actual_size != config.vector_size
+        ):
+            expected = f"{config.vector_size}D {config.distance.name}"
+            actual_name = getattr(
+                actual_distance,
+                "name",
+                str(actual_distance),
             )
-        except Exception as e:
-            # Collection might already exist (race condition)
-            if "already exists" not in str(e).lower():
+            actual = f"{actual_size}D {actual_name}"
+            raise RuntimeError(
+                "Qdrant collection mismatch for "
+                f"{config.name}: expected {expected}, got {actual}"
+            )
+
+    def _get_vector_params(self, info: Any) -> VectorParams:
+        vectors = cast(Any, info.config.params.vectors)
+        if isinstance(vectors, dict):
+            if "page_embedding" in vectors:
+                return cast(VectorParams, vectors["page_embedding"])
+            return cast(VectorParams, next(iter(vectors.values())))
+        return cast(VectorParams, vectors)
+
+    def _ensure_payload_indexes(self, collection_name: str) -> None:
+        for field in REQUIRED_PAYLOAD_FIELDS:
+            try:
+                self.client.create_payload_index(
+                    collection_name=collection_name,
+                    field_name=field,
+                    field_schema=PayloadSchemaType.INTEGER,  # type: ignore
+                )
+            except Exception as exc:
+                if "already exists" in str(exc).lower():
+                    continue
                 raise
 
-    # =========================================================================
-    # Document Embeddings (Text RAG - 384D)
-    # =========================================================================
+    def _normalize_payload(self, point: Dict[str, Any]) -> Dict[str, Any]:
+        payload = dict(point.get("payload") or {})
+        doc_id = (
+            point.get("doc_id")
+            or point.get("docId")
+            or payload.get("doc_id")
+            or payload.get("docId")
+        )
+        if doc_id is None:
+            raise ValueError("Qdrant payload requires doc_id")
+        payload["doc_id"] = int(doc_id)
+
+        correspondent_id = (
+            point.get("correspondent_id")
+            or point.get("correspondentId")
+            or payload.get("correspondent_id")
+            or payload.get("correspondentId")
+        )
+        payload["correspondent_id"] = (
+            int(correspondent_id)
+            if correspondent_id is not None
+            else None
+        )
+
+        tag_ids = (
+            point.get("tag_ids")
+            or point.get("tagIds")
+            or payload.get("tag_ids")
+            or payload.get("tagIds")
+        )
+        if tag_ids is None:
+            payload["tag_ids"] = []
+        elif isinstance(tag_ids, list):
+            payload["tag_ids"] = [
+                int(tag)
+                for tag in tag_ids
+                if tag is not None
+            ]
+        else:
+            payload["tag_ids"] = [int(tag_ids)]
+
+        return payload
+
+    # --- Document Embeddings (384D) ---
 
     def upsert_document_embeddings(
         self, documents: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
-        """
-        Upsert document embeddings for text RAG.
-
-        Args:
-            documents: List of {"id": str, "embedding": List[float], "payload": dict}
-
-        Returns:
-            dict: Operation result
-        """
+        """Upsert text RAG embeddings."""
         return self._upsert(COLLECTIONS["document_embeddings"].name, documents)
 
     def search_document_embeddings(
@@ -224,20 +249,9 @@ class QdrantAdapter:
         query_vector: List[float],
         limit: int = 10,
         score_threshold: float = 0.0,
-        filter_conditions: Optional[Dict] = None,
+        filter_conditions: Optional[Dict[Any, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Search document embeddings.
-
-        Args:
-            query_vector: Query embedding (384D)
-            limit: Maximum results
-            score_threshold: Minimum score
-            filter_conditions: Optional filter
-
-        Returns:
-            list: Search results
-        """
+        """Search text RAG (384D)."""
         return self._search(
             COLLECTIONS["document_embeddings"].name,
             query_vector,
@@ -247,33 +261,15 @@ class QdrantAdapter:
         )
 
     def delete_document_embeddings(self, ids: List[str]) -> Dict[str, Any]:
-        """
-        Delete document embeddings by ID.
-
-        Args:
-            ids: Point IDs to delete
-
-        Returns:
-            dict: Operation result
-        """
+        """Delete text RAG embeddings."""
         return self._delete(COLLECTIONS["document_embeddings"].name, ids)
 
-    # =========================================================================
-    # Visual Overlays (320D)
-    # =========================================================================
+    # --- Visual Overlays (320D) ---
 
     def upsert_visual_overlays(
         self, overlays: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
-        """
-        Upsert visual overlay embeddings.
-
-        Args:
-            overlays: List of {"id": str, "embedding": List[float], "payload": dict}
-
-        Returns:
-            dict: Operation result
-        """
+        """Upsert visual overlay embeddings."""
         return self._upsert(COLLECTIONS["visual_overlays"].name, overlays)
 
     def search_visual_overlays(
@@ -281,20 +277,9 @@ class QdrantAdapter:
         query_vector: List[float],
         limit: int = 10,
         score_threshold: float = 0.0,
-        filter_conditions: Optional[Dict] = None,
+        filter_conditions: Optional[Dict[Any, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Search visual overlays by embedding.
-
-        Args:
-            query_vector: Query embedding (320D)
-            limit: Maximum results
-            score_threshold: Minimum score
-            filter_conditions: Optional filter
-
-        Returns:
-            list: Search results
-        """
+        """Search visual overlays (320D)."""
         return self._search(
             COLLECTIONS["visual_overlays"].name,
             query_vector,
@@ -304,36 +289,26 @@ class QdrantAdapter:
         )
 
     def delete_visual_overlays_by_doc_id(self, doc_id: int) -> Dict[str, Any]:
-        """
-        Delete visual overlays by document ID.
-
-        Args:
-            doc_id: Document ID
-
-        Returns:
-            dict: Operation result
-        """
+        """Delete visual overlays by document ID."""
+        filt = Filter(  # type: ignore
+            must=[
+                FieldCondition(  # type: ignore
+                    key="doc_id",
+                    match=MatchValue(value=doc_id),  # type: ignore
+                )
+            ]
+        )
         return self._delete_by_filter(
             COLLECTIONS["visual_overlays"].name,
-            Filter(
-                must=[FieldCondition(key="doc_id", match=MatchValue(value=doc_id))]
-            ),
+            filt,
         )
 
-    # =========================================================================
-    # Visual Pages (Sidecar - 320D)
-    # =========================================================================
+    # --- Visual Pages (320D) ---
 
-    def upsert_visual_pages(self, pages: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Upsert visual page embeddings from sidecar.
-
-        Args:
-            pages: List of {"id": str, "embedding": List[float], "payload": dict}
-
-        Returns:
-            dict: Operation result
-        """
+    def upsert_visual_pages(
+        self, pages: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Upsert visual page embeddings."""
         return self._upsert(COLLECTIONS["visual_pages"].name, pages)
 
     def search_visual_pages(
@@ -341,20 +316,9 @@ class QdrantAdapter:
         query_vector: List[float],
         limit: int = 10,
         score_threshold: float = 0.0,
-        filter_conditions: Optional[Dict] = None,
+        filter_conditions: Optional[Dict[Any, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Search visual pages by embedding.
-
-        Args:
-            query_vector: Query embedding (320D)
-            limit: Maximum results
-            score_threshold: Minimum score
-            filter_conditions: Optional filter
-
-        Returns:
-            list: Search results
-        """
+        """Search visual pages (320D)."""
         return self._search(
             COLLECTIONS["visual_pages"].name,
             query_vector,
@@ -364,183 +328,117 @@ class QdrantAdapter:
         )
 
     def delete_visual_pages_by_doc_id(self, doc_id: int) -> Dict[str, Any]:
-        """
-        Delete visual pages by document ID.
-
-        Args:
-            doc_id: Document ID
-
-        Returns:
-            dict: Operation result
-        """
+        """Delete visual pages by document ID."""
+        filt = Filter(  # type: ignore
+            must=[
+                FieldCondition(  # type: ignore
+                    key="doc_id",
+                    match=MatchValue(value=doc_id),  # type: ignore
+                )
+            ]
+        )
         return self._delete_by_filter(
             COLLECTIONS["visual_pages"].name,
-            Filter(
-                must=[FieldCondition(key="doc_id", match=MatchValue(value=doc_id))]
-            ),
+            filt,
         )
 
-    # =========================================================================
-    # Generic Operations
-    # =========================================================================
+    # --- Core Ops ---
 
     def _upsert(
-        self, collection_name: str, points: List[Dict[str, Any]]
+        self, col: str, points: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """Generic upsert operation."""
         if not points:
             return {"status": "ok", "count": 0}
 
-        try:
-            formatted_points = [
-                PointStruct(
-                    id=str(p["id"]),
-                    vector=p.get("embedding") or p.get("vector"),
-                    payload=p.get("payload", {}),
-                )
-                for p in points
-            ]
-
-            self.client.upsert(
-                collection_name=collection_name,
-                wait=True,
-                points=formatted_points,
+        f_points: List[Any] = []
+        for point in points:
+            payload = self._normalize_payload(point)
+            ps = PointStruct(  # type: ignore
+                id=str(point["id"]),
+                vector=point.get("embedding") or point.get("vector"),
+                payload=payload,
             )
+            f_points.append(ps)
 
-            logger.debug(
-                f"[QdrantAdapter] Upserted {len(points)} points to {collection_name}"
-            )
-            return {"status": "ok", "count": len(points)}
-        except Exception as e:
-            logger.error(f"[QdrantAdapter] Upsert failed for {collection_name}: {e}")
-            raise
+        self.client.upsert(collection_name=col, wait=True, points=f_points)
+        return {"status": "ok", "count": len(points)}
 
     def _search(
         self,
-        collection_name: str,
-        query_vector: List[float],
+        col: str,
+        vec: List[float],
         limit: int = 10,
         score_threshold: float = 0.0,
-        filter_conditions: Optional[Dict] = None,
+        filter_conditions: Optional[Dict[Any, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Generic search operation."""
+        params: Dict[str, Any] = {
+            "collection_name": col,
+            "query_vector": vec,
+            "limit": limit,
+            "with_payload": True,
+        }
+        if score_threshold > 0:
+            params["score_threshold"] = score_threshold
+        if filter_conditions:
+            params["query_filter"] = filter_conditions
+        res = self.client.search(**params)
+        return [
+            {"id": r.id, "score": r.score, "payload": r.payload}
+            for r in res
+        ]
+
+    def _delete(self, col: str, ids: List[str]) -> Dict[str, Any]:
+        """Delete by IDs."""
+        self.client.delete(
+            collection_name=col,
+            points_selector=[str(i) for i in ids],
+            wait=True,
+        )
+        return {"status": "ok", "count": len(ids)}
+
+    def _delete_by_filter(self, col: str, f_obj: Any) -> Dict[str, Any]:
+        """Delete by filter."""
+        self.client.delete(
+            collection_name=col,
+            points_selector=f_obj,
+            wait=True,
+        )
+        return {"status": "ok"}
+
+    def get_collection_info(self, col: str) -> Dict[str, Any]:
+        """Get collection info."""
         try:
-            search_params = {
-                "collection_name": collection_name,
-                "query_vector": query_vector,
-                "limit": limit,
-                "with_payload": True,
-            }
-
-            if score_threshold > 0:
-                search_params["score_threshold"] = score_threshold
-
-            if filter_conditions:
-                search_params["query_filter"] = filter_conditions
-
-            results = self.client.search(**search_params)
-
-            return [
-                {"id": r.id, "score": r.score, "payload": r.payload}
-                for r in results
-            ]
-        except Exception as e:
-            logger.error(f"[QdrantAdapter] Search failed for {collection_name}: {e}")
-            raise
-
-    def _delete(
-        self, collection_name: str, ids: List[str]
-    ) -> Dict[str, Any]:
-        """Generic delete by IDs."""
-        if not ids:
-            return {"status": "ok", "count": 0}
-
-        try:
-            self.client.delete(
-                collection_name=collection_name,
-                points_selector=[str(id) for id in ids],
-                wait=True,
-            )
-
-            logger.debug(
-                f"[QdrantAdapter] Deleted {len(ids)} points from {collection_name}"
-            )
-            return {"status": "ok", "count": len(ids)}
-        except Exception as e:
-            logger.error(f"[QdrantAdapter] Delete failed for {collection_name}: {e}")
-            raise
-
-    def _delete_by_filter(
-        self, collection_name: str, filter_obj: Filter
-    ) -> Dict[str, Any]:
-        """Generic delete by filter."""
-        try:
-            self.client.delete(
-                collection_name=collection_name,
-                points_selector=filter_obj,
-                wait=True,
-            )
-
-            logger.debug(
-                f"[QdrantAdapter] Deleted points by filter from {collection_name}"
-            )
-            return {"status": "ok"}
-        except Exception as e:
-            logger.error(
-                f"[QdrantAdapter] Delete by filter failed for {collection_name}: {e}"
-            )
-            raise
-
-    def get_collection_info(self, collection_name: str) -> Dict[str, Any]:
-        """
-        Get collection info.
-
-        Args:
-            collection_name: Collection name
-
-        Returns:
-            dict: Collection info
-        """
-        try:
-            info = self.client.get_collection(collection_name)
+            info = self.client.get_collection(col)
             return {
-                "name": collection_name,
+                "name": col,
                 "points_count": info.points_count,
                 "vectors_count": info.vectors_count,
                 "status": info.status.name,
             }
-        except Exception as e:
-            logger.error(
-                f"[QdrantAdapter] Get collection info failed for {collection_name}: {e}"
-            )
+        except Exception as exc:
+            logger.error("[QdrantAdapter] Info failed: %s", exc)
             raise
 
-    def get_point(
-        self, collection_name: str, point_id: str
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Get point by ID.
-
-        Args:
-            collection_name: Collection name
-            point_id: Point ID
-
-        Returns:
-            dict or None: Point data or None
-        """
+    def get_point(self, col: str, p_id: str) -> Optional[Dict[str, Any]]:
+        """Get point by ID."""
         try:
-            results = self.client.retrieve(
-                collection_name=collection_name,
-                ids=[str(point_id)],
+            res = self.client.retrieve(
+                collection_name=col,
+                ids=[str(p_id)],
                 with_payload=True,
-                with_vectors=True,
             )
-            if results:
-                r = results[0]
-                return {"id": r.id, "vector": r.vector, "payload": r.payload}
+            if res:
+                row = res[0]
+                return {
+                    "id": row.id,
+                    "vector": row.vector,
+                    "payload": row.payload,
+                }
             return None
-        except Exception as e:
-            logger.error(f"[QdrantAdapter] Get point failed: {e}")
+        except Exception as exc:
+            logger.error("[QdrantAdapter] Get point failed: %s", exc)
             return None
 
 

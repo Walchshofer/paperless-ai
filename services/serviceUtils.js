@@ -48,7 +48,7 @@ function estimateTokensForNonOpenAI(text) {
 }
 
 // Calculate tokens for a given text
-async function calculateTokens(text, model = process.env.OPENAI_MODEL || "gpt-4o-mini") {
+async function calculateTokens(text, model = process.env.PAPERLESS_OPENAI_MODEL || "gpt-4o-mini") {
     try {
         const compatibleModel = getCompatibleModel(model);
         
@@ -73,7 +73,7 @@ async function calculateTokens(text, model = process.env.OPENAI_MODEL || "gpt-4o
 }
 
 // Calculate total tokens for a system prompt and additional prompts
-async function calculateTotalPromptTokens(systemPrompt, additionalPrompts = [], model = process.env.OPENAI_MODEL || "gpt-4o-mini") {
+async function calculateTotalPromptTokens(systemPrompt, additionalPrompts = [], model = process.env.PAPERLESS_OPENAI_MODEL || "gpt-4o-mini") {
     let totalTokens = 0;
 
     // Count tokens for system prompt
@@ -94,7 +94,7 @@ async function calculateTotalPromptTokens(systemPrompt, additionalPrompts = [], 
 }
 
 // Truncate text to fit within token limit
-async function truncateToTokenLimit(text, maxTokens, model = process.env.OPENAI_MODEL || "gpt-4o-mini") {
+async function truncateToTokenLimit(text, maxTokens, model = process.env.PAPERLESS_OPENAI_MODEL || "gpt-4o-mini") {
     try {
         const compatibleModel = getCompatibleModel(model);
         

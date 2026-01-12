@@ -1,62 +1,89 @@
-<!-- ARCHIVED: moved to prompts/completed/003-implement-visual-annotation-ui.md on 2026-01-07 -->
+---
+name: implement-visual-annotation-ui
+stage: 050-implement
+agent: implement-agent
+prompt_id: 003-native-alpha-9-visual-ui
+---
 
 <objective>
-Create a Preact "VisualAnnotation" Island component and Zod contract, then integrate it via the Islands mounting strategy into the Manual UI (`manual.ejs`).
-This replaces the previous inline script approach with a mountable island that provides the Red Pen drawing tool in the Manual Route Visual Preview.
+Implement the "VisualAnnotationIsland" using Preact and Zod. This island 
+replaces legacy scripts in the Manual Route to provide a high-fidelity 
+"Red Pen" tool capable of capturing 320-dim visual fragments for 
+ColQwen3-grounded analysis on the RTX 3090 Ti.
 </objective>
 
 <context>
-Per `docs/FRONTEND_ARCHITECTURE.md`, complex interactive UI should be implemented as Preact Islands and validated with Zod contracts. This prompt implements `VisualAnnotationIsland.tsx` and `src/ui/contracts/VisualAnnotation.contract.ts` and updates `manual.ejs` to include a `data-island` anchor and `data-testid` values for automated auditing.
-Note: `VisualAnnotationIsland` is the specific implementation of the `VisualViewer` concept for the Manual Route, adhering to the Islands architecture.
+Following `docs/FRONTEND_ARCHITECTURE.md`, we are moving to a decoupled 
+Islands architecture. This island bridges the user's visual intent to the 
+**Native Protocol Alpha-9** backend, ensuring that bounding boxes are 
+normalized for the ColQwen3 model's 1,280 visual patch limit.
 
-**References:**
-- Architecture: `docs/FRONTEND_ARCHITECTURE.md`
-- Manual Route Plan: `prompts/planning/MANUAL-ROUTE-UI-ENHANCEMENT-PLAN.md`
+**Hardware:** RTX 3090 Ti (Ampere SM86).
+**Protocol:** 320-dim Vector Normalization.
 </context>
 
 <requirements>
-1. **Island Component**:
-   - Create `src/islands/VisualAnnotationIsland.tsx` (Preact component, default export).
-   - Component props must conform to a Zod schema exported from `src/ui/contracts/VisualAnnotation.contract.ts`.
-   - Component responsibilities: mount `OverlayViewer` (or accept an existing viewer), provide Draw Mode toggle, capture bbox in natural image coordinates, display persistent overlays, and emit events for saved annotations.
+1. **VisualAnnotation Island (Preact)**:
+   - Create `src/islands/VisualAnnotationIsland.tsx`.
+   - **Capability:** Implement a "Red Pen" mode using an HTML5 Canvas overlay.
+   - **Normalization:** Ensure that captured bounding boxes are converted to 
+     normalized image coordinates (0.0 to 1.0) before being sent to the 
+     `POST /api/visual-rag/feedback` endpoint.
+   - **Constraint:** The UI must handle aspect ratio normalization to 
+     match the ColQwen3 processor's requirements.
 
-2. **Zod Contract**:
-   - Create `src/ui/contracts/VisualAnnotation.contract.ts` and export a Zod schema describing `{ documentId: number, page?: number, initialAnnotations?: Annotation[] }` where `Annotation = { bbox: [x,y,w,h], comment?: string, page?: number }`.
-   - Add a Type export for the contract (`export type VisualAnnotationContract = z.infer<typeof VisualAnnotationSchema>`).
+2. **Zod Contract & Payload Mirroring**:
+   - Create `src/ui/contracts/VisualAnnotation.contract.ts`.
+   - **Schema:** Validate `documentId`, `page`, and an array of `annotations`.
+   - **Alpha-9 Sync:** The contract must ensure that annotations include 
+     a `label` field, which will be mirrored as a `tag_id` in the 
+     Qdrant vector payload.
 
-3. **Template Integration**:
-   - Update `views/manual.ejs` to add an island anchor:
-     `<div data-island="visual-annotation-island" data-testid="visual-annotation-island" data-props='<%- JSON.stringify({ documentId: vm.documentId || null }) %>'></div>`
-   - Ensure the island anchor is placed in the Visual Preview area and that `OverlayViewer` continues to be used or is delegated to the island.
-   - **Registry**: Register the new component in `src/islands/runtime.ts` to map `visual-annotation-island` to `VisualAnnotationIsland.tsx`.
+3. **Handshake & Feedback UI**:
+   - The island must listen for the **503 Initializing** state from the 
+     sidecar. If the user attempts an "AI Verify" on a crop while the 
+     RTX 3090 Ti is warming up the 4B-AWQ model, show a "GPU Preparing" loader.
+   - Implement "Confirm Match" buttons for each annotation to trigger the 
+     **Hybrid SOT** update (Postgres + Qdrant).
 
-4. **Testing & Test IDs**:
-   - Add `data-testid` attributes to interactive elements inside the island (e.g., draw-toggle, save-annotation-btn).
-   - Add unit tests for the Zod contract (`test/contracts/visual-annotation.contract.test.js`) and a small integration test skeleton for the island (Playwright or Cypress) that asserts DOM mount and `data-testid` presence.
+4. **Template Integration & Registry**:
+   - Mount the island in `views/manual.ejs` using the `data-island` anchor.
+   - Map `visual-annotation-island` in `src/islands/runtime.ts`.
 
-5. **Accessibility & Responsiveness**:
-   - Ensure keyboard accessibility for toggles and that the bounding box logic works with touch and mouse.
-
-6. **Documentation**:
-   - Update `prompts/003-implement-visual-annotation-ui.md` with the island/component/contract plan and add `output` and `verification` sections per the prompt template.
+5. **"Detox" Standards**:
+   - Adhere to the 79-character line limit for all TypeScript logic.
+   - Ensure strict typing for all Preact hooks and event handlers.
 </requirements>
 
+
+
 <implementation>
-- Prefer a minimal Preact component that mounts into the anchor and validates `data-props` against the Zod schema at mount time, rejecting invalid props with a console warning.
-- Keep the island self-contained: it should import `OverlayViewer` from `public/js/components/OverlayViewer.js` if needed, but it can also implement a minimal canvas if simpler.
-- Export a small event API: custom DOM events `annotation:created`, `annotation:deleted`, `annotations:save`.
+- **Island Registration:** Ensure the island is registered in the 
+  client-side runtime for hydration.
+- **Event Bus:** Use custom DOM events (`annotation:created`, 
+  `visual-search:trigger`) to communicate with the orchestrator.
+- **Canvas Logic:** Use an offscreen canvas for high-performance crop 
+  extraction if the "Preview Match" feature is enabled.
 </implementation>
 
 <output>
-- `src/islands/VisualAnnotationIsland.tsx` (Created)
-- `src/ui/contracts/VisualAnnotation.contract.ts` (Created)
-- `views/manual.ejs` (Updated to include `data-island` anchor)
-- `test/contracts/visual-annotation.contract.test.js` (Created - Zod contract tests)
-- `test/e2e/manual_visual_annotation.spec.js` (Created - E2E skeleton checks `data-testid` presence)
+- `src/islands/VisualAnnotationIsland.tsx`
+- `src/ui/contracts/VisualAnnotation.contract.ts`
+- `views/manual.ejs` (Modified for Island mounting)
+- `src/islands/runtime.ts` (Updated registration)
 </output>
 
 <verification>
-- Unit: `npm test -- test/contracts/visual-annotation.contract.test.js` (Zod schema validation tests should pass).
-- Integration: Run E2E skeleton (`npm run test:e2e -- test/e2e/manual_visual_annotation.spec.js`) to assert the island mounts and `data-testid="visual-annotation-island"` exists.
-- Manual: Open Manual UI, enable Draw Mode (via toggle), draw a bounding box, enter comment, and verify `annotation:created` events are emitted with bbox normalized to image natural size.
-</verification> 
+- **Contract Test:** Run `npm test test/unit/contracts.spec.ts` to verify 
+  Zod schema enforcement.
+- **E2E Test:** Use Playwright to verify `data-testid="visual-annotation-island"` 
+  mounts and that drawing a box emits a valid 320-dim-ready payload.
+- **Hardware Check:** Verify that the UI remains responsive on the 
+  RTX 3090 Ti even during model load (503 state).
+</verification>
+
+<lifecycle>
+1. Generate machine-readable summary: `prompts/summaries/003-visual-annotation-ui-summary.md`.
+2. Update `docs/FRONTEND_ARCHITECTURE.md` to reflect the new island event schema.
+3. Move to `prompts/completed/`.
+</lifecycle>

@@ -65,24 +65,41 @@ Does NOT:
 
 ---
 
-### 3) visual-rag service (Python + PostgreSQL)
+### 3) visual-rag service (Metadata, PostgreSQL)
 
-**Role:** Durable visual memory and retrieval
+**Role:** Metadata and overlay management (SQL source-of-truth for overlay metadata and feedback events)
 
 Responsibilities:
-- Ingest images and derived visual overlays
-- Compute and store embeddings
-- Retrieve visual regions for evidence enrichment
+- Store overlay metadata and application-level signals in PostgreSQL
+- Maintain relational metadata only (no vector columns in PostgreSQL)
+- Persist RLHF / feedback events and relational metadata (SOT for relational state)
 
 Guarantees:
-- Best-effort operation
-- Optional enrichment only
+- ACID for metadata and feedback
+- Durable audit trails
 
 Does NOT:
-- Perform OCR
-- Extract structured data
-- Execute LLM reasoning
-- Block the pipeline if unavailable
+- Perform live MaxSim retrieval
+- Host vector search SOT (Qdrant is the vector SOT)
+- Perform heavy tensor operations
+
+### 4) visual-rag sidecar (Python — Native Protocol Alpha-9)
+
+**Role:** Native visual retrieval and indexing (ColQwen3 + Qdrant)
+
+Responsibilities:
+- Host a native ColQwen3 4B-AWQ embedding bridge (320-dim outputs) optimized for **RTX 3090 Ti / Ampere SM86**
+- Compute multi-vector page embeddings and provide native MaxSim (late-interaction) retrieval via PyTorch (`processor.score_multi_vector`)
+- Index and synchronize vectors to **Qdrant** as the SOT for vector retrieval
+- Serve low-latency search endpoints and health metrics (e.g., `/health` and search `/search`)
+
+Guarantees:
+- High-fidelity visual retrieval using late-interaction MaxSim scoring
+- Best-effort enrichment; pipeline can fallback to Text RAG if sidecar is unavailable
+
+Does NOT:
+- Replace PostgreSQL as SOT for relational metadata
+- Perform OCR or structured extraction (use Visual OCR / Guidance services instead)
 
 ---
 
@@ -110,6 +127,25 @@ Failures are isolated per service and never cascade.
 - PromptRegistry as authoritative source
 - Guidance as optional optimization
 - Visual RAG as enrichment only
+
+### Storage Pattern (Dual-DB)
+
+- **PostgreSQL**: Source-of-truth (SOT) for relational metadata and RLHF / `feedback_events` (ACID guarantees)
+- **Qdrant**: SOT for vector retrieval (text & visual) — high-performance nearest-neighbor search and vector storage
+- **Payload Mirroring**: Mirror `doc_id`, `correspondent_id`, and `tag_ids` into Qdrant payloads for expert filtering (see `rag_service/qdrant_adapter.py`).
+
+---
+
+## Data & Control Flow (High Level)
+
+1. Document arrives in paperless-ai
+2. Expert Pipeline executes sequential stages
+3. Guidance is attempted when eligible
+4. PromptRegistry fallback is used if Guidance fails
+5. Visual OCR is compared with Tesseract OCR
+6. Validator-driven retries are applied if required
+7. Visual RAG Gate: The Visual RAG Sidecar performs native MaxSim retrieval (ColQwen3, 320-dim multi-vector) against Qdrant, assembles visual hits + metadata into a Context Pack, and hands results to Guidance for reasoning; if the sidecar is initializing or returns `503 Initializing`, the pipeline will fallback to Text RAG.
+8. Final result is patched to Paperless-ngx
 
 ---
 

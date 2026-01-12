@@ -64,15 +64,14 @@ The Visual RAG sidecar includes runtime dimension adaptation logic to handle emb
 **Action Required if `embedding_dimension_adapted` > 0:**
 1. Check Visual RAG sidecar logs for dimension mismatch warnings
 2. Verify `VISUAL_RAG_MODEL=TomoroAI/tomoro-colqwen3-embed-8b` is set correctly
-3. Confirm database schema has been migrated to `vector(320)` (see `migrations/04_change_embeddings_to_320.js`)
+3. Confirm Qdrant collections are 320D with correct distances (run `node scripts/check-qdrant-collections.js`)
 4. Re-index affected documents to replace legacy embeddings
 5. Monitor metric until it returns to 0
 
 **Migration Context:**
 - Legacy ColQwen2 embeddings were 768-dimensional
 - Current ColQwen3 embeddings are 320-dimensional
-- Runtime adaptation allows gradual migration without service interruption
-- Once migration is complete, adaptation logic can be removed
+- Qdrant is the vector SOT; PostgreSQL has no vector columns
 
 ---
 

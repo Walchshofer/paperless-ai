@@ -51,10 +51,11 @@ The Visual RAG system serves **two distinct functions** in the expert pipeline:
 ### Model Identity
 
 ```
-Full Name:    TomoroAI/tomoro-colqwen3-embed-8b
-Architecture: ColPali / ColQwen (Vision-Language Retriever)
+Full Name:    TomoroAI/tomoro-ai-colqwen3-embed-4b-awq
+Architecture: ColQwen (Vision-Language Retriever, AWQ quantized)
 Methodology:  Late Interaction (MaxSim)
-Parameters:   8B
+Parameters:   4B (AWQ quantized for RTX 3090 Ti)
+Embedding:    320-dim multi-vector per patch (bfloat16)
 ```
 
 ### Technical Specifications
@@ -62,13 +63,29 @@ Parameters:   8B
 | Specification | Value | Notes |
 |--------------|-------|-------|
 | **Embedding Type** | Multi-vector | seq_len × 320 dimensions |
-| **Embedding Size** | 320-d | Single vector per image patch |
+| **Embedding Size** | 320-d | Patch-level vectors; multi-vector per page |
 | **Context Window** | 32k tokens | Up to 1280 visual tokens/page |
-| **Output Format** | L2-normalized | Multi-vector sequence |
+| **Output Format** | bfloat16, L2-normalized | Multi-vector sequence |
 | **Precision** | bfloat16 | FlashAttention 2 optimized |
 | **Storage Efficiency** | 13× vs ColQwen2 | Dense indexing benefits |
-| **VRAM Requirement** | 12GB+ | RTX 3090 Ti recommended |
-| **Model Size** | 8.5 GB | Hugging Face download |
+| **VRAM Requirement** | Optimized for RTX 3090 Ti / Ampere SM86 | 4B-AWQ reduces memory pressure; baseline profiles target ~3.5 GB per-query for quantized workloads |
+| **Model Size** | Quantized (smaller than 8B) | 4B-AWQ variant used for sidecar |
+
+### Native MaxSim Scoring — Why in PyTorch (not raw SQL)
+
+Late-interaction MaxSim requires computing patch-wise cross-similarities and taking per-patch maxima across a document's patch set. Emulating this behavior with a single-vector approximation or SQL-based similarity loses the late-interaction fidelity and often reduces recall for fine-grained visual matches. The sidecar therefore uses `processor.score_multi_vector` in PyTorch to:
+
+- Compute accurate patch-wise MaxSim scores on GPU (fast, exact),
+- Retain patch-level information for fine-grained ranking, and
+- Avoid expensive and lossy transformations into single-vector proxies that would otherwise run in SQL.
+
+```mermaid
+flowchart LR
+  Sidecar[Visual RAG Sidecar (ColQwen3)] -->|upsert/echo| Qdrant[Qdrant (SOT for vectors)]
+  Sidecar -->|native MaxSim (processor.score_multi_vector)| Guidance[Guidance Service]
+  Postgres[PostgreSQL (metadata & feedback)] <-->|mirrors minimal payload| Qdrant
+  Guidance --> Postgres
+```
 
 ### Primary Strength: Zero-Loss Visual Retrieval
 

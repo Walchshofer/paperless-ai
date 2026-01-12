@@ -1057,7 +1057,7 @@ class OpenAIService {
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >      let systemPrompt = '';</span>
 <span class="cstat-no" title="statement not covered" >      let promptTags = '';</span>
-<span class="cstat-no" title="statement not covered" >      const model = process.env.OPENAI_MODEL;</span>
+<span class="cstat-no" title="statement not covered" >      const model = process.env.PAPERLESS_OPENAI_MODEL;</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >      // Parse CUSTOM_FIELDS from environment variable</span>
 <span class="cstat-no" title="statement not covered" >      let customFieldsObj;</span>
@@ -1246,11 +1246,11 @@ class OpenAIService {
 <span class="cstat-no" title="statement not covered" >      : String(apiData);</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >    // Calculate tokens for the data</span>
-<span class="cstat-no" title="statement not covered" >    const dataTokens = await calculateTokens(dataString, process.env.OPENAI_MODEL);</span>
+<span class="cstat-no" title="statement not covered" >    const dataTokens = await calculateTokens(dataString, process.env.PAPERLESS_OPENAI_MODEL);</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >    if (dataTokens &gt; maxTokens) {</span>
 <span class="cstat-no" title="statement not covered" >      console.warn(`[WARNING] External API data (${dataTokens} tokens) exceeds limit (${maxTokens}), truncating`);</span>
-<span class="cstat-no" title="statement not covered" >      return await truncateToTokenLimit(dataString, maxTokens, process.env.OPENAI_MODEL);</span>
+<span class="cstat-no" title="statement not covered" >      return await truncateToTokenLimit(dataString, maxTokens, process.env.PAPERLESS_OPENAI_MODEL);</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >    console.log(`[DEBUG] External API data validated: ${dataTokens} tokens`);</span>
@@ -1289,7 +1289,7 @@ class OpenAIService {
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >      // Truncate content if necessary</span>
 <span class="cstat-no" title="statement not covered" >      const truncatedContent = await truncateToTokenLimit(content, availableTokens);</span>
-<span class="cstat-no" title="statement not covered" >      const model = process.env.OPENAI_MODEL;</span>
+<span class="cstat-no" title="statement not covered" >      const model = process.env.PAPERLESS_OPENAI_MODEL;</span>
 <span class="cstat-no" title="statement not covered" >      // Make API request</span>
 <span class="cstat-no" title="statement not covered" >      const response = await this.client.chat.completions.create({</span>
 <span class="cstat-no" title="statement not covered" >        model: model,</span>
@@ -1368,7 +1368,7 @@ class OpenAIService {
 <span class="cstat-no" title="statement not covered" >        throw new Error('OpenAI client not initialized - missing API key');</span>
 <span class="cstat-no" title="statement not covered" >      }</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >      const model = process.env.OPENAI_MODEL || config.openai.model;</span>
+<span class="cstat-no" title="statement not covered" >      const model = process.env.PAPERLESS_OPENAI_MODEL || config.openai.model;</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >      const response = await this.client.chat.completions.create({</span>
 <span class="cstat-no" title="statement not covered" >        model: model,</span>
@@ -1401,7 +1401,7 @@ class OpenAIService {
 <span class="cstat-no" title="statement not covered" >        throw new Error('OpenAI client not initialized - missing API key');</span>
 <span class="cstat-no" title="statement not covered" >      }</span>
 <span class="cstat-no" title="statement not covered" >      const response = await this.client.chat.completions.create({</span>
-<span class="cstat-no" title="statement not covered" >        model: process.env.OPENAI_MODEL,</span>
+<span class="cstat-no" title="statement not covered" >        model: process.env.PAPERLESS_OPENAI_MODEL,</span>
 <span class="cstat-no" title="statement not covered" >        messages: [</span>
 <span class="cstat-no" title="statement not covered" >          {</span>
 <span class="cstat-no" title="statement not covered" >            role: "user",</span>
@@ -1413,7 +1413,7 @@ class OpenAIService {
 <span class="cstat-no" title="statement not covered" >      if (!response?.choices?.[0]?.message?.content) {</span>
 <span class="cstat-no" title="statement not covered" >        throw new Error('Invalid API response structure');</span>
 <span class="cstat-no" title="statement not covered" >      }</span>
-<span class="cstat-no" title="statement not covered" >      return { status: 'ok', model: process.env.OPENAI_MODEL };</span>
+<span class="cstat-no" title="statement not covered" >      return { status: 'ok', model: process.env.PAPERLESS_OPENAI_MODEL };</span>
 <span class="cstat-no" title="statement not covered" >    } catch (error) {</span>
 <span class="cstat-no" title="statement not covered" >      console.error('Error checking OpenAI status:', error);</span>
 <span class="cstat-no" title="statement not covered" >      return { status: 'error', error: error.message };</span>

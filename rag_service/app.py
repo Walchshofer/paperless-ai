@@ -15,6 +15,7 @@ from .models import (
     SearchRequest,
     SearchResult,
 )
+from .qdrant_adapter import qdrant_adapter
 from .search_engine import SearchEngine
 from .startup import lifespan
 from .state import global_state
@@ -277,6 +278,7 @@ async def check_health():
         "data_manager": "unknown",
         "search_engine": "unknown",
         "documents_loaded": False,
+        "qdrant_initialized": False,
         "pgvector_initialized": False,
         "bm25_initialized": False,
         "issues": [],
@@ -319,37 +321,41 @@ async def check_health():
         else:
             health_status["search_engine"] = "ok"
 
-        # Check pgvector
-        if not global_state.search_engine or not global_state.search_engine.db_pool:
-            health_status["issues"].append("pgvector not initialized")
-            health_status["recommendations"].append(
-                "Call /indexing/start endpoint"
-            )
-            health_status["search_engine"] = "missing"
-        else:
-            try:
-                conn = global_state.search_engine.db_pool.getconn()
-                cursor = conn.cursor()
-                cursor.execute("SELECT COUNT(*) FROM document_embeddings;")
-                count = cursor.fetchone()[0]
-                cursor.close()
-                global_state.search_engine.db_pool.putconn(conn)
-
-                health_status["pgvector_initialized"] = count > 0
+        # Check Qdrant
+        try:
+            qdrant_health = qdrant_adapter.health_check()
+            if not qdrant_health.get("healthy"):
+                health_status["issues"].append("Qdrant not initialized")
+                health_status["recommendations"].append(
+                    "Start Qdrant and run /indexing/start"
+                )
+                health_status["search_engine"] = "missing"
+            else:
+                doc_coll = qdrant_health.get("collections", {}).get(
+                    "document_embeddings",
+                    {},
+                )
+                count = doc_coll.get("point_count", 0)
+                health_status["qdrant_initialized"] = doc_coll.get(
+                    "exists",
+                    False,
+                )
+                health_status["pgvector_initialized"] = (
+                    health_status["qdrant_initialized"]
+                )
                 if count == 0:
                     health_status["issues"].append(
-                        "pgvector table is empty"
+                        "Qdrant document_embeddings is empty"
                     )
                     health_status["recommendations"].append(
-                        "Call /indexing/start with force=true to rebuild pgvector"
+                        "Call /indexing/start with force=true to rebuild "
+                        "embeddings"
                     )
                 else:
                     health_status["search_engine"] = "ok"
-            except Exception as exc:
-                logger.error(f"Error checking pgvector: {str(exc)}")
-                health_status["issues"].append(
-                    "Error checking pgvector"
-                )
+        except Exception as exc:
+            logger.error("Error checking Qdrant: %s", str(exc))
+            health_status["issues"].append("Error checking Qdrant")
 
         if (
             global_state.search_engine

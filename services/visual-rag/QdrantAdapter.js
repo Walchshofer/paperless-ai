@@ -37,6 +37,8 @@ const COLLECTIONS = {
     }
 };
 
+const REQUIRED_PAYLOAD_FIELDS = ['doc_id', 'correspondent_id', 'tag_ids'];
+
 class QdrantAdapter {
     /**
      * Create a QdrantAdapter instance
@@ -80,8 +82,10 @@ class QdrantAdapter {
         try {
             logger.info('[QdrantAdapter] Initializing collections...');
 
-            for (const [key, config] of Object.entries(COLLECTIONS)) {
+            for (const config of Object.values(COLLECTIONS)) {
                 await this._ensureCollection(config);
+                await this._verifyCollectionConfig(config);
+                await this._ensurePayloadIndexes(config.name);
             }
 
             this._initialized = true;
@@ -165,6 +169,89 @@ class QdrantAdapter {
                 throw error;
             }
         }
+    }
+
+    async _verifyCollectionConfig(config) {
+        const info = await this.client.getCollection(config.name);
+        const vectorConfig = this._getVectorConfig(info);
+        if (!vectorConfig) {
+            throw new Error(
+                `[QdrantAdapter] Missing vector config for ${config.name}`
+            );
+        }
+
+        const actualSize = vectorConfig.size;
+        const actualDistance = vectorConfig.distance;
+        const expectedDistance = String(config.distance).toLowerCase();
+        const gotDistance = String(actualDistance).toLowerCase();
+
+        if (actualSize !== config.vectorSize || gotDistance !== expectedDistance) {
+            throw new Error(
+                `[QdrantAdapter] Distance Metric Lock mismatch for ${config.name}: ` +
+                `expected ${config.vectorSize}D ${config.distance}, got ` +
+                `${actualSize}D ${actualDistance}`
+            );
+        }
+    }
+
+    _getVectorConfig(info) {
+        const payload = info?.result || info;
+        const vectors = payload?.config?.params?.vectors;
+        if (!vectors) return null;
+        if (vectors.size && vectors.distance) return vectors;
+        if (typeof vectors === 'object') {
+            if (vectors.page_embedding) return vectors.page_embedding;
+            const first = Object.values(vectors)[0];
+            return first || null;
+        }
+        return null;
+    }
+
+    async _ensurePayloadIndexes(collectionName) {
+        for (const field of REQUIRED_PAYLOAD_FIELDS) {
+            try {
+                await this.client.createPayloadIndex(
+                    collectionName,
+                    field,
+                    'integer'
+                );
+            } catch (error) {
+                if (error.message?.toLowerCase().includes('already exists')) {
+                    continue;
+                }
+                throw error;
+            }
+        }
+    }
+
+    _normalizePayload(point) {
+        const payload = { ...(point.payload || {}) };
+        const docId = point.doc_id ?? point.docId ?? payload.doc_id ?? payload.docId;
+        if (docId === undefined || docId === null) {
+            throw new Error('[QdrantAdapter] Payload requires doc_id');
+        }
+        payload.doc_id = Number(docId);
+
+        const correspondentId = point.correspondent_id ??
+            point.correspondentId ??
+            payload.correspondent_id ??
+            payload.correspondentId;
+        payload.correspondent_id = correspondentId === undefined || correspondentId === null
+            ? null
+            : Number(correspondentId);
+
+        const tagIds = point.tag_ids ?? point.tagIds ?? payload.tag_ids ?? payload.tagIds;
+        if (tagIds === undefined || tagIds === null) {
+            payload.tag_ids = [];
+        } else if (Array.isArray(tagIds)) {
+            payload.tag_ids = tagIds
+                .filter(tag => tag !== null && tag !== undefined)
+                .map(tag => Number(tag));
+        } else {
+            payload.tag_ids = [Number(tagIds)];
+        }
+
+        return payload;
     }
 
     // =========================================================================
@@ -281,10 +368,10 @@ class QdrantAdapter {
         }
 
         try {
-            const formattedPoints = points.map(p => ({
-                id: typeof p.id === 'string' ? p.id : String(p.id),
-                vector: p.embedding || p.vector,
-                payload: p.payload || {}
+            const formattedPoints = points.map(point => ({
+                id: typeof point.id === 'string' ? point.id : String(point.id),
+                vector: point.embedding || point.vector,
+                payload: this._normalizePayload(point)
             }));
 
             await this.client.upsert(collectionName, {

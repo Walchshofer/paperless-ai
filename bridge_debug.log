@@ -1,0 +1,203 @@
+[2026-01-12T11:47:59.039972] [PYTHON-BRIDGE] Connecting to Serena SSE...
+[2026-01-12T11:47:59.040196] [PYTHON-BRIDGE] Codex Method: initialize
+[2026-01-12T11:47:59.041205] [PYTHON-BRIDGE] Codex Method: tools/list
+[2026-01-12T11:47:59.041992] [PYTHON-BRIDGE] Codex Method: resources/list
+[2026-01-12T11:49:10.138569] [PYTHON-BRIDGE] Connecting to Serena SSE...
+[2026-01-12T11:49:10.138779] [PYTHON-BRIDGE] Codex Method: initialize
+[2026-01-12T11:49:16.028461] [PYTHON-BRIDGE] Connecting to Serena SSE...
+[2026-01-12T11:49:16.028669] [PYTHON-BRIDGE] Codex Method: tools/list
+[2026-01-12T11:49:47.315266] [PYTHON-BRIDGE] Connecting to Serena SSE...
+[2026-01-12T11:49:47.315477] [PYTHON-BRIDGE] Codex Method: initialize
+[2026-01-12T11:49:47.316187] [PYTHON-BRIDGE] Codex Method: tools/list
+[2026-01-12T11:49:47.353559] [PYTHON-BRIDGE] SYNC SUCCESS: Session 14b4ee11d2934575bb1da9e0728dcba0
+[2026-01-12T11:55:37.865348] [CODEX-BRIDGE] ============================================================
+[2026-01-12T11:55:37.865813] [CODEX-BRIDGE] CODEX-Serena Bridge v2.0 starting...
+[2026-01-12T11:55:37.866062] [CODEX-BRIDGE] Serena endpoint: http://127.0.0.1:9121
+[2026-01-12T11:55:37.866338] [CODEX-BRIDGE] ============================================================
+[2026-01-12T11:55:37.867157] [CODEX-BRIDGE] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T11:55:37.903742] [CODEX-BRIDGE] Starting stdin handler...
+2d97086f1462fac3ac151fb153150
+[2026-01-12T11:55:37.904354] [CODEX-BRIDGE] CODEX request: initialize (id=1)
+[2026-01-12T11:55:46.686491] [CODEX-BRIDGE] ============================================================
+[2026-01-12T11:55:46.686951] [CODEX-BRIDGE] CODEX-Serena Bridge v2.0 starting...
+[2026-01-12T11:55:46.687202] [CODEX-BRIDGE] Serena endpoint: http://127.0.0.1:9121
+[2026-01-12T11:55:46.687432] [CODEX-BRIDGE] ============================================================
+[2026-01-12T11:55:46.688224] [CODEX-BRIDGE] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T11:55:46.725139] [CODEX-BRIDGE] Starting stdin handler...
+[2026-01-12T11:55:46.725107] [CODEX-BRIDGE] Connected with session: 0293073e8ddb4591bdf92124bb628cc3
+[2026-01-12T11:55:46.725817] [CODEX-BRIDGE] CODEX request: tools/list (id=1)
+[2026-01-12T11:55:46.725961] [CODEX-BRIDGE] Non-JSON SSE data: /messages/?session_id=0293073e8ddb4591bdf92124bb628cc3
+[2026-01-12T11:55:46.728765] [CODEX-BRIDGE] Routed response for request __fetch_tools__
+[2026-01-12T11:56:01.726735] [CODEX-BRIDGE] Tools not available yet, returning empty list
+[2026-01-12T11:56:59.252070] [CODEX-BRIDGE] ============================================================
+[2026-01-12T11:56:59.252580] [CODEX-BRIDGE] CODEX-Serena Bridge v2.0 starting...
+[2026-01-12T11:56:59.252865] [CODEX-BRIDGE] Serena endpoint: http://127.0.0.1:9121
+[2026-01-12T11:56:59.253111] [CODEX-BRIDGE] ============================================================
+[2026-01-12T11:56:59.253959] [CODEX-BRIDGE] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T11:56:59.290949] [CODEX-BRIDGE] Connected with session: e33e353a614d45849a8cc30996376106
+[2026-01-12T11:56:59.291890] [CODEX-BRIDGE] Requesting tools from Serena...
+[2026-01-12T11:56:59.291944] [CODEX-BRIDGE] Non-JSON SSE data: /messages/?session_id=e33e353a614d45849a8cc30996376106
+[2026-01-12T11:56:59.304978] [CODEX-BRIDGE] Routed response for request __fetch_tools__
+[2026-01-12T11:56:59.307611] [CODEX-BRIDGE] POST response: 202 Accepted
+[2026-01-12T11:56:59.307935] [CODEX-BRIDGE] Got tools response: {'jsonrpc': '2.0', 'id': '__fetch_tools__', 'error': {'code': -32602, 'message': 'Invalid request parameters', 'data': ''}}
+[2026-01-12T11:56:59.308312] [CODEX-BRIDGE] Serena error: {'code': -32602, 'message': 'Invalid request parameters', 'data': ''}
+[2026-01-12T11:57:19.291584] [CODEX-BRIDGE] WARNING: Tools not fetched yet, will fetch on demand
+[2026-01-12T11:57:19.292127] [CODEX-BRIDGE] Starting stdin handler...
+[2026-01-12T11:57:19.292475] [CODEX-BRIDGE] CODEX request: tools/list (id=1)
+[2026-01-12T11:58:13.021384] [CODEX-BRIDGE] ============================================================
+[2026-01-12T11:58:13.021868] [CODEX-BRIDGE] CODEX-Serena Bridge v2.0 starting...
+[2026-01-12T11:58:13.022120] [CODEX-BRIDGE] Serena endpoint: http://127.0.0.1:9121
+[2026-01-12T11:58:13.022343] [CODEX-BRIDGE] ============================================================
+[2026-01-12T11:58:13.023156] [CODEX-BRIDGE] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T11:58:13.059785] [CODEX-BRIDGE] Connected to Serena, waiting for tools...
+[2026-01-12T11:58:13.059755] [CODEX-BRIDGE] Connected with session: 9fa027b63cfd4b2f9443e6e9691487eb
+[2026-01-12T11:58:13.060676] [CODEX-BRIDGE] Requesting tools from Serena...
+[2026-01-12T11:58:13.060729] [CODEX-BRIDGE] Non-JSON SSE data: /messages/?session_id=9fa027b63cfd4b2f9443e6e9691487eb
+[2026-01-12T11:58:13.074245] [CODEX-BRIDGE] Routed response for request __fetch_tools__
+[2026-01-12T11:58:13.074819] [CODEX-BRIDGE] POST response: 202 Accepted
+[2026-01-12T11:58:13.075282] [CODEX-BRIDGE] Got tools response: {'jsonrpc': '2.0', 'id': '__fetch_tools__', 'error': {'code': -32602, 'message': 'Invalid request parameters', 'data': ''}}
+[2026-01-12T11:58:13.075722] [CODEX-BRIDGE] Serena error: {'code': -32602, 'message': 'Invalid request parameters', 'data': ''}
+[2026-01-12T11:58:33.060411] [CODEX-BRIDGE] WARNING: Tools not fetched yet, will fetch on demand
+[2026-01-12T11:58:33.060910] [CODEX-BRIDGE] Starting stdin handler...
+[2026-01-12T11:58:33.061187] [CODEX-BRIDGE] CODEX request: tools/list (id=1)
+[2026-01-12T11:59:18.784867] [CODEX-BRIDGE] ============================================================
+[2026-01-12T11:59:18.785373] [CODEX-BRIDGE] CODEX-Serena Bridge v2.0 starting...
+[2026-01-12T11:59:18.785681] [CODEX-BRIDGE] Serena endpoint: http://127.0.0.1:9121
+[2026-01-12T11:59:18.785906] [CODEX-BRIDGE] ============================================================
+[2026-01-12T11:59:18.786627] [CODEX-BRIDGE] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T11:59:18.823422] [CODEX-BRIDGE] Connected to Serena, waiting for tools...
+978e3ee69f4cb
+[2026-01-12T11:59:18.824192] [CODEX-BRIDGE] Requesting tools from Serena...
+[2026-01-12T11:59:18.824215] [CODEX-BRIDGE] SSE message received: /messages/?session_id=be07acda16e0444ea07978e3ee69f4cb
+[2026-01-12T11:59:18.824602] [CODEX-BRIDGE] Request payload: {"jsonrpc": "2.0", "id": "__fetch_tools__", "method": "tools/list", "params": {}}
+[2026-01-12T11:59:18.824670] [CODEX-BRIDGE] Non-JSON SSE data: /messages/?session_id=be07acda16e0444ea07978e3ee69f4cb
+[2026-01-12T11:59:18.837216] [CODEX-BRIDGE] SSE message received: {"jsonrpc":"2.0","id":"__fetch_tools__","error":{"code":-32602,"message":"Invalid request parameters","data":""}}
+[2026-01-12T11:59:18.837784] [CODEX-BRIDGE] Parsed JSON message with id=__fetch_tools__, keys=['jsonrpc', 'id', 'error']
+[2026-01-12T11:59:18.838275] [CODEX-BRIDGE] POST response: 202 Accepted
+[2026-01-12T11:59:18.838493] [CODEX-BRIDGE] Pending requests: ['__fetch_tools__']
+[2026-01-12T11:59:18.838795] [CODEX-BRIDGE] Routed response for request __fetch_tools__
+[2026-01-12T11:59:18.838821] [CODEX-BRIDGE] Got tools response: {'jsonrpc': '2.0', 'id': '__fetch_tools__', 'error': {'code': -32602, 'message': 'Invalid request parameters', 'data': ''}}
+[2026-01-12T11:59:18.839197] [CODEX-BRIDGE] Serena error: {'code': -32602, 'message': 'Invalid request parameters', 'data': ''}
+[2026-01-12T11:59:38.824631] [CODEX-BRIDGE] WARNING: Tools not fetched yet, will fetch on demand
+[2026-01-12T11:59:38.825220] [CODEX-BRIDGE] Starting stdin handler...
+[2026-01-12T11:59:38.825502] [CODEX-BRIDGE] CODEX request: initialize (id=1)
+[2026-01-12T12:00:34.911268] [CODEX-BRIDGE] ============================================================
+[2026-01-12T12:00:34.911749] [CODEX-BRIDGE] CODEX-Serena Bridge v2.0 starting...
+[2026-01-12T12:00:34.912257] [CODEX-BRIDGE] Serena endpoint: http://127.0.0.1:9121
+[2026-01-12T12:00:34.912692] [CODEX-BRIDGE] ============================================================
+[2026-01-12T12:00:34.913846] [CODEX-BRIDGE] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T12:00:34.963153] [CODEX-BRIDGE] Connected to Serena, waiting for tools...
+f3e0c14ba9bbe
+[2026-01-12T12:00:34.964002] [CODEX-BRIDGE] Initializing Serena session...
+[2026-01-12T12:00:34.964027] [CODEX-BRIDGE] SSE message received: /messages/?session_id=5cfe732e61164449afff3e0c14ba9bbe
+[2026-01-12T12:00:34.964896] [CODEX-BRIDGE] Non-JSON SSE data: /messages/?session_id=5cfe732e61164449afff3e0c14ba9bbe
+[2026-01-12T12:00:34.967952] [CODEX-BRIDGE] SSE message received: {"jsonrpc":"2.0","id":"__init_serena__","result":{"protocolVersion":"2024-11-05","capabilities":{"experimental":{},"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"
+[2026-01-12T12:00:34.968275] [CODEX-BRIDGE] Parsed JSON message with id=__init_serena__, keys=['jsonrpc', 'id', 'result']
+[2026-01-12T12:00:34.968511] [CODEX-BRIDGE] Pending requests: ['__init_serena__']
+[2026-01-12T12:00:34.968754] [CODEX-BRIDGE] Routed response for request __init_serena__
+[2026-01-12T12:00:34.968775] [CODEX-BRIDGE] Serena session initialized: {'name': 'FastMCP', 'version': '1.23.0'}
+[2026-01-12T12:00:34.969353] [CODEX-BRIDGE] Requesting tools from Serena...
+[2026-01-12T12:00:34.969626] [CODEX-BRIDGE] Request payload: {"jsonrpc": "2.0", "id": "__fetch_tools__", "method": "tools/list", "params": {}}
+[2026-01-12T12:00:34.972938] [CODEX-BRIDGE] POST response: 202 Accepted
+[2026-01-12T12:00:34.974709] [CODEX-BRIDGE] SSE message received: {"jsonrpc":"2.0","id":"__fetch_tools__","result":{"tools":[{"name":"read_file","title":"Read File","description":"Reads the given file or a chunk of it. Generally, symbolic operations\nlike find_symbo
+[2026-01-12T12:00:34.975122] [CODEX-BRIDGE] Parsed JSON message with id=__fetch_tools__, keys=['jsonrpc', 'id', 'result']
+[2026-01-12T12:00:34.975363] [CODEX-BRIDGE] Pending requests: ['__fetch_tools__']
+[2026-01-12T12:00:34.975622] [CODEX-BRIDGE] Routed response for request __fetch_tools__
+[2026-01-12T12:00:34.975959] [CODEX-BRIDGE] Got tools response: {'jsonrpc': '2.0', 'id': '__fetch_tools__', 'result': {'tools': [{'name': 'read_file', 'title': 'Read File', 'description': 'Reads the given file or a chunk of it. Generally, symbolic operations\nlike
+[2026-01-12T12:00:34.976181] [CODEX-BRIDGE] Fetched 28 tools from Serena
+[2026-01-12T12:00:34.976206] [CODEX-BRIDGE] Ready with 28 tools
+[2026-01-12T12:00:34.976408] [CODEX-BRIDGE] SUCCESS: 28 tools available
+[2026-01-12T12:00:34.976806] [CODEX-BRIDGE] Starting stdin handler...
+[2026-01-12T12:00:34.976858] [CODEX-BRIDGE] Tools include: read_file, create_text_file, list_dir, find_file, replace_content...
+[2026-01-12T12:00:34.977246] [CODEX-BRIDGE] CODEX request: tools/list (id=1)
+[2026-01-12T12:01:03.123271] [CODEX-BRIDGE] ============================================================
+[2026-01-12T12:01:03.123715] [CODEX-BRIDGE] CODEX-Serena Bridge v2.0 starting...
+[2026-01-12T12:01:03.123958] [CODEX-BRIDGE] Serena endpoint: http://127.0.0.1:9121
+[2026-01-12T12:01:03.124198] [CODEX-BRIDGE] ============================================================
+[2026-01-12T12:01:03.124997] [CODEX-BRIDGE] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T12:01:03.161775] [CODEX-BRIDGE] Connected to Serena, waiting for tools...
+9f2d410223534
+[2026-01-12T12:01:03.162581] [CODEX-BRIDGE] SSE message received: /messages/?session_id=a834c8adcd404ba6b5c9f2d410223534
+[2026-01-12T12:01:03.162555] [CODEX-BRIDGE] Initializing Serena session...
+[2026-01-12T12:01:03.162935] [CODEX-BRIDGE] Non-JSON SSE data: /messages/?session_id=a834c8adcd404ba6b5c9f2d410223534
+[2026-01-12T12:01:03.175608] [CODEX-BRIDGE] SSE message received: {"jsonrpc":"2.0","id":"__init_serena__","result":{"protocolVersion":"2024-11-05","capabilities":{"experimental":{},"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"
+[2026-01-12T12:01:03.175946] [CODEX-BRIDGE] Parsed JSON message with id=__init_serena__, keys=['jsonrpc', 'id', 'result']
+[2026-01-12T12:01:03.176171] [CODEX-BRIDGE] Pending requests: ['__init_serena__']
+[2026-01-12T12:01:03.176416] [CODEX-BRIDGE] Serena session initialized: {'name': 'FastMCP', 'version': '1.23.0'}
+[2026-01-12T12:01:03.176965] [CODEX-BRIDGE] Requesting tools from Serena...
+[2026-01-12T12:01:03.177315] [CODEX-BRIDGE] Request payload: {"jsonrpc": "2.0", "id": "__fetch_tools__", "method": "tools/list", "params": {}}
+[2026-01-12T12:01:03.180593] [CODEX-BRIDGE] POST response: 202 Accepted
+[2026-01-12T12:01:03.182082] [CODEX-BRIDGE] SSE message received: {"jsonrpc":"2.0","id":"__fetch_tools__","result":{"tools":[{"name":"read_file","title":"Read File","description":"Reads the given file or a chunk of it. Generally, symbolic operations\nlike find_symbo
+[2026-01-12T12:01:03.187510] [CODEX-BRIDGE] Parsed JSON message with id=__fetch_tools__, keys=['jsonrpc', 'id', 'result']
+[2026-01-12T12:01:03.187765] [CODEX-BRIDGE] Pending requests: ['__fetch_tools__']
+[2026-01-12T12:01:03.188008] [CODEX-BRIDGE] Routed response for request __fetch_tools__
+[2026-01-12T12:01:03.188318] [CODEX-BRIDGE] Got tools response: {'jsonrpc': '2.0', 'id': '__fetch_tools__', 'result': {'tools': [{'name': 'read_file', 'title': 'Read File', 'description': 'Reads the given file or a chunk of it. Generally, symbolic operations\nlike
+[2026-01-12T12:01:03.188500] [CODEX-BRIDGE] Fetched 28 tools from Serena
+[2026-01-12T12:01:03.188514] [CODEX-BRIDGE] Ready with 28 tools
+[2026-01-12T12:01:03.188682] [CODEX-BRIDGE] SUCCESS: 28 tools available
+[2026-01-12T12:01:03.189001] [CODEX-BRIDGE] Tools include: read_file, create_text_file, list_dir, find_file, replace_content...
+[2026-01-12T12:01:03.189436] [CODEX-BRIDGE] CODEX request: initialize (id=1)
+[2026-01-12T12:01:03.189768] [CODEX-BRIDGE] CODEX request: tools/list (id=2)
+[2026-01-12T12:01:12.117054] [CODEX-BRIDGE] ============================================================
+[2026-01-12T12:01:12.117579] [CODEX-BRIDGE] CODEX-Serena Bridge v2.0 starting...
+[2026-01-12T12:01:12.117960] [CODEX-BRIDGE] Serena endpoint: http://127.0.0.1:9121
+[2026-01-12T12:01:12.118299] [CODEX-BRIDGE] ============================================================
+[2026-01-12T12:01:12.119160] [CODEX-BRIDGE] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T12:01:12.171410] [CODEX-BRIDGE] Connected with session: 059ca11c37014311938f15be1b4f00f8
+[2026-01-12T12:01:12.172199] [CODEX-BRIDGE] Initializing Serena session...
+[2026-01-12T12:01:12.172227] [CODEX-BRIDGE] SSE message received: /messages/?session_id=059ca11c37014311938f15be1b4f00f8
+[2026-01-12T12:01:12.173066] [CODEX-BRIDGE] Non-JSON SSE data: /messages/?session_id=059ca11c37014311938f15be1b4f00f8
+[2026-01-12T12:01:12.175488] [CODEX-BRIDGE] SSE message received: {"jsonrpc":"2.0","id":"__init_serena__","result":{"protocolVersion":"2024-11-05","capabilities":{"experimental":{},"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"
+[2026-01-12T12:01:12.175798] [CODEX-BRIDGE] Parsed JSON message with id=__init_serena__, keys=['jsonrpc', 'id', 'result']
+[2026-01-12T12:01:12.176068] [CODEX-BRIDGE] Pending requests: ['__init_serena__']
+[2026-01-12T12:01:12.176317] [CODEX-BRIDGE] Routed response for request __init_serena__
+[2026-01-12T12:01:12.176336] [CODEX-BRIDGE] Serena session initialized: {'name': 'FastMCP', 'version': '1.23.0'}
+[2026-01-12T12:01:12.176855] [CODEX-BRIDGE] Requesting tools from Serena...
+[2026-01-12T12:01:12.177199] [CODEX-BRIDGE] Request payload: {"jsonrpc": "2.0", "id": "__fetch_tools__", "method": "tools/list", "params": {}}
+[2026-01-12T12:01:12.190849] [CODEX-BRIDGE] POST response: 202 Accepted
+[2026-01-12T12:01:12.192512] [CODEX-BRIDGE] SSE message received: {"jsonrpc":"2.0","id":"__fetch_tools__","result":{"tools":[{"name":"read_file","title":"Read File","description":"Reads the given file or a chunk of it. Generally, symbolic operations\nlike find_symbo
+[2026-01-12T12:01:12.192931] [CODEX-BRIDGE] Parsed JSON message with id=__fetch_tools__, keys=['jsonrpc', 'id', 'result']
+[2026-01-12T12:01:12.193184] [CODEX-BRIDGE] Pending requests: ['__fetch_tools__']
+[2026-01-12T12:01:12.193483] [CODEX-BRIDGE] Routed response for request __fetch_tools__
+[2026-01-12T12:01:12.193791] [CODEX-BRIDGE] Got tools response: {'jsonrpc': '2.0', 'id': '__fetch_tools__', 'result': {'tools': [{'name': 'read_file', 'title': 'Read File', 'description': 'Reads the given file or a chunk of it. Generally, symbolic operations\nlike
+[2026-01-12T12:01:12.194065] [CODEX-BRIDGE] Fetched 28 tools from Serena
+[2026-01-12T12:01:12.194110] [CODEX-BRIDGE] Ready with 28 tools
+[2026-01-12T12:01:12.194331] [CODEX-BRIDGE] SUCCESS: 28 tools available
+[2026-01-12T12:01:12.194833] [CODEX-BRIDGE] Starting stdin handler...
+[2026-01-12T12:01:12.195018] [CODEX-BRIDGE] Tools include: read_file, create_text_file, list_dir, find_file, replace_content...
+[2026-01-12T12:01:12.195372] [CODEX-BRIDGE] CODEX request: initialize (id=1)
+[2026-01-12T12:01:12.686025] [CODEX-BRIDGE] CODEX request: tools/call (id=2)
+[2026-01-12T12:01:12.686508] [CODEX-BRIDGE] Forwarding tools/call (id=2) to Serena
+[2026-01-12T12:01:12.806878] [CODEX-BRIDGE] SSE message received: {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"Current configuration:\nSerena version: 0.1.4\nLoglevel: 20, trace_lsp_communication=False\nActive project: paperless-ai\nAvailable 
+[2026-01-12T12:01:12.807331] [CODEX-BRIDGE] Parsed JSON message with id=2, keys=['jsonrpc', 'id', 'result']
+[2026-01-12T12:01:12.807595] [CODEX-BRIDGE] Pending requests: [2]
+[2026-01-12T12:01:12.807842] [CODEX-BRIDGE] Routed response for request 2
+[2026-01-12T12:01:12.807864] [CODEX-BRIDGE] Received response for 2
+[2026-01-12T12:22:34.170536] [CODEX-BRIDGE] ============================================================
+[2026-01-12T12:22:34.171592] [CODEX-BRIDGE] CODEX-Serena Bridge v2.0 starting...
+[2026-01-12T12:22:34.172006] [CODEX-BRIDGE] Serena endpoint: http://127.0.0.1:9121
+[2026-01-12T12:22:34.172469] [CODEX-BRIDGE] ============================================================
+[2026-01-12T12:22:34.173395] [CODEX-BRIDGE] Connecting to Serena SSE (attempt 1)...
+[2026-01-12T12:22:34.221591] [CODEX-BRIDGE] Connected to Serena, waiting for tools...
+1c247fb6d1234
+[2026-01-12T12:22:34.222350] [CODEX-BRIDGE] Initializing Serena session...
+[2026-01-12T12:22:34.222380] [CODEX-BRIDGE] SSE message received: /messages/?session_id=e3ea8a15d4754475b671c247fb6d1234
+[2026-01-12T12:22:34.222839] [CODEX-BRIDGE] Non-JSON SSE data: /messages/?session_id=e3ea8a15d4754475b671c247fb6d1234
+[2026-01-12T12:22:34.235142] [CODEX-BRIDGE] SSE message received: {"jsonrpc":"2.0","id":"__init_serena__","result":{"protocolVersion":"2024-11-05","capabilities":{"experimental":{},"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"
+[2026-01-12T12:22:34.235606] [CODEX-BRIDGE] Parsed JSON message with id=__init_serena__, keys=['jsonrpc', 'id', 'result']
+[2026-01-12T12:22:34.235972] [CODEX-BRIDGE] Pending requests: ['__init_serena__']
+[2026-01-12T12:22:34.236311] [CODEX-BRIDGE] Serena session initialized: {'name': 'FastMCP', 'version': '1.23.0'}
+[2026-01-12T12:22:34.236282] [CODEX-BRIDGE] Routed response for request __init_serena__
+[2026-01-12T12:22:34.236967] [CODEX-BRIDGE] Requesting tools from Serena...
+[2026-01-12T12:22:34.237393] [CODEX-BRIDGE] Request payload: {"jsonrpc": "2.0", "id": "__fetch_tools__", "method": "tools/list", "params": {}}
+[2026-01-12T12:22:34.241268] [CODEX-BRIDGE] POST response: 202 Accepted
+[2026-01-12T12:22:34.242352] [CODEX-BRIDGE] SSE message received: {"jsonrpc":"2.0","id":"__fetch_tools__","result":{"tools":[{"name":"read_file","title":"Read File","description":"Reads the given file or a chunk of it. Generally, symbolic operations\nlike find_symbo
+[2026-01-12T12:22:34.242891] [CODEX-BRIDGE] Parsed JSON message with id=__fetch_tools__, keys=['jsonrpc', 'id', 'result']
+[2026-01-12T12:22:34.243349] [CODEX-BRIDGE] Pending requests: ['__fetch_tools__']
+[2026-01-12T12:22:34.243761] [CODEX-BRIDGE] Routed response for request __fetch_tools__
+[2026-01-12T12:22:34.244065] [CODEX-BRIDGE] Got tools response: {'jsonrpc': '2.0', 'id': '__fetch_tools__', 'result': {'tools': [{'name': 'read_file', 'title': 'Read File', 'description': 'Reads the given file or a chunk of it. Generally, symbolic operations\nlike
+[2026-01-12T12:22:34.244322] [CODEX-BRIDGE] Ready with 28 tools
+ Serena
+[2026-01-12T12:22:34.244506] [CODEX-BRIDGE] SUCCESS: 28 tools available
+[2026-01-12T12:22:34.244857] [CODEX-BRIDGE] Starting stdin handler...
+[2026-01-12T12:22:34.244932] [CODEX-BRIDGE] Tools include: read_file, create_text_file, list_dir, find_file, replace_content...

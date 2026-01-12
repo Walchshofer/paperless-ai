@@ -20,24 +20,6 @@ async function main() {
   const doMigrate = process.argv.includes('--migrate');
 
   try {
-    // Ensure pgvector extension is enabled (best effort)
-    const extRes = await client.query("SELECT extname FROM pg_extension WHERE extname = 'vector'");
-    if (!extRes.rows.length) {
-      console.warn('pg_vector extension not found');
-      if (doMigrate) {
-        console.log('Attempting to create pgvector extension (requires sufficient privileges)...');
-        try {
-          await client.query('CREATE EXTENSION IF NOT EXISTS vector');
-          console.log('pgvector extension created or already present');
-        } catch (createErr) {
-          console.error('Failed to create pgvector extension:', createErr.message);
-          // continue - some deployments may not have privileges
-        }
-      }
-    } else {
-      console.log('pg_vector:', extRes.rows[0].extname);
-    }
-
     // If requested, apply migration SQL
     if (doMigrate) {
       const path = require('path');
@@ -66,18 +48,20 @@ async function main() {
     }
     console.log('feedback_events exists');
 
-    // Check embedding & bbox columns
-    const cols = await client.query("SELECT column_name, data_type FROM information_schema.columns WHERE table_name='visual_overlays' AND column_name IN ('bbox','embedding')");
+    // Check metadata columns and ensure vector columns are absent
+    const cols = await client.query("SELECT column_name FROM information_schema.columns WHERE table_name='visual_overlays'");
     const found = cols.rows.map(r => r.column_name);
     if (!found.includes('bbox')) {
       console.warn('visual_overlays.bbox column not found');
     } else {
       console.log('visual_overlays.bbox: present');
     }
-    if (!found.includes('embedding')) {
-      console.warn('visual_overlays.embedding column not found (optional for some deployments)');
-    } else {
-      console.log('visual_overlays.embedding:', cols.rows.find(r => r.column_name === 'embedding').data_type);
+
+    const vectorColumns = ['embedding', 'embedding_vector', 'vector_320'];
+    const presentVectors = vectorColumns.filter(col => found.includes(col));
+    if (presentVectors.length > 0) {
+      console.error('Vector columns found in visual_overlays:', presentVectors);
+      process.exit(6);
     }
 
     console.log('DB schema checks completed successfully');

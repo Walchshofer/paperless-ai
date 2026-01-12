@@ -329,6 +329,12 @@ Generate targeted visual queries for field validation and missing field detectio
 - Executes visual queries generated in Stage 5.5
 - Circuit breaker protected
 
+**Visual RAG Stage (Native Protocol Alpha-9)**
+- **Input:** Base64 images + Query (from Visual Query Generator)
+- **Mechanism:** Native ColQwen3 late-interaction MaxSim (`processor.score_multi_vector`) executed by the Visual RAG Sidecar (320-dim multi-vector per patch).
+- **Gate:** Accept hits when MaxSim score >= **0.85** (configurable threshold for high-precision retrieval).
+- **Fallback:** If the Visual RAG Sidecar returns `503 Initializing` or is unavailable, route the query to Text RAG (Qdrant `document_embeddings`) as the fallback retrieval path.
+
 **Visual Query Execution**
 - Max 5 concurrent queries per document
 - Dynamic k selection based on query type and confidence

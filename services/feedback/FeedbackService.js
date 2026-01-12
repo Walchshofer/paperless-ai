@@ -9,6 +9,7 @@ const logger = require('../logger');
 const path = require('path');
 const fs = require('fs').promises;
 const { metricsCollector } = require('../metrics/PrometheusMetrics');
+const { qdrantAdapter } = require('../visual-rag/QdrantAdapter');
 
 // Lazy-load pg to allow graceful degradation
 let Pool = null;
@@ -253,6 +254,39 @@ class FeedbackService {
             return emb;
         };
 
+        const normalizeTagIds = (value) => {
+            if (value === undefined || value === null) return [];
+            const items = Array.isArray(value) ? value : [value];
+            return items
+                .map(item => (item && typeof item === 'object') ? item.id : item)
+                .map(item => {
+                    const num = Number(item);
+                    return Number.isNaN(num) ? null : num;
+                })
+                .filter(item => item !== null);
+        };
+
+        const resolveCorrespondentId = (context, event) => {
+            const value = context.correspondent_id ??
+                context.correspondentId ??
+                event.correspondent_id ??
+                event.correspondentId ??
+                event.correspondent;
+            if (value === undefined || value === null) return null;
+            const num = Number(value);
+            return Number.isNaN(num) ? null : num;
+        };
+
+        const resolveTagIds = (context, event) => {
+            const value = context.tag_ids ??
+                context.tagIds ??
+                context.tags ??
+                event.tag_ids ??
+                event.tagIds ??
+                event.tags;
+            return normalizeTagIds(value);
+        };
+
         // To handle rare cases where a pooled client may be left with an aborted transaction,
         // retry the whole operation once with a fresh client if we detect the 'current transaction is aborted' state.
         const maxAttempts = 2;
@@ -306,84 +340,55 @@ class FeedbackService {
                         }
 
                         const overlayQuery = `
-                            INSERT INTO visual_overlays (doc_id, page_number, overlay_data, semantic_label, source, bbox, embedding)
-                            VALUES ($1, $2, $3, $4, $5, $6, $7::vector)
+                            INSERT INTO visual_overlays (
+                                doc_id,
+                                page_number,
+                                overlay_data,
+                                semantic_label,
+                                source,
+                                bbox
+                            )
+                            VALUES ($1, $2, $3, $4, $5, $6)
                             RETURNING id
                         `;
 
-                        // embeddingVal must be an array-like JSON string accepted by vector column
-                        const embeddingVal = Array.isArray(embedding) ? JSON.stringify(embedding) : embedding;
+                        const overlayResult = await client.query(overlayQuery, [
+                            docId,
+                            page,
+                            JSON.stringify(overlayData),
+                            label,
+                            'manual',
+                            JSON.stringify(bbox)
+                        ]);
 
-                        // Attempt insert; if pgvector complains about dimensions, try to adapt embedding length and retry
-                        const spName = `sp_overlay_${Date.now()}_${Math.floor(Math.random()*10000)}`;
-                        try {
-                            // Create a savepoint so we can rollback only the overlay insert if needed without aborting the whole transaction
-                            await client.query(`SAVEPOINT ${spName}`);
-                            logger.info('overlay_insert_savepoint_created', { requestId, documentId: docId, savepoint: spName, label, page });
+                        const overlayId = overlayResult.rows[0]?.id;
+                        const correspondentId = resolveCorrespondentId(context, evt);
+                        const tagIds = resolveTagIds(context, evt);
 
-                            logger.info('overlay_insert_attempt', { requestId, documentId: docId, label, page, bbox, embeddingLength: Array.isArray(embedding) ? embedding.length : (embedding ? embedding.length : 'unknown') });
-                            await client.query(overlayQuery, [
-                                docId,
-                                page,
-                                JSON.stringify(overlayData),
-                                label,
-                                'manual',
-                                JSON.stringify(bbox),
-                                embeddingVal
-                            ]);
-
-                            // Release savepoint explicitly after success
-                            try { await client.query(`RELEASE SAVEPOINT ${spName}`); } catch (relErr) { /* ignore release errors */ }
-
-                            logger.info('overlay_insert_success', { requestId, documentId: docId, label, page });
-                        } catch (e) {
-                            // Detect dimension mismatch like: "expected 768 dimensions, not 320"
-                            const msg = e && e.message ? e.message : '';
-                            logger.error('overlay_insert_error', { requestId, documentId: docId, error: msg, savepoint: spName });
-                            const m = msg.match(/expected (\d+) dimensions?, not (\d+)/i);
-                            if (m) {
-                                const expected = parseInt(m[1], 10);
-                                // Rollback to the savepoint to clear the aborted state for this portion only
-                                try {
-                                    await client.query(`ROLLBACK TO SAVEPOINT ${spName}`);
-                                } catch (rbSpErr) {
-                                    logger.error('savepoint_rollback_failed', { requestId, documentId: docId, savepoint: spName, error: rbSpErr && rbSpErr.message });
-                                    throw rbSpErr;
-                                }
-
-                                // Pad or truncate our embedding to match expected
-                                let arr = Array.isArray(embedding) ? embedding.slice() : [];
-                                if (arr.length < expected) {
-                                    while (arr.length < expected) arr.push(0.0);
-                                } else if (arr.length > expected) {
-                                    arr = arr.slice(0, expected);
-                                }
-                                const newEmbeddingVal = JSON.stringify(arr);
-
-                                // Telemetry for dimension adaptation
-                                try { metricsCollector && metricsCollector.increment && metricsCollector.increment('embedding_dimension_adapted'); } catch (mErr) { /* ignore */ }
-                                logger.info('embedding_dimension_adapted', { requestId, documentId: docId, expected, got: Array.isArray(embedding) ? embedding.length : 'unknown' });
-                                logger.info('overlay_insert_retry_with_adjusted_embedding', { requestId, documentId: docId, label, page, newEmbeddingLength: arr.length });
-
-                                // Retry the insert; if this fails the error will bubble to outer catch and cause full tx rollback
-                                await client.query(overlayQuery, [
-                                    docId,
-                                    page,
-                                    JSON.stringify(overlayData),
-                                    label,
-                                    'manual',
-                                    JSON.stringify(bbox),
-                                    newEmbeddingVal
+                        if (qdrantAdapter && Array.isArray(embedding)) {
+                            try {
+                                await qdrantAdapter.upsertVisualOverlays([
+                                    {
+                                        id: overlayId || `${docId}-${page}-${Date.now()}`,
+                                        embedding,
+                                        payload: {
+                                            doc_id: docId,
+                                            correspondent_id: correspondentId,
+                                            tag_ids: tagIds,
+                                            page_number: page,
+                                            semantic_label: label
+                                        },
+                                        docId,
+                                        correspondentId,
+                                        tagIds
+                                    }
                                 ]);
-
-                                try { await client.query(`RELEASE SAVEPOINT ${spName}`); } catch (relErr) { /* ignore release errors */ }
-
-                                logger.info('overlay_insert_success_after_adjustment', { requestId, documentId: docId, label, page });
-                            } else {
-                                logger.error('overlay_insert_failed', { requestId, documentId: docId, error: e && e.message, stack: e && e.stack });
-                                // Attempt to rollback to savepoint to keep transaction healthy before rethrowing
-                                try { await client.query(`ROLLBACK TO SAVEPOINT ${spName}`); } catch (rbSpErr) { /* ignore */ }
-                                throw e;
+                            } catch (qdrantErr) {
+                                logger.warn('qdrant_overlay_upsert_failed', {
+                                    requestId,
+                                    documentId: docId,
+                                    error: qdrantErr.message
+                                });
                             }
                         }
 

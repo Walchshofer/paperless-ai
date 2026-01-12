@@ -1,11 +1,11 @@
 /**
  * VisualOverlayRepository.js
  *
- * Repository for storing and retrieving visual overlays from PostgreSQL.
- * Manages bounding boxes and semantic labels extracted by Qwen3-VL.
+ * Repository for storing and retrieving visual overlay METADATA from PostgreSQL.
+ * Vector embeddings are stored in Qdrant (see QdrantAdapter.js).
  *
- * Architecture Reference: PROMPT-001 (PostgreSQL Schema)
- * Table: visual_overlays
+ * Architecture Reference: PROMPT-001 (PostgreSQL Schema), QDRANT_MIGRATION.md
+ * Table: visual_overlays (metadata only - no embedding column)
  *
  * Required: npm install pg
  *
@@ -15,11 +15,28 @@
  *   box: [ymin, xmin, ymax, xmax],  // Coordinates 0-1000
  *   confidence: 0.95
  * }
+ *
+ * For vector operations, use QdrantAdapter:
+ *   const { qdrantAdapter } = require('./QdrantAdapter');
+ *   await qdrantAdapter.searchVisualOverlays(queryVector, { limit: 5 });
  */
 
 const logger = require('../logger');
 const fs = require('fs');
 const path = require('path');
+
+// Import Qdrant adapter for vector operations
+let qdrantAdapter = null;
+try {
+    const QdrantModule = require('./QdrantAdapter');
+    qdrantAdapter = QdrantModule.qdrantAdapter;
+} catch (e) {
+    logger.warn({
+        event: 'qdrant_adapter_not_available',
+        error: e.message,
+        note: 'Vector search will not be available'
+    });
+}
 
 // Lazy-load pg to allow graceful degradation if not installed
 let Pool = null;
@@ -298,55 +315,56 @@ class VisualOverlayRepository {
     }
 
     /**
-     * Check if pg_vector extension is available and properly installed
+     * Check if Qdrant is available for vector operations.
+     * pgvector is no longer required - vectors are stored in Qdrant.
+     *
      * @returns {Promise<{available: boolean, version: string|null, error: string|null}>}
+     * @deprecated Use qdrantAdapter.healthCheck() instead
      */
     async checkPgVectorExtension() {
-        if (!this.pool) {
+        // For backward compatibility, check Qdrant health instead
+        if (!qdrantAdapter) {
             return {
                 available: false,
                 version: null,
-                error: 'PostgreSQL connection pool not initialized'
+                error: 'Qdrant adapter not initialized. Vector search requires Qdrant.'
             };
         }
 
         try {
-            // Check if extension exists in available extensions
-            const availableResult = await this.pool.query(
-                "SELECT * FROM pg_available_extensions WHERE name = 'vector'"
-            );
-
-            if (availableResult.rows.length === 0) {
-                return {
-                    available: false,
-                    version: null,
-                    error: 'pgvector extension not available in PostgreSQL installation'
-                };
-            }
-
-            // Check if extension is installed
-            const installedResult = await this.pool.query(
-                "SELECT extversion FROM pg_extension WHERE extname = 'vector'"
-            );
-
-            if (installedResult.rows.length === 0) {
-                return {
-                    available: false,
-                    version: availableResult.rows[0].default_version,
-                    error: 'pgvector extension available but not installed (run CREATE EXTENSION vector)'
-                };
-            }
-
+            const health = await qdrantAdapter.healthCheck();
             return {
-                available: true,
-                version: installedResult.rows[0].extversion,
-                error: null
+                available: health.healthy,
+                version: 'qdrant',
+                error: health.healthy ? null : 'Qdrant health check failed'
             };
         } catch (checkError) {
             return {
                 available: false,
                 version: null,
-                error: `Failed to check pgvector: ${checkError.message}`
+                error: `Failed to check Qdrant: ${checkError.message}`
+            };
+        }
+    }
+
+    /**
+     * Check if Qdrant is available for vector operations.
+     * @returns {Promise<{healthy: boolean, collections: Object}>}
+     */
+    async checkQdrantHealth() {
+        if (!qdrantAdapter) {
+            return {
+                healthy: false,
+                error: 'Qdrant adapter not initialized'
+            };
+        }
+
+        try {
+            return await qdrantAdapter.healthCheck();
+        } catch (error) {
+            return {
+                healthy: false,
+                error: error.message
             };
         }
     }
@@ -356,12 +374,14 @@ class VisualOverlayRepository {
     // =========================================================================
 
     /**
-     * Save a single overlay for a document page
+     * Save a single overlay for a document page (metadata only).
+     * For vector embeddings, use QdrantAdapter.upsertVisualOverlays().
+     *
      * @param {number} docId - Paperless document ID
      * @param {number} pageNumber - Page number (1-indexed)
      * @param {Object} overlayData - Overlay data with label, box, confidence
      * @param {string} semanticLabel - Optional semantic label for quick filtering
-     * @param {Array<number>} embedding - Optional vector embedding
+     * @param {Array<number>} embedding - Optional vector embedding (stored in Qdrant if provided)
      * @returns {Promise<Object>} Created overlay record
      */
     async saveOverlay(docId, pageNumber, overlayData, semanticLabel = null, embedding = null) {
@@ -369,32 +389,55 @@ class VisualOverlayRepository {
             throw new Error('PostgreSQL not available');
         }
 
+        // Insert metadata into PostgreSQL (no embedding column)
         const query = `
-            INSERT INTO visual_overlays (doc_id, page_number, overlay_data, semantic_label, embedding)
-            VALUES ($1, $2, $3, $4, $5::vector)
+            INSERT INTO visual_overlays (doc_id, page_number, overlay_data, semantic_label)
+            VALUES ($1, $2, $3, $4)
             RETURNING id, doc_id, page_number, overlay_data, semantic_label, created_at
         `;
 
         const label = semanticLabel || overlayData.label || null;
-        const embeddingVal = Array.isArray(embedding) ? JSON.stringify(embedding) : (embedding || null);
 
         try {
             const result = await this.pool.query(query, [
                 docId,
                 pageNumber,
                 JSON.stringify(overlayData),
-                label,
-                embeddingVal
+                label
             ]);
+
+            const savedRow = this._mapRow(result.rows[0]);
+
+            // If embedding provided, store in Qdrant
+            if (embedding && Array.isArray(embedding) && qdrantAdapter) {
+                try {
+                    await qdrantAdapter.upsertVisualOverlays([{
+                        id: savedRow.id,
+                        docId,
+                        pageNumber,
+                        semanticLabel: label,
+                        embedding
+                    }]);
+                } catch (qdrantError) {
+                    logger.warn({
+                        event: 'qdrant_embedding_save_failed',
+                        docId,
+                        pageNumber,
+                        error: qdrantError.message
+                    });
+                    // Don't fail the whole operation - metadata is saved
+                }
+            }
 
             logger.debug({
                 event: 'overlay_saved',
                 docId,
                 pageNumber,
-                label
+                label,
+                hasEmbedding: !!embedding
             });
 
-            return this._mapRow(result.rows[0]);
+            return savedRow;
         } catch (saveError) {
             throw this._wrapError('Failed to save overlay', saveError);
         }
@@ -420,9 +463,11 @@ class VisualOverlayRepository {
     }
 
     /**
-     * Save multiple overlays for a document (batch insert)
+     * Save multiple overlays for a document (batch insert).
+     * Metadata stored in PostgreSQL, embeddings stored in Qdrant.
+     *
      * @param {number} docId - Paperless document ID
-     * @param {Array<Object>} overlays - Array of {pageNumber, overlayData, semanticLabel}
+     * @param {Array<Object>} overlays - Array of {pageNumber, overlayData, semanticLabel, embedding}
      * @returns {Promise<Array<Object>>} Created overlay records
      */
     async saveOverlays(docId, overlays) {
@@ -440,15 +485,16 @@ class VisualOverlayRepository {
             await client.query('BEGIN');
 
             const results = [];
+            const qdrantBatch = [];
 
             for (const overlay of overlays) {
                 const { pageNumber, overlayData, semanticLabel, embedding } = overlay;
                 const label = semanticLabel || overlayData.label || null;
-                const embeddingVal = Array.isArray(embedding) ? JSON.stringify(embedding) : (embedding || null);
 
+                // Insert metadata into PostgreSQL (no embedding column)
                 const query = `
-                    INSERT INTO visual_overlays (doc_id, page_number, overlay_data, semantic_label, embedding)
-                    VALUES ($1, $2, $3, $4, $5::vector)
+                    INSERT INTO visual_overlays (doc_id, page_number, overlay_data, semantic_label)
+                    VALUES ($1, $2, $3, $4)
                     RETURNING id, doc_id, page_number, overlay_data, semantic_label, created_at
                 `;
 
@@ -456,19 +502,46 @@ class VisualOverlayRepository {
                     docId,
                     pageNumber,
                     JSON.stringify(overlayData),
-                    label,
-                    embeddingVal
+                    label
                 ]);
 
-                results.push(this._mapRow(result.rows[0]));
+                const savedRow = this._mapRow(result.rows[0]);
+                results.push(savedRow);
+
+                // Collect embeddings for Qdrant batch insert
+                if (embedding && Array.isArray(embedding)) {
+                    qdrantBatch.push({
+                        id: savedRow.id,
+                        docId,
+                        pageNumber,
+                        semanticLabel: label,
+                        embedding
+                    });
+                }
             }
 
             await client.query('COMMIT');
 
+            // Batch insert embeddings to Qdrant
+            if (qdrantBatch.length > 0 && qdrantAdapter) {
+                try {
+                    await qdrantAdapter.upsertVisualOverlays(qdrantBatch);
+                } catch (qdrantError) {
+                    logger.warn({
+                        event: 'qdrant_batch_embedding_save_failed',
+                        docId,
+                        count: qdrantBatch.length,
+                        error: qdrantError.message
+                    });
+                    // Don't fail - metadata is already saved
+                }
+            }
+
             logger.info({
                 event: 'overlays_batch_saved',
                 docId,
-                count: results.length
+                count: results.length,
+                embeddingsCount: qdrantBatch.length
             });
 
             return results;
@@ -616,36 +689,66 @@ class VisualOverlayRepository {
     }
 
     /**
-     * Search overlays by vector embedding similarity
-     * @param {Array<number>} embedding - Vector embedding
+     * Search overlays by vector embedding similarity.
+     * Delegates to QdrantAdapter for vector search.
+     *
+     * @param {Array<number>} embedding - Vector embedding (320D)
      * @param {number} limit - Max results
      * @param {number} threshold - Similarity threshold (0-1)
      * @returns {Promise<Array<Object>>} Matching overlay records with similarity score
      */
     async searchByEmbedding(embedding, limit = 10, threshold = 0.7) {
-        if (!this.pool) {
-            throw new Error('PostgreSQL not available');
+        if (!qdrantAdapter) {
+            throw new Error('Qdrant adapter not available for vector search');
         }
 
-        const embeddingVal = Array.isArray(embedding) ? JSON.stringify(embedding) : embedding;
-
-        const query = `
-            SELECT id, doc_id, page_number, overlay_data, semantic_label, created_at,
-                   1 - (embedding <=> $1::vector) as similarity
-            FROM visual_overlays
-            WHERE 1 - (embedding <=> $1::vector) > $2
-            ORDER BY similarity DESC
-            LIMIT $3
-        `;
-
         try {
-            const result = await this.pool.query(query, [embeddingVal, threshold, limit]);
-            return result.rows.map(row => ({
-                ...this._mapRow(row),
-                similarity: row.similarity
-            }));
-        } catch (embeddingError) {
-            throw this._wrapError('Failed to search by embedding', embeddingError);
+            // Search in Qdrant
+            const qdrantResults = await qdrantAdapter.searchVisualOverlays(embedding, {
+                limit,
+                scoreThreshold: threshold
+            });
+
+            // Enrich results with full metadata from PostgreSQL
+            const enrichedResults = [];
+            for (const result of qdrantResults) {
+                // Get full overlay data from PostgreSQL if available
+                if (this.pool && result.id) {
+                    try {
+                        const pgResult = await this.pool.query(
+                            `SELECT id, doc_id, page_number, overlay_data, semantic_label, created_at
+                             FROM visual_overlays WHERE id = $1`,
+                            [result.id]
+                        );
+                        if (pgResult.rows.length > 0) {
+                            enrichedResults.push({
+                                ...this._mapRow(pgResult.rows[0]),
+                                similarity: result.score
+                            });
+                            continue;
+                        }
+                    } catch (pgError) {
+                        logger.debug({
+                            event: 'pg_enrichment_failed',
+                            overlayId: result.id,
+                            error: pgError.message
+                        });
+                    }
+                }
+
+                // Fallback: return Qdrant result directly
+                enrichedResults.push({
+                    id: result.id,
+                    docId: result.docId,
+                    pageNumber: result.pageNumber,
+                    semanticLabel: result.semanticLabel,
+                    similarity: result.score
+                });
+            }
+
+            return enrichedResults;
+        } catch (searchError) {
+            throw this._wrapError('Failed to search by embedding', searchError);
         }
     }
 
@@ -680,7 +783,9 @@ class VisualOverlayRepository {
     // =========================================================================
 
     /**
-     * Ensure the enhanced schema columns exist for expert metadata
+     * Ensure the enhanced schema columns exist for expert metadata.
+     * Note: Embedding column removed - vectors stored in Qdrant.
+     *
      * Adds columns: enhanced_ocr_text, expert_metadata, domain_view, domain_signals, retrieval_quality_score
      * @returns {Promise<boolean>} True if schema is ready
      */
@@ -689,60 +794,31 @@ class VisualOverlayRepository {
             return false;
         }
 
-        // Check pg_vector availability first
-        const pgvectorCheck = await this.checkPgVectorExtension();
-        if (!pgvectorCheck.available) {
-            const errorDetails = {
-                event: 'postgres_pgvector_not_available',
-                error: pgvectorCheck.error,
-                troubleshooting: [
-                    'Verify docker-compose.yml uses pgvector/pgvector:pg16 image',
-                    'Check container logs: docker logs paperless_db',
-                    'Verify PostgreSQL version: docker exec paperless_db psql -U <user> -d <db> -c "SELECT version()"',
-                    'Manually install extension: docker exec paperless_db psql -U <user> -d <db> -c "CREATE EXTENSION IF NOT EXISTS vector"'
-                ]
-            };
-            logger.error(errorDetails);
-            return false;
-        }
-
-        logger.info({
-            event: 'postgres_pgvector_verified',
-            version: pgvectorCheck.version
-        });
-
-        // Enable pgvector extension (should already be installed, but ensure it's enabled)
-        try {
-            await this.pool.query('CREATE EXTENSION IF NOT EXISTS vector');
+        // Check Qdrant availability for vector operations
+        const qdrantHealth = await this.checkQdrantHealth();
+        if (qdrantHealth.healthy) {
             logger.info({
-                event: 'postgres_vector_extension_enabled',
-                version: pgvectorCheck.version
+                event: 'qdrant_verified_for_vectors',
+                collections: qdrantHealth.collections
             });
-        } catch (vectorError) {
-            logger.error({
-                event: 'postgres_vector_extension_failed',
-                error: vectorError.message,
-                code: vectorError.code,
-                hint: vectorError.hint,
-                detail: vectorError.detail,
-                troubleshooting: [
-                    'Check PostgreSQL logs: docker logs paperless_db',
-                    'Verify database user has CREATE EXTENSION privilege',
-                    'Ensure pgvector shared library is loaded: docker exec paperless_db psql -U <user> -d <db> -c "SHOW shared_preload_libraries"',
-                    'Restart PostgreSQL container: docker restart paperless_db'
-                ]
+        } else {
+            logger.warn({
+                event: 'qdrant_not_available',
+                error: qdrantHealth.error,
+                note: 'Vector search will not be available until Qdrant is running'
             });
-            return false;
+            // Don't fail - PostgreSQL metadata can still work without Qdrant
         }
 
+        // Metadata columns only (no embedding column - vectors in Qdrant)
         const columns = [
             { name: 'enhanced_ocr_text', type: 'TEXT' },
             { name: 'expert_metadata', type: 'JSONB DEFAULT \'{}\'' },
             { name: 'domain_view', type: 'JSONB DEFAULT \'{}\'' },
             { name: 'domain_signals', type: 'JSONB DEFAULT \'[]\'' },
             { name: 'retrieval_quality_score', type: 'FLOAT DEFAULT 0.0' },
-            { name: 'expert_routing_weights', type: 'JSONB DEFAULT \'{}\'' },
-            { name: 'embedding', type: 'vector(320)' }
+            { name: 'expert_routing_weights', type: 'JSONB DEFAULT \'{}\'' }
+            // Note: 'embedding' column removed - vectors stored in Qdrant
         ];
 
         try {
@@ -767,21 +843,11 @@ class VisualOverlayRepository {
                 WHERE retrieval_quality_score >= 0.7
             `);
 
-            // Create HNSW index for vector search
-            await this.pool.query(`
-                CREATE INDEX IF NOT EXISTS idx_visual_overlays_embedding 
-                ON visual_overlays USING hnsw (embedding vector_cosine_ops)
-            `);
-
-            // Also create an IVFFLAT index option for batch-oriented retrieval workloads
-            // Note: ivfflat may require list tuning and is more efficient for large datasets
-            await this.pool.query(`
-                CREATE INDEX IF NOT EXISTS idx_visual_overlays_embedding_ivfflat
-                ON visual_overlays USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)
-            `);
+            // Note: Vector indexes (HNSW, IVFFLAT) removed - using Qdrant instead
 
             logger.info({
-                event: 'postgres_enhanced_schema_verified'
+                event: 'postgres_enhanced_schema_verified',
+                note: 'Metadata columns ready. Vector storage uses Qdrant.'
             });
             return true;
         } catch (schemaError) {
@@ -793,14 +859,7 @@ class VisualOverlayRepository {
                 detail: schemaError.detail
             };
 
-            // Provide specific troubleshooting based on error code
-            if (schemaError.code === '42704') {
-                errorContext.troubleshooting = [
-                    'Type "vector" does not exist - pgvector extension not properly installed',
-                    'Run: docker exec paperless_db psql -U <user> -d <db> -c "CREATE EXTENSION vector"',
-                    'Verify image: docker inspect paperless_db | grep Image'
-                ];
-            } else if (schemaError.code === '42501') {
+            if (schemaError.code === '42501') {
                 errorContext.troubleshooting = [
                     'Permission denied - database user lacks required privileges',
                     'Grant privileges: GRANT CREATE ON DATABASE <db> TO <user>',

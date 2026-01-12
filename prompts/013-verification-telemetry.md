@@ -1,38 +1,76 @@
-# Verification: Telemetry, Request IDs & Prometheus Metrics
+---
+name: verification-telemetry
+stage: 060-test
+agent: test-agent
+prompt_id: 013-native-alpha-9-observability-verification
+---
 
 <objective>
-Validate `request_id` propagation, required structured logging fields, and presence and correctness of Prometheus metrics for key events.
+Validate the Native Protocol Alpha-9 Telemetry stack. Ensure X-Request-Id 
+propagation across the Node/Python boundary, MaxSim performance tracking, 
+and RTX 3090 Ti VRAM metrics are deterministic.
 </objective>
 
 <context>
-Observability is critical for debugging and auditability. The checks below align with docs/OBSERVABILITY_AND_TELEMETRY.md and validate that tracing and metrics exist for feedback ingestion and visual pipeline events.
-References: docs/OBSERVABILITY_AND_TELEMETRY.md, prompts/016-verification-checklist.md
+Observability for Alpha-9 must track the handshake between the Node.js 
+core and the ColQwen3 Sidecar. We must validate that high-fidelity metrics 
+are captured for late-interaction retrieval and hardware health.
+
+**Hardware Baseline:** RTX 3090 Ti (Ampere SM86).
+**Critical Metric:** `maxsim_score_mean` (Threshold 0.85).
 </context>
 
 <requirements>
-1. Access to application logs (structured) and the `/metrics` endpoint.
-2. Ability to run flows that generate telemetry (e.g., feedback ingest, simulated sidecar failures).
-3. Test harness can intercept outgoing HTTP requests to assert `X-Request-Id` propagation.
+1. **Sidecar Propagation (Node -> Python)**:
+   - Verify that `X-Request-Id` is propagated from the Node.js Gateway 
+     to the Python Sidecar (:8001).
+   - **Test:** A unique ID sent to `/api/visual-rag/search/visual` must 
+     appear in the Python structured logs.
+
+2. **Native Alpha-9 Metrics (/metrics)**:
+   - Validate the presence of the following new counters/histograms:
+     - `visual_query_execution_time_ms`: Time for multi-vector retrieval.
+     - `maxsim_score_distribution`: Histogram of result confidence.
+     - `sidecar_vram_usage_bytes`: Real-time RTX 3090 Ti memory footprint.
+     - `circuit_breaker_open_total`: Count of 503 Initializing fallbacks.
+
+3. **Hybrid SOT Consistency Logging**:
+   - Ensure `feedback_events` write-operations log the associated 
+     `qdrant_vector_id` and the `postgres_doc_id` together for auditability.
+
+4. **Structured Log Audit**:
+   - Verify that all logs produced during a "Red Pen" search include 
+     `hardware_target: "RTX 3090 Ti"` and `model_id: "colqwen3-4b-awq"`.
+
+5. **Linter & "Detox" Audit**:
+   - Verify that telemetry helper scripts in Python adhere to 
+     **Flake8 (79-char)** and **Pylance typing** standards.
 </requirements>
 
+
+
 <implementation>
-- Add tests: `test/integration/telemetry.spec.js` that send requests with and without `X-Request-Id` and assert generation/propagation.
-- Add a small metrics snapshot helper `test/helpers/metrics-snapshot.js` to compare metrics before/after flows.
-- Ensure structured logs include mandatory fields and add parsers in tests to assert presence.
+- **Node.js Helper:** `test/helpers/metrics-snapshot.js` (Prometheus parser).
+- **Integration Test:** `test/integration/telemetry-alpha9.spec.js`.
+- **Sidecar Monitor:** Add a telemetry verification endpoint to the 
+  Python sidecar that returns the current VRAM/Latency stats.
 </implementation>
 
 <output>
-- `test/integration/telemetry.spec.js` (Created)
-- `test/helpers/metrics-snapshot.js` (Created)
+- `test/integration/telemetry-alpha9.spec.js`
+- `test/helpers/metrics-snapshot.js`
+- `prompts/summaries/013-telemetry-verification-summary.md`
 </output>
 
 <verification>
-- Send POST `/manual/updateDocument` with custom `X-Request-Id`; assert all downstream mocks received the header and DB row `context` contains `request_id`.
-- Poll `/metrics` before and after flows and assert `feedback_ingest` and `integration_errors_total` counters changed appropriately.
-- Parse logs to assert the presence of the required structured fields including `request_id`, `document_id`, `stage`.
+- Trigger a "Red Pen" search and verify the `X-Request-Id` in sidecar logs.
+- Scrape `/metrics` and confirm `maxsim_score_distribution` contains values.
+- Simulate a Sidecar timeout and confirm `circuit_breaker_open_total` increments.
+- Verify `nvidia-smi` matches the `sidecar_vram_usage_bytes` metric reported.
 </verification>
 
 <lifecycle>
-1. Add the telemetry test to `verification-fast` or `verification-e2e` depending on duration.
-2. Update tests and metric names if observability contract changes.
-3. Archive the prompt in `prompts/completed/` and add a verification summary to `prompts/summaries/` when CI is green.
+1. Generate machine-readable summary: `prompts/summaries/013-telemetry-verification-summary.md`.
+2. Update `docs/OBSERVABILITY_AND_TELEMETRY.md` with the Alpha-9 metric map.
+3. Move to `prompts/completed/` after 100% telemetry pass.
+</lifecycle>

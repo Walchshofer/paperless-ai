@@ -523,7 +523,7 @@ const logger = require('./logger');
 <span class="cstat-no" title="statement not covered" >}</span>
 &nbsp;
 // Calculate tokens for a given text
-<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async function calculateTokens(text, model = process.env.OPENAI_MODEL || "gpt-4o-mini") {</span></span>
+<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async function calculateTokens(text, model = process.env.PAPERLESS_OPENAI_MODEL || "gpt-4o-mini") {</span></span>
 <span class="cstat-no" title="statement not covered" >    try {</span>
 <span class="cstat-no" title="statement not covered" >        const compatibleModel = getCompatibleModel(model);</span>
 <span class="cstat-no" title="statement not covered" >        </span>
@@ -548,7 +548,7 @@ const logger = require('./logger');
 <span class="cstat-no" title="statement not covered" >}</span>
 &nbsp;
 // Calculate total tokens for a system prompt and additional prompts
-<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async function calculateTotalPromptTokens(systemPrompt, additionalPrompts = [], model = process.env.OPENAI_MODEL || "gpt-4o-mini") {</span></span>
+<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async function calculateTotalPromptTokens(systemPrompt, additionalPrompts = [], model = process.env.PAPERLESS_OPENAI_MODEL || "gpt-4o-mini") {</span></span>
 <span class="cstat-no" title="statement not covered" >    let totalTokens = 0;</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >    // Count tokens for system prompt</span>
@@ -569,7 +569,7 @@ const logger = require('./logger');
 <span class="cstat-no" title="statement not covered" >}</span>
 &nbsp;
 // Truncate text to fit within token limit
-<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async function truncateToTokenLimit(text, maxTokens, model = process.env.OPENAI_MODEL || "gpt-4o-mini") {</span></span>
+<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async function truncateToTokenLimit(text, maxTokens, model = process.env.PAPERLESS_OPENAI_MODEL || "gpt-4o-mini") {</span></span>
 <span class="cstat-no" title="statement not covered" >    try {</span>
 <span class="cstat-no" title="statement not covered" >        const compatibleModel = getCompatibleModel(model);</span>
 <span class="cstat-no" title="statement not covered" >        </span>

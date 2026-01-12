@@ -70,7 +70,7 @@ Each collection stores points with:
 
 ### PostgreSQL Visual Overlays Table (Metadata Only)
 
-The `visual_overlays` PostgreSQL table now stores metadata only:
+The `visual_overlays` PostgreSQL table stores metadata only — **no vector columns**. Qdrant is the SOT for vectors; use payload mirroring (`doc_id`, `correspondent_id`, `tag_ids`) for expert filtering.
 
 | Column | Type | Purpose |
 |--------|------|---------|
@@ -81,8 +81,6 @@ The `visual_overlays` PostgreSQL table now stores metadata only:
 | `semantic_label` | TEXT | Content classification |
 | `expert_metadata` | JSONB | Expert knowledge |
 | `domain_signals` | JSONB | Domain-specific signals |
-
-**Note**: The `embedding` column has been removed. Vectors are stored in Qdrant `visual_overlays` collection.
 
 ## Configuration
 

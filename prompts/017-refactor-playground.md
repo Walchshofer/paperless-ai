@@ -1,58 +1,86 @@
+---
+name: refactor-playground
+stage: 050-implement
+agent: implement-agent
+prompt_id: 017-native-alpha-9-playground-refactor
+---
+
 <objective>
-Refactor the "Playground" route and UI to strictly adhere to the "Local Only" policy and "Frontend Islands" architecture.
-This involves removing all proprietary AI service code (OpenAI, Azure) from the playground route and converting the legacy EJS/jQuery UI into a Preact Island.
+Refactor the "Playground" route to strictly adhere to the Native Protocol 
+Alpha-9 architecture. Remove all proprietary AI code, modernize with 
+Preact Islands, and transform the UI into a visual debugger for 
+320-dim ColQwen3 retrieval and MaxSim scoring.
 </objective>
 
 <context>
-The current `/playground` route (`setup.js`) and UI (`playground.ejs`) are legacy artifacts.
-1. They import and use `openaiService` and `azureService`, violating the project's strict "Local Only / Ollama" constraint.
-2. They use monolithic EJS + Vanilla JS, violating the `docs/FRONTEND_ARCHITECTURE.md` mandate for "Preact Islands" and "Zod Contracts".
-This prompt remediates these compliance gaps.
+The `/playground` route is currently a legacy artifact containing OpenAI/Azure 
+references. This refactor "detoxes" the route, locks it to the 
+**RTX 3090 Ti** local stack, and implements the Islands architecture 
+mandated by `docs/FRONTEND_ARCHITECTURE.md`.
+
+**Hardware:** RTX 3090 Ti (Ampere SM86).
+**Retrieval SOT:** Unified Qdrant (320-dim).
 </context>
 
 <requirements>
-1. **Remove Proprietary Models**:
-   - Edit `paperless-ai/routes/setup.js`:
-     - Remove imports for `openaiService`, `azureService`, `customService`.
-     - In `POST /manual/playground`, REMOVE the logic branches that call these services.
-     - Hardcode or strictly enforce that ONLY `ollamaService` (or the local `visual-rag` sidecar) can be used.
-     - Remove any UI selectors that allow choosing OpenAI/Azure.
+1. **Proprietary Code Removal (The Detox)**:
+   - Edit `routes/setup.js`: Remove all imports/logic for `openaiService`, 
+     `azureService`, and `customService`.
+   - **Enforcement:** Hardcode the playground to use only `ollamaService` 
+     (for text) and `VisualSearchClient.js` (for visual RAG).
 
-2. **Modernize Frontend (Islands Architecture)**:
-   - Create `src/islands/PlaygroundIsland.tsx` and `src/ui/contracts/Playground.contract.ts`.
-   - The Island should replicate the existing Playground functionality:
-     - Input: Document text/JSON.
-     - Input: Custom Prompt.
-     - Action: "Analyze" button.
-     - Output: Display the JSON result from Ollama.
-   - Update `views/playground.ejs`:
-     - Remove legacy script tags (`playground.js`, `playground-analyzer.js`).
-     - Mount `<div data-island="playground-island" ...>`.
+2. **Modernize with Alpha-9 Islands**:
+   - Create `src/islands/PlaygroundIsland.tsx` and its Zod contract.
+   - **Feature: Visual Debugger:** Add a canvas area to the playground 
+     allowing users to upload an image and draw a bounding box.
+   - **Action:** Trigger `POST /api/visual-rag/search/visual` directly 
+     from the playground.
+   - **Display:** Show raw MaxSim scores and retrieval latency in a 
+     dedicated "Hardware Telemetry" panel.
 
-3. **Feedback Alignment**:
-   - Ensure the "Analyze" action uses the standard `ollamaService.analyzePlayground` (which must be verified to be local).
-   - If the playground supports "Saving" the result as a correction, it must use the `feedback_events` table (via `FeedbackService`), not an ad-hoc method. If this feature is complex, scope it to "Analysis Only" for this refactor.
+3. **Handshake Verification Logic**:
+   - The Playground must explicitly handle the `503 Initializing` state. 
+     If the sidecar is warming up the 4B-AWQ model, the UI must show the 
+     "GPU Preparing" loader.
 
-4. **Testing**:
-   - Add Zod contract tests.
-   - Add an E2E test verifying the Playground loads and executes a query using Ollama.
+4. **Hybrid SOT Integration**:
+   - Add a "Payload Inspector" to the playground results. This allows 
+     viewing the Qdrant metadata (Correspondent, Tags) alongside the 
+     visual result to verify **Expert Filtering** logic.
+
+5. **"Detox" Standards**:
+   - Apply strict 79-character line limits in `PlaygroundIsland.tsx`.
+   - Ensure the Zod contract validates the 320-dim image constraints 
+     before the request is emitted.
 </requirements>
 
+
+
 <implementation>
-- **Safe Deletion**: When removing `openaiService` references, ensure no other critical routes rely on them (the audit suggests they are primarily used in legacy/manual paths).
-- **Zod Schema**: The `Playground.contract.ts` should define the shape of the initial data (e.g., list of available models, default prompt).
+- **Island Registration:** Map `playground-island` in `src/islands/runtime.ts`.
+- **Canvas Logic:** Reuse the "Red Pen" logic from `OverlayViewerIsland`.
+- **API Bridge:** Use `VisualSearchClient.js` as the sole bridge to the sidecar.
 </implementation>
 
 <output>
-- `paperless-ai/routes/setup.js` (Refactored)
-- `src/islands/PlaygroundIsland.tsx` (Created)
-- `src/ui/contracts/Playground.contract.ts` (Created)
-- `views/playground.ejs` (Updated)
-- `test/e2e/playground_refactor.spec.js` (Created)
+- `routes/setup.js` (Detoxed)
+- `src/islands/PlaygroundIsland.tsx`
+- `src/ui/contracts/Playground.contract.ts`
+- `views/playground.ejs` (Hydrated with Alpha-9 anchors)
 </output>
 
 <verification>
-- **Manual**: Visit `/playground`. Verify no "OpenAI" options exist. Run an analysis; verify it hits Ollama.
-- **Code**: Grep `routes/setup.js` for `require('../services/openaiService.js')` - must be empty.
-- **E2E**: Run `playground_refactor.spec.js` to assert Island mounting and basic functionality.
+- **Manual Audit:** Verify the Model Selector only lists local Ollama models 
+  and the "Native Sidecar."
+- **Visual Search:** Upload a logo to the playground, draw a box, and 
+  verify MaxSim results appear.
+- **VRAM Check:** Monitor `nvidia-smi` to ensure playground searches 
+  respect the 3.5GB sidecar baseline.
+- **Contract Test:** Assert that the Zod schema rejects non-Base64 inputs.
 </verification>
+
+<lifecycle>
+1. Generate machine-readable summary: `prompts/summaries/017-playground-refactor-summary.md`.
+2. Update `docs/RAG_SYSTEMS_REFERENCE.md` with playground usage for developers.
+3. Move to `prompts/completed/`.
+</lifecycle>

@@ -1,98 +1,53 @@
 # Implementation Prompts Directory
 
-## BREAKING CHANGE (2026-01): Qdrant Migration
-
-Vector storage is migrating from PostgreSQL/pgVector to **Qdrant**. This affects:
-- All prompts referencing vector storage or embeddings
-- Database schema verification (011)
-- Visual RAG sidecar (005, 006)
-- Feedback persistence (001)
-
-See `docs/QDRANT_MIGRATION.md` for full migration details.
+## 🛑 BREAKING CHANGE: Native Protocol Alpha-9
+As of 2026-01, the system has migrated to a **Hybrid SOT** (PostgreSQL + Qdrant). All prompts have been updated to support the **RTX 3090 Ti** hardware profile and **ColQwen3-4B-AWQ** models.
 
 ---
 
-## Purpose
-This directory contains structured implementation and verification prompts for AI agents executing feature development tasks.
+## Current Status Tracker
 
-## Quick Start
+### Phase 5: Qdrant Migration
+- `018-qdrant-migration.md` 🔄 (In-Progress)
 
-To execute all prompts with Serena memory integration, use:
+### Phase 1: Backend Foundation
+- `001-implement-feedback-persistence.md` 🔄 (Pending Alpha-9 Detox)
+- `011-verification-db-schema.md` 🔄 (Pending Alpha-9 Detox)
+- `002-enhance-paperless-integration.md` 🔄 (Pending Alpha-9 Detox)
+- `013-verification-telemetry.md` 🔄 (Pending Alpha-9 Detox)
 
-```
-@implement Read and execute prompts/KICKOFF.md
-```
+### Phase 2: Manual Route UI
+- `003-implement-visual-annotation-ui.md` 🔄 (**RE-OPENED** for Alpha-9 Detox)
+- `004-implement-manual-feedback-ui.md` 🔄 (**RE-OPENED** for Alpha-9 Detox)
+- `015-integration-feedback-e2e.md` 🔄 (**RE-OPENED** for Alpha-9 Detox)
 
-See `KICKOFF.md` for full instructions on agent selection, Serena memory usage, and execution order.
+### Phase 3: History Route Enhancement
+- `005-upgrade-visual-sidecar.md` 🔄 (**RE-OPENED** for Alpha-9 Detox)
+- `006-expose-visual-search-api.md` 🔄 (**RE-OPENED** for Alpha-9 Detox)
+- `007-verify-visual-search-api.md` 🔄 (In-Progress)
+- `014-verification-circuit-breaker.md` 🔄 (Pending)
+- `008-implement-history-split-layout.md` 🔄 (Pending)
+- `009-implement-visual-red-pen.md` 🔄 (Pending)
+
+### Phase 4: Final Verification
+- `016-verification-checklist.md` 🔄 (Pending)
+- `017-refactor-playground.md` 🔄 (Pending)
 
 ---
-
-## Directory Structure
-- `KICKOFF.md`: Reusable kick-off prompt for full implementation runs
-- `001-018`: Active prompts (numbered sequence)
-- `planning/`: Enhancement plans and architectural documents
-- `completed/`: Archived prompts after successful execution
-- `summaries/`: Machine-readable summaries generated after prompt completion
-
-## Current Prompt Sequence
-
-### Active Prompts (001-017)
-See `EXECUTION_ORDER.md` for detailed sequencing and dependencies.
-
-**Phase 1: Backend Foundation**
-- `001-implement-feedback-persistence.md`
-- `011-verification-db-schema.md`
-- `002-enhance-paperless-integration.md`
-- `013-verification-telemetry.md`
-
-**Phase 2: Manual Route UI**
-- `003-implement-visual-annotation-ui.md` ✅ (completed — see `prompts/summaries/003-summary.md`)
-- `004-implement-manual-feedback-ui.md` ✅ (completed — see `prompts/summaries/004-summary.md`)
-- `015-integration-feedback-e2e.md` ✅ (completed — see `prompts/summaries/015-feedback-e2e-summary.md`)
-
-**Phase 3: History Route Enhancement**
-- `005-upgrade-visual-sidecar.md` ✅ (completed — see `prompts/summaries/005-upgrade-visual-sidecar-summary.md`)
-- `006-expose-visual-search-api.md` ✅ (completed — see `prompts/summaries/006-expose-visual-search-api-summary.md`)
-- `007-verify-visual-search-api.md` 🔄 (in-progress)
-- `014-verification-circuit-breaker.md`
-- `008-implement-history-split-layout.md`
-- `012-verification-frontend-islands.md`
-- `009-implement-visual-red-pen.md`
-- `010-final-integration-test.md`
-
-**Phase 4: Final Verification & Cleanup**
-- `016-verification-checklist.md`
-- `017-refactor-playground.md`
-
-**Phase 5: Qdrant Migration (BREAKING CHANGE)**
-- `018-qdrant-migration.md` - Vector store migration from pgVector to Qdrant
-
-## Prompt Naming Convention
-Format: `NNN-brief-description.md`
-- NNN: Three-digit sequence number
-- brief-description: Kebab-case summary
-
-## Prompt Structure (Standard Format)
-All implementation prompts follow this XML-like structure:
-- `<objective>`
-- `<context>`
-- `<requirements>`
-- `<implementation>`
-- `<output>`
-- `<verification>`
-- `<lifecycle>`
 
 ## Verification Strategy
-- **Inline Verification:** Most implementation prompts include a `<verification>` section.
-- **Standalone Verification:** Specific prompts (e.g., `007`, `010-016`) are dedicated to verification and testing of complex subsystems or integration flows.
-- **Checklist:** Prompt `016` provides a consolidated checklist for all verification gates.
+- **Inline Verification:** Every implementation prompt contains a `<verification>` section for immediate testing.
+- **Standalone Verification:** Prompts 007, 010-016 are dedicated to hardware stress, circuit breaking, and E2E validation.
+- **Master Checklist:** Prompt 016 serves as the final production-readiness gate.
 
-## Lifecycle Management
-1. **Pre-execution:** Review prompt and `EXECUTION_ORDER.md`.
-2. **Implementation/Verification:** Execute the prompt.
-3. **Summary:** Generate a summary with a .md fileending`summaries/`.
-4. **Archival:** Move to `completed/` upon success.
+---
 
-## References
-- `EXECUTION_ORDER.md`: Authoritative dependency graph.
-- `docs/`: Project documentation.
+## Prompt Structure
+All prompts follow the standard format:
+- `<objective>`: Clear goal.
+- `<context>`: Hardware and SOT background.
+- `<requirements>`: Technical specifications.
+- `<implementation>`: Pattern and "Detox" guidelines.
+- `<output>`: Expected file artifacts.
+- `<verification>`: Actionable test steps.
+- `<lifecycle>`: Archival and summary instructions.

@@ -170,7 +170,7 @@ class SetupService {
     console.log('AI provider:', aiProvider);
     
     if (aiProvider === 'openai') {
-      const openaiValid = await this.validateOpenAIConfig(config.OPENAI_API_KEY);
+      const openaiValid = await this.validateOpenAIConfig(config.PAPERLESS_OPENAI_API_KEY);
       if (!openaiValid) {
         throw new Error('Invalid OpenAI configuration');
       }

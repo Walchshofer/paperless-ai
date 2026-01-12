@@ -2422,8 +2422,8 @@ router.get('/setup', async (req, res) => {
       PAPERLESS_API_TOKEN: process.env.PAPERLESS_API_TOKEN || '',
       PAPERLESS_USERNAME: process.env.PAPERLESS_USERNAME || '',
       AI_PROVIDER: process.env.AI_PROVIDER || 'openai',
-      OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
-      OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      PAPERLESS_OPENAI_API_KEY: process.env.PAPERLESS_OPENAI_API_KEY || '',
+      PAPERLESS_OPENAI_MODEL: process.env.PAPERLESS_OPENAI_MODEL || 'gpt-4o-mini',
       OLLAMA_API_URL: process.env.OLLAMA_API_URL || 'http://localhost:11434',
       OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b',
       OLLAMA_CONTEXT_WINDOW: process.env.OLLAMA_CONTEXT_WINDOW || '',
@@ -3448,8 +3448,8 @@ router.get('/settings', protectApiRoute, async (req, res) => {
     PAPERLESS_API_TOKEN: process.env.PAPERLESS_API_TOKEN || '',
     PAPERLESS_USERNAME: process.env.PAPERLESS_USERNAME || '',
     AI_PROVIDER: process.env.AI_PROVIDER || 'openai',
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
-    OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+    PAPERLESS_OPENAI_API_KEY: process.env.PAPERLESS_OPENAI_API_KEY || '',
+    PAPERLESS_OPENAI_MODEL: process.env.PAPERLESS_OPENAI_MODEL || 'gpt-4o-mini',
     OLLAMA_API_URL: process.env.OLLAMA_API_URL || 'http://localhost:11434',     
     OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b',
     OLLAMA_CONTEXT_WINDOW: process.env.OLLAMA_CONTEXT_WINDOW || '',
@@ -4889,8 +4889,8 @@ router.post('/setup', express.json(), async (req, res) => {
           error: 'OpenAI API Key is not valid. Please check the key.'
         });
       }
-      config.OPENAI_API_KEY = openaiKey;
-      config.OPENAI_MODEL = openaiModel || 'gpt-4o-mini';
+      config.PAPERLESS_OPENAI_API_KEY = openaiKey;
+      config.PAPERLESS_OPENAI_MODEL = openaiModel || 'gpt-4o-mini';
     } else if (aiProvider === 'ollama') {
       const isOllamaValid = await setupService.validateOllamaConfig(ollamaUrl, ollamaModel);
       if (!isOllamaValid) {
@@ -5222,8 +5222,8 @@ router.post('/settings', express.json(), async (req, res) => {
       PAPERLESS_API_TOKEN: process.env.PAPERLESS_API_TOKEN || '',
       PAPERLESS_USERNAME: process.env.PAPERLESS_USERNAME || '',
       AI_PROVIDER: process.env.AI_PROVIDER || '',
-      OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
-      OPENAI_MODEL: process.env.OPENAI_MODEL || '',
+      PAPERLESS_OPENAI_API_KEY: process.env.PAPERLESS_OPENAI_API_KEY || '',
+      PAPERLESS_OPENAI_MODEL: process.env.PAPERLESS_OPENAI_MODEL || '',
       OLLAMA_API_URL: process.env.OLLAMA_API_URL || '',
       OLLAMA_MODEL: process.env.OLLAMA_MODEL || '',
       OLLAMA_CONTEXT_WINDOW: process.env.OLLAMA_CONTEXT_WINDOW || '',
@@ -5362,8 +5362,8 @@ router.post('/settings', express.json(), async (req, res) => {
             error: 'OpenAI API Key is not valid. Please check the key.'
           });
         }
-        updatedConfig.OPENAI_API_KEY = openaiKey;
-        if (openaiModel) updatedConfig.OPENAI_MODEL = openaiModel;
+        updatedConfig.PAPERLESS_OPENAI_API_KEY = openaiKey;
+        if (openaiModel) updatedConfig.PAPERLESS_OPENAI_MODEL = openaiModel;
       } 
       else if (aiProvider === 'ollama' && (ollamaUrl || ollamaModel)) {
         const isOllamaValid = await setupService.validateOllamaConfig(

@@ -65,9 +65,20 @@ Sources of truth:
    - Colored overlays require positions stored as metadata AND embeddings.
 
 9) **Retrieval & answering (Visual-first, V2)**
-   - Query router selects visual retrieval by default.
+   - **Visual RAG Gate:** The Visual RAG Sidecar performs native ColQwen3 MaxSim retrieval (320-dim multi-vector) and returns top pages/regions; if the sidecar is unavailable/initializing it falls back to Text RAG.
    - Visual hits + OCR snippets + metadata → Context Pack → Guidance response.
    - Text retrieval is optional for validation and fallback.
+
+```mermaid
+flowchart TD
+  Q[User Query] --> R[Query Router]
+  R --> VG[Visual RAG Gate (Native ColQwen3 Sidecar)]
+  R --> T[Text Retrieval (Qdrant / Text RAG)]
+  VG --> C[Context Pack Builder]
+  T --> C
+  C --> G[Guidance Response Generator]
+  G --> A[Action Orchestrator]
+```
 
 ## Diagrams
 

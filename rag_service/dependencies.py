@@ -20,7 +20,7 @@ def get_search_engine():
     if global_state.search_engine.is_initialized:
         if (
             not global_state.search_engine.bm25_initialized
-            or not global_state.search_engine.db_pool
+            or not global_state.system_status.qdrant_ready
         ):
             logger.error(
                 "Search engine components are missing, trying to reinitialize"

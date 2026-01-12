@@ -139,7 +139,11 @@ Adjust these values when operating in high-latency or resource-constrained envir
 ### Infrastructure Tier - Orchestration & Embeddings
 - `ORCHESTRATOR_MODEL` - System orchestration and routing model (default: `nemotron-orchestrator:8b`)
 - `EMBEDDING_MODEL` - Semantic embedding model for RAG (default: `nomic-embed-text-v1.5`)
-- `VISUAL_RETRIEVAL_MODEL` - Visual document retrieval model (default: null, planned: `tomoro-colqwen3-embed-8b`)
+- `VISUAL_RAG_MODEL` - Visual RAG sidecar model (default: `TomoroAI/tomoro-ai-colqwen3-embed-4b-awq`)
+- `INDEX_DIR` - Index directory for Visual RAG sidecar (default: `/data/indices`) **MUST NOT be empty**
+- `QDRANT_HOST` - Qdrant host (default: `qdrant`)
+- `QDRANT_PORT` - Qdrant HTTP port (default: `6333`)
+- `QDRANT_API_KEY` - Qdrant API key (optional; required for cloud deployments)
 - `ENABLE_VISUAL_RETRIEVAL` - Feature flag for visual search capabilities (default: `no`)
 - `ENABLE_ORCHESTRATOR` - Feature flag for intelligent expert routing (default: `no`)
 - `ORCHESTRATOR_PREVISION_NORMALIZATION_ENABLED` - Enable pre-vision image normalization tool calls (default: `no`, inherits `ORCHESTRATOR_PREVISION_TOOLS_ENABLED`)

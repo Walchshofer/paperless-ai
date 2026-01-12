@@ -1,77 +1,46 @@
 # Agent Instructions for paperless-ai
 
 ## Doc-first guardrails
-- Read and follow `docs/EXPERT_PIPELINE_DECISION_TABLE.md` and
-  `docs/PROMPT_REGISTRY_GUIDANCE_INTERACTION.md` before changes.
+- Read and follow `docs/EXPERT_PIPELINE_DECISION_TABLE.md` and 
+  `docs/QDRANT_MIGRATION.md` before any changes.
 - Authoritative docs (must follow):
   - `docs/EXPERT_PIPELINE_DECISION_TABLE.md`
+  - `docs/QDRANT_MIGRATION.md` (Hybrid SOT Authority)
+  - `docs/VISUAL_RAG_ARCHITECTURE_AND_COLQWEN3.md` (Hardware Authority)
   - `docs/PROMPT_REGISTRY_GUIDANCE_INTERACTION.md`
   - `docs/PIPELINE_STAGE_CONTRACTS.md`
   - `docs/VALIDATION_AND_RETRY_POLICY.md`
-  - `docs/SCHEMA_EVOLUTION_GUIDE.md`
-  - `docs/PROMPT_CHANGE_GUIDE.md`
-  - `docs/ARCHITECTURE_OVERVIEW.md`
-  - `docs/OBSERVABILITY_AND_TELEMETRY.md`
-  - `docs/ENVIRONMENT_VARIABLES.md`
-- If guidance conflicts with these docs, the docs win; ask for clarification.
+- If guidance conflicts with these docs, the docs win.
 - Ignore `docs/archive/` as non-authoritative.
 
-## Architecture and scope
-- Follow `.github/architecture/pipeline-contract.md`,
-  `.github/architecture/service-boundaries.md`, and
-  `.github/architecture/coding-standards.md` for any change.
-- Allowed: paperless-ai orchestration logic, retries, telemetry, header
-  propagation; guidance-service provider plumbing (LiteLLM), cache namespace
-  header support, request-id propagation; Visual OCR/OCR selection if compliant
-  with the decision table; PromptRegistry templates/configs.
-- Not allowed without explicit instruction: changing precedence ordering,
-  bypassing PromptRegistry, or changing fallback mapping semantics.
+## Architecture and Scope (Alpha-9)
+- **Hybrid SOT:** PostgreSQL is for metadata/RLHF only; Qdrant is the sole 
+  Vector Source of Truth.
+- **Distance Metric Lock:** `visual_pages` must use **Dot Product** for 
+  ColQwen3 MaxSim compatibility.
+- **Hardware Profile:** Optimized for RTX 3090 Ti (Ampere SM86). Respect 
+  the ~3.5GB VRAM sidecar baseline.
+- **Detox Rule:** Python code MUST adhere to **79-character** Flake8 limits 
+  and strict Pylance typing.
 
-## Prompt safety rules
-- Preserve stage contracts; Guidance is optional, PromptRegistry is authoritative.
-- Keep required schema fields and output format guarantees; do not weaken
-  evidence-backed constraints.
-- Any prompt change must add or update tests and note intended behavior change
-  and risk.
-- If prompt changes expand token usage, add or adjust summarization or evidence
-  budgeting guards.
+## Quality Gates
+- Add Mocha + Node assert (JS) or PyTest (Python) for new behavior.
+- **Payload Mirroring:** Any metadata change in Postgres must be mirrored 
+  to Qdrant payloads for "Expert Filtering".
+- Provide a checklist mapping changes back to `docs/EXPERT_PIPELINE_DECISION_TABLE.md`.
 
-## Quality gates
-- Add Mocha + Node assert tests for new behavior.
-- If behavior changes, update telemetry/logging (request-id, retry scope,
-  fallback reason).
-- Provide a checklist mapping changes back to
-  `docs/EXPERT_PIPELINE_DECISION_TABLE.md`.
+## Multi-container Runtime
+- **Compose Root:** `C:\Users\pwalc\MyApps\paperless-ngx\docker-compose.yml`.
+- **Core Services:** paperless-ai (Node), visual-rag sidecar (Python), 
+  Qdrant (Vector DB), postgres (Metadata DB), redis (Broker).
+- **Sidecar Handshake:** Implement 5s timeouts and handle `503 Initializing` 
+  states via the "GPU Preparing" UI fallback.
+- **Ollama:** Connects to host via `http://host.docker.internal:11434`.
 
-## Required output format (for changes)
-- Short plan
-- File-by-file diff summary
-- Code changes
-- Tests
-- Decision table checklist
-
-## Multi-container runtime
-- Compose files live in `C:\Users\pwalc\MyApps\paperless-ngx\docker-compose.yml`
-  and `C:\Users\pwalc\MyApps\paperless-ngx\docker-compose.env`.
-- Services include: webserver, db (pgvector), broker, gotenberg, tika,
-  paperless-ai, visual-rag sidecar, guidance-service, bias-engine, prometheus,
-  grafana.
-- paperless-ai uses `PAPERLESS_API_URL` (webserver) and sidecar endpoints via
-  `VISUAL_RAG_URL` and `GUIDANCE_SERVICE_URL`.
-- visual-rag sidecar needs NVIDIA GPU support and persists model cache and
-  indices on volumes.
-- guidance-service connects to host Ollama via `OLLAMA_API_URL`
-  (`http://host.docker.internal:11434`).
-- **Build Safety**: Always build services with the correct context (service dir)
-  to ensure the correct `requirements.txt` is used. Prefer `docker-compose build`.
-
-## Repo layout and tooling
-- Node/Express app entrypoint: `server.js`.
-- Tests: `npm test` (Mocha + Node assert), `npm run test:integration` for
-  sidecar-enabled runs.
-- Instruction files auto-apply by glob in `.github/instructions/`.
-- Agent files live in `.github/agents/` and include @docs, @implement, @test,
-  @debug, @schema-evolution, @pipeline-orchestration, @guidance-expert,
-  @paperless-api-expert, and @optimize.
-- `docker-compose.env` contains secrets; never paste or commit credentials or
-  API tokens.
+## Tooling & Memory
+- **Memory:** Use `oraios/serena` tools for all agent handoffs.
+- **Serena Bridge:** CODEX uses `codex-bridge.py` for async Serena access.
+  Use Serena tools normally; the bridge is transparent to agents.
+- **Bridge Logs:** Debug output is written to `bridge_debug.log`.
+- **Entrypoint:** `server.js` (Node/Express).
+- **Tests:** `npm test`, `npm run test:integration` (sidecar-enabled).

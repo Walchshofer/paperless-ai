@@ -290,7 +290,7 @@ module.exports = {
     apiToken: process.env.PAPERLESS_API_TOKEN
   },
   openai: {
-    apiKey: process.env.OPENAI_API_KEY
+    apiKey: process.env.PAPERLESS_OPENAI_API_KEY
   },
   ollama: {
     apiUrl: process.env.OLLAMA_API_URL || 'http://localhost:11434',

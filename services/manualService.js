@@ -58,7 +58,7 @@ class ManualService {
         const existingTagsList = existingTags
             .map(tag => tag.name)
             .join(', ');
-        const model = process.env.OPENAI_MODEL;
+        const model = process.env.PAPERLESS_OPENAI_MODEL;
         const systemPrompt = appendFilenameFormat(process.env.SYSTEM_PROMPT);
         await writePromptToFile(systemPrompt, content);
         const response = await this.openai.chat.completions.create({
