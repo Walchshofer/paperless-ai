@@ -1,6 +1,6 @@
 # Bridge Environment Variables
 
-This reference documents environment variables used by the CODEX↔Serena bridge (codex-bridge.py) and recommended defaults.
+This reference documents environment variables used by the CODEX↔Serena bridge (`codex-serena-bridge.py`) and recommended defaults.
 
 > Note: Many of these variables are already referenced in `docs/ENVIRONMENT_VARIABLES.md`. This page gathers bridge-specific variables with explicit defaults, examples and deployment guidance.
 
@@ -24,7 +24,7 @@ This reference documents environment variables used by the CODEX↔Serena bridge
 - LOG_FILE
   - Default: `./bridge_debug.log` (project dir)
   - Description: File path used for bridge logs.
-  - Example: `export LOG_FILE=/var/log/codex-bridge.log`
+  - Example: `export LOG_FILE=/var/log/codex-serena-bridge.log`
 
 - LOG_LEVEL
   - Default: `INFO`
@@ -83,14 +83,14 @@ export REQUEST_TIMEOUT=60
 
 ```yaml
 services:
-  codex-bridge:
-    image: ghcr.io/yourorg/codex-bridge:latest
+  codex-serena-bridge:
+    image: ghcr.io/yourorg/codex-serena-bridge:latest
     environment:
       - SERENA_BASE=http://serena:9121
       - SERENA_API_KEY=${SERENA_API_KEY}
       - LOG_LEVEL=INFO
     volumes:
-      - ./bridge_debug.log:/var/log/codex-bridge.log
+      - ./bridge_debug.log:/var/log/codex-serena-bridge.log
 ```
 
 ## Notes
