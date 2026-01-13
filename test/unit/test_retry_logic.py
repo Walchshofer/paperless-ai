@@ -1,51 +1,32 @@
 import asyncio
-import importlib.util
-from pathlib import Path
-import sys
 
-# Load codex-bridge module for tests
-_spec_location = Path(__file__).resolve().parents[2] / "codex-bridge.py"
-spec = importlib.util.spec_from_file_location("codex_bridge", _spec_location)
-bridge = importlib.util.module_from_spec(spec)
-sys.modules["codex_bridge"] = bridge
-spec.loader.exec_module(bridge)
+import pytest
+
+from bridge.router import RequestRouter
+from bridge.state import BridgeState
 
 
-async def _fake_forward_factory():
+@pytest.mark.asyncio
+async def test_forward_retries_transient_errors(monkeypatch):
+    state = BridgeState()
+    state.connected.set()
+    state.ever_connected = True
+    router = RequestRouter(state)
     calls = {"count": 0}
 
-    async def _fake_forward(request, *, raise_on_error=False):
+    async def flaky_call(method, params, timeout):
         calls["count"] += 1
-        if calls["count"] <= 2:
-            raise asyncio.TimeoutError("simulated timeout")
-        return bridge.jsonrpc_result(request.get("id"), {"ok": True})
+        if calls["count"] < 3:
+            raise asyncio.TimeoutError("retry")
+        return {"ok": True}
 
-    return _fake_forward, calls
+    async def no_sleep(_delay):
+        return None
 
+    monkeypatch.setattr(router, "_call_session", flaky_call)
+    monkeypatch.setattr(asyncio, "sleep", no_sleep)
 
-def test_forward_retries(monkeypatch):
-    async def scenario():
-        # Arrange
-        fake_forward, calls = await _fake_forward_factory()
-        monkeypatch.setattr(bridge, "forward_request", fake_forward)
+    result = await router.forward("tools/call", {"name": "x"}, "id-1")
 
-        # Avoid actual sleeps
-        async def _nosleep(t):
-            return None
-        monkeypatch.setattr(asyncio, "sleep", _nosleep)
-
-        # Register pending request to allow match_response to emit
-        req = {"jsonrpc": "2.0", "id": 42, "method": "tools/call", "params": {}}
-        bridge.state.pending_requests[42] = bridge.PendingRequest(42, asyncio.get_running_loop().create_future())
-
-        # Act
-        await bridge._forward_and_match(req)
-
-        # Wait for delivery queue
-        out = await bridge.state.response_delivery_queue.get()
-
-        # Assert
-        assert out.get("id") == 42
-        assert calls["count"] == 3
-
-    asyncio.run(scenario())
+    assert result == {"ok": True}
+    assert calls["count"] == 3

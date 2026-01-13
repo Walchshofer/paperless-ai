@@ -26,7 +26,15 @@ jobs:
 
       - name: Run unit tests
         run: |
-          python -m pytest test/unit -q
+          # Capture verbose unit test output to a file so CI artifacts contain failure logs
+          python -m pytest test/unit -q -r a | tee unit_tests_output.txt; exit ${PIPESTATUS[0]}
+
+      - name: Upload unit test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-logs
+          path: unit_tests_output.txt
 
       - name: Run integration tests
         run: |

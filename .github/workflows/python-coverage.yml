@@ -28,7 +28,7 @@ jobs:
 
       - name: Run Python tests with coverage
         run: |
-          pytest test/unit test/integration test/e2e -q --cov=codex-bridge.py --cov-report=term-missing
+          pytest test/unit test/integration test/e2e -q --cov=bridge --cov-report=term-missing
 
       - name: Fail if coverage < 80%
         run: |
@@ -38,12 +38,12 @@ from coverage import Coverage
 cov = Coverage()
 cov.load()
 # Use coverage analysis to get file-specific numbers
-analysis = cov.analysis2('codex-bridge.py')
+analysis = cov.analysis2('bridge/codex_serena_bridge.py')
 # analysis2 returns (filename, executed, missing, missing_lines)
 filename, executed, missing, missing_list = analysis
 total = executed + len(missing_list)
 percent = (executed / total) * 100 if total > 0 else 100
-print(f"codex-bridge.py coverage: {percent:.2f}%")
+print(f"bridge/codex_serena_bridge.py coverage: {percent:.2f}%")
 if percent < 80.0:
     print('Coverage threshold not met: failing')
     sys.exit(1)

@@ -363,9 +363,55 @@ Below are the advanced variables (section 20 in `docker-compose.env`) with recom
 
 ### Service Configuration
 
-### Bridge (CODEX ↔ Serena)
+## CODEX-Serena Bridge (codex-bridge)
 
-See `docs/bridge/ENVIRONMENT_VARIABLES.md` for bridge-specific environment variables, recommended defaults, and deployment examples.
+The CODEX-Serena bridge keeps CODEX on STDIO while maintaining an SSE session to Serena. Key environment variables for the bridge are listed below with recommended defaults.
+
+- `SERENA_BASE` — Base URL for Serena (default: `http://127.0.0.1:9121`).
+- `SERENA_SSE_URL` — SSE endpoint (default: `${SERENA_BASE}/sse`).
+- `SERENA_API_KEY` — Optional API key for Serena (secure secret; default: not set).
+- `PROJECT_DIR` — Project directory used for default log file locations (default: repo root).
+- `CODEX_BRIDGE_LOG_FILE` — Path to bridge log file (default: `${PROJECT_DIR}/bridge_debug.log`).
+- `LOG_LEVEL` — Bridge log level (`DEBUG|INFO|WARN|ERROR`, default: `INFO`).
+- `SSE_TIMEOUT` — SSE inactivity timeout in seconds (default: `30`).
+- `REQUEST_TIMEOUT` — Request forwarding timeout in seconds (default: `60`).
+- `MAX_RECONNECT_ATTEMPTS` — Max reconnect attempts before degraded mode (default: `10`).
+- `RECONNECT_BACKOFF_BASE` — Reconnect backoff base in seconds (default: `2`).
+- `RECONNECT_BACKOFF_MAX` — Reconnect backoff cap in seconds (default: `30`).
+- `HEALTH_CHECK_INTERVAL` — Interval in seconds between health checks in connector (default: `15`).
+
+### Examples
+
+Local (bash):
+
+```bash
+export SERENA_BASE=http://127.0.0.1:9121
+export SERENA_SSE_URL=${SERENA_BASE}/sse
+export REQUEST_TIMEOUT=60
+export LOG_LEVEL=DEBUG
+python codex-bridge.py
+```
+
+Docker (docker-compose.env snippet):
+
+```bash
+SERENA_BASE=http://serena:9121
+SERENA_SSE_URL=${SERENA_BASE}/sse
+SERENA_API_KEY=secret-api-key
+REQUEST_TIMEOUT=60
+SSE_TIMEOUT=30
+MAX_RECONNECT_ATTEMPTS=10
+RECONNECT_BACKOFF_BASE=2
+RECONNECT_BACKOFF_MAX=30
+CODEX_BRIDGE_LOG_FILE=/var/log/codex_bridge.log
+LOG_LEVEL=INFO
+```
+
+Production notes:
+- Store `SERENA_API_KEY` in your secrets manager and do not commit it to source control.
+- Tune `REQUEST_TIMEOUT` for slow tools (increase to 120–300s) and adjust backoff values for flaky networks.
+
+---
 
 - `ENABLE_OPENAI_FALLBACK` - Enable OpenAI as fallback when Ollama models fail (default: `yes`)
 - `OPENAI_MAX_TOKENS` - Maximum tokens for OpenAI requests (default: `4096`)

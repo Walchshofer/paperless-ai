@@ -21,7 +21,7 @@ npm test -- --reporter spec --verbose
 npm test -- --coverage
 
 # Run the CODEX Serena bridge integration test (Python)
-pytest test/integration/codex-bridge.test.py -v
+pytest test/integration/codex-bridge.test.py -v  # uses bridge/codex-serena-bridge.py
 ```
 
 ## Test Structure

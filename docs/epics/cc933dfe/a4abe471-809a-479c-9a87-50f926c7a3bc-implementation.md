@@ -3,7 +3,7 @@
 Implemented deliverables for ticket
 `a4abe471-809a-479c-9a87-50f926c7a3bc`:
 
-- Enhanced `codex-bridge.py` with pipelined concurrency:
+- Enhanced `bridge/codex-serena-bridge.py` with pipelined concurrency:
   - `PendingRequest` dataclass and `state` additions: `pending_requests`,
     `response_buffer`, `response_delivery_queue` and locks.
   - Background helpers: `_forward_and_match`, `match_response`, and
