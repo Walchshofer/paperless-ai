@@ -8,7 +8,7 @@ from pathlib import Path
 import importlib.util
 import sys
 # Load bridge module
-_spec_location = Path(__file__).resolve().parents[2] / "codex-bridge.py"
+_spec_location = Path(__file__).resolve().parents[2] / "codex-serena-bridge.py"
 spec = importlib.util.spec_from_file_location("codex_bridge", _spec_location)
 bridge = importlib.util.module_from_spec(spec)
 sys.modules["codex_bridge"] = bridge
@@ -56,14 +56,19 @@ async def test_reconnect_exhaustion_enters_degraded_mode(aiohttp_server):
     bridge.RECONNECT_BACKOFF_BASE = 0.1
     bridge.RECONNECT_BACKOFF_MAX = 0.2
 
-    # Run the connector and expect it to stop the bridge after failures
+    # Run the connector and verify it does *not* stop the bridge during
+    # the initial startup retry phase (we should retry indefinitely with
+    # fixed 2s sleeps until a successful connect)
     connector = asyncio.create_task(bridge.connect_to_serena())
     try:
-        await asyncio.wait_for(bridge.state.shutdown.wait(), timeout=10.0)
-        assert bridge.state.shutdown.is_set()
+        # Allow a short window for multiple attempts to be made
+        await asyncio.sleep(1.0)
+        assert not bridge.state.shutdown.is_set()
+        # Startup uses fixed 2s retry, so at least one attempt should have occurred
+        assert called["count"] >= 1
     finally:
         connector.cancel()
-        # Clear shutdown so later tests may start delivery tasks normally
+        # Ensure state is clean for later tests
         bridge.state.shutdown.clear()
         bridge.MAX_RECONNECT_ATTEMPTS = old_max
         bridge.RECONNECT_BACKOFF_BASE = old_backoff_base

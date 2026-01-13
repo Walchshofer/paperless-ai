@@ -44,11 +44,20 @@ async def async_main(state: Optional[BridgeState] = None) -> int:
     loop = asyncio.get_running_loop()
     _install_signal_handlers(loop, state)
 
+    # Instantiate and start ConnectionManager so SSE lifecycle begins whether
+    # the state was injected or auto-created.
+    from .connection import ConnectionManager
+
+    cm = ConnectionManager(state)
+    cm.start()
+
     try:
         # Main run loop: wait until shutdown is requested.
         await _wait_shutdown(state)
         return 0
     finally:
+        # Stop connection manager first to close sessions and transport.
+        await cm.stop()
         if own:
             await state.close()
         log("Shutdown complete", "INFO", min_level=set_level_from_env(LOG_LEVEL))

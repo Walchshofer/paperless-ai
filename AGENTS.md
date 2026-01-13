@@ -39,7 +39,7 @@
 
 ## Tooling & Memory
 - **Memory:** Use `oraios/serena` tools for all agent handoffs.
-- **Serena Bridge:** CODEX uses `codex-bridge.py` for async Serena access.
+- **Serena Bridge:** CODEX uses `codex-serena-bridge.py` for async Serena access.
   Use Serena tools normally; the bridge is transparent to agents.
 - **Bridge Logs:** Debug output is written to `bridge_debug.log`.
 - **Entrypoint:** `server.js` (Node/Express).
