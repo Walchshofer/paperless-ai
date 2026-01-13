@@ -27,6 +27,7 @@ try:
         guidance,
         system,
         user,
+        image
     )
 except ImportError:
     # Guidance not available in the local environment (tests run here).
@@ -175,6 +176,8 @@ def get_analyze_document_geometry() -> Callable:
             # Including base64 text here confuses the model & produces garbage.
             # The document_image_b64 parameter is passed to the model via
             # the images parameter in the LLM call, not in the prompt text.
+        with user():
+            lm += image(document_image_b64)
             lm += USER_PROMPTS[language]
 
         with assistant():
