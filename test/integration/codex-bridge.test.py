@@ -12,11 +12,11 @@ from test.fixtures.mock_serena_server import (
 )
 
 
-BRIDGE_PATH = Path(__file__).resolve().parents[2] / "codex-bridge.py"
+BRIDGE_PATH = Path(__file__).resolve().parents[2] / "codex-serena-bridge.py"
 
 
 def load_bridge():
-    """Load codex-bridge.py as a module for testing."""
+    """Load codex-serena-bridge.py as a module for testing."""
     module_name = "codex_bridge"
     if module_name in sys.modules:
         del sys.modules[module_name]

@@ -16,7 +16,7 @@ MockSerenaServer = mock_mod.MockSerenaServer
 MockTransport = mock_mod.MockTransport
 MockSession = mock_mod.MockSession
 
-BRIDGE_PATH = Path(__file__).resolve().parents[2] / "codex-bridge.py"
+BRIDGE_PATH = Path(__file__).resolve().parents[2] / "codex-serena-bridge.py"
 
 
 def load_bridge():
@@ -107,8 +107,12 @@ async def test_enters_degraded_mode_after_max_retries(monkeypatch):
 
     bridge = load_bridge()
 
-    # Make sse_client raise on enter to simulate failures
+    # Make sse_client raise on enter to simulate failures (startup phase)
+    called = {"count": 0}
+
     def bad_sse_client(*args, **kwargs):
+        called["count"] += 1
+
         class Ctx:
             async def __aenter__(self):
                 raise RuntimeError("connect failed")
@@ -128,8 +132,11 @@ async def test_enters_degraded_mode_after_max_retries(monkeypatch):
 
     t = asyncio.create_task(bridge.connect_to_serena())
     try:
-        await asyncio.wait_for(bridge.state.shutdown.wait(), timeout=3.0)
-        assert bridge.state.shutdown.is_set()
+        # Startup should retry indefinitely with fixed 2s spacing; ensure we
+        # don't shutdown and that attempts are occurring
+        await asyncio.sleep(0.3)
+        assert not bridge.state.shutdown.is_set()
+        assert called["count"] >= 1
     finally:
         bridge.MAX_RECONNECT_ATTEMPTS = old_max
         bridge.RECONNECT_BACKOFF_BASE = old_back

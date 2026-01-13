@@ -12,9 +12,12 @@ import logging
 import time
 from typing import Any, Dict, Optional
 
-try:  # pragma: no cover - graceful downgrade when aiohttp is absent
+from mcp.client import ClientSession
+from mcp.client.sse import sse_client
+
+try:  # pragma: no cover - fallback for environments without aiohttp
     import aiohttp  # type: ignore
-except Exception:  # pragma: no cover - handled in runtime
+except Exception:  # pragma: no cover - runtime handled
     aiohttp = None  # type: ignore
 
 from .state import BridgeState
@@ -61,59 +64,151 @@ class ConnectionManager:
 
     async def _connect_loop(self) -> None:
         """Main loop: connect, watch, and reconnect with policies."""
-        # Startup: indefinite retries with 2s fixed backoff
-        startup_backoff = 2.0
+        # Retry/backoff tracking
         reconnect_attempts = 0
-        max_reconnects = 10
+        max_reconnects = RETRY_CONFIG.get("max_attempts", 10)
+        backoff_base = RETRY_CONFIG.get("backoff_base", 2)
+        backoff_max = RETRY_CONFIG.get("backoff_max", 30)
+
+        # Track whether we've ever achieved a successful connection. Before
+        # first successful connect we retry indefinitely with a fixed 2s delay.
+        self._ever_connected = False
 
         while self._running and not self.state.shutdown.is_set():
             try:
-                await self._ensure_session()
-                async with self.state.session.get(self.url, headers={"X-API-KEY": self.api_key}) as resp:
-                    if resp.status != 200:
-                        log(f"SSE connection unexpected status {resp.status}", "WARN",
-                            min_level=set_level_from_env("INFO"))
-                        raise RuntimeError("SSE failed to connect")
+                # Use MCP sse_client transport and initialize an SDK ClientSession
+                # sse_client may be an async factory (coroutine) or may directly
+                # return an async context manager. Only await if it's a coroutine.
+                transport_ctx = sse_client(self.url, headers={"X-API-KEY": self.api_key})
+                if asyncio.iscoroutine(transport_ctx):
+                    transport_ctx = await transport_ctx
+                async with transport_ctx as transport:
+                    async with ClientSession(transport) as session:
+                        # Perform MCP handshake/initialize
+                        await session.initialize(
+                            capabilities={},
+                            protocol_version="2024-11-05",
+                            client_info={
+                                "name": "codex-serena-bridge",
+                                "version": "3.0.0",
+                            },
+                        )
+                        # Store session and mark connected
+                        async with self.state.session_lock:
+                            self.state.session = session
+                            self.state.connected.set()
+                            # Reset reconnect attempts on success
+                            reconnect_attempts = 0
+                            self._ever_connected = True
 
-                    # Set connected event and reset reconnect attempts
-                    self.state.connected.set()
-                    reconnect_attempts = 0
-                    # Start reading events
-                    await self._consume_sse(resp)
+                        # Fetch tool metadata for this session
+                        await self.fetch_tools(session)
+                        self.state.reconnect_needed.clear()
+
+                        # Attempt to consume SSE events from the transport. If the
+                        # transport exposes an aiohttp-like `content.iter_any`, use
+                        # our line parser. Otherwise fall back to a raw aiohttp GET
+                        # so tests that use aiohttp_server still receive events.
+                        consumed = False
+                        try:
+                            if hasattr(transport, "content") and hasattr(transport.content, "iter_any"):
+                                await self._consume_sse(transport)
+                                consumed = True
+                        except Exception:
+                            consumed = False
+
+                        if not consumed:
+                            if aiohttp is None:
+                                log("No suitable transport for SSE consumption and aiohttp missing", "WARN",
+                                    min_level=set_level_from_env("INFO"))
+                            else:
+                                try:
+                                    async with aiohttp.ClientSession() as fallback_session:  # type: ignore
+                                        async with fallback_session.get(self.url, headers={"X-API-KEY": self.api_key}) as resp:
+                                            if resp.status != 200:
+                                                log(f"SSE connection unexpected status {resp.status}", "WARN",
+                                                    min_level=set_level_from_env("INFO"))
+                                                raise RuntimeError("SSE failed to connect")
+                                            await self._consume_sse(resp)
+                                except Exception as exc:
+                                    logger.exception("Fallback SSE consumption failed: %s", exc)
+
+                        # Remain connected until shutdown or explicit reconnect request
+                        while self._running and not self.state.shutdown.is_set():
+                            if self.state.reconnect_needed.is_set():
+                                log("Reconnect requested, tearing down session", "INFO",
+                                    min_level=set_level_from_env("INFO"))
+                                break
+                            try:
+                                await asyncio.wait_for(self.state.shutdown.wait(), 15)
+                            except asyncio.TimeoutError:
+                                continue
+
             except Exception as exc:
                 logger.exception("Connection loop error: %s", exc)
                 # Clear connected state and attempt to reconnect
                 self.state.connected.clear()
+
+                # Ensure we clear the session, cached tools and readiness flags on
+                # runtime disconnects so consumers don't observe stale data.
+                # _handle_disconnect is idempotent if there's nothing to close.
+                await self._handle_disconnect(clean=False)
+
+                # If we've never successfully connected yet, retry indefinitely
+                # with a fixed 2s interval (startup phase).
+                if not getattr(self, "_ever_connected", False):
+                    log("Startup connect failed, retrying in 2s", "WARN",
+                        min_level=set_level_from_env("INFO"))
+                    await asyncio.sleep(2)
+                    continue
+
+                # Post-startup reconnects: apply capped exponential backoff
                 reconnect_attempts += 1
                 if reconnect_attempts > max_reconnects:
                     log("Max reconnect attempts exhausted, entering degraded mode", "ERROR",
                         min_level=set_level_from_env("INFO"))
-                    # Indicate degraded mode by setting reconnect_needed
                     self.state.reconnect_needed.set()
-                    # Sleep before retrying after degraded period
-                    await asyncio.sleep(30)
+                    await asyncio.sleep(backoff_max)
                     continue
 
-                # Exponential backoff: 2,4,8,16,30
-                backoff = min(2 ** reconnect_attempts, 30)
+                backoff = min(backoff_base ** reconnect_attempts, backoff_max)
+                log(f"Reconnect attempt {reconnect_attempts}, sleeping {backoff}s", "INFO",
+                    min_level=set_level_from_env("INFO"))
                 await asyncio.sleep(backoff)
+
             finally:
-                # On any iteration end ensure session cleared if shutdown
+                # On shutdown ensure session and tools cleared
                 if self.state.shutdown.is_set():
                     await self._handle_disconnect(clean=True)
                     return
 
-    async def _ensure_session(self) -> None:
-        """Ensure there's an aiohttp ClientSession in state."""
-        if aiohttp is None:
-            raise RuntimeError("aiohttp is required for SSE connections")
-        async with self.state.session_lock:
-            if self.state.session is None:
-                self.state.session = aiohttp.ClientSession()  # type: ignore
-                self._session_owner = True
+    async def fetch_tools(self, session: ClientSession) -> None:
+        """Fetch tools via the MCP ClientSession and cache them in state."""
+        try:
+            result = await session.list_tools()
+            tools = getattr(result, "tools", None) or result.get("tools", [])
+            # Only set cached tools when list_tools returns a non-empty set.
+            # This avoids overwriting SSE-delivered tool lists with empty
+            # results from `list_tools()` which can happen during initial
+            # connection establishment.
+            if tools:
+                self.state.tools = tools
+                self.state.tools_ready.set()
+                log("Tools fetched and cached (via list_tools)", "INFO",
+                    min_level=set_level_from_env("INFO"))
+            else:
+                log("list_tools returned no tools; leaving state as-is", "INFO",
+                    min_level=set_level_from_env("INFO"))
+        except Exception as exc:
+            log(f"Tool fetch failed: {exc}", "WARN", min_level=set_level_from_env("INFO"))
 
     async def _consume_sse(self, resp: Any) -> None:
-        """Consume a simple SSE stream, parsing data: lines."""
+        """Consume a simple SSE stream, parsing data: lines.
+
+        This parser handles streams that expose a `content.iter_any()` like
+        aiohttp transports. It accumulates text until a double newline, then
+        parses `data:` lines into JSON payloads and dispatches events.
+        """
         buffer = ""
         async for chunk in resp.content.iter_any():  # pragma: no cover - needs aiohttp runtime to exercise
             if not chunk:
@@ -159,16 +254,27 @@ class ConnectionManager:
         async with self.state.session_lock:
             if self.state.session is not None:
                 try:
-                    if self._session_owner:
-                        await self.state.session.close()  # type: ignore
+                    # Close underlying session if it's owned by this manager
+                    try:
+                        await self.state.session.__aexit__(None, None, None)  # type: ignore
+                    except Exception:
+                        pass
                 except Exception:
                     pass
                 self.state.session = None
                 self._session_owner = False
 
+        # Clear tool metadata so reconnect will re-fetch fresh state
+        try:
+            self.state.tools.clear()
+        except Exception:
+            pass
+        try:
+            self.state.tools_ready.clear()
+        except Exception:
+            pass
+
         # Fail in-flight requests placeholder: clear buffers
-        # (actual request tracking lives elsewhere; here we ensure no leaks)
-        # Example attributes for clearing if present
         if hasattr(self.state, "response_buffer"):
             try:
                 self.state.response_buffer.clear()

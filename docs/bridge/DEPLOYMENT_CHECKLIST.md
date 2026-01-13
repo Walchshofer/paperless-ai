@@ -21,7 +21,7 @@ Use this checklist when deploying the CODEX↔Serena bridge (v4.0).
 - [ ] If using Docker, add these env vars to the service environment or a `.env` file
 
 ## Start & Validate
-- [ ] Start the bridge via supervisor (systemd/docker-compose) or directly: `python codex-bridge.py`
+- [ ] Start the bridge via supervisor (systemd/docker-compose) or directly: `python codex-serena-bridge.py`
 - [ ] Verify logs show successful session initialization:
   - Look for: "Fetched <n> tools" and "Serena session ready"
 - [ ] Run basic smoke checks (locally):

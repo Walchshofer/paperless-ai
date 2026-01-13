@@ -35,7 +35,7 @@ Key behaviors:
 
 ## Configuration
 
-Defaults live in `codex-bridge.py`. Environment variables can override
+Defaults live in `codex-serena-bridge.py`. Environment variables can override
 the defaults when needed for testing or deployment.
 
 Defaults:
