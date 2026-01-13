@@ -412,7 +412,8 @@ def enrich_error(exc: Exception, context: Dict[str, Any]):
         msg = f"Bridge error: {str(exc)}"
     # Provide both a quick message and a JSON-RPC error envelope so callers
     # that expect either shape (tests and runtime paths) are satisfied.
-    envelope = {"jsonrpc": "2.0", "id": context.get("id"), "error": {"code": -32000, "message": msg, "data": {"context": context}}}
+    # Use standard JSON-RPC internal error code (-32603) for unexpected failures
+    envelope = {"jsonrpc": "2.0", "id": context.get("id"), "error": {"code": -32603, "message": msg, "data": {"context": context}}}
     envelope["message"] = msg
     envelope["data"] = {"context": context}
     return envelope
@@ -519,9 +520,9 @@ async def forward_request(request: Dict[str, Any], *, raise_on_error: bool = Fal
         # Unknown method
         return jsonrpc_error(request.get("id"), -32601, "Method not found")
     except asyncio.TimeoutError as exc:
-        # Signal connector to re-establish and return a JSON-RPC error
+        # Signal connector to re-establish and return a JSON-RPC internal error
         state.reconnect_needed.set()
-        return jsonrpc_error(request.get("id"), -32001, "Timeout waiting for Serena response")
+        return jsonrpc_error(request.get("id"), -32603, "Timeout waiting for Serena response")
     except Exception as exc:
         # Preserve pending and prompt reconnect for connectivity errors
         state.reconnect_needed.set()
