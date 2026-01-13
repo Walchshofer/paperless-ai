@@ -2974,7 +2974,6 @@ async function processDocument(document, ollamaService, options = {}) {
             attempts: maxRetries,
             documentId: document.id || document.filename
         });
-<<<<<<< HEAD
         throw new Error(msg);
     } else if (classifyResult?._meta?.fallback) {
         // Pre-check indicated model not available or immediate fallback

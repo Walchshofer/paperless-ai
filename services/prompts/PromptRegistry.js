@@ -937,7 +937,6 @@ Respond with this exact JSON structure:
 };
 
 /**
-<<<<<<< HEAD
  * VISUAL_QUERY_GENERATOR_V1: Visual Query Generation (Stage 5.5 fallback)
  *
  * Purpose: Generate targeted visual queries for missing/low-confidence fields
