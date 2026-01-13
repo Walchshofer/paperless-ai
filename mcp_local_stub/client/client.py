@@ -5,7 +5,11 @@ from typing import Any, Dict, Optional
 
 
 class ClientSession:
-    """A small test stub for the MCP ClientSession used in tests."""
+    """A very small test stub for the MCP ClientSession.
+
+    Provides the methods exercised by the bridge tests: `initialize`,
+    `list_tools`, `call_tool`, `read_resource` and `list_resources`.
+    """
 
     def __init__(self, transport: Optional[Any] = None) -> None:
         self.transport = transport
