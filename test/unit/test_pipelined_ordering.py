@@ -2,8 +2,8 @@ import asyncio
 import importlib.util
 from pathlib import Path
 
-# Import codex-bridge.py as module for testing
-_spec_location = Path(__file__).resolve().parents[2] / "codex-bridge.py"
+# Import codex-serena-bridge.py as module for testing
+_spec_location = Path(__file__).resolve().parents[2] / "codex-serena-bridge.py"
 spec = importlib.util.spec_from_file_location("codex_bridge", _spec_location)
 bridge = importlib.util.module_from_spec(spec)
 
