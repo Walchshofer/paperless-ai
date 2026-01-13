@@ -1,6 +1,21 @@
 import asyncio
 import json
+import logging
 from typing import Any, Dict, List, Optional
+
+
+class _SuppressCancelledFilter(logging.Filter):
+    """Filter to suppress noisy CancelledError traceback logs from uvicorn/Starlette during test shutdown."""
+
+    def filter(self, record):
+        try:
+            msg = record.getMessage() or ""
+        except Exception:
+            msg = ""
+        # Drop messages that reference CancelledError from asyncio/uvicorn
+        if "CancelledError" in msg or "asyncio.exceptions.CancelledError" in msg:
+            return False
+        return True
 
 import uvicorn
 from starlette.applications import Starlette
@@ -36,11 +51,20 @@ class MockSerenaServer:
 
     async def sse_endpoint(self, _request: Request) -> StreamingResponse:
         async def event_stream():
-            yield f"data: session_id={self._session_id}\n\n"
-            while True:
-                payload = await self._queue.get()
-                chunk = f"data: {json.dumps(payload)}\n\n"
-                yield chunk
+            # Yield an initial session id event then stream messages.
+            try:
+                yield f"data: session_id={self._session_id}\n\n"
+                while True:
+                    try:
+                        payload = await self._queue.get()
+                    except asyncio.CancelledError:
+                        # Server is shutting down; stop the generator cleanly.
+                        break
+                    chunk = f"data: {json.dumps(payload)}\n\n"
+                    yield chunk
+            except asyncio.CancelledError:
+                # Swallow CancelledError to avoid noisy tracebacks in tests.
+                return
 
         return StreamingResponse(
             event_stream(),
@@ -59,8 +83,40 @@ class MockSerenaServer:
             port=self.port,
             log_level="warning",
         )
+        # Install a filter to suppress noisy CancelledError logs originating from
+        # uvicorn/Starlette lifespan mechanics during test shutdown sequences.
+        cancelled_filter = _SuppressCancelledFilter()
+        logging.getLogger("uvicorn.error").addFilter(cancelled_filter)
+        logging.getLogger("uvicorn.lifespan.on").addFilter(cancelled_filter)
+
         self._server = uvicorn.Server(config)
-        asyncio.create_task(self._server.serve())
+        # Start server in background and allow a brief moment for startup to
+        # complete so test code doesn't race against the server's lifespan.
+        self._server_task = asyncio.create_task(self._server.serve())
+        # Wait until the server indicates it's started or timeout.
+        # Uvicorn exposes a `.started` attribute (asyncio.Event) on newer versions
+        # which is set when the server is ready to accept connections. Fall back
+        # to a short sleep if not available.
+        started = getattr(self._server, "started", None)
+        if isinstance(started, asyncio.Event):
+            try:
+                await asyncio.wait_for(started.wait(), timeout=1.0)
+            except asyncio.TimeoutError:
+                # Fallback to small sleep to keep tests robust across uvicorn versions.
+                await asyncio.sleep(0.05)
+        else:
+            await asyncio.sleep(0.05)
+
+    async def stop(self) -> None:
+        if self._server:
+            self._server.should_exit = True
+            # Wait for the server task to finish gracefully with a timeout
+            if getattr(self, "_server_task", None):
+                try:
+                    await asyncio.wait_for(self._server_task, timeout=1.0)
+                except Exception:
+                    # Ensure we don't raise during test cleanup
+                    pass
 
     async def stop(self) -> None:
         if self._server:

@@ -55,6 +55,10 @@ async def test_bridge_connects_when_serena_becomes_available(monkeypatch):
     finally:
         bridge.state.shutdown.set()
         await t
+        # Ensure the mock server is stopped to avoid background uvicorn tasks
+        await server.stop()
+        # allow the event loop to process final shutdown tasks
+        await asyncio.sleep(0.01)
 
 
 @pytest.mark.asyncio
@@ -98,6 +102,11 @@ async def test_reconnect_after_drop_and_tools_refetched(monkeypatch):
         await t
     except asyncio.CancelledError:
         pass
+    finally:
+        # Ensure the mock server is stopped to avoid background uvicorn tasks
+        await server.stop()
+        # allow the event loop to process final shutdown tasks
+        await asyncio.sleep(0.01)
 
 
 @pytest.mark.asyncio
@@ -145,3 +154,8 @@ async def test_enters_degraded_mode_after_max_retries(monkeypatch):
             await t
         except asyncio.CancelledError:
             pass
+        finally:
+            # Ensure the mock server is stopped to avoid background uvicorn tasks
+            await server.stop()
+            # allow the event loop to process final shutdown tasks
+            await asyncio.sleep(0.01)
