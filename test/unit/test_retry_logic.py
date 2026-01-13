@@ -3,8 +3,8 @@ import importlib.util
 from pathlib import Path
 import sys
 
-# Load codex-bridge module for tests
-_spec_location = Path(__file__).resolve().parents[2] / "codex-bridge.py"
+# Load codex-serena-bridge module for tests
+_spec_location = Path(__file__).resolve().parents[2] / "codex-serena-bridge.py"
 spec = importlib.util.spec_from_file_location("codex_bridge", _spec_location)
 bridge = importlib.util.module_from_spec(spec)
 sys.modules["codex_bridge"] = bridge
