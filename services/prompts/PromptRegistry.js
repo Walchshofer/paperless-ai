@@ -991,7 +991,7 @@ Return this exact JSON structure:
 <|eot_id|>`,
 
     config: { temperature: 0.0, maxTokens: 768, topK: 40 }
-=======
+*/
  * VIS_SIGNAL_ANALYZER_V1: First-Pass Visual Signal Analysis
  *
  * Purpose: Fast, single-pass analysis of document geometry and type.
