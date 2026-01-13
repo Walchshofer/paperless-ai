@@ -1,63 +1,243 @@
-.env
-.env.bak
-.dockerignore
-data/
+# ============================================================================
+# paperless-ai .gitignore
+# ============================================================================
+.claude/
+.claude-*/ 
+
+# ============================================================================
+# Node.js Dependencies & Build Artifacts
+# ============================================================================
+# Dependencies (CRITICAL - prevents committing thousands of files)
 node_modules/
-api-test.ps1
-openai_debug.log
-prompt.bak
-data bak/
+jspm_packages/
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+# Cache
+.npm
+.eslintcache
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+# ============================================================================
+# Python Virtual Environments & Dependencies
+# ============================================================================
+# Virtual environments (CRITICAL - prevents committing thousands of files)
+venv/
+venv11/
+.venv/
+ENV/
+env/
+env11/
+.env/
+virtualenv/
+.virtualenv/
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+# PyInstaller
+*.manifest
+*.spec
+# ============================================================================
+# Testing & Coverage
+# ============================================================================
+# Coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+coverage/
+# Test outputs (organized in test/output/)
+test/output/*.txt
+test/output/*.log
+test/output/*.zip
+test/output/*.json
+unit_test_logs/
+unit_logs_*.zip
+pytest_*.txt
+integration_test_*.txt
+integration_single.txt
+# ============================================================================
+# Environment Variables
+# ============================================================================
+.env
+.env.local
+.env.*.local
+.env.bak
+!.env.example
+# ============================================================================
+# IDEs and Editors
+# ============================================================================
+# VS Code
+.vscode/
+*.code-workspace
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+# ============================================================================
+# Operating System
+# ============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+nul
+# Linux
+*~
+# ============================================================================
+# Project-Specific: Data & Databases
+# ============================================================================
+data/
 data_bak/
 data_*/
-.env*
-docker-compose-dev.yml
+chromadb/
+/chromadb
+/chromadb/*
+*.db
+*.sqlite
+*.sqlite3
+# ============================================================================
+# Project-Specific: Temporary Files
+# ============================================================================
+tmpclaude-*
+tmp-*
+*.tmp
+cookies.txt
+todo_list.md
+notes.md
+scratch.md
+.local/
+*.local.*
+# ============================================================================
+# Project-Specific: Backup Files
+# ============================================================================
+*.bak
+*.backup
+backups/
+main.py.bak
+main.pyy*
+prompt.bak
+rag.ejs.old
+# ============================================================================
+# Project-Specific: Logs
+# ============================================================================
+bridge_debug.log
+shadow-bridge.log
+openai_debug.log
+*.log
+logs/
+logs/*
+# ============================================================================
+# Project-Specific: Build & Distribution
+# ============================================================================
+dist/*.zip
+dist/*.tar.gz
+# Except specific releases you want to track
+!dist/paperless-ai-chrome.zip
+# ============================================================================
+# Project-Specific: Images
+# ============================================================================
 public/images/
+# ============================================================================
+# Project-Specific: Development
+# ============================================================================
+agents/skills/*.bak
+.archive/
+/.archive/
+models/hf/
+surya_env/
+# ============================================================================
+# Project-Specific: Config & Scripts (Development Only)
+# ============================================================================
+api-test.ps1
 delete_all.js
 documents.json
 apitest.js
-logs/*
 api_correspondent.js
 prompt.txt
 api_test_r1.js
 openrouter.js
-/chromadb
 rag_config.conf
 indexed.conf
 indexing_complete.flag
 RAGZ_README.md
-
-# Local development files
-.local/
-*.local.*
-/chromadb
-/chromadb/*
-rag_config.conf
-indexed.conf
-main.py.bak
-indexing_complete.flag
-__pycache__/
-main.pyy*
-rag.ejs.old
-surya_env/
+docker-compose-dev.yml
 ocr_server.py
 surya_models.py
-
-# Strict: ignore all hidden files and directories (dotfiles)
-# Keep `.gitignore` and `.github/` tracked
-.*
+# ============================================================================
+# Keep These Tracked (Explicit Exceptions)
+# ============================================================================
 !.gitignore
-!/.github/
-!/.github/**
-!/.planning/
-!/.planning/**
-# Allow pre-commit config to be tracked
+!.github/
+!.planning/
 !.pre-commit-config.yaml
-
-# Ignore repository `prompts/` folder (non-hidden) and all its contents
-#/prompts/
-#/prompts/**
-#!prompts/README.md
-
-# Local archive for dev-only items (kept locally, not tracked)
-/.archive/
-models/hf/
+!.dockerignore
+!.env.example
+!.pre-commit-config.yaml# ============================================================================
+# Additional Cleanup Patterns (2026-01-13)
+# ============================================================================
+# Old bridge entry point (replaced by bridge/)
+codex-serena-bridge.py
+# MCP local stubs (use installed package)
+mcp/
+mcp_local_stub/
+# Temporary directories
+.tmp_merge/
+.serena/
+# Old virtual environments
+.venv311/
+venv311/
+# Debug files
+debug_snips.txt
+# Epic implementation docs (generated artifacts)
+docs/epics/
+# Test fixtures that are stubs
+test/fixtures/mcp_stub/

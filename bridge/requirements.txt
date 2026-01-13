@@ -1,0 +1,2 @@
+# Minimal dependencies for the CODEX-Serena bridge runtime.
+mcp[cli]>=1.0.0

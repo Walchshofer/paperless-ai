@@ -1,25 +1,43 @@
 import pytest
 
-from services.bridge.connection import ConnectionManager
-from services.bridge.state import BridgeState
+from bridge.connection import ConnectionManager
+from bridge.orderer import ResponseOrderer
+from bridge.state import BridgeState
 
 
 @pytest.mark.asyncio
-async def test_runtime_disconnect_clears_tools_and_is_idempotent():
+async def test_disconnect_clears_tools_and_sets_lost():
     state = BridgeState()
-    # Simulate an existing connected session & tools
+    state.tools = [{"name": "tool-x"}]
+    state.tools_ready.set()
+    state.connected.set()
+    state.ever_connected = True
+
+    cm = ConnectionManager(state, ResponseOrderer())
+    await cm._handle_disconnect(
+        clean=False,
+        reason="connection_error",
+        notify=True,
+    )
+
+    assert state.tools == []
+    assert not state.tools_ready.is_set()
+    assert state.connection_lost.is_set()
+
+
+@pytest.mark.asyncio
+async def test_disconnect_no_notify_skips_lost_flag():
+    state = BridgeState()
     state.tools = [{"name": "tool-x"}]
     state.tools_ready.set()
 
-    cm = ConnectionManager(state)
-
-    # Call disconnect handler as runtime disconnect (clean=False)
-    await cm._handle_disconnect(clean=False)
+    cm = ConnectionManager(state, ResponseOrderer())
+    await cm._handle_disconnect(
+        clean=True,
+        reason="shutdown",
+        notify=False,
+    )
 
     assert state.tools == []
     assert not state.tools_ready.is_set()
-
-    # Calling again should be idempotent (no exception, same result)
-    await cm._handle_disconnect(clean=False)
-    assert state.tools == []
-    assert not state.tools_ready.is_set()
+    assert not state.connection_lost.is_set()

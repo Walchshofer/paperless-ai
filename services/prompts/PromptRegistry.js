@@ -991,6 +991,77 @@ Return this exact JSON structure:
 <|eot_id|>`,
 
     config: { temperature: 0.0, maxTokens: 768, topK: 40 }
+=======
+ * VIS_SIGNAL_ANALYZER_V1: First-Pass Visual Signal Analysis
+ *
+ * Purpose: Fast, single-pass analysis of document geometry and type.
+ * Model: qwen3-vl:8b (multimodal)
+ *
+ * Capabilities:
+ * - Document Type Classification
+ * - Rotation Detection
+ * - Crop Detection
+ * - Text Overlay Localization
+ */
+const VIS_SIGNAL_ANALYZER_V1 = {
+    id: 'VIS_SIGNAL_ANALYZER_V1',
+    version: '1.0.0',
+    domain: DomainType.SYSTEM,
+    category: PromptCategory.ROUTING,
+    model: MODEL_NAMES.router,
+    modelType: ModelType.MULTIMODAL,
+
+    systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+You are a Visual Document Signal Analyzer. Your job is to analyze a document image and output critical normalization signals and classification.
+
+TASKS:
+1. Identify Document Type (Invoice, Receipt, Contract, Medical Report, etc.)
+2. Detect Rotation (0, 90, 180, 270 degrees clockwise to fix)
+3. Detect Cropping Needs (if the document is surrounded by a large background)
+4. Identify Text Overlays (optional, if significant text is overlaid on images)
+
+OUTPUT RULES:
+- Return ONLY valid JSON.
+- Confidence scores must be 0.0-1.0.
+- Rotation is the amount needed to FIX the image.
+- Crop box is [xmin, ymin, xmax, ymax] in 0-1000 normalized coordinates.
+<|eot_id|>`,
+
+    userTemplate: `<|start_header_id|>user<|end_header_id|>
+Analyze this document image for normalization signals.
+
+CONTEXT:
+- Filename: {{filename}}
+- Source: {{source_system}}
+
+Respond with this exact JSON structure:
+{
+  "document_type": "<specific type>",
+  "primary_domain": "Medical|Financial|Legal|General",
+  "rotation": {
+    "needed": <true|false>,
+    "degrees": <0|90|180|270>,
+    "confidence": <0.0-1.0>
+  },
+  "crop": {
+    "needed": <true|false>,
+    "box": [<xmin>, <ymin>, <xmax>, <ymax>] or null,
+    "confidence": <0.0-1.0>
+  },
+  "overlays": [
+    {"label": "<label>", "box": [<xmin>, <ymin>, <xmax>, <ymax>]}
+  ],
+  "confidence": <0.0-1.0>
+}
+<|eot_id|>`,
+
+    config: {
+        temperature: 0.1,
+        maxTokens: 512,
+        topK: 40,
+        topP: 0.9
+    }
+>>>>>>> efdd603f (feat: add visual signal analyzer for document normalization)
 };
 
 /**
@@ -1295,6 +1366,7 @@ class PromptRegistry {
     _registerBuiltinPrompts() {
         this.register(SYS_ROUTER_V1);
         this.register(SYS_ORCHESTRATOR_V1);
+        this.register(VIS_SIGNAL_ANALYZER_V1);
         this.register(VIS_OCR_V1);
         this.register(MED_RADIOLOGY_V1);
         this.register(MED_DOCTOR_V1);
@@ -1553,6 +1625,7 @@ module.exports = {
     // Export individual prompts for direct access
     SYS_ROUTER_V1,
     SYS_ORCHESTRATOR_V1,
+    VIS_SIGNAL_ANALYZER_V1,
     VIS_OCR_V1,
     MED_RADIOLOGY_V1,
     MED_DOCTOR_V1,

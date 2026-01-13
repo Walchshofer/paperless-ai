@@ -1,14 +1,29 @@
+import asyncio
 import os
 import sys
-import importlib.util
-import asyncio
+from pathlib import Path
 
-os.environ['BRIDGE_TEST_STUBS'] = '1'
-spec = importlib.util.spec_from_file_location('codex_bridge', 'codex-serena-bridge.py')
-bridge = importlib.util.module_from_spec(spec)
-sys.modules['codex_bridge'] = bridge
-spec.loader.exec_module(bridge)
+root = Path(__file__).resolve().parents[1]
+if str(root) not in sys.path:
+    sys.path.insert(0, str(root))
 
-# Run connect_to_serena for a single attempt and then stop
-asyncio.run(bridge.connect_to_serena(max_attempts=1))
-print('connect_to_serena invocation completed')
+os.environ["BRIDGE_TEST_STUBS"] = "1"
+
+from bridge.connection import ConnectionManager
+from bridge.orderer import ResponseOrderer
+from bridge.state import BridgeState
+
+
+async def main():
+    state = BridgeState()
+    manager = ConnectionManager(state, ResponseOrderer())
+    manager.start()
+    try:
+        await asyncio.wait_for(state.tools_ready.wait(), timeout=1.0)
+    finally:
+        await manager.stop()
+    print("connect_to_serena invocation completed")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
