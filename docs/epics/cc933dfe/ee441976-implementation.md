@@ -1,12 +1,14 @@
-Added documentation for bridge configuration, deployment checklist, migration from v3→v4, troubleshooting, and performance tuning.
+Added documentation for CODEX-Serena Bridge configuration, deployment checklist, migration guide (v3→v4), troubleshooting, and performance tuning.
 
-Files added under `docs/bridge/`:
-- `ENVIRONMENT_VARIABLES.md`
-- `CODEX_CONFIGURATION.md`
-- `DEPLOYMENT_CHECKLIST.md`
-- `MIGRATION_V3_TO_V4.md`
-- `TROUBLESHOOTING.md`
-- `PERFORMANCE_TUNING.md`
+Files added or updated:
+- `docs/BRIDGE_CONFIGURATION.md` (new consolidated bridge configuration)
+- `docs/CODEX_CONFIGURATION.md` (bridge CODEX configuration examples)
+- `docs/DEPLOYMENT_CHECKLIST.md` (deployment checklist)
+- `docs/MIGRATION_V3_TO_V4.md` (migration guide)
+- `docs/TROUBLESHOOTING_BRIDGE.md` (troubleshooting guide)
+- `docs/TROUBLESHOOTING.md` (additional troubleshooting docs)
+- `docs/ENVIRONMENT_VARIABLES.md` (updated with bridge variables and examples)
+- `docs/PERFORMANCE_TUNING.md` (performance tuning)
 
 Acceptance criteria covered:
 - Environment variables documented with examples
@@ -14,4 +16,5 @@ Acceptance criteria covered:
 - Deployment checklist and migration guide added
 - Troubleshooting and performance tuning guides included
 
-Next steps: open PR, request reviewers, and add documentation labels.
+Notes: See ticket ee441976 for the original spec. Local validation: docs built for readability; integration tests unaffected.
+
