@@ -16,6 +16,8 @@ const fs = require('fs').promises;
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const cookieParser = require('cookie-parser');
+const { authenticateJWT, isAuthenticated } = require('./auth.js');
 const logger = require('../services/logger');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const customService = require('../services/customService.js');
@@ -3256,6 +3258,7 @@ router.post('/api/webhook/document', async (req, res) => {
       
       documentQueue.push(document);
       if (prompt) {
+        usePrompt = true;
         logger.debug('Using custom prompt: %s', prompt);
         await processQueue(prompt);
       } else {
