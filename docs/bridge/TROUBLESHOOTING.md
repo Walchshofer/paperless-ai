@@ -60,6 +60,21 @@ Action:
 - Determine if the error is permanent (bad request, 400) or transient (timeouts,
   503) and adjust retry strategy
 
+## 6) Bridge stops immediately / STDIO closes
+
+Symptoms:
+- Logs show `Bridge stopped` within seconds of startup
+- Log line: `Server task exited before shutdown; STDIO likely closed`
+- Log line: `STDIN is closed; CODEX must keep STDIO open`
+
+Action:
+- Confirm CODEX keeps stdin open for the MCP stdio server
+- Run the diagnostic helper:
+  `python bridge/testscripts/test_stdin_lifecycle.py`
+- Check `docs/bridge/debug/stdio_diagnostic_results.md` for scenario guidance
+- Set `STDIO_INITIALIZE_GRACE_SECS=0.1` to tolerate startup races
+- Set `STDIO_INITIALIZE_TIMEOUT_SECS=2` to require an initialize handshake
+
 ## Useful commands & log locations
 
 - Tail logs: `tail -F /var/log/codex-serena-bridge.log` or
@@ -67,7 +82,7 @@ Action:
 - Run a quick local check with Mock Serena server in tests:
   - `pytest test/integration/test_connection_lifecycle.py -q`
 
-## 6) Local MCP test stubs
+## 7) Local MCP test stubs
 
 - Primary stubs live in `test/fixtures/mcp_client_stubs.py`.
 - Legacy stub packages were moved to `test/fixtures/mcp_stub/` to avoid

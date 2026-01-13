@@ -83,13 +83,22 @@ def _patch_bridge(monkeypatch: pytest.MonkeyPatch, app: DummyApp) -> None:
     # env vars via monkeypatch are reliably observed.
     import os
 
-    bridge.config.STDIO_INITIALIZE_GRACE_SECS = float(os.getenv("STDIO_INITIALIZE_GRACE_SECS", "0"))
-    bridge.config.STDIO_INITIALIZE_TIMEOUT_SECS = float(os.getenv("STDIO_INITIALIZE_TIMEOUT_SECS", "0"))
+    bridge.config.STDIO_INITIALIZE_GRACE_SECS = float(
+        os.getenv("STDIO_INITIALIZE_GRACE_SECS", "0")
+    )
+    bridge.config.STDIO_INITIALIZE_TIMEOUT_SECS = float(
+        os.getenv("STDIO_INITIALIZE_TIMEOUT_SECS", "0")
+    )
 
     monkeypatch.setattr(bridge, "BridgeApp", lambda: app)
     monkeypatch.setattr(bridge, "ConnectionManager", DummyManager)
     monkeypatch.setattr(bridge, "stdio_server", fake_stdio_server)
     monkeypatch.setattr(bridge, "_install_signal_handlers", _no_signal)
+    # Stabilize stdin.closed detection for test runs.
+    class DummyStdin:
+        closed = False
+
+    monkeypatch.setattr(bridge.sys, "stdin", DummyStdin())
     # NOTE: do not suppress the bridge log here so tests can surface internal
     # diagnostic messages which help debugging race conditions in tests.
 
@@ -98,8 +107,10 @@ def _patch_bridge(monkeypatch: pytest.MonkeyPatch, app: DummyApp) -> None:
 async def test_async_main_returns_zero_on_success(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    shutdown_event = asyncio.Event()
+
     async def run_ok() -> None:
-        await asyncio.sleep(0)
+        await shutdown_event.wait()
 
     # Ensure grace and timeout are disabled for this test
     monkeypatch.setenv("STDIO_INITIALIZE_GRACE_SECS", "0")
@@ -111,6 +122,12 @@ async def test_async_main_returns_zero_on_success(
     app = DummyApp(run_ok)
     _patch_bridge(monkeypatch, app)
 
+    async def trigger_shutdown() -> None:
+        await asyncio.sleep(0.05)
+        shutdown_event.set()
+        app.state.shutdown.set()
+
+    asyncio.create_task(trigger_shutdown())
     exit_code = await bridge.async_main()
 
     assert exit_code == 0
@@ -125,9 +142,10 @@ async def test_stdio_enter_and_exit_write_log(monkeypatch: pytest.MonkeyPatch, t
     import importlib
 
     importlib.reload(bridge.config)
+    shutdown_event = asyncio.Event()
 
     async def run_ok() -> None:
-        await asyncio.sleep(0)
+        await shutdown_event.wait()
 
     # Ensure grace and timeout are disabled for this test
     monkeypatch.setenv("STDIO_INITIALIZE_GRACE_SECS", "0")
@@ -139,6 +157,12 @@ async def test_stdio_enter_and_exit_write_log(monkeypatch: pytest.MonkeyPatch, t
     app = DummyApp(run_ok)
     _patch_bridge(monkeypatch, app)
 
+    async def trigger_shutdown() -> None:
+        await asyncio.sleep(0.05)
+        shutdown_event.set()
+        app.state.shutdown.set()
+
+    asyncio.create_task(trigger_shutdown())
     exit_code = await bridge.async_main()
 
     assert exit_code == 0
@@ -169,21 +193,49 @@ async def test_server_task_exits_during_grace(monkeypatch: pytest.MonkeyPatch) -
 
 
 @pytest.mark.asyncio
+async def test_server_task_exits_without_shutdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def run_immediate() -> None:
+        return None
+
+    monkeypatch.setenv("STDIO_INITIALIZE_GRACE_SECS", "0")
+    monkeypatch.setenv("STDIO_INITIALIZE_TIMEOUT_SECS", "0")
+    import importlib
+
+    importlib.reload(bridge.config)
+
+    app = DummyApp(run_immediate)
+    _patch_bridge(monkeypatch, app)
+
+    exit_code = await bridge.async_main()
+
+    assert exit_code == 1
+
+
+@pytest.mark.asyncio
 async def test_server_task_survives_grace(monkeypatch: pytest.MonkeyPatch) -> None:
     """If the server task remains running during the grace period, async_main should continue to normal wait."""
     monkeypatch.setenv("STDIO_INITIALIZE_GRACE_SECS", "0.2")
     import importlib
 
     importlib.reload(bridge.config)
+    shutdown_event = asyncio.Event()
 
     async def run_long() -> None:
-        await asyncio.sleep(0.5)
+        await shutdown_event.wait()
 
     app = DummyApp(run_long)
     # Simulate that initialize was received during startup
     app.initialized.set()
     _patch_bridge(monkeypatch, app)
 
+    async def trigger_shutdown() -> None:
+        await asyncio.sleep(0.3)
+        shutdown_event.set()
+        app.state.shutdown.set()
+
+    asyncio.create_task(trigger_shutdown())
     exit_code = await bridge.async_main()
 
     assert exit_code == 0

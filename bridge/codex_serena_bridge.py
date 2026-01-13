@@ -5,6 +5,7 @@ import asyncio
 import base64
 import signal
 import os
+import sys
 from datetime import datetime
 from typing import Any, Iterable
 
@@ -217,6 +218,15 @@ async def async_main() -> int:
             except Exception:
                 pass
 
+            if sys.stdin.closed:
+                log(
+                    "STDIN is closed; CODEX must keep STDIO open",
+                    level="ERROR",
+                )
+                exit_code = 1
+                app.state.shutdown.set()
+                return exit_code
+
             log(
                 "STDIO server started, waiting for CODEX",
                 level="DEBUG",
@@ -325,12 +335,14 @@ async def async_main() -> int:
                 [server_task, shutdown_task],
                 return_when=asyncio.FIRST_COMPLETED,
             )
+            server_done = server_task in done
+            shutdown_done = shutdown_task in done
             log(
                 "Task completed: server=%s, shutdown=%s"
-                % (server_task in done, shutdown_task in done),
+                % (server_done, shutdown_done),
                 level="DEBUG",
             )
-            if server_task in done:
+            if server_done:
                 try:
                     result = server_task.result()
                     log(f"Server task result: {result}", level="DEBUG")
@@ -344,6 +356,17 @@ async def async_main() -> int:
 
                     trace = traceback.format_exc()
                     log(f"Traceback: {trace}", level="ERROR")
+                if (
+                    not shutdown_done
+                    and not app.state.shutdown.is_set()
+                    and exit_code == 0
+                ):
+                    log(
+                        "Server task exited before shutdown; "
+                        "STDIO likely closed",
+                        level="ERROR",
+                    )
+                    exit_code = 1
             if shutdown_task in done and not server_task.done():
                 server_task.cancel()
                 await asyncio.gather(server_task, return_exceptions=True)
