@@ -51,7 +51,8 @@ async def test_bridge_connects_when_serena_becomes_available(monkeypatch):
     t = asyncio.create_task(bridge.connect_to_serena(max_attempts=1))
     try:
         await asyncio.wait_for(bridge.state.connected.wait(), timeout=1.0)
-        assert bridge.state.tools_ready.is_set()
+        # Wait for tools to be fetched (avoid timing races across Python versions)
+        await asyncio.wait_for(bridge.state.tools_ready.wait(), timeout=1.0)
     finally:
         bridge.state.shutdown.set()
         await t
@@ -94,7 +95,7 @@ async def test_reconnect_after_drop_and_tools_refetched(monkeypatch):
     # After reconnect, tools should be refetched
     # Allow sufficient time for backoff and reconnect
     await asyncio.wait_for(bridge.state.connected.wait(), timeout=5.0)
-    assert bridge.state.tools_ready.is_set()
+    await asyncio.wait_for(bridge.state.tools_ready.wait(), timeout=1.0)
 
     bridge.state.shutdown.set()
     bridge.HEALTH_CHECK_INTERVAL = old_health
