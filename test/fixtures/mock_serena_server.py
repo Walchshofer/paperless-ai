@@ -1,21 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import Any, Dict, List, Optional
-
-
-class _SuppressCancelledFilter(logging.Filter):
-    """Filter to suppress noisy CancelledError traceback logs from uvicorn/Starlette during test shutdown."""
-
-    def filter(self, record):
-        try:
-            msg = record.getMessage() or ""
-        except Exception:
-            msg = ""
-        # Drop messages that reference CancelledError from asyncio/uvicorn
-        if "CancelledError" in msg or "asyncio.exceptions.CancelledError" in msg:
-            return False
-        return True
+from typing import Any, Dict, List, Optional, Tuple
 
 import uvicorn
 from starlette.applications import Starlette
@@ -24,14 +10,31 @@ from starlette.responses import PlainTextResponse, StreamingResponse
 from starlette.routing import Route
 
 
+class _SuppressCancelledFilter(logging.Filter):
+    """Suppress noisy CancelledError tracebacks during shutdown."""
+
+    def filter(self, record):
+        try:
+            msg = record.getMessage() or ""
+        except Exception:
+            msg = ""
+        if "CancelledError" in msg:
+            return False
+        if "asyncio.exceptions.CancelledError" in msg:
+            return False
+        return True
+
+
 class MockSerenaServer:
     """Minimal SSE server plus in-process session helpers for tests."""
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 9121) -> None:
+    def __init__(self, host: str = "127.0.0.1", port: int = 0) -> None:
         self.host = host
+        # If port is 0, we'll pick a free ephemeral port at start time.
         self.port = port
         self._queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
         self._server: Optional[uvicorn.Server] = None
+        self._server_task: Optional[asyncio.Task] = None
         self._session_id = "mock-session"
         self.fail_next: bool = False
         self.delay_map: Dict[str, float] = {}
@@ -51,19 +54,16 @@ class MockSerenaServer:
 
     async def sse_endpoint(self, _request: Request) -> StreamingResponse:
         async def event_stream():
-            # Yield an initial session id event then stream messages.
             try:
                 yield f"data: session_id={self._session_id}\n\n"
                 while True:
                     try:
                         payload = await self._queue.get()
                     except asyncio.CancelledError:
-                        # Server is shutting down; stop the generator cleanly.
                         break
                     chunk = f"data: {json.dumps(payload)}\n\n"
                     yield chunk
             except asyncio.CancelledError:
-                # Swallow CancelledError to avoid noisy tracebacks in tests.
                 return
 
         return StreamingResponse(
@@ -77,50 +77,46 @@ class MockSerenaServer:
         return PlainTextResponse("Accepted")
 
     async def start(self) -> None:
+        # Pick an ephemeral free port if requested to avoid port conflicts
+        # when tests run in sequence or parallel on the same host.
+        if self.port == 0:
+            import socket
+
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind((self.host, 0))
+                self.port = s.getsockname()[1]
+
         config = uvicorn.Config(
             self.app,
             host=self.host,
             port=self.port,
             log_level="warning",
         )
-        # Install a filter to suppress noisy CancelledError logs originating from
-        # uvicorn/Starlette lifespan mechanics during test shutdown sequences.
         cancelled_filter = _SuppressCancelledFilter()
         logging.getLogger("uvicorn.error").addFilter(cancelled_filter)
         logging.getLogger("uvicorn.lifespan.on").addFilter(cancelled_filter)
 
         self._server = uvicorn.Server(config)
-        # Start server in background and allow a brief moment for startup to
-        # complete so test code doesn't race against the server's lifespan.
         self._server_task = asyncio.create_task(self._server.serve())
-        # Wait until the server indicates it's started or timeout.
-        # Uvicorn exposes a `.started` attribute (asyncio.Event) on newer versions
-        # which is set when the server is ready to accept connections. Fall back
-        # to a short sleep if not available.
         started = getattr(self._server, "started", None)
         if isinstance(started, asyncio.Event):
             try:
                 await asyncio.wait_for(started.wait(), timeout=1.0)
             except asyncio.TimeoutError:
-                # Fallback to small sleep to keep tests robust across uvicorn versions.
                 await asyncio.sleep(0.05)
         else:
             await asyncio.sleep(0.05)
 
     async def stop(self) -> None:
-        if self._server:
-            self._server.should_exit = True
-            # Wait for the server task to finish gracefully with a timeout
-            if getattr(self, "_server_task", None):
-                try:
-                    await asyncio.wait_for(self._server_task, timeout=1.0)
-                except Exception:
-                    # Ensure we don't raise during test cleanup
-                    pass
-
-    async def stop(self) -> None:
-        if self._server:
-            self._server.should_exit = True
+        if not self._server:
+            return
+        self._server.should_exit = True
+        if self._server_task:
+            try:
+                await asyncio.wait_for(self._server_task, timeout=1.0)
+            except Exception:
+                pass
 
     def set_delay(self, method: str, seconds: float) -> None:
         self.delay_map[method] = seconds
@@ -135,17 +131,25 @@ class MockSerenaServer:
 class MockTransport:
     """Dummy transport stand-in for sse_client."""
 
-    async def __aenter__(self):
-        return self
+    def __init__(self) -> None:
+        self._streams = (object(), object())
 
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aenter__(self) -> Tuple[Any, Any]:
+        return self._streams
+
+    async def __aexit__(self, exc_type, exc, tb) -> bool:
         return False
 
 
 class MockSession:
     """Emulates mcp.ClientSession using MockSerenaServer state."""
 
-    def __init__(self, _transport: Any, server: MockSerenaServer) -> None:
+    def __init__(
+        self,
+        _read_stream: Any,
+        _write_stream: Any,
+        server: MockSerenaServer,
+    ) -> None:
         self.server = server
         self.calls: list = []
 
@@ -167,7 +171,7 @@ class MockSession:
         await self._maybe_fail_or_delay("initialize")
         return {"serverInfo": {"name": "mock-serena"}}
 
-    async def list_tools(self) -> Dict[str, Any]:
+    async def list_tools(self, cursor: Optional[str] = None) -> Dict[str, Any]:
         await self._maybe_fail_or_delay("tools/list")
         return {"tools": list(self.server.tools)}
 
@@ -180,10 +184,28 @@ class MockSession:
         self.calls.append((name, arguments or {}))
         return {"content": [{"type": "text", "text": "ok"}]}
 
-    async def list_resources(self) -> Dict[str, Any]:
+    async def list_resources(
+        self,
+        cursor: Optional[str] = None,
+    ) -> Dict[str, Any]:
         await self._maybe_fail_or_delay("resources/list")
         return {"resources": list(self.server.resources)}
 
     async def read_resource(self, uri: str) -> Dict[str, Any]:
         await self._maybe_fail_or_delay("resources/read")
         return {"uri": uri, "text": "mock-data"}
+
+    async def list_prompts(
+        self,
+        cursor: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        await self._maybe_fail_or_delay("prompts/list")
+        return {"prompts": []}
+
+    async def get_prompt(
+        self,
+        name: str,
+        arguments: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        await self._maybe_fail_or_delay("prompts/get")
+        return {"name": name, "arguments": arguments or {}}
