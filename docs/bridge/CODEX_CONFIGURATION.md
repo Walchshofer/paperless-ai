@@ -6,9 +6,9 @@ This guide explains a recommended JSON configuration that CODEX (or any orchestr
 
 ```json
 {
-  "name": "codex-bridge",
+  "name": "codex-serena-bridge",
   "command": "python",
-  "args": ["codex-bridge.py"],
+  "args": ["codex-serena-bridge.py"],
   "cwd": "/opt/paperless-ai",
   "env": {
     "SERENA_BASE": "http://serena.example:9121",
@@ -17,8 +17,8 @@ This guide explains a recommended JSON configuration that CODEX (or any orchestr
     "REQUEST_TIMEOUT": "60"
   },
   "restart": "on-failure",
-  "stdout": "/var/log/codex-bridge.stdout.log",
-  "stderr": "/var/log/codex-bridge.stderr.log"
+  "stdout": "/var/log/codex-serena-bridge.stdout.log",
+  "stderr": "/var/log/codex-serena-bridge.stderr.log"
 }
 ```
 
@@ -46,10 +46,10 @@ Type=simple
 WorkingDirectory=/opt/paperless-ai
 Environment=SERENA_BASE=http://serena:9121
 Environment=SERENA_API_KEY=%p
-ExecStart=/usr/bin/python3 codex-bridge.py
+ExecStart=/usr/bin/python3 codex-serena-bridge.py
 Restart=on-failure
-StandardOutput=append:/var/log/codex-bridge.log
-StandardError=append:/var/log/codex-bridge.log
+StandardOutput=append:/var/log/codex-serena-bridge.log
+StandardError=append:/var/log/codex-serena-bridge.log
 
 [Install]
 WantedBy=multi-user.target

@@ -7,6 +7,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Fail the job after 30 minutes to avoid long-running hung jobs
+    timeout-minutes: 30
     strategy:
       matrix:
         python: [3.11]
@@ -26,8 +28,26 @@ jobs:
 
       - name: Run unit tests
         run: |
-          python -m pytest test/unit -q
+          # Capture verbose unit test output to a file so CI artifacts contain failure logs
+          python -m pytest test/unit -q -r a | tee unit_tests_output.txt; exit ${PIPESTATUS[0]}
 
-      - name: Run integration tests
+      - name: Upload unit test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-logs
+          path: unit_tests_output.txt
+
+      - name: Run integration tests (with diagnostics & timeout)
         run: |
-          python -m pytest test/integration -q
+          # Run integration tests with DEBUG logs (for richer diagnostics) and
+          # enforce a 10-minute timeout to fail fast on hangs. Capture output
+          # to an artifact file for faster debugging.
+          LOG_LEVEL=DEBUG BRIDGE_TEST_STUBS=0 timeout 10m python -m pytest test/integration -q -r a -s -vv | tee integration_tests_output.txt; exit ${PIPESTATUS[0]}
+
+      - name: Upload integration test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-logs
+          path: integration_tests_output.txt

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-BRIDGE_PATH = Path(__file__).resolve().parents[2] / "codex-bridge.py"
+BRIDGE_PATH = Path(__file__).resolve().parents[2] / "codex-serena-bridge.py"
 
 
 def load_bridge():

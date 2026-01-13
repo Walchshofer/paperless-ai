@@ -26,7 +26,7 @@ This document helps teams migrate from bridge v3.x to v4.0 safely.
 
 ## Rollback procedure
 - If critical failures occur, revert to the previous image or checkout the v3 branch:
-  - For docker: `docker run yourorg/codex-bridge:v3.0`
+  - For docker: `docker run yourorg/codex-serena-bridge:v3.0`
   - For source deploy: checkout `v3.0` tag and restart supervisor.
 - Reapply backed-up configuration and notify stakeholders.
 

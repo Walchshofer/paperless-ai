@@ -1,3 +1,8 @@
+"""MCP client stubs for test fixtures.
+
+These are intended for use from tests only (import explicitly from test/fixtures)
+and are not on the runtime import path used in production.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -34,3 +39,21 @@ class ClientSession:
     async def list_resources(self) -> Any:
         await asyncio.sleep(0)
         return []
+
+
+class _DummySSE:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def __aenter__(self):
+        # acts as a context manager yielding a transport-like object
+        await asyncio.sleep(0)
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):  # pragma: no cover - trivial
+        return None
+
+
+async def sse_client(*args, **kwargs) -> _DummySSE:
+    """Stubbed SSE client context manager for tests."""
+    return _DummySSE()

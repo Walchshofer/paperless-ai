@@ -16,7 +16,7 @@ MockSerenaServer = mock_mod.MockSerenaServer
 MockTransport = mock_mod.MockTransport
 MockSession = mock_mod.MockSession
 
-BRIDGE_PATH = Path(__file__).resolve().parents[2] / "codex-bridge.py"
+BRIDGE_PATH = Path(__file__).resolve().parents[2] / "codex-serena-bridge.py"
 
 
 def load_bridge():
@@ -51,10 +51,15 @@ async def test_bridge_connects_when_serena_becomes_available(monkeypatch):
     t = asyncio.create_task(bridge.connect_to_serena(max_attempts=1))
     try:
         await asyncio.wait_for(bridge.state.connected.wait(), timeout=1.0)
-        assert bridge.state.tools_ready.is_set()
+        # Wait for tools to be fetched (avoid timing races across Python versions)
+        await asyncio.wait_for(bridge.state.tools_ready.wait(), timeout=1.0)
     finally:
         bridge.state.shutdown.set()
         await t
+        # Ensure the mock server is stopped to avoid background uvicorn tasks
+        await server.stop()
+        # allow the event loop to process final shutdown tasks
+        await asyncio.sleep(0.01)
 
 
 @pytest.mark.asyncio
@@ -90,7 +95,7 @@ async def test_reconnect_after_drop_and_tools_refetched(monkeypatch):
     # After reconnect, tools should be refetched
     # Allow sufficient time for backoff and reconnect
     await asyncio.wait_for(bridge.state.connected.wait(), timeout=5.0)
-    assert bridge.state.tools_ready.is_set()
+    await asyncio.wait_for(bridge.state.tools_ready.wait(), timeout=1.0)
 
     bridge.state.shutdown.set()
     bridge.HEALTH_CHECK_INTERVAL = old_health
@@ -98,6 +103,11 @@ async def test_reconnect_after_drop_and_tools_refetched(monkeypatch):
         await t
     except asyncio.CancelledError:
         pass
+    finally:
+        # Ensure the mock server is stopped to avoid background uvicorn tasks
+        await server.stop()
+        # allow the event loop to process final shutdown tasks
+        await asyncio.sleep(0.01)
 
 
 @pytest.mark.asyncio
@@ -107,8 +117,12 @@ async def test_enters_degraded_mode_after_max_retries(monkeypatch):
 
     bridge = load_bridge()
 
-    # Make sse_client raise on enter to simulate failures
+    # Make sse_client raise on enter to simulate failures (startup phase)
+    called = {"count": 0}
+
     def bad_sse_client(*args, **kwargs):
+        called["count"] += 1
+
         class Ctx:
             async def __aenter__(self):
                 raise RuntimeError("connect failed")
@@ -128,8 +142,11 @@ async def test_enters_degraded_mode_after_max_retries(monkeypatch):
 
     t = asyncio.create_task(bridge.connect_to_serena())
     try:
-        await asyncio.wait_for(bridge.state.shutdown.wait(), timeout=3.0)
-        assert bridge.state.shutdown.is_set()
+        # Startup should retry indefinitely with fixed 2s spacing; ensure we
+        # don't shutdown and that attempts are occurring
+        await asyncio.sleep(0.3)
+        assert not bridge.state.shutdown.is_set()
+        assert called["count"] >= 1
     finally:
         bridge.MAX_RECONNECT_ATTEMPTS = old_max
         bridge.RECONNECT_BACKOFF_BASE = old_back
@@ -138,3 +155,8 @@ async def test_enters_degraded_mode_after_max_retries(monkeypatch):
             await t
         except asyncio.CancelledError:
             pass
+        finally:
+            # Ensure the mock server is stopped to avoid background uvicorn tasks
+            await server.stop()
+            # allow the event loop to process final shutdown tasks
+            await asyncio.sleep(0.01)

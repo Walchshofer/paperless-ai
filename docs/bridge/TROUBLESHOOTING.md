@@ -36,12 +36,13 @@ Action:
 ## 4) Max SSE retries exceeded / degraded mode
 
 Symptoms:
-- `Max SSE retries exceeded, stopping bridge` in logs
+- Bridge enters degraded mode after repeated failures. Look for logs like:
+  - `Entering degraded mode after <N> failures. Continuing background retries.`
 
 Action:
-- Check for sustained network outage or misconfigured `SERENA_BASE`
+- The bridge no longer shuts down here; it will continue background retries while accepting requests (which will return enriched errors). Check for sustained network outage or misconfigured `SERENA_BASE`.
 - Review reconnect parameters: `MAX_RECONNECT_ATTEMPTS`, `RECONNECT_BACKOFF_BASE`, `RECONNECT_BACKOFF_MAX`
-- Consider supervising bridge with systemd/docker restart policy to restart after degraded mode
+- Consider supervising bridge with systemd/docker restart policy to restart after prolonged degraded mode
 
 ## 5) JSON-RPC errors returned to CODEX
 
@@ -54,9 +55,15 @@ Action:
 
 ## Useful commands & log locations
 
-- Tail logs: `tail -F /var/log/codex-bridge.log` or `tail -F bridge_debug.log`
+- Tail logs: `tail -F /var/log/codex-serena-bridge.log` or `tail -F bridge_debug.log`
 - Run a quick local check with Mock Serena server in tests:
   - `pytest test/integration/test_connection_lifecycle.py -q`
+
+## 6) Local MCP test stubs
+
+- Location: `mcp/` (lightweight test-only stubs) and `test/fixtures/mcp_client_stubs.py`
+- Behavior: These stubs are provided for unit/integration tests only and are guarded by the `BRIDGE_TEST_STUBS` environment variable. Importing `mcp` without `BRIDGE_TEST_STUBS=1` will raise an ImportError to avoid accidentally shadowing the real `mcp` SDK in production.
+- If you need to run tests that rely on the stubs, set `BRIDGE_TEST_STUBS=1` in your test environment.
 
 ## When to escalate
 
