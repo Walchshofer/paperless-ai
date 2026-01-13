@@ -1,49 +1,29 @@
-import asyncio
-import importlib.util
-import os
-from pathlib import Path
-
-# Ensure bridge uses test stubs
-os.environ.setdefault("BRIDGE_TEST_STUBS", "1")
-_spec_location = Path(__file__).resolve().parents[2] / "codex-serena-bridge.py"
-spec = importlib.util.spec_from_file_location("codex_bridge", _spec_location)
-bridge = importlib.util.module_from_spec(spec)
-import sys
-sys.modules["codex_bridge"] = bridge
-spec.loader.exec_module(bridge)
-
 import pytest
+
+from mcp.shared.exceptions import McpError
+
+from bridge import config
+from bridge.router import RequestRouter
+from bridge.state import BridgeState
 
 
 @pytest.mark.asyncio
-async def test_forward_request_preserves_pending_on_error():
-    # Ensure primitives are bound to this loop
-    bridge.state.ensure_async_primitives()
+async def test_forward_marks_connection_lost_on_error(monkeypatch):
+    state = BridgeState()
+    state.connected.set()
+    state.ever_connected = True
+    router = RequestRouter(state)
 
-    # Register a pending request to simulate an in-flight call
-    pending = bridge.PendingRequest("id-1", asyncio.get_running_loop().create_future())
-    async with bridge.state.pending_requests_lock:
-        bridge.state.pending_requests["id-1"] = pending
+    async def fail_call(method, params, timeout):
+        raise ConnectionError("boom")
 
-    # Create a bad session that raises when a tool is called
-    class BadSession:
-        async def call_tool(self, name, args):
-            raise RuntimeError("boom")
+    monkeypatch.setattr(router, "_call_session", fail_call)
+    monkeypatch.setattr(config, "RETRY_MAX_ATTEMPTS", 0)
 
-    # Inject the bad session and mark connected
-    async with bridge.state.session_lock:
-        bridge.state.session = BadSession()
-    bridge.state.connected.set()
+    with pytest.raises(McpError) as exc_info:
+        await router.forward("tools/call", {"name": "x"}, "id-1")
 
-    # Forward a tools/call request (should return an error but leave pending)
-    req = {"id": "id-1", "method": "tools/call", "params": {"name": "tool-a", "arguments": {}}}
-    res = await bridge.forward_request(req, raise_on_error=False)
-
-    assert "error" in res
-
-    # Pending request should still be present (we didn't clear it)
-    async with bridge.state.pending_requests_lock:
-        assert "id-1" in bridge.state.pending_requests
-
-    # Reconnect flag should be set so connector will attempt to re-establish
-    assert bridge.state.reconnect_needed.is_set()
+    assert "Connection to Serena lost" in exc_info.value.error.message
+    assert state.connection_lost.is_set()
+    async with state.pending_requests_lock:
+        assert "id-1" not in state.pending_requests

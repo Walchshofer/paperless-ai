@@ -1,61 +1,74 @@
-import asyncio
-import json
-from types import SimpleNamespace
+import pytest
 
-from services.bridge.connection import ConnectionManager
-from services.bridge.state import BridgeState
-
-
-class DummyContent:
-    """An async iterator that yields pre-defined byte chunks."""
-
-    def __init__(self, chunks):
-        self._chunks = list(chunks)
-
-    async def iter_any(self):
-        for c in self._chunks:
-            await asyncio.sleep(0)
-            yield c
+import bridge.connection as connection
+from bridge.connection import ConnectionManager
+from bridge.orderer import ResponseOrderer
+from bridge.state import BridgeState
 
 
-class DummyResp:
-    def __init__(self, chunks, status=200):
-        self.status = status
-        self.content = DummyContent(chunks)
+class _StubSession:
+    async def list_tools(self):
+        return {"tools": [{"name": "toolA"}]}
 
 
-class DummySession:
-    def __init__(self, resp):
-        self._resp = resp
+class _FakeSession:
+    def __init__(self, _read_stream, _write_stream):
+        self.initialized = False
 
-    async def get(self, *args, **kwargs):
-        return self._resp
+    async def __aenter__(self):
+        return self
 
-    async def close(self):
-        pass
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def initialize(self):
+        self.initialized = True
+
+    async def list_tools(self):
+        return {"tools": []}
 
 
-async def _run_connect_once():
+@pytest.mark.asyncio
+async def test_fetch_tools_updates_state():
     state = BridgeState()
+    cm = ConnectionManager(state, ResponseOrderer())
 
-    # Prepare an SSE data event that contains a tools/list/response payload
-    payload = json.dumps({"type": "tools/list/response", "tools": [{"name": "toolA"}]})
-    chunks = [f"data: {payload}\n\n".encode("utf-8")]
-
-    resp = DummyResp(chunks)
-    sess = DummySession(resp)
-
-    cm = ConnectionManager(state)
-    # Inject our dummy session
-    async with state.session_lock:
-        state.session = sess
-
-    # Call internal handlers directly since start() spawns tasks
-    await cm._handle_event(json.loads(payload))
+    await cm._fetch_tools(_StubSession())
 
     assert state.tools_ready.is_set()
     assert state.tools == [{"name": "toolA"}]
 
 
-def test_fetch_tools_updates_state():
-    asyncio.run(_run_connect_once())
+@pytest.mark.asyncio
+async def test_connect_once_falls_back_to_read_timeout(monkeypatch):
+    state = BridgeState()
+    cm = ConnectionManager(state, ResponseOrderer())
+    captured = {}
+
+    def fake_sse_client(url, headers, timeout, **kwargs):
+        if "sse_read_timeout" in kwargs:
+            raise TypeError("unexpected sse_read_timeout")
+        captured["kwargs"] = kwargs
+
+        class _Ctx:
+            async def __aenter__(self):
+                return (object(), object())
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        return _Ctx()
+
+    async def immediate_monitor():
+        return "shutdown"
+
+    monkeypatch.setattr(connection, "sse_client", fake_sse_client)
+    monkeypatch.setattr(connection, "ClientSession", _FakeSession)
+    monkeypatch.setattr(cm, "_monitor_session", immediate_monitor)
+    monkeypatch.setattr(connection.config, "SERENA_API_KEY", "")
+    monkeypatch.setattr(connection.config, "SSE_READ_TIMEOUT", 1.0)
+
+    reason = await cm._connect_once()
+
+    assert reason == "shutdown"
+    assert "read_timeout" in captured["kwargs"]

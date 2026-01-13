@@ -2,48 +2,45 @@
 
 ## Overview
 
-The CODEX Serena Bridge adapts MCP STDIO requests from CODEX to the
-Serena SSE transport. It uses the official MCP Python SDK to manage
-SSE connectivity, MCP session initialization, and protocol compliance.
+The CODEX-Serena Bridge adapts MCP STDIO requests from CODEX to the Serena SSE
+transport. It uses the official MCP Python SDK for both the STDIO server and
+SSE client session, ensuring protocol-compliant forwarding.
 
 Key behaviors:
-- CODEX speaks JSON-RPC over STDIO.
+- CODEX speaks MCP JSON-RPC over STDIO.
 - The bridge connects to Serena over SSE.
-- The bridge forwards MCP methods through the SDK and returns JSON-RPC
-  responses back to CODEX.
+- The bridge forwards MCP methods through the SDK and returns results to CODEX.
 
 ## Architecture
 
-- **STDIO handler:** Reads JSON-RPC lines from stdin and writes responses
-  to stdout.
-- **SSE connection manager:** Maintains the SSE connection, initializes
-  the MCP session, and performs reconnection with backoff.
-- **Request worker:** Queues tool and resource requests while the SSE
-  connection is recovering.
-- **Connection monitor:** Periodically validates the session and triggers
-  reconnection when the transport is unhealthy.
+- **STDIO MCP server:** `mcp.server.lowlevel.Server` + `stdio_server` to handle
+  STDIO requests and serve dynamic tools/resources/prompts.
+- **Connection manager:** Maintains the SSE connection, initializes the
+  MCP session, and performs reconnection with backoff.
+- **Request router:** Forwards MCP requests with per-operation timeouts.
+- **Response orderer:** Preserves request ordering for pipelined concurrency.
 
 ## Request Flow
 
-1. CODEX sends `initialize` to the bridge via STDIO.
-2. The bridge returns its MCP server capabilities immediately.
+1. CODEX spawns `bridge/codex-serena-bridge.py` via STDIO.
+2. The bridge returns its MCP capabilities immediately.
 3. The bridge connects to Serena at `/sse` and runs `initialize` as an MCP
    client.
 4. CODEX sends `tools/list` and other MCP requests over STDIO.
-5. The bridge forwards these requests with the MCP SDK and returns the
-   results to CODEX.
+5. The bridge forwards these requests with the MCP SDK and returns the results.
 
 ## Configuration
 
-Defaults live in `codex-serena-bridge.py`. Environment variables can override
-the defaults when needed for testing or deployment.
+Defaults live in `bridge/config.py`. Environment variables can override the
+defaults when needed for testing or deployment.
 
 Defaults:
 - `SERENA_BASE` = `http://127.0.0.1:9121`
 - `PROJECT_DIR` = `C:\Users\pwalc\MyApps\paperless-ai`
 - `LOG_FILE` = `bridge_debug.log` (in `PROJECT_DIR`)
 - `SSE_TIMEOUT` = `30` seconds
-- `REQUEST_TIMEOUT` = `60` seconds
+- `SSE_READ_TIMEOUT` = `300` seconds
+- `REQUEST_TIMEOUT_DEFAULT` = `60` seconds
 - `MAX_RECONNECT_ATTEMPTS` = `10`
 - `RECONNECT_BACKOFF_BASE` = `2`
 - `RECONNECT_BACKOFF_MAX` = `30`
@@ -51,23 +48,33 @@ Defaults:
 
 Environment overrides:
 - `SERENA_BASE`
+- `SERENA_SSE_URL`
+- `SERENA_API_KEY`
 - `PROJECT_DIR`
 - `CODEX_BRIDGE_LOG_FILE`
+- `LOG_LEVEL`
 - `SSE_TIMEOUT`
-- `REQUEST_TIMEOUT`
+- `SSE_READ_TIMEOUT`
+- `REQUEST_TIMEOUT_DEFAULT`
+- `REQUEST_TIMEOUT_LIST`
+- `REQUEST_TIMEOUT_READ`
+- `REQUEST_TIMEOUT_INIT`
+- `REQUEST_TIMEOUT_SEARCH`
 - `MAX_RECONNECT_ATTEMPTS`
 - `RECONNECT_BACKOFF_BASE`
 - `RECONNECT_BACKOFF_MAX`
 - `HEALTH_CHECK_INTERVAL`
+- `RETRY_MAX_ATTEMPTS`
+- `RETRY_BACKOFF_BASE`
+- `RETRY_BACKOFF_MAX`
 
 ## Troubleshooting
 
-- **No tools listed:** Check `bridge_debug.log` and confirm Serena is
-  running on `SERENA_BASE`.
+- **No tools listed:** Check `bridge_debug.log` and confirm Serena is running
+  on `SERENA_BASE`.
 - **Repeated reconnects:** Verify `SERENA_BASE` and SSE connectivity.
-- **Timeouts:** Increase `REQUEST_TIMEOUT` or check Serena latency.
-- **Logging:** The bridge logs to `bridge_debug.log` and stderr with
-  request/response excerpts capped at 200 characters.
+- **Timeouts:** Increase `REQUEST_TIMEOUT_*` values or check Serena latency.
+- **Logging:** The bridge logs to `bridge_debug.log` and stderr.
 
 ## Sequence Diagram
 

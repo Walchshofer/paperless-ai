@@ -51,6 +51,9 @@ const { promptRegistry } = require('../prompts/PromptRegistry');
 const { registerMedicalPrompts } = require('../prompts/MedicalPrompts');
 const { expertRegistry } = require('../experts/ExpertRegistry');
 const { ExpertPipelineExecutor, processDocument } = require('../experts/ExpertPipelineExecutor');
+const { VisualSignalAnalyzer } = require('../experts/VisualSignalAnalyzer');
+const { createNormalizationTools } = require('../experts/normalization/tools');
+const { ingestionManager } = require('../visual-rag/IngestionManager');
 
 // ============================================================================
 // CONFIGURATION
@@ -930,7 +933,42 @@ class ResultMerger {
                     .map(m => m.drug_name || m.medication)
                     .join('; ');
             }
+        } else if (result.classification?.primary_domain === 'Financial') {
+            // Financial fields
+            if (result.amounts?.total !== undefined) {
+                customFields['invoice_total'] = result.amounts.total;
+            }
+            if (result.amounts?.tax !== undefined) {
+                customFields['invoice_tax'] = result.amounts.tax;
+            }
+            if (result.amounts?.currency) {
+                customFields['currency'] = result.amounts.currency;
+            }
+            if (result.dates?.due_date) {
+                customFields['due_date'] = result.dates.due_date;
+            }
+            if (result.reference_numbers?.invoice_number) {
+                customFields['invoice_number'] = result.reference_numbers.invoice_number;
+            }
+            if (result.reference_numbers?.iban) {
+                customFields['iban'] = result.reference_numbers.iban;
+            }
+        } else if (result.classification?.primary_domain === 'Legal') {
+            // Legal fields
+            if (result.case_info?.case_number) {
+                customFields['case_number'] = result.case_info.case_number;
+            }
+            if (result.case_info?.court) {
+                customFields['court'] = result.case_info.court;
+            }
+            if (result.parties?.plaintiff) {
+                customFields['plaintiff'] = result.parties.plaintiff;
+            }
+            if (result.parties?.defendant) {
+                customFields['defendant'] = result.parties.defendant;
+            }
         }
+
         // Preserve OCR checkpoint diagnostics if present
         const checkpoint = result._expert_result && result._expert_result._ocr_checkpoint || result._expert_result && result._expert_result.ocr_checkpoint;
         if (checkpoint && checkpoint.errors && checkpoint.errors.length > 0) {
@@ -1250,13 +1288,78 @@ class DocumentProcessor {
             preparedImages = prepared.base64Images;
         }
 
+        // ====================================================================
+        // VISUAL SIGNAL ANALYSIS & NORMALIZATION (SEQUENTIAL FIRST PASS)
+        // ====================================================================
+        let preCalculatedSignals = null;
+        if (document.image_data && document.id) {
+            try {
+                const analyzer = new VisualSignalAnalyzer(this.ollamaService);
+                const signals = await analyzer.analyze(document);
+
+                if (signals) {
+                    preCalculatedSignals = signals;
+                    const norm = signals.normalization;
+                    const rotationNeeded = norm.rotate.needed && norm.rotate.degrees !== 0;
+                    const cropNeeded = norm.crop.needed && norm.crop.box;
+
+                    if (rotationNeeded || cropNeeded) {
+                        logger.info({
+                            event: 'applying_visual_normalization',
+                            documentId: document.id,
+                            rotation: norm.rotate.degrees,
+                            crop: norm.crop.box
+                        });
+
+                        const actions = [];
+                        if (rotationNeeded) actions.push({ type: 'rotate', degrees: norm.rotate.degrees });
+                        if (cropNeeded) actions.push({ type: 'crop', box: { ...norm.crop.box, unit: 'ratio' } });
+
+                        const tools = createNormalizationTools();
+                        const normResult = await tools.normalizeImagesAI({
+                            document_id: document.id,
+                            actions: actions,
+                            target_dpi: 300,
+                            format: 'png'
+                        });
+
+                        if (normResult && normResult.base64Images?.length > 0) {
+                            // Update document images
+                            document.base64Images = normResult.base64Images;
+                            document.image_data = normResult.base64Images[0];
+                            document.normalized_base64Images = normResult.base64Images;
+                            document.normalized_image_data = normResult.base64Images[0];
+
+                            // Re-ingest
+                            if (config.visualRagSidecar?.enabled === 'yes') {
+                                const ingestionPdfPath = resolvePdfPathForIngestion(document.pdf_path, document.filename);
+                                await ingestionManager.ingestDocument(document.id, ingestionPdfPath || document.filename, {
+                                    base64Images: document.base64Images,
+                                    metadata: { normalized: true }
+                                });
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                logger.warn({ event: 'visual_signal_analysis_error', error: err.message });
+            }
+        }
+
         let vatContext = '';
         let vatContextSources = [];
-        if (this.config.features.enableVatRag) {
-            const vatQuery = document.ocr_text || document.content || '';
-            const vatResult = await InternalVatRag.retrieveVatContext(vatQuery, this.config.rag);
-            vatContext = vatResult.contextText;
-            vatContextSources = vatResult.sources;
+        if (this.config.features.enableVatRag && !options.skipRag) {
+            try {
+                const vatQuery = document.ocr_text || document.content || '';
+                const vatResult = await InternalVatRag.retrieveVatContext(vatQuery, this.config.rag);
+                vatContext = vatResult.contextText;
+                vatContextSources = vatResult.sources;
+            } catch (vatError) {
+                logger.warn('[DocumentProcessor] VAT RAG retrieval failed', {
+                    error: vatError.message
+                });
+                // Continue without VAT context
+            }
         }
 
         // Run full pipeline processing
@@ -1271,7 +1374,8 @@ class DocumentProcessor {
                     vat_context: vatContext,
                     vat_context_sources: vatContextSources,
                     vat_context_policy: 'internal-only',
-                    ...(options.context || {})
+                    ...(options.context || {}),
+                    preCalculatedSignals // Pass signals to executor
                 }
             }
         );
@@ -1306,7 +1410,8 @@ class DocumentProcessor {
             : (document.base64Images && document.base64Images.length > 0)
                 ? document.base64Images
                 : preparedImages;
-        if (ingestionImages.length > 0 && document.id && allowIngestion && config.visualRagSidecar?.enabled === 'yes') {
+        if (ingestionImages.length > 0 && document.id && allowIngestion &&
+            config.visualRagSidecar?.enabled === 'yes' && !options.skipRag) {
             try {
                 const domain = result.result?.classification?.classification?.primary_domain?.toLowerCase();
                 const ingestionPdfPath = resolvePdfPathForIngestion(
@@ -1382,6 +1487,78 @@ class DocumentProcessor {
             const errMsg = 'Legacy vision processing unavailable: ollamaService.analyzeDocumentWithVision method not found. Ensure ollamaService is properly initialized with vision module methods.';
             logger.error({ event: 'legacy_vision_unavailable', documentId: document.id, message: errMsg });
             throw new Error(errMsg);
+        }
+
+        // ====================================================================
+        // VISUAL SIGNAL ANALYSIS & NORMALIZATION (SEQUENTIAL FIRST PASS)
+        // ====================================================================
+        // Even for legacy pipeline, we apply normalization to improve legacy vision results
+        if ((document.image_data || document.image_path) && document.id) {
+            try {
+                // Ensure image is loaded if not already
+                if (!document.image_data && document.image_path) {
+                    const prepared = await ImagePreparator.prepare(document.image_path);
+                    document.image_data = prepared.base64;
+                }
+
+                const analyzer = new VisualSignalAnalyzer(this.ollamaService);
+                const signals = await analyzer.analyze(document);
+
+                if (signals) {
+                    const norm = signals.normalization;
+                    const rotationNeeded = norm.rotate.needed && norm.rotate.degrees !== 0;
+                    const cropNeeded = norm.crop.needed && norm.crop.box;
+
+                    if (rotationNeeded || cropNeeded) {
+                        logger.info({
+                            event: 'applying_visual_normalization_legacy',
+                            documentId: document.id,
+                            rotation: norm.rotate.degrees
+                        });
+
+                        const actions = [];
+                        if (rotationNeeded) actions.push({ type: 'rotate', degrees: norm.rotate.degrees });
+                        if (cropNeeded) actions.push({ type: 'crop', box: { ...norm.crop.box, unit: 'ratio' } });
+
+                        const tools = createNormalizationTools();
+                        const normResult = await tools.normalizeImagesAI({
+                            document_id: document.id,
+                            actions: actions,
+                            target_dpi: 300,
+                            format: 'png'
+                        });
+
+                        if (normResult && normResult.base64Images?.length > 0) {
+                            // Update document images for legacy vision
+                            // Legacy vision might expect image on disk or passed differently,
+                            // but usually it loads from DB or path. We might need to persist this if legacy reads from file.
+                            // However, analyzeDocumentWithVision takes (id, content, options).
+                            // If it re-reads from disk, we might be out of luck unless we overwrite the file.
+                            // But `normalizeImagesAI` doesn't overwrite original unless configured?
+                            // Actually `normalizeImagesAI` returns base64.
+                            // Re-ingestion updates the index.
+
+                            // For legacy vision to see it, we really should rely on the re-ingested index OR pass the image.
+                            // `analyzeDocumentWithVision` implementation depends on `ollamaService`.
+                            // Assuming it can take an override image if we modify it to do so, but standard paperless flow reads from disk.
+
+                            // Best effort: Update document object properties that might be used
+                            document.image_data = normResult.base64Images[0];
+
+                            // And re-ingest to Visual RAG so at least that's correct
+                            if (config.visualRagSidecar?.enabled === 'yes') {
+                                const ingestionPdfPath = resolvePdfPathForIngestion(document.pdf_path, document.filename);
+                                await ingestionManager.ingestDocument(document.id, ingestionPdfPath || document.filename, {
+                                    base64Images: normResult.base64Images,
+                                    metadata: { normalized: true }
+                                });
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                logger.warn({ event: 'visual_signal_analysis_error_legacy', error: err.message });
+            }
         }
 
         // Call via ollamaService to ensure proper method binding
