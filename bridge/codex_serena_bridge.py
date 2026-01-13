@@ -4,6 +4,8 @@ from __future__ import annotations
 import asyncio
 import base64
 import signal
+import os
+from datetime import datetime
 from typing import Any, Iterable
 
 import mcp.types as types
@@ -32,9 +34,31 @@ class BridgeApp:
             "codex-serena-bridge",
             version="4.0.0",
         )
+        # Event set when MCP initialize request is received from CODEX.
+        # Tests and the main loop may wait for this to ensure the bridge does
+        # not exit before the initialization handshake takes place.
+        import asyncio
+
+        self.initialized: asyncio.Event = asyncio.Event()
         self._register_handlers()
 
     def _register_handlers(self) -> None:
+        @self.server.set_request_handler("initialize")
+        async def handle_initialize(
+            request: types.InitializeRequest,
+        ) -> types.InitializeResult:
+            log(
+                f"Received initialize request: {request}",
+                level="DEBUG",
+            )
+            # Mark that initialize was received so callers can wait for it.
+            try:
+                self.initialized.set()
+            except Exception:
+                # Don't fail if the event cannot be set for any reason.
+                pass
+            return await self.server._handle_initialize(request)
+
         @self.server.list_tools()
         async def list_tools(_req: types.ListToolsRequest):
             return await self._handle("tools/list", {})
@@ -152,13 +176,54 @@ def _resource_content(item: Any) -> ReadResourceContents:
 
 
 async def async_main() -> int:
+    # Write a startup diagnostic line to the log file unconditionally so we can
+    # observe effective env and file even when LOG_LEVEL suppresses DEBUG logs.
+    try:
+        with open(config.LOG_FILE, "a", encoding="utf-8") as fh:
+            fh.write(
+                f"{datetime.now().astimezone().isoformat(timespec='seconds')} "
+                "[CODEX-BRIDGE] [STARTUP] "
+                f"LOG_LEVEL={config.LOG_LEVEL} "
+                f"LOG_FILE={config.LOG_FILE} "
+                f"SERENA_BASE={config.SERENA_BASE}\n"
+            )
+    except Exception:
+        # Don't fail the startup because diagnostics couldn't be written.
+        pass
     log("Starting CODEX-Serena bridge", level="INFO")
     app = BridgeApp()
     _install_signal_handlers(app.state)
     manager = ConnectionManager(app.state, app.orderer)
     manager.start()
+    log("Connection manager started", level="DEBUG")
+    exit_code = 0
+    monitor_task: asyncio.Task | None = None
+    stdio_entered = False
+    server_task_created = False
+    stdio_entry_ts = None
     try:
         async with stdio_server() as (read_stream, write_stream):
+            # Unconditionally write an STDIO-enter diagnostic to the log file
+            # so we can see whether the STDIO context was established even if
+            # DEBUG logs are suppressed or STDIO closes quickly.
+            stdio_entered = True
+            stdio_entry_ts = datetime.now().astimezone()
+            try:
+                with open(config.LOG_FILE, "a", encoding="utf-8") as fh:
+                    fh.write(
+                        f"{stdio_entry_ts.isoformat(timespec='seconds')} "
+                        f"[CODEX-BRIDGE] [STDIO] entering stdio_server\n"
+                    )
+            except Exception:
+                pass
+
+            log(
+                "STDIO server started, waiting for CODEX",
+                level="DEBUG",
+            )
+            monitor_task = asyncio.create_task(
+                _monitor_stdio(app.state),
+            )
             server_task = asyncio.create_task(
                 app.server.run(
                     read_stream,
@@ -169,21 +234,160 @@ async def async_main() -> int:
                     ),
                 )
             )
+            server_task_created = True
+            try:
+                with open(config.LOG_FILE, "a", encoding="utf-8") as fh:
+                    now = datetime.now().astimezone().isoformat(
+                        timespec="seconds",
+                    )
+                    fh.write(
+                        f"{now} [CODEX-BRIDGE] [STDIO] server_task_created\n"
+                    )
+            except Exception:
+                pass
+
+            log(
+                "Server task created, awaiting requests",
+                level="DEBUG",
+            )
+
+            # Optional grace wait to give the server task a chance to start and
+            # remain running (helps when STDIO is flaky or closed quickly by
+            # the spawner). If the server task exits immediately during the
+            # grace period, treat that as an initialization failure.
+            grace = float(getattr(config, "STDIO_INITIALIZE_GRACE_SECS", 0))
+            if grace and grace > 0:
+                start = asyncio.get_event_loop().time()
+                while True:
+                    await asyncio.sleep(0.05)
+                    if server_task.done():
+                        try:
+                            server_task.result()
+                            log(
+                                "Server task completed during "
+                                "initialize grace",
+                                level="ERROR",
+                            )
+                        except Exception as exc:
+                            log(
+                                "Server task exception during "
+                                f"initialize grace: {exc}",
+                                level="ERROR",
+                            )
+                            import traceback
+
+                            trace = traceback.format_exc()
+                            log(f"Traceback: {trace}", level="ERROR")
+                        # Trigger shutdown and mark failure
+                        exit_code = 1
+                        app.state.shutdown.set()
+                        break
+                    if asyncio.get_event_loop().time() - start >= grace:
+                        log(
+                            "STDIO: server task survived "
+                            f"initialization grace {grace}s",
+                            level="DEBUG",
+                        )
+                        break
+
+            # If configured, wait for MCP initialize handshake to arrive.
+            init_timeout = float(
+                getattr(config, "STDIO_INITIALIZE_TIMEOUT_SECS", 0)
+            )
+            waiting_for_init = (
+                init_timeout
+                and init_timeout > 0
+                and not app.initialized.is_set()
+            )
+            if waiting_for_init:
+                log(
+                    "Waiting up to %ss for MCP initialize from CODEX"
+                    % init_timeout,
+                    level="DEBUG",
+                )
+                try:
+                    await asyncio.wait_for(
+                        app.initialized.wait(),
+                        timeout=init_timeout,
+                    )
+                    log("MCP initialize received", level="INFO")
+                except asyncio.TimeoutError:
+                    log(
+                        "MCP initialize did not arrive within %ss"
+                        % init_timeout,
+                        level="ERROR",
+                    )
+                    exit_code = 1
+                    app.state.shutdown.set()
+
             shutdown_task = asyncio.create_task(app.state.shutdown.wait())
             done, _pending = await asyncio.wait(
                 [server_task, shutdown_task],
                 return_when=asyncio.FIRST_COMPLETED,
             )
+            log(
+                "Task completed: server=%s, shutdown=%s"
+                % (server_task in done, shutdown_task in done),
+                level="DEBUG",
+            )
+            if server_task in done:
+                try:
+                    result = server_task.result()
+                    log(f"Server task result: {result}", level="DEBUG")
+                except Exception as exc:
+                    exit_code = 1
+                    log(
+                        f"Server task exception: {exc}",
+                        level="ERROR",
+                    )
+                    import traceback
+
+                    trace = traceback.format_exc()
+                    log(f"Traceback: {trace}", level="ERROR")
             if shutdown_task in done and not server_task.done():
                 server_task.cancel()
                 await asyncio.gather(server_task, return_exceptions=True)
             if server_task in done:
                 app.state.shutdown.set()
-        return 0
+        return exit_code
     finally:
+        if monitor_task:
+            monitor_task.cancel()
+        # Unconditionally write an STDIO-exit diagnostic and whether we created
+        # a server task; this helps distinguish the case where STDIO closed
+        # before we created the server task vs the case where the server task
+        # ran and then exited.
+        if stdio_entered:
+            try:
+                with open(config.LOG_FILE, "a", encoding="utf-8") as fh:
+                    now = datetime.now().astimezone().isoformat(
+                        timespec="seconds",
+                    )
+                    duration = (
+                        datetime.now().astimezone() - stdio_entry_ts
+                        if stdio_entry_ts
+                        else None
+                    )
+                    duration_s = (
+                        duration.total_seconds() if duration else "unknown"
+                    )
+                    fh.write(
+                        f"{now} [CODEX-BRIDGE] [STDIO] exited stdio_server "
+                        f"duration_s={duration_s} "
+                        f"server_task_created={server_task_created}\n"
+                    )
+            except Exception:
+                pass
         await manager.stop()
         await app.state.close()
         log("Bridge stopped", level="INFO")
+
+
+async def _monitor_stdio(state: BridgeState) -> None:
+    """Emit periodic STDIO liveness diagnostics."""
+    while not state.shutdown.is_set():
+        log("STDIO stream alive", level="DEBUG")
+        await asyncio.sleep(1)
 
 
 def _install_signal_handlers(state: BridgeState) -> None:

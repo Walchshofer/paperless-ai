@@ -55,3 +55,11 @@ TIMEOUT_POLICY: Dict[str, Any] = {
     "resources/read": REQUEST_TIMEOUT_READ,
     "prompts/get": REQUEST_TIMEOUT_READ,
 }
+
+# Allow a short, configurable grace period to keep STDIO alive and await
+# initial server startup/handshake. Default 0 disables this behavior.
+STDIO_INITIALIZE_GRACE_SECS = float(os.getenv("STDIO_INITIALIZE_GRACE_SECS", "0"))
+
+# Optional timeout to wait for the MCP initialize handshake to arrive from CODEX
+# (seconds). Set to >0 to require an explicit initialize message before proceeding.
+STDIO_INITIALIZE_TIMEOUT_SECS = float(os.getenv("STDIO_INITIALIZE_TIMEOUT_SECS", "0"))

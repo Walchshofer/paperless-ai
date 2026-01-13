@@ -38,6 +38,15 @@ bridge (`bridge/codex-serena-bridge.py`) and recommended defaults.
 - LOG_LEVEL
   - Default: `INFO`
   - Values: `DEBUG`, `INFO`, `WARN`, `ERROR`
+  - Note: the entrypoint `bridge/codex-serena-bridge.py` supports the CLI flags `--log-level`, `--log-file`, and `--print-env` which set the equivalent environment variables for the bridge at process start. You can use these in your CODEX `.codex/config.toml` by adding the flag(s) to the server args (e.g., `args = [..., "--log-level", "DEBUG", "--print-env"]`).
+
+- STDIO_INITIALIZE_GRACE_SECS
+  - Default: `0`
+  - Description: Optional short grace window (seconds) to keep the MCP `server_task` alive immediately after creation. Useful to tolerate fast spawner races where STDIO closes briefly after process start. Set to a small value like `0.1`–`0.5` while debugging.
+
+- STDIO_INITIALIZE_TIMEOUT_SECS
+  - Default: `0`
+  - Description: Optional timeout (seconds) to wait for the MCP `initialize` handshake from CODEX after the server task is created. If the initialize message does not arrive within this timeout, the bridge will log an error and exit with a non-zero code (intended to make startup failures visible to the spawner).
 
 ## Timeouts & retry configuration
 
