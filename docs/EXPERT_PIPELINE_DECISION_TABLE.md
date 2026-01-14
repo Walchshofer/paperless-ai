@@ -335,6 +335,15 @@ Generate targeted visual queries for field validation and missing field detectio
 - **Gate:** Accept hits when MaxSim score >= **0.85** (configurable threshold for high-precision retrieval).
 - **Fallback:** If the Visual RAG Sidecar returns `503 Initializing` or is unavailable, route the query to Text RAG (Qdrant `document_embeddings`) as the fallback retrieval path.
 
+**Payload Mirroring & Hybrid SOT Checklist**
+- Persist granular feedback events in `feedback_events` (Postgres) and store overlay vectors solely in Qdrant (`visual_overlays.vector_id` links to Qdrant point).
+- Ensure `visual_overlays` table does NOT contain embedding vectors (no `embedding` or `vector` pgvector column).
+- Qdrant `visual_overlays` collection: 320D and **COSINE** distance; `visual_pages`: 320D and **DOT** distance (ColQwen3 compatibility).
+- Mirror `correspondent_id` (integer) and `tag_ids` (array of ints) from Postgres payload into Qdrant point payload for "Expert Filtering" and auditing.
+- On sidecar `503 Initializing`, retry up to 3 attempts with exponential backoff and record `deferred_ingest` events in `feedback_events` if persistent failures occur.
+- Telemetry: include `request_id` and `hardware_target: "RTX 3090 Ti"` in feedback ingestion logs.
+
+
 **Visual Query Execution**
 - Max 5 concurrent queries per document
 - Dynamic k selection based on query type and confidence

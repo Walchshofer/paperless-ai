@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="14" failures="0" skipped="0" tests="14" time="0.322" timestamp="2026-01-13T22:14:29.881168+01:00" hostname="Patrick_PC"><testcase classname="" name="test.unit.test_bridge_async_main_exit_code" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\pwalc\MyApps\paperless-ai\test\unit\test_bridge_async_main_exit_code.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test\unit\test_bridge_async_main_exit_code.py:9: in &lt;module&gt;
+    import bridge.codex_serena_bridge as bridge
+bridge\codex_serena_bridge.py:11: in &lt;module&gt;
+    import mcp.types as types
+E   ModuleNotFoundError: No module named 'mcp'</error></testcase><testcase classname="" name="test.unit.test_bridge_connection" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\pwalc\MyApps\paperless-ai\test\unit\test_bridge_connection.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test\unit\test_bridge_connection.py:3: in &lt;module&gt;
+    import bridge.connection as connection
+bridge\connection.py:17: in &lt;module&gt;
+    from mcp.client.session import ClientSession  # type: ignore
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   ModuleNotFoundError: No module named 'mcp'</error></testcase><testcase classname="" name="test.unit.test_bridge_disconnect_behavior" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\pwalc\MyApps\paperless-ai\test\unit\test_bridge_disconnect_behavior.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test\unit\test_bridge_disconnect_behavior.py:3: in &lt;module&gt;
+    from bridge.connection import ConnectionManager
+bridge\connection.py:17: in &lt;module&gt;
+    from mcp.client.session import ClientSession  # type: ignore
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   ModuleNotFoundError: No module named 'mcp'</error></testcase><testcase classname="" name="test.unit.test_bridge_initialize_handler" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\pwalc\MyApps\paperless-ai\test\unit\test_bridge_initialize_handler.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test\unit\test_bridge_initialize_handler.py:1: in &lt;module&gt;
+    import bridge.codex_serena_bridge as bridge
+bridge\codex_serena_bridge.py:11: in &lt;module&gt;
+    import mcp.types as types
+E   ModuleNotFoundError: No module named 'mcp'</error></testcase><testcase classname="" name="test.unit.test_codex_bridge_config" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\pwalc\MyApps\paperless-ai\test\unit\test_codex_bridge_config.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test\unit\test_codex_bridge_config.py:1: in &lt;module&gt;
+    import mcp.types as types
+E   ModuleNotFoundError: No module named 'mcp'</error></testcase><testcase classname="" name="test.unit.test_codex_bridge_misc" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\pwalc\MyApps\paperless-ai\test\unit\test_codex_bridge_misc.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test\unit\test_codex_bridge_misc.py:2: in &lt;module&gt;
+    from bridge.router import RequestRouter
+bridge\router.py:8: in &lt;module&gt;
+    import mcp.types as types
+E   ModuleNotFoundError: No module named 'mcp'</error></testcase><testcase classname="" name="test.unit.test_connect_degraded_mode" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\pwalc\MyApps\paperless-ai\test\unit\test_connect_degraded_mode.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test\unit\test_connect_degraded_mode.py:6: in &lt;module&gt;
+    from bridge.connection import ConnectionManager
+bridge\connection.py:17: in &lt;module&gt;
+    from mcp.client.session import ClientSession  # type: ignore
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   ModuleNotFoundError: No module named 'mcp'</error></testcase><testcase classname="" name="test.unit.test_error_classification" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\pwalc\MyApps\paperless-ai\test\unit\test_error_classification.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test\unit\test_error_classification.py:3: in &lt;module&gt;
+    from mcp.shared.exceptions import McpError
+E   ModuleNotFoundError: No module named 'mcp'</error></testcase><testcase classname="" name="test.unit.test_fixture_stubs_loader" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\pwalc\MyApps\paperless-ai\test\unit\test_fixture_stubs_loader.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test\unit\test_fixture_stubs_loader.py:4: in &lt;module&gt;
+    import bridge.connection as connection
+bridge\connection.py:17: in &lt;module&gt;
+    from mcp.client.session import ClientSession  # type: ignore
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   ModuleNotFoundError: No module named 'mcp'</error></testcase><testcase classname="" name="test.unit.test_forward_request_and_degraded_mode" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\pwalc\MyApps\paperless-ai\test\unit\test_forward_request_and_degraded_mode.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test\unit\test_forward_request_and_degraded_mode.py:3: in &lt;module&gt;
+    from mcp.shared.exceptions import McpError
+E   ModuleNotFoundError: No module named 'mcp'</error></testcase><testcase classname="" name="test.unit.test_forward_request_preserve_pending" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\pwalc\MyApps\paperless-ai\test\unit\test_forward_request_preserve_pending.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test\unit\test_forward_request_preserve_pending.py:3: in &lt;module&gt;
+    from mcp.shared.exceptions import McpError
+E   ModuleNotFoundError: No module named 'mcp'</error></testcase><testcase classname="" name="test.unit.test_handle_jsonrpc_pending" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\pwalc\MyApps\paperless-ai\test\unit\test_handle_jsonrpc_pending.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test\unit\test_handle_jsonrpc_pending.py:5: in &lt;module&gt;
+    from bridge.router import RequestRouter
+bridge\router.py:8: in &lt;module&gt;
+    import mcp.types as types
+E   ModuleNotFoundError: No module named 'mcp'</error></testcase><testcase classname="" name="test.unit.test_method_timeouts" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\pwalc\MyApps\paperless-ai\test\unit\test_method_timeouts.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test\unit\test_method_timeouts.py:2: in &lt;module&gt;
+    from bridge.router import RequestRouter
+bridge\router.py:8: in &lt;module&gt;
+    import mcp.types as types
+E   ModuleNotFoundError: No module named 'mcp'</error></testcase><testcase classname="" name="test.unit.test_retry_logic" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\pwalc\MyApps\paperless-ai\test\unit\test_retry_logic.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test\unit\test_retry_logic.py:5: in &lt;module&gt;
+    from bridge.router import RequestRouter
+bridge\router.py:8: in &lt;module&gt;
+    import mcp.types as types
+E   ModuleNotFoundError: No module named 'mcp'</error></testcase></testsuite></testsuites>

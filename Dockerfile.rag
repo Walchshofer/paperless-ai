@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY main.py /app/
 
 # Create necessary directories
-RUN mkdir -p /app/data /app/data/chromadb
+RUN mkdir -p /app/data
 
 # Expose port for FastAPI
 EXPOSE 8000

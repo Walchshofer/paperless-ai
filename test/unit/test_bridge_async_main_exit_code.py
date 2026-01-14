@@ -214,6 +214,26 @@ async def test_server_task_exits_without_shutdown(
 
 
 @pytest.mark.asyncio
+async def test_manager_start_failure_returns_nonzero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def run_wait() -> None:
+        await asyncio.Event().wait()
+
+    class FailingManager(DummyManager):
+        def start(self) -> None:
+            raise RuntimeError("boom")
+
+    app = DummyApp(run_wait)
+    _patch_bridge(monkeypatch, app)
+    monkeypatch.setattr(bridge, "ConnectionManager", FailingManager)
+
+    exit_code = await bridge.async_main()
+
+    assert exit_code == 1
+
+
+@pytest.mark.asyncio
 async def test_server_task_survives_grace(monkeypatch: pytest.MonkeyPatch) -> None:
     """If the server task remains running during the grace period, async_main should continue to normal wait."""
     monkeypatch.setenv("STDIO_INITIALIZE_GRACE_SECS", "0.2")

@@ -43,6 +43,8 @@ class BridgeState:
             OrderedDict()
         )
         self.pending_requests_lock: asyncio.Lock = asyncio.Lock()
+        self.pending_responses: int = 0
+        self.pending_responses_lock: asyncio.Lock = asyncio.Lock()
 
     def is_running(self) -> bool:
         """Return True if bridge has not begun shutdown."""
@@ -56,6 +58,7 @@ class BridgeState:
         self.tools = []
         self.reconnect_needed.set()
         self.connection_lost.set()
+        self.pending_responses = 0
 
     async def close(self) -> None:
         """Close the session and reset state."""
@@ -77,3 +80,4 @@ class BridgeState:
         self.reconnect_failures = 0
         self.reconnect_exhausted_attempts = None
         self.ever_connected = False
+        self.pending_responses = 0

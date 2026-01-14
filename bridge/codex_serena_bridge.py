@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import logging
 import signal
 import os
 import sys
@@ -35,30 +36,71 @@ class BridgeApp:
             "codex-serena-bridge",
             version="4.0.0",
         )
+        self._configure_mcp_logging()
         # Event set when MCP initialize request is received from CODEX.
         # Tests and the main loop may wait for this to ensure the bridge does
         # not exit before the initialization handshake takes place.
-        import asyncio
-
         self.initialized: asyncio.Event = asyncio.Event()
         self._register_handlers()
 
+    def _configure_mcp_logging(self) -> None:
+        if config.LOG_LEVEL != "DEBUG":
+            return
+        try:
+            logging.getLogger("mcp").setLevel(logging.DEBUG)
+            logging.getLogger("mcp.server").setLevel(logging.DEBUG)
+            logging.getLogger("mcp.server.lowlevel").setLevel(logging.DEBUG)
+            log("MCP SDK logging set to DEBUG", level="DEBUG")
+        except Exception:
+            # Never fail bridge startup due to logging configuration.
+            pass
+
+    def _note_initialized(self, source: str) -> None:
+        if self.initialized.is_set():
+            return
+        try:
+            self.initialized.set()
+        except Exception:
+            return
+        log(
+            "MCP session initialized via %s" % source,
+            level="INFO",
+        )
+
     def _register_handlers(self) -> None:
-        @self.server.set_request_handler("initialize")
-        async def handle_initialize(
-            request: types.InitializeRequest,
-        ) -> types.InitializeResult:
+        if hasattr(self.server, "set_request_handler"):
+            @self.server.set_request_handler("initialize")
+            async def handle_initialize(
+                request: types.InitializeRequest,
+            ) -> types.InitializeResult:
+                log(
+                    f"Received initialize request: {request}",
+                    level="DEBUG",
+                )
+                self._note_initialized("initialize request")
+                handler = getattr(self.server, "_handle_initialize", None)
+                if handler is None:
+                    log(
+                        "Server lacks _handle_initialize; using fallback",
+                        level="WARN",
+                    )
+                    return types.InitializeResult(
+                        protocolVersion=request.params.protocolVersion,
+                        capabilities=self.server.get_capabilities(
+                            NotificationOptions(),
+                            {},
+                        ),
+                        serverInfo=types.Implementation(
+                            name="codex-serena-bridge",
+                            version="4.0.0",
+                        ),
+                    )
+                return await handler(request)
+        else:
             log(
-                f"Received initialize request: {request}",
+                "Initialize handled by MCP SDK ServerSession",
                 level="DEBUG",
             )
-            # Mark that initialize was received so callers can wait for it.
-            try:
-                self.initialized.set()
-            except Exception:
-                # Don't fail if the event cannot be set for any reason.
-                pass
-            return await self.server._handle_initialize(request)
 
         @self.server.list_tools()
         async def list_tools(_req: types.ListToolsRequest):
@@ -102,8 +144,29 @@ class BridgeApp:
         method: str,
         params: dict[str, Any],
     ) -> Any:
+        self._note_initialized(f"first request: {method}")
         seq = await self.orderer.register()
         request_id = self._get_request_id()
+        
+        log(
+            f"CODEX->Bridge request id={request_id} method={method} params={params}",
+            level="DEBUG",
+        )
+
+        # Buffer requests if connection is still establishing
+        if not self.state.connected.is_set():
+            log(
+                f"Buffering request id={request_id} waiting for Serena connection...",
+                level="INFO",
+            )
+            try:
+                await asyncio.wait_for(self.state.connected.wait(), timeout=5.0)
+            except asyncio.TimeoutError:
+                log(
+                    f"Timed out waiting for connection for request id={request_id}",
+                    level="WARN",
+                )
+
         try:
             result = await self.router.forward(
                 method,
@@ -111,9 +174,17 @@ class BridgeApp:
                 request_id,
             )
             await self.orderer.wait_turn(seq)
+            log(
+                f"Bridge->CODEX response id={request_id} method={method}",
+                level="DEBUG",
+            )
             return result
         except McpError as exc:
             await self.orderer.wait_turn(seq)
+            log(
+                f"Bridge->CODEX error id={request_id} method={method} error={exc}",
+                level="ERROR",
+            )
             raise exc
         except Exception as exc:
             await self.orderer.wait_turn(seq)
@@ -122,7 +193,12 @@ class BridgeApp:
                 "method": method,
                 "tool": params.get("name") if method == "tools/call" else None,
             }
-            raise McpError(enrich_error(exc, context))
+            enriched = enrich_error(exc, context)
+            log(
+                f"Bridge->CODEX exception id={request_id} method={method} error={enriched}",
+                level="ERROR",
+            )
+            raise McpError(enriched)
 
     def _get_request_id(self) -> Any:
         try:
@@ -195,10 +271,23 @@ async def async_main() -> int:
     app = BridgeApp()
     _install_signal_handlers(app.state)
     manager = ConnectionManager(app.state, app.orderer)
-    manager.start()
+    try:
+        manager.start()
+    except Exception as exc:
+        log(
+            f"Connection manager start failed: {exc}",
+            level="ERROR",
+        )
+        import traceback
+
+        trace = traceback.format_exc()
+        log(f"Traceback: {trace}", level="ERROR")
+        exit_code = 1
+        return exit_code
     log("Connection manager started", level="DEBUG")
     exit_code = 0
     monitor_task: asyncio.Task | None = None
+    server_monitor_task: asyncio.Task | None = None
     stdio_entered = False
     server_task_created = False
     stdio_entry_ts = None
@@ -245,6 +334,9 @@ async def async_main() -> int:
                 )
             )
             server_task_created = True
+            server_monitor_task = asyncio.create_task(
+                _monitor_server_task(app.state, server_task),
+            )
             try:
                 with open(config.LOG_FILE, "a", encoding="utf-8") as fh:
                     now = datetime.now().astimezone().isoformat(
@@ -356,6 +448,13 @@ async def async_main() -> int:
 
                     trace = traceback.format_exc()
                     log(f"Traceback: {trace}", level="ERROR")
+                if not shutdown_done and exit_code == 0:
+                    drained = await _wait_pending_responses(
+                        app.state,
+                        timeout=0.5,
+                    )
+                    if not drained:
+                        exit_code = 1
                 if (
                     not shutdown_done
                     and not app.state.shutdown.is_set()
@@ -376,6 +475,8 @@ async def async_main() -> int:
     finally:
         if monitor_task:
             monitor_task.cancel()
+        if server_monitor_task:
+            server_monitor_task.cancel()
         # Unconditionally write an STDIO-exit diagnostic and whether we created
         # a server task; this helps distinguish the case where STDIO closed
         # before we created the server task vs the case where the server task
@@ -411,6 +512,48 @@ async def _monitor_stdio(state: BridgeState) -> None:
     while not state.shutdown.is_set():
         log("STDIO stream alive", level="DEBUG")
         await asyncio.sleep(1)
+
+
+async def _monitor_server_task(
+    state: BridgeState,
+    server_task: asyncio.Task,
+) -> None:
+    while not state.shutdown.is_set() and not server_task.done():
+        await asyncio.sleep(0.1)
+        if state.connected.is_set():
+            log(
+                "Server task running; Serena connected",
+                level="DEBUG",
+            )
+    if server_task.done():
+        log("Server task completed", level="DEBUG")
+
+
+async def _wait_pending_responses(
+    state: BridgeState,
+    *,
+    timeout: float,
+) -> bool:
+    start = asyncio.get_event_loop().time()
+    logged = False
+    while True:
+        async with state.pending_responses_lock:
+            pending = state.pending_responses
+        if pending <= 0:
+            return True
+        if asyncio.get_event_loop().time() - start >= timeout:
+            log(
+                "Pending responses still in flight: %s" % pending,
+                level="ERROR",
+            )
+            return False
+        if not logged:
+            log(
+                "Waiting for pending responses: %s" % pending,
+                level="DEBUG",
+            )
+            logged = True
+        await asyncio.sleep(0.05)
 
 
 def _install_signal_handlers(state: BridgeState) -> None:

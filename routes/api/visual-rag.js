@@ -848,6 +848,13 @@ router.post('/feedback', async (req, res) => {
 
         const result = await feedbackService.recordGranularFeedback(documentId, events, { requestId });
 
+        // If there are deferred ingests, signal accepted (202) and provide details
+        const hasDeferred = Array.isArray(result.errors) && result.errors.some(e => e.type && e.type.startsWith('deferred'));
+        if (hasDeferred) {
+            logger.info('[Visual-RAG API] Feedback accepted with deferred ingestion', { request_id: requestId, documentId, hardware_target: 'RTX 3090 Ti' });
+            return res.status(202).json({ success: true, deferred: true, details: result.errors, ...result });
+        }
+
         res.json({
             success: true,
             ...result

@@ -9,6 +9,37 @@ from starlette.requests import Request
 from starlette.responses import PlainTextResponse, StreamingResponse
 from starlette.routing import Route
 
+BASE_TOOLS_28: List[Dict[str, Any]] = [
+    {"name": "read_file"},
+    {"name": "create_text_file"},
+    {"name": "list_dir"},
+    {"name": "find_file"},
+    {"name": "replace_content"},
+    {"name": "search_for_pattern"},
+    {"name": "get_symbols_overview"},
+    {"name": "find_symbol"},
+    {"name": "find_referencing_symbols"},
+    {"name": "replace_symbol_body"},
+    {"name": "insert_after_symbol"},
+    {"name": "insert_before_symbol"},
+    {"name": "rename_symbol"},
+    {"name": "write_memory"},
+    {"name": "read_memory"},
+    {"name": "list_memories"},
+    {"name": "delete_memory"},
+    {"name": "edit_memory"},
+    {"name": "activate_project"},
+    {"name": "switch_modes"},
+    {"name": "get_current_config"},
+    {"name": "check_onboarding_performed"},
+    {"name": "onboarding"},
+    {"name": "think_about_collected_information"},
+    {"name": "think_about_task_adherence"},
+    {"name": "think_about_whether_you_are_done"},
+    {"name": "prepare_for_new_conversation"},
+    {"name": "initial_instructions"},
+]
+
 
 class _SuppressCancelledFilter(logging.Filter):
     """Suppress noisy CancelledError tracebacks during shutdown."""
@@ -38,10 +69,7 @@ class MockSerenaServer:
         self._session_id = "mock-session"
         self.fail_next: bool = False
         self.delay_map: Dict[str, float] = {}
-        self.tools: List[Dict[str, Any]] = [
-            {"name": "search_code"},
-            {"name": "ping"},
-        ]
+        self.tools: List[Dict[str, Any]] = list(BASE_TOOLS_28)
         self.resources: List[Dict[str, Any]] = [
             {"uri": "mock://resource", "name": "mock resource"}
         ]

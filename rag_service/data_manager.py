@@ -3,7 +3,7 @@ import json
 import os
 import traceback
 from datetime import datetime
-from typing import Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import requests
 from sentence_transformers import CrossEncoder, SentenceTransformer
@@ -67,19 +67,19 @@ class DataManager:
                 "Missing Paperless API configuration in .env file",
             )
 
-        self.documents = []
-        self.document_hashes = {}
-        self.last_sync = None
+        self.documents: List[Dict[str, Any]] = []
+        self.document_hashes: Dict[str, str] = {}
+        self.last_sync: Optional[str] = None
         self.is_initialized = False
-        self.sentence_transformer = None
-        self.cross_encoder = None
+        self.sentence_transformer: Any = None
+        self.cross_encoder: Any = None
 
-        self.indexed_document_ids = (
-            global_state._indexed_document_ids
-            if global_state._indexed_document_ids
+        self.indexed_document_ids: Set[int] = (
+            global_state._indexed_document_ids  # type: ignore
+            if global_state._indexed_document_ids  # type: ignore
             else set()
         )
-        self.new_document_ids = set()
+        self.new_document_ids: Set[int] = set()
 
         if initialize_on_start:
             self.initialize_models()
@@ -117,7 +117,7 @@ class DataManager:
             self.is_initialized = False
             return False
 
-    def _extract_correspondent_id(self, doc: dict) -> Optional[int]:
+    def _extract_correspondent_id(self, doc: Dict[str, Any]) -> Optional[int]:
         value = doc.get("correspondent_id", doc.get("correspondent"))
         if isinstance(value, dict):
             value = value.get("id")
@@ -128,7 +128,7 @@ class DataManager:
         except (TypeError, ValueError):
             return None
 
-    def _extract_tag_ids(self, doc: dict) -> List[int]:
+    def _extract_tag_ids(self, doc: Dict[str, Any]) -> List[int]:
         tags = doc.get("tag_ids", doc.get("tags", []))
         if tags is None:
             return []
@@ -151,10 +151,10 @@ class DataManager:
                 continue
         return tag_ids
 
-    def _get_headers(self) -> dict:
+    def _get_headers(self) -> Dict[str, str]:
         return {"Authorization": f"Token {self.paperless_token}"}
 
-    def _compute_document_hash(self, doc: dict) -> str:
+    def _compute_document_hash(self, doc: Dict[str, Any]) -> str:
         """Compute a hash for a document to track changes."""
         content = f"{doc['title']}{doc['content']}{doc['correspondent']}"
         return hashlib.sha256(content.encode()).hexdigest()
@@ -189,7 +189,7 @@ class DataManager:
             logger.error("Error checking for updates: %s", str(exc))
             return False, f"Error: {str(exc)}"
 
-    def fetch_documents_from_api(self) -> list:
+    def fetch_documents_from_api(self) -> List[Dict[str, Any]]:
         """Fetch all documents from Paperless-NGX API with pagination."""
         logger.info(
             "Fetching documents from Paperless-NGX API: %s",
@@ -327,7 +327,7 @@ class DataManager:
 
         return processed_docs
 
-    def _check_for_new_documents(self) -> list:
+    def _check_for_new_documents(self) -> List[Dict[str, Any]]:
         """Check for new documents that haven't been indexed yet."""
         logger.info("Checking for new documents")
         try:
@@ -358,7 +358,7 @@ class DataManager:
         self,
         force_refresh: bool = False,
         check_new: bool = False,
-    ):
+    ) -> List[Dict[str, Any]]:
         """Load documents from file or API.
 
         Optionally checks for new documents.
@@ -473,7 +473,7 @@ class DataManager:
             DOCUMENTS_FILE,
         )
 
-    def _add_documents_to_qdrant(self, documents) -> bool:
+    def _add_documents_to_qdrant(self, documents: List[Dict[str, Any]]) -> bool:
         """Add documents and embeddings to Qdrant."""
         try:
             batch_size = 100
@@ -501,7 +501,7 @@ class DataManager:
                     tag_ids = self._extract_tag_ids(doc)
                     points.append(
                         {
-                            "id": str(doc_id),
+                            "id": doc_id,
                             "embedding": embedding.tolist(),
                             "payload": {
                                 "doc_id": doc_id,

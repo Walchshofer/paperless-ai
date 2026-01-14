@@ -206,6 +206,15 @@ client.create_collection(
 )
 ```
 
+Important: For Native Protocol Alpha-9 we require **payload mirroring** of a minimal set of metadata to enable Expert Filtering and auditability. The Qdrant point payload for `visual_overlays` MUST include at least:
+- `doc_id` (integer)
+- `correspondent_id` (integer)
+- `tag_ids` (array of integers)
+
+Additionally, the relational `visual_overlays` table will hold a `vector_id` (UUID) column linking the visual overlay row to the Qdrant point. PostgreSQL MUST NOT store the embedding vector (no `embedding`/pgvector column) — Qdrant is the SOT for vectors.
+
+The `visual_overlays` collection must be 320-dimensional and use **COSINE** distance; `visual_pages` must use **DOT** distance for page embeddings to remain compatible with ColQwen3 late-interaction scoring.
+
 #### Collection: `visual_pages` (Visual RAG Sidecar)
 ```python
 # Multi-vector support for ColQwen3 late-interaction

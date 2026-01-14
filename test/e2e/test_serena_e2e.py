@@ -14,6 +14,37 @@ pytestmark = pytest.mark.skipif(
     reason="SERENA_E2E not set - skipping E2E tests",
 )
 
+EXPECTED_TOOL_NAMES = [
+    "read_file",
+    "create_text_file",
+    "list_dir",
+    "find_file",
+    "replace_content",
+    "search_for_pattern",
+    "get_symbols_overview",
+    "find_symbol",
+    "find_referencing_symbols",
+    "replace_symbol_body",
+    "insert_after_symbol",
+    "insert_before_symbol",
+    "rename_symbol",
+    "write_memory",
+    "read_memory",
+    "list_memories",
+    "delete_memory",
+    "edit_memory",
+    "activate_project",
+    "switch_modes",
+    "get_current_config",
+    "check_onboarding_performed",
+    "onboarding",
+    "think_about_collected_information",
+    "think_about_task_adherence",
+    "think_about_whether_you_are_done",
+    "prepare_for_new_conversation",
+    "initial_instructions",
+]
+
 
 @pytest.mark.asyncio
 async def test_serena_discover_and_call_tool():
@@ -37,22 +68,24 @@ async def test_serena_discover_and_call_tool():
         )
         assert tools_result is not None
 
-        tool_name = None
         tools = getattr(tools_result, "tools", [])
+        tool_names = []
         for tool in tools:
             name = getattr(tool, "name", None)
             if not name and isinstance(tool, dict):
                 name = tool.get("name")
-            if name == "get_current_config":
-                tool_name = name
-                break
+            if name:
+                tool_names.append(name)
 
-        if tool_name:
-            call_result = await router.forward(
-                "tools/call",
-                {"name": tool_name, "arguments": {}},
-                "e2e-call",
-            )
-            assert call_result is not None
+        assert len(tool_names) == 28
+        for expected in EXPECTED_TOOL_NAMES:
+            assert expected in tool_names
+
+        call_result = await router.forward(
+            "tools/call",
+            {"name": "get_current_config", "arguments": {}},
+            "e2e-call",
+        )
+        assert call_result is not None
     finally:
         await manager.stop()

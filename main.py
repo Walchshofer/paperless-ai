@@ -1,13 +1,14 @@
 import argparse
+from typing import Any
 
 import uvicorn
 
-from rag_service.app import app
+from rag_service.app import app  # noqa: F401
 from rag_service.logging_utils import logger
-from rag_service.startup import STARTUP_ACTION
+from rag_service.startup import STARTUP_ACTION  # type: ignore
 
 
-def _apply_startup_args(args):
+def _apply_startup_args(args: Any):
     if args.initialize:
         logger.info("Auto-initialization requested via command line")
         if args.skip_check:
@@ -69,7 +70,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--rebuild-indexes",
         action="store_true",
-        help="Force rebuild of BM25 and ChromaDB indexes on startup",
+        help="Force rebuild of BM25 and vector indexes on startup",
     )
 
     args = parser.parse_args()

@@ -35,6 +35,7 @@ def log(
         try:
             with open(LOG_FILE, "a", encoding="utf-8") as handle:
                 handle.write(entry)
+                handle.flush()
         except Exception:
             # Never crash on logging failures.
             pass

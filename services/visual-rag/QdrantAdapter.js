@@ -63,7 +63,7 @@ class QdrantAdapter {
         this.client = new QdrantClient(clientOptions);
         this._initialized = false;
 
-        logger.info(`[QdrantAdapter] Configured for ${this.host}:${this.port}`);
+        logger.info(`[QdrantAdapter] Configured for ${this.host}:${this.port}`, { hardware_target: 'RTX 3090 Ti' });
     }
 
     // =========================================================================
@@ -216,7 +216,11 @@ class QdrantAdapter {
                     'integer'
                 );
             } catch (error) {
-                if (error.message?.toLowerCase().includes('already exists')) {
+                const msg = (error && error.message) ? String(error.message).toLowerCase() : '';
+                // Some Qdrant versions or cloud deployments return 400 Bad Request for unsupported index
+                // or when payload index creation is not permitted; treat these as non-fatal and continue.
+                if (msg.includes('already exists') || msg.includes('bad request') || msg.includes('unsupported')) {
+                    logger.warn(`[QdrantAdapter] Skipping payload index for ${collectionName}.${field}: ${error.message}`);
                     continue;
                 }
                 throw error;

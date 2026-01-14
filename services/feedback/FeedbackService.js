@@ -366,29 +366,87 @@ class FeedbackService {
                         const tagIds = resolveTagIds(context, evt);
 
                         if (qdrantAdapter && Array.isArray(embedding)) {
-                            try {
-                                await qdrantAdapter.upsertVisualOverlays([
-                                    {
-                                        id: overlayId || `${docId}-${page}-${Date.now()}`,
-                                        embedding,
-                                        payload: {
-                                            doc_id: docId,
-                                            correspondent_id: correspondentId,
-                                            tag_ids: tagIds,
-                                            page_number: page,
-                                            semantic_label: label
-                                        },
-                                        docId,
-                                        correspondentId,
-                                        tagIds
+                            // Use deterministic UUID for Qdrant point id so we can mirror vector_id into Postgres
+                            const { randomUUID } = require('crypto');
+                            const vectorId = randomUUID();
+
+                            const qdrantPoint = {
+                                id: vectorId,
+                                embedding,
+                                payload: {
+                                    doc_id: docId,
+                                    correspondent_id: correspondentId,
+                                    tag_ids: tagIds,
+                                    page_number: page,
+                                    semantic_label: label
+                                },
+                                docId,
+                                correspondentId,
+                                tagIds
+                            };
+
+                            // Retry logic to handle sidecar warming up (503 Initializing)
+                            const maxQdrantAttempts = 3;
+                            let qdrantSuccess = false;
+                            let qdrantLastErr = null;
+                            for (let qAttempt = 1; qAttempt <= maxQdrantAttempts; qAttempt++) {
+                                try {
+                                    await qdrantAdapter.upsertVisualOverlays([qdrantPoint]);
+                                    qdrantSuccess = true;
+                                    break;
+                                } catch (qdrantErr) {
+                                    qdrantLastErr = qdrantErr;
+                                    const msg = (qdrantErr && qdrantErr.message) ? qdrantErr.message.toLowerCase() : '';
+                                    logger.warn('qdrant_overlay_upsert_failed', {
+                                        requestId,
+                                        documentId: docId,
+                                        attempt: qAttempt,
+                                        error: qdrantErr.message,
+                                        hardware_target: 'RTX 3090 Ti'
+                                    });
+
+                                    // If it's an initializing 503, wait and retry; otherwise break
+                                    if (msg.includes('503') || msg.includes('initializ')) {
+                                        // exponential backoff (ms)
+                                        const waitMs = 500 * Math.pow(2, qAttempt - 1);
+                                        await new Promise(res => setTimeout(res, waitMs));
+                                        continue;
                                     }
-                                ]);
-                            } catch (qdrantErr) {
-                                logger.warn('qdrant_overlay_upsert_failed', {
-                                    requestId,
-                                    documentId: docId,
-                                    error: qdrantErr.message
-                                });
+
+                                    break;
+                                }
+                            }
+
+                            if (qdrantSuccess) {
+                                try {
+                                    // Mirror vector_id into Postgres visual_overlays
+                                    const updateRes = await client.query(`UPDATE visual_overlays SET vector_id = $1 WHERE id = $2 RETURNING vector_id`, [vectorId, overlayId]);
+                                    const setVectorId = updateRes.rows[0] && updateRes.rows[0].vector_id;
+                                    logger.info('qdrant_overlay_upserted', { requestId, documentId: docId, overlayId, vectorId: setVectorId, hardware_target: 'RTX 3090 Ti' });
+                                } catch (dbErr) {
+                                    logger.warn('visual_overlay_vector_id_update_failed', { requestId, documentId: docId, overlayId, error: dbErr.message });
+                                }
+                            } else {
+                                // After retries failed, mark event for deferred ingestion
+                                logger.error('qdrant_overlay_deferred', { requestId, documentId: docId, overlayId, error: qdrantLastErr && qdrantLastErr.message, hardware_target: 'RTX 3090 Ti' });
+
+                                // Insert a feedback_events entry to track deferred ingestion for auditing
+                                try {
+                                    await client.query(`INSERT INTO feedback_events (doc_id, user_id, event_type, field_name, original_value, corrected_value, context) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [
+                                        docId,
+                                        userId,
+                                        'deferred_ingest',
+                                        'visual_overlay',
+                                        null,
+                                        JSON.stringify({ overlayId, attempted_point: qdrantPoint }),
+                                        JSON.stringify({ deferred: true, hardware_target: 'RTX 3090 Ti' })
+                                    ]);
+                                    // Surface to response for visibility
+                                    results.errors.push({ type: 'deferred_ingest', overlayId, error: qdrantLastErr && qdrantLastErr.message });
+                                } catch (insertErr) {
+                                    logger.error('deferred_ingest_record_failed', { requestId, documentId: docId, error: insertErr.message });
+                                    results.errors.push({ type: 'deferred_ingest_record_failed', overlayId, error: insertErr.message });
+                                }
                             }
                         }
 
@@ -431,7 +489,8 @@ class FeedbackService {
                     documentId: docId,
                     inserted: results.inserted.length,
                     overlays: results.overlays.length,
-                    duration
+                    duration,
+                    hardware_target: 'RTX 3090 Ti'
                 });
 
                 // Release and return when successful

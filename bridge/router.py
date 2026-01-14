@@ -89,6 +89,21 @@ class RequestRouter:
         self.state.connection_lost.set()
         self.state.reconnect_needed.set()
 
+    async def _increment_pending_responses(self) -> None:
+        async with self.state.pending_responses_lock:
+            self.state.pending_responses += 1
+
+    async def _decrement_pending_responses(self) -> None:
+        async with self.state.pending_responses_lock:
+            if self.state.pending_responses > 0:
+                self.state.pending_responses -= 1
+
+    def _format_params(self, params: dict[str, Any]) -> str:
+        text = str(params)
+        if len(text) > 300:
+            return text[:297] + "..."
+        return text
+
     async def _get_session(self) -> Any:
         if self.state.connection_lost.is_set():
             raise self._connection_lost_error()
@@ -128,9 +143,11 @@ class RequestRouter:
     ) -> Any:
         session = await self._get_session()
         if method == "tools/list" and self.state.tools_ready.is_set():
+            log("Bridge cache hit for tools/list", level="DEBUG")
             return types.ListToolsResult(tools=self.state.tools)
         if method == "tools/list":
             cursor = params.get("cursor")
+            log("Bridge->Serena tools/list", level="DEBUG")
             return await asyncio.wait_for(
                 self._await_with_disconnect(session.list_tools(cursor)),
                 timeout,
@@ -138,6 +155,10 @@ class RequestRouter:
         if method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments", {}) or {}
+            log(
+                "Bridge->Serena tools/call name=%s" % name,
+                level="DEBUG",
+            )
             return await asyncio.wait_for(
                 self._await_with_disconnect(
                     session.call_tool(name, arguments),
@@ -146,6 +167,7 @@ class RequestRouter:
             )
         if method == "resources/list":
             cursor = params.get("cursor")
+            log("Bridge->Serena resources/list", level="DEBUG")
             return await asyncio.wait_for(
                 self._await_with_disconnect(
                     session.list_resources(cursor),
@@ -154,12 +176,14 @@ class RequestRouter:
             )
         if method == "resources/read":
             uri = params.get("uri")
+            log("Bridge->Serena resources/read", level="DEBUG")
             return await asyncio.wait_for(
                 self._await_with_disconnect(session.read_resource(uri)),
                 timeout,
             )
         if method == "prompts/list":
             cursor = params.get("cursor")
+            log("Bridge->Serena prompts/list", level="DEBUG")
             return await asyncio.wait_for(
                 self._await_with_disconnect(session.list_prompts(cursor)),
                 timeout,
@@ -167,6 +191,10 @@ class RequestRouter:
         if method == "prompts/get":
             name = params.get("name")
             arguments = params.get("arguments", {}) or {}
+            log(
+                "Bridge->Serena prompts/get name=%s" % name,
+                level="DEBUG",
+            )
             return await asyncio.wait_for(
                 self._await_with_disconnect(
                     session.get_prompt(name, arguments),
@@ -190,6 +218,11 @@ class RequestRouter:
         timeout = self._select_timeout(method, params)
         retry_state = RetryState()
         tool_name = params.get("name") if method == "tools/call" else None
+        log(
+            "CODEX->Bridge request id=%s method=%s params=%s"
+            % (request_id, method, self._format_params(params)),
+            level="DEBUG",
+        )
         pending = PendingRequest(
             request_id=request_id,
             method=method,
@@ -201,43 +234,71 @@ class RequestRouter:
         async with self.state.pending_requests_lock:
             self.state.pending_requests[request_id] = pending
 
-        while True:
-            try:
-                result = await self._call_session(method, params, timeout)
-                async with self.state.pending_requests_lock:
-                    self.state.pending_requests.pop(request_id, None)
-                return result
-            except McpError as exc:
-                async with self.state.pending_requests_lock:
-                    self.state.pending_requests.pop(request_id, None)
-                raise exc
-            except Exception as exc:
-                retry_state.last_error = exc
-                do_retry, backoff = should_retry(
-                    exc,
-                    retry_state,
-                    max_attempts=config.RETRY_MAX_ATTEMPTS,
-                    backoff_base=config.RETRY_BACKOFF_BASE,
-                    backoff_max=config.RETRY_BACKOFF_MAX,
-                )
-                if not do_retry:
+        await self._increment_pending_responses()
+        try:
+            while True:
+                try:
+                    result = await self._call_session(
+                        method,
+                        params,
+                        timeout,
+                    )
+                    log(
+                        "Serena->Bridge response method=%s bytes=%s"
+                        % (method, len(str(result))),
+                        level="DEBUG",
+                    )
                     async with self.state.pending_requests_lock:
                         self.state.pending_requests.pop(request_id, None)
-                    if is_connection_error(exc):
-                        self._mark_connection_lost()
-                        raise self._connection_lost_error()
-                    context = {
-                        "id": request_id,
-                        "method": method,
-                        "tool": tool_name,
-                        "timeout": timeout,
-                        "attempts": retry_state.attempts,
-                    }
-                    raise McpError(enrich_error(exc, context))
-                retry_state.attempts += 1
-                log(
-                    "Retry attempt "
-                    f"{retry_state.attempts} for id={request_id}: {exc}",
-                    level="WARN",
-                )
-                await asyncio.sleep(backoff)
+                    log(
+                        "Bridge->CODEX response ready method=%s id=%s"
+                        % (method, request_id),
+                        level="DEBUG",
+                    )
+                    return result
+                except McpError as exc:
+                    log(
+                        "Serena->Bridge error method=%s id=%s: %s"
+                        % (method, request_id, exc),
+                        level="ERROR",
+                    )
+                    async with self.state.pending_requests_lock:
+                        self.state.pending_requests.pop(request_id, None)
+                    raise exc
+                except Exception as exc:
+                    retry_state.last_error = exc
+                    do_retry, backoff = should_retry(
+                        exc,
+                        retry_state,
+                        max_attempts=config.RETRY_MAX_ATTEMPTS,
+                        backoff_base=config.RETRY_BACKOFF_BASE,
+                        backoff_max=config.RETRY_BACKOFF_MAX,
+                    )
+                    if not do_retry:
+                        async with self.state.pending_requests_lock:
+                            self.state.pending_requests.pop(request_id, None)
+                        if is_connection_error(exc):
+                            self._mark_connection_lost()
+                            raise self._connection_lost_error()
+                        context = {
+                            "id": request_id,
+                            "method": method,
+                            "tool": tool_name,
+                            "timeout": timeout,
+                            "attempts": retry_state.attempts,
+                        }
+                        log(
+                            "Serena->Bridge failure method=%s id=%s: %s"
+                            % (method, request_id, exc),
+                            level="ERROR",
+                        )
+                        raise McpError(enrich_error(exc, context))
+                    retry_state.attempts += 1
+                    log(
+                        "Retry attempt "
+                        f"{retry_state.attempts} for id={request_id}: {exc}",
+                        level="WARN",
+                    )
+                    await asyncio.sleep(backoff)
+        finally:
+            await self._decrement_pending_responses()
