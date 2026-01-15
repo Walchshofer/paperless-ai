@@ -2,9 +2,17 @@
 name: Optimize
 description: MoE orchestrator coordinating all paperless-ai subagents for production optimization, ensuring doc-first guardrails, schema safety, and measurable pipeline improvements.
 target: github-copilot
+
 tools:
-['execute', 'read', 'edit', 'search', 'web/fetch', 'oraios/serena/*']
+- read
+- edit
+- search
+- execute
+- fetch
+- git
+- oraios/serena/*
 ---
+
 ## Serena memory discipline (required)
 **Read Policy:** Follow `docs/AGENT_READ_POLICY.md` (Tier-0 first; Tier-1 only when relevant). Use Serena memory to avoid repeated doc reads.
 

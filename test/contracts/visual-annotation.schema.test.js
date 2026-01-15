@@ -49,4 +49,30 @@ describe('VisualAnnotation Zod schema (Prompt 003)', function () {
     const result = VisualAnnotationSchema.safeParse(invalid);
     assert.strictEqual(result.success, false);
   });
+
+  it('accepts annotations with payload mirroring context (correspondent/tagIds/bbox)', function () {
+    const sample = {
+      documentId: 'doc-42',
+      annotations: [
+        {
+          label: 'handwritten_note',
+          bbox: [100, 150, 200, 80],
+          context: { correspondentId: 42, tagIds: [1,2,3], metadata: { source: 'ui' } }
+        }
+      ]
+    };
+    const result = VisualAnnotationSchema.safeParse(sample);
+    assert.strictEqual(result.success, true);
+  });
+
+  it('rejects invalid tag ids (non-numeric values)', function () {
+    const sample = {
+      documentId: 'doc-43',
+      annotations: [
+        { label: 'seal', bbox: [1,2,3,4], context: { tagIds: ["a", 2] } }
+      ]
+    };
+    const result = VisualAnnotationSchema.safeParse(sample);
+    assert.strictEqual(result.success, false);
+  });
 });

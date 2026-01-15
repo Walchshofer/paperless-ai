@@ -12,6 +12,18 @@ describe('FeedbackControls Zod schema', function () {
     assert.strictEqual(result.success, true);
   });
 
+  it('accepts availableComponents array and documentId', function () {
+    const valid = { availableComponents: ['tags','correspondent'], documentId: 2 };
+    const result = FeedbackControlsSchema.safeParse(valid);
+    assert.strictEqual(result.success, true);
+  });
+
+  it('rejects non-array availableComponents', function () {
+    const invalid = { availableComponents: 'tags' };
+    const result = FeedbackControlsSchema.safeParse(invalid);
+    assert.strictEqual(result.success, false);
+  });
+
   it('rejects invalid feedback_type', function () {
     const invalid = {
       documentId: 1,

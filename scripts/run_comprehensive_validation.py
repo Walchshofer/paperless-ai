@@ -11,7 +11,6 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-import shutil
 import textwrap
 from typing import Dict, List, Optional, Tuple
 
@@ -96,7 +95,18 @@ def main(non_interactive: bool = True) -> int:
         env["SERENA_BASE"] = SERENA_BASE
         # Set SERENA_E2E so E2E test guards run the suite when Serena is reachable
         env["SERENA_E2E"] = "1"
-        e2e_code, e2e_out = run_cmd([sys.executable, "-m", "pytest", "test/e2e/test_serena_e2e.py", "-v", "--tb=short", "--junitxml=test/output/e2e_results.xml"], env=env)
+        e2e_code, e2e_out = run_cmd(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "test/e2e/test_serena_e2e.py",
+                "-v",
+                "--tb=short",
+                "--junitxml=test/output/e2e_results.xml",
+            ],
+            env=env,
+        )
     else:
         print("\n[3/6] Skipping E2E tests because Serena is not running")
         e2e_code, e2e_out = 2, "Serena not running"
@@ -117,7 +127,7 @@ def main(non_interactive: bool = True) -> int:
     end = datetime.utcnow()
     duration = end - start
 
-    def status(code):
+    def status(code: int) -> str:
         if code == 0:
             return "PASS"
         if code == 2:
@@ -144,7 +154,7 @@ def main(non_interactive: bool = True) -> int:
 
     ## Overall Result
 
-    {('**ALL TESTS PASSED** - Bridge v4.0 is production-ready' if (unit_code==0 and integration_code==0 and e2e_code==0 and stdio_code==0 and (codex_verified is True or non_interactive)) else '**SOME TESTS FAILED** - Review failures and create fix tickets')}
+    {('**ALL TESTS PASSED** - Bridge v4.0 is production-ready' if (unit_code == 0 and integration_code == 0 and e2e_code == 0 and stdio_code == 0 and (codex_verified is True or non_interactive)) else '**SOME TESTS FAILED** - Review failures and create fix tickets')}
 
     ## Detailed Results
 
@@ -170,7 +180,7 @@ def main(non_interactive: bool = True) -> int:
 
     ## Next Steps
 
-    {('- Deploy bridge to production\n- Update CODEX configuration\n- Monitor bridge_debug.log for issues\n- Consider changing LOG_LEVEL to INFO for production' if unit_code==0 and integration_code==0 and e2e_code==0 and stdio_code==0 and codex_verified else '- Review test failures\n- Create tickets for bug fixes\n- Re-run validation after fixes')}
+    {('- Deploy bridge to production\n- Update CODEX configuration\n- Monitor bridge_debug.log for issues\n- Consider changing LOG_LEVEL to INFO for production' if unit_code == 0 and integration_code == 0 and e2e_code == 0 and stdio_code == 0 and codex_verified else '- Review test failures\n- Create tickets for bug fixes\n- Re-run validation after fixes')}
     """)
 
     report_file.write_text(md, encoding="utf8")
