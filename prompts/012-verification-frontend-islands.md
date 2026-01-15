@@ -19,6 +19,8 @@ visual fragments are validated before being sent to the sidecar.
 
 **Architecture:** Preact Islands + Zod Contracts + Custom Event Bus.
 **Hardware Baseline:** RTX 3090 Ti (Ampere SM86).
+
+**Policy:** Read `docs/AGENT_READ_POLICY.md` to determine authoritative documentation.
 </context>
 
 <requirements>

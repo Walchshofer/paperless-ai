@@ -18,6 +18,8 @@ are captured for late-interaction retrieval and hardware health.
 
 **Hardware Baseline:** RTX 3090 Ti (Ampere SM86).
 **Critical Metric:** `maxsim_score_mean` (Threshold 0.85).
+
+**Policy:** Read `docs/AGENT_READ_POLICY.md` to determine authoritative documentation.
 </context>
 
 <requirements>

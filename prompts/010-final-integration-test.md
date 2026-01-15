@@ -18,6 +18,8 @@ PostgreSQL filters to Qdrant, and maintains 320-dim multi-vector integrity.
 
 **Hardware:** RTX 3090 Ti (Ampere SM86).
 **SOT Check:** Postgres (Metadata) + Qdrant (Vectors) Hybrid Sync.
+
+**Policy:** Read `docs/AGENT_READ_POLICY.md` to determine authoritative documentation.
 </context>
 
 <requirements>

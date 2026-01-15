@@ -3,11 +3,14 @@ import json
 import os
 import traceback
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, cast
 
 import requests
-from sentence_transformers import CrossEncoder, SentenceTransformer
-from tqdm import tqdm
+from sentence_transformers import (  # type: ignore
+    CrossEncoder,  # type: ignore
+    SentenceTransformer,  # type: ignore
+)
+from tqdm import tqdm  # type: ignore
 
 from .logging_utils import logger
 from .settings import (
@@ -118,9 +121,11 @@ class DataManager:
             return False
 
     def _extract_correspondent_id(self, doc: Dict[str, Any]) -> Optional[int]:
-        value = doc.get("correspondent_id", doc.get("correspondent"))
+        value: Any = doc.get("correspondent_id")
+        if value is None:
+            value = doc.get("correspondent")
         if isinstance(value, dict):
-            value = value.get("id")
+            value = cast(Dict[str, Any], value).get("id")
         if value is None:
             return None
         try:
@@ -129,11 +134,14 @@ class DataManager:
             return None
 
     def _extract_tag_ids(self, doc: Dict[str, Any]) -> List[int]:
-        tags = doc.get("tag_ids", doc.get("tags", []))
+        tags: Any = doc.get("tag_ids")
+        if tags is None:
+            tags = doc.get("tags", [])
         if tags is None:
             return []
         if isinstance(tags, dict):
-            tags = tags.get("results") or list(tags.values())
+            tags_dict = cast(Dict[str, Any], tags)
+            tags = tags_dict.get("results") or list(tags_dict.values())
         if not isinstance(tags, list):
             try:
                 return [int(tags)]
@@ -141,8 +149,15 @@ class DataManager:
                 return []
 
         tag_ids: List[int] = []
-        for tag in tags:
-            tag_id = tag.get("id") if isinstance(tag, dict) else tag
+        tags_list = cast(List[Any], tags)
+        for item in tags_list:
+            tag: Any = item
+            tag_id: Any = tag
+            if isinstance(tag, dict):
+                tag_id = cast(Dict[str, Any], tag).get("id")
+            else:
+                tag_id = tag
+
             if tag_id is None:
                 continue
             try:
@@ -173,7 +188,7 @@ class DataManager:
             if response.status_code != 200:
                 return False, f"API error: {response.status_code}"
 
-            data = response.json()
+            data: Dict[str, Any] = response.json()
             results = data.get("results", [])
 
             if not results:
@@ -196,7 +211,7 @@ class DataManager:
             self.paperless_url,
         )
 
-        documents = []
+        documents: List[Dict[str, Any]] = []
         page = 1
         has_next = True
 
@@ -236,7 +251,7 @@ class DataManager:
                     raise Exception("API returned empty response")
 
                 try:
-                    data = response.json()
+                    data: Dict[str, Any] = response.json()
                 except requests.exceptions.JSONDecodeError as exc:
                     logger.error("JSON decode error: %s", str(exc))
                     logger.error("Response content: %s", response.text)
@@ -245,7 +260,7 @@ class DataManager:
                         f"{str(exc)}"
                     )
 
-                results = data.get("results", [])
+                results: List[Dict[str, Any]] = data.get("results", [])
                 documents.extend(results)
 
                 if data.get("next"):
@@ -257,8 +272,9 @@ class DataManager:
                 logger.error("Request error: %s", str(exc))
                 raise Exception(f"API request failed: {str(exc)}")
 
-        processed_docs = []
-        for doc in tqdm(documents, desc="Processing documents"):
+        processed_docs: List[Dict[str, Any]] = []
+        for item in tqdm(documents, desc="Processing documents"):
+            doc: Dict[str, Any] = item
             if "content" not in doc or not doc["content"]:
                 download_url = (
                     f"{self.paperless_url}/api/documents/"
@@ -295,7 +311,7 @@ class DataManager:
                         "",
                     )
 
-            tags = []
+            tags: List[str] = []
             if doc.get("tags"):
                 for tag_id in doc["tags"]:
                     tag_response = requests.get(
@@ -308,7 +324,7 @@ class DataManager:
                             tag_response.json().get("name", "")
                         )
 
-            processed_doc = {
+            processed_doc: Dict[str, Any] = {
                 "id": doc.get("id"),
                 "title": doc.get("title", ""),
                 "content": content,
@@ -333,7 +349,7 @@ class DataManager:
         try:
             api_documents = self.fetch_documents_from_api()
 
-            new_docs = []
+            new_docs: List[Dict[str, Any]] = []
             self.new_document_ids.clear()
 
             for doc in api_documents:
@@ -371,25 +387,26 @@ class DataManager:
                     "r",
                     encoding="utf-8",
                 ) as file_obj:
-                    local_documents = json.load(file_obj)
+                    local_documents: Any = json.load(file_obj)
 
-                invalid_structure = (
-                    not isinstance(local_documents, list)
-                    or (
-                        local_documents
-                        and not isinstance(local_documents[0], dict)
-                    )
-                )
+                invalid_structure: bool = False
+                if not isinstance(local_documents, list):
+                    invalid_structure = True
+                elif local_documents and not isinstance(local_documents[0], dict):
+                    invalid_structure = True
+
                 if invalid_structure:
                     logger.error(
                         "Invalid document structure in documents.json"
                     )
                     return []
 
+                documents_list = cast(List[Dict[str, Any]], local_documents)
+
                 if not self.indexed_document_ids:
                     self.indexed_document_ids = {
                         doc["id"]
-                        for doc in local_documents
+                        for doc in documents_list
                         if "id" in doc
                     }
                     logger.info(
@@ -398,7 +415,7 @@ class DataManager:
                     )
 
                 self.last_sync = datetime.now().isoformat()
-                self.documents = local_documents
+                self.documents = documents_list
 
                 if check_new:
                     logger.info("Explicitly checking for new documents")
@@ -473,7 +490,9 @@ class DataManager:
             DOCUMENTS_FILE,
         )
 
-    def _add_documents_to_qdrant(self, documents: List[Dict[str, Any]]) -> bool:
+    def _add_documents_to_qdrant(
+        self, documents: List[Dict[str, Any]]
+    ) -> bool:
         """Add documents and embeddings to Qdrant."""
         try:
             batch_size = 100
@@ -494,7 +513,7 @@ class DataManager:
                 ]
                 embeddings = self.sentence_transformer.encode(texts)
 
-                points = []
+                points: List[Dict[str, Any]] = []
                 for doc, embedding in zip(batch, embeddings):
                     doc_id = doc["id"]
                     correspondent_id = self._extract_correspondent_id(doc)

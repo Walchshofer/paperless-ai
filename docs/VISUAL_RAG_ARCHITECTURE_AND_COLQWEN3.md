@@ -1022,31 +1022,16 @@ def load_model() -> None:
             logger.info("✅ Native ColQwen3 support detected")
 
         except (ValueError, KeyError) as exc:
-            # Fallback: Use registry injection
-            logger.warning(
-                "Native ColQwen3 support missing: %s. Attempting registry injection.",
+            # Registry injection support has been deprecated and removed from the codebase.
+            logger.error(
+                "Native ColQwen3 support missing: %s. Registry injection has been removed.",
                 exc
             )
-
-            from colqwen3_registry import ColQwen3RegistryInjector
-
-            # Validate dependencies
-            if not ColQwen3RegistryInjector.inject_colqwen3_support():
-                raise RuntimeError("Registry injection failed - see logs")
-
-            # Retry with injected support
-            state.model = RAGMultiModalModel.from_pretrained(
-                MODEL_ID,
-                device="cuda",
-                trust_remote_code=True,
-                load_in_4bit=False,
-                attn_implementation="flash_attention_2",
+            # Recommendation: Upgrade the 'byaldi' package to >=0.0.7 to obtain native ColQwen3 support,
+            # or follow the migration guidance in `docs/VISUAL_RAG_INTEGRATION.md` for re-ingest and re-index steps.
+            raise RuntimeError(
+                "ColQwen3 native support unavailable. See docs/VISUAL_RAG_INTEGRATION.md for migration steps."
             )
-
-            # Verify injection worked
-            verification = ColQwen3RegistryInjector.verify_injection()
-            if not verification["success"]:
-                raise RuntimeError(f"Injection verification failed: {verification}")
 
             logger.info("✅ Registry injection successful: %s", verification)
 

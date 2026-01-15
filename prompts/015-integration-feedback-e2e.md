@@ -19,6 +19,8 @@ on the RTX 3090 Ti stack.
 
 **Hardware Profile:** RTX 3090 Ti (Ampere SM86).
 **Hybrid SOT:** Postgres (Relational) + Qdrant (Vector Payloads).
+
+**Policy:** Read `docs/AGENT_READ_POLICY.md` to determine authoritative documentation.
 </context>
 
 <requirements>

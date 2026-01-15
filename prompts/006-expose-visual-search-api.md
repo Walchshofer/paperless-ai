@@ -18,6 +18,8 @@ metadata mirroring between PostgreSQL and Qdrant payloads.
 
 **Hardware Baseline:** RTX 3090 Ti (Ampere SM86).
 **Retrieval Logic:** Native MaxSim (Late Interaction) via Sidecar :8001.
+
+**Policy:** Read `docs/AGENT_READ_POLICY.md` to determine authoritative documentation.
 </context>
 
 <requirements>

@@ -20,6 +20,8 @@ mandated by `docs/FRONTEND_ARCHITECTURE.md`.
 
 **Hardware:** RTX 3090 Ti (Ampere SM86).
 **Retrieval SOT:** Unified Qdrant (320-dim).
+
+**Policy:** Read `docs/AGENT_READ_POLICY.md` to determine authoritative documentation.
 </context>
 
 <requirements>

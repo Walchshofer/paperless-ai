@@ -45,7 +45,7 @@ As of 2026-01, the system has migrated to a **Hybrid SOT** (PostgreSQL + Qdrant)
 ## Prompt Structure
 All prompts follow the standard format:
 - `<objective>`: Clear goal.
-- `<context>`: Hardware and SOT background.
+- `<context>`: Hardware, SOT background, and mandatory `docs/AGENT_READ_POLICY.md` reference.
 - `<requirements>`: Technical specifications.
 - `<implementation>`: Pattern and "Detox" guidelines.
 - `<output>`: Expected file artifacts.

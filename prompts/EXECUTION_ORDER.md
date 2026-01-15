@@ -3,6 +3,8 @@
 ## Overview
 This document defines the authoritative execution order for implementation and verification prompts 001-018. Under the **Native Protocol Alpha-9**, Phase 5 (Qdrant Migration) is the mandatory root for all subsequent development.
 
+**Policy:** All agents must read `docs/AGENT_READ_POLICY.md` before executing any prompt.
+
 ## Dependency Graph
 
 

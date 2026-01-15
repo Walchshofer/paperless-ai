@@ -18,6 +18,8 @@ and that the orchestrator respects the RTX 3090 Ti hardware limits.
 
 **Hardware Profile:** RTX 3090 Ti (Ampere SM86).
 **SOT Check:** PostgreSQL (Metadata) vs. Qdrant (Vectors).
+
+**Policy:** Read `docs/AGENT_READ_POLICY.md` to determine authoritative documentation.
 </context>
 
 <requirements>

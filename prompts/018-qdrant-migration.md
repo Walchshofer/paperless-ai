@@ -18,11 +18,13 @@ Vector SOT, while PostgreSQL remains the Relational/Metadata SOT.
 
 **Hardware Baseline:** RTX 3090 Ti (Ampere SM86).
 **Critical Architecture:** Hybrid SOT with Payload Mirroring.
+
+**Policy:** Read `docs/AGENT_READ_POLICY.md` to determine authoritative documentation.
 </context>
 
 <requirements>
 1. **Unified Qdrant Deployment**:
-   - Add Qdrant to `docker-compose.yml`.
+   - Verify Qdrant is configured in `docker-compose.yml`.
    - **Persistence:** Configure optimized volumes for fast NVMe I/O.
    - **Optimization:** Configure `mmap_threshold` for the RTX 3090 Ti profile.
 

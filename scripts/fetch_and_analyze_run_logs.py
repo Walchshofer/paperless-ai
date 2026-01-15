@@ -6,6 +6,7 @@ The script fetches the logs zip for each run, extracts it to a temp dir, searche
 then prints a per-run summary and a cross-run comparison of common messages.
 """
 import sys, os, json, tempfile, zipfile, re
+from typing import List, Optional, Tuple
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
@@ -19,7 +20,7 @@ ERR_PATTERNS = [re.compile(p, re.I) for p in [r'error[: ]', r'exception', r'trac
 CONTEXT = 2
 
 
-def fetch_logs_zip(run_id):
+def fetch_logs_zip(run_id: str) -> Optional[bytes]:
     url = f'https://api.github.com/repos/{REPO}/actions/runs/{run_id}/logs'
     req = Request(url, headers=HEADERS)
     try:
@@ -35,7 +36,7 @@ def fetch_logs_zip(run_id):
     return None
 
 
-def analyze_run(run_id, data):
+def analyze_run(run_id: str, data: bytes) -> List[Tuple[str, int, str]]:
     results = []
     with tempfile.TemporaryDirectory() as td:
         zpath = os.path.join(td, f'{run_id}.zip')
@@ -68,7 +69,7 @@ def analyze_run(run_id, data):
     return results
 
 
-def main():
+def main() -> None:
     if len(sys.argv) < 2:
         print('Usage: python fetch_and_analyze_run_logs.py <run_id> [<run_id> ...]')
         sys.exit(1)

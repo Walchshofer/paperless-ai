@@ -10,7 +10,7 @@ import hashlib
 import json
 import os
 from datetime import datetime
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 
 import requests
 
@@ -23,8 +23,8 @@ def _compute_hash(title: str, content: str, correspondent: str) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def _collect_documents(vat_dir: str) -> List[Dict]:
-    documents = []
+def _collect_documents(vat_dir: str) -> List[Dict[str, Any]]:
+    documents: List[Dict[str, Any]] = []
     correspondent = "VAT Internal"
     tags = ["vat", "internal", "austrian", "linz"]
 
@@ -69,7 +69,9 @@ def _collect_documents(vat_dir: str) -> List[Dict]:
     return documents
 
 
-def _merge_documents(existing: List[Dict], incoming: List[Dict]) -> List[Dict]:
+def _merge_documents(
+    existing: List[Dict[str, Any]], incoming: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
     seen_ids = {str(doc.get("id")) for doc in existing}
     seen_hashes = {doc.get("hash") for doc in existing}
     merged = list(existing)
@@ -88,13 +90,16 @@ def _merge_documents(existing: List[Dict], incoming: List[Dict]) -> List[Dict]:
 
 
 def _write_documents(
-    documents_file: str, documents: List[Dict], merge: bool, backup: bool
+    documents_file: str,
+    documents: List[Dict[str, Any]],
+    merge: bool,
+    backup: bool,
 ) -> int:
     os.makedirs(os.path.dirname(documents_file), exist_ok=True)
 
     if merge and os.path.exists(documents_file):
         with open(documents_file, "r", encoding="utf-8") as handle:
-            existing = json.load(handle)
+            existing: List[Dict[str, Any]] = json.load(handle)
         documents = _merge_documents(existing, documents)
     elif backup and os.path.exists(documents_file):
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -108,8 +113,10 @@ def _write_documents(
 
 
 def _post_json(
-    url: str, payload: Dict | None = None, params: Dict | None = None
-) -> Dict:
+    url: str,
+    payload: Optional[Dict[str, Any]] = None,
+    params: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     response = requests.post(url, json=payload, params=params, timeout=120)
     response.raise_for_status()
     return response.json()
@@ -167,7 +174,7 @@ def main() -> None:
         backup=not args.no_backup,
     )
 
-    result = {
+    result: Dict[str, Any] = {
         "documents_written": doc_count,
         "documents_file": args.documents_file,
         "rag_url": args.rag_url,

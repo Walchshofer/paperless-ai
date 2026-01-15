@@ -1,4 +1,5 @@
 import traceback
+from typing import Any
 
 from fastapi import HTTPException
 
@@ -6,7 +7,7 @@ from .logging_utils import logger
 from .state import global_state
 
 
-def get_search_engine():
+def get_search_engine() -> Any:
     if not global_state.search_engine:
         logger.error("Search engine not initialized")
         raise HTTPException(

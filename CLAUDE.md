@@ -2,24 +2,22 @@
 
 ## Multi-container Docker setup
 
-The Docker deployment files for this project live outside this repository:
+The Docker deployment files for this project are located in this repository:
 
-- **docker-compose.env**: `C:\Users\pwalc\MyApps\paperless-ngx\docker-compose.env`
-- **docker-compose.yml**: `C:\Users\pwalc\MyApps\paperless-ngx\docker-compose.yml`
+- **docker-compose.env**: `C:\Users\pwalc\MyApps\paperless-ai\docker-compose.env`
+- **docker-compose.yml**: `C:\Users\pwalc\MyApps\paperless-ai\docker-compose.yml`
 
 This compose file defines the full multi-container stack for Paperless-ngx plus
-paperless-ai and its AI sidecars. paperless-ai is built from `../paperless-ai`,
-and the Visual RAG sidecar is built from
-`../paperless-ai/services/visual-rag-sidecar`.
+paperless-ai and its AI sidecars.
 
 ### Build Context Strategy
-The Visual RAG sidecar uses a **parent-directory build context** to enable access to both repositories:
+The services are built using the repository root as context:
 
 ```yaml
 visual-rag:
   build:
-    context: ..  # Parent directory (contains both paperless-ai and paperless-ngx)
-    dockerfile: paperless-ai/services/visual-rag-sidecar/Dockerfile
+    context: .
+    dockerfile: services/visual-rag-sidecar/Dockerfile
 ```
 
 **Why parent context?**

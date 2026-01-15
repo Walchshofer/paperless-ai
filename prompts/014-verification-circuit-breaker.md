@@ -19,6 +19,8 @@ fallback path without cascading failures.
 
 **Hardware Baseline:** RTX 3090 Ti (Ampere SM86).
 **VRAM Profile:** ~3.5GB baseline for sidecar; monitored via `nvidia-smi`.
+
+**Policy:** Read `docs/AGENT_READ_POLICY.md` to determine authoritative documentation.
 </context>
 
 <requirements>

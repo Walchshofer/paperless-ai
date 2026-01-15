@@ -5,7 +5,9 @@ from .logging_utils import logger
 from .state import global_state
 
 
-def run_indexing(force_update=False, check_new=False):
+def run_indexing(
+    force_update: bool = False, check_new: bool = False
+) -> None:
     """Führt die Indexierung als Hintergrundaufgabe aus.
 
     Fokus liegt auf neuen Dokumenten.

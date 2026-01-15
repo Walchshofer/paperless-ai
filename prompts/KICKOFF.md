@@ -23,6 +23,7 @@
 
 The following documents are authoritative. If implementation conflicts with Tier-0, Tier-0 wins:
 
+0. `docs/AGENT_READ_POLICY.md` - Defines the reading policy for all agents.
 1. `docs/EXPERT_PIPELINE_DECISION_TABLE.md` - Pipeline gates and retries.
 2. `docs/QDRANT_MIGRATION.md` - Hybrid SOT and collection specs.
 3. `docs/VISUAL_RAG_ARCHITECTURE_AND_COLQWEN3.md` - MaxSim and RTX 3090 Ti constraints.

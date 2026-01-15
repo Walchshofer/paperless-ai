@@ -11,6 +11,7 @@ Read **only what you need**, but for any non-trivial work you must start with th
 3. `.github/architecture/coding-standards.md` — code style, logging, error handling.
 4. `.github/architecture/pipeline-contract.md` — pipeline contract invariants.
 5. `.github/architecture/service-boundaries.md` — service responsibilities and boundaries.
+6. `docs/QDRANT_MIGRATION.md` — Hybrid SOT Authority (Postgres Metadata / Qdrant Vectors).
 
 **Rule:** If a proposed change conflicts with Tier 0, Tier 0 wins.
 
@@ -24,6 +25,7 @@ Read these *only when the task touches their scope*:
 - `docs/OBSERVABILITY_AND_TELEMETRY.md` (telemetry/logging changes)
 - `docs/ENVIRONMENT_VARIABLES.md` (env/config changes)
 - `docs/TEST_ENVIRONMENT.md` (test harness changes)
+- `docs/VISUAL_RAG_ARCHITECTURE_AND_COLQWEN3.md` (Visual RAG / Hardware specifics)
 - Any domain-specific docs under `docs/` that match the component being edited
 
 ## Tier 2 — Reference only (rare)
@@ -60,4 +62,3 @@ Before you read more docs, decide:
    - Tier 0 + local code context is usually sufficient
 3. **Is this prompt/template work?**  
    - Tier 0 + `docs/PROMPT_CHANGE_GUIDE.md` (Tier 1) + prompt registry file(s)
-

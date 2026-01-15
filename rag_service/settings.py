@@ -1,5 +1,5 @@
 import os
-import nltk
+import nltk  # type: ignore
 from dotenv import load_dotenv
 
 from .logging_utils import logger
@@ -18,7 +18,7 @@ SEMANTIC_WEIGHT = 0.7
 MAX_RESULTS = 20
 
 
-def load_environment():
+def load_environment() -> None:
     data_env_path = os.path.join(DATA_DIR, ".env")
     if os.path.exists(data_env_path):
         load_dotenv(dotenv_path=data_env_path, verbose=True)
@@ -40,7 +40,7 @@ def load_environment():
     )
 
 
-def ensure_nltk_resources():
-    nltk.download("punkt", quiet=True)
-    nltk.download("punkt_tab", quiet=True)
-    nltk.download("stopwords", quiet=True)
+def ensure_nltk_resources() -> None:
+    nltk.download("punkt", quiet=True)  # type: ignore
+    nltk.download("punkt_tab", quiet=True)  # type: ignore
+    nltk.download("stopwords", quiet=True)  # type: ignore

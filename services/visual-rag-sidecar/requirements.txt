@@ -27,3 +27,4 @@ python-dotenv==1.2.1
 
 # Vector Store (Qdrant)
 qdrant-client>=1.7.0
+byaldi>=0.0.7

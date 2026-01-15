@@ -19,6 +19,8 @@ readiness. It coordinates the outputs of verification prompts 011 through 015.
 
 **Hardware Profile:** RTX 3090 Ti (Ampere SM86).
 **Core Protocol:** Unified Qdrant (320D) + Postgres (Relational Metadata).
+
+**Policy:** Read `docs/AGENT_READ_POLICY.md` to determine authoritative documentation.
 </context>
 
 <requirements>

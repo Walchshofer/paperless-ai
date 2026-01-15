@@ -19,6 +19,8 @@ canvas to the MaxSim retrieval system on the RTX 3090 Ti.
 **Hardware:** RTX 3090 Ti (Ampere SM86).
 **Retrieval Logic:** Native MaxSim (Late Interaction).
 **Architecture:** Preact Island Event Bus.
+
+**Policy:** Read `docs/AGENT_READ_POLICY.md` to determine authoritative documentation.
 </context>
 
 <requirements>

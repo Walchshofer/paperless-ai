@@ -3,7 +3,7 @@ import logging
 _configured = False
 
 
-def configure_logging():
+def configure_logging() -> None:
     global _configured
     if _configured:
         return
@@ -15,7 +15,7 @@ def configure_logging():
     _configured = True
 
 
-def get_logger(name="RAGZ"):
+def get_logger(name: str = "RAGZ") -> logging.Logger:
     configure_logging()
     return logging.getLogger(name)
 

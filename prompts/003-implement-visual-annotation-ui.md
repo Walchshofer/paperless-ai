@@ -20,6 +20,8 @@ normalized for the ColQwen3 model's 1,280 visual patch limit.
 
 **Hardware:** RTX 3090 Ti (Ampere SM86).
 **Protocol:** 320-dim Vector Normalization.
+
+**Policy:** Read `docs/AGENT_READ_POLICY.md` to determine authoritative documentation.
 </context>
 
 <requirements>

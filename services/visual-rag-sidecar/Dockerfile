@@ -1,8 +1,6 @@
 FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04
 
-# Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
-# Optimize for RTX 3090 Ti (Ampere SM86)
 ENV TORCH_CUDA_ARCH_LIST="8.6"
 ENV HF_HOME=/root/.cache/huggingface
 ENV PYTHONUNBUFFERED=1
@@ -15,7 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # 1. Install PyTorch built for CUDA 12.4+ compatibility
-RUN pip install --no-cache-dir torch==2.8.0 torchvision==0.23.0 \
+RUN pip install --no-cache-dir \
+    torch==2.6.0+cu124 \
+    torchvision==0.21.0+cu124 \
     --index-url https://download.pytorch.org/whl/cu124
 
 # 2. Install native TomoroAI dependencies
@@ -30,7 +30,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py .
 
-# Ensure index persistence directory exists
 RUN mkdir -p /data/indices
 
 EXPOSE 8001

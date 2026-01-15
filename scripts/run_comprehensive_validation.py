@@ -13,6 +13,7 @@ from datetime import datetime
 from pathlib import Path
 import shutil
 import textwrap
+from typing import Dict, List, Optional, Tuple
 
 # Prefer requests for simple HTTP; fallback to urllib
 try:
@@ -27,7 +28,12 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 SERENA_BASE = os.environ.get("SERENA_BASE", "http://127.0.0.1:9121")
 
 
-def run_cmd(cmd, capture=True, check=False, env=None):
+def run_cmd(
+    cmd: List[str],
+    capture: bool = True,
+    check: bool = False,
+    env: Optional[Dict[str, str]] = None,
+) -> Tuple[int, str]:
     print(f"$ {' '.join(cmd)}")
     result = subprocess.run(cmd, stdout=subprocess.PIPE if capture else None, stderr=subprocess.STDOUT, env=env, text=True)
     if capture:

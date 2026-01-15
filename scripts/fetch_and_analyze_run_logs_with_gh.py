@@ -6,12 +6,15 @@ Requires: `gh` CLI installed and authenticated for this user (gh auth login).
 """
 import sys, os, re, shutil, subprocess, tempfile
 from collections import Counter
+from typing import List, Optional, Tuple
 
 ERR_PATTERNS = [re.compile(p, re.I) for p in [r'error[: ]', r'exception', r'traceback', r'failed', r'ERROR:', r'assert', r'AssertionError']]
 CONTEXT = 2
 
 
-def run_gh_download(run_id, out_dir):
+def run_gh_download(
+    run_id: str, out_dir: str
+) -> Tuple[bool, Optional[List[str]]]:
     os.makedirs(out_dir, exist_ok=True)
     # Try to find the gh executable; prefer PATH, otherwise fall back to common install locations
     gh_exec = shutil.which('gh')
@@ -58,7 +61,7 @@ def run_gh_download(run_id, out_dir):
     return True, [combined]
 
 
-def analyze_files(files):
+def analyze_files(files: List[str]) -> List[Tuple[str, int, str]]:
     results = []
     for path in files:
         # skip large binary files heuristically
@@ -80,7 +83,7 @@ def analyze_files(files):
     return results
 
 
-def main():
+def main() -> None:
     if len(sys.argv) < 2:
         print('Usage: python fetch_and_analyze_run_logs_with_gh.py <run_id> [<run_id> ...]')
         sys.exit(1)

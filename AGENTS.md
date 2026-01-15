@@ -30,7 +30,7 @@
 - Provide a checklist mapping changes back to `docs/EXPERT_PIPELINE_DECISION_TABLE.md`.
 
 ## Multi-container Runtime
-- **Compose Root:** `C:\Users\pwalc\MyApps\paperless-ngx\docker-compose.yml`.
+- **Compose Root:** `C:\Users\pwalc\MyApps\paperless-ai\docker-compose.yml`.
 - **Core Services:** paperless-ai (Node), visual-rag sidecar (Python), 
   Qdrant (Vector DB), postgres (Metadata DB), redis (Broker).
 - **Sidecar Handshake:** Implement 5s timeouts and handle `503 Initializing` 

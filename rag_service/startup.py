@@ -3,8 +3,9 @@ import json
 import os
 import traceback
 from contextlib import asynccontextmanager
+from typing import Any, AsyncGenerator, Dict, cast
 
-from fastapi import FastAPI
+from fastapi import FastAPI  # type: ignore
 
 from .data_manager import DataManager
 from .indexing import run_indexing
@@ -20,7 +21,7 @@ from .qdrant_adapter import qdrant_adapter
 from .state import global_state
 
 POST_STARTUP_INDEX_INIT = False
-STARTUP_ACTION = {
+STARTUP_ACTION: Dict[str, Any] = {
     "mode": None,
     "force_refresh": False,
     "check_new": False,
@@ -29,15 +30,15 @@ STARTUP_ACTION = {
 }
 
 
-async def _run_post_startup_index_init():
+async def _run_post_startup_index_init() -> None:
     if not POST_STARTUP_INDEX_INIT:
         return
     await asyncio.sleep(2)
     logger.info("Post-startup initialization of search engine")
-    run_indexing(force_update=False)
+    run_indexing(force_update=False)  # type: ignore
 
 
-async def _run_startup_action():
+async def _run_startup_action() -> None:
     mode = STARTUP_ACTION["mode"]
     if mode is None:
         return
@@ -72,14 +73,15 @@ async def _run_startup_action():
                 return
 
         run_indexing(
-            STARTUP_ACTION["force_refresh"], STARTUP_ACTION["check_new"]
+            STARTUP_ACTION["force_refresh"],  # type: ignore
+            STARTUP_ACTION["check_new"],  # type: ignore
         )
         return
 
     if mode == "check_new":
         logger.info("Checking for new documents after startup")
         await asyncio.sleep(1)
-        run_indexing(False, True)
+        run_indexing(False, True)  # type: ignore
         return
 
     if mode == "rebuild_indexes":
@@ -90,7 +92,7 @@ async def _run_startup_action():
             global_state.search_engine.initialize(force_update=True)
 
 
-async def startup_event():
+async def startup_event() -> None:
     """Enhanced startup.
 
     Initialize global state and attempt to load existing data without
@@ -146,6 +148,7 @@ async def startup_event():
 
         global_state.data_manager = DataManager(initialize_on_start=False)
         global_state.data_manager.initialize_models()
+        dm = cast(DataManager, global_state.data_manager)
 
         documents_exist = os.path.exists(DOCUMENTS_FILE)
         bm25_exists = os.path.exists(BM25_FILE)
@@ -166,8 +169,12 @@ async def startup_event():
             logger.error("Error checking Qdrant: %s", str(exc))
             logger.error(traceback.format_exc())
 
-        global_state.system_status.qdrant_ready = qdrant_initialized
-        global_state.system_status.pgvector_ready = qdrant_initialized
+        global_state.system_status.qdrant_ready = (
+            qdrant_initialized  # type: ignore
+        )
+        global_state.system_status.pgvector_ready = (
+            qdrant_initialized  # type: ignore
+        )
 
         if documents_exist:
             logger.info("Found existing data, loading without reindexing")
@@ -176,7 +183,7 @@ async def startup_event():
             # is empty on process start even if data_loaded flag is True from
             # a previous session's persisted state
             try:
-                global_state.data_manager.documents = []
+                dm.documents = []
                 with open(DOCUMENTS_FILE, "r", encoding="utf-8") as handle:
                     loaded_docs = json.load(handle)
 
@@ -189,17 +196,17 @@ async def startup_event():
                         )
                         loaded_docs = []
 
-                    global_state.data_manager.documents = loaded_docs
+                    dm.documents = loaded_docs
 
-                if global_state.data_manager.documents:
+                if dm.documents:
                     global_state.system_status.data_loaded = True
                     global_state.indexing_status.documents_count = len(
-                        global_state.data_manager.documents
+                        dm.documents
                     )
                     global_state.save_state()
                     logger.info(
                         "Loaded %d documents from documents.json",
-                        len(global_state.data_manager.documents)
+                        len(dm.documents),
                     )
 
             except Exception as exc:
@@ -213,14 +220,12 @@ async def startup_event():
             # Sync search engine documents with data manager documents
             # This is needed because SearchEngine is created with
             # initialize_on_start=False
-            if global_state.data_manager.documents:
-                global_state.search_engine.documents = (
-                    global_state.data_manager.documents
-                )
+            if dm.documents:
+                global_state.search_engine.documents = dm.documents
 
             if (
-                global_state.data_manager.documents
-                and len(global_state.data_manager.documents) > 0
+                dm.documents
+                and len(dm.documents) > 0
                 and qdrant_initialized
                 and bm25_exists
             ):
@@ -237,14 +242,14 @@ async def startup_event():
 
                         if global_state.search_engine.tokenized_corpus and len(
                             global_state.search_engine.tokenized_corpus
-                        ) != len(global_state.data_manager.documents):
+                        ) != len(dm.documents):
                             logger.warning(
                                 "BM25 corpus size mismatch: %s vs %s "
                                 "documents",
                                 len(
                                     global_state.search_engine.tokenized_corpus
                                 ),
-                                len(global_state.data_manager.documents),
+                                len(dm.documents),
                             )
                             logger.info(
                                 "Will rebuild BM25 index after startup"
@@ -265,8 +270,8 @@ async def startup_event():
             logger.info("Loaded existing data")
 
             doc_count = (
-                len(global_state.data_manager.documents)
-                if global_state.data_manager.documents
+                len(dm.documents)
+                if dm.documents
                 else 0
             )
             if global_state.indexing_status.documents_count != doc_count:
@@ -286,7 +291,7 @@ async def startup_event():
             ):
 
                 logger.info("Search engine needs initialization after startup")
-                POST_STARTUP_INDEX_INIT = True
+                POST_STARTUP_INDEX_INIT = True  # type: ignore
         else:
             logger.info("Not all required data found for auto-loading")
             if not documents_exist:
@@ -336,7 +341,7 @@ async def startup_event():
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:  # type: ignore
     await startup_event()
     await _run_startup_action()
     if STARTUP_ACTION["mode"] is None:

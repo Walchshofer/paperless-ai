@@ -20,6 +20,8 @@ late-interaction MaxSim retrieval.
 **Hardware Baseline:** RTX 3090 Ti (24GB VRAM) 
 **VRAM Baseline:** ~3.5GB for Sidecar initialization.
 **Dimensions:** 320-dimensional multi-vectors (ColQwen3 native).
+
+**Policy:** Read `docs/AGENT_READ_POLICY.md` to determine authoritative documentation.
 </context>
 
 <requirements>

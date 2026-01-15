@@ -3,7 +3,7 @@ from typing import Any
 
 import uvicorn
 
-from rag_service.app import app  # noqa: F401
+from rag_service.app import app  # type: ignore
 from rag_service.logging_utils import logger
 from rag_service.startup import STARTUP_ACTION  # type: ignore
 
@@ -76,4 +76,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     _apply_startup_args(args)
 
-    uvicorn.run("main:app", host=args.host, port=args.port, reload=False)
+    uvicorn.run(app, host=args.host, port=args.port, reload=False)

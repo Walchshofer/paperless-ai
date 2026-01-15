@@ -1,5 +1,6 @@
 import json
 import os
+from typing import Any, Dict, Set
 
 from .logging_utils import logger
 from .models import IndexingStatus, SystemStatus
@@ -7,18 +8,18 @@ from .settings import STATE_FILE
 
 
 class GlobalState:
-    def __init__(self):
-        self.data_manager = None
-        self.search_engine = None
+    def __init__(self) -> None:
+        self.data_manager: Any = None
+        self.search_engine: Any = None
         self.system_status = SystemStatus()
         self.indexing_status = IndexingStatus()
         self.state_schema_version = 3
-        self._indexed_document_ids = set()
+        self._indexed_document_ids: Set[int] = set()
 
-    def save_state(self):
+    def save_state(self) -> bool:
         """Save global state to disk with schema version"""
         try:
-            state_dict = {
+            state_dict: Dict[str, Any] = {
                 "schema_version": self.state_schema_version,
                 "indexing_status": {
                     "running": self.indexing_status.running,
@@ -51,12 +52,12 @@ class GlobalState:
             logger.error(f"Error saving system state: {str(exc)}")
             return False
 
-    def load_state(self):
+    def load_state(self) -> bool:
         """Load global state from disk with schema version check"""
         try:
             if os.path.exists(STATE_FILE):
                 with open(STATE_FILE, "r", encoding="utf-8") as handle:
-                    state_dict = json.load(handle)
+                    state_dict: Dict[str, Any] = json.load(handle)
 
                 schema_version = state_dict.get("schema_version", 0)
                 if schema_version != self.state_schema_version:
@@ -67,7 +68,7 @@ class GlobalState:
                     )
 
                 if "indexing_status" in state_dict:
-                    idx_status = state_dict["indexing_status"]
+                    idx_status: Dict[str, Any] = state_dict["indexing_status"]
                     self.indexing_status.last_indexed = idx_status.get(
                         "last_indexed"
                     )
@@ -90,7 +91,7 @@ class GlobalState:
                     )
 
                 if "system_status" in state_dict:
-                    sys_status = state_dict["system_status"]
+                    sys_status: Dict[str, Any] = state_dict["system_status"]
                     self.system_status.data_loaded = sys_status.get(
                         "data_loaded", False
                     )
@@ -100,10 +101,9 @@ class GlobalState:
                     qdrant_ready = sys_status.get("qdrant_ready")
                     if qdrant_ready is None:
                         qdrant_ready = sys_status.get("pgvector_ready", False)
-                    self.system_status.qdrant_ready = qdrant_ready
-                    self.system_status.pgvector_ready = sys_status.get(
-                        "pgvector_ready",
-                        qdrant_ready,
+                    self.system_status.qdrant_ready = bool(qdrant_ready)
+                    self.system_status.pgvector_ready = bool(
+                        sys_status.get("pgvector_ready", qdrant_ready)
                     )
                     self.system_status.bm25_ready = sys_status.get(
                         "bm25_ready", False

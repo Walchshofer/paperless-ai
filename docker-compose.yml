@@ -1,0 +1,251 @@
+services:
+  # 1. CORE: The Web Server and API
+  webserver:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: paperless_webserver
+    depends_on:
+      - db
+      - broker
+      - gotenberg
+      - tika
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - "../paperless-ngx/data:/usr/src/paperless/data"
+      - "../paperless-ngx/media:/usr/src/paperless/media"
+      - "../paperless-ngx/export:/usr/src/paperless/export"
+      - "../paperless-ngx/consume:/usr/src/paperless/consume"
+    env_file: docker-compose.env
+    restart: unless-stopped
+
+  # 2. DATABASE (UPDATED for Vector Support)
+  db:
+    # Metadata storage only (Vector storage moved to Qdrant)
+    image: postgres:16
+    container_name: paperless_db
+    ports:
+      - "5432:5432"  # Expose for Windows host access
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    env_file: docker-compose.env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U elfman"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2b. VECTOR STORE (Qdrant)
+  qdrant:
+    image: qdrant/qdrant:v1.13.0
+    container_name: paperless_qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    environment:
+      - QDRANT__STORAGE__ON_DISK_PAYLOAD=true
+      - QDRANT__STORAGE__MMAP_THRESHOLD=1048576
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:6333/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 3. BROKER
+  broker:
+    image: redis:7
+    container_name: paperless_broker
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 4. CONVERSION
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: paperless_gotenberg
+    command:
+      - "gotenberg"
+      - "--chromium-disable-routes=true"
+      - "--api-port=3000"
+      - "--webhook-allow-list=webserver"
+    restart: unless-stopped
+
+  # 5. ANALYSIS
+  tika:
+    image: apache/tika:latest
+    container_name: paperless_tika
+    restart: unless-stopped
+
+  # 6. INTELLIGENCE (Bridge/UI)
+  paperless-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: paperless-ai:local
+    container_name: paperless_ai
+    depends_on:
+      webserver:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      visual-rag:
+        condition: service_healthy
+      guidance-service:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - "../paperless-ngx/ai-data:/app/data"
+      - "../paperless-ngx/media:/usr/src/paperless/media:ro"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file: docker-compose.env
+    environment:
+      - VECTOR_STORE=qdrant
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+
+  # 7. VISUAL RETRIEVAL SIDECAR
+  visual-rag:
+    build:
+      context: .
+      dockerfile: services/visual-rag-sidecar/Dockerfile
+      args:
+        - BYALDI_CHECKOUT=${BYALDI_VERSION:-main}
+    container_name: visual_rag
+    restart: unless-stopped
+    ports:
+      - "8001:8001" # Expose for debugging, internal comms use container name
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s  # Model load time
+    env_file: docker-compose.env
+    environment:
+      - MEDIA_DIR=${MEDIA_DIR}
+      - INDEX_DIR=${INDEX_DIR}
+      - VISUAL_RAG_INDEX_DIR=${VISUAL_RAG_INDEX_DIR}
+      - BIAS_ENGINE_LOG_LEVEL=${BIAS_ENGINE_LOG_LEVEL}
+      - VISUAL_RAG_INDEX_NAME=${VISUAL_RAG_INDEX_NAME}
+      - DEFAULT_INDEX_NAME=${DEFAULT_INDEX_NAME}
+      - VISUAL_RAG_KEY_SHIM=yes
+      - VECTOR_STORE=qdrant
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+    volumes:
+      # Model Cache (Persist the 8.5GB download)
+      - visual_model_cache:/root/.cache/huggingface
+      # Index Persistence
+      - ../paperless-ngx/data/visual_indices:/data/indices
+      # Read-Only access to your PDFs (Must match webserver volume)
+      - ../paperless-ngx/media:/media/paperless:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # 8. BIAS ENGINE (Logit Bias Computation for Constrained Generation)
+  bias-engine:
+    build:
+      context: ./guidance-bias-engine
+      dockerfile: Dockerfile.bias-engine
+    container_name: bias_engine
+    restart: unless-stopped
+    ports:
+      - "50051:50051"   # gRPC service
+      - "8003:8001"     # Prometheus metrics (internal 8001 -> host 8003)
+    env_file: docker-compose.env
+    environment:
+      - LOG_LEVEL=${BIAS_ENGINE_LOG_LEVEL}
+    volumes:
+      - bias_engine_models:/models
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import grpc; channel = grpc.insecure_channel('localhost:50051'); grpc.channel_ready_future(channel).result(timeout=5)\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # 9. GUIDANCE SERVICE
+  guidance-service:
+    image: ${GUIDANCE_IMAGE:-guidance-service:latest}
+    build:
+      context: ./guidance_service
+      dockerfile: Dockerfile
+    container_name: guidance-service
+    restart: unless-stopped
+    depends_on:
+      bias-engine:
+        condition: service_healthy
+    ports:
+      - "8002:8002"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8002/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    env_file: docker-compose.env
+    # GUIDANCE_LOG_LEVEL is loaded from env_file and read directly by Python code
+    volumes:
+      # Persist the guidance cache
+      - guidance_cache:/app/cache_data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # 10. PROMETHEUS (Metrics Collection)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: paperless_prometheus
+    restart: unless-stopped
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+
+  # 11. GRAFANA (Metrics Visualization)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: paperless_grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    ports:
+      - "3001:3000"
+    env_file: docker-compose.env
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+volumes:
+  pgdata:
+  redisdata:
+  visual_model_cache:
+  qdrant_storage:
+  guidance_cache:
+  bias_engine_models:
+  prometheus_data:
+  grafana_data:

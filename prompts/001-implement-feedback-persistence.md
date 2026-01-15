@@ -18,6 +18,8 @@ relational and vector stores while respecting the RTX 3090 Ti baseline.
 
 **Hardware Baseline:** RTX 3090 Ti (Ampere SM86).
 **Vector Goal:** ColQwen3-compatible MaxSim retrieval.
+
+**Policy:** Read `docs/AGENT_READ_POLICY.md` to determine authoritative documentation.
 </context>
 
 <requirements>

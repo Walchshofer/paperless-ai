@@ -27,6 +27,8 @@ Retaining embeddings in PostgreSQL is deprecated.
 - docs/QDRANT_MIGRATION.md
 - docs/FEEDBACK_PERSISTENCE_STRATEGY.md
 - docs/VISUAL_RAG_ARCHITECTURE_AND_COLQWEN3.md
+
+**Policy:** Read `docs/AGENT_READ_POLICY.md` to determine authoritative documentation.
 </context>
 
 <requirements>

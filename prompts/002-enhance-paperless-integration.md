@@ -18,6 +18,8 @@ mirrored into the Qdrant Vector Payload to maintain retrieval integrity.
 
 **Hardware Profile:** RTX 3090 Ti (Ampere SM86).
 **Hybrid SOT:** Paperless-ngx (Relational) + Qdrant (Vector Payloads).
+
+**Policy:** Read `docs/AGENT_READ_POLICY.md` to determine authoritative documentation.
 </context>
 
 <requirements>

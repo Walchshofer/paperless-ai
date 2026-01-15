@@ -18,6 +18,8 @@ MaxSim results from the Python Sidecar (:8001).
 
 **Hardware:** RTX 3090 Ti.
 **Architecture:** Preact Islands + Zod Contracts + Unified Qdrant.
+
+**Policy:** Read `docs/AGENT_READ_POLICY.md` to determine authoritative documentation.
 </context>
 
 <requirements>

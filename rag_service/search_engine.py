@@ -1,14 +1,13 @@
 import os
 import pickle
-import time
 import traceback
-from typing import List
+from typing import Any, Dict, List, Set, Tuple, cast
 
-import numpy as np
-from tqdm import tqdm
-from rank_bm25 import BM25Okapi
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
+import numpy as np  # type: ignore
+from tqdm import tqdm  # type: ignore
+from rank_bm25 import BM25Okapi  # type: ignore
+from nltk.tokenize import word_tokenize  # type: ignore
+from nltk.corpus import stopwords  # type: ignore
 
 from .logging_utils import logger
 from .models import SearchRequest, SearchResult
@@ -24,25 +23,27 @@ from .state import global_state
 
 
 class SearchEngine:
-    def __init__(self, data_manager, initialize_on_start=False):
+    def __init__(
+        self, data_manager: Any, initialize_on_start: bool = False
+    ) -> None:
         self.data_manager = data_manager
-        self.documents = None
-        self.bm25 = None
-        self.tokenized_corpus = None
-        self.is_initialized = False
-        self.bm25_initialized = False
+        self.documents: List[Dict[str, Any]] = []
+        self.bm25: Any = None
+        self.tokenized_corpus: List[List[str]] = []
+        self.is_initialized: bool = False
+        self.bm25_initialized: bool = False
 
         # Wenn True, initialisiere beim Start
         if initialize_on_start and self.data_manager.is_initialized:
             self.initialize()
 
-    def validate_state(self):
+    def validate_state(self) -> bool:
         """Validate the state of the search engine components"""
         logger.info("Validating search engine state")
         valid = True
 
         # Check documents
-        if not self.documents or len(self.documents) == 0:
+        if not self.documents:
             logger.error("Documents not loaded or empty")
             valid = False
 
@@ -50,8 +51,12 @@ class SearchEngine:
         qdrant_ready = False
         try:
             health = qdrant_adapter.health_check()
-            collections = health.get("collections", {}) if health else {}
-            doc_coll = collections.get("document_embeddings", {})
+            collections = cast(
+                Dict[str, Any], health.get("collections", {}) if health else {}
+            )
+            doc_coll = cast(
+                Dict[str, Any], collections.get("document_embeddings", {})
+            )
             point_count = doc_coll.get("point_count", 0)
 
             if not health.get("healthy"):
@@ -80,7 +85,6 @@ class SearchEngine:
         if (
             not self.bm25
             or not self.tokenized_corpus
-            or len(self.tokenized_corpus) == 0
         ):
             logger.error("BM25 index not properly initialized")
             valid = False
@@ -115,7 +119,7 @@ class SearchEngine:
 
         return valid
 
-    def initialize(self, force_update=False):
+    def initialize(self, force_update: bool = False) -> bool:
         """Initialize search engine with Qdrant."""
         try:
             # Ensure we have documents
@@ -124,7 +128,7 @@ class SearchEngine:
             else:
                 self.documents = self.data_manager.documents
 
-            if not self.documents or len(self.documents) == 0:
+            if not self.documents:
                 logger.error("No documents loaded")
                 return False
 
@@ -190,25 +194,27 @@ class SearchEngine:
             health = qdrant_adapter.health_check()
             if not health.get("healthy"):
                 return False
-            doc_coll = health.get("collections", {}).get(
-                "document_embeddings",
-                {},
+            collections = cast(
+                Dict[str, Any], health.get("collections", {})
+            )
+            doc_coll = cast(
+                Dict[str, Any], collections.get("document_embeddings", {})
             )
             return (
-                doc_coll.get("exists")
-                and doc_coll.get("point_count", 0) > 0
+                bool(doc_coll.get("exists"))
+                and int(doc_coll.get("point_count", 0)) > 0
             )
         except Exception as exc:
             logger.error("Error checking Qdrant: %s", str(exc))
             return False
 
-    def _setup_bm25(self):
+    def _setup_bm25(self) -> bool:
         """Set up BM25 index"""
         logger.info("Initializing BM25 index")
         ensure_nltk_resources()
 
         # Make sure we have documents
-        if not self.documents or len(self.documents) == 0:
+        if not self.documents:
             logger.error("Cannot set up BM25 with empty documents list")
             self.bm25_initialized = False
             global_state.system_status.bm25_ready = False
@@ -218,10 +224,12 @@ class SearchEngine:
         self.tokenized_corpus = []
 
         # Get stopwords for multiple languages
-        stop_words = set()
+        stop_words: Set[str] = set()
         for lang in ["english", "german", "french", "spanish", "italian"]:
             try:
-                stop_words.update(stopwords.words(lang))
+                stop_words.update(
+                    cast(List[str], cast(Any, stopwords).words(lang))
+                )
             except BaseException:
                 pass
 
@@ -231,8 +239,8 @@ class SearchEngine:
             text = f"{doc['title']} {doc['correspondent']} {doc['content']}"
 
             # Tokenize and filter stopwords
-            tokens = word_tokenize(text.lower())
-            filtered_tokens = [
+            tokens: List[str] = cast(List[str], word_tokenize(text.lower()))
+            filtered_tokens: List[str] = [
                 token for token in tokens if token not in stop_words
             ]
 
@@ -249,7 +257,7 @@ class SearchEngine:
         logger.info("BM25 index initialized and saved to disk")
         return True
 
-    def _save_bm25(self):
+    def _save_bm25(self) -> bool:
         """Save BM25 index to disk"""
         # Ensure directory exists
         os.makedirs(os.path.dirname(BM25_FILE), exist_ok=True)
@@ -270,7 +278,7 @@ class SearchEngine:
             logger.error(f"Error saving BM25 index: {str(e)}")
             return False
 
-    def _load_bm25(self):
+    def _load_bm25(self) -> bool:
         """Load BM25 index from disk"""
         logger.info(f"Loading BM25 index from {BM25_FILE}")
         try:
@@ -284,7 +292,6 @@ class SearchEngine:
             if (
                 not self.bm25
                 or not self.tokenized_corpus
-                or len(self.tokenized_corpus) == 0
             ):
                 logger.error("Loaded BM25 index is invalid or empty")
                 self.bm25_initialized = False
@@ -312,7 +319,7 @@ class SearchEngine:
             global_state.system_status.bm25_ready = False
             return False
 
-    def _add_new_documents_to_bm25(self):
+    def _add_new_documents_to_bm25(self) -> None:
         """Add only new documents to the BM25 index"""
         try:
             ensure_nltk_resources()
@@ -331,10 +338,12 @@ class SearchEngine:
                 return
 
             # Get stopwords for multiple languages
-            stop_words = set()
+            stop_words: Set[str] = set()
             for lang in ["english", "german", "french", "spanish", "italian"]:
                 try:
-                    stop_words.update(stopwords.words(lang))
+                    stop_words.update(
+                        cast(List[str], cast(Any, stopwords).words(lang))
+                    )
                 except BaseException:
                     pass
 
@@ -352,8 +361,10 @@ class SearchEngine:
                         f"{doc['title']} {doc['correspondent']} "
                         f"{doc['content']}"
                     )
-                    tokens = word_tokenize(text.lower())
-                    filtered_tokens = [
+                    tokens: List[str] = cast(
+                        List[str], word_tokenize(text.lower())
+                    )
+                    filtered_tokens: List[str] = [
                         token for token in tokens if token not in stop_words
                     ]
 
@@ -383,7 +394,9 @@ class SearchEngine:
             # If anything goes wrong, rebuild from scratch
             self._setup_bm25()
 
-    def keyword_search(self, query, top_k=MAX_RESULTS):
+    def keyword_search(
+        self, query: str, top_k: int = MAX_RESULTS
+    ) -> List[Dict[str, Any]]:
         """Perform keyword search using BM25"""
         if not self.is_initialized:
             logger.error("Search engine not initialized for keyword search")
@@ -407,13 +420,13 @@ class SearchEngine:
             raise Exception("BM25 index does not match document count")
 
         # Tokenize query
-        query_tokens = word_tokenize(query.lower())
+        query_tokens: List[str] = cast(List[str], word_tokenize(query.lower()))
 
         # Get BM25 scores
-        scores = self.bm25.get_scores(query_tokens)
+        scores: Any = self.bm25.get_scores(query_tokens)
 
         # Check if scores is a valid array
-        if not isinstance(scores, np.ndarray) or len(scores) != len(
+        if not isinstance(scores, cast(Any, np).ndarray) or len(scores) != len(
             self.documents
         ):
             if hasattr(scores, "__len__"):
@@ -422,7 +435,7 @@ class SearchEngine:
                 length_str = "unknown"
             logger.error(
                 "Invalid BM25 scores: %s, length %s",
-                type(scores),
+                f"{type(scores)}",
                 length_str,
             )
             raise Exception("BM25 returned invalid scores")
@@ -432,7 +445,7 @@ class SearchEngine:
         doc_scores.sort(key=lambda x: x[1], reverse=True)
 
         # Get top-k documents
-        results = []
+        results: List[Dict[str, Any]] = []
         for i, score in doc_scores[:top_k]:
             if score > 0:  # Only include documents with non-zero scores
                 try:
@@ -447,7 +460,7 @@ class SearchEngine:
                             "content": doc["content"],
                         }
                     )
-                except IndexError as e:
+                except IndexError:
                     logger.error(
                         "Document index out of range: %s (max: %s)",
                         i,
@@ -461,14 +474,16 @@ class SearchEngine:
         logger.info(f"Keyword search found {len(results)} results")
         return results
 
-    def semantic_search(self, query, top_k=MAX_RESULTS):
+    def semantic_search(
+        self, query: str, top_k: int = MAX_RESULTS
+    ) -> List[Dict[str, Any]]:
         """Perform semantic search using Qdrant."""
         if not self.is_initialized:
             logger.error("Search engine not initialized for semantic search")
             raise Exception("Search engine not initialized")
 
         try:
-            query_embedding = (
+            query_embedding: Any = (
                 self.data_manager.sentence_transformer.encode(query)
             )
             results = qdrant_adapter.search_document_embeddings(
@@ -476,9 +491,9 @@ class SearchEngine:
                 limit=top_k,
             )
 
-            formatted = []
+            formatted: List[Dict[str, Any]] = []
             for row in results:
-                payload = row.get("payload") or {}
+                payload = cast(Dict[str, Any], row.get("payload") or {})
                 doc_id = payload.get("doc_id", row.get("id"))
                 doc = next(
                     (d for d in self.documents if d["id"] == doc_id),
@@ -487,7 +502,9 @@ class SearchEngine:
                 if not doc:
                     continue
 
-                created = doc.get("created") or doc.get("created_date") or ""
+                created: Any = (
+                    doc.get("created") or doc.get("created_date") or ""
+                )
                 if hasattr(created, "isoformat"):
                     created = created.isoformat()
 
@@ -510,7 +527,9 @@ class SearchEngine:
             logger.error(traceback.format_exc())
             return []
 
-    def hybrid_search(self, query, top_k=MAX_RESULTS):
+    def hybrid_search(
+        self, query: str, top_k: int = MAX_RESULTS
+    ) -> List[Dict[str, Any]]:
         """Perform hybrid search combining BM25 and Qdrant."""
         logger.info(f"Performing hybrid search for query: '{query}'")
 
@@ -552,30 +571,31 @@ class SearchEngine:
             raise Exception("All search methods failed")
 
         # Combine results (same logic as before)
-        results_map = {}
+        results_map: Dict[Any, Dict[str, Any]] = {}
 
         # Normalize scores
         if keyword_results:
             max_keyword_score = max(
-                (r["score"] for r in keyword_results), default=1.0
+                (float(r["score"]) for r in keyword_results), default=1.0
             )
             for r in keyword_results:
                 r["score"] = (
-                    r["score"] / max_keyword_score
+                    float(r["score"]) / max_keyword_score
                     if max_keyword_score > 0
                     else 0
                 )
 
         if semantic_results:
             for r in semantic_results:
-                r["score"] = r["score"] if r["score"] <= 1 else 0
+                score = float(r["score"])
+                r["score"] = score if score <= 1 else 0
 
         # Add keyword results with weight
         for result in keyword_results:
             doc_id = result["id"]
             results_map[doc_id] = {
                 **result,
-                "score": result["score"] * BM25_WEIGHT,
+                "score": float(result["score"]) * BM25_WEIGHT,
             }
 
         # Add semantic results with weight
@@ -583,12 +603,12 @@ class SearchEngine:
             doc_id = result["id"]
             if doc_id in results_map:
                 results_map[doc_id]["score"] += (
-                    result["score"] * SEMANTIC_WEIGHT
+                    float(result["score"]) * SEMANTIC_WEIGHT
                 )
             else:
                 results_map[doc_id] = {
                     **result,
-                    "score": result["score"] * SEMANTIC_WEIGHT,
+                    "score": float(result["score"]) * SEMANTIC_WEIGHT,
                 }
 
         # Convert map to list and sort by score
@@ -598,10 +618,15 @@ class SearchEngine:
         logger.info(f"Hybrid search found {len(combined_results)} results")
         return combined_results[:top_k]
 
-    def rerank_results(self, query, results, top_k=MAX_RESULTS):
+    def rerank_results(
+        self,
+        query: str,
+        results: List[Dict[str, Any]],
+        top_k: int = MAX_RESULTS,
+    ) -> List[Dict[str, Any]]:
         """Rerank results using cross-encoder"""
         # More defensive check
-        if not results or len(results) == 0:
+        if not results:
             logger.warning("No results to rerank")
             return []
 
@@ -611,9 +636,9 @@ class SearchEngine:
                 (
                     query,
                     (
-                        f"{result['title']} {result['content'][:500]}"
+                        f"{result['title']} {str(result['content'])[:500]}"
                         if "content" in result and result["content"]
-                        else result.get("title", "")
+                        else str(result.get("title", ""))
                     ),
                 )
                 for result in results
@@ -625,10 +650,10 @@ class SearchEngine:
                 return results  # Return original results without reranking
 
             # Get cross-encoder scores
-            cross_scores = self.data_manager.cross_encoder.predict(pairs)
+            cross_scores: Any = self.data_manager.cross_encoder.predict(pairs)
 
             # Make sure we got valid scores
-            if not isinstance(cross_scores, np.ndarray) or len(
+            if not isinstance(cross_scores, cast(Any, np).ndarray) or len(
                 cross_scores
             ) != len(results):
                 if hasattr(cross_scores, "__len__"):
@@ -647,7 +672,10 @@ class SearchEngine:
                     # Convert score to a positive value by taking the sigmoid
                     # This maps any score to a value between 0 and 1
                     # For cross-encoders, higher should be better matches
-                    norm_score = 1.0 / (1.0 + np.exp(-score))
+                    val: float = -float(score)
+                    norm_score: float = 1.0 / (
+                        1.0 + float(cast(Any, np).exp(val))
+                    )
                     results[i]["cross_score"] = float(norm_score)
 
             # Fill in any missing scores
@@ -671,22 +699,28 @@ class SearchEngine:
 
             return results[:top_k]
 
-    def create_snippet(self, query, content, max_len=200):
+    def create_snippet(
+        self, query: str, content: str, max_len: int = 200
+    ) -> str:
         """Create a relevant snippet from the document content"""
         if not content:
             return ""
 
         try:
             # Get query terms
-            query_terms = set(word_tokenize(query.lower()))
+            query_terms: Set[str] = set(
+                cast(List[str], word_tokenize(query.lower()))
+            )
 
             # Split content into sentences
             sentences = content.split(". ")
 
             # Score sentences by number of query terms
-            sentence_scores = []
+            sentence_scores: List[Tuple[str, int]] = []
             for sentence in sentences:
-                sentence_terms = set(word_tokenize(sentence.lower()))
+                sentence_terms: Set[str] = set(
+                    cast(List[str], word_tokenize(sentence.lower()))
+                )
                 score = len(query_terms.intersection(sentence_terms))
                 sentence_scores.append((sentence, score))
 
@@ -695,7 +729,7 @@ class SearchEngine:
 
             # Create snippet from top sentences
             snippet = ""
-            for sentence, _ in sentence_scores:
+            for sentence, _ in sentence_scores:  # type: ignore
                 if len(snippet) + len(sentence) <= max_len:
                     snippet += sentence + ". "
                 else:
@@ -706,7 +740,7 @@ class SearchEngine:
             if not snippet and content:
                 snippet = content[:max_len] + "..."
 
-            return snippet.strip()
+            return str(snippet).strip()
 
         except Exception as e:
             logger.error(f"Error creating snippet: {str(e)}")
@@ -715,7 +749,7 @@ class SearchEngine:
                 return content[:max_len] + "..."
             return ""
 
-    def search(self, request: SearchRequest):
+    def search(self, request: SearchRequest) -> List[SearchResult]:
         """Perform full search with filters and reranking"""
         if not self.is_initialized:
             logger.error("Search engine not initialized")
@@ -738,14 +772,14 @@ class SearchEngine:
 
             # Apply filters
             if request.from_date or request.to_date or request.correspondent:
-                filtered_results = []
+                filtered_results: List[Dict[str, Any]] = []
                 for result in results:
                     include = True
 
                     # Filter by date range
                     if request.from_date and result["date"]:
                         try:
-                            doc_date = result["date"].split("T")[
+                            doc_date = str(result["date"]).split("T")[
                                 0
                             ]  # Get date part only
                             if doc_date < request.from_date:
@@ -755,7 +789,7 @@ class SearchEngine:
 
                     if request.to_date and result["date"]:
                         try:
-                            doc_date = result["date"].split("T")[
+                            doc_date = str(result["date"]).split("T")[
                                 0
                             ]  # Get date part only
                             if doc_date > request.to_date:
@@ -767,7 +801,7 @@ class SearchEngine:
                     if request.correspondent and result["correspondent"]:
                         if (
                             request.correspondent.lower()
-                            not in result["correspondent"].lower()
+                            not in str(result["correspondent"]).lower()
                         ):
                             include = False
 
@@ -785,22 +819,23 @@ class SearchEngine:
             reranked_results = self.rerank_results(query, results)
 
             # Format results
-            formatted_results = []
+            formatted_results: List[SearchResult] = []
             for result in reranked_results:
                 try:
-                    snippet = self.create_snippet(query, result["content"])
-
-                    formatted_results.append(
-                        SearchResult(
-                            title=result["title"] or "Untitled",
-                            correspondent=result["correspondent"] or "",
-                            date=result["date"] or "",
-                            score=result["score"],
-                            cross_score=result.get("cross_score", 0.5),
-                            snippet=snippet,
-                            doc_id=result["id"],
-                        )
+                    snippet = self.create_snippet(
+                        query, str(result.get("content", ""))
                     )
+
+                    res = SearchResult(
+                        title=str(result.get("title") or "Untitled"),
+                        correspondent=str(result.get("correspondent") or ""),
+                        date=str(result.get("date") or ""),
+                        score=float(result.get("score", 0.0)),
+                        cross_score=float(result.get("cross_score", 0.5)),
+                        snippet=snippet,
+                        doc_id=result.get("id"),
+                    )
+                    formatted_results.append(res)
                 except Exception as item_e:
                     logger.error(
                         f"Error formatting search result: {str(item_e)}"
@@ -812,10 +847,5 @@ class SearchEngine:
         except Exception as e:
             logger.error(f"Error in search: {str(e)}")
             logger.error(traceback.format_exc())
-            raise HTTPException(
-                status_code=500,
-                detail=f"Search failed: {str(e)}",
-            )
-
-
-# Indexierung als Hintergrundaufgabe
+            # Re-raise as HTTPException in app.py, here just raise Exception
+            raise Exception(f"Search failed: {str(e)}")
