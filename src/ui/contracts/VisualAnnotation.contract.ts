@@ -1,15 +1,24 @@
 import { z } from 'zod';
 
+// Single annotation with normalized coords in [0,1]
 export const AnnotationSchema = z.object({
-  bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]), // [x,y,w,h]
-  comment: z.string().optional(),
-  page: z.number().int().optional(),
+  label: z.string().min(1),
+  confidence: z.number().min(0).max(1).optional(),
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  width: z.number().min(0).max(1),
+  height: z.number().min(0).max(1),
+  note: z.string().optional(),
 });
 
 export const VisualAnnotationSchema = z.object({
-  documentId: z.number().int().nullable(),
-  page: z.number().int().optional(),
-  initialAnnotations: z.array(AnnotationSchema).optional(),
+  documentId: z.string().min(1),
+  page: z.number().int().nonnegative(),
+  annotations: z.array(AnnotationSchema).min(1),
 });
 
-export type VisualAnnotationContract = z.infer<typeof VisualAnnotationSchema>;
+export type Annotation = z.infer<typeof AnnotationSchema>;
+export type VisualAnnotation = z.infer<
+  typeof VisualAnnotationSchema
+>;
+

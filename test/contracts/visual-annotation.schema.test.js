@@ -1,35 +1,52 @@
 // Zod schema tests for VisualAnnotation
-require('ts-node').register({ transpileOnly: true, compilerOptions: { module: 'CommonJS' } });
+require('ts-node').register({
+  transpileOnly: true,
+  compilerOptions: { module: 'CommonJS' },
+});
 const assert = require('assert');
-const { VisualAnnotationSchema } = require('../../src/ui/contracts/VisualAnnotation.contract.ts');
+const { VisualAnnotationSchema } = require(
+  '../../src/ui/contracts/VisualAnnotation.contract.ts'
+);
 
-describe('VisualAnnotation Zod schema', function () {
-  it('accepts valid props', function () {
+describe('VisualAnnotation Zod schema (Prompt 003)', function () {
+  it('accepts valid normalized annotations', function () {
     const valid = {
-      documentId: 123,
-      page: 1,
-      initialAnnotations: [
-        { bbox: [10, 10, 100, 50], comment: 'Note', page: 1 },
+      documentId: 'doc-123',
+      page: 0,
+      annotations: [
+        {
+          label: 'signature',
+          confidence: 0.92,
+          x: 0.1,
+          y: 0.2,
+          width: 0.3,
+          height: 0.15,
+        },
       ],
     };
     const result = VisualAnnotationSchema.safeParse(valid);
     assert.strictEqual(result.success, true);
   });
 
-  it('rejects invalid bbox shapes', function () {
+  it('rejects annotations missing label', function () {
     const invalid = {
-      documentId: 123,
-      initialAnnotations: [
-        { bbox: [10, 20], comment: 'Bad' },
+      documentId: 'doc-2',
+      annotations: [
+        { x: 0.1, y: 0.1, width: 0.2, height: 0.2 },
       ],
     };
     const result = VisualAnnotationSchema.safeParse(invalid);
     assert.strictEqual(result.success, false);
   });
 
-  it('allows nullable documentId', function () {
-    const sample = { documentId: null };
-    const result = VisualAnnotationSchema.safeParse(sample);
-    assert.strictEqual(result.success, true);
+  it('rejects coords out of range', function () {
+    const invalid = {
+      documentId: 'doc-3',
+      annotations: [
+        { label: 'a', x: -0.1, y: 0, width: 1.2, height: 0.1 },
+      ],
+    };
+    const result = VisualAnnotationSchema.safeParse(invalid);
+    assert.strictEqual(result.success, false);
   });
 });
