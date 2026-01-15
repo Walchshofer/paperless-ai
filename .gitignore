@@ -210,6 +210,8 @@ indexed.conf
 indexing_complete.flag
 RAGZ_README.md
 docker-compose-dev.yml
+docker-compose.env
+docker-compose.yml
 ocr_server.py
 surya_models.py
 # ============================================================================
