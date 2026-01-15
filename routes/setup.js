@@ -4260,6 +4260,14 @@ router.post('/manual/updateDocument', express.json(), async (req, res) => {
         }
       }
 
+      // Fetch current document state for later change detection
+      let originalDoc;
+      try {
+        originalDoc = await paperlessService.getDocument(documentId);
+      } catch (e) {
+        logger.warn('manual.updateDocument.fetch_original_failed', { requestId, documentId, error: e.message });
+      }
+
       // Proceed to update Paperless (primary source of truth)
       const updateDocument = await paperlessService.updateDocument(documentId, documentUpdates, { requestId });
 
@@ -4307,6 +4315,60 @@ router.post('/manual/updateDocument', express.json(), async (req, res) => {
 
       // Mark document as processed
       await documentModel.addProcessedDocument(documentId, documentUpdates.title || null);
+
+      // If Tags or Correspondent changed, asynchronously mirror payload to Qdrant
+      try {
+        const { qdrantAdapter } = require('../services/visual-rag/QdrantAdapter');
+        const { metricsCollector } = require('../services/metrics/PrometheusMetrics');
+
+        // Determine whether tags or correspondent changed by comparing original and updated document
+        // Note: We fetched originalDoc earlier (if present)
+        if (typeof originalDoc !== 'undefined') {
+          const originalTags = Array.isArray(originalDoc.tags) ? originalDoc.tags.slice().sort() : [];
+          const updatedTags = Array.isArray(updateDocument.tags) ? updateDocument.tags.slice().sort() : [];
+          const tagsChanged = JSON.stringify(originalTags) !== JSON.stringify(updatedTags);
+
+          const originalCorr = originalDoc.correspondent || null;
+          const updatedCorr = updateDocument.correspondent || null;
+          const corrIdOrig = originalCorr && originalCorr.id ? originalCorr.id : originalCorr;
+          const corrIdUpdated = updatedCorr && updatedCorr.id ? updatedCorr.id : updatedCorr;
+          const correspondentChanged = corrIdOrig !== corrIdUpdated;
+
+          if (tagsChanged || correspondentChanged) {
+            const payload = {
+              correspondent_id: corrIdUpdated || null,
+              tag_ids: updatedTags || []
+            };
+
+            // Fire and forget but record metric on success and log errors
+            (async () => {
+              try {
+                const cols = ['document_embeddings','visual_overlays','visual_pages'];
+                for (const c of cols) {
+                  const res = await qdrantAdapter.updatePayloadForDoc(c, documentId, payload);
+                  if (res && res.status === 'ok') {
+                    metricsCollector && metricsCollector.recordQdrantPayloadSync && metricsCollector.recordQdrantPayloadSync(c);
+                  } else {
+                    logger.warn('manual.updateDocument.qdrant_update_partial_failure', { requestId, documentId, collection: c, result: res });
+                    try {
+                      metricsCollector && metricsCollector.integrationErrorsTotal && metricsCollector.integrationErrorsTotal.labels && metricsCollector.integrationErrorsTotal.labels('manual_orchestration').inc();
+                    } catch (mErr) {
+                      logger.debug('metrics_increment_failed', { error: mErr.message });
+                    }
+                  }
+                }
+              } catch (qErr) {
+                logger.error('manual.updateDocument.qdrant_sync_failed', { requestId, documentId, error: qErr.message });
+                try {
+                  metricsCollector && metricsCollector.integrationErrorsTotal && metricsCollector.integrationErrorsTotal.labels && metricsCollector.integrationErrorsTotal.labels('manual_orchestration').inc();
+                } catch (mErr) { logger.debug('metrics_increment_failed', { error: mErr.message }); }
+              }
+            })();
+          }
+        }
+      } catch (e) {
+        logger.debug('manual.updateDocument.qdrant_sync_skipped', { requestId, err: e.message });
+      }
 
       logger.info('manual.updateDocument.completed', { requestId, documentId });
       return res.json(updateDocument);

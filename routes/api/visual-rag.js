@@ -328,6 +328,67 @@ router.get('/stats', (req, res) => {
     res.json(stats);
 });
 
+/**
+ * @swagger
+ * /api/visual-rag/feedback:
+ *   post:
+ *     summary: Record granular visual feedback
+ *     description: |
+ *       Ingest granular feedback events and visual annotations. Persists events
+ *       to PostgreSQL and upserts overlay vectors to Qdrant when bbox/embedding
+ *       is present. Handles sidecar 'initializing' by deferring ingestion.
+ *     tags: [Visual RAG]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - documentId
+ *               - events
+ *             properties:
+ *               documentId:
+ *                 type: integer
+ *               events:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *     responses:
+ *       200:
+ *         description: Feedback ingested
+ *       202:
+ *         description: Feedback accepted but some overlay ingest deferred (sidecar initializing)
+ *       400:
+ *         description: Invalid request
+ *       500:
+ *         description: Server error
+ */
+router.post('/feedback', async (req, res) => {
+    const feedbackService = require('../../services/feedback/FeedbackService');
+    const requestId = req.headers['x-request-id'] || `req-${Date.now()}`;
+
+    try {
+        const { documentId, events } = req.body;
+        if (!documentId || !Array.isArray(events)) {
+            return res.status(400).json({ success: false, error: 'documentId and events[] are required' });
+        }
+
+        const result = await feedbackService.recordGranularFeedback(documentId, events, { requestId });
+
+        // If any overlay upserts were deferred due to sidecar initializing, return 202
+        if (result && Array.isArray(result.errors) && result.errors.some(e => e.type === 'deferred_ingest')) {
+            logger.warn('[Visual-RAG API] Feedback deferred due to sidecar initializing', { request_id: requestId, hardware_target: 'RTX 3090 Ti' });
+            return res.status(202).json({ success: true, message: 'Deferred ingest recorded', result });
+        }
+
+        res.json({ success: true, result });
+    } catch (err) {
+        logger.error('[Visual-RAG API] Feedback ingestion failed', { request_id: requestId, error: err.message, hardware_target: 'RTX 3090 Ti' });
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 // ============================================================================
 // Batch Ingestion API
 // ============================================================================

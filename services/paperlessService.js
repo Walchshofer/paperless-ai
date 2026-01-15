@@ -1770,6 +1770,41 @@ async getOrCreateDocumentType(name) {
             }
           }
 
+          // Normalize custom fields to the expected Paperless format: { field: <id>, value: <value> }
+          try {
+            const normalized = [];
+            for (const cf of updateData.custom_fields) {
+              if (!cf) continue;
+              // Accept either {name, value} or {field, value}
+              if (cf.field) {
+                normalized.push({ field: cf.field, value: cf.value });
+                continue;
+              }
+
+              if (cf.name) {
+                // Resolve name to existing field id
+                const existing = await this.findExistingCustomField(cf.name);
+                if (existing && existing.id) {
+                  normalized.push({ field: existing.id, value: cf.value });
+                  continue;
+                }
+                // Try to create it safely (best-effort)
+                const created = await this.createCustomFieldSafely(cf.name, 'string');
+                if (created && created.id) {
+                  normalized.push({ field: created.id, value: cf.value });
+                  continue;
+                }
+                logger.warn('Could not resolve or create custom field for name %s, skipping', cf.name);
+              } else {
+                logger.warn('Unexpected custom field format, skipping', cf);
+              }
+            }
+            updateData.custom_fields = normalized;
+          } catch (cfErr) {
+            logger.warn('Failed to normalize custom_fields for document %s: %s', documentId, cfErr.message);
+            delete updateData.custom_fields;
+          }
+
           // Some Paperless deployments accept direct patching with custom_fields payload
           // We'll include `custom_fields` as part of the normal patch payload below (apiPayload)
         } catch (err) {

@@ -38,7 +38,8 @@ This ensures the context path `..` correctly resolves to the parent directory co
 | # | Service | Container | Host Port(s) | Purpose |
 |---|---------|-----------|--------------|---------|
 | 1 | webserver | paperless_webserver | 8000 | Paperless-ngx Web UI and API |
-| 2 | db | paperless_db | 5432 | PostgreSQL with pgvector |
+| 2 | db | paperless_db | 5432 | PostgreSQL (Metadata SOT) |
+| 2b | qdrant | paperless_qdrant | 6333 | Vector Store (Qdrant) |
 | 3 | broker | paperless_broker | internal | Redis message broker |
 | 4 | gotenberg | paperless_gotenberg | internal | PDF conversion |
 | 5 | tika | paperless_tika | internal | Document analysis |

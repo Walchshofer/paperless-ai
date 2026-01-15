@@ -32,7 +32,7 @@
 ## Multi-container Runtime
 - **Compose Root:** `C:\Users\pwalc\MyApps\paperless-ai\docker-compose.yml`.
 - **Core Services:** paperless-ai (Node), visual-rag sidecar (Python), 
-  Qdrant (Vector DB), postgres (Metadata DB), redis (Broker).
+  Qdrant (paperless_qdrant), postgres (Metadata DB), redis (Broker).
 - **Sidecar Handshake:** Implement 5s timeouts and handle `503 Initializing` 
   states via the "GPU Preparing" UI fallback.
 - **Ollama:** Connects to host via `http://host.docker.internal:11434`.

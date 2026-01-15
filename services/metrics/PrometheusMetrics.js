@@ -153,6 +153,13 @@ class PrometheusMetrics {
             ['stage_name', 'stage_type'],
             [50, 100, 200, 500, 1000, 2000, 5000, 10000]
         );
+
+        // Qdrant payload sync metric (increment on successful payload mirror)
+        this.qdrantPayloadSyncTotal = this._getOrCreateCounter(
+            'qdrant_payload_sync_total',
+            'Total successful Qdrant payload syncs.',
+            ['collection']
+        );
         this.retryRate = this._getOrCreateGauge(
             'retry_rate',
             'Retry rate (0-1).',
@@ -388,6 +395,14 @@ class PrometheusMetrics {
         this._safeRun(() => {
             this.visualConfirmationRate.labels(docType).set(value);
         }, 'visual_confirmation_rate');
+    }
+
+    recordQdrantPayloadSync(collection) {
+        if (!this.enabled) return;
+        const coll = collection || 'unknown';
+        this._safeRun(() => {
+            this.qdrantPayloadSyncTotal.labels(coll).inc();
+        }, 'qdrant_payload_sync_total');
     }
 
     recordVisualQueryTimeout(documentType, queryType) {

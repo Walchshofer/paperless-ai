@@ -19,9 +19,13 @@ This repository uses Disciplined Guardrail-Based Development.
 ### Tier 0 — Always Read (Hard Gate)
 Copilot MUST read and comply with these documents before proposing or implementing changes:
 
+0. `docs/AGENT_READ_POLICY.md` (Master Policy)
 1. `docs/EXPERT_PIPELINE_DECISION_TABLE.md`
 2. `docs/PROMPT_REGISTRY_GUIDANCE_INTERACTION.md`
-3. `docs/PIPELINE_STAGE_CONTRACTS.md`
+3. `.github/architecture/coding-standards.md`
+4. `.github/architecture/pipeline-contract.md`
+5. `.github/architecture/service-boundaries.md`
+6. `docs/QDRANT_MIGRATION.md` (Hybrid SOT Authority)
 
 If implementation changes affect runtime behavior, update these docs first, then implement.
 
@@ -32,6 +36,7 @@ The following documents are authoritative **when relevant to the task scope**.
 Copilot MUST read them *only if the task touches the corresponding concern*.
 
 - `docs/README.md`
+- `docs/PIPELINE_STAGE_CONTRACTS.md`
 - `docs/VALIDATION_AND_RETRY_POLICY.md`
 - `docs/SCHEMA_EVOLUTION_GUIDE.md`
 - `docs/PROMPT_CHANGE_GUIDE.md`
@@ -47,6 +52,7 @@ Copilot MUST read them *only if the task touches the corresponding concern*.
 - `docs/TEST_ENVIRONMENT.md`
 - `docs/VISUAL_RAG_INTEGRATION.md`
 - `docs/USING_OPTIMIZE_CHATMODE_EFFECTIVELY.md`
+- `docs/VISUAL_RAG_ARCHITECTURE_AND_COLQWEN3.md`
 - `docs/MULTI_AGENT_WORKFLOW_AND_MEMORY_MODEL.md`
 
 **Rule:** Do NOT read Tier 1 docs unless the task requires them.
@@ -110,24 +116,51 @@ Agents must justify usage and provide a fallback plan.
 
 ---
 ## 3) Prompt Safety Rules
-(unchanged — see original file)
+- **Registry Authority:** All prompts must reside in `prompts/` or the `PromptRegistry`. Do not hardcode prompts in source files.
+- **Schema Compliance:** Edits to prompts must preserve the JSON output schema expected by the parser.
+- **Review:** Any change to a prompt requires a corresponding update to `docs/PROMPT_REGISTRY_GUIDANCE_INTERACTION.md` if the contract changes.
 
 ---
 ## 4) Quality Gates
-(unchanged — see original file)
+- **Python:**
+  - Line length: **79 characters** (Flake8 standard).
+  - Typing: Strict Pylance/MyPy compliance.
+  - No `print()` statements in production code; use `logging`.
+- **JavaScript/TypeScript:**
+  - Strict typing for Zod contracts.
+  - JSDoc required for all public methods.
+- **Database:**
+  - **Detox Rule:** No `vector` or `embedding` columns in PostgreSQL tables.
+  - Migrations must be idempotent.
+- **Testing:**
+  - New features must include unit tests.
+  - Integration tests required for cross-service logic (e.g., Node -> Sidecar).
 
 ---
 ## 5) Required Output Format
-(unchanged — see original file)
+- **File Paths:** Use full absolute paths (e.g., `c:\Users\pwalc\MyApps\paperless-ai\...`).
+- **Diffs:** Use unified diff format for code changes.
+- **Brevity:** Do not explain standard code patterns; focus on the *why* of architectural decisions.
 
 ---
 ## 6) Custom Agents
-(unchanged — see original file)
+This repository uses specific agent personas for tasks:
+- **@optimize:** Orchestrator (MoE). Manages handoffs and high-level planning.
+- **@docs:** Documentation authority. Enforces the "Doc-First" rule.
+- **@schema-evolution:** Database and Qdrant migration specialist.
+- **@implement:** Production code generator. Enforces coding standards.
+- **@test:** Test generation and validation specialist.
 
 ---
 ## 7) Instructions Files
-(unchanged — see original file)
+Hierarchy of instruction files:
+1. `.github/copilot-instructions.md` (Global Guardrails - **This File**)
+2. `AGENTS.md` (Agent-specific operational guides)
+3. `prompts/README.md` (Prompt engineering standards)
+4. `docs/AGENT_READ_POLICY.md` (Documentation access policy)
 
 ---
 ## 8) Docker Build Safety
-(unchanged — see original file)
+- **Context:** Builds often require the parent directory context.
+- **Secrets:** Never hardcode secrets in `Dockerfile` or `docker-compose.yml`. Use `docker-compose.env`.
+- **Images:** Pin versions for production images (e.g., `postgres:16`, `qdrant/qdrant:v1.13.0`).

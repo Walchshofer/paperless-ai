@@ -57,7 +57,7 @@ relational and vector stores while respecting the RTX 3090 Ti baseline.
 
 
 <implementation>
-- **JS side:** Use `pg` for metadata and `@qdrant/js-client-rest` for vectors.
+- **JS side:** Use `pg` for feedback persistence and `@qdrant/js-client-rest` for vectors.
 - **Python side:** Ensure `rag_service/qdrant_adapter.py` is synchronized.
 - **Transactionality:** Follow "Best-effort" persistence for feedback, 
   ensuring the document update in Paperless-ngx remains the primary success flag.

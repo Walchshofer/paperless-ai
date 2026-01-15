@@ -45,6 +45,11 @@ class QdrantAdapter:
             "visual_pages", 320, Distance.DOT
         )
 
+        # 3. Visual Overlays (320D, Cosine) - ColQwen3 overlay vectors
+        self._create_collection_if_not_exists(
+            "visual_overlays", 320, Distance.COSINE
+        )
+
     def _create_collection_if_not_exists(
         self, name: str, size: int, distance: Distance
     ) -> None:
@@ -82,6 +87,26 @@ class QdrantAdapter:
                 )
             ],
         )
+
+    def upsert_visual_overlays(self, points: List[Dict[str, Any]]) -> None:
+        """
+        Upsert visual overlay points into Qdrant. Points should be dicts
+        with keys: id, vector, payload.
+        """
+        qpoints = [
+            PointStruct(id=p.get("id"), vector=p.get("embedding") or p.get("vector"), payload=p.get("payload"))
+            for p in points
+        ]
+        if qpoints:
+            self.client.upsert(collection_name="visual_overlays", points=qpoints)
+
+    def get_point(self, collection_name: str, point_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            p = self.client.get_point(collection_name, point_id)
+            return p
+        except Exception as e:
+            logger.warn(f"get_point failed: {e}")
+            return None
 
     def search_text(
         self,

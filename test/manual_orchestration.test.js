@@ -10,11 +10,26 @@ describe('Manual Orchestration Route /manual/updateDocument', function() {
     const docId = 12345;
     // Stub paperless update to succeed
     const origUpdate = paperlessService.updateDocument;
-    paperlessService.updateDocument = async (documentId) => ({ success: true, id: documentId });
+    paperlessService.updateDocument = async (documentId) => ({ success: true, id: documentId, tags: [1,2], correspondent: 5 });
+
+    // Provide original doc with different tags/correspondent so we trigger Qdrant sync
+    const origGet = paperlessService.getDocument;
+    paperlessService.getDocument = async (id) => ({ id, tags: [1], correspondent: null });
 
     // Stub feedbackService to fail
     const origFeedback = feedbackService.recordGranularFeedback;
     feedbackService.recordGranularFeedback = async () => ({ errors: [{ type: 'insertion', error: 'DB down' }] });
+
+    // Stub QdrantAdapter and metrics
+    const qdrant = require('../services/visual-rag/QdrantAdapter');
+    const origUpdatePayload = qdrant.qdrantAdapter.updatePayloadForDoc;
+    let qCalled = false;
+    qdrant.qdrantAdapter.updatePayloadForDoc = async (collectionName, id, payload) => { qCalled = true; return { status: 'ok', updated: 1 }; };
+
+    const { metricsCollector } = require('../services/metrics/PrometheusMetrics');
+    const origRecord = metricsCollector.recordQdrantPayloadSync;
+    let metricCalled = false;
+    metricsCollector.recordQdrantPayloadSync = (c) => { metricCalled = true; };
 
     const res = await request(app)
       .post('/manual/updateDocument')
@@ -24,9 +39,18 @@ describe('Manual Orchestration Route /manual/updateDocument', function() {
     assert.strictEqual(res.status, 200);
     assert.ok(res.body.success || res.body.id || res.body, 'expected success payload');
 
+    // allow for async qdrant sync to run
+    await new Promise(r => setTimeout(r, 100));
+
+    assert.strictEqual(qCalled, true, 'expected qdrant payload sync to be called');
+    assert.strictEqual(metricCalled, true, 'expected metric to be recorded');
+
     // cleanup
     paperlessService.updateDocument = origUpdate;
+    paperlessService.getDocument = origGet;
     feedbackService.recordGranularFeedback = origFeedback;
+    qdrant.qdrantAdapter.updatePayloadForDoc = origUpdatePayload;
+    metricsCollector.recordQdrantPayloadSync = origRecord;
   });
 
   it('should abort and not update Paperless if transactional and feedback persists fails', async function() {
@@ -57,10 +81,25 @@ describe('Manual Orchestration Route /manual/updateDocument', function() {
     const origFeedback = feedbackService.recordGranularFeedback;
     feedbackService.recordGranularFeedback = async () => ({ inserted: ['id1'] });
 
-    // Stub paperless update to succeed
+    // Stub paperless update to succeed and return no tag/correspondent change
     const origUpdate = paperlessService.updateDocument;
     let updateCalled = false;
-    paperlessService.updateDocument = async (documentId) => { updateCalled = true; return { success: true, id: documentId }; };
+    paperlessService.updateDocument = async (documentId) => { updateCalled = true; return { success: true, id: documentId, tags: [1], correspondent: null }; };
+
+    // Original doc matching updated doc (no changes)
+    const origGet = paperlessService.getDocument;
+    paperlessService.getDocument = async (id) => ({ id, tags: [1], correspondent: null });
+
+    // Stub QdrantAdapter and metrics to assert NOT called
+    const qdrant = require('../services/visual-rag/QdrantAdapter');
+    const origUpdatePayload = qdrant.qdrantAdapter.updatePayloadForDoc;
+    let qCalled = false;
+    qdrant.qdrantAdapter.updatePayloadForDoc = async () => { qCalled = true; return { status: 'ok', updated: 0 }; };
+
+    const { metricsCollector } = require('../services/metrics/PrometheusMetrics');
+    const origRecord = metricsCollector.recordQdrantPayloadSync;
+    let metricCalled = false;
+    metricsCollector.recordQdrantPayloadSync = (c) => { metricCalled = true; };
 
     const res = await request(app)
       .post('/manual/updateDocument')
@@ -70,8 +109,15 @@ describe('Manual Orchestration Route /manual/updateDocument', function() {
     assert.strictEqual(res.status, 200);
     assert.strictEqual(updateCalled, true);
 
+    await new Promise(r => setTimeout(r, 100));
+    assert.strictEqual(qCalled, false, 'qdrant sync should not be called when tags/correspondent unchanged');
+    assert.strictEqual(metricCalled, false, 'metric should not be recorded when no sync');
+
     // cleanup
     feedbackService.recordGranularFeedback = origFeedback;
     paperlessService.updateDocument = origUpdate;
+    paperlessService.getDocument = origGet;
+    qdrant.qdrantAdapter.updatePayloadForDoc = origUpdatePayload;
+    metricsCollector.recordQdrantPayloadSync = origRecord;
   });
 });

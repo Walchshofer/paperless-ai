@@ -36,7 +36,7 @@ The following documents are authoritative. If implementation conflicts with Tier
 
 ```
 
-@optimize Execute the paperless-ai prompt sequence starting from Phase 5 (Qdrant Migration).
+@optimize Execute the attached prompt file following the execution order.
 
 Serena initialization:
 
