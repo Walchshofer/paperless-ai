@@ -2,15 +2,19 @@ const { z } = require('zod');
 
 // Runtime Zod schemas (keep in sync with src/ui/contracts/*.ts)
 const AnnotationSchema = z.object({
-  bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
-  comment: z.string().optional(),
-  page: z.number().int().optional(),
+  label: z.string().min(1),
+  confidence: z.number().min(0).max(1).optional(),
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  width: z.number().min(0).max(1),
+  height: z.number().min(0).max(1),
+  note: z.string().optional(),
 });
 
 const VisualAnnotationSchema = z.object({
-  documentId: z.number().int().nullable(),
-  page: z.number().int().optional(),
-  initialAnnotations: z.array(AnnotationSchema).optional(),
+  documentId: z.string().min(1),
+  page: z.number().int().nonnegative(),
+  annotations: z.array(AnnotationSchema).min(1),
 });
 
 const FeedbackControlsSchema = z.object({
