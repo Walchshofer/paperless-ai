@@ -1,6 +1,8 @@
 import { h } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState, useCallback } from 'preact/hooks';
 import type { FeedbackControlsContract } from '../ui/contracts/FeedbackControls.contract';
+
+type FeedbackState = 'up' | 'down' | null;
 
 let styles: Record<string, string> = {};
 try {
@@ -13,15 +15,27 @@ try {
 export default function FeedbackControlsIsland(
   props: Partial<FeedbackControlsContract>
 ) {
-  const available = props.availableComponents || ['tags'];
+  const available = props.availableComponents || ['tags', 'correspondent', 'document_type'];
   // map of component -> 'up' | 'down' | null
-  const [stateMap, setStateMap] = useState<Record<string, string>>({});
+  const [stateMap, setStateMap] = useState<Record<string, FeedbackState>>({});
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // refs for accessibility updates
   const refs = useRef<Record<string, { up?: HTMLButtonElement | null; down?: HTMLButtonElement | null }>>({});
 
+  // Load initial state from props
   useEffect(() => {
-    // reflect state on DOM as literal strings for axe
+    if (props.components && Array.isArray(props.components)) {
+      const initial: Record<string, FeedbackState> = {};
+      for (const c of props.components) {
+        initial[c.component] = c.feedback_type === 'thumbs_up' ? 'up' : 'down';
+      }
+      setStateMap(initial);
+    }
+  }, [props.components]);
+
+  // Reflect state on DOM as literal strings for axe accessibility
+  useEffect(() => {
     available.forEach((c) => {
       const s = stateMap[c] || null;
       const r = refs.current[c];
@@ -30,62 +44,198 @@ export default function FeedbackControlsIsland(
     });
   }, [stateMap, available]);
 
-  function emitFeedback(
+  const emitFeedback = useCallback(async (
     component: string,
     feedback_type: 'thumbs_up' | 'thumbs_down'
-  ) {
+  ) => {
     const detail: any = { component, feedback_type };
     if (props.documentId != null) detail.documentId = props.documentId;
-    // updated event (legacy/consumer)
+
+    // Dispatch updated event (legacy/consumer)
     document.dispatchEvent(new CustomEvent('feedback:updated', { detail }));
+
     // Publish a confirmation event for thumbs_up only
     if (feedback_type === 'thumbs_up') {
       document.dispatchEvent(
-        new CustomEvent('feedback:confirmed', { detail: { component, documentId: props.documentId || null } })
+        new CustomEvent('feedback:confirmed', {
+          detail: { component, documentId: props.documentId || null }
+        })
       );
     }
-  }
 
-  function handleUp(component: string) {
-    setStateMap((prev) => ({ ...prev, [component]: prev[component] === 'up' ? null : 'up' }));
-    emitFeedback(component, 'thumbs_up');
-  }
+    // Persist to backend
+    if (props.documentId != null) {
+      setIsSyncing(true);
+      try {
+        await fetch('/api/visual-rag/feedback', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Request-Id': `fci-${Date.now()}`,
+          },
+          body: JSON.stringify({
+            documentId: props.documentId,
+            events: [{
+              event_type: feedback_type === 'thumbs_up' ? 'verification' : 'correction',
+              field_name: component,
+              context: { feedback_type }
+            }]
+          }),
+        });
+      } catch (err) {
+        console.warn('Feedback sync failed:', err);
+      } finally {
+        setIsSyncing(false);
+      }
+    }
+  }, [props.documentId]);
 
-  function handleDown(component: string) {
-    setStateMap((prev) => ({ ...prev, [component]: prev[component] === 'down' ? null : 'down' }));
-    emitFeedback(component, 'thumbs_down');
-  }
+  const handleUp = useCallback((component: string) => {
+    const newState = stateMap[component] === 'up' ? null : 'up';
+    setStateMap((prev) => ({ ...prev, [component]: newState }));
+    if (newState === 'up') {
+      emitFeedback(component, 'thumbs_up');
+    }
+  }, [stateMap, emitFeedback]);
+
+  const handleDown = useCallback((component: string) => {
+    const newState = stateMap[component] === 'down' ? null : 'down';
+    setStateMap((prev) => ({ ...prev, [component]: newState }));
+    if (newState === 'down') {
+      emitFeedback(component, 'thumbs_down');
+    }
+  }, [stateMap, emitFeedback]);
+
+  // Display name for components
+  const getDisplayName = (component: string): string => {
+    const names: Record<string, string> = {
+      tags: 'Tags',
+      correspondent: 'Correspondent',
+      document_type: 'Document Type',
+      content: 'Content',
+      title: 'Title',
+    };
+    return names[component] || component.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
 
   return (
     <div
       data-testid="feedback-controls-island-root"
       role="group"
       aria-label="Feedback Controls"
-      className={styles.root ?? ''}
+      className={`fci-root ${styles.root ?? ''}`}
     >
-      {available.map((c) => (
-        <div key={c} style={{ display: 'inline-block', marginRight: 8 }}>
-          <button
-            type="button"
-            data-testid={`thumbs-up-${c}`}
-            ref={(el) => { refs.current[c] = Object.assign(refs.current[c] || {}, { up: el }); }}
-            className={`${styles.button ?? ''} ${stateMap[c] === 'up' ? styles.buttonPressed ?? '' : ''}`}
-            onClick={() => { handleUp(c); }}
-          >
-            👍 {c}
-          </button>
-
-          <button
-            type="button"
-            data-testid={`thumbs-down-${c}`}
-            ref={(el) => { refs.current[c] = Object.assign(refs.current[c] || {}, { down: el }); }}
-            className={`${styles.button ?? ''} ${stateMap[c] === 'down' ? styles.buttonPressed ?? '' : ''}`}
-            onClick={() => { handleDown(c); }}
-          >
-            👎 {c}
-          </button>
+      {isSyncing && (
+        <div className="fci-sync-indicator" data-testid="sync-indicator" aria-live="polite">
+          Syncing...
         </div>
-      ))}
+      )}
+
+      <div className="fci-grid">
+        {available.map((c) => (
+          <div key={c} className="fci-item">
+            <span className="fci-label">{getDisplayName(c)}</span>
+            <div className="fci-buttons">
+              <button
+                type="button"
+                data-testid={`thumbs-up-${c}`}
+                ref={(el) => {
+                  refs.current[c] = Object.assign(refs.current[c] || {}, { up: el });
+                }}
+                className={`fci-btn fci-btn-up ${stateMap[c] === 'up' ? 'fci-btn-active' : ''} ${styles.button ?? ''}`}
+                onClick={() => handleUp(c)}
+                title={`${getDisplayName(c)} is correct`}
+              >
+                👍
+              </button>
+
+              <button
+                type="button"
+                data-testid={`thumbs-down-${c}`}
+                ref={(el) => {
+                  refs.current[c] = Object.assign(refs.current[c] || {}, { down: el });
+                }}
+                className={`fci-btn fci-btn-down ${stateMap[c] === 'down' ? 'fci-btn-active' : ''} ${styles.button ?? ''}`}
+                onClick={() => handleDown(c)}
+                title={`${getDisplayName(c)} needs correction`}
+              >
+                👎
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <style>{`
+        .fci-root {
+          font-family: system-ui, -apple-system, sans-serif;
+          position: relative;
+        }
+        .fci-sync-indicator {
+          position: absolute;
+          top: -8px;
+          right: 0;
+          background: #fff3cd;
+          color: #856404;
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-size: 0.75rem;
+          animation: fci-pulse 1s ease infinite;
+        }
+        .fci-grid {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+        .fci-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 12px;
+          background: #f8f9fa;
+          border-radius: 6px;
+          border: 1px solid #e9ecef;
+        }
+        .fci-label {
+          font-size: 0.85rem;
+          font-weight: 500;
+          color: #495057;
+          min-width: 80px;
+        }
+        .fci-buttons {
+          display: flex;
+          gap: 4px;
+        }
+        .fci-btn {
+          padding: 6px 10px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          background: #fff;
+          cursor: pointer;
+          font-size: 1rem;
+          transition: all 0.2s;
+          line-height: 1;
+        }
+        .fci-btn:hover {
+          background: #f5f5f5;
+          transform: scale(1.05);
+        }
+        .fci-btn-active {
+          transform: scale(1.1);
+        }
+        .fci-btn-up.fci-btn-active {
+          background: #d4edda;
+          border-color: #28a745;
+        }
+        .fci-btn-down.fci-btn-active {
+          background: #f8d7da;
+          border-color: #dc3545;
+        }
+        @keyframes fci-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+      `}</style>
     </div>
   );
 }

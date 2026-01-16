@@ -11,20 +11,87 @@ const AnnotationSchema = z.object({
   // optional legacy/alternate bbox representation
   bbox: z.array(z.number()).length(4).optional(),
   note: z.string().optional(),
+  confirmed: z.boolean().optional(),
   context: z.object({
     correspondentId: z.number().int().nullable().optional(),
     tagIds: z.array(z.number().int()).optional(),
     page: z.number().int().nonnegative().optional(),
+    documentTypeId: z.number().int().nullable().optional(),
     metadata: z.record(z.any()).optional(),
   }).optional(),
 });
 
 const VisualAnnotationSchema = z.object({
   documentId: z.string().min(1),
-  page: z.number().int().nonnegative(),
+  page: z.number().int().nonnegative().optional(),
   // allow mounting with no initial annotations; default to empty array
   annotations: z.array(AnnotationSchema).default([]),
+  gpuState: z.enum(['idle', 'checking', 'preparing', 'ready', 'error']).optional(),
 });
+
+// Event schemas for cross-island communication validation
+const AnnotationCreatedEventSchema = z.object({
+  type: z.literal('annotation:created'),
+  documentId: z.string(),
+  page: z.number().int().nonnegative().optional(),
+  annotation: AnnotationSchema,
+  timestamp: z.number().optional(),
+});
+
+const VisualSearchTriggerEventSchema = z.object({
+  type: z.literal('visual-search:trigger'),
+  documentId: z.string(),
+  page: z.number().int().nonnegative().optional(),
+  bbox: z.object({
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+    width: z.number().min(0).max(1),
+    height: z.number().min(0).max(1),
+  }),
+  timestamp: z.number().optional(),
+});
+
+const FeedbackConfirmedEventSchema = z.object({
+  type: z.literal('feedback:confirmed'),
+  documentId: z.string().optional(),
+  component: z.string().optional(),
+  annotation: AnnotationSchema.optional(),
+  timestamp: z.number().optional(),
+});
+
+const FeedbackUpdatedEventSchema = z.object({
+  type: z.literal('feedback:updated'),
+  component: z.string(),
+  feedback_type: z.enum(['thumbs_up', 'thumbs_down']),
+  documentId: z.number().int().nullable().optional(),
+});
+
+const PayloadReadyEventSchema = z.object({
+  type: z.literal('payload:ready'),
+  documentId: z.union([z.string(), z.number().int()]).nullable().optional(),
+  page: z.number().int().nonnegative().nullable().optional(),
+  metadata: z.record(z.any()).optional(),
+  content: z.string().optional(),
+  fields: z.array(z.object({ name: z.string(), value: z.any() })).optional(),
+  annotations: z.array(AnnotationSchema).optional(),
+});
+
+const SyncFailedEventSchema = z.object({
+  type: z.literal('sync:failed'),
+  documentId: z.union([z.string(), z.number().int()]).nullable().optional(),
+  error: z.string(),
+  timestamp: z.number().optional(),
+});
+
+// Event schema registry for both-side validation
+const eventSchemaMap = {
+  'annotation:created': AnnotationCreatedEventSchema,
+  'visual-search:trigger': VisualSearchTriggerEventSchema,
+  'feedback:confirmed': FeedbackConfirmedEventSchema,
+  'feedback:updated': FeedbackUpdatedEventSchema,
+  'payload:ready': PayloadReadyEventSchema,
+  'sync:failed': SyncFailedEventSchema,
+};
 
 const FeedbackControlsSchema = z.object({
   documentId: z.number().int().nullable().optional().default(null),
@@ -33,11 +100,26 @@ const FeedbackControlsSchema = z.object({
   availableComponents: z.array(z.string()).optional().default(['tags']),
 });
 
+// Field schema for custom field rows
+const FieldSchema = z.object({
+  name: z.string(),
+  value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+});
+
+// Extended metadata schema for manual editing
+const MetadataSchema = z.object({
+  title: z.string().optional(),
+  correspondent: z.string().optional(),
+  documentType: z.string().optional(),
+}).passthrough();
+
 const ManualEditorSchema = z.object({
   documentId: z.number().int().nullable(),
-  metadata: z.record(z.any()).optional(),
+  metadata: MetadataSchema.optional(),
   content: z.string().optional(),
-  fields: z.array(z.object({ name: z.string(), value: z.any() })).optional(),
+  fields: z.array(FieldSchema).optional(),
+  activeTab: z.enum(['metadata', 'content', 'fields', 'ai-debug']).optional(),
+  gpuState: z.enum(['idle', 'checking', 'preparing', 'ready', 'error']).optional(),
 });
 
 const HistoryTabsSchema = z.object({
@@ -145,6 +227,27 @@ const defaultRenderers = {
           note.placeholder = 'Note (optional)';
           note.value = norm.note || '';
 
+          const confirm = document.createElement('button');
+          confirm.textContent = 'Confirm Match';
+          confirm.addEventListener('click', async () => {
+            try {
+              const propsRaw = (root.closest('[data-props]') && root.closest('[data-props]').getAttribute('data-props')) || '{}';
+              let props = {};
+              try { props = JSON.parse(propsRaw); } catch{ props = {}; }
+              // attempt POST to feedback endpoint
+              if (typeof fetch !== 'undefined') {
+                await fetch('/api/visual-rag/feedback', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ event: 'feedback:confirmed', documentId: props.documentId || null, page: props.page || null, annotation: annotations[idx] })
+                });
+              }
+              confirm.disabled = true;
+              confirm.textContent = 'Confirmed';
+              document.dispatchEvent(createCustomEvent('feedback:confirmed', annotations[idx]));
+            } catch(e){ console.warn('Failed to confirm match (runtime)', e); }
+          });
+
           const remove = document.createElement('button');
           remove.textContent = 'Remove';
           remove.addEventListener('click', () => {
@@ -155,6 +258,7 @@ const defaultRenderers = {
 
           container.appendChild(label);
           container.appendChild(note);
+          container.appendChild(confirm);
           container.appendChild(remove);
           list.appendChild(container);
           status.textContent = `${annotations.length} annotations`;
@@ -357,9 +461,67 @@ function mountIslands(container = document) {
   });
 }
 
+/**
+ * Event Bus with Both-Side Validation
+ *
+ * Validates events on dispatch and provides validated event listening.
+ * This ensures type safety across island boundaries.
+ */
+const eventBus = {
+  /**
+   * Dispatch a validated event through the document event system.
+   * @param {string} eventName - Event name (e.g., 'feedback:confirmed')
+   * @param {object} detail - Event payload
+   * @returns {boolean} - True if validation passed and event was dispatched
+   */
+  dispatch(eventName, detail) {
+    const schema = eventSchemaMap[eventName];
+    if (schema) {
+      const payload = { type: eventName, ...detail };
+      const result = schema.safeParse(payload);
+      if (!result.success) {
+        console.warn(`eventBus: dispatch validation failed for '${eventName}'`, result.error.errors);
+        return false;
+      }
+      document.dispatchEvent(createCustomEvent(eventName, result.data));
+      return true;
+    }
+    // No schema defined - dispatch without validation
+    document.dispatchEvent(createCustomEvent(eventName, detail));
+    return true;
+  },
+
+  /**
+   * Listen for a validated event.
+   * @param {string} eventName - Event name to listen for
+   * @param {function} callback - Handler receiving validated detail
+   * @returns {function} - Cleanup function to remove listener
+   */
+  listen(eventName, callback) {
+    const handler = (e) => {
+      const schema = eventSchemaMap[eventName];
+      if (schema) {
+        const payload = { type: eventName, ...(e.detail || {}) };
+        const result = schema.safeParse(payload);
+        if (!result.success) {
+          console.warn(`eventBus: listener validation failed for '${eventName}'`, result.error.errors);
+          return;
+        }
+        callback(result.data);
+      } else {
+        callback(e.detail);
+      }
+    };
+    document.addEventListener(eventName, handler);
+    return () => document.removeEventListener(eventName, handler);
+  }
+};
+
 module.exports = {
   mountIslands,
   registerIsland,
+  eventBus,
   _registry: registry, // exported for tests
   _schemas: schemaMap,
+  _eventSchemas: eventSchemaMap,
 };

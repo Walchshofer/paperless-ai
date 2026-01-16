@@ -262,26 +262,73 @@ async def search(payload: SearchRequest) -> Dict[str, Any]:
     if state.model is None or state.processor is None:
         raise HTTPException(status_code=503, detail="Initializing")
 
+    # 1. Compute Query Embedding (Native ColQwen3)
+    try:
+        with torch.inference_mode():  # type: ignore
+            q_inputs = state.processor.process_texts(
+                [payload.query]
+            ).to(DEVICE)
+            q_out = state.model(**q_inputs)
+            
+            # Full tensor for MaxSim (High Fidelity)
+            query_emb: Any = q_out.embeddings.to(
+                torch.float16  # type: ignore
+            ).cpu()
+            
+            # Mean pool for Qdrant/Dense fallback (Approximate)
+            query_vec: List[float] = (
+                query_emb.float().mean(dim=1).view(-1).tolist()
+            )
+    except Exception:
+        logger.exception("Embedding generation failure")
+        raise HTTPException(status_code=500, detail="Embedding error")
+
+    results: List[Dict[str, Any]] = []
+
+    # 2. Strategy A: Native MaxSim (Preferred for Visual RAG accuracy)
+    # If we have tensors in memory, use them for late-interaction scoring.
+    if state.registry:
+        try:
+            doc_ids = list(state.registry.keys())
+            doc_tensors: List[Any] = [state.registry[i] for i in doc_ids]
+
+            # Native MaxSim Scoring
+            with torch.inference_mode():  # type: ignore
+                scores_tensor = state.processor.score_multi_vector(
+                    query_emb, doc_tensors
+                )[0]
+            
+            # Top-K
+            top_val: Any
+            top_idx: Any
+            top_val, top_idx = torch.topk(  # type: ignore
+                scores_tensor, min(payload.k, len(scores_tensor))
+            )
+
+            indices = cast(List[int], top_idx.tolist())  # type: ignore
+            values = cast(List[float], top_val.tolist())  # type: ignore
+
+            for i, idx in enumerate(indices):
+                results.append({
+                    "doc_id": int(doc_ids[idx]),
+                    "score": round(values[i], 4)
+                })
+            
+            return {"query": payload.query, "results": results}
+        except Exception:
+            logger.exception("MaxSim search failure, attempting fallback")
+            # Fallthrough to Qdrant if MaxSim fails
+
+    # 3. Strategy B: Qdrant Dense Search (Fallback/Cold Start)
+    # Used if registry is empty or MaxSim failed.
     if state.qdrant:
         try:
-            with torch.inference_mode():  # type: ignore
-                q_inputs = state.processor.process_texts(
-                    [payload.query]
-                ).to(DEVICE)
-                q_out = state.model(**q_inputs)
-                # Mean pool query for vector search
-                query_emb: Any = q_out.embeddings.float().cpu()
-                query_vec: List[float] = (
-                    query_emb.mean(dim=1).view(-1).tolist()
-                )
-
             hits = state.qdrant.search(
                 collection_name="visual_pages",
                 query_vector=("page_embedding", query_vec),
                 limit=payload.k
             )
 
-            results: List[Dict[str, Any]] = []
             for h in hits:
                 doc_id = (
                     h.payload.get("doc_id") if h.payload else h.id
@@ -295,52 +342,7 @@ async def search(payload: SearchRequest) -> Dict[str, Any]:
             logger.exception("Qdrant search failure")
             raise HTTPException(status_code=500, detail="Search error")
 
-    if not state.registry:
-        return {"query": payload.query, "results": []}
-
-    try:
-        with cast(Any, torch).inference_mode():
-            # Split encoding call to satisfy Flake8 E501
-            q_inputs = state.processor.process_texts(
-                [payload.query]
-            ).to(DEVICE)
-            q_out = state.model(**q_inputs)
-            query_emb: Any = (
-                q_out.embeddings.to(cast(Any, torch).float16).cpu()
-            )
-
-            # 2. Extract registry for MaxSim scoring
-            doc_ids = list(state.registry.keys())
-            doc_tensors: List[Any] = [state.registry[i] for i in doc_ids]
-
-            # 3. Native MaxSim Scoring
-            scores_tensor = state.processor.score_multi_vector(
-                query_emb, doc_tensors
-            )[0]
-            scores: Any = scores_tensor
-
-        # 4. Filter Top-K and cast result lists
-        top_val: Any
-        top_idx: Any
-        top_val, top_idx = torch.topk(  # type: ignore
-            scores, min(payload.k, len(scores))
-        )
-
-        # Surgical ignore for unresolved tensor methods
-        indices = cast(List[int], top_idx.tolist())  # type: ignore
-        values = cast(List[float], top_val.tolist())  # type: ignore
-
-        results: List[Dict[str, Any]] = []
-        for i, idx in enumerate(indices):
-            results.append({
-                "doc_id": int(doc_ids[idx]),
-                "score": round(values[i], 4)
-            })
-
-        return {"query": payload.query, "results": results}
-    except Exception:
-        logger.exception("Search failure")
-        raise HTTPException(status_code=500, detail="Search error")
+    return {"query": payload.query, "results": []}
 
 
 @app.get("/health")  # type: ignore

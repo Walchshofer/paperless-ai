@@ -11,6 +11,8 @@
     "test:report": "node scripts/test-report.js",
     "verification:fast": "node scripts/check-db-schema.js && node scripts/check-islands.js && npm test",
     "verification:e2e": "npx playwright test --config=test/playwright.config.ts",
+    "verification:e2e:report": "npx playwright show-report test-results/playwright-report",
+    "verification:e2e:ui": "npx playwright test --ui --config=test/playwright.config.ts",
     "dev": "node scripts/dev-server.js",
     "build:island-runtime": "node scripts/build-island-runtime.js",
     "check:island-runtime": "node scripts/check-island-runtime.js",

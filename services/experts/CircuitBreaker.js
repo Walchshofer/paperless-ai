@@ -34,6 +34,9 @@ const DEFAULT_CONFIG = {
     initialBackoff: 100         // Initial backoff in ms (100, 200, 400)
 };
 
+// Shared instances map
+const instances = new Map();
+
 /**
  * CircuitBreaker - Implements circuit breaker pattern for external service calls
  *
@@ -84,6 +87,20 @@ class CircuitBreaker {
         if (this.metricsCollector?.recordCircuitBreakerState) {
             this.metricsCollector.recordCircuitBreakerState(this.serviceName, this.state);
         }
+    }
+
+    /**
+     * Get or create a shared CircuitBreaker instance
+     * @param {string} serviceName 
+     * @param {Object} config 
+     * @param {Object} metricsCollector 
+     * @returns {CircuitBreaker}
+     */
+    static getInstance(serviceName, config = {}, metricsCollector = null) {
+        if (!instances.has(serviceName)) {
+            instances.set(serviceName, new CircuitBreaker(serviceName, config, metricsCollector));
+        }
+        return instances.get(serviceName);
     }
 
     /**

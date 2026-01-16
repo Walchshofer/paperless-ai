@@ -140,7 +140,7 @@ Adjust these values when operating in high-latency or resource-constrained envir
 - `ORCHESTRATOR_MODEL` - System orchestration and routing model (default: `nemotron-orchestrator:8b`)
 - `EMBEDDING_MODEL` - Semantic embedding model for RAG (default: `nomic-embed-text-v1.5`)
 - `VISUAL_RAG_MODEL` - Visual RAG sidecar model (default: `TomoroAI/tomoro-ai-colqwen3-embed-4b-awq`)
-- `INDEX_DIR` - Index directory for Visual RAG sidecar (default: `/data/indices`) **MUST NOT be empty**
+- `INDEX_DIR` - Index directory for Visual RAG sidecar (default: `/data/indices`) **MUST NOT be empty**. **Note:** The sidecar is stateful by default — it writes `.pt` tensor files into `INDEX_DIR` and expects this path to be mounted to persistent storage (see `docker-compose.yml`). If you prefer a stateless compute-only sidecar that returns embeddings and leaves storage to the main application, follow the "Stateful vs Stateless" guidance in `services/visual-rag-sidecar/README.md`.
 - `QDRANT_HOST` - Qdrant host (default: `qdrant`)
 - `QDRANT_PORT` - Qdrant HTTP port (default: `6333`)
 - `QDRANT_API_KEY` - Qdrant API key (optional; required for cloud deployments)

@@ -23,6 +23,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const customService = require('../services/customService.js');
 const { expertRegistry } = require('../services/experts/ExpertRegistry');
 const { DocumentProcessor } = require('../services/integration/DocumentProcessor');
+const { qdrantAdapter } = require('../services/visual-rag/QdrantAdapter');
 const { pdfRenderer } = require('../services/visual-rag/PDFRenderer');
 const axios = require('axios');
 const config = require('../config/config.js');
@@ -2454,7 +2455,11 @@ router.get('/setup', async (req, res) => {
       AZURE_ENDPOINT: process.env.AZURE_ENDPOINT|| '',
       AZURE_API_KEY: process.env.AZURE_API_KEY || '',
       AZURE_DEPLOYMENT_NAME: process.env.AZURE_DEPLOYMENT_NAME || '',
-      AZURE_API_VERSION: process.env.AZURE_API_VERSION || ''
+      AZURE_API_VERSION: process.env.AZURE_API_VERSION || '',
+      QDRANT_HOST: process.env.QDRANT_HOST || 'qdrant',
+      QDRANT_PORT: process.env.QDRANT_PORT || '6333',
+      QDRANT_API_KEY: process.env.QDRANT_API_KEY || '',
+      VECTOR_STORE: process.env.VECTOR_STORE || 'qdrant'
     };
 
     // Check both configuration and users
@@ -4318,7 +4323,6 @@ router.post('/manual/updateDocument', express.json(), async (req, res) => {
 
       // If Tags or Correspondent changed, asynchronously mirror payload to Qdrant
       try {
-        const { qdrantAdapter } = require('../services/visual-rag/QdrantAdapter');
         const { metricsCollector } = require('../services/metrics/PrometheusMetrics');
 
         // Determine whether tags or correspondent changed by comparing original and updated document
@@ -4767,11 +4771,15 @@ router.post('/setup', express.json(), async (req, res) => {
       azureEndpoint,
       azureApiKey,
       azureDeploymentName,
-      azureApiVersion
+      azureApiVersion,
+      qdrantHost,
+      qdrantPort,
+      qdrantApiKey,
+      vectorStore
     } = req.body;
 
     // Log setup request with sensitive data redacted
-    const sensitiveKeys = ['paperlessToken', 'openaiKey', 'customApiKey', 'password', 'confirmPassword'];
+    const sensitiveKeys = ['paperlessToken', 'openaiKey', 'customApiKey', 'password', 'confirmPassword', 'qdrantApiKey', 'azureApiKey'];
     const redactedBody = Object.fromEntries(
       Object.entries(req.body).map(([key, value]) => [
       key,
@@ -4943,7 +4951,11 @@ router.post('/setup', express.json(), async (req, res) => {
       AZURE_ENDPOINT: azureEndpoint || '',
       AZURE_API_KEY: azureApiKey || '',
       AZURE_DEPLOYMENT_NAME: azureDeploymentName || '',
-      AZURE_API_VERSION: azureApiVersion || ''
+      AZURE_API_VERSION: azureApiVersion || '',
+      QDRANT_HOST: qdrantHost || 'qdrant',
+      QDRANT_PORT: qdrantPort || '6333',
+      QDRANT_API_KEY: qdrantApiKey || '',
+      VECTOR_STORE: vectorStore || 'qdrant'
     };
     
     // Validate AI provider config
@@ -5273,7 +5285,11 @@ router.post('/settings', express.json(), async (req, res) => {
       azureEndpoint,
       azureApiKey,
       azureDeploymentName,
-      azureApiVersion
+      azureApiVersion,
+      qdrantHost,
+      qdrantPort,
+      qdrantApiKey,
+      vectorStore
     } = req.body;
 
     //replace equal char in system prompt
@@ -5339,6 +5355,10 @@ router.post('/settings', express.json(), async (req, res) => {
       AZURE_API_KEY: process.env.AZURE_API_KEY || '',
       AZURE_DEPLOYMENT_NAME: process.env.AZURE_DEPLOYMENT_NAME || '',
       AZURE_API_VERSION: process.env.AZURE_API_VERSION || '',
+      QDRANT_HOST: process.env.QDRANT_HOST || 'qdrant',
+      QDRANT_PORT: process.env.QDRANT_PORT || '6333',
+      QDRANT_API_KEY: process.env.QDRANT_API_KEY || '',
+      VECTOR_STORE: process.env.VECTOR_STORE || 'qdrant',
       RESTRICT_TO_EXISTING_TAGS: process.env.RESTRICT_TO_EXISTING_TAGS || 'no',
       RESTRICT_TO_EXISTING_CORRESPONDENTS: process.env.RESTRICT_TO_EXISTING_CORRESPONDENTS || 'no',
       RESTRICT_TO_EXISTING_DOCUMENT_TYPES: process.env.RESTRICT_TO_EXISTING_DOCUMENT_TYPES || 'no',
@@ -5455,6 +5475,12 @@ router.post('/settings', express.json(), async (req, res) => {
         if(azureApiVersion) updatedConfig.AZURE_API_VERSION = azureApiVersion;
       }
     }
+
+    // Update Qdrant settings
+    if (qdrantHost) updatedConfig.QDRANT_HOST = qdrantHost;
+    if (qdrantPort) updatedConfig.QDRANT_PORT = qdrantPort;
+    if (qdrantApiKey) updatedConfig.QDRANT_API_KEY = qdrantApiKey;
+    if (vectorStore) updatedConfig.VECTOR_STORE = vectorStore;
 
     // Update general settings
     if (scanInterval) updatedConfig.SCAN_INTERVAL = scanInterval;

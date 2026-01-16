@@ -50,23 +50,16 @@ class SearchEngine:
         # Check Qdrant
         qdrant_ready = False
         try:
-            health = qdrant_adapter.health_check()
-            collections = cast(
-                Dict[str, Any], health.get("collections", {}) if health else {}
-            )
-            doc_coll = cast(
-                Dict[str, Any], collections.get("document_embeddings", {})
-            )
-            point_count = doc_coll.get("point_count", 0)
+            stats = qdrant_adapter.get_collection_stats()
+            exists = stats.get("exists", False)
+            point_count = stats.get("point_count", 0)
 
-            if not health.get("healthy"):
-                logger.error("Qdrant not initialized")
-                valid = False
-            elif not doc_coll.get("exists"):
+            if not exists:
                 logger.error("Qdrant document_embeddings missing")
                 valid = False
             elif point_count == 0:
-                logger.error("Qdrant document_embeddings is empty")
+                logger.warning("Qdrant document_embeddings is empty")
+                # Not necessarily invalid, just empty
                 valid = False
             else:
                 logger.info(
@@ -191,19 +184,10 @@ class SearchEngine:
     def _qdrant_initialized(self) -> bool:
         """Check if Qdrant has documents indexed."""
         try:
-            health = qdrant_adapter.health_check()
-            if not health.get("healthy"):
-                return False
-            collections = cast(
-                Dict[str, Any], health.get("collections", {})
-            )
-            doc_coll = cast(
-                Dict[str, Any], collections.get("document_embeddings", {})
-            )
-            return (
-                bool(doc_coll.get("exists"))
-                and int(doc_coll.get("point_count", 0)) > 0
-            )
+            stats = qdrant_adapter.get_collection_stats()
+            return bool(stats.get("exists")) and int(
+                stats.get("point_count", 0)
+            ) > 0
         except Exception as exc:
             logger.error("Error checking Qdrant: %s", str(exc))
             return False
@@ -475,7 +459,10 @@ class SearchEngine:
         return results
 
     def semantic_search(
-        self, query: str, top_k: int = MAX_RESULTS
+        self,
+        query: str,
+        top_k: int = MAX_RESULTS,
+        filters: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         """Perform semantic search using Qdrant."""
         if not self.is_initialized:
@@ -486,15 +473,16 @@ class SearchEngine:
             query_embedding: Any = (
                 self.data_manager.sentence_transformer.encode(query)
             )
-            results = qdrant_adapter.search_document_embeddings(
-                query_embedding.tolist(),
-                limit=top_k,
+            results = qdrant_adapter.search(
+                query_embedding=query_embedding,
+                k=top_k,
+                filters=filters
             )
 
             formatted: List[Dict[str, Any]] = []
             for row in results:
                 payload = cast(Dict[str, Any], row.get("payload") or {})
-                doc_id = payload.get("doc_id", row.get("id"))
+                doc_id = payload.get("doc_id", row.get("doc_id"))
                 doc = next(
                     (d for d in self.documents if d["id"] == doc_id),
                     None,
@@ -528,7 +516,10 @@ class SearchEngine:
             return []
 
     def hybrid_search(
-        self, query: str, top_k: int = MAX_RESULTS
+        self,
+        query: str,
+        top_k: int = MAX_RESULTS,
+        filters: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         """Perform hybrid search combining BM25 and Qdrant."""
         logger.info(f"Performing hybrid search for query: '{query}'")
@@ -560,7 +551,9 @@ class SearchEngine:
             keyword_results = []
 
         try:
-            semantic_results = self.semantic_search(query, top_k=top_k * 2)
+            semantic_results = self.semantic_search(
+                query, top_k=top_k * 2, filters=filters
+            )
         except Exception as e:
             logger.error(f"Semantic search failed: {str(e)}")
             semantic_results = []
@@ -761,9 +754,17 @@ class SearchEngine:
         query = request.query
         logger.info(f"Performing search for: '{query}'")
 
+        # Construct filters if possible (currently limited by SearchRequest)
+        # Future: Map request.correspondent to ID if needed for pre-filtering
+        filters = None
+        # if request.correspondent_id:
+        #     filters = {"correspondent_id": request.correspondent_id}
+        # if request.tag_ids:
+        #     filters = {"tag_ids": request.tag_ids}
+
         try:
             # Perform hybrid search
-            results = self.hybrid_search(query)
+            results = self.hybrid_search(query, filters=filters)
 
             # Check if we got valid results
             if not results:

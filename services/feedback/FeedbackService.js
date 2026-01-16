@@ -548,6 +548,82 @@ class FeedbackService {
             }
         }
     }
+
+    /**
+     * Process deferred feedback events (background job)
+     * Replays Qdrant upserts for events marked 'deferred_ingest'
+     */
+    async processDeferredFeedback() {
+        if (!this.pool) return 0;
+
+        const client = await this.pool.connect();
+        let processedCount = 0;
+
+        try {
+            // Fetch pending deferred events
+            const res = await client.query(`
+                SELECT id, doc_id, corrected_value 
+                FROM feedback_events 
+                WHERE event_type = 'deferred_ingest' 
+                ORDER BY created_at ASC
+                LIMIT 50
+            `);
+
+            for (const row of res.rows) {
+                try {
+                    let data = row.corrected_value;
+                    if (typeof data === 'string') {
+                        try {
+                            data = JSON.parse(data);
+                        } catch (e) {
+                            logger.warn('deferred_feedback_parse_error', { eventId: row.id });
+                            continue;
+                        }
+                    }
+
+                    if (!data || !data.attempted_point) continue;
+
+                    const { overlayId, attempted_point } = data;
+
+                    // Attempt upsert via qdrantAdapter
+                    if (qdrantAdapter) {
+                        await qdrantAdapter.upsertVisualOverlays([attempted_point]);
+
+                        // On success, update visual_overlays vector_id if overlayId is present
+                        if (overlayId && attempted_point.id) {
+                            await client.query(
+                                `UPDATE visual_overlays SET vector_id = $1 WHERE id = $2`,
+                                [attempted_point.id, overlayId]
+                            );
+                        }
+
+                        // Mark event as resolved
+                        await client.query(
+                            `UPDATE feedback_events 
+                             SET event_type = 'deferred_ingest_resolved', 
+                                 context = jsonb_set(COALESCE(context, '{}'::jsonb), '{resolved_at}', to_jsonb(NOW())) 
+                             WHERE id = $1`,
+                            [row.id]
+                        );
+
+                        processedCount++;
+                    }
+                } catch (err) {
+                    logger.warn('deferred_feedback_processing_failed', { eventId: row.id, error: err.message });
+                }
+            }
+
+            if (processedCount > 0) {
+                logger.info('deferred_feedback_processed', { count: processedCount });
+            }
+        } catch (err) {
+            logger.error('process_deferred_feedback_error', { error: err.message });
+        } finally {
+            client.release();
+        }
+
+        return processedCount;
+    }
 }
 
 module.exports = new FeedbackService();

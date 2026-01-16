@@ -45,36 +45,41 @@ const config = {
  * @param {string} eventType - The expected event type (e.g. 'correction', 'thumbs_up').
  * @param {number} timeoutMs - Max time to wait in ms (default 5000).
  * @param {number} intervalMs - Poll interval in ms (default 500).
- * @returns {Promise<Object|null>} - The found record or null if timed out.
+ * @returns {Promise<Object>} - The found record or throws an error on timeout.
  */
 async function pollForFeedbackEvent(docId, eventType, timeoutMs = 5000, intervalMs = 500) {
+    // Backwards-compatible wrapper that throws on timeout (was returning null previously)
+    const sql = `SELECT * FROM feedback_events WHERE doc_id = $1 AND event_type = $2 ORDER BY created_at DESC LIMIT 1`;
+    const row = await pollForRow({ sql, params: [parseInt(docId, 10), eventType], timeoutMs, intervalMs });
+    return row;
+}
+
+/**
+ * Polls PostgreSQL for a single row matching a custom query condition.
+ * @param {Object} opts
+ * @param {string} opts.sql - SQL query that returns rows (use parameter placeholders $1..$n).
+ * @param {Array} opts.params - Parameters for the query.
+ * @param {number} opts.timeoutMs - Max time to wait (default 5000).
+ * @param {number} opts.intervalMs - Poll interval in ms (default 500).
+ * @returns {Promise<Object>} - The first matching row.
+ * @throws {Error} - If no row is found within timeout or on DB error.
+ */
+async function pollForRow({ sql, params = [], timeoutMs = 5000, intervalMs = 500 }) {
     const pool = new Pool(config);
     const start = Date.now();
-    const docIdInt = parseInt(docId, 10);
 
     try {
         while (Date.now() - start < timeoutMs) {
-            const res = await pool.query(
-                `SELECT * FROM feedback_events 
-                 WHERE doc_id = $1 AND event_type = $2 
-                 ORDER BY created_at DESC 
-                 LIMIT 1`,
-                [docIdInt, eventType]
-            );
-
-            if (res.rows.length > 0) {
-                return res.rows[0];
-            }
-
+            const res = await pool.query(sql, params);
+            if (res.rows.length > 0) return res.rows[0];
             await new Promise(resolve => setTimeout(resolve, intervalMs));
         }
+        throw new Error(`Timed out after ${timeoutMs}ms waiting for DB row for query: ${sql} params=${JSON.stringify(params)}`);
     } catch (err) {
-        console.error('Error polling feedback_events:', err);
+        throw err;
     } finally {
         await pool.end();
     }
-
-    return null;
 }
 
 /**
@@ -95,5 +100,6 @@ async function queryDb(sql, params = []) {
 
 module.exports = {
     pollForFeedbackEvent,
+    pollForRow,
     queryDb
 };

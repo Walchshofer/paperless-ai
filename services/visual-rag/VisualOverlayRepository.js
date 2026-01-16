@@ -28,8 +28,7 @@ const path = require('path');
 // Import Qdrant adapter for vector operations
 let qdrantAdapter = null;
 try {
-    const QdrantModule = require('./QdrantAdapter');
-    qdrantAdapter = QdrantModule.qdrantAdapter;
+    ({ qdrantAdapter } = require('./QdrantAdapter'));
 } catch (e) {
     logger.warn({
         event: 'qdrant_adapter_not_available',

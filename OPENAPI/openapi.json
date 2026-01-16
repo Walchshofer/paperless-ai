@@ -678,15 +678,15 @@
     },
     "/health/database": {
       "get": {
-        "summary": "Database and pg_vector extension health check",
-        "description": "Detailed health check for PostgreSQL database connection and pg_vector extension.\nReturns connection status, pg_vector availability, and schema readiness.\n",
+        "summary": "Database and Qdrant health check",
+        "description": "Detailed health check for PostgreSQL connection and Qdrant availability.\nReturns connection status, Qdrant availability, and schema readiness.\n",
         "tags": [
           "System",
           "Database"
         ],
         "responses": {
           "200": {
-            "description": "Database is healthy and pg_vector is available",
+            "description": "Database is healthy and Qdrant is available",
             "content": {
               "application/json": {
                 "schema": {
@@ -713,7 +713,7 @@
                         }
                       }
                     },
-                    "pgvector": {
+                    "qdrant": {
                       "type": "object",
                       "properties": {
                         "available": {
@@ -738,7 +738,7 @@
             }
           },
           "503": {
-            "description": "Database connection failed or pg_vector not available"
+            "description": "Database connection failed or Qdrant not available"
           }
         }
       }

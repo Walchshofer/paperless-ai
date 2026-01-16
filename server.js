@@ -14,7 +14,7 @@ const PatternDetectionEngine = require('./services/PatternDetectionEngine');
 const { metricsCollector } = require('./services/metrics/PrometheusMetrics');
 
 // Add environment variables for RAG service if not already set
-process.env.RAG_SERVICE_URL = process.env.RAG_SERVICE_URL || 'http://localhost:8000';
+process.env.RAG_SERVICE_URL = process.env.RAG_SERVICE_URL || 'http://webserver:8000';
 process.env.RAG_SERVICE_ENABLED = process.env.RAG_SERVICE_ENABLED || 'true';
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -806,6 +806,7 @@ app.get('/health/database', async (req, res) => {
   try {
     const cfg = require('./config/config');
     const { visualOverlayRepository } = require('./services/visual-rag/VisualOverlayRepository');
+    const { qdrantAdapter } = require('./services/visual-rag/QdrantAdapter');
 
     // Test basic connectivity
     const isConnected = await visualOverlayRepository.isAvailable(false);
@@ -833,8 +834,17 @@ app.get('/health/database', async (req, res) => {
     // Check schema readiness
     const schemaReady = await visualOverlayRepository.ensureEnhancedSchema();
 
+    // Check Qdrant
+    let qdrantCheck = { available: false, version: 'unknown' };
+    try {
+      await qdrantAdapter.getCollections();
+      qdrantCheck = { available: true, version: 'connected' };
+    } catch (e) {
+      qdrantCheck = { available: false, error: e.message };
+    }
+
     const response = {
-      status: pgvectorCheck.available && schemaReady ? 'healthy' : 'degraded',
+      status: pgvectorCheck.available && schemaReady && qdrantCheck.available ? 'healthy' : 'degraded',
       database: {
         connected: true,
         host: cfg.postgres.host,
@@ -846,6 +856,7 @@ app.get('/health/database', async (req, res) => {
         version: pgvectorCheck.version,
         error: pgvectorCheck.error
       },
+      qdrant: qdrantCheck,
       schema: {
         ready: schemaReady
       }
@@ -857,6 +868,9 @@ app.get('/health/database', async (req, res) => {
         'Check PostgreSQL logs: docker logs paperless_db',
         'Run migration: docker exec paperless_ai node migrations/run-migration.js'
       ];
+      if (!qdrantCheck.available) {
+        response.troubleshooting.push('Verify Qdrant container is running: docker ps | grep qdrant');
+      }
       return res.status(503).json(response);
     }
 
@@ -937,6 +951,18 @@ async function startScanning() {
         await scanDocuments();
       });
     }
+
+    // Background job for deferred feedback recovery
+    const feedbackRecoveryInterval = process.env.FEEDBACK_RECOVERY_INTERVAL || '*/5 * * * *';
+    console.log(`Starting feedback recovery job with interval: ${feedbackRecoveryInterval}`);
+    cron.schedule(feedbackRecoveryInterval, async () => {
+      try {
+        const feedbackService = require('./services/feedback/FeedbackService');
+        await feedbackService.processDeferredFeedback();
+      } catch (error) {
+        console.error('[ERROR] Feedback recovery job failed:', error);
+      }
+    });
   } catch (error) {
     console.error('[ERROR] in startScanning:', error);
   }
@@ -1006,6 +1032,7 @@ async function validateDatabaseConnection() {
   });
 
   const { visualOverlayRepository } = require('./services/visual-rag/VisualOverlayRepository');
+  const { qdrantAdapter } = require('./services/visual-rag/QdrantAdapter');
   
   try {
     // Test basic connectivity
@@ -1014,6 +1041,17 @@ async function validateDatabaseConnection() {
       throw new Error('Database connection test failed');
     }
     console.log('[STARTUP] ✓ Database connection successful');
+
+    // Check Qdrant connection
+    console.log('[STARTUP] Checking Qdrant connection...');
+    try {
+      await qdrantAdapter.getCollections();
+      console.log('[STARTUP] ✓ Qdrant connection successful');
+    } catch (error) {
+      console.warn('[STARTUP] ⚠ Qdrant connection failed (Visual RAG will be disabled):', error.message);
+      console.warn('[STARTUP] To enable Visual RAG, ensure Qdrant is running.');
+      // Degrade gracefully - do not throw
+    }
 
     // Check pg_vector extension
     console.log('[STARTUP] Checking pg_vector extension...');

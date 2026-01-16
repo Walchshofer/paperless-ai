@@ -54,7 +54,7 @@ services:
       - QDRANT__STORAGE__MMAP_THRESHOLD=1048576
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:6333/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:6333/readyz || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -155,13 +155,7 @@ services:
       - ../paperless-ngx/data/visual_indices:/data/indices
       # Read-Only access to your PDFs (Must match webserver volume)
       - ../paperless-ngx/media:/media/paperless:ro
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    gpus: all
 
   # 8. BIAS ENGINE (Logit Bias Computation for Constrained Generation)
   bias-engine:

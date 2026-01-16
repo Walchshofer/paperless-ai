@@ -1,0 +1,1966 @@
+{
+  "config": {
+    "configFile": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\playwright.config.ts",
+    "rootDir": "C:/Users/pwalc/MyApps/paperless-ai/test/e2e",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 7
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "html",
+        {
+          "open": "never",
+          "outputFolder": "../test-results/playwright-report"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "../test-results/e2e-results.json"
+        }
+      ],
+      [
+        "list",
+        null
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "C:/Users/pwalc/MyApps/paperless-ai/test-results/e2e-artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 7
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "C:/Users/pwalc/MyApps/paperless-ai/test/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.spec.ts"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.57.0",
+    "workers": 16,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "feedback.flow.spec.ts",
+      "file": "feedback.flow.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Feedback Flow E2E",
+          "file": "feedback.flow.spec.ts",
+          "line": 5,
+          "column": 6,
+          "specs": [
+            {
+              "title": "feedback events persist to Postgres with correct fields and request id tracking",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 519,
+                      "error": {
+                        "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/manual/updateDocument\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - X-Request-Id: e2e-1768591976019\u001b[22m\n\u001b[2m    - content-type: application/json\u001b[22m\n\u001b[2m    - content-length: 267\u001b[22m\n",
+                        "stack": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/manual/updateDocument\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - X-Request-Id: e2e-1768591976019\u001b[22m\n\u001b[2m    - content-type: application/json\u001b[22m\n\u001b[2m    - content-length: 267\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\feedback.flow.spec.ts:26:37",
+                        "location": {
+                          "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                          "column": 3000,
+                          "line": 1
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                            "column": 3000,
+                            "line": 1
+                          },
+                          "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/manual/updateDocument\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - X-Request-Id: e2e-1768591976019\u001b[22m\n\u001b[2m    - content-type: application/json\u001b[22m\n\u001b[2m    - content-length: 267\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\feedback.flow.spec.ts:26:37"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:32:55.416Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test-results\\e2e-artifacts\\feedback.flow-Feedback-Flo-d4939-lds-and-request-id-tracking-chromium\\test-failed-1.png"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                        "column": 3000,
+                        "line": 1
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "3347833f537ffefbb08f-05ae15740c187a6396d0",
+              "file": "feedback.flow.spec.ts",
+              "line": 6,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "manual_save_payload.spec.ts",
+      "file": "manual_save_payload.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Manual - ManualEditor island",
+          "file": "manual_save_payload.spec.ts",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "manual editor island mounts and has a save button",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Manual page not available at http://localhost:3000/manual - skipping E2E skeleton",
+                      "location": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_save_payload.spec.ts",
+                        "line": 10,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "skipped",
+                      "duration": 2574,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:32:55.395Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "Manual page not available at http://localhost:3000/manual - skipping E2E skeleton",
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_save_payload.spec.ts",
+                            "line": 10,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "fa7bfca56372c509b0ac-b4c169a0de212b6e7cca",
+              "file": "manual_save_payload.spec.ts",
+              "line": 4,
+              "column": 7
+            },
+            {
+              "title": "manual editor island supports keyboard navigation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Manual page not available at http://localhost:3000/manual",
+                      "location": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_save_payload.spec.ts",
+                        "line": 144,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "skipped",
+                      "duration": 2480,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:32:58.477Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "Manual page not available at http://localhost:3000/manual",
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_save_payload.spec.ts",
+                            "line": 144,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "fa7bfca56372c509b0ac-993861a0f70f8fe620dd",
+              "file": "manual_save_payload.spec.ts",
+              "line": 138,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "manual_user_flow.spec.ts",
+      "file": "manual_user_flow.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Manual Route UI - Complete User Flow",
+          "file": "manual_user_flow.spec.ts",
+          "line": 18,
+          "column": 6,
+          "specs": [
+            {
+              "title": "complete user flow: annotation, feedback, save",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "failed",
+                      "duration": 12492,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mpage\u001b[39m\u001b[2m).\u001b[22mtoHaveURL\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nExpected pattern: \u001b[32m/\\/manual/\u001b[39m\nReceived string:  \u001b[31m\"chrome-error://chromewebdata/\"\u001b[39m\nTimeout: 10000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveURL\" with timeout 10000ms\u001b[22m\n\u001b[2m    13 × unexpected value \"chrome-error://chromewebdata/\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mpage\u001b[39m\u001b[2m).\u001b[22mtoHaveURL\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nExpected pattern: \u001b[32m/\\/manual/\u001b[39m\nReceived string:  \u001b[31m\"chrome-error://chromewebdata/\"\u001b[39m\nTimeout: 10000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveURL\" with timeout 10000ms\u001b[22m\n\u001b[2m    13 × unexpected value \"chrome-error://chromewebdata/\"\u001b[22m\n\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts:41:24",
+                        "location": {
+                          "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                          "column": 24,
+                          "line": 41
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 39 |\u001b[39m   test(\u001b[32m'complete user flow: annotation, feedback, save'\u001b[39m\u001b[33m,\u001b[39m \u001b[36masync\u001b[39m ({ page }) \u001b[33m=>\u001b[39m {\n \u001b[90m 40 |\u001b[39m     \u001b[90m// 1. Verify Manual page loaded\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 41 |\u001b[39m     \u001b[36mawait\u001b[39m expect(page)\u001b[33m.\u001b[39mtoHaveURL(\u001b[35m/\\/manual/\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                        \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 42 |\u001b[39m\n \u001b[90m 43 |\u001b[39m     \u001b[90m// 2. Check for Visual Annotation Island\u001b[39m\n \u001b[90m 44 |\u001b[39m     \u001b[36mconst\u001b[39m vaiRoot \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'[data-testid=\"visual-annotation-island-root\"]'\u001b[39m)\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                            "column": 24,
+                            "line": 41
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mpage\u001b[39m\u001b[2m).\u001b[22mtoHaveURL\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nExpected pattern: \u001b[32m/\\/manual/\u001b[39m\nReceived string:  \u001b[31m\"chrome-error://chromewebdata/\"\u001b[39m\nTimeout: 10000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveURL\" with timeout 10000ms\u001b[22m\n\u001b[2m    13 × unexpected value \"chrome-error://chromewebdata/\"\u001b[22m\n\n\n  39 |   test('complete user flow: annotation, feedback, save', async ({ page }) => {\n  40 |     // 1. Verify Manual page loaded\n> 41 |     await expect(page).toHaveURL(/\\/manual/);\n     |                        ^\n  42 |\n  43 |     // 2. Check for Visual Annotation Island\n  44 |     const vaiRoot = page.locator('[data-testid=\"visual-annotation-island-root\"]');\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts:41:24"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:32:55.423Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test-results\\e2e-artifacts\\manual_user_flow-Manual-Ro-15eae-ow-annotation-feedback-save-chromium\\test-failed-1.png"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                        "column": 24,
+                        "line": 41
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "915e0e292b16d0d941c1-525f46d34f09fbbcf100",
+              "file": "manual_user_flow.spec.ts",
+              "line": 39,
+              "column": 7
+            },
+            {
+              "title": "GPU preparing modal blocks interaction",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "GPU modal not showing - GPU either ready or unavailable",
+                      "location": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                        "line": 144,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 16,
+                      "parallelIndex": 1,
+                      "status": "skipped",
+                      "duration": 2462,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:33:09.220Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "GPU modal not showing - GPU either ready or unavailable",
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                            "line": 144,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "915e0e292b16d0d941c1-06fbbacea14c67b37201",
+              "file": "manual_user_flow.spec.ts",
+              "line": 139,
+              "column": 7
+            },
+            {
+              "title": "error modal allows retry",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "No GPU error modal - sidecar is available",
+                      "location": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                        "line": 172,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 16,
+                      "parallelIndex": 1,
+                      "status": "skipped",
+                      "duration": 5419,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:33:11.790Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "No GPU error modal - sidecar is available",
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                            "line": 172,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "915e0e292b16d0d941c1-6c6c491abe1310567769",
+              "file": "manual_user_flow.spec.ts",
+              "line": 164,
+              "column": 7
+            },
+            {
+              "title": "manual editor tabs are accessible",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Manual Editor Island not present",
+                      "location": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                        "line": 194,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 16,
+                      "parallelIndex": 1,
+                      "status": "skipped",
+                      "duration": 2432,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:33:17.222Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "Manual Editor Island not present",
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                            "line": 194,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "915e0e292b16d0d941c1-872735205569c38611e4",
+              "file": "manual_user_flow.spec.ts",
+              "line": 191,
+              "column": 7
+            },
+            {
+              "title": "fields panel supports add/remove",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Manual Editor Island not present",
+                      "location": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                        "line": 222,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 16,
+                      "parallelIndex": 1,
+                      "status": "skipped",
+                      "duration": 2439,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:33:19.669Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "Manual Editor Island not present",
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                            "line": 222,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "915e0e292b16d0d941c1-b74d8e46f53ac5560097",
+              "file": "manual_user_flow.spec.ts",
+              "line": 219,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "Cross-Island Event Communication",
+          "file": "manual_user_flow.spec.ts",
+          "line": 254,
+          "column": 6,
+          "specs": [
+            {
+              "title": "feedback:confirmed event is dispatched",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Feedback controls not present",
+                      "location": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                        "line": 283,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 16,
+                      "parallelIndex": 1,
+                      "status": "failed",
+                      "duration": 2389,
+                      "error": {
+                        "message": "Error: page.evaluate: Execution context was destroyed, most likely because of a navigation",
+                        "stack": "Error: page.evaluate: Execution context was destroyed, most likely because of a navigation\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts:261:31",
+                        "location": {
+                          "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                          "column": 31,
+                          "line": 261
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 259 |\u001b[39m   test(\u001b[32m'feedback:confirmed event is dispatched'\u001b[39m\u001b[33m,\u001b[39m \u001b[36masync\u001b[39m ({ page }) \u001b[33m=>\u001b[39m {\n \u001b[90m 260 |\u001b[39m     \u001b[90m// Set up event listener before triggering\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 261 |\u001b[39m     \u001b[36mconst\u001b[39m eventPromise \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mevaluate(() \u001b[33m=>\u001b[39m {\n \u001b[90m     |\u001b[39m                               \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 262 |\u001b[39m       \u001b[36mreturn\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mPromise\u001b[39m((resolve) \u001b[33m=>\u001b[39m {\n \u001b[90m 263 |\u001b[39m         document\u001b[33m.\u001b[39maddEventListener(\u001b[32m'feedback:confirmed'\u001b[39m\u001b[33m,\u001b[39m (e\u001b[33m:\u001b[39m any) \u001b[33m=>\u001b[39m {\n \u001b[90m 264 |\u001b[39m           resolve(e\u001b[33m.\u001b[39mdetail)\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                            "column": 31,
+                            "line": 261
+                          },
+                          "message": "Error: page.evaluate: Execution context was destroyed, most likely because of a navigation\n\n  259 |   test('feedback:confirmed event is dispatched', async ({ page }) => {\n  260 |     // Set up event listener before triggering\n> 261 |     const eventPromise = page.evaluate(() => {\n      |                               ^\n  262 |       return new Promise((resolve) => {\n  263 |         document.addEventListener('feedback:confirmed', (e: any) => {\n  264 |           resolve(e.detail);\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts:261:31"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:33:22.118Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "Feedback controls not present",
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                            "line": 283,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "attachments": [],
+                      "errorLocation": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                        "column": 31,
+                        "line": 261
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "915e0e292b16d0d941c1-8b10860b1bba4f2a9718",
+              "file": "manual_user_flow.spec.ts",
+              "line": 259,
+              "column": 7
+            },
+            {
+              "title": "payload:ready event is dispatched on save",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Manual Editor Island not present",
+                      "location": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                        "line": 290,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 19,
+                      "parallelIndex": 0,
+                      "status": "skipped",
+                      "duration": 2453,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:33:25.334Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "Manual Editor Island not present",
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_user_flow.spec.ts",
+                            "line": 290,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "915e0e292b16d0d941c1-caefd4ef7cf63fc73b9c",
+              "file": "manual_user_flow.spec.ts",
+              "line": 287,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "manual_visual_annotation.spec.ts",
+      "file": "manual_visual_annotation.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Manual - Visual Annotation island",
+          "file": "manual_visual_annotation.spec.ts",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "mounts visual annotation island and shows draw controls",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Manual page not available at http://localhost:3000/manual - skipping E2E skeleton",
+                      "location": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_visual_annotation.spec.ts",
+                        "line": 58,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "skipped",
+                      "duration": 2569,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "DEBUG: initial response no response \n"
+                        },
+                        {
+                          "text": "DEBUG: loginFormPresent= \u001b[1mnull\u001b[22m\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:32:55.390Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "Manual page not available at http://localhost:3000/manual - skipping E2E skeleton",
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\manual_visual_annotation.spec.ts",
+                            "line": 58,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "98e0a4da54d35417ecac-b8f3e4263925572fc7ed",
+              "file": "manual_visual_annotation.spec.ts",
+              "line": 5,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "postgres_persistence_audit.spec.ts",
+      "file": "postgres_persistence_audit.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "PostgreSQL Persistence Audit",
+          "file": "postgres_persistence_audit.spec.ts",
+          "line": 14,
+          "column": 6,
+          "specs": [
+            {
+              "title": "feedback event persists with all required fields",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 4,
+                      "status": "failed",
+                      "duration": 537,
+                      "error": {
+                        "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/manual/updateDocument\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - X-Request-Id: e2e-pg-audit-1768591975442\u001b[22m\n\u001b[2m    - content-length: 339\u001b[22m\n",
+                        "stack": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/manual/updateDocument\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - X-Request-Id: e2e-pg-audit-1768591975442\u001b[22m\n\u001b[2m    - content-length: 339\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\postgres_persistence_audit.spec.ts:47:37",
+                        "location": {
+                          "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                          "column": 3000,
+                          "line": 1
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                            "column": 3000,
+                            "line": 1
+                          },
+                          "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/manual/updateDocument\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - X-Request-Id: e2e-pg-audit-1768591975442\u001b[22m\n\u001b[2m    - content-length: 339\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\postgres_persistence_audit.spec.ts:47:37"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:32:55.448Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test-results\\e2e-artifacts\\postgres_persistence_audit-d8113-ts-with-all-required-fields-chromium\\test-failed-1.png"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                        "column": 3000,
+                        "line": 1
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "c2866dcc4f970677b570-e4f6df2909039244afe5",
+              "file": "postgres_persistence_audit.spec.ts",
+              "line": 32,
+              "column": 7
+            },
+            {
+              "title": "multiple feedback events persist atomically",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 4,
+                      "status": "failed",
+                      "duration": 436,
+                      "error": {
+                        "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/feedback\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - X-Request-Id: e2e-batch-1768591977536\u001b[22m\n\u001b[2m    - content-length: 369\u001b[22m\n",
+                        "stack": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/feedback\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - X-Request-Id: e2e-batch-1768591977536\u001b[22m\n\u001b[2m    - content-length: 369\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\postgres_persistence_audit.spec.ts:127:37",
+                        "location": {
+                          "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                          "column": 3000,
+                          "line": 1
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                            "column": 3000,
+                            "line": 1
+                          },
+                          "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/feedback\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - X-Request-Id: e2e-batch-1768591977536\u001b[22m\n\u001b[2m    - content-length: 369\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\postgres_persistence_audit.spec.ts:127:37"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:32:57.394Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test-results\\e2e-artifacts\\postgres_persistence_audit-21740-k-events-persist-atomically-chromium\\test-failed-1.png"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                        "column": 3000,
+                        "line": 1
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "c2866dcc4f970677b570-66a7f203b82592526931",
+              "file": "postgres_persistence_audit.spec.ts",
+              "line": 106,
+              "column": 7
+            },
+            {
+              "title": "JSONB fields support complex nested structures",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 10,
+                      "parallelIndex": 4,
+                      "status": "failed",
+                      "duration": 446,
+                      "error": {
+                        "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/feedback\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - X-Request-Id: e2e-complex-1768591978951\u001b[22m\n\u001b[2m    - content-length: 299\u001b[22m\n",
+                        "stack": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/feedback\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - X-Request-Id: e2e-complex-1768591978951\u001b[22m\n\u001b[2m    - content-length: 299\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\postgres_persistence_audit.spec.ts:192:37",
+                        "location": {
+                          "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                          "column": 3000,
+                          "line": 1
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                            "column": 3000,
+                            "line": 1
+                          },
+                          "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/feedback\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - X-Request-Id: e2e-complex-1768591978951\u001b[22m\n\u001b[2m    - content-length: 299\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\postgres_persistence_audit.spec.ts:192:37"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:32:58.797Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test-results\\e2e-artifacts\\postgres_persistence_audit-01f4c-t-complex-nested-structures-chromium\\test-failed-1.png"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                        "column": 3000,
+                        "line": 1
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "c2866dcc4f970677b570-4518379ac6a9a066cda8",
+              "file": "postgres_persistence_audit.spec.ts",
+              "line": 181,
+              "column": 7
+            },
+            {
+              "title": "request_id is tracked through the flow",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 12,
+                      "parallelIndex": 3,
+                      "status": "failed",
+                      "duration": 443,
+                      "error": {
+                        "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/feedback\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - X-Request-Id: e2e-tracking-1768591980405\u001b[22m\n\u001b[2m    - content-length: 101\u001b[22m\n",
+                        "stack": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/feedback\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - X-Request-Id: e2e-tracking-1768591980405\u001b[22m\n\u001b[2m    - content-length: 101\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\postgres_persistence_audit.spec.ts:253:37",
+                        "location": {
+                          "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                          "column": 3000,
+                          "line": 1
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                            "column": 3000,
+                            "line": 1
+                          },
+                          "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/feedback\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - X-Request-Id: e2e-tracking-1768591980405\u001b[22m\n\u001b[2m    - content-length: 101\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\postgres_persistence_audit.spec.ts:253:37"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:33:00.228Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test-results\\e2e-artifacts\\postgres_persistence_audit-02db4-is-tracked-through-the-flow-chromium\\test-failed-1.png"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                        "column": 3000,
+                        "line": 1
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "c2866dcc4f970677b570-b87db8c96695dc4333b9",
+              "file": "postgres_persistence_audit.spec.ts",
+              "line": 249,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "qdrant_payload_mirroring.spec.ts",
+      "file": "qdrant_payload_mirroring.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Qdrant Payload Mirroring Verification",
+          "file": "qdrant_payload_mirroring.spec.ts",
+          "line": 22,
+          "column": 6,
+          "specs": [
+            {
+              "title": "annotation with bbox is mirrored to Qdrant",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Qdrant collection not available",
+                      "location": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\qdrant_payload_mirroring.spec.ts",
+                        "line": 37,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 5,
+                      "status": "skipped",
+                      "duration": 270,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "Qdrant collection 'visual_overlays' not found at http://localhost:6333\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:32:55.474Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "Qdrant collection not available",
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\qdrant_payload_mirroring.spec.ts",
+                            "line": 37,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "82908a5bf3f5b4f2f8c5-9c3964af2b120f9d7a9f",
+              "file": "qdrant_payload_mirroring.spec.ts",
+              "line": 33,
+              "column": 7
+            },
+            {
+              "title": "feedback events trigger payload mirroring",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Qdrant collection not available",
+                      "location": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\qdrant_payload_mirroring.spec.ts",
+                        "line": 136,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 5,
+                      "status": "skipped",
+                      "duration": 86,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:32:56.175Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "Qdrant collection not available",
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\qdrant_payload_mirroring.spec.ts",
+                            "line": 136,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "82908a5bf3f5b4f2f8c5-9b9edcb8ce65dd99560b",
+              "file": "qdrant_payload_mirroring.spec.ts",
+              "line": 133,
+              "column": 7
+            },
+            {
+              "title": "Postgres and Qdrant payloads match",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Qdrant collection not available",
+                      "location": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\qdrant_payload_mirroring.spec.ts",
+                        "line": 201,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 5,
+                      "status": "skipped",
+                      "duration": 89,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:32:56.270Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "Qdrant collection not available",
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\qdrant_payload_mirroring.spec.ts",
+                            "line": 201,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "82908a5bf3f5b4f2f8c5-94ed221fe9f86e1d3fab",
+              "file": "qdrant_payload_mirroring.spec.ts",
+              "line": 198,
+              "column": 7
+            },
+            {
+              "title": "visual overlay bbox is stored correctly",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Qdrant collection not available",
+                      "location": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\qdrant_payload_mirroring.spec.ts",
+                        "line": 291,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 5,
+                      "status": "skipped",
+                      "duration": 108,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:32:56.370Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "Qdrant collection not available",
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\qdrant_payload_mirroring.spec.ts",
+                            "line": 291,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "82908a5bf3f5b4f2f8c5-c753934c5485b2e94a8c",
+              "file": "qdrant_payload_mirroring.spec.ts",
+              "line": 288,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "telemetry_sidecar_verification.spec.ts",
+      "file": "telemetry_sidecar_verification.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Sidecar Handshake Verification",
+          "file": "telemetry_sidecar_verification.spec.ts",
+          "line": 18,
+          "column": 6,
+          "specs": [
+            {
+              "title": "health endpoint returns proper status",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 6,
+                      "status": "failed",
+                      "duration": 551,
+                      "error": {
+                        "message": "Error: apiRequestContext.get: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → GET http://localhost:3000/api/visual-rag/health\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n",
+                        "stack": "Error: apiRequestContext.get: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → GET http://localhost:3000/api/visual-rag/health\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\n    at apiRequestContext.get: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts:20:37",
+                        "location": {
+                          "file": "apiRequestContext.get: connect ECONNREFUSED :",
+                          "column": 3000,
+                          "line": 1
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "apiRequestContext.get: connect ECONNREFUSED :",
+                            "column": 3000,
+                            "line": 1
+                          },
+                          "message": "Error: apiRequestContext.get: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → GET http://localhost:3000/api/visual-rag/health\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\n    at apiRequestContext.get: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts:20:37"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:32:55.446Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test-results\\e2e-artifacts\\telemetry_sidecar_verifica-4c290-point-returns-proper-status-chromium\\test-failed-1.png"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "apiRequestContext.get: connect ECONNREFUSED :",
+                        "column": 3000,
+                        "line": 1
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "d56d6c428b498d3670b3-57cee734513fb95300cd",
+              "file": "telemetry_sidecar_verification.spec.ts",
+              "line": 19,
+              "column": 7
+            },
+            {
+              "title": "503 response includes initialization info",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 427,
+                      "error": {
+                        "message": "Error: apiRequestContext.get: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → GET http://localhost:3000/api/visual-rag/health\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n",
+                        "stack": "Error: apiRequestContext.get: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → GET http://localhost:3000/api/visual-rag/health\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\n    at apiRequestContext.get: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts:41:37",
+                        "location": {
+                          "file": "apiRequestContext.get: connect ECONNREFUSED :",
+                          "column": 3000,
+                          "line": 1
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "apiRequestContext.get: connect ECONNREFUSED :",
+                            "column": 3000,
+                            "line": 1
+                          },
+                          "message": "Error: apiRequestContext.get: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → GET http://localhost:3000/api/visual-rag/health\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\n    at apiRequestContext.get: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts:41:37"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:32:57.332Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test-results\\e2e-artifacts\\telemetry_sidecar_verifica-968d3-ncludes-initialization-info-chromium\\test-failed-1.png"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "apiRequestContext.get: connect ECONNREFUSED :",
+                        "column": 3000,
+                        "line": 1
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "d56d6c428b498d3670b3-609cf2a9eb7066940fed",
+              "file": "telemetry_sidecar_verification.spec.ts",
+              "line": 40,
+              "column": 7
+            },
+            {
+              "title": "circuit breaker opens on repeated failures",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 9,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 434,
+                      "error": {
+                        "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/search/visual\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 47\u001b[22m\n",
+                        "stack": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/search/visual\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 47\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts:63:39",
+                        "location": {
+                          "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                          "column": 3000,
+                          "line": 1
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                            "column": 3000,
+                            "line": 1
+                          },
+                          "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/search/visual\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 47\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts:63:39"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:32:58.737Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test-results\\e2e-artifacts\\telemetry_sidecar_verifica-d0415--opens-on-repeated-failures-chromium\\test-failed-1.png"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                        "column": 3000,
+                        "line": 1
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "d56d6c428b498d3670b3-09e15d8717d06be0ca12",
+              "file": "telemetry_sidecar_verification.spec.ts",
+              "line": 58,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "Telemetry Metrics Verification",
+          "file": "telemetry_sidecar_verification.spec.ts",
+          "line": 85,
+          "column": 6,
+          "specs": [
+            {
+              "title": "visual query metrics are emitted",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 11,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 447,
+                      "error": {
+                        "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/search\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 52\u001b[22m\n",
+                        "stack": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/search\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 52\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts:88:43",
+                        "location": {
+                          "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                          "column": 3000,
+                          "line": 1
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                            "column": 3000,
+                            "line": 1
+                          },
+                          "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/search\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - content-length: 52\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts:88:43"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:33:00.144Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test-results\\e2e-artifacts\\telemetry_sidecar_verifica-7abf5-l-query-metrics-are-emitted-chromium\\test-failed-1.png"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                        "column": 3000,
+                        "line": 1
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "d56d6c428b498d3670b3-3c184eb8db8c3304ec75",
+              "file": "telemetry_sidecar_verification.spec.ts",
+              "line": 86,
+              "column": 7
+            },
+            {
+              "title": "request_id is tracked in metrics",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 13,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 428,
+                      "error": {
+                        "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/search\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - X-Request-Id: metrics-test-1768591981663\u001b[22m\n\u001b[2m    - content-length: 39\u001b[22m\n",
+                        "stack": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/search\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - X-Request-Id: metrics-test-1768591981663\u001b[22m\n\u001b[2m    - content-length: 39\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts:139:24",
+                        "location": {
+                          "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                          "column": 3000,
+                          "line": 1
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                            "column": 3000,
+                            "line": 1
+                          },
+                          "message": "Error: apiRequestContext.post: connect ECONNREFUSED ::1:3000\nCall log:\n\u001b[2m  - → POST http://localhost:3000/api/visual-rag/search\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.4 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\u001b[2m    - Content-Type: application/json\u001b[22m\n\u001b[2m    - X-Request-Id: metrics-test-1768591981663\u001b[22m\n\u001b[2m    - content-length: 39\u001b[22m\n\n    at apiRequestContext.post: connect ECONNREFUSED ::1:3000\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts:139:24"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:33:01.531Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test-results\\e2e-artifacts\\telemetry_sidecar_verifica-1e387-st-id-is-tracked-in-metrics-chromium\\test-failed-1.png"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "apiRequestContext.post: connect ECONNREFUSED :",
+                        "column": 3000,
+                        "line": 1
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "d56d6c428b498d3670b3-35e4a784eae901a0c9b0",
+              "file": "telemetry_sidecar_verification.spec.ts",
+              "line": 135,
+              "column": 7
+            },
+            {
+              "title": "circuit breaker state is observable",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 14,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 126,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "No circuit_breaker metrics found\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:33:02.921Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d56d6c428b498d3670b3-a07a25f79a3383e29c5f",
+              "file": "telemetry_sidecar_verification.spec.ts",
+              "line": 162,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "GPU Warmup Flow Verification",
+          "file": "telemetry_sidecar_verification.spec.ts",
+          "line": 194,
+          "column": 6,
+          "specs": [
+            {
+              "title": "UI shows GPU preparing state during warmup",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 14,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 2448,
+                      "error": {
+                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/manual\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3000/manual\", waiting until \"domcontentloaded\"\u001b[22m\n",
+                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/manual\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3000/manual\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts:196:16",
+                        "location": {
+                          "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts",
+                          "column": 16,
+                          "line": 196
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 194 |\u001b[39m test\u001b[33m.\u001b[39mdescribe(\u001b[32m'GPU Warmup Flow Verification'\u001b[39m\u001b[33m,\u001b[39m () \u001b[33m=>\u001b[39m {\n \u001b[90m 195 |\u001b[39m   test(\u001b[32m'UI shows GPU preparing state during warmup'\u001b[39m\u001b[33m,\u001b[39m \u001b[36masync\u001b[39m ({ page }) \u001b[33m=>\u001b[39m {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 196 |\u001b[39m     \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mgoto(\u001b[32m`${BASE_URL}/manual`\u001b[39m\u001b[33m,\u001b[39m { waitUntil\u001b[33m:\u001b[39m \u001b[32m'domcontentloaded'\u001b[39m\u001b[33m,\u001b[39m timeout\u001b[33m:\u001b[39m \u001b[35m10000\u001b[39m })\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 197 |\u001b[39m\n \u001b[90m 198 |\u001b[39m     \u001b[90m// Check for GPU preparing modal\u001b[39m\n \u001b[90m 199 |\u001b[39m     \u001b[36mconst\u001b[39m gpuModal \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'[data-testid=\"gpu-preparing-modal\"]'\u001b[39m)\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts",
+                            "column": 16,
+                            "line": 196
+                          },
+                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/manual\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3000/manual\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  194 | test.describe('GPU Warmup Flow Verification', () => {\n  195 |   test('UI shows GPU preparing state during warmup', async ({ page }) => {\n> 196 |     await page.goto(`${BASE_URL}/manual`, { waitUntil: 'domcontentloaded', timeout: 10000 });\n      |                ^\n  197 |\n  198 |     // Check for GPU preparing modal\n  199 |     const gpuModal = page.locator('[data-testid=\"gpu-preparing-modal\"]');\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts:196:16"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:33:03.129Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test-results\\e2e-artifacts\\telemetry_sidecar_verifica-f6685-eparing-state-during-warmup-chromium\\test-failed-1.png"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts",
+                        "column": 16,
+                        "line": 196
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "d56d6c428b498d3670b3-ae5a3205ef3bddb0f970",
+              "file": "telemetry_sidecar_verification.spec.ts",
+              "line": 195,
+              "column": 7
+            },
+            {
+              "title": "exponential backoff increases retry delay",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 15,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 2466,
+                      "error": {
+                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/manual\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3000/manual\", waiting until \"domcontentloaded\"\u001b[22m\n",
+                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/manual\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3000/manual\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts:237:16",
+                        "location": {
+                          "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts",
+                          "column": 16,
+                          "line": 237
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 235 |\u001b[39m   test(\u001b[32m'exponential backoff increases retry delay'\u001b[39m\u001b[33m,\u001b[39m \u001b[36masync\u001b[39m ({ page }) \u001b[33m=>\u001b[39m {\n \u001b[90m 236 |\u001b[39m     \u001b[90m// Navigate and observe retry timing\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 237 |\u001b[39m     \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mgoto(\u001b[32m`${BASE_URL}/manual`\u001b[39m\u001b[33m,\u001b[39m { waitUntil\u001b[33m:\u001b[39m \u001b[32m'domcontentloaded'\u001b[39m\u001b[33m,\u001b[39m timeout\u001b[33m:\u001b[39m \u001b[35m5000\u001b[39m })\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 238 |\u001b[39m\n \u001b[90m 239 |\u001b[39m     \u001b[90m// If GPU modal is visible, wait and observe retries\u001b[39m\n \u001b[90m 240 |\u001b[39m     \u001b[36mconst\u001b[39m gpuModal \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'[data-testid=\"gpu-preparing-modal\"]'\u001b[39m)\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts",
+                            "column": 16,
+                            "line": 237
+                          },
+                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/manual\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3000/manual\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  235 |   test('exponential backoff increases retry delay', async ({ page }) => {\n  236 |     // Navigate and observe retry timing\n> 237 |     await page.goto(`${BASE_URL}/manual`, { waitUntil: 'domcontentloaded', timeout: 5000 });\n      |                ^\n  238 |\n  239 |     // If GPU modal is visible, wait and observe retries\n  240 |     const gpuModal = page.locator('[data-testid=\"gpu-preparing-modal\"]');\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts:237:16"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:33:06.460Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test-results\\e2e-artifacts\\telemetry_sidecar_verifica-eee57-ckoff-increases-retry-delay-chromium\\test-failed-1.png"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts",
+                        "column": 16,
+                        "line": 237
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "d56d6c428b498d3670b3-fb276ad63f9d89ed6d42",
+              "file": "telemetry_sidecar_verification.spec.ts",
+              "line": 235,
+              "column": 7
+            },
+            {
+              "title": "error state shows retry button",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 17,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 2474,
+                      "error": {
+                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/manual\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3000/manual\", waiting until \"domcontentloaded\"\u001b[22m\n",
+                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/manual\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3000/manual\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts:278:16",
+                        "location": {
+                          "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts",
+                          "column": 16,
+                          "line": 278
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 276 |\u001b[39m\n \u001b[90m 277 |\u001b[39m   test(\u001b[32m'error state shows retry button'\u001b[39m\u001b[33m,\u001b[39m \u001b[36masync\u001b[39m ({ page }) \u001b[33m=>\u001b[39m {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 278 |\u001b[39m     \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mgoto(\u001b[32m`${BASE_URL}/manual`\u001b[39m\u001b[33m,\u001b[39m { waitUntil\u001b[33m:\u001b[39m \u001b[32m'domcontentloaded'\u001b[39m\u001b[33m,\u001b[39m timeout\u001b[33m:\u001b[39m \u001b[35m10000\u001b[39m })\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 279 |\u001b[39m\n \u001b[90m 280 |\u001b[39m     \u001b[90m// Wait for potential error state (longer timeout for retries to exhaust)\u001b[39m\n \u001b[90m 281 |\u001b[39m     \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m5000\u001b[39m)\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts",
+                            "column": 16,
+                            "line": 278
+                          },
+                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/manual\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3000/manual\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  276 |\n  277 |   test('error state shows retry button', async ({ page }) => {\n> 278 |     await page.goto(`${BASE_URL}/manual`, { waitUntil: 'domcontentloaded', timeout: 10000 });\n      |                ^\n  279 |\n  280 |     // Wait for potential error state (longer timeout for retries to exhaust)\n  281 |     await page.waitForTimeout(5000);\n    at C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts:278:16"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:33:09.900Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test-results\\e2e-artifacts\\telemetry_sidecar_verifica-13666-or-state-shows-retry-button-chromium\\test-failed-1.png"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "C:\\Users\\pwalc\\MyApps\\paperless-ai\\test\\e2e\\telemetry_sidecar_verification.spec.ts",
+                        "column": 16,
+                        "line": 278
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "d56d6c428b498d3670b3-ebc3edc74740c50f0355",
+              "file": "telemetry_sidecar_verification.spec.ts",
+              "line": 277,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "Direct Sidecar Communication",
+          "file": "telemetry_sidecar_verification.spec.ts",
+          "line": 311,
+          "column": 6,
+          "specs": [
+            {
+              "title": "sidecar health endpoint accessible",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 18,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 329,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "Direct sidecar not accessible - may be internal only\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:33:13.277Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d56d6c428b498d3670b3-5e88e8304019ba934b58",
+              "file": "telemetry_sidecar_verification.spec.ts",
+              "line": 312,
+              "column": 7
+            },
+            {
+              "title": "sidecar returns 503 during model loading",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 18,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 310,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "Sidecar not accessible\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-16T19:33:13.623Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d56d6c428b498d3670b3-b2c304c35fc13b2884c5",
+              "file": "telemetry_sidecar_verification.spec.ts",
+              "line": 331,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-01-16T19:32:54.435Z",
+    "duration": 33482.426,
+    "expected": 3,
+    "skipped": 12,
+    "unexpected": 15,
+    "flaky": 0
+  }
+}

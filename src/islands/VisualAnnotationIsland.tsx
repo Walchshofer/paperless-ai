@@ -1,5 +1,5 @@
 import { h } from 'preact';
-import { useEffect, useState, useRef } from 'preact/hooks';
+import { useEffect, useState, useRef, useCallback } from 'preact/hooks';
 import type { VisualAnnotationContract } from '../ui/contracts/VisualAnnotation.contract';
 
 type Annotation = {
@@ -10,54 +10,106 @@ type Annotation = {
   width: number;
   height: number;
   confirmed?: boolean;
+  context?: {
+    correspondentId?: number | null;
+    tagIds?: number[];
+    page?: number;
+    metadata?: Record<string, any>;
+  };
 };
 
 type GpuState = 'idle' | 'checking' | 'preparing' | 'ready' | 'error';
+
+// Exponential backoff config
+const INITIAL_BACKOFF_MS = 100;
+const MAX_BACKOFF_MS = 5000;
+const HANDSHAKE_TIMEOUT_MS = 5000;
+const MAX_RETRIES = 10;
 
 export default function VisualAnnotationIsland(props: Partial<VisualAnnotationContract>) {
   const [status, setStatus] = useState('idle' as GpuState);
   const [annotations, setAnnotations] = useState([] as Annotation[]);
   const [isDrawing, setIsDrawing] = useState(false);
   const [liveRect, setLiveRect] = useState(null as {x: number, y: number, w: number, h: number} | null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const canvasRef = useRef(null as HTMLDivElement | null);
   const startRef = useRef(null as {x: number, y: number} | null);
+  const mountedRef = useRef(true);
 
-  // 1. Handshake & 503 Handling
+  // Calculate exponential backoff delay
+  const getBackoffDelay = useCallback((attempt: number) => {
+    const delay = INITIAL_BACKOFF_MS * Math.pow(2, attempt);
+    return Math.min(delay, MAX_BACKOFF_MS);
+  }, []);
+
+  // 1. Handshake & 503 Handling with exponential backoff
   useEffect(() => {
-    let mounted = true;
+    mountedRef.current = true;
+    let retryAttempt = 0;
+
     const checkSidecar = async () => {
+      if (!mountedRef.current) return;
+
       setStatus('checking');
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s Timeout
+      const timeoutId = setTimeout(() => controller.abort(), HANDSHAKE_TIMEOUT_MS);
 
       try {
-        // Mock endpoint based on architecture - in real app this hits the sidecar proxy
-        const res = await fetch('/api/visual-rag/health', { signal: controller.signal });
+        const res = await fetch('/api/visual-rag/health', {
+          signal: controller.signal,
+          headers: { 'X-Request-Id': `handshake-${Date.now()}` }
+        });
         clearTimeout(timeoutId);
 
-        if (!mounted) return;
+        if (!mountedRef.current) return;
 
         if (res.status === 503) {
+          // Sidecar initializing - show preparing state
           setStatus('preparing');
-          // Poll again after delay
-          setTimeout(() => mounted && checkSidecar(), 2000);
+          retryAttempt++;
+          setRetryCount(retryAttempt);
+
+          if (retryAttempt < MAX_RETRIES) {
+            const delay = getBackoffDelay(retryAttempt);
+            setTimeout(() => mountedRef.current && checkSidecar(), delay);
+          } else {
+            setStatus('error');
+            setErrorMessage('GPU warmup timed out after maximum retries');
+          }
           return;
         }
 
         if (res.ok) {
           setStatus('ready');
+          setRetryCount(0);
+          setErrorMessage('');
         } else {
           setStatus('error');
+          setErrorMessage(`Sidecar returned status ${res.status}`);
         }
-      } catch (e) {
-        if (mounted) setStatus('error');
+      } catch (e: any) {
+        clearTimeout(timeoutId);
+        if (!mountedRef.current) return;
+
+        retryAttempt++;
+        setRetryCount(retryAttempt);
+
+        if (retryAttempt < MAX_RETRIES) {
+          setStatus('preparing');
+          const delay = getBackoffDelay(retryAttempt);
+          setTimeout(() => mountedRef.current && checkSidecar(), delay);
+        } else {
+          setStatus('error');
+          setErrorMessage(e.name === 'AbortError' ? 'Connection timeout' : e.message);
+        }
       }
     };
 
     checkSidecar();
-    return () => { mounted = false; };
-  }, []);
+    return () => { mountedRef.current = false; };
+  }, [getBackoffDelay]);
 
   // 2. Canvas Interaction Logic
   const getLocalCoords = (evt: MouseEvent) => {
@@ -143,97 +195,408 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
     document.dispatchEvent(new CustomEvent('payload:ready', { detail: payload }));
   };
 
+  // Retry handler for error state
+  const handleRetry = useCallback(() => {
+    setStatus('idle');
+    setRetryCount(0);
+    setErrorMessage('');
+    // Trigger re-check by updating the effect dependency
+    mountedRef.current = true;
+    // Force remount effect
+    window.dispatchEvent(new CustomEvent('vai:retry-handshake'));
+  }, []);
+
   return (
     <div data-testid="visual-annotation-island-root">
+      {/* Full-page blocking modal for GPU Preparing state */}
+      {(status === 'preparing' || status === 'checking') && (
+        <div
+          className="vai-fullpage-modal"
+          data-testid="gpu-preparing-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="gpu-modal-title"
+        >
+          <div className="vai-modal-content">
+            <div className="vai-modal-spinner" />
+            <h2 id="gpu-modal-title" className="vai-modal-title">
+              GPU Preparing (Warmup)
+            </h2>
+            <p className="vai-modal-text">
+              The visual analysis system is initializing...
+            </p>
+            {retryCount > 0 && (
+              <p className="vai-modal-retry" data-testid="retry-count">
+                Retry attempt {retryCount}/{MAX_RETRIES}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Error modal */}
+      {status === 'error' && (
+        <div
+          className="vai-error-modal"
+          data-testid="gpu-error-modal"
+          role="alertdialog"
+          aria-labelledby="error-modal-title"
+        >
+          <div className="vai-modal-content vai-error-content">
+            <div className="vai-error-icon">⚠️</div>
+            <h2 id="error-modal-title" className="vai-modal-title">
+              Visual Analysis Unavailable
+            </h2>
+            <p className="vai-modal-text">
+              {errorMessage || 'Could not connect to the visual analysis service.'}
+            </p>
+            <button
+              className="vai-retry-btn"
+              onClick={handleRetry}
+              data-testid="retry-button"
+            >
+              Retry Connection
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="vai-controls">
-        <button 
+        <button
           data-testid="draw-toggle"
           onClick={() => setIsDrawing(!isDrawing)}
           aria-pressed={isDrawing ? 'true' : 'false'}
           disabled={status !== 'ready'}
+          className={`vai-btn ${isDrawing ? 'vai-btn-active' : ''}`}
         >
           {isDrawing ? 'Drawing: ON' : 'Draw Mode'}
         </button>
-        <button data-testid="save-annotations" onClick={handleSave}>Save Annotations</button>
-        <div data-testid="annotation-status" className="vai-status">
-          {annotations.length} annotations
+        <button
+          data-testid="save-annotations"
+          onClick={handleSave}
+          className="vai-btn vai-btn-primary"
+          disabled={status !== 'ready' || annotations.length === 0}
+        >
+          Save Annotations
+        </button>
+        <div data-testid="annotation-status" className="vai-status" aria-live="polite">
+          {annotations.length} annotation{annotations.length !== 1 ? 's' : ''}
         </div>
-        {status === 'preparing' && (
-          <span className="vai-gpu-text">GPU Preparing...</span>
+        {status === 'ready' && (
+          <span className="vai-ready-badge" data-testid="gpu-ready-badge">✓ Ready</span>
         )}
       </div>
 
-      <div 
+      <div
         ref={canvasRef}
-        data-testid="annotation-canvas" 
-        className={`vai-canvas ${isDrawing ? 'vai-cursor-draw' : 'vai-cursor-default'}`}
+        data-testid="annotation-canvas"
+        className={`vai-canvas ${isDrawing ? 'vai-cursor-draw' : 'vai-cursor-default'} ${status !== 'ready' ? 'vai-canvas-disabled' : ''}`}
         onMouseDown={handleMouseDown as any}
         onMouseMove={handleMouseMove as any}
         onMouseUp={handleMouseUp as any}
+        aria-label="Annotation canvas"
+        role="application"
       >
-        {/* GPU Preparing Loader Overlay */}
-        {status === 'preparing' && (
-          <div className="vai-loader-overlay">
-            <div className="vai-spinner" />
-            <div className="vai-loader-text">GPU Preparing (Warmup)</div>
-          </div>
-        )}
-
-        {/* Render Annotations */}
+        {/* Render Annotations as Red Pen boxes */}
         {annotations.map((ann: Annotation, i: number) => (
-          <div key={i} style={{
-            '--vai-x': `${ann.x * 100}%`, '--vai-y': `${ann.y * 100}%`,
-            '--vai-w': `${ann.width * 100}%`, '--vai-h': `${ann.height * 100}%`
-          } as any} className={`vai-annotation-box ${ann.confirmed ? 'vai-box-confirmed' : 'vai-box-default'}`} />
+          <div
+            key={i}
+            style={{
+              '--vai-x': `${ann.x * 100}%`,
+              '--vai-y': `${ann.y * 100}%`,
+              '--vai-w': `${ann.width * 100}%`,
+              '--vai-h': `${ann.height * 100}%`
+            } as any}
+            className={`vai-annotation-box ${ann.confirmed ? 'vai-box-confirmed' : 'vai-box-default'}`}
+            data-testid={`annotation-box-${i}`}
+          />
         ))}
 
-        {/* Live Rect */}
+        {/* Live Rect during drawing */}
         {liveRect && (
-          <div style={{
-            '--vai-x': `${liveRect.x}px`, '--vai-y': `${liveRect.y}px`,
-            '--vai-w': `${liveRect.w}px`, '--vai-h': `${liveRect.h}px`
-          } as any} className="vai-annotation-box vai-box-default" />
+          <div
+            style={{
+              '--vai-x': `${liveRect.x}px`,
+              '--vai-y': `${liveRect.y}px`,
+              '--vai-w': `${liveRect.w}px`,
+              '--vai-h': `${liveRect.h}px`
+            } as any}
+            className="vai-annotation-box vai-box-live"
+            data-testid="live-rect"
+          />
         )}
       </div>
 
-      <div data-testid="annotations-list" className="vai-list">
+      <div data-testid="annotations-list" className="vai-list" role="list">
         {annotations.map((ann: Annotation, i: number) => (
-          <div key={i} data-testid="annotation-item" className="vai-item">
-            <input 
-              data-testid={`annotation-label-${i}`} 
-              placeholder="Label" 
-              value={ann.label} 
-              onInput={(e: any) => { const newAnns = [...annotations]; newAnns[i].label = (e.target as HTMLInputElement).value; setAnnotations(newAnns); }}
+          <div
+            key={i}
+            data-testid="annotation-item"
+            className="vai-item"
+            role="listitem"
+          >
+            <input
+              data-testid={`annotation-label-${i}`}
+              placeholder="Label"
+              value={ann.label}
+              onInput={(e: any) => {
+                const newAnns = [...annotations];
+                newAnns[i].label = (e.target as HTMLInputElement).value;
+                setAnnotations(newAnns);
+              }}
+              className="vai-input"
+              aria-label={`Label for annotation ${i + 1}`}
             />
-            <input 
-              data-testid={`annotation-note-${i}`} 
-              placeholder="Note" 
-              value={ann.note} 
-              onInput={(e: any) => { const newAnns = [...annotations]; newAnns[i].note = (e.target as HTMLInputElement).value; setAnnotations(newAnns); }}
+            <input
+              data-testid={`annotation-note-${i}`}
+              placeholder="Note (optional)"
+              value={ann.note}
+              onInput={(e: any) => {
+                const newAnns = [...annotations];
+                newAnns[i].note = (e.target as HTMLInputElement).value;
+                setAnnotations(newAnns);
+              }}
+              className="vai-input"
+              aria-label={`Note for annotation ${i + 1}`}
             />
-            <button onClick={() => handleConfirm(i)} disabled={ann.confirmed}>
-              {ann.confirmed ? 'Confirmed' : 'Confirm Match'}
+            <button
+              onClick={() => handleConfirm(i)}
+              disabled={ann.confirmed}
+              className={`vai-btn ${ann.confirmed ? 'vai-btn-confirmed' : 'vai-btn-confirm'}`}
+              data-testid={`confirm-btn-${i}`}
+            >
+              {ann.confirmed ? '✓ Confirmed' : 'Confirm Match'}
             </button>
-            <button onClick={() => setAnnotations(annotations.filter((_: Annotation, idx: number) => idx !== i))}>Remove</button>
+            <button
+              onClick={() => setAnnotations(annotations.filter((_: Annotation, idx: number) => idx !== i))}
+              className="vai-btn vai-btn-danger"
+              data-testid={`remove-btn-${i}`}
+              aria-label={`Remove annotation ${i + 1}`}
+            >
+              Remove
+            </button>
           </div>
         ))}
       </div>
       <style>{`
-        .vai-controls { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-        .vai-status { margin-left: 8px; color: #333; }
-        .vai-gpu-text { color: #e67e22; font-weight: bold; }
-        .vai-canvas { position: relative; border: 1px solid #ddd; height: 240px; touch-action: none; background: #fff; }
-        .vai-cursor-draw { cursor: crosshair; }
-        .vai-cursor-default { cursor: default; }
-        .vai-loader-overlay { position: absolute; inset: 0; background: rgba(255,255,255,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; }
-        .vai-spinner { width: 24px; height: 24px; border: 3px solid #ddd; border-top-color: #333; border-radius: 50%; animation: spin 1s linear infinite; }
-        .vai-loader-text { margin-top: 8px; font-weight: bold; }
-        .vai-annotation-box { position: absolute; box-sizing: border-box; pointer-events: none; left: var(--vai-x); top: var(--vai-y); width: var(--vai-w); height: var(--vai-h); }
-        .vai-box-default { border: 2px solid rgba(220,20,60,0.9); }
-        .vai-box-confirmed { border: 2px solid #27ae60; }
-        .vai-list { margin-top: 8px; }
-        .vai-item { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        /* Full-page blocking modal */
+        .vai-fullpage-modal {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.7);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          backdrop-filter: blur(4px);
+        }
+        .vai-error-modal {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.7);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+        }
+        .vai-modal-content {
+          background: white;
+          border-radius: 12px;
+          padding: 32px 48px;
+          text-align: center;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+          max-width: 400px;
+        }
+        .vai-error-content {
+          border: 2px solid #e74c3c;
+        }
+        .vai-modal-spinner {
+          width: 48px;
+          height: 48px;
+          border: 4px solid #e0e0e0;
+          border-top-color: #3498db;
+          border-radius: 50%;
+          animation: vai-spin 1s linear infinite;
+          margin: 0 auto 16px;
+        }
+        .vai-modal-title {
+          font-size: 1.25rem;
+          font-weight: 600;
+          margin: 0 0 8px;
+          color: #333;
+        }
+        .vai-modal-text {
+          color: #666;
+          margin: 0 0 8px;
+          font-size: 0.9rem;
+        }
+        .vai-modal-retry {
+          color: #e67e22;
+          font-size: 0.85rem;
+          margin: 8px 0 0;
+        }
+        .vai-error-icon {
+          font-size: 48px;
+          margin-bottom: 12px;
+        }
+        .vai-retry-btn {
+          background: #3498db;
+          color: white;
+          border: none;
+          padding: 10px 24px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 0.95rem;
+          margin-top: 16px;
+          transition: background 0.2s;
+        }
+        .vai-retry-btn:hover {
+          background: #2980b9;
+        }
+
+        /* Controls */
+        .vai-controls {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          margin-bottom: 8px;
+          flex-wrap: wrap;
+        }
+        .vai-btn {
+          padding: 6px 12px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          background: #fff;
+          cursor: pointer;
+          font-size: 0.9rem;
+          transition: all 0.2s;
+        }
+        .vai-btn:hover:not(:disabled) {
+          background: #f5f5f5;
+        }
+        .vai-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        .vai-btn-active {
+          background: #dc3545;
+          color: white;
+          border-color: #dc3545;
+        }
+        .vai-btn-primary {
+          background: #3498db;
+          color: white;
+          border-color: #3498db;
+        }
+        .vai-btn-primary:hover:not(:disabled) {
+          background: #2980b9;
+        }
+        .vai-btn-confirm {
+          background: #27ae60;
+          color: white;
+          border-color: #27ae60;
+        }
+        .vai-btn-confirmed {
+          background: #95a5a6;
+          color: white;
+          border-color: #95a5a6;
+        }
+        .vai-btn-danger {
+          background: #e74c3c;
+          color: white;
+          border-color: #e74c3c;
+        }
+        .vai-btn-danger:hover:not(:disabled) {
+          background: #c0392b;
+        }
+        .vai-status {
+          margin-left: 8px;
+          color: #666;
+          font-size: 0.9rem;
+        }
+        .vai-ready-badge {
+          background: #27ae60;
+          color: white;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 0.8rem;
+          font-weight: 500;
+        }
+
+        /* Canvas */
+        .vai-canvas {
+          position: relative;
+          border: 2px solid #ddd;
+          min-height: 240px;
+          height: 100%;
+          touch-action: none;
+          background: #fafafa;
+          border-radius: 4px;
+          overflow: hidden;
+        }
+        .vai-canvas-disabled {
+          pointer-events: none;
+          opacity: 0.7;
+        }
+        .vai-cursor-draw {
+          cursor: crosshair;
+        }
+        .vai-cursor-default {
+          cursor: default;
+        }
+
+        /* Annotation boxes */
+        .vai-annotation-box {
+          position: absolute;
+          box-sizing: border-box;
+          pointer-events: none;
+          left: var(--vai-x);
+          top: var(--vai-y);
+          width: var(--vai-w);
+          height: var(--vai-h);
+        }
+        .vai-box-default {
+          border: 2px solid rgba(220, 20, 60, 0.9);
+          background: rgba(220, 20, 60, 0.1);
+        }
+        .vai-box-confirmed {
+          border: 2px solid #27ae60;
+          background: rgba(39, 174, 96, 0.1);
+        }
+        .vai-box-live {
+          border: 2px dashed rgba(220, 20, 60, 0.7);
+          background: rgba(220, 20, 60, 0.05);
+        }
+
+        /* Annotation list */
+        .vai-list {
+          margin-top: 12px;
+        }
+        .vai-item {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          margin-bottom: 8px;
+          padding: 8px;
+          background: #f9f9f9;
+          border-radius: 4px;
+          flex-wrap: wrap;
+        }
+        .vai-input {
+          padding: 6px 10px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          font-size: 0.9rem;
+          min-width: 120px;
+        }
+        .vai-input:focus {
+          outline: none;
+          border-color: #3498db;
+        }
+
+        @keyframes vai-spin {
+          to { transform: rotate(360deg); }
+        }
       `}</style>
     </div>
   );

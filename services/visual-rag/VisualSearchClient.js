@@ -133,7 +133,7 @@ class VisualSearchClient {
      * @returns {Promise<Object>} Health response
      */
     async health() {
-        return this.circuitBreaker.execute(async () => {
+        const result = await this.circuitBreaker.execute(async () => {
             try {
                 const response = await this.client.get('/health');
                 return response.data;
@@ -141,6 +141,11 @@ class VisualSearchClient {
                 throw this._wrapError('Health check failed', error);
             }
         });
+
+        if (result.fallback || !result.success) {
+            throw result.error || new Error('Health check failed');
+        }
+        return result.data;
     }
 
     /**
@@ -148,7 +153,7 @@ class VisualSearchClient {
      * @returns {Promise<Object>} Status response
      */
     async status() {
-        return this.circuitBreaker.execute(async () => {
+        const result = await this.circuitBreaker.execute(async () => {
             try {
                 const response = await this.client.get('/status');
                 return response.data;
@@ -156,6 +161,11 @@ class VisualSearchClient {
                 throw this._wrapError('Status check failed', error);
             }
         });
+
+        if (result.fallback || !result.success) {
+            throw result.error || new Error('Status check failed');
+        }
+        return result.data;
     }
 
     // =========================================================================

@@ -1,70 +1,63 @@
 import { test, expect } from '@playwright/test';
-import { pollForFeedbackEvent } from '../helpers/db-poll';
+import { pollForFeedbackEvent, queryDb } from '../helpers/db-poll';
 
+// E2E: Verify feedback persistence, fields, and request-id tracing
 test.describe('Feedback Flow E2E', () => {
-  test('user edits and submits feedback, backend persists event', async ({ page }) => {
-    const docId = process.env.TEST_DOC_ID || '1'; 
-    
-    // 1. Navigate to manual editor page
-    await page.goto(`http://localhost:3000/manual?open=${docId}`);
+  test('feedback events persist to Postgres with correct fields and request id tracking', async ({ page }) => {
+    const docId = Number(process.env.TEST_DOC_ID || '1');
 
-    // Wait for the island to mount
-    const manualIsland = page.locator('[data-testid="manual-editor-island-root"]');
-    await expect(manualIsland).toBeVisible({ timeout: 15000 });
+    // Deterministic request id for tracing
+    const requestId = `e2e-${Date.now()}`;
 
-    // 2. Interact with UI - Fill out some fields
-    await page.click('[data-testid="tab-metadata"]');
-    await page.fill('[data-testid="manual-title-input"]', 'E2E Feedback Test Title');
-    
-    // 3. Submit
-    // We intercept the request to verify the payload structure
-    const updateRequestPromise = page.waitForRequest(request => 
-      request.url().includes('/manual/updateDocument') && request.method() === 'POST'
-    );
-    
-    await page.click('[data-testid="manual-save-btn"]');
-    
-    const request = await updateRequestPromise;
-    const postData = request.postDataJSON();
+    // Correction details
+    const correctedCorrespondent = { id: 9999, name: 'E2E Correspondent' };
+    const events = [
+      {
+        event_type: 'correction',
+        field_name: 'correspondent',
+        corrected_value: correctedCorrespondent,
+        context: { note: 'E2E test correction' }
+      }
+    ];
 
-    // Verify payload is unified format (triggers FeedbackService)
-    // If this fails, views/manual.ejs needs update.
-    console.log('DEBUG: POST payload:', JSON.stringify(postData, null, 2));
-    
-    // We expect the frontend to generate feedback events for the changes
-    // If not implemented yet in frontend, we might need to manually trigger the API for this test
-    // or update the frontend as part of this prompt.
-    // For now, let's verify if it *does* happen.
-    
-    // 4. Verify DB
-    const feedback = await pollForFeedbackEvent(docId, 'correction', 5000);
-    
-    // If UI doesn't send feedback_events yet, we might need to simulate it for the test
-    // to prove the BACKEND integration works (which is the prompt's main goal).
-    if (!feedback) {
-        // Fallback: Manually invoke API to verify backend stack
-        await page.request.post(`http://localhost:3000/manual/updateDocument`, {
-            data: {
-                documentId: Number(docId),
-                document_updates: { title: 'E2E Backend Verify' },
-                feedback_events: [{
-                    event_type: 'correction',
-                    field_name: 'title',
-                    original_value: 'Old',
-                    corrected_value: 'E2E Backend Verify',
-                    user_id: 1
-                }]
-            }
-        });
-        
-        // Poll again
-        const feedback2 = await pollForFeedbackEvent(docId, 'correction', 5000);
-        expect(feedback2).toBeTruthy();
-        expect((feedback2 as any).doc_id).toBe(Number(docId));
-        return;
-    }
+    const beforeTs = Date.now();
 
-    expect(feedback).toBeTruthy();
-    expect((feedback as any).doc_id).toBe(Number(docId));
+    // POST to orchestrator endpoint (this simulates the UI flow and propagates X-Request-Id)
+    const resp = await page.request.post(`http://localhost:3000/manual/updateDocument`, {
+      headers: { 'X-Request-Id': requestId },
+      data: {
+        documentId: docId,
+        document_updates: { correspondent: correctedCorrespondent },
+        feedback_events: events
+      }
+    });
+
+    expect(resp.status(), 'manual/updateDocument should succeed').toBeLessThan(400);
+
+    // Poll Postgres for the feedback row (max 5s)
+    const row = await pollForFeedbackEvent(docId, 'correction', 5000);
+
+    // Field assertions
+    expect(row).toBeTruthy();
+    expect(row.doc_id).toBe(docId);
+    expect(row.event_type).toBe('correction');
+
+    // corrected_value JSONB must contain the correspondent name
+    const corrected = row.corrected_value;
+    expect(corrected).toBeTruthy();
+    const corrName = typeof corrected === 'string' ? JSON.parse(corrected).name : corrected.name;
+    expect(corrName).toBe(correctedCorrespondent.name);
+
+    // request_id should be present in context and match the header we set
+    const context = row.context || {};
+    expect(context.request_id || context.requestId || context.requestId).toBe(requestId);
+
+    // created_at within the test window (allow small skew)
+    const createdAt = new Date(row.created_at).getTime();
+    expect(createdAt).toBeGreaterThanOrEqual(beforeTs - 1000);
+    expect(createdAt).toBeLessThanOrEqual(Date.now() + 1000);
+
+    // Cleanup (remove test rows)
+    await queryDb('DELETE FROM feedback_events WHERE doc_id = $1', [docId]);
   });
 });

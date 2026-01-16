@@ -1,11 +1,18 @@
 /**
  * QdrantAdapter.js
- * Native Protocol Alpha-9 Compliant Adapter
- * Provides named collections and helper methods for document embeddings,
- * visual_overlays (320D Cosine) and visual_pages (320D Dot)
+ *
+ * Singleton adapter for Qdrant vector database operations.
+ * Enforces Distance Metric Locks and integrates with global Circuit Breaker.
+ *
+ * Architecture Reference: Native Protocol Alpha-9
+ * Epic: Structured Feature Development Workflow
+ * Ticket: P1.1 Implement Singleton QdrantAdapter with Distance Metric Locks
  */
 
 const { QdrantClient } = require('@qdrant/js-client-rest');
+const { CircuitBreaker } = require('../experts/CircuitBreaker');
+const logger = require('../logger');
+const config = require('../../config/config');
 
 const COLLECTIONS = {
     document_embeddings: { name: 'document_embeddings', vectorSize: 384, distance: 'Cosine' },
@@ -15,189 +22,491 @@ const COLLECTIONS = {
 
 class QdrantAdapter {
     constructor(options = {}) {
-        this.client = null;
-        this.host = options.host || process.env.QDRANT_HOST || 'qdrant';
-        this.port = parseInt(options.port || process.env.QDRANT_PORT || '6333', 10);
-    }
+        if (QdrantAdapter.instance && Object.keys(options).length === 0) {
+            return QdrantAdapter.instance;
+        }
 
-    async initialize() {
-        if (this.client) return;
+        // Initialize configuration
+        const qdrantConfig = config.qdrant || {};
+        const host = options.host || process.env.QDRANT_HOST || qdrantConfig.host || 'qdrant';
+        const port = options.port || parseInt(process.env.QDRANT_PORT || qdrantConfig.port || '6333');
+        const apiKey = options.apiKey || process.env.QDRANT_API_KEY || qdrantConfig.apiKey;
+        const url = `http://${host}:${port}`;
 
+        // Initialize Qdrant Client
         this.client = new QdrantClient({
-            url: `http://${this.host}:${this.port}`,
-            apiKey: process.env.QDRANT_API_KEY
+            url,
+            apiKey,
         });
 
-        await this._ensureCollections();
-    }
+        // Initialize Circuit Breaker for Qdrant operations
+        // We use a dedicated breaker instance for vector DB operations
+        this.circuitBreaker = CircuitBreaker.getInstance('qdrant-adapter', {
+            failureThreshold: 5,
+            cooldownPeriod: 30000,
+            timeout: 10000, // Vector operations can be heavy
+        });
 
-    async _ensureCollections() {
-        try {
-            const result = await this.client.getCollections();
-            const existing = new Set(result.collections.map(c => c.name));
+        logger.info(`[QdrantAdapter] Initialized client at ${url}`);
 
-            for (const key of Object.keys(COLLECTIONS)) {
-                const cfg = COLLECTIONS[key];
-                if (!existing.has(cfg.name)) {
-                    await this.client.createCollection(cfg.name, {
-                        vectors: { size: cfg.vectorSize, distance: cfg.distance }
-                    });
-
-                    // Common payload indexes for filtering
-                    await Promise.all([
-                        this.client.createPayloadIndex(cfg.name, { field_name: 'doc_id', field_schema: 'integer' }),
-                        this.client.createPayloadIndex(cfg.name, { field_name: 'correspondent_id', field_schema: 'integer' }),
-                        this.client.createPayloadIndex(cfg.name, { field_name: 'tag_ids', field_schema: 'integer' })
-                    ]).catch(() => {});
-                }
-            }
-        } catch (err) {
-            // Surface a helpful error for diagnostics
-            console.error('[Qdrant] _ensureCollections failed:', err && err.message);
-            throw err;
-        }
-    }
-
-    async healthCheck() {
-        try {
-            if (!this.client) await this.initialize();
-            const info = await this.client.getCollections();
-            const collections = {};
-            for (const key of Object.keys(COLLECTIONS)) {
-                const cfg = COLLECTIONS[key];
-                const found = info.collections.find(c => c.name === cfg.name);
-                collections[key] = {
-                    vectorSize: cfg.vectorSize,
-                    distance: cfg.distance,
-                    exists: !!found
-                };
-            }
-            return { healthy: true, collections };
-        } catch (err) {
-            return { healthy: false, error: err.message, collections: null };
-        }
-    }
-
-    // Generic upsert helper
-    async _upsertCollection(collectionName, points = []) {
-        if (!this.client) await this.initialize();
-        const qPoints = points.map(p => ({ id: p.id, vector: p.embedding || p.vector || p.vec, payload: p.payload || {} }));
-        await this.client.upsert(collectionName, { points: qPoints });
-        return { status: 'ok', count: qPoints.length };
-    }
-
-    async _searchCollection(collectionName, vector, opts = {}) {
-        if (!this.client) await this.initialize();
-        const limit = opts.limit || 5;
-        const res = await this.client.search(collectionName, { vector, limit, with_payload: true });
-        return (res || []).map(r => ({ id: r.id, score: r.score, payload: r.payload || {} }));
-    }
-
-    async _deleteByFilter(collectionName, filter) {
-        if (!this.client) await this.initialize();
-        try {
-            await this.client.delete(collectionName, { filter });
-            return { status: 'ok' };
-        } catch (err) {
-            // Best-effort: return ok but surface the error in logs
-            console.warn(`[QdrantAdapter] delete failed for ${collectionName}: ${err.message}`);
-            return { status: 'ok', warning: err.message };
-        }
-    }
-
-    // Document embeddings (384D, Cosine)
-    async upsertDocumentEmbeddings(points = []) {
-        return this._upsertCollection(COLLECTIONS.document_embeddings.name, points);
-    }
-
-    async searchDocumentEmbeddings(vector, opts = {}) {
-        return this._searchCollection(COLLECTIONS.document_embeddings.name, vector, opts);
-    }
-
-    async deleteDocumentEmbeddings(ids = []) {
-        // delete by point ids
-        if (!this.client) await this.initialize();
-        try {
-            await this.client.delete(COLLECTIONS.document_embeddings.name, { points: ids });
-            return { status: 'ok' };
-        } catch (err) {
-            console.warn('[QdrantAdapter] deleteDocumentEmbeddings failed:', err.message);
-            return { status: 'ok', warning: err.message };
-        }
-    }
-
-    // Visual Overlays (320D, Cosine)
-    async upsertVisualOverlays(points = []) {
-        return this._upsertCollection(COLLECTIONS.visual_overlays.name, points);
-    }
-
-    async searchVisualOverlays(vector, opts = {}) {
-        return this._searchCollection(COLLECTIONS.visual_overlays.name, vector, opts);
-    }
-
-    async deleteVisualOverlaysByDocId(docId) {
-        const filter = { must: [{ key: 'doc_id', match: { value: docId } }] };
-        return this._deleteByFilter(COLLECTIONS.visual_overlays.name, filter);
-    }
-
-    // Visual Pages (320D, Dot)
-    async upsertVisualPages(points = []) {
-        return this._upsertCollection(COLLECTIONS.visual_pages.name, points);
-    }
-
-    async searchVisualPages(vector, opts = {}) {
-        return this._searchCollection(COLLECTIONS.visual_pages.name, vector, opts);
-    }
-
-    async deleteVisualPagesByDocId(docId) {
-        const filter = { must: [{ key: 'doc_id', match: { value: docId } }] };
-        return this._deleteByFilter(COLLECTIONS.visual_pages.name, filter);
-    }
-
-    async getPoint(collectionName, id) {
-        if (!this.client) await this.initialize();
-        try {
-            // Qdrant REST client provides a getPoint method
-            const resp = await this.client.getPoint(collectionName, id);
-            return resp;
-        } catch (err) {
-            console.warn(`[QdrantAdapter] getPoint failed for ${collectionName}/${id}: ${err.message}`);
-            return null;
+        if (Object.keys(options).length === 0) {
+            QdrantAdapter.instance = this;
         }
     }
 
     /**
-     * Update payload fields for all points belonging to a doc_id in a collection.
-     * This is best-effort and performed in-place by re-upserting existing points
-     * with their original vector and merged payload.
-     * @param {string} collectionName
-     * @param {number} docId
-     * @param {object} fields - key/value pairs to merge into payload
+     * Get the singleton instance
+     * @returns {QdrantAdapter}
      */
-    async updatePayloadForDoc(collectionName, docId, fields = {}) {
-        if (!this.client) await this.initialize();
+    static getInstance() {
+        if (!QdrantAdapter.instance) {
+            QdrantAdapter.instance = new QdrantAdapter();
+        }
+        return QdrantAdapter.instance;
+    }
+
+    /**
+     * Ensure a collection exists with the correct configuration (Distance Metric Lock)
+     * @param {string} name - Collection name
+     * @param {Object} vectorConfig - Vector configuration (size, distance)
+     * @returns {Promise<void>}
+     */
+    async ensureCollection(name, vectorConfig) {
+        const result = await this.circuitBreaker.execute(async () => {
+            const exists = await this._collectionExists(name);
+
+            if (exists) {
+                const info = await this.client.getCollection(name);
+                this._validateDistanceMetric(name, info, vectorConfig);
+                logger.info(`[QdrantAdapter] Collection '${name}' verified`);
+            } else {
+                logger.info(`[QdrantAdapter] Creating collection '${name}'`);
+                await this.client.createCollection(name, {
+                    vectors: vectorConfig
+                });
+            }
+        });
+
+        if (result.fallback || !result.success) {
+            throw result.error || new Error(`Failed to ensure collection ${name}`);
+        }
+    }
+
+    /**
+     * Batch upsert points
+     * @param {string} collection 
+     * @param {Array} points 
+     * @returns {Promise<Object>}
+     */
+    async upsert(collection, points) {
+        const result = await this.circuitBreaker.execute(async () => {
+            return await this.client.upsert(collection, {
+                points
+            });
+        });
+
+        if (result.fallback || !result.success) {
+            throw result.error || new Error(`Upsert failed for ${collection}`);
+        }
+
+        // Normalize to legacy helper response: { status: 'ok', count: N }
+        const count = Array.isArray(points) ? points.length : (points && points.points ? points.points.length : 1);
+        return { status: 'ok', count };
+    }
+
+    /**
+     * Search for points
+     * @param {string} collection 
+     * @param {Object} options - { vector, filter, limit, with_payload }
+     * @returns {Promise<Array>}
+     */
+    async search(collection, options) {
+        const result = await this.circuitBreaker.execute(async () => {
+            return await this.client.search(collection, options);
+        });
+
+        if (result.fallback || !result.success) {
+            throw result.error || new Error(`Search failed for ${collection}`);
+        }
+        return result.data;
+    }
+
+    /**
+     * Delete points by document ID
+     * @param {string} collection 
+     * @param {number|string} docId 
+     * @returns {Promise<Object>}
+     */
+    async deleteByDocId(collection, docId) {
+        const result = await this.circuitBreaker.execute(async () => {
+            return await this.client.delete(collection, {
+                filter: {
+                    must: [
+                        {
+                            key: 'doc_id',
+                            match: {
+                                value: docId
+                            }
+                        }
+                    ]
+                }
+            });
+        });
+
+        if (result.fallback || !result.success) {
+            throw result.error || new Error(`Delete failed for ${collection} docId=${docId}`);
+        }
+
+        // Return legacy-style success object
+        return { status: 'ok' };
+    }
+
+    /**
+     * Update payload for a document across standard collections
+     * @param {number|string} docId 
+     * @param {Object} metadata 
+     * @returns {Promise<Object>}
+     */
+    async updatePayload(docId, metadata) {
+        const collections = ['visual_pages', 'visual_overlays'];
+        const errors = [];
+        const results = {};
+
+        // Fail fast if circuit is open
+        if (this.circuitBreaker.isOpen()) {
+            throw new Error('Circuit breaker is OPEN, skipping payload update');
+        }
+
+        for (const collection of collections) {
+            try {
+                // 1. Find points for this doc_id
+                const points = await this._getPointsByDocId(collection, docId);
+                
+                if (points.length === 0) {
+                    results[collection] = { status: 'skipped', reason: 'no_points_found' };
+                    continue;
+                }
+
+                const pointIds = points.map(p => p.id);
+
+                // 2. Update payload
+                const result = await this.circuitBreaker.execute(async () => {
+                    await this.client.setPayload(collection, {
+                        points: pointIds,
+                        payload: metadata
+                    });
+                });
+
+                if (result.fallback || !result.success) {
+                    throw result.error || new Error(`Payload update failed for ${collection}`);
+                }
+
+                results[collection] = { status: 'updated', count: pointIds.length };
+
+            } catch (err) {
+                logger.error(`[QdrantAdapter] Failed to update payload for ${collection} docId=${docId}: ${err.message}`);
+                errors.push({ collection, error: err.message });
+                results[collection] = { status: 'failed', error: err.message };
+            }
+        }
+
+        if (errors.length > 0) {
+            const errorMsg = `Partial sync failure: ${errors.map(e => `${e.collection} (${e.error})`).join(', ')}`;
+            const error = new Error(errorMsg);
+            error.results = results;
+            throw error;
+        }
+
+        return results;
+    }
+
+    /**
+     * Get all collections
+     * @returns {Promise<Object>}
+     */
+    async getCollections() {
+        const result = await this.circuitBreaker.execute(async () => {
+            return await this.client.getCollections();
+        });
+
+        if (result.fallback || !result.success) {
+            throw result.error || new Error('Failed to list collections');
+        }
+        return result.data;
+    }
+
+    /**
+     * Get specific collection info
+     * @param {string} name 
+     * @returns {Promise<Object>}
+     */
+    async getCollection(name) {
+        const result = await this.circuitBreaker.execute(async () => {
+            return await this.client.getCollection(name);
+        });
+
+        if (result.fallback || !result.success) {
+            throw result.error || new Error(`Failed to get collection info for ${name}`);
+        }
+        return result.data;
+    }
+
+    // =========================================================================
+    // Private Helpers
+    // =========================================================================
+
+    async _collectionExists(name) {
         try {
-            // Find points by doc_id filter
-            const filter = { must: [{ key: 'doc_id', match: { value: docId } }] };
-            const res = await this.client.search(collectionName, { vector: [0], filter, limit: 100, with_payload: true, with_vector: true });
+            const result = await this.client.getCollections();
+            return result.collections.some(c => c.name === name);
+        } catch (error) {
+            logger.error(`[QdrantAdapter] Failed to list collections: ${error.message}`);
+            throw error;
+        }
+    }
 
-            // If none found, nothing to update (best-effort)
-            if (!res || res.length === 0) return { status: 'ok', updated: 0 };
+    async _getPointsByDocId(collection, docId) {
+        const result = await this.circuitBreaker.execute(async () => {
+            let allPoints = [];
+            let offset = null;
+            
+            do {
+                const response = await this.client.scroll(collection, {
+                    filter: {
+                        must: [{ key: 'doc_id', match: { value: docId } }]
+                    },
+                    limit: 100,
+                    offset: offset,
+                    with_payload: false,
+                    with_vector: false
+                });
+                
+                allPoints = allPoints.concat(response.points);
+                offset = response.next_page_offset;
+                
+            } while (offset);
+            
+            return allPoints;
+        });
 
-            const pointsToUpsert = res.map(r => {
-                const mergedPayload = Object.assign({}, r.payload || {}, fields);
-                return { id: r.id, vector: r.vector || null, payload: mergedPayload };
+        if (result.fallback || !result.success) {
+            throw result.error || new Error(`Failed to scroll points for ${collection}`);
+        }
+        return result.data;
+    }
+
+    _validateDistanceMetric(name, info, expectedConfig) {
+        const actualVectors = info.config.params.vectors;
+        
+        // Helper to check distance match
+        const checkDistance = (actual, expected) => {
+            if (actual && expected && actual.toLowerCase() !== expected.toLowerCase()) {
+                throw new Error(`Distance Metric Lock violation: Collection '${name}' has distance '${actual}' but expected '${expected}'. This is a critical error - MaxSim scoring requires correct distance metric.`);
+            }
+        };
+
+        // Case 1: Expected is simple configuration (has distance property directly)
+        if (expectedConfig.distance) {
+            // If actual is named vectors (map) but we expect simple, it's a mismatch
+            if (actualVectors && !actualVectors.distance && Object.keys(actualVectors).length > 0) {
+                throw new Error(`Distance Metric Lock violation: Collection '${name}' has named vectors but expected simple configuration.`);
+            }
+
+            // Ensure actual has a distance property when expecting a simple config
+            if (!actualVectors || !actualVectors.distance) {
+                throw new Error(`Distance Metric Lock violation: Collection '${name}' does not expose a simple vector distance property.`);
+            }
+
+            checkDistance(actualVectors.distance, expectedConfig.distance);
+            return;
+        }
+
+        // Case 2: Expected is named vectors (object with keys)
+        const expectedKeys = Object.keys(expectedConfig);
+        for (const key of expectedKeys) {
+            const actualKey = actualVectors ? actualVectors[key] : null;
+            if (!actualKey) {
+                throw new Error(`Distance Metric Lock violation: Collection '${name}' missing expected vector '${key}'.`);
+            }
+            if (!actualKey.distance) {
+                throw new Error(`Distance Metric Lock violation: Collection '${name}' vector '${key}' missing distance property.`);
+            }
+            checkDistance(actualKey.distance, expectedConfig[key].distance);
+        }
+    }
+
+    // =========================================================================
+    // Legacy / Helper Methods (Restored for Compatibility)
+    // =========================================================================
+
+    async initialize() {
+        await this.ensureCollection(COLLECTIONS.document_embeddings.name, {
+            size: COLLECTIONS.document_embeddings.vectorSize,
+            distance: COLLECTIONS.document_embeddings.distance
+        });
+        await this.ensureCollection(COLLECTIONS.visual_overlays.name, {
+            size: COLLECTIONS.visual_overlays.vectorSize,
+            distance: COLLECTIONS.visual_overlays.distance
+        });
+        await this.ensureCollection(COLLECTIONS.visual_pages.name, {
+            size: COLLECTIONS.visual_pages.vectorSize,
+            distance: COLLECTIONS.visual_pages.distance
+        });
+    }
+
+    async healthCheck() {
+        try {
+            const collections = await this.getCollections();
+            const collectionNames = (collections && collections.collections) ? collections.collections.map(c => c.name) : [];
+            
+            const details = {};
+            for (const col of Object.values(COLLECTIONS)) {
+                if (collectionNames.includes(col.name)) {
+                    // Presence in getCollections is sufficient to mark 'exists'
+                    details[col.name] = { exists: true };
+                    // Try to fetch extra details if available, but tolerate failures
+                    try {
+                        if (typeof this.getCollection === 'function') {
+                            const info = await this.getCollection(col.name);
+                            const vectors = info?.config?.params?.vectors || {};
+                            const size = vectors.size || (vectors.page_embedding ? vectors.page_embedding.size : 'unknown');
+                            const distance = vectors.distance || (vectors.page_embedding ? vectors.page_embedding.distance : 'unknown');
+
+                            details[col.name] = {
+                                exists: true,
+                                pointCount: info.points_count,
+                                vectorSize: size,
+                                distance: distance
+                            };
+                        }
+                    } catch (innerErr) {
+                        // Keep exists=true and move on
+                        logger.warn(`[QdrantAdapter] Could not fetch collection details for ${col.name}: ${innerErr.message}`);
+                    }
+                } else {
+                    details[col.name] = { exists: false };
+                }
+            }
+
+            return { healthy: true, collections: details };
+        } catch (error) {
+            return { healthy: false, error: error.message };
+        }
+    }
+
+    // Visual Overlays Helpers
+    async upsertVisualOverlays(points) {
+        return this.upsert(COLLECTIONS.visual_overlays.name, points);
+    }
+
+    async searchVisualOverlays(vector, options = {}) {
+        return this.search(COLLECTIONS.visual_overlays.name, {
+            vector,
+            limit: options.limit || 10,
+            with_payload: true,
+            score_threshold: options.scoreThreshold
+        });
+    }
+
+    async deleteVisualOverlaysByDocId(docId) {
+        return this.deleteByDocId(COLLECTIONS.visual_overlays.name, docId);
+    }
+
+    // Visual Pages Helpers
+    async upsertVisualPages(points) {
+        return this.upsert(COLLECTIONS.visual_pages.name, points);
+    }
+
+    async searchVisualPages(vector, options = {}) {
+        return this.search(COLLECTIONS.visual_pages.name, {
+            vector,
+            limit: options.limit || 10,
+            with_payload: true
+        });
+    }
+
+    async deleteVisualPagesByDocId(docId) {
+        return this.deleteByDocId(COLLECTIONS.visual_pages.name, docId);
+    }
+
+    // Document Embeddings Helpers
+    async upsertDocumentEmbeddings(points) {
+        return this.upsert(COLLECTIONS.document_embeddings.name, points);
+    }
+
+    async searchDocumentEmbeddings(vector, options = {}) {
+        return this.search(COLLECTIONS.document_embeddings.name, {
+            vector,
+            limit: options.limit || 10,
+            with_payload: true
+        });
+    }
+
+    async deleteDocumentEmbeddings(docId) {
+        return this.deleteByDocId(COLLECTIONS.document_embeddings.name, docId);
+    }
+
+    // Specific payload update wrapper
+    async updatePayloadForDoc(collection, docId, payload) {
+        // This wraps the generic updatePayload but targets a specific collection if needed,
+        // or we can just use the generic one if the caller passes the collection name.
+        // The generic updatePayload iterates all collections, which might be overkill if we know the target.
+        // Implementing specific single-collection update:
+        try {
+            const points = await this._getPointsByDocId(collection, docId);
+            if (points.length === 0) return { status: 'skipped', reason: 'no_points' };
+            
+            const pointIds = points.map(p => p.id);
+            const result = await this.circuitBreaker.execute(async () => {
+                await this.client.setPayload(collection, {
+                    points: pointIds,
+                    payload
+                });
             });
 
-            // Upsert (replaces existing payload)
-            await this.client.upsert(collectionName, { points: pointsToUpsert });
-            return { status: 'ok', updated: pointsToUpsert.length };
-        } catch (err) {
-            console.warn(`[QdrantAdapter] updatePayloadForDoc failed for ${collectionName}/${docId}: ${err.message}`);
-            return { status: 'error', error: err.message };
+            if (result.fallback || !result.success) {
+                throw result.error || new Error(`Payload update failed for ${collection}`);
+            }
+            return { status: 'ok', count: pointIds.length };
+        } catch (e) {
+            logger.error(`[QdrantAdapter] updatePayloadForDoc failed: ${e.message}`);
+            throw e;
         }
+    }
+
+    // Legacy alias for getPoint (used in tests)
+    async getPoint(collection, id) {
+        const result = await this.circuitBreaker.execute(async () => {
+            // Support both client.getPoint (legacy stub/tests) and client.retrieve (qdrant client's newer name)
+            if (typeof this.client.getPoint === 'function') {
+                return await this.client.getPoint(collection, id);
+            }
+            if (typeof this.client.retrieve === 'function') {
+                return await this.client.retrieve(collection, {
+                    ids: [id],
+                    with_payload: true,
+                    with_vector: true
+                });
+            }
+            throw new Error('Qdrant client does not support getPoint or retrieve');
+        });
+        
+        if (result.fallback || !result.success) {
+            throw result.error || new Error(`getPoint failed for ${collection} id=${id}`);
+        }
+
+        // If the underlying client returned an array (retrieve), return first element
+        const data = result.data;
+        if (Array.isArray(data)) return data[0];
+        return data;
     }
 }
 
-// Exports: named class + singleton for convenience
-module.exports = { QdrantAdapter, COLLECTIONS, qdrantAdapter: new QdrantAdapter() };
+// Export class, singleton instance, and constants
+const qdrantAdapter = new QdrantAdapter();
+
+module.exports = {
+    QdrantAdapter,
+    qdrantAdapter,
+    COLLECTIONS
+};

@@ -2,6 +2,26 @@ const { JSDOM } = require('jsdom');
 const assert = require('assert');
 const { mountIslands } = require('../../src/islands/runtime');
 
+// Ensure mocha-style globals exist when running this file outside of a test
+// runner (for example, when executed directly with node).
+if (typeof describe === 'undefined') {
+  global.describe = function (name, fn) { fn(); };
+  global.it = function (name, fn) {
+    try {
+      if (fn.length) {
+        // callback-style test
+        fn(function (err) { if (err) throw err; });
+      } else {
+        // promise/async-style test
+        const res = fn();
+        if (res && typeof res.then === 'function') res.catch(err => { throw err; });
+      }
+    } catch (err) { console.error(err); }
+  };
+  global.beforeEach = function (fn) { fn(); };
+  global.afterEach = function (fn) { fn(); };
+}
+
 describe('Manual Feedback UI - E2E', function () {
   let dom, document, window;
 

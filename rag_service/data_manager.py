@@ -104,13 +104,12 @@ class DataManager:
 
             # Initialize Qdrant for vector storage
             logger.info("Initializing Qdrant vector store")
-            qdrant_initialized = qdrant_adapter.initialize()
-            if qdrant_initialized:
-                logger.info("Qdrant initialized successfully")
+            # QdrantAdapter initializes collection in __init__
+            stats = qdrant_adapter.get_collection_stats()
+            if stats.get("exists"):
+                logger.info("Qdrant collection verified")
             else:
-                logger.warning(
-                    "Qdrant initialization failed - vector search may not work"
-                )
+                logger.warning("Qdrant collection check failed")
 
             self.is_initialized = True
             global_state.save_state()
@@ -297,9 +296,11 @@ class DataManager:
             else:
                 content = doc.get("content", "")
 
+            correspondent_id = None
             correspondent = ""
             if doc.get("correspondent"):
                 corr_id = doc["correspondent"]
+                correspondent_id = corr_id
                 corr_response = requests.get(
                     f"{self.paperless_url}/api/correspondents/{corr_id}/",
                     headers=self._get_headers(),
@@ -311,9 +312,11 @@ class DataManager:
                         "",
                     )
 
+            tag_ids: List[int] = []
             tags: List[str] = []
             if doc.get("tags"):
                 for tag_id in doc["tags"]:
+                    tag_ids.append(tag_id)
                     tag_response = requests.get(
                         f"{self.paperless_url}/api/tags/{tag_id}/",
                         headers=self._get_headers(),
@@ -329,11 +332,13 @@ class DataManager:
                 "title": doc.get("title", ""),
                 "content": content,
                 "correspondent": correspondent,
+                "correspondent_id": correspondent_id,
                 "created": doc.get(
                     "created_date",
                     doc.get("created", ""),
                 ),
                 "tags": tags,
+                "tag_ids": tag_ids,
                 "last_updated": doc.get("modified", ""),
             }
             processed_doc["hash"] = self._compute_document_hash(
@@ -513,27 +518,24 @@ class DataManager:
                 ]
                 embeddings = self.sentence_transformer.encode(texts)
 
-                points: List[Dict[str, Any]] = []
+                batch_points = []
                 for doc, embedding in zip(batch, embeddings):
                     doc_id = doc["id"]
                     correspondent_id = self._extract_correspondent_id(doc)
                     tag_ids = self._extract_tag_ids(doc)
-                    points.append(
-                        {
-                            "id": doc_id,
-                            "embedding": embedding.tolist(),
-                            "payload": {
-                                "doc_id": doc_id,
-                                "correspondent_id": correspondent_id,
-                                "tag_ids": tag_ids,
-                            },
-                            "doc_id": doc_id,
-                            "correspondent_id": correspondent_id,
-                            "tag_ids": tag_ids,
-                        }
-                    )
-
-                qdrant_adapter.upsert_document_embeddings(points)
+                    
+                    metadata = {
+                        "title": doc.get("title", ""),
+                        "correspondent_id": correspondent_id,
+                        "tag_ids": tag_ids,
+                        "created": doc.get("created", ""),
+                        "content": doc.get("content", "")
+                    }
+                    
+                    batch_points.append({'doc_id': doc_id, 'embedding': embedding, 'metadata': metadata})
+                
+                if batch_points:
+                    qdrant_adapter.upsert_documents(batch_points)
 
             logger.info(
                 "Added/updated %s documents to Qdrant",

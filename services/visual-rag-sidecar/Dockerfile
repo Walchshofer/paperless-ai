@@ -18,19 +18,25 @@ RUN pip install --no-cache-dir \
     torchvision==0.21.0+cu124 \
     --index-url https://download.pytorch.org/whl/cu124
 
-# 2. Install native TomoroAI dependencies
-RUN pip install --no-cache-dir transformers==4.57.3 autoawq==0.2.9 \
-    auto-round==0.9.2 flash-attn --no-build-isolation
+# Ensure basic build deps are present so flash-attn's setup.py can import `packaging`
+# Reference: https://github.com/Dao-AILab/flash-attention/issues/453
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel packaging psutil
 
-# 3. Install retrieval acceleration
-RUN pip install --no-cache-dir fast-plaid fastkmeans qwen-vl-utils
+# Install flash-attn separately so failures are clearer and packaging is available
+# Pin to known-good build for CUDA 12.4+ compatibility
+RUN pip install --no-cache-dir "flash-attn==2.7.4.post1" --no-build-isolation
 
+# Install remaining pure-Python dependencies from the canonical requirements file
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py .
 
-RUN mkdir -p /data/indices
+# Runtime defaults and index mount
+ENV QDRANT_HOST=qdrant
+ENV QDRANT_PORT=6333
+ENV INDEX_DIR=/data/indices
+VOLUME ["/data/indices"]
 
 EXPOSE 8001
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
