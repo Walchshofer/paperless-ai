@@ -11,10 +11,11 @@ This document provides a comprehensive overview of the Visual RAG sidecar integr
 5. [Visual Query Generation](#visual-query-generation)
 6. [Dynamic K Selection](#dynamic-k-selection)
 7. [Deduplication Strategy](#deduplication-strategy)
-8. [Metrics Reference](#metrics-reference)
-9. [Configuration](#configuration)
-10. [Model & Build Requirements (ColQwen3-only)](#model--build-requirements-colqwen3-only)
-11. [Troubleshooting](#troubleshooting)
+8. [Visual Search API (Alpha-9 Protocol)](#visual-search-api-alpha-9-protocol)
+9. [Metrics Reference](#metrics-reference)
+10. [Configuration](#configuration)
+11. [Model & Build Requirements (ColQwen3-only)](#model--build-requirements-colqwen3-only)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -486,23 +487,248 @@ Keep Query 1 Result (score 0.85 > 0.78)
 
 ---
 
-## Internal API: Visual Image Search
+## Visual Search API (Alpha-9 Protocol)
 
-### POST /api/visual-rag/search/visual ⚡️
+The Visual RAG integration uses **Native Protocol Alpha-9** for image-based semantic search. This protocol supports:
+- ColQwen3-4B-AWQ model (320-dimensional embeddings)
+- Collection routing (`visual_pages`, `visual_overlays`)
+- Expert Filtering with Hybrid SOT mirroring
+- Hardware target: RTX 3090 Ti
 
-- Description: Search for documents using an image region (base64) as the query. Proxies to the Visual RAG Sidecar and is protected by the circuit breaker.
-- Request Body (application/json):
-  - `image` (string, required): Base64-encoded image region (recommended min size 1KB). Whitespace is ignored.
-  - `k` (integer, optional): Number of results to return (default: 5).
-  - `includeOverlays` (boolean, optional): Whether to include overlays in returned results.
-- Headers:
-  - `X-Request-Id` (optional): Correlation id; forwarded to the sidecar and included in structured logs.
-- Responses:
-  - 200: { success: true, query: "[IMAGE]", results: [...], totalResults }
-  - 400: Missing or invalid `image` (base64)
-  - 503: Circuit breaker open; service temporarily unavailable. Response includes `circuit_breaker: 'open'` and metrics are emitted (`circuit_breaker_open_total`, `sidecar_availability`).
+---
 
-> Notes: The server accepts large payloads up to the configured body-parser limit (default 50MB). The route performs a lightweight base64 sanity check and returns 400 for malformed images.
+### POST /api/visual-rag/search/visual
+
+Search for documents using an image region (base64) as the query. Proxies to the Visual RAG Sidecar with Alpha-9 protocol and is protected by the circuit breaker.
+
+#### Request Body (application/json)
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `image` | string | **Yes** | - | Base64-encoded image region (min 1KB recommended) |
+| `collection` | string | No | `visual_pages` | Target collection: `visual_pages` or `visual_overlays` |
+| `k` | integer | No | 5 | Number of results to return (1-100) |
+| `filters` | object | No | `{}` | Expert Filtering payload (see below) |
+
+#### Request Headers
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `Content-Type` | Yes | Must be `application/json` |
+| `X-Request-Id` | No | Correlation ID; forwarded to sidecar and included in logs |
+
+#### Response (200 OK)
+
+```json
+{
+  "success": true,
+  "results": [
+    {
+      "doc_id": 123,
+      "page": 1,
+      "score": 0.8542,
+      "metadata": {
+        "correspondent_id": 5,
+        "tag_ids": [1, 3, 7]
+      }
+    }
+  ],
+  "collectionUsed": "visual_pages",
+  "total": 1,
+  "maxsim_score_mean": "0.8542"
+}
+```
+
+#### Response Headers
+
+| Header | Description |
+|--------|-------------|
+| `X-Request-Id` | Echoed from request or auto-generated UUID |
+
+---
+
+### Collection Routing
+
+Alpha-9 protocol supports two Qdrant collections with 320-dimensional DOT distance vectors:
+
+| Collection | Purpose | Use Case |
+|------------|---------|----------|
+| `visual_pages` | Full page embeddings | Document similarity, page-level search |
+| `visual_overlays` | Annotated region embeddings | Field detection, bounding box search |
+
+**Selection Criteria:**
+- Use `visual_pages` for general document queries
+- Use `visual_overlays` when searching for specific annotated regions or field locations
+- Invalid collection names return HTTP 400
+
+---
+
+### Expert Filtering (Hybrid SOT)
+
+Expert Filtering enables metadata-based filtering using Qdrant payload queries. Filters mirror the Source of Truth (SOT) metadata from Paperless-ngx.
+
+#### Filter Parameters
+
+| Filter | Type | Qdrant Mapping | Description |
+|--------|------|----------------|-------------|
+| `doc_id` | integer | `must[].match.value` | Exact document ID match |
+| `tag_ids` | array | `must[].match.any` | Match any of the specified tag IDs |
+| `correspondent_id` | integer | `must[].match.value` | Exact correspondent ID match |
+
+#### Filter Example
+
+```json
+{
+  "filters": {
+    "doc_id": 123,
+    "tag_ids": [1, 3, 7],
+    "correspondent_id": 5
+  }
+}
+```
+
+**Qdrant Payload Translation:**
+```json
+{
+  "must": [
+    { "key": "doc_id", "match": { "value": 123 } },
+    { "key": "tag_ids", "match": { "any": [1, 3, 7] } },
+    { "key": "correspondent_id", "match": { "value": 5 } }
+  ]
+}
+```
+
+---
+
+### Error Handling
+
+#### 503 Initializing State
+
+The sidecar returns HTTP 503 during GPU warmup (model loading, Qdrant connection):
+
+```json
+{
+  "success": false,
+  "error": "Service initializing",
+  "errorType": "SIDECAR_INITIALIZING",
+  "detail": "Stage: loading_model",
+  "retryable": true
+}
+```
+
+**Initialization Stages:**
+1. `starting` - Service startup
+2. `loading_model` - ColQwen3-4B-AWQ loading (~30s on RTX 3090 Ti)
+3. `connecting_qdrant` - Qdrant connection establishment
+4. `validating_dimensions` - 320-dim embedding validation
+5. `ready` - Service accepting requests
+
+#### Timeout Handling
+
+Alpha-9 enforces a strict 5-second timeout using AbortController:
+
+```json
+{
+  "success": false,
+  "error": "Visual search timeout",
+  "errorType": "TIMEOUT",
+  "retryable": true
+}
+```
+
+#### Circuit Breaker
+
+When the circuit breaker is OPEN (3 consecutive failures):
+
+```json
+{
+  "success": false,
+  "error": "Visual search service is temporarily unavailable",
+  "errorType": "CIRCUIT_OPEN",
+  "circuit_breaker": "open",
+  "retryable": false
+}
+```
+
+#### Error Types Reference
+
+| Error Type | HTTP Status | Retryable | Description |
+|------------|-------------|-----------|-------------|
+| `SIDECAR_INITIALIZING` | 503 | Yes | GPU warmup in progress |
+| `TIMEOUT` | 504 | Yes | 5-second limit exceeded |
+| `CIRCUIT_OPEN` | 503 | No | Circuit breaker tripped |
+| `NETWORK_ERROR` | 503 | Yes | Sidecar unreachable |
+
+---
+
+### cURL Examples
+
+#### Basic Image Search
+
+```bash
+# Search visual_pages collection
+curl -X POST http://localhost:3000/api/visual-rag/search/visual \
+  -H "Content-Type: application/json" \
+  -H "X-Request-Id: req-12345" \
+  -d '{
+    "image": "'"$(base64 -w0 document.png)"'",
+    "collection": "visual_pages",
+    "k": 5
+  }'
+```
+
+#### Search with Expert Filtering
+
+```bash
+# Search within specific document and tags
+curl -X POST http://localhost:3000/api/visual-rag/search/visual \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image": "'"$(base64 -w0 invoice_header.png)"'",
+    "collection": "visual_overlays",
+    "k": 10,
+    "filters": {
+      "tag_ids": [1, 3],
+      "correspondent_id": 42
+    }
+  }'
+```
+
+#### Check Sidecar Health
+
+```bash
+curl http://localhost:8001/health
+# Response includes: model_loaded, qdrant_connected, flash_attn_version
+```
+
+---
+
+### JavaScript Client Example
+
+```javascript
+const { visualSearchClient, ErrorTypes } = require('./services/visual-rag/VisualSearchClient');
+
+async function searchVisual(imageBase64, docFilters) {
+  try {
+    const results = await visualSearchClient.searchImageAlpha9(
+      imageBase64,
+      'visual_pages',  // collection
+      docFilters,      // { doc_id, tag_ids, correspondent_id }
+      5                // k
+    );
+    console.log('Results:', results.results);
+    console.log('MaxSim Mean:', results.maxsimScoreMean);
+  } catch (error) {
+    if (error.errorType === ErrorTypes.SIDECAR_INITIALIZING) {
+      console.log('Sidecar warming up, retry in 30s');
+    } else if (error.errorType === ErrorTypes.CIRCUIT_OPEN) {
+      console.log('Circuit breaker open, fallback to text search');
+    }
+  }
+}
+```
+
+> **Note:** The server accepts large payloads up to the configured body-parser limit (default 50MB). The route performs a lightweight base64 sanity check and returns 400 for malformed images.
 
 
 ## Metrics Reference
@@ -553,52 +779,6 @@ Keep Query 1 Result (score 0.85 > 0.78)
 | Metrics overhead | < 5% | > 10% |
 
 ---
-
-## Internal API Reference
-
-### Visual Search Endpoint (Sidecar Proxy)
-
-**POST** `/api/visual-rag/search/visual`
-
-Internal endpoint that proxies requests to the Visual RAG Sidecar, protected by the Circuit Breaker.
-
-**Request Headers:**
-- `X-Request-Id`: Request ID for tracing (propagated to sidecar)
-
-**Request Body:**
-```json
-{
-  "image": "base64_encoded_image_string...",
-  "k": 5,
-  "includeOverlays": true
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "query": "[IMAGE]",
-  "results": [
-    {
-      "docId": 123,
-      "score": 0.85,
-      "base64": "..."
-    }
-  ],
-  "totalResults": 1
-}
-```
-
-**Response (503 Service Unavailable):**
-Returned when the Circuit Breaker is OPEN or the sidecar is unreachable.
-```json
-{
-  "success": false,
-  "error": "Visual search service is temporarily unavailable",
-  "circuit_breaker": "open"
-}
-```
 
 ## Configuration
 

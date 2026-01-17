@@ -27,10 +27,10 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel packaging psutil
 RUN pip install --no-cache-dir "flash-attn==2.7.4.post1" --no-build-isolation
 
 # Install remaining pure-Python dependencies from the canonical requirements file
-COPY requirements.txt .
+COPY services/visual-rag-sidecar/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py .
+COPY services/visual-rag-sidecar/main.py .
 
 # Runtime defaults and index mount
 ENV QDRANT_HOST=qdrant

@@ -2,15 +2,33 @@
  * VisualSearchClient.js
  *
  * Client for the Visual RAG Sidecar service.
- * Provides visual document retrieval using ColQwen2/ColPali embeddings.
+ * Provides visual document retrieval using ColQwen3-4B-AWQ embeddings.
  *
- * Architecture Reference: PROMPT-002 (Visual Retrieval Sidecar)
+ * Architecture Reference: PROMPT-002, ticket:006.1 (Alpha-9 Protocol)
  *
  * Usage:
  * - Search: Find documents by visual content (tables, charts, layouts)
+ * - searchImageAlpha9: Alpha-9 image search with collection routing
  * - Index: Add documents to the visual index for retrieval
  * - Health: Check sidecar service status
+ *
+ * Alpha-9 Protocol Features:
+ * - Collection routing (visual_pages, visual_overlays)
+ * - Expert Filtering (doc_id, tag_ids, correspondent_id)
+ * - 503 Initializing state handling
+ * - 5-second strict timeout with AbortController
  */
+
+// Error types for 503 handling (ticket:006.1)
+const ErrorTypes = {
+    SIDECAR_INITIALIZING: 'SIDECAR_INITIALIZING',
+    TIMEOUT: 'TIMEOUT',
+    CIRCUIT_OPEN: 'CIRCUIT_OPEN',
+    NETWORK_ERROR: 'NETWORK_ERROR'
+};
+
+// Valid collections for Alpha-9 protocol
+const VALID_COLLECTIONS = ['visual_pages', 'visual_overlays'];
 
 const axios = require('axios');
 const logger = require('../logger');
@@ -268,6 +286,111 @@ class VisualSearchClient {
     }
 
     /**
+     * Alpha-9 Protocol: Image search with collection routing (ticket:006.1)
+     *
+     * @param {string} base64Image - Base64 encoded query image
+     * @param {string} collection - Target collection (visual_pages|visual_overlays)
+     * @param {Object} filters - Expert Filtering options
+     * @param {number} filters.doc_id - Filter by document ID
+     * @param {number[]} filters.tag_ids - Filter by tag IDs
+     * @param {number} filters.correspondent_id - Filter by correspondent
+     * @param {number} limit - Number of results (default: 5)
+     * @returns {Promise<Object>} Search results with MaxSim scores
+     * @throws {Error} With type SIDECAR_INITIALIZING for 503 response
+     */
+    async searchImageAlpha9(base64Image, collection = 'visual_pages', filters = {}, limit = 5) {
+        // Validate collection
+        if (!VALID_COLLECTIONS.includes(collection)) {
+            throw new Error(`Invalid collection: ${collection}. Valid: ${VALID_COLLECTIONS.join(', ')}`);
+        }
+
+        if (!base64Image || typeof base64Image !== 'string') {
+            throw new Error('base64Image must be a non-empty string');
+        }
+
+        // Alpha-9 strict timeout: 5000ms (ticket:006.1)
+        const ALPHA9_TIMEOUT = 5000;
+
+        await this._acquire();
+        const startTime = Date.now();
+
+        try {
+            // Create AbortController for strict timeout (ticket:006.1)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), ALPHA9_TIMEOUT);
+
+            logger.debug(`[VisualSearchClient] Alpha-9 search: collection=${collection}, limit=${limit}`);
+
+            const response = await this.client.post('/search', {
+                query_image: base64Image,
+                collection_name: collection,
+                filters: Object.keys(filters).length > 0 ? filters : undefined,
+                k: limit
+            }, {
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            const data = response.data;
+            const durationMs = Date.now() - startTime;
+
+            if (this.metricsCollector?.observeEmbeddingQueryLatency) {
+                this.metricsCollector.observeEmbeddingQueryLatency('alpha9-image', durationMs);
+            }
+
+            logger.info(`[VisualSearchClient] Alpha-9 search completed in ${durationMs}ms, ${data.results?.length || 0} results`);
+
+            return {
+                results: (data.results || []).map(r => ({
+                    docId: r.doc_id,
+                    score: r.score,
+                    pageNum: r.page_num,
+                    thumbnailUrl: r.thumbnail_url
+                })),
+                scoreType: data.score_type || 'maxsim',
+                collectionUsed: data.collection_used || collection,
+                executionTimeMs: data.execution_time_ms || durationMs,
+                queryType: data.query_type || 'image'
+            };
+
+        } catch (error) {
+            const durationMs = Date.now() - startTime;
+
+            // Handle 503 Initializing response (ticket:006.1)
+            if (error.response?.status === 503) {
+                const detail = error.response.data?.detail || 'Initializing';
+                logger.warn(`[VisualSearchClient] Sidecar 503: ${detail}`);
+
+                const err = new Error(`Sidecar initializing: ${detail}`);
+                err.type = ErrorTypes.SIDECAR_INITIALIZING;
+                err.status = 503;
+                err.detail = detail;
+                throw err;
+            }
+
+            // Handle timeout (AbortController)
+            if (error.name === 'AbortError' || error.code === 'ECONNABORTED') {
+                logger.error(`[VisualSearchClient] Alpha-9 timeout after ${durationMs}ms`);
+
+                const err = new Error(`Request timeout (${ALPHA9_TIMEOUT}ms exceeded)`);
+                err.type = ErrorTypes.TIMEOUT;
+                err.durationMs = durationMs;
+                throw err;
+            }
+
+            // Handle other errors
+            if (this.metricsCollector?.recordSidecarAvailability) {
+                this.metricsCollector.recordSidecarAvailability('visual-rag', false);
+            }
+
+            throw this._wrapError('Alpha-9 image search failed', error);
+        } finally {
+            this._release();
+        }
+    }
+
+    /**
      * Search indexed documents visually
      * @param {string} query - Search query text
      * @param {Object} options - Search options
@@ -519,5 +642,8 @@ const visualSearchClient = new VisualSearchClient();
 
 module.exports = {
     VisualSearchClient,
-    visualSearchClient
+    visualSearchClient,
+    // Alpha-9 Protocol exports (ticket:006.1)
+    ErrorTypes,
+    VALID_COLLECTIONS
 };

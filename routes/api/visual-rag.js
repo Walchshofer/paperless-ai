@@ -160,10 +160,11 @@ router.post('/search', async (req, res) => {
  * @swagger
  * /api/visual-rag/search/visual:
  *   post:
- *     summary: Visual-based document search (Find Similar)
+ *     summary: Alpha-9 Visual Search with Expert Filtering (ticket:006.2)
  *     description: |
  *       Search for documents using an image region (base64) as the query.
- *       Proxies to the Visual RAG Sidecar.
+ *       Supports collection routing and Hybrid SOT metadata filtering.
+ *       Uses Alpha-9 Protocol with 5-second timeout and 503 handshake.
  *     tags: [Visual RAG]
  *     requestBody:
  *       required: true
@@ -177,103 +178,208 @@ router.post('/search', async (req, res) => {
  *               image:
  *                 type: string
  *                 description: Base64 encoded image
+ *               collection:
+ *                 type: string
+ *                 enum: [visual_pages, visual_overlays]
+ *                 default: visual_pages
  *               k:
  *                 type: integer
  *                 default: 5
- *               includeOverlays:
- *                 type: boolean
- *                 default: true
+ *               filters:
+ *                 type: object
+ *                 description: Expert Filtering options
+ *                 properties:
+ *                   doc_id:
+ *                     type: integer
+ *                   tag_ids:
+ *                     type: array
+ *                     items:
+ *                       type: integer
+ *                   correspondent_id:
+ *                     type: integer
  *     responses:
  *       200:
- *         description: Search results
+ *         description: MaxSim search results
+ *       400:
+ *         description: Invalid request
  *       503:
- *         description: Sidecar unavailable (Circuit Breaker)
+ *         description: Sidecar unavailable or initializing
  */
 router.post('/search/visual', async (req, res) => {
-    const { visualSearchClient } = require('../../services/visual-rag/VisualSearchClient');
+    const { visualSearchClient, ErrorTypes } = require('../../services/visual-rag/VisualSearchClient');
     const { metricsCollector } = require('../../services/metrics/PrometheusMetrics');
-    
+
+    const requestId = req.headers['x-request-id'] || `req-${Date.now()}`;
+
     try {
-        const { image, k = 5, includeOverlays = true } = req.body;
-        const requestId = req.headers['x-request-id'] || `req-${Date.now()}`;
+        const {
+            image,
+            collection = 'visual_pages',
+            k = 5,
+            filters = {}
+        } = req.body;
 
         // Validate presence
         if (!image) {
-            return res.status(400).json({ success: false, error: 'Image (base64) is required' });
+            return res.status(400).json({
+                success: false,
+                error: 'Image (base64) is required'
+            });
         }
 
-        // Validate simple base64 shape to provide early feedback for malformed requests
+        // Validate simple base64 shape
         if (!isValidBase64(image)) {
             logger.warn('[Visual-RAG API] Invalid base64 image payload', { request_id: requestId });
-            return res.status(400).json({ success: false, error: 'Invalid image (not valid base64)' });
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid image (not valid base64)'
+            });
+        }
+
+        // Validate collection (ticket:006.2)
+        const validCollections = ['visual_pages', 'visual_overlays'];
+        if (!validCollections.includes(collection)) {
+            return res.status(400).json({
+                success: false,
+                error: `Invalid collection: ${collection}. Valid: ${validCollections.join(', ')}`
+            });
         }
 
         // Circuit Breaker Check
         const isAvailable = await visualSearchClient.isAvailable();
         if (!isAvailable) {
             logger.warn('[Visual-RAG API] Sidecar unavailable (Circuit Breaker Open)', { request_id: requestId });
-            
-            // Emit circuit breaker open metric (labels API)
+
+            // Emit circuit breaker open metric
             try {
-                if (metricsCollector?.circuitBreakerOpenTotal && typeof metricsCollector.circuitBreakerOpenTotal.labels === 'function') {
+                if (metricsCollector?.circuitBreakerOpenTotal?.labels) {
                     metricsCollector.circuitBreakerOpenTotal.labels('visual-rag').inc();
                 } else if (metricsCollector?.recordCircuitBreakerStateTransition) {
-                    // Best-effort (may record only transitions when available)
                     metricsCollector.recordCircuitBreakerStateTransition('visual-rag', 'CLOSED', 'OPEN');
                 }
             } catch (mErr) {
-                logger.debug('[Visual-RAG API] Metrics emit failed for circuit breaker open', { error: mErr.message });
+                logger.debug('[Visual-RAG API] Metrics emit failed', { error: mErr.message });
             }
 
-            // Record sidecar availability explicitly
-            try {
-                if (metricsCollector?.recordSidecarAvailability) metricsCollector.recordSidecarAvailability('visual-rag', false);
-            } catch (mErr) {
-                logger.debug('[Visual-RAG API] Metrics emit failed for sidecar availability', { error: mErr.message });
-            }
-
+            // Try Text-Only RAG fallback (ticket:006.2)
             return res.status(503).json({
                 success: false,
                 error: 'Visual search service is temporarily unavailable',
-                circuit_breaker: 'open'
+                circuit_breaker: 'open',
+                fallback: 'text_only_rag_available'
             });
         }
 
-        logger.info(`[Visual-RAG API] Visual Search (k=${k})`, { request_id: requestId });
+        logger.info(`[Visual-RAG API] Alpha-9 Visual Search (collection=${collection}, k=${k})`, {
+            request_id: requestId,
+            filters: Object.keys(filters).length > 0 ? filters : 'none'
+        });
 
-        // Execute Search (measure at route-level for visual_query_execution_time_ms)
+        // Map request filters to Qdrant payload format (ticket:006.2)
+        const qdrantFilters = {};
+        if (filters.doc_id) qdrantFilters.doc_id = filters.doc_id;
+        if (filters.tag_ids && Array.isArray(filters.tag_ids)) {
+            qdrantFilters.tag_ids = filters.tag_ids;
+        }
+        if (filters.correspondent_id) qdrantFilters.correspondent_id = filters.correspondent_id;
+
+        // Execute Alpha-9 Search with collection routing (ticket:006.2)
         const start = Date.now();
-        const results = await visualSearchClient.searchImage(image, { k, requestId });
+        const results = await visualSearchClient.searchImageAlpha9(
+            image,
+            collection,
+            qdrantFilters,
+            k
+        );
         const durationMs = Date.now() - start;
 
-        // Metrics: visual query execution and query counters
+        // Emit metrics
         try {
             if (metricsCollector?.observeVisualQueryExecutionTime) {
-                metricsCollector.observeVisualQueryExecutionTime('unknown', durationMs);
+                metricsCollector.observeVisualQueryExecutionTime(collection, durationMs);
+            }
+            if (metricsCollector?.incrementVisualQueriesExecuted) {
+                metricsCollector.incrementVisualQueriesExecuted(collection, 'image');
             }
         } catch (mErr) {
-            logger.debug('[Visual-RAG API] Metrics emit failed for visual query execution time', { error: mErr.message });
+            logger.debug('[Visual-RAG API] Metrics emit failed', { error: mErr.message });
         }
 
-        try {
-            if (metricsCollector?.incrementVisualQueriesExecuted) {
-                metricsCollector.incrementVisualQueriesExecuted('unknown', 'image');
-            } else if (metricsCollector?.visualQueriesExecutedTotal && typeof metricsCollector.visualQueriesExecutedTotal.labels === 'function') {
-                metricsCollector.visualQueriesExecutedTotal.labels('unknown', 'image').inc();
-            }
-        } catch (mErr) {
-            logger.debug('[Visual-RAG API] Metrics emit failed for visual queries executed', { error: mErr.message });
-        }
+        // Calculate MaxSim score mean for telemetry (ticket:006.3)
+        const scores = results.results.map(r => r.score);
+        const maxsimScoreMean = scores.length > 0
+            ? scores.reduce((a, b) => a + b, 0) / scores.length
+            : 0;
+
+        // Log telemetry with hardware profile (ticket:006.3)
+        logger.info('[Visual-RAG API] Alpha-9 search completed', {
+            request_id: requestId,
+            hardware_target: 'RTX 3090 Ti',
+            visual_query_execution_time_ms: durationMs,
+            maxsim_score_mean: maxsimScoreMean.toFixed(4),
+            collection: results.collectionUsed,
+            result_count: results.results.length,
+            filters_applied: Object.keys(qdrantFilters)
+        });
+
+        // Set X-Request-Id response header (ticket:006.3)
+        res.setHeader('X-Request-Id', requestId);
 
         res.json({
             success: true,
             query: '[IMAGE]',
+            collection: results.collectionUsed,
+            scoreType: results.scoreType,
+            executionTimeMs: results.executionTimeMs,
+            maxsimScoreMean: parseFloat(maxsimScoreMean.toFixed(4)),
             results: results.results,
-            totalResults: results.totalResults
+            totalResults: results.results.length
         });
 
     } catch (error) {
-        logger.error('[Visual-RAG API] Visual search failed:', error.message);
+        // Handle 503 Initializing response (ticket:006.2)
+        if (error.type === ErrorTypes.SIDECAR_INITIALIZING) {
+            logger.warn('[Visual-RAG API] Sidecar 503 Initializing', {
+                request_id: requestId,
+                detail: error.detail
+            });
+
+            return res.status(503).json({
+                success: false,
+                error: 'Visual search sidecar is initializing',
+                type: 'SIDECAR_INITIALIZING',
+                detail: error.detail,
+                fallback: 'text_only_rag_available'
+            });
+        }
+
+        // Handle timeout (ticket:006.2)
+        if (error.type === ErrorTypes.TIMEOUT) {
+            logger.error('[Visual-RAG API] Alpha-9 timeout', {
+                request_id: requestId,
+                durationMs: error.durationMs
+            });
+
+            // Emit timeout metric
+            try {
+                if (metricsCollector?.circuitBreakerOpenTotal?.labels) {
+                    metricsCollector.circuitBreakerOpenTotal.labels('visual-rag').inc();
+                }
+            } catch (mErr) {
+                logger.debug('[Visual-RAG API] Metrics emit failed', { error: mErr.message });
+            }
+
+            return res.status(504).json({
+                success: false,
+                error: 'Visual search request timed out',
+                type: 'TIMEOUT',
+                fallback: 'text_only_rag_available'
+            });
+        }
+
+        logger.error('[Visual-RAG API] Visual search failed:', error.message, {
+            request_id: requestId
+        });
         res.status(500).json({ success: false, error: error.message });
     }
 });

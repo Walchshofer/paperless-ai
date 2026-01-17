@@ -51,6 +51,7 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 
 # Set production environment
 ENV NODE_ENV=production
+ENV VISUAL_RAG_TIMEOUT=10000
 
 # Start both Node.js and Python services using our script
 CMD ["./start-services.sh"]
