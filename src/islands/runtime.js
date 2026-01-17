@@ -127,9 +127,26 @@ const ManualEditorSchema = z.object({
   gpuState: z.enum(['idle', 'checking', 'preparing', 'ready', 'error']).optional(),
 });
 
+// Tag schema for history tabs metadata
+const TagItemSchema = z.object({
+  id: z.number().int(),
+  name: z.string()
+});
+
+// History metadata schema
+const HistoryMetadataSchema = z.object({
+  correspondent: z.string().optional(),
+  correspondentId: z.number().int().optional(),
+  tags: z.array(TagItemSchema).optional(),
+  documentType: z.string().optional(),
+  created: z.string().optional(),
+  modified: z.string().optional()
+});
+
 const HistoryTabsSchema = z.object({
   documentId: z.number().int().nullable(),
   content: z.string().optional(),
+  metadata: HistoryMetadataSchema.optional()
 });
 
 const OverlayViewerSchema = z.object({

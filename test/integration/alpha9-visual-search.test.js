@@ -1,4 +1,3 @@
-/* eslint-env mocha */
 /**
  * Alpha-9 Visual Search API Integration Tests
  *
@@ -21,10 +20,7 @@ const app = require('../../server');
 const { startAlpha9SidecarMock, MockStates } = require('../helpers/sidecar-mock-alpha9');
 const {
     MINIMAL_PNG_BASE64,
-    INVALID_BASE64,
-    EMPTY_IMAGE,
-    TEST_DOCUMENTS,
-    FILTER_TEST_CASES
+    EMPTY_IMAGE
 } = require('../fixtures/visual_search');
 
 // Import client for direct testing
