@@ -33,6 +33,8 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
   const [liveRect, setLiveRect] = useState(null as {x: number, y: number, w: number, h: number} | null);
   const [retryCount, setRetryCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState('');
+  // Retry nonce: incrementing this triggers the handshake effect to re-run
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const canvasRef = useRef(null as HTMLDivElement | null);
   const startRef = useRef(null as {x: number, y: number} | null);
@@ -44,72 +46,75 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
     return Math.min(delay, MAX_BACKOFF_MS);
   }, []);
 
-  // 1. Handshake & 503 Handling with exponential backoff
-  useEffect(() => {
-    mountedRef.current = true;
-    let retryAttempt = 0;
+  // Sidecar health check function - extracted for reuse
+  const checkSidecar = useCallback(async (retryAttemptRef: { current: number }) => {
+    if (!mountedRef.current) return;
 
-    const checkSidecar = async () => {
+    setStatus('checking');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), HANDSHAKE_TIMEOUT_MS);
+
+    try {
+      const res = await fetch('/api/visual-rag/health', {
+        signal: controller.signal,
+        headers: { 'X-Request-Id': `handshake-${Date.now()}` }
+      });
+      clearTimeout(timeoutId);
+
       if (!mountedRef.current) return;
 
-      setStatus('checking');
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), HANDSHAKE_TIMEOUT_MS);
+      if (res.status === 503) {
+        // Sidecar initializing - show preparing state
+        setStatus('preparing');
+        retryAttemptRef.current++;
+        setRetryCount(retryAttemptRef.current);
 
-      try {
-        const res = await fetch('/api/visual-rag/health', {
-          signal: controller.signal,
-          headers: { 'X-Request-Id': `handshake-${Date.now()}` }
-        });
-        clearTimeout(timeoutId);
-
-        if (!mountedRef.current) return;
-
-        if (res.status === 503) {
-          // Sidecar initializing - show preparing state
-          setStatus('preparing');
-          retryAttempt++;
-          setRetryCount(retryAttempt);
-
-          if (retryAttempt < MAX_RETRIES) {
-            const delay = getBackoffDelay(retryAttempt);
-            setTimeout(() => mountedRef.current && checkSidecar(), delay);
-          } else {
-            setStatus('error');
-            setErrorMessage('GPU warmup timed out after maximum retries');
-          }
-          return;
-        }
-
-        if (res.ok) {
-          setStatus('ready');
-          setRetryCount(0);
-          setErrorMessage('');
+        if (retryAttemptRef.current < MAX_RETRIES) {
+          const delay = getBackoffDelay(retryAttemptRef.current);
+          setTimeout(() => mountedRef.current && checkSidecar(retryAttemptRef), delay);
         } else {
           setStatus('error');
-          setErrorMessage(`Sidecar returned status ${res.status}`);
+          setErrorMessage('GPU warmup timed out after maximum retries');
         }
-      } catch (e: any) {
-        clearTimeout(timeoutId);
-        if (!mountedRef.current) return;
-
-        retryAttempt++;
-        setRetryCount(retryAttempt);
-
-        if (retryAttempt < MAX_RETRIES) {
-          setStatus('preparing');
-          const delay = getBackoffDelay(retryAttempt);
-          setTimeout(() => mountedRef.current && checkSidecar(), delay);
-        } else {
-          setStatus('error');
-          setErrorMessage(e.name === 'AbortError' ? 'Connection timeout' : e.message);
-        }
+        return;
       }
-    };
 
-    checkSidecar();
-    return () => { mountedRef.current = false; };
+      if (res.ok) {
+        setStatus('ready');
+        setRetryCount(0);
+        setErrorMessage('');
+      } else {
+        setStatus('error');
+        setErrorMessage(`Sidecar returned status ${res.status}`);
+      }
+    } catch (e: any) {
+      clearTimeout(timeoutId);
+      if (!mountedRef.current) return;
+
+      retryAttemptRef.current++;
+      setRetryCount(retryAttemptRef.current);
+
+      if (retryAttemptRef.current < MAX_RETRIES) {
+        setStatus('preparing');
+        const delay = getBackoffDelay(retryAttemptRef.current);
+        setTimeout(() => mountedRef.current && checkSidecar(retryAttemptRef), delay);
+      } else {
+        setStatus('error');
+        setErrorMessage(e.name === 'AbortError' ? 'Connection timeout' : e.message);
+      }
+    }
   }, [getBackoffDelay]);
+
+  // 1. Handshake & 503 Handling with exponential backoff
+  // Re-runs when retryNonce changes (user clicks Retry button)
+  useEffect(() => {
+    mountedRef.current = true;
+    const retryAttemptRef = { current: 0 };
+
+    checkSidecar(retryAttemptRef);
+
+    return () => { mountedRef.current = false; };
+  }, [checkSidecar, retryNonce]);
 
   // 2. Canvas Interaction Logic
   const getLocalCoords = (evt: MouseEvent) => {
@@ -164,23 +169,54 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
   const handleConfirm = async (index: number) => {
     const ann = annotations[index];
     try {
-      // Trigger Hybrid SOT update
+      // Build bbox in [y1, x1, y2, x2] normalized format for the API
+      const bbox = [ann.y, ann.x, ann.y + ann.height, ann.x + ann.width];
+
+      // Trigger Hybrid SOT update with correct payload structure
+      // API expects: { documentId, events: [{ event_type, field_name, corrected_value, context }] }
       await fetch('/api/visual-rag/feedback', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-Id': `annotation-confirm-${Date.now()}`
+        },
         body: JSON.stringify({
-          event: 'feedback:confirmed',
-          documentId: props.documentId,
-          page: props.page,
-          annotation: ann
+          documentId: props.documentId ? Number(props.documentId) : null,
+          events: [{
+            event_type: 'annotation',
+            field_name: ann.label || 'visual_annotation',
+            corrected_value: {
+              label: ann.label,
+              text: ann.note || '',
+              bbox,
+              confidence: 1.0  // User confirmed, so full confidence
+            },
+            context: {
+              request_id: `annotation-confirm-${Date.now()}`,
+              page: props.page ?? 0,
+              bbox,
+              label: ann.label,
+              note: ann.note,
+              correspondentId: ann.context?.correspondentId ?? null,
+              tagIds: ann.context?.tagIds ?? [],
+              documentTypeId: ann.context?.documentTypeId ?? null
+            }
+          }]
         })
       });
 
       const newAnns = [...annotations];
       newAnns[index].confirmed = true;
       setAnnotations(newAnns);
-      
-      document.dispatchEvent(new CustomEvent('feedback:confirmed', { detail: ann }));
+
+      document.dispatchEvent(new CustomEvent('feedback:confirmed', {
+        detail: {
+          ...ann,
+          documentId: props.documentId,
+          page: props.page,
+          bbox
+        }
+      }));
     } catch (e) {
       console.error('Failed to confirm match', e);
     }
@@ -195,15 +231,14 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
     document.dispatchEvent(new CustomEvent('payload:ready', { detail: payload }));
   };
 
-  // Retry handler for error state
+  // Retry handler for error state - increments nonce to trigger useEffect re-run
   const handleRetry = useCallback(() => {
     setStatus('idle');
     setRetryCount(0);
     setErrorMessage('');
-    // Trigger re-check by updating the effect dependency
     mountedRef.current = true;
-    // Force remount effect
-    window.dispatchEvent(new CustomEvent('vai:retry-handshake'));
+    // Increment nonce to trigger the handshake effect to re-run
+    setRetryNonce((n) => n + 1);
   }, []);
 
   return (

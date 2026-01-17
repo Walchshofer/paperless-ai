@@ -44,8 +44,8 @@ describe('island runtime - Visual Annotation', function () {
     const anchor = document.createElement('div');
     anchor.setAttribute('data-island', 'visual-annotation-island');
     anchor.setAttribute('data-testid', 'visual-annotation-island');
-    // invalid documentId type (number instead of string)
-    anchor.setAttribute('data-props', JSON.stringify({ documentId: 123 }));
+    // invalid annotations type (should be array, not string)
+    anchor.setAttribute('data-props', JSON.stringify({ documentId: 123, annotations: 'not-an-array' }));
 
     document.body.appendChild(anchor);
 
@@ -56,6 +56,21 @@ describe('island runtime - Visual Annotation', function () {
     assert.ok(warnings.length > 0, 'Expected console.warn to be called for invalid props');
 
     console.warn = oldWarn;
+  });
+
+  it('mounts with numeric documentId (paperless-ngx compatibility)', () => {
+    const anchor = document.createElement('div');
+    anchor.setAttribute('data-island', 'visual-annotation-island');
+    anchor.setAttribute('data-testid', 'visual-annotation-island');
+    // numeric documentId should now be valid (paperless-ngx uses integers)
+    anchor.setAttribute('data-props', JSON.stringify({ documentId: 123, page: 1 }));
+
+    document.body.appendChild(anchor);
+
+    mountIslands(document);
+
+    const root = anchor.querySelector('[data-testid="visual-annotation-island-root"]');
+    assert.ok(root, 'Expected visual annotation island to mount with numeric documentId');
   });
 
   it('skips mount and warns when data-props is malformed JSON', () => {
@@ -187,12 +202,23 @@ describe('island runtime - Visual Annotation', function () {
         const fbCall = calls.find(c => c.url && c.url.endsWith('/feedback'));
         assert.ok(fbCall, 'expected fetch to /api/visual-rag/feedback');
         const body = JSON.parse(fbCall.opts.body);
-        assert.strictEqual(body.event, 'feedback:confirmed');
-        assert.strictEqual(body.documentId, 'doc-42');
+
+        // Verify new payload structure: { documentId, events: [{ event_type, field_name, ... }] }
+        assert.ok(body.documentId !== undefined, 'documentId should be present');
+        assert.ok(Array.isArray(body.events), 'events should be an array');
+        assert.strictEqual(body.events.length, 1, 'expected exactly one event');
+        assert.strictEqual(body.events[0].event_type, 'annotation', 'event_type should be annotation');
+        assert.strictEqual(body.events[0].field_name, 'Invoice', 'field_name should match label');
+        assert.ok(body.events[0].corrected_value, 'corrected_value should be present');
+        assert.strictEqual(body.events[0].corrected_value.label, 'Invoice');
+        assert.ok(body.events[0].context, 'context should be present');
+        assert.ok(Array.isArray(body.events[0].context.bbox), 'bbox should be an array in context');
+
         // Confirm the event detail matches the annotation object
         const d = e.detail;
         assert.strictEqual(d.label, 'Invoice');
         assert.strictEqual(d.note, 'Matches OCR');
+        assert.ok(Array.isArray(d.bbox), 'event detail should include bbox array');
 
         // restore fetch
         global.fetch = origFetch;

@@ -46,8 +46,9 @@ export const AnnotationSchema = z.object({
 });
 
 export const VisualAnnotationSchema = z.object({
-  // Document identifier (string for flexibility with different backends)
-  documentId: z.string().min(1),
+  // Document identifier (string or number for flexibility with different backends)
+  // Paperless-ngx uses numeric IDs, but we accept strings for compatibility
+  documentId: z.union([z.string().min(1), z.number().int().positive()]).nullable().optional(),
   // Current page being annotated (0-indexed)
   page: z.number().int().nonnegative().optional(),
   // Allow initial empty annotations; default to empty array
@@ -56,10 +57,13 @@ export const VisualAnnotationSchema = z.object({
   gpuState: z.enum(['idle', 'checking', 'preparing', 'ready', 'error']).optional(),
 });
 
+// Reusable documentId schema for events
+const DocumentIdSchema = z.union([z.string().min(1), z.number().int().positive()]).nullable().optional();
+
 // Event payload schemas for cross-island communication
 export const AnnotationCreatedEventSchema = z.object({
   type: z.literal('annotation:created'),
-  documentId: z.string(),
+  documentId: DocumentIdSchema,
   page: z.number().int().nonnegative().optional(),
   annotation: AnnotationSchema,
   timestamp: z.number().optional(),
@@ -67,7 +71,7 @@ export const AnnotationCreatedEventSchema = z.object({
 
 export const VisualSearchTriggerEventSchema = z.object({
   type: z.literal('visual-search:trigger'),
-  documentId: z.string(),
+  documentId: DocumentIdSchema,
   page: z.number().int().nonnegative().optional(),
   bbox: z.object({
     x: z.number().min(0).max(1),
@@ -80,7 +84,7 @@ export const VisualSearchTriggerEventSchema = z.object({
 
 export const FeedbackConfirmedEventSchema = z.object({
   type: z.literal('feedback:confirmed'),
-  documentId: z.string(),
+  documentId: DocumentIdSchema,
   annotation: AnnotationSchema,
   timestamp: z.number().optional(),
 });

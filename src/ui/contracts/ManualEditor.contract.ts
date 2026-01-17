@@ -23,6 +23,8 @@ export const MetadataSchema = z.object({
 
 export const ManualEditorSchema = z.object({
   documentId: z.number().int().nullable(),
+  // Current page (0-indexed) for multi-page documents
+  page: z.number().int().nonnegative().optional(),
   // Metadata for the document (title, correspondent, documentType, etc.)
   metadata: MetadataSchema.optional(),
   // Raw document content text

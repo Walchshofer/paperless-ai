@@ -19,12 +19,32 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
   const [syncState, setSyncState] = useState<SyncState>('idle');
   const [syncError, setSyncError] = useState<string>('');
 
+  // Convert contract fields to component Field type (coerce values to strings)
+  const normalizeFields = (contractFields: ManualEditorContract['fields']): Field[] => {
+    if (!contractFields || contractFields.length === 0) {
+      return [{ name: '', value: '' }];
+    }
+    return contractFields.map(f => ({
+      name: f.name || '',
+      value: f.value != null ? String(f.value) : '',
+    }));
+  };
+
   // Form state
   const [title, setTitle] = useState(props.metadata?.title || '');
   const [correspondent, setCorrespondent] = useState(props.metadata?.correspondent || '');
   const [documentType, setDocumentType] = useState(props.metadata?.documentType || '');
   const [content, setContent] = useState(props.content || '');
-  const [fields, setFields] = useState<Field[]>(props.fields || [{ name: '', value: '' }]);
+  const [fields, setFields] = useState<Field[]>(() => normalizeFields(props.fields));
+
+  // Track initial values for diff-based feedback events
+  const [initialValues] = useState({
+    title: props.metadata?.title || '',
+    correspondent: props.metadata?.correspondent || '',
+    documentType: props.metadata?.documentType || '',
+    content: props.content || '',
+    fields: normalizeFields(props.fields),
+  });
 
   // AI Debug state
   const [aiResponse, setAiResponse] = useState<any>(null);
@@ -125,45 +145,121 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
     });
   }, []);
 
-  // Aggregate payload and emit event
+  // Aggregate payload and emit event via Hybrid SOT orchestrator
   const handleSave = useCallback(async () => {
     setSyncState('syncing');
     setSyncError('');
 
-    const payload = {
-      documentId: props.documentId || null,
-      metadata: {
-        title,
-        correspondent,
-        documentType,
-      },
+    const requestId = `mei-${Date.now()}`;
+    const page = props.page ?? 0;
+
+    // Build document_updates for Hybrid SOT
+    const custom_fields = fields
+      .filter(f => f.name.trim() !== '')
+      .map(f => ({ name: f.name.trim(), value: f.value }));
+
+    const document_updates = {
+      title,
+      correspondent,
+      documentType,
       content,
-      fields: fields.filter(f => f.name.trim() !== ''),
+      custom_fields,
+    };
+
+    // Generate feedback_events by diffing against initial values
+    const feedback_events: Array<{
+      event_type: string;
+      field_name: string;
+      original_value: string;
+      corrected_value: string;
+      context: { page: number; request_id: string };
+    }> = [];
+
+    if (title !== initialValues.title) {
+      feedback_events.push({
+        event_type: 'correction',
+        field_name: 'title',
+        original_value: initialValues.title,
+        corrected_value: title,
+        context: { page, request_id: requestId },
+      });
+    }
+
+    if (correspondent !== initialValues.correspondent) {
+      feedback_events.push({
+        event_type: 'correction',
+        field_name: 'correspondent',
+        original_value: initialValues.correspondent,
+        corrected_value: correspondent,
+        context: { page, request_id: requestId },
+      });
+    }
+
+    if (documentType !== initialValues.documentType) {
+      feedback_events.push({
+        event_type: 'correction',
+        field_name: 'documentType',
+        original_value: initialValues.documentType,
+        corrected_value: documentType,
+        context: { page, request_id: requestId },
+      });
+    }
+
+    if (content !== initialValues.content) {
+      feedback_events.push({
+        event_type: 'correction',
+        field_name: 'content',
+        original_value: initialValues.content.substring(0, 500), // Truncate for payload size
+        corrected_value: content.substring(0, 500),
+        context: { page, request_id: requestId },
+      });
+    }
+
+    // Check custom fields for changes
+    const initialFieldMap = new Map<string, string>(initialValues.fields.map(f => [f.name, f.value] as [string, string]));
+    for (const field of custom_fields) {
+      const originalValue = initialFieldMap.get(field.name) || '';
+      if (field.value !== originalValue) {
+        feedback_events.push({
+          event_type: 'correction',
+          field_name: `custom_field:${field.name}`,
+          original_value: originalValue,
+          corrected_value: field.value,
+          context: { page, request_id: requestId },
+        });
+      }
+    }
+
+    const payload = {
+      documentId: props.documentId ?? null,
+      document_updates,
+      feedback_events,
+      transactional: true,
     };
 
     // Dispatch payload:ready event for cross-island communication
     document.dispatchEvent(new CustomEvent('payload:ready', { detail: payload }));
 
     try {
-      // Attempt Hybrid SOT sync via API
-      const res = await fetch('/api/feedback', {
+      // Hybrid SOT orchestrator endpoint
+      const res = await fetch('/manual/updateDocument', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Request-Id': `mei-${Date.now()}`,
+          'X-Request-Id': requestId,
         },
-        body: JSON.stringify({
-          documentId: props.documentId,
-          rating: 5, // Default rating for manual edits
-          accuracyScore: 1.0,
-          metadata: payload.metadata,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
+        const result = await res.json().catch(() => ({}));
         setSyncState('synced');
+        document.dispatchEvent(new CustomEvent('sync:success', {
+          detail: { documentId: props.documentId, ...result }
+        }));
       } else {
-        throw new Error(`Sync failed with status ${res.status}`);
+        const errorData = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
+        throw new Error(errorData.message || `Sync failed with status ${res.status}`);
       }
     } catch (err: any) {
       setSyncState('error');
@@ -172,7 +268,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
         detail: { documentId: props.documentId, error: err.message }
       }));
     }
-  }, [props.documentId, title, correspondent, documentType, content, fields]);
+  }, [props.documentId, props.page, title, correspondent, documentType, content, fields, initialValues]);
 
   // Fetch AI analysis
   const runAiAnalysis = useCallback(async () => {

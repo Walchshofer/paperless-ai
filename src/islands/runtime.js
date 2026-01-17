@@ -22,17 +22,21 @@ const AnnotationSchema = z.object({
 });
 
 const VisualAnnotationSchema = z.object({
-  documentId: z.string().min(1),
+  // Accept both string and number documentId (paperless-ngx uses integers)
+  documentId: z.union([z.string().min(1), z.number().int().positive()]).nullable().optional(),
   page: z.number().int().nonnegative().optional(),
   // allow mounting with no initial annotations; default to empty array
   annotations: z.array(AnnotationSchema).default([]),
   gpuState: z.enum(['idle', 'checking', 'preparing', 'ready', 'error']).optional(),
 });
 
+// Reusable documentId schema (accepts both string and number for paperless-ngx compatibility)
+const DocumentIdSchema = z.union([z.string().min(1), z.number().int().positive()]).nullable().optional();
+
 // Event schemas for cross-island communication validation
 const AnnotationCreatedEventSchema = z.object({
   type: z.literal('annotation:created'),
-  documentId: z.string(),
+  documentId: DocumentIdSchema,
   page: z.number().int().nonnegative().optional(),
   annotation: AnnotationSchema,
   timestamp: z.number().optional(),
@@ -40,7 +44,7 @@ const AnnotationCreatedEventSchema = z.object({
 
 const VisualSearchTriggerEventSchema = z.object({
   type: z.literal('visual-search:trigger'),
-  documentId: z.string(),
+  documentId: DocumentIdSchema,
   page: z.number().int().nonnegative().optional(),
   bbox: z.object({
     x: z.number().min(0).max(1),
@@ -53,7 +57,7 @@ const VisualSearchTriggerEventSchema = z.object({
 
 const FeedbackConfirmedEventSchema = z.object({
   type: z.literal('feedback:confirmed'),
-  documentId: z.string().optional(),
+  documentId: DocumentIdSchema,
   component: z.string().optional(),
   annotation: AnnotationSchema.optional(),
   timestamp: z.number().optional(),
@@ -115,6 +119,7 @@ const MetadataSchema = z.object({
 
 const ManualEditorSchema = z.object({
   documentId: z.number().int().nullable(),
+  page: z.number().int().nonnegative().optional(),
   metadata: MetadataSchema.optional(),
   content: z.string().optional(),
   fields: z.array(FieldSchema).optional(),
@@ -234,17 +239,51 @@ const defaultRenderers = {
               const propsRaw = (root.closest('[data-props]') && root.closest('[data-props]').getAttribute('data-props')) || '{}';
               let props = {};
               try { props = JSON.parse(propsRaw); } catch{ props = {}; }
-              // attempt POST to feedback endpoint
+
+              const ann = annotations[idx];
+              // Build bbox in [y1, x1, y2, x2] normalized format for the API
+              const bbox = [ann.y || 0, ann.x || 0, (ann.y || 0) + (ann.height || 0), (ann.x || 0) + (ann.width || 0)];
+              const requestId = `annotation-confirm-${Date.now()}`;
+
+              // attempt POST to feedback endpoint with correct payload structure
+              // API expects: { documentId, events: [{ event_type, field_name, corrected_value, context }] }
               if (typeof fetch !== 'undefined') {
                 await fetch('/api/visual-rag/feedback', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ event: 'feedback:confirmed', documentId: props.documentId || null, page: props.page || null, annotation: annotations[idx] })
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-Request-Id': requestId
+                  },
+                  body: JSON.stringify({
+                    documentId: props.documentId ? Number(props.documentId) : null,
+                    events: [{
+                      event_type: 'annotation',
+                      field_name: ann.label || 'visual_annotation',
+                      corrected_value: {
+                        label: ann.label || '',
+                        text: ann.note || '',
+                        bbox,
+                        confidence: 1.0
+                      },
+                      context: {
+                        request_id: requestId,
+                        page: props.page || 0,
+                        bbox,
+                        label: ann.label || '',
+                        note: ann.note || ''
+                      }
+                    }]
+                  })
                 });
               }
               confirm.disabled = true;
               confirm.textContent = 'Confirmed';
-              document.dispatchEvent(createCustomEvent('feedback:confirmed', annotations[idx]));
+              document.dispatchEvent(createCustomEvent('feedback:confirmed', {
+                ...ann,
+                documentId: props.documentId || null,
+                page: props.page || null,
+                bbox
+              }));
             } catch(e){ console.warn('Failed to confirm match (runtime)', e); }
           });
 
@@ -347,8 +386,30 @@ const defaultRenderers = {
             ups.forEach(u => {\n              u.addEventListener('click', ()=>{\n                const name = u.getAttribute('data-testid').replace('thumbs-up-','');\n                u.setAttribute('aria-pressed', (u.getAttribute('aria-pressed') !== 'true') ? 'true' : 'false');\n                const d = root.querySelector("[data-testid=\"thumbs-down-\${name}\"]"); if (d) d.setAttribute('aria-pressed','false');\n                document.dispatchEvent(createCustomEvent('feedback:updated', { component: name, feedback_type: 'thumbs_up' }));\n                document.dispatchEvent(createCustomEvent('feedback:confirmed', { component: name, documentId: (root.closest('[data-props]') && JSON.parse(root.closest('[data-props]').getAttribute('data-props')||'{}').documentId) || null }));\n              });\n            });\n            downs.forEach(d => {\n              d.addEventListener('click', ()=>{\n                const name = d.getAttribute('data-testid').replace('thumbs-down-','');\n                d.setAttribute('aria-pressed', (d.getAttribute('aria-pressed') !== 'true') ? 'true' : 'false');\n                const u = root.querySelector("[data-testid=\"thumbs-up-\${name}\"]"); if (u) u.setAttribute('aria-pressed','false');\n                document.dispatchEvent(createCustomEvent('feedback:updated', { component: name, feedback_type: 'thumbs_down' }));\n              });\n            });\n          } catch(e){ console.warn('feedback-controls-island runtime setup failed', e); }\n        })();\n      </script>\n    `;
   },
   'manual-editor-island': (el) => {
-    el.innerHTML = `\n      <div data-testid="manual-editor-island-root">\n        <div role="tablist" aria-label="Manual Editor Tabs" style="display:flex;gap:8px;margin-bottom:8px">\n          <button role="tab" data-testid="tab-metadata" aria-selected="true">Metadata</button>\n          <button role="tab" data-testid="tab-content" aria-selected="false">Content</button>\n          <button role="tab" data-testid="tab-fields" aria-selected="false">Fields</button>\n        </div>\n        <div id="manual-editor-panel">\n          <div data-panel="metadata">\n            <label>Title <input data-testid="manual-title-input" type="text"/></label>\n          </div>\n          <div data-panel="content" style="display:none">\n            <textarea data-testid="manual-content-input" rows="4" style="width:100%"></textarea>\n          </div>\n          <div data-panel="fields" style="display:none">\n            <div><input data-testid="field-name-0" placeholder="Field name"/><input data-testid="field-value-0" placeholder="Field value"/></div>\n          </div>\n        </div>\n        <div style="margin-top:8px">\n          <button data-testid="manual-save-btn">Save</button>\n        </div>\n      </div>\n      <script>\n        (function(){\n          try {\n            const root = document.currentScript.parentElement.querySelector('[data-testid="manual-editor-island-root"]');\n            if (!root) return;\n            const tabs = Array.from(root.querySelectorAll('[role="tab"]'))||[];\n            const panels = Array.from(root.querySelectorAll('[data-panel]'))||[];\n            function setActive(idx){\n              tabs.forEach((t,i)=>{ t.setAttribute('aria-selected', i===idx ? 'true' : 'false'); });\n              panels.forEach((p,i)=>{ p.style.display = i===idx ? '' : 'none'; });\n            }\n            tabs.forEach((t,i)=>{ t.addEventListener('click', ()=> setActive(i)); t.addEventListener('keydown', (e)=>{ if(e.key==='ArrowLeft'){ setActive((i+tabs.length-1)%tabs.length); } if(e.key==='ArrowRight'){ setActive((i+1)%tabs.length); }}); });\n            const save = root.querySelector('[data-testid="manual-save-btn"]');\n            if (save) save.addEventListener('click', ()=>{\n              const payload = { documentId: (root.closest('[data-props]') && JSON.parse(root.closest('[data-props]').getAttribute('data-props')||'{}').documentId) || null, metadata:{}, content:'', fields:[] };\n              const title = root.querySelector('[data-testid="manual-title-input"]'); if(title) payload.metadata.title = title.value||'';\n              const content = root.querySelector('[data-testid="manual-content-input"]'); if(content) payload.content = content.value||'';\n              // collect simple single field row
-              const fname = root.querySelector('[data-testid="field-name-0"]'); const fval = root.querySelector('[data-testid="field-value-0"]');\n              if(fname && fname.value) payload.fields.push({ name: fname.value, value: fval ? fval.value : '' });\n              document.dispatchEvent(createCustomEvent('payload:ready', payload));\n            });\n          } catch(e){ console.warn('manual-editor-island runtime setup failed', e); }\n        })();\n      </script>\n    `;
+    el.innerHTML = `
+      <div data-testid="manual-editor-island-root">
+        <div role="tablist" aria-label="Manual Editor Tabs" style="display:flex;gap:8px;margin-bottom:8px">
+          <button role="tab" data-testid="tab-metadata" aria-selected="true">Metadata</button>
+          <button role="tab" data-testid="tab-content" aria-selected="false">Content</button>
+          <button role="tab" data-testid="tab-fields" aria-selected="false">Fields</button>
+        </div>
+        <div id="manual-editor-panel">
+          <div data-panel="metadata">
+            <label>Title <input data-testid="manual-title-input" type="text"/></label>
+          </div>
+          <div data-panel="content" style="display:none">
+            <textarea data-testid="manual-content-input" rows="4" style="width:100%"></textarea>
+          </div>
+          <div data-panel="fields" style="display:none">
+            <div><input data-testid="field-name-0" placeholder="Field name"/><input data-testid="field-value-0" placeholder="Field value"/></div>
+          </div>
+        </div>
+        <div style="margin-top:8px">
+          <button data-testid="manual-save-btn">Save</button>
+        </div>
+      </div>
+    `;
+    // Note: Event wiring is handled in the post-mount setup in mountIslands() for JSDOM compatibility
   },
   'history-tabs-island': (el) => {
     el.innerHTML = `\n      <div data-testid="history-tabs-root">\n        <button data-testid="tab-text">Text</button>\n        <button data-testid="tab-metadata">Metadata</button>\n        <button data-testid="tab-similar">Similar</button>\n        <div data-testid="similar-results">(results placeholder)</div>\n      </div>\n    `;
@@ -443,13 +504,94 @@ function mountIslands(container = document) {
             }
             tabs.forEach((t,i)=>{ t.addEventListener('click', ()=> setActive(i)); t.addEventListener('keydown', (e)=>{ if(e.key==='ArrowLeft'){ setActive((i+tabs.length-1)%tabs.length); } if(e.key==='ArrowRight'){ setActive((i+1)%tabs.length); }}); });
             const save = root.querySelector('[data-testid="manual-save-btn"]');
-            if (save) save.addEventListener('click', ()=>{
-              const payload = { documentId: (root.closest('[data-props]') && JSON.parse(root.closest('[data-props]').getAttribute('data-props')||'{}').documentId) || null, metadata:{}, content:'', fields:[] };
-              const title = root.querySelector('[data-testid="manual-title-input"]'); if(title) payload.metadata.title = title.value||'';
-              const content = root.querySelector('[data-testid="manual-content-input"]'); if(content) payload.content = content.value||'';
-              const fname = root.querySelector('[data-testid="field-name-0"]'); const fval = root.querySelector('[data-testid="field-value-0"]');
-              if(fname && fname.value) payload.fields.push({ name: fname.value, value: fval ? fval.value : '' });
+            if (save) save.addEventListener('click', async ()=>{
+              const propsRaw = (root.closest('[data-props]') && root.closest('[data-props]').getAttribute('data-props')) || '{}';
+              let props = {};
+              try { props = JSON.parse(propsRaw); } catch{ props = {}; }
+
+              const requestId = `mei-${Date.now()}`;
+              const titleEl = root.querySelector('[data-testid="manual-title-input"]');
+              const contentEl = root.querySelector('[data-testid="manual-content-input"]');
+              const fnameEl = root.querySelector('[data-testid="field-name-0"]');
+              const fvalEl = root.querySelector('[data-testid="field-value-0"]');
+
+              const title = titleEl ? titleEl.value || '' : '';
+              const content = contentEl ? contentEl.value || '' : '';
+              const custom_fields = [];
+              if (fnameEl && fnameEl.value) {
+                custom_fields.push({ name: fnameEl.value, value: fvalEl ? fvalEl.value : '' });
+              }
+
+              const document_updates = {
+                title,
+                correspondent: '',
+                documentType: '',
+                content,
+                custom_fields,
+              };
+
+              // For the runtime fallback, we don't have initial values to diff against
+              // so we just include all fields that have values
+              const feedback_events = [];
+              if (title) {
+                feedback_events.push({
+                  event_type: 'correction',
+                  field_name: 'title',
+                  original_value: '',
+                  corrected_value: title,
+                  context: { page: props.page || 0, request_id: requestId },
+                });
+              }
+              if (content) {
+                feedback_events.push({
+                  event_type: 'correction',
+                  field_name: 'content',
+                  original_value: '',
+                  corrected_value: content.substring(0, 500),
+                  context: { page: props.page || 0, request_id: requestId },
+                });
+              }
+              custom_fields.forEach(f => {
+                feedback_events.push({
+                  event_type: 'correction',
+                  field_name: `custom_field:${f.name}`,
+                  original_value: '',
+                  corrected_value: f.value,
+                  context: { page: props.page || 0, request_id: requestId },
+                });
+              });
+
+              const payload = {
+                documentId: props.documentId ?? null,
+                document_updates,
+                feedback_events,
+                transactional: true,
+              };
+
               document.dispatchEvent(createCustomEvent('payload:ready', payload));
+
+              // POST to Hybrid SOT orchestrator
+              try {
+                if (typeof fetch !== 'undefined') {
+                  const res = await fetch('/manual/updateDocument', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'X-Request-Id': requestId,
+                    },
+                    body: JSON.stringify(payload),
+                  });
+                  if (res.ok) {
+                    const result = await res.json().catch(() => ({}));
+                    document.dispatchEvent(createCustomEvent('sync:success', { documentId: props.documentId, ...result }));
+                  } else {
+                    const errorData = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
+                    throw new Error(errorData.message || `Sync failed with status ${res.status}`);
+                  }
+                }
+              } catch (err) {
+                document.dispatchEvent(createCustomEvent('sync:failed', { documentId: props.documentId, error: err.message || 'Sync failed' }));
+              }
             });
           }
         }
