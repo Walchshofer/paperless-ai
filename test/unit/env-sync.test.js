@@ -4,13 +4,13 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 describe('env sync', function () {
-  it('generates paperless-ngx/.env from docker-compose.env or creates a safe CI fallback', function () {
+  it('generates repo-root .env from docker-compose.env or creates a safe CI fallback', function () {
     this.timeout(5000);
     const root = path.resolve(__dirname, '../../');
     const syncScript = path.join(root, 'scripts', 'sync_dotenv_from_compose_env.sh');
     const psScript = path.join(root, 'scripts', 'sync_dotenv_from_compose_env.ps1');
-    const dst = path.resolve(path.join(root, '..', 'paperless-ngx', '.env'));
-    const src = path.resolve(path.join(root, '..', 'paperless-ngx', 'docker-compose.env'));
+    const dst = path.resolve(path.join(root, '.env'));
+    const src = path.resolve(path.join(root, 'docker-compose.env'));
 
     // Run the sync script (POSIX preferred, fallback to PowerShell on Windows)
     let ran = false;

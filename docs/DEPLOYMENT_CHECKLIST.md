@@ -32,7 +32,7 @@ services:
     volumes:
       - ./:/app
     working_dir: /app
-    env_file: docker-compose.env
+    env_file: .env
     command: python codex-bridge.py
 ```
 

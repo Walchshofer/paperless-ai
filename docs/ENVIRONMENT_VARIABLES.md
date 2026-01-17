@@ -4,7 +4,9 @@ This document provides a complete reference for all environment variables used i
 
 ## Source of Truth (Multi-Container)
 The authoritative environment file for the multi-container setup is:
-- `C:\Users\pwalc\MyApps\paperless-ngx\docker-compose.env`
+- `C:\Users\pwalc\MyApps\paperless-ai\docker-compose.env` (repo root)
+
+> A compatibility `.env` (repo root `./.env`) is auto-generated from `docker-compose.env` for legacy `docker-compose` clients.
 
 All runtime variables for Paperless-NGX + paperless-ai should live there. Other
 `.env` files are pointers only to avoid duplication. Always run Compose with:
@@ -48,9 +50,9 @@ Goal: keep `paperless-ngx/docker-compose.env` as the single source of truth whil
      - Back-compat alias: set `DEFAULT_INDEX_NAME=${VISUAL_RAG_INDEX_NAME}` in `docker-compose.env`
    - Document the canonical names in `docs/ENVIRONMENT_VARIABLES.md` and mark aliases as compat-only.
 
-> CI: A GitHub Actions workflow `validate-env` runs on PRs and `main`. It attempts to generate a compatibility `.env` from `docker-compose.env` and runs `scripts/validate_env_py.py` and the unit tests. The job will fail when required variables are missing or empty; this prevents changes that break the env contract from being merged.
+> CI: A GitHub Actions workflow `validate-env` runs on PRs and `main`. It attempts to generate a compatibility `.env` from `docker-compose.env` (repo root) and runs `scripts/validate_env_py.py` and the unit tests. The job will fail when required variables are missing or empty; this prevents changes that break the env contract from being merged.
 2. **Explicit service environment mapping in `docker-compose.yml`**
-   - Use `env_file: docker-compose.env` for global vars, and add an `environment:` block for any service-specific variable renames or required fallbacks. This makes intent explicit and prevents silent misconfiguration.
+   - Use `env_file: .env` (generated from `docker-compose.env` for legacy `docker-compose` compatibility) for global vars, and add an `environment:` block for any service-specific variable renames or required fallbacks. This makes intent explicit and prevents silent misconfiguration.
 
 3. **.env.example + required-vars schema**
    - Commit `docker-compose.env.example` containing the minimal required variables (no secrets). Keep `docker-compose.env` authoritative in the deployment repo; developers make local copies from the example.
@@ -71,10 +73,10 @@ Goal: keep `paperless-ngx/docker-compose.env` as the single source of truth whil
 ---
 
 ## Implementation checklist (practical steps) 🔧
-1. Update `paperless-ngx/docker-compose.env`:
+1. Update `docker-compose.env` (repo root):
    - Add `MEDIA_DIR=${PAPERLESS_MEDIA_ROOT:-/media/paperless}`
    - Add `DEFAULT_INDEX_NAME=${VISUAL_RAG_INDEX_NAME:-paperless_visual}` (or set non-empty value)
-2. Update `paperless-ngx/docker-compose.yml`:
+2. Update `docker-compose.yml` (repo root):
    - Under `visual-rag` service add `environment:` entries for `MEDIA_DIR`, `INDEX_DIR`, `VISUAL_RAG_INDEX_NAME`, `DEFAULT_INDEX_NAME`.
 3. Update `docs/ENVIRONMENT_VARIABLES.md` with this rationale and add a CONTRIBUTING snippet that explains the process (see below).
 

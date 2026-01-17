@@ -137,7 +137,7 @@ services:
     container_name: paperless_db
     ports:
       - "5432:5432"
-    env_file: docker-compose.env
+    env_file: .env
     environment:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}

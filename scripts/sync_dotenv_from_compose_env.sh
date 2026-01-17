@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-SRC="$ROOT_DIR/../paperless-ngx/docker-compose.env"
-DST="$(dirname "$SRC")/.env"
+# Source is the repo-root `docker-compose.env`; generate repo-root `.env` for compatibility
+SRC="$ROOT_DIR/docker-compose.env"
+DST="$ROOT_DIR/.env"
 
 if [ ! -f "$SRC" ]; then
   echo "WARNING: source env file not found at $SRC" >&2

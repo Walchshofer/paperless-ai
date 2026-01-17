@@ -20,7 +20,7 @@ services:
       - "../paperless-ngx/media:/usr/src/paperless/media"
       - "../paperless-ngx/export:/usr/src/paperless/export"
       - "../paperless-ngx/consume:/usr/src/paperless/consume"
-    env_file: docker-compose.env
+    env_file: .env
     restart: unless-stopped
 
   # 2. DATABASE (UPDATED for Vector Support)
@@ -32,7 +32,7 @@ services:
       - "5432:5432"  # Expose for Windows host access
     volumes:
       - pgdata:/var/lib/postgresql/data
-    env_file: docker-compose.env
+    env_file: .env
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U elfman"]
@@ -113,7 +113,7 @@ services:
       - "../paperless-ngx/media:/usr/src/paperless/media:ro"
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    env_file: docker-compose.env
+    env_file: .env
     environment:
       - VECTOR_STORE=qdrant
       - QDRANT_HOST=qdrant
@@ -136,7 +136,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s  # Model load time
-    env_file: docker-compose.env
+    env_file: .env
     environment:
       - MEDIA_DIR=${MEDIA_DIR}
       - INDEX_DIR=${INDEX_DIR}
@@ -167,7 +167,7 @@ services:
     ports:
       - "50051:50051"   # gRPC service
       - "8003:8001"     # Prometheus metrics (internal 8001 -> host 8003)
-    env_file: docker-compose.env
+    env_file: .env
     environment:
       - LOG_LEVEL=${BIAS_ENGINE_LOG_LEVEL}
     volumes:
@@ -198,7 +198,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    env_file: docker-compose.env
+    env_file: .env
     # GUIDANCE_LOG_LEVEL is loaded from env_file and read directly by Python code
     volumes:
       # Persist the guidance cache
@@ -230,7 +230,7 @@ services:
       - prometheus
     ports:
       - "3001:3000"
-    env_file: docker-compose.env
+    env_file: .env
     volumes:
       - grafana_data:/var/lib/grafana
 

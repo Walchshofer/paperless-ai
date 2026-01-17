@@ -225,7 +225,7 @@ class CircuitBreaker {
      * @private
      */
     async _executeWithTimeout(operation, timeoutMs) {
-        return new Promise(async (resolve, reject) => {
+        return new Promise((resolve, reject) => {
             const timer = setTimeout(() => {
                 const error = new Error(`Operation timeout after ${timeoutMs}ms`);
                 error.name = 'TimeoutError';
@@ -233,9 +233,15 @@ class CircuitBreaker {
             }, timeoutMs);
 
             try {
-                const result = await operation();
-                clearTimeout(timer);
-                resolve(result);
+                Promise.resolve(operation())
+                    .then((result) => {
+                        clearTimeout(timer);
+                        resolve(result);
+                    })
+                    .catch((error) => {
+                        clearTimeout(timer);
+                        reject(error);
+                    });
             } catch (error) {
                 clearTimeout(timer);
                 reject(error);

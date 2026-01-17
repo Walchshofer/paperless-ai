@@ -7,15 +7,15 @@
 ---
 
 ## Summary ✅
-We consolidated environment variable handling with `paperless-ngx/docker-compose.env` as the single source of truth and added tools and tests to ensure legacy `docker-compose` (hyphen) clients receive a concrete `.env` file for interpolation. Changes made so far:
+We consolidated environment variable handling with `docker-compose.env` (repo root) as the single source of truth and added tools and tests to ensure legacy `docker-compose` (hyphen) clients receive a concrete `.env` file for interpolation. Changes made so far:
 
 - Added POSIX and PowerShell generator scripts:
   - `scripts/sync_dotenv_from_compose_env.sh` (resolves ${VAR:-fallback} values)
   - `scripts/sync_dotenv_from_compose_env.ps1` (PowerShell variant)
-- Updated `scripts/validate_env.sh` to auto-generate `paperless-ngx/.env` if missing
+- Updated `scripts/validate_env.sh` to auto-generate `./.env` (repo root) if missing
 - Added unit test: `test/unit/env-sync.test.js` (verifies `.env` generation and resolved values)
 - Updated docs: `docs/ENVIRONMENT_VARIABLES.md` with compatibility note
-- Generated `paperless-ngx/.env` in working tree for developer testing (kept out of git by `.gitignore`)
+- Generated `./.env` (repo root) in working tree for developer testing (kept out of git by `.gitignore`)
 
 All sensitive values remain defined in `paperless-ngx/docker-compose.env` (single source of truth). The generated `.env` is derived and ignored by git.
 
@@ -34,7 +34,7 @@ All sensitive values remain defined in `paperless-ngx/docker-compose.env` (singl
 
 3. Invocation policy
    - Add a Makefile / npm script / `README` snippet recommending which command to run for local builds:
-     - Preferred: `docker compose --env-file paperless-ngx/docker-compose.env build` (modern CLI)
+     - Preferred: `docker compose --env-file docker-compose.env build` (modern CLI)
      - Legacy: run `scripts/sync_dotenv_from_compose_env.sh` first, then `docker-compose build` (hyphen client)
 
 4. Test coverage & CI
@@ -70,7 +70,7 @@ Priority order (short tasks first):
      DEFAULT_INDEX_NAME: ${DEFAULT_INDEX_NAME}
      BIAS_ENGINE_LOG_LEVEL: ${BIAS_ENGINE_LOG_LEVEL}
      ```
-   - Keep `env_file: docker-compose.env` as global envs if present.
+   - Prefer `env_file: .env` (generated from `docker-compose.env`) as a compatibility target for legacy docker-compose clients; keep `docker-compose.env` as the authoritative source of truth.
 
 2. Add CI job `.github/workflows/validate-env.yml` that:
    - Runs on PRs

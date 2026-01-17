@@ -253,7 +253,7 @@ class LogitBiasServicer(bias_service_pb2_grpc.LogitBiasServiceServicer):
 
 def serve():
     # Start Prometheus metrics server
-    metrics_port = int(os.getenv("METRICS_PORT", "8001"))
+    metrics_port = int(os.getenv("METRICS_PORT", "8003"))
     start_http_server(metrics_port)
     logger.info(f"Metrics server started on port {metrics_port}")
 
@@ -379,7 +379,7 @@ services:
       dockerfile: Dockerfile.bias-engine
     ports:
       - "50051:50051"
-      - "8001:8001" # Metrics
+      - "8003:8003" # Metrics
     environment:
       - LOG_LEVEL=INFO
       - TOKENIZER_MODEL=gpt2 # Change to "meta-llama/Meta-Llama-3-8B" if using huggingface token
@@ -458,7 +458,7 @@ global:
 scrape_configs:
   - job_name: 'bias-engine'
     static_configs:
-      - targets: ['bias-engine:8001']
+      - targets: ['bias-engine:8003']
 
   - job_name: 'ollama'
     static_configs:
@@ -486,7 +486,7 @@ spec:
         app: bias-engine
       annotations:
         prometheus.io/scrape: "true"
-        prometheus.io/port: "8001"
+        prometheus.io/port: "8003"
     spec:
       containers:
       - name: bias-engine
@@ -494,7 +494,7 @@ spec:
         ports:
         - containerPort: 50051
           name: grpc
-        - containerPort: 8001
+        - containerPort: 8003
           name: metrics
         env:
         - name: TOKENIZER_MODEL
@@ -528,7 +528,7 @@ A production-ready implementation of the Decoupled Logic/Inference architecture.
    ```
 
 3. **View Metrics:**
-   Open http://localhost:8001 for Prometheus metrics.
+   Open http://localhost:8003 for Prometheus metrics.
 '@
 
 Write-Host "✅ Setup complete!" -ForegroundColor Green

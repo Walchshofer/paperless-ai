@@ -122,7 +122,7 @@ async function runMigration(migrationFile) {
             console.log('\n💡 Troubleshooting:');
             console.log('   1. Is PostgreSQL running? Check: docker ps');
             console.log('   2. Is port 5432 exposed? Check docker-compose.yml');
-            console.log('   3. Try: docker-compose -f ../paperless-ngx/docker-compose.yml restart db');
+            console.log('   3. Try: docker-compose -f ../docker-compose.yml restart db');
         }
 
         process.exit(1);

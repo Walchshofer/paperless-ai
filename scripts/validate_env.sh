@@ -2,7 +2,7 @@
 # Validate that critical env vars in docker-compose.env are present and non-empty
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-ENV_FILE="$ROOT_DIR/../paperless-ngx/docker-compose.env"
+ENV_FILE="$ROOT_DIR/docker-compose.env"
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "ERROR: expected env file at $ENV_FILE" >&2
@@ -12,7 +12,8 @@ fi
 # Compatibility: legacy `docker-compose` (hyphen) loads a `.env` file from the compose dir
 # If it is missing, auto-generate it from the authoritative `docker-compose.env` so users
 # who run `docker-compose` (old client) won't see missing-variable warnings.
-DOT_ENV="$(dirname "$ENV_FILE")/.env"
+# The compatibility .env lives at repo root (./.env)
+DOT_ENV="$ROOT_DIR/.env"
 if [ ! -f "$DOT_ENV" ]; then
   echo "WARN: $DOT_ENV not found; generating from $ENV_FILE to ensure 'docker-compose' interpolation works."
   # Generate a compatibility `.env` from the authoritative `docker-compose.env`.
@@ -49,20 +50,20 @@ if [ ${#missing[@]} -ne 0 ]; then
     echo "  - $m" >&2
   done
   echo
-  echo "Please set these variables in paperless-ngx/docker-compose.env (or provide overrides via env files)." >&2
+  echo "Please set these variables in docker-compose.env (repo root) (or provide overrides via env files)." >&2
   exit 3
 fi
 
 # Ensure VISUAL_RAG_INDEX_DIR (if set) aligns with INDEX_DIR to avoid runtime mismatches
 if [ -n "${VISUAL_RAG_INDEX_DIR:-}" ] && [ "${VISUAL_RAG_INDEX_DIR}" != "${INDEX_DIR}" ]; then
-  echo "ERROR: VISUAL_RAG_INDEX_DIR (${VISUAL_RAG_INDEX_DIR}) does not match INDEX_DIR (${INDEX_DIR}). Align these in paperless-ngx/docker-compose.env." >&2
+  echo "ERROR: VISUAL_RAG_INDEX_DIR (${VISUAL_RAG_INDEX_DIR}) does not match INDEX_DIR (${INDEX_DIR}). Align these in docker-compose.env (repo root)." >&2
   exit 4
 fi
 
 # Validate video sampling env vars
 # VIDEO_FRAME_INTERVAL must be a positive integer (seconds between sampled frames)
 if [ -z "${VIDEO_FRAME_INTERVAL:-}" ]; then
-  echo "ERROR: VIDEO_FRAME_INTERVAL is not set. Please set VIDEO_FRAME_INTERVAL in paperless-ngx/docker-compose.env (e.g., 1)" >&2
+  echo "ERROR: VIDEO_FRAME_INTERVAL is not set. Please set VIDEO_FRAME_INTERVAL in docker-compose.env (repo root) (e.g., 1)" >&2
   exit 5
 fi
 if ! [[ "${VIDEO_FRAME_INTERVAL}" =~ ^[0-9]+$ ]] || [ "${VIDEO_FRAME_INTERVAL}" -lt 1 ]; then
@@ -72,7 +73,7 @@ fi
 
 # VIDEO_KEYFRAME_DETECTION must be 'yes' or 'no'
 if [ -z "${VIDEO_KEYFRAME_DETECTION:-}" ]; then
-  echo "ERROR: VIDEO_KEYFRAME_DETECTION is not set. Please set VIDEO_KEYFRAME_DETECTION=yes|no in paperless-ngx/docker-compose.env" >&2
+  echo "ERROR: VIDEO_KEYFRAME_DETECTION is not set. Please set VIDEO_KEYFRAME_DETECTION=yes|no in docker-compose.env (repo root)" >&2
   exit 7
 fi
 vkd_lc="${VIDEO_KEYFRAME_DETECTION,,}"

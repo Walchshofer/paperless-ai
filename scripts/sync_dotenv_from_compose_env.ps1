@@ -1,9 +1,10 @@
 # Generate .env for compatibility with legacy `docker-compose` on Windows
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RootDir = Split-Path -Parent $ScriptDir
-$SRC = Join-Path $RootDir '..\paperless-ngx\docker-compose.env' | Resolve-Path -ErrorAction SilentlyContinue
+# Use repo-root docker-compose.env as the authoritative source and generate repo-root .env for compatibility
+$SRC = Join-Path $RootDir 'docker-compose.env' | Resolve-Path -ErrorAction SilentlyContinue
 if (-not $SRC) {
-    Write-Warning "Source env file not found at: $($RootDir)\..\paperless-ngx\docker-compose.env"
+  Write-Warning "Source env file not found at: $($RootDir)\docker-compose.env"
     # Emit a minimal fallback .env for CI/testing so workflows can continue with safe defaults
     $fallback = @{
         POSTGRES_USER = 'elfman'
