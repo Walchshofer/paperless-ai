@@ -44,12 +44,34 @@ if not env.get('MEDIA_DIR'):
     missing.append('MEDIA_DIR')
 if not (env.get('VISUAL_RAG_INDEX_NAME') or env.get('DEFAULT_INDEX_NAME')):
     missing.append('VISUAL_RAG_INDEX_NAME|DEFAULT_INDEX_NAME')
+if not env.get('VIDEO_FRAME_INTERVAL'):
+    missing.append('VIDEO_FRAME_INTERVAL')
+if not env.get('VIDEO_KEYFRAME_DETECTION'):
+    missing.append('VIDEO_KEYFRAME_DETECTION')
 
 if missing:
     print('ERROR: required env vars missing or empty:', file=sys.stderr)
     for m in missing:
         print(' -', m, file=sys.stderr)
     sys.exit(3)
+
+# Validate VIDEO_FRAME_INTERVAL is a positive integer
+video_frame_interval = env.get('VIDEO_FRAME_INTERVAL', '')
+if video_frame_interval:
+    try:
+        vfi = int(video_frame_interval)
+        if vfi < 1:
+            print(f"ERROR: VIDEO_FRAME_INTERVAL must be an integer >= 1 (current: {video_frame_interval})", file=sys.stderr)
+            sys.exit(6)
+    except ValueError:
+        print(f"ERROR: VIDEO_FRAME_INTERVAL must be an integer >= 1 (current: {video_frame_interval})", file=sys.stderr)
+        sys.exit(6)
+
+# Validate VIDEO_KEYFRAME_DETECTION is 'yes' or 'no'
+video_keyframe = env.get('VIDEO_KEYFRAME_DETECTION', '').lower()
+if video_keyframe and video_keyframe not in ('yes', 'no'):
+    print(f"ERROR: VIDEO_KEYFRAME_DETECTION must be 'yes' or 'no' (current: {env.get('VIDEO_KEYFRAME_DETECTION')})", file=sys.stderr)
+    sys.exit(8)
 
 # Check parity
 viz_dir = env.get('VISUAL_RAG_INDEX_DIR')
@@ -58,5 +80,5 @@ if viz_dir and viz_dir != index_dir:
     print(f"ERROR: VISUAL_RAG_INDEX_DIR ({viz_dir}) does not match INDEX_DIR ({index_dir}).", file=sys.stderr)
     sys.exit(4)
 
-print(f"OK: required env vars present: INDEX_DIR={index_dir}, MEDIA_DIR={env.get('MEDIA_DIR')}, VISUAL_RAG_INDEX_NAME={env.get('VISUAL_RAG_INDEX_NAME', env.get('DEFAULT_INDEX_NAME'))}")
+print(f"OK: required env vars present: INDEX_DIR={index_dir}, MEDIA_DIR={env.get('MEDIA_DIR')}, VISUAL_RAG_INDEX_NAME={env.get('VISUAL_RAG_INDEX_NAME', env.get('DEFAULT_INDEX_NAME'))}, VIDEO_FRAME_INTERVAL={env.get('VIDEO_FRAME_INTERVAL')}, VIDEO_KEYFRAME_DETECTION={env.get('VIDEO_KEYFRAME_DETECTION')}")
 sys.exit(0)

@@ -22,13 +22,14 @@ jobs:
           node-version: '18'
       - name: List repo root (debug)
         run: ls -la
-      - name: Attempt to generate compatibility .env (POSIX)
-        run: |
-          bash scripts/sync_dotenv_from_compose_env.sh
+      - name: Install npm dependencies
+        run: npm ci
+      - name: Generate compatibility .env (npm env:sync)
+        run: npm run env:sync
+      - name: Validate env file (npm env:validate)
+        run: npm run env:validate
       - name: Validate env file (Python)
         run: python scripts/validate_env_py.py
-      - name: Install npm deps
-        run: npm ci
       - name: Run unit tests
         run: npm test
 
@@ -45,14 +46,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-      - name: Attempt to generate compatibility .env (PowerShell)
+      - name: Install npm dependencies
+        run: npm ci
+      - name: Generate compatibility .env (PowerShell)
         shell: pwsh
         run: |
           pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/sync_dotenv_from_compose_env.ps1
       - name: Validate env file (Python)
         shell: pwsh
         run: python scripts/validate_env_py.py
-      - name: Install npm deps
-        run: npm ci
       - name: Run unit tests
         run: npm test

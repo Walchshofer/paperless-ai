@@ -6,7 +6,16 @@ This checklist helps operators deploy the codex-bridge reliably for v4.0.
 
 - [ ] Ensure Serena is installed and reachable at `SERENA_BASE` (e.g., `http://serena:9121`).
 - [ ] Add `SERENA_API_KEY` to secrets if Serena requires authentication.
-- [ ] Populate `docker-compose.env` (or system environment) with bridge variables (see `docs/BRIDGE_CONFIGURATION.md`).
+- Populate `docker-compose.env` (repo root) with bridge variables (see `docs/BRIDGE_CONFIGURATION.md`).
+- If you rely on legacy `docker-compose` (hyphen) clients, generate the compatibility `.env` at the repo root before invoking `docker-compose`:
+
+```bash
+npm run env:sync
+# validate
+npm run env:validate
+```
+
+Note: Do not commit generated `./.env` to git (it's intentionally ignored).
 - [ ] Install dependencies in Python environment: `pip install -r requirements.txt` (includes `mcp[cli]`, `pytest` for tests).
 
 ## Start Bridge (local)

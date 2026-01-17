@@ -17,6 +17,10 @@ All runtime variables for Paperless-NGX + paperless-ai should live there. Other
 > If the source `docker-compose.env` is missing (for example on hosted CI runners), the sync scripts now emit a warning and create a **minimal, safe fallback** `.env` (containing test DB credentials and translation test defaults) so validation workflows can proceed. This fallback is intended for CI/testing only and should not be used in production.
 
 ## Gaps found between docs and compose files (summary) ⚠️
+
+> See also: the migration guide: `docs/ENV_DOTENV_MIGRATION.md` — provides a step-by-step checklist for migrating to a repo-root `.env` compatibility file and CI validation flows.
+
+
 We audited `docs/ENVIRONMENT_VARIABLES.md` against the authoritative `paperless-ngx/docker-compose.env` and `paperless-ngx/docker-compose.yml` and found these practical gaps and pain points:
 
 - **Index-name inconsistency (HIGH RISK)**: Some code and tools reference `DEFAULT_INDEX_NAME`, while compose and docs recommend `VISUAL_RAG_INDEX_NAME`. This creates brittle config and test failures. Recommendation: standardize on `VISUAL_RAG_INDEX_NAME` and maintain `DEFAULT_INDEX_NAME` as a backward-compatible alias (e.g., set `DEFAULT_INDEX_NAME=${VISUAL_RAG_INDEX_NAME}` in `docker-compose.env`).

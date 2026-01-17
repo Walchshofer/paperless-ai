@@ -7,9 +7,9 @@ describe('validate_env_py.py fallback acceptance', function () {
   it('uses fallback .env when docker-compose.env is missing', function () {
     this.timeout(5000);
     const root = path.resolve(__dirname, '../../');
-    const envDir = path.resolve(root, '..', 'paperless-ngx');
-    const src = path.join(envDir, 'docker-compose.env');
-    const fallback = path.join(envDir, '.env');
+    // Use repo-root files to match the new migration behavior
+    const src = path.join(root, 'docker-compose.env');
+    const fallback = path.join(root, '.env');
 
     // Backup existing files if present
     let srcBak, fallbackBak;
@@ -23,11 +23,12 @@ describe('validate_env_py.py fallback acceptance', function () {
     }
 
     try {
-      fs.mkdirSync(envDir, { recursive: true });
       const contents = [
         'INDEX_DIR=/tmp/index',
         'MEDIA_DIR=/tmp/media',
         'DEFAULT_INDEX_NAME=test_index',
+        'VIDEO_FRAME_INTERVAL=1',
+        'VIDEO_KEYFRAME_DETECTION=yes',
       ].join('\n') + '\n';
       fs.writeFileSync(fallback, contents, 'utf8');
 
