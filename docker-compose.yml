@@ -1,3 +1,5 @@
+name: paperless-ngx
+
 services:
   # 1. CORE: The Web Server and API
   webserver:

@@ -58,7 +58,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
 
             // First failure
             try {
-                await client.searchImageAlpha9('testImage', { collection: 'visual_pages' });
+                await client.searchImageAlpha9('testImage', 'visual_pages');
             } catch (e) {
                 // Expected to fail
             }
@@ -66,7 +66,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
 
             // Second failure
             try {
-                await client.searchImageAlpha9('testImage', { collection: 'visual_pages' });
+                await client.searchImageAlpha9('testImage', 'visual_pages');
             } catch (e) {
                 // Expected to fail
             }
@@ -78,7 +78,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
 
             for (let i = 0; i < TEST_FAILURE_THRESHOLD; i++) {
                 try {
-                    await client.searchImageAlpha9('testImage', { collection: 'visual_pages' });
+                    await client.searchImageAlpha9('testImage', 'visual_pages');
                 } catch (e) {
                     // Expected to fail
                 }
@@ -96,7 +96,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
 
             for (let i = 1; i <= TEST_FAILURE_THRESHOLD; i++) {
                 try {
-                    await client.searchImageAlpha9('testImage', { collection: 'visual_pages' });
+                    await client.searchImageAlpha9('testImage', 'visual_pages');
                 } catch (e) {
                     // Expected
                 }
@@ -118,7 +118,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
             mockServer.setState(MockStates.ERROR);
             for (let i = 0; i < TEST_FAILURE_THRESHOLD; i++) {
                 try {
-                    await client.searchImageAlpha9('testImage', { collection: 'visual_pages' });
+                    await client.searchImageAlpha9('testImage', 'visual_pages');
                 } catch (e) {
                     // Expected
                 }
@@ -133,7 +133,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
             const startTime = Date.now();
 
             try {
-                await client.searchImageAlpha9('testImage', { collection: 'visual_pages' });
+                await client.searchImageAlpha9('testImage', 'visual_pages');
                 assert.fail('Should have thrown CIRCUIT_OPEN error');
             } catch (e) {
                 const elapsed = Date.now() - startTime;
@@ -146,7 +146,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
 
         it('provides clear error message in OPEN state', async function () {
             try {
-                await client.searchImageAlpha9('testImage', { collection: 'visual_pages' });
+                await client.searchImageAlpha9('testImage', 'visual_pages');
                 assert.fail('Should have thrown');
             } catch (e) {
                 assert.ok(
@@ -164,7 +164,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
             for (let i = 0; i < 5; i++) {
                 const start = Date.now();
                 try {
-                    await client.searchImageAlpha9('testImage', { collection: 'visual_pages' });
+                    await client.searchImageAlpha9('testImage', 'visual_pages');
                 } catch (e) {
                     results.push({
                         elapsed: Date.now() - start,
@@ -187,7 +187,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
             mockServer.setState(MockStates.ERROR);
             for (let i = 0; i < TEST_FAILURE_THRESHOLD; i++) {
                 try {
-                    await client.searchImageAlpha9('testImage', { collection: 'visual_pages' });
+                    await client.searchImageAlpha9('testImage', 'visual_pages');
                 } catch (e) {
                     // Expected
                 }
@@ -203,7 +203,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
             mockServer.setState(MockStates.HEALTHY);
 
             try {
-                await client.searchImageAlpha9('testImage', { collection: 'visual_pages' });
+                await client.searchImageAlpha9('testImage', 'visual_pages');
             } catch (e) {
                 // May still fail, but state should transition
             }
@@ -224,9 +224,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
             mockServer.setState(MockStates.HEALTHY);
 
             // First request should be allowed
-            const result = await client.searchImageAlpha9('testImage', {
-                collection: 'visual_pages'
-            });
+            const result = await client.searchImageAlpha9('testImage', 'visual_pages');
 
             assert.ok(result, 'Request should succeed in HALF-OPEN');
         });
@@ -238,7 +236,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
             mockServer.setState(MockStates.ERROR);
             for (let i = 0; i < TEST_FAILURE_THRESHOLD; i++) {
                 try {
-                    await client.searchImageAlpha9('testImage', { collection: 'visual_pages' });
+                    await client.searchImageAlpha9('testImage', 'visual_pages');
                 } catch (e) {
                     // Expected
                 }
@@ -252,7 +250,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
             mockServer.setState(MockStates.HEALTHY);
 
             // Make successful request
-            await client.searchImageAlpha9('testImage', { collection: 'visual_pages' });
+            await client.searchImageAlpha9('testImage', 'visual_pages');
 
             assert.strictEqual(
                 client.getCircuitState(),
@@ -264,7 +262,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
         it('resets failure counter on recovery', async function () {
             mockServer.setState(MockStates.HEALTHY);
 
-            await client.searchImageAlpha9('testImage', { collection: 'visual_pages' });
+            await client.searchImageAlpha9('testImage', 'visual_pages');
 
             assert.strictEqual(
                 client.getFailureCount(),
@@ -277,13 +275,11 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
             mockServer.setState(MockStates.HEALTHY);
 
             // Recover
-            await client.searchImageAlpha9('testImage', { collection: 'visual_pages' });
+            await client.searchImageAlpha9('testImage', 'visual_pages');
 
             // Multiple successful requests
             for (let i = 0; i < 5; i++) {
-                const result = await client.searchImageAlpha9('testImage', {
-                    collection: 'visual_pages'
-                });
+                const result = await client.searchImageAlpha9('testImage', 'visual_pages');
                 assert.ok(result, `Request ${i} should succeed`);
             }
 
@@ -300,7 +296,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
             mockServer.setState(MockStates.ERROR);
 
             try {
-                await client.searchImageAlpha9('testImage', { collection: 'visual_pages' });
+                await client.searchImageAlpha9('testImage', 'visual_pages');
             } catch (e) {
                 // Expected to fail
             }
@@ -324,7 +320,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
 
                 for (let i = 0; i < TEST_FAILURE_THRESHOLD; i++) {
                     try {
-                        await client.searchImageAlpha9('testImage', { collection: 'visual_pages' });
+                        await client.searchImageAlpha9('testImage', 'visual_pages');
                     } catch (e) {
                         // Expected
                     }
@@ -349,7 +345,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
 
             for (let i = 0; i < TEST_FAILURE_THRESHOLD + 1; i++) {
                 try {
-                    await client.searchImageAlpha9('testImage', { collection: 'visual_pages' });
+                    await client.searchImageAlpha9('testImage', 'visual_pages');
                 } catch (e) {
                     // 503 Initializing should not count as failure
                     assert.strictEqual(e.type, ErrorTypes.SIDECAR_INITIALIZING);

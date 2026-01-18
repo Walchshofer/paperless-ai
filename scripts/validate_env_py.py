@@ -44,10 +44,14 @@ if not env.get('MEDIA_DIR'):
     missing.append('MEDIA_DIR')
 if not (env.get('VISUAL_RAG_INDEX_NAME') or env.get('DEFAULT_INDEX_NAME')):
     missing.append('VISUAL_RAG_INDEX_NAME|DEFAULT_INDEX_NAME')
-if not env.get('VIDEO_FRAME_INTERVAL'):
-    missing.append('VIDEO_FRAME_INTERVAL')
-if not env.get('VIDEO_KEYFRAME_DETECTION'):
-    missing.append('VIDEO_KEYFRAME_DETECTION')
+
+# VIDEO_* variables are optional unless ENABLE_VISUAL_RAG is 'yes'
+visual_rag_enabled = env.get('ENABLE_VISUAL_RAG', '').lower() == 'yes'
+if visual_rag_enabled:
+    if not env.get('VIDEO_FRAME_INTERVAL'):
+        missing.append('VIDEO_FRAME_INTERVAL')
+    if not env.get('VIDEO_KEYFRAME_DETECTION'):
+        missing.append('VIDEO_KEYFRAME_DETECTION')
 
 if missing:
     print('ERROR: required env vars missing or empty:', file=sys.stderr)
@@ -80,5 +84,8 @@ if viz_dir and viz_dir != index_dir:
     print(f"ERROR: VISUAL_RAG_INDEX_DIR ({viz_dir}) does not match INDEX_DIR ({index_dir}).", file=sys.stderr)
     sys.exit(4)
 
-print(f"OK: required env vars present: INDEX_DIR={index_dir}, MEDIA_DIR={env.get('MEDIA_DIR')}, VISUAL_RAG_INDEX_NAME={env.get('VISUAL_RAG_INDEX_NAME', env.get('DEFAULT_INDEX_NAME'))}, VIDEO_FRAME_INTERVAL={env.get('VIDEO_FRAME_INTERVAL')}, VIDEO_KEYFRAME_DETECTION={env.get('VIDEO_KEYFRAME_DETECTION')}")
+msg = f"OK: required env vars present: INDEX_DIR={index_dir}, MEDIA_DIR={env.get('MEDIA_DIR')}, VISUAL_RAG_INDEX_NAME={env.get('VISUAL_RAG_INDEX_NAME', env.get('DEFAULT_INDEX_NAME'))}"
+if visual_rag_enabled:
+    msg += f", VIDEO_FRAME_INTERVAL={env.get('VIDEO_FRAME_INTERVAL')}, VIDEO_KEYFRAME_DETECTION={env.get('VIDEO_KEYFRAME_DETECTION')}"
+print(msg)
 sys.exit(0)

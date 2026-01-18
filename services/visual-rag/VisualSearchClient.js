@@ -33,8 +33,11 @@ const VALID_COLLECTIONS = ['visual_pages', 'visual_overlays'];
 const axios = require('axios');
 const logger = require('../logger');
 const { metricsCollector } = require('../metrics/PrometheusMetrics');
-const { CircuitBreaker } = require('../experts/CircuitBreaker');
+const { CircuitBreaker, CircuitState } = require('../experts/CircuitBreaker');
 const config = require('../../config/config');
+
+// Re-export CircuitState as CircuitBreakerStates for API consumers (ticket:014.1)
+const CircuitBreakerStates = CircuitState;
 
 class VisualSearchClient {
     constructor(options = {}) {
@@ -60,9 +63,10 @@ class VisualSearchClient {
         });
 
         // Initialize Circuit Breaker (use short query-level timeout by default)
+        // Support custom options from constructor for testing (ticket:014.1)
         this.circuitBreaker = new CircuitBreaker('visual-rag', {
-            failureThreshold: config.visualRagSidecar?.failureThreshold || 3,
-            cooldownPeriod: config.visualRagSidecar?.cooldownPeriod || 30000,
+            failureThreshold: options.failureThreshold || config.visualRagSidecar?.failureThreshold || 3,
+            cooldownPeriod: options.cooldownMs || config.visualRagSidecar?.cooldownPeriod || 30000,
             timeout: this.queryTimeout,
             hardTimeout: Math.max(1000, this.queryTimeout * 2)
         }, this.metricsCollector);
@@ -308,6 +312,24 @@ class VisualSearchClient {
             throw new Error('base64Image must be a non-empty string');
         }
 
+        // Check circuit breaker state first (ticket:014.1)
+        if (this.circuitBreaker.isOpen()) {
+            // Check if cooldown elapsed - if so, transition to HALF_OPEN and allow a test request
+            const timeSinceFailure = Date.now() - (this.circuitBreaker.lastFailureTime || 0);
+            const cooldownPeriod = this.circuitBreaker.config.cooldownPeriod;
+
+            if (timeSinceFailure < cooldownPeriod) {
+                // Circuit is OPEN, fail fast
+                logger.warn('[VisualSearchClient] Circuit breaker OPEN, failing fast');
+                const err = new Error('Visual search temporarily unavailable (circuit open)');
+                err.type = ErrorTypes.CIRCUIT_OPEN;
+                throw err;
+            }
+            // Cooldown elapsed, transition to HALF_OPEN and allow test request
+            this.circuitBreaker.state = CircuitState.HALF_OPEN;
+            logger.info('[VisualSearchClient] Circuit breaker transitioning to HALF_OPEN for test request');
+        }
+
         // Alpha-9 strict timeout: 5000ms (ticket:006.1)
         const ALPHA9_TIMEOUT = 5000;
 
@@ -341,6 +363,13 @@ class VisualSearchClient {
 
             logger.info(`[VisualSearchClient] Alpha-9 search completed in ${durationMs}ms, ${data.results?.length || 0} results`);
 
+            // Record success - reset circuit breaker state (ticket:014.1)
+            this.circuitBreaker.failureCount = 0;
+            if (this.circuitBreaker.state === CircuitState.HALF_OPEN) {
+                this.circuitBreaker.state = CircuitState.CLOSED;
+                logger.info('[VisualSearchClient] Circuit breaker recovered to CLOSED');
+            }
+
             return {
                 results: (data.results || []).map(r => ({
                     docId: r.doc_id,
@@ -358,6 +387,7 @@ class VisualSearchClient {
             const durationMs = Date.now() - startTime;
 
             // Handle 503 Initializing response (ticket:006.1)
+            // NOTE: 503 Initializing does NOT trip the circuit breaker (ticket:014.1)
             if (error.response?.status === 503) {
                 const detail = error.response.data?.detail || 'Initializing';
                 logger.warn(`[VisualSearchClient] Sidecar 503: ${detail}`);
@@ -370,14 +400,22 @@ class VisualSearchClient {
             }
 
             // Handle timeout (AbortController)
-            if (error.name === 'AbortError' || error.code === 'ECONNABORTED') {
+            // Note: axios uses ERR_CANCELED code when aborted via AbortController
+            if (error.name === 'AbortError' || error.code === 'ECONNABORTED' ||
+                error.code === 'ERR_CANCELED' || error.name === 'CanceledError') {
                 logger.error(`[VisualSearchClient] Alpha-9 timeout after ${durationMs}ms`);
+
+                // Timeouts count as failures for circuit breaker
+                this._recordAlpha9Failure();
 
                 const err = new Error(`Request timeout (${ALPHA9_TIMEOUT}ms exceeded)`);
                 err.type = ErrorTypes.TIMEOUT;
                 err.durationMs = durationMs;
                 throw err;
             }
+
+            // Record failure for circuit breaker (ticket:014.1)
+            this._recordAlpha9Failure();
 
             // Handle other errors
             if (this.metricsCollector?.recordSidecarAvailability) {
@@ -387,6 +425,28 @@ class VisualSearchClient {
             throw this._wrapError('Alpha-9 image search failed', error);
         } finally {
             this._release();
+        }
+    }
+
+    /**
+     * Record a failure for Alpha-9 circuit breaker (ticket:014.1)
+     * @private
+     */
+    _recordAlpha9Failure() {
+        this.circuitBreaker.failureCount++;
+        this.circuitBreaker.lastFailureTime = Date.now();
+
+        const threshold = this.circuitBreaker.config.failureThreshold;
+
+        // Transition to OPEN if threshold exceeded
+        if (this.circuitBreaker.state === CircuitState.CLOSED &&
+            this.circuitBreaker.failureCount >= threshold) {
+            this.circuitBreaker.state = CircuitState.OPEN;
+            logger.warn(`[VisualSearchClient] Circuit breaker OPENED after ${this.circuitBreaker.failureCount} failures`);
+        } else if (this.circuitBreaker.state === CircuitState.HALF_OPEN) {
+            // Failed during recovery test, go back to OPEN
+            this.circuitBreaker.state = CircuitState.OPEN;
+            logger.warn('[VisualSearchClient] Circuit breaker returned to OPEN (HALF_OPEN test failed)');
         }
     }
 
@@ -591,6 +651,26 @@ class VisualSearchClient {
     }
 
     // =========================================================================
+    // Circuit Breaker State (ticket:014.1)
+    // =========================================================================
+
+    /**
+     * Get current circuit breaker state
+     * @returns {string} Current state (CLOSED, OPEN, HALF_OPEN)
+     */
+    getCircuitState() {
+        return this.circuitBreaker.state;
+    }
+
+    /**
+     * Get current failure count
+     * @returns {number} Number of consecutive failures
+     */
+    getFailureCount() {
+        return this.circuitBreaker.failureCount;
+    }
+
+    // =========================================================================
     // Helpers
     // =========================================================================
 
@@ -645,5 +725,7 @@ module.exports = {
     visualSearchClient,
     // Alpha-9 Protocol exports (ticket:006.1)
     ErrorTypes,
-    VALID_COLLECTIONS
+    VALID_COLLECTIONS,
+    // Circuit Breaker exports (ticket:014.1)
+    CircuitBreakerStates
 };
