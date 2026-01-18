@@ -10,9 +10,9 @@ const path = require('path');
 const logger = require('../../logger');
 const config = require('../../../config/config');
 const paperlessService = require('../../paperlessService');
-const { pdfRenderer } = require('../../visual-rag/PDFRenderer');
+const { pdfRenderer } = require('../../visual-rag-client/PDFRenderer');
 const { guidanceClient } = require('../../guidance/GuidanceClient');
-const { ingestionManager } = require('../../visual-rag/IngestionManager');
+const { ingestionManager } = require('../../visual-rag-client/IngestionManager');
 const { normalizeImagesAI } = require('./tools');
 
 /**

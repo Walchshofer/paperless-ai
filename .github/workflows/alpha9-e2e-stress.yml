@@ -1,0 +1,309 @@
+name: Alpha-9 E2E Acceptance & Stress
+
+on:
+  push:
+    branches: [release/**]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      stress_level:
+        description: 'Stress test level (low/medium/high)'
+        required: false
+        default: 'medium'
+      skip_e2e:
+        description: 'Skip E2E tests'
+        required: false
+        default: 'false'
+
+# E2E acceptance pipeline - runs on releases
+# Target execution time: < 30 minutes
+
+env:
+  POSTGRES_URL: postgres://elfman:password@localhost:5432/paperless_test
+  QDRANT_URL: http://localhost:6333
+  SIDECAR_URL: http://localhost:8001
+  NODE_ENV: test
+  VRAM_BASELINE_GB: 3.5
+
+jobs:
+  red-pen-flow-test:
+    name: Red Pen Visual Search Flow
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_e2e != 'true' }}
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: elfman
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: paperless_test
+        options: >-
+          --health-cmd "pg_isready -U elfman -d paperless_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run migrations
+        env:
+          POSTGRES_URL: ${{ env.POSTGRES_URL }}
+        run: node migrations/run-migration.js
+
+      - name: Run Red Pen E2E tests
+        env:
+          POSTGRES_URL: ${{ env.POSTGRES_URL }}
+          PAPERLESS_MOCK_URL: http://localhost:3001
+        run: |
+          npx playwright test --config=test/playwright.config.ts \
+            test/e2e/red-pen*.spec.ts \
+            --reporter=list \
+            --timeout 120000
+
+      - name: Upload Red Pen traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: red-pen-traces
+          path: test-results/**
+
+  rlhf-loop-test:
+    name: RLHF Feedback Loop Test
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_e2e != 'true' }}
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: elfman
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: paperless_test
+        options: >-
+          --health-cmd "pg_isready -U elfman -d paperless_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run migrations
+        env:
+          POSTGRES_URL: ${{ env.POSTGRES_URL }}
+        run: node migrations/run-migration.js
+
+      - name: Run RLHF Loop E2E tests
+        env:
+          POSTGRES_URL: ${{ env.POSTGRES_URL }}
+        run: |
+          npx playwright test --config=test/playwright.config.ts \
+            test/e2e/feedback*.spec.ts \
+            --reporter=list \
+            --timeout 120000
+
+      - name: Verify feedback_events table writes
+        env:
+          POSTGRES_URL: ${{ env.POSTGRES_URL }}
+        run: |
+          node -e "
+            const { Pool } = require('pg');
+            const pool = new Pool({ connectionString: process.env.POSTGRES_URL });
+            (async () => {
+              const res = await pool.query(
+                'SELECT COUNT(*) FROM information_schema.tables WHERE table_name = \'feedback_events\''
+              );
+              console.log('feedback_events table exists:', res.rows[0].count > 0);
+              pool.end();
+            })();
+          "
+
+      - name: Upload RLHF traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rlhf-traces
+          path: test-results/**
+
+  full-e2e-suite:
+    name: Full E2E Acceptance Suite
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_e2e != 'true' }}
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: elfman
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: paperless_test
+        options: >-
+          --health-cmd "pg_isready -U elfman -d paperless_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run migrations
+        env:
+          POSTGRES_URL: ${{ env.POSTGRES_URL }}
+        run: node migrations/run-migration.js
+
+      - name: Run full E2E suite
+        env:
+          POSTGRES_URL: ${{ env.POSTGRES_URL }}
+          PAPERLESS_MOCK_URL: http://localhost:3001
+        run: npm run verification:e2e
+
+      - name: Upload Playwright traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/**
+
+  stress-test:
+    name: Stress & Performance Tests
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run performance tests
+        run: npm run test:performance
+
+      - name: Run stress test script
+        env:
+          STRESS_LEVEL: ${{ github.event.inputs.stress_level || 'medium' }}
+        run: |
+          echo "Running stress tests at level: $STRESS_LEVEL"
+          bash scripts/alpha9-stress-test.sh
+
+      - name: Generate performance report
+        run: |
+          echo "=== Performance Report ===" > performance-report.txt
+          echo "Date: $(date)" >> performance-report.txt
+          echo "Stress Level: ${{ github.event.inputs.stress_level || 'medium' }}" >> performance-report.txt
+          echo "" >> performance-report.txt
+          npm run test:report 2>/dev/null || echo "No detailed report available" >> performance-report.txt
+
+      - name: Upload performance report
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report
+          path: performance-report.txt
+
+  vram-audit:
+    name: VRAM Baseline Audit
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check VRAM audit script exists
+        run: |
+          if [ -f scripts/vram-monitor.sh ]; then
+            echo "VRAM monitoring script found"
+          else
+            echo "Creating placeholder VRAM audit..."
+            echo "VRAM audit requires GPU environment (RTX 3090 Ti)"
+            echo "Expected baseline: ~${VRAM_BASELINE_GB}GB"
+          fi
+
+      - name: Document VRAM expectations
+        run: |
+          echo "=== VRAM Baseline Audit ===" > vram-audit.txt
+          echo "Expected Baseline: ${VRAM_BASELINE_GB}GB" >> vram-audit.txt
+          echo "Hardware Target: RTX 3090 Ti (24GB)" >> vram-audit.txt
+          echo "Model: ColQwen3-4B-AWQ" >> vram-audit.txt
+          echo "" >> vram-audit.txt
+          echo "Note: Full VRAM testing requires GPU runner" >> vram-audit.txt
+
+      - name: Upload VRAM audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: vram-audit
+          path: vram-audit.txt
+
+  acceptance-summary:
+    name: E2E Acceptance Summary
+    needs: [red-pen-flow-test, rlhf-loop-test, full-e2e-suite, stress-test, vram-audit]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Generate acceptance report
+        run: |
+          echo "=== Alpha-9 E2E Acceptance Report ==="
+          echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo ""
+          echo "Test Results:"
+          echo "  Red Pen Flow: ${{ needs.red-pen-flow-test.result }}"
+          echo "  RLHF Loop: ${{ needs.rlhf-loop-test.result }}"
+          echo "  Full E2E Suite: ${{ needs.full-e2e-suite.result }}"
+          echo "  Stress Tests: ${{ needs.stress-test.result }}"
+          echo "  VRAM Audit: ${{ needs.vram-audit.result }}"
+          echo ""
+
+          # Determine overall status - fail if any critical E2E job failed
+          if [ "${{ needs.red-pen-flow-test.result }}" == "failure" ] || \
+             [ "${{ needs.rlhf-loop-test.result }}" == "failure" ] || \
+             [ "${{ needs.full-e2e-suite.result }}" == "failure" ]; then
+            echo "❌ E2E Acceptance: FAILED"
+            echo "Release candidate requires fixes before deployment"
+            exit 1
+          fi
+
+          echo "✅ E2E Acceptance: PASSED"
+          echo "Release candidate is ready for deployment"

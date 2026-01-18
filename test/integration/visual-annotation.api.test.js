@@ -2,7 +2,7 @@ const assert = require('assert');
 const request = require('supertest');
 const app = require('../../server');
 const feedbackService = require('../../services/feedback/FeedbackService');
-const qdrant = require('../../services/visual-rag/QdrantAdapter');
+const qdrant = require('../../services/visual-rag-client/QdrantAdapter');
 
 describe('Visual Annotation API (stubbed) - /api/visual-rag/feedback', function () {
   it('accepts annotation and mirrors payload into Qdrant (stubbed)', async function () {

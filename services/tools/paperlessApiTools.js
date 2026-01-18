@@ -1,6 +1,6 @@
 const paperlessService = require('../paperlessService');
 const logger = require('../logger');
-const { ImageNormalizer } = require('../visual-rag/ImageNormalizer');
+const { ImageNormalizer } = require('../visual-rag-client/ImageNormalizer');
 
 const TOOL_DEFINITIONS = Object.freeze([
     {

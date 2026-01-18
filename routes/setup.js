@@ -23,8 +23,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const customService = require('../services/customService.js');
 const { expertRegistry } = require('../services/experts/ExpertRegistry');
 const { DocumentProcessor } = require('../services/integration/DocumentProcessor');
-const { qdrantAdapter } = require('../services/visual-rag/QdrantAdapter');
-const { pdfRenderer } = require('../services/visual-rag/PDFRenderer');
+const { qdrantAdapter } = require('../services/visual-rag-client/QdrantAdapter');
+const { pdfRenderer } = require('../services/visual-rag-client/PDFRenderer');
 const axios = require('axios');
 const config = require('../config/config.js');
 require('dotenv').config({ path: '../data/.env' });
@@ -632,27 +632,14 @@ router.get('/sampleData/:id', async (req, res) => {
  *               $ref: '#/components/schemas/Error'
  */
 router.get('/playground', protectApiRoute, async (req, res) => {
+  // Simplified: Island architecture - no document data needed (ticket:017.4)
   try {
-    const {
-      documents,
-      tagNames,
-      correspondentNames,
-      paperlessUrl
-    } = await documentsService.getDocumentsWithMetadata();
-
-    //limit documents to 16 items
-    documents.length = 16;
-
     res.render('playground', {
-      documents,
-      tagNames,
-      correspondentNames,
-      paperlessUrl,
       version: configFile.PAPERLESS_AI_VERSION || ' '
     });
   } catch (error) {
-    console.error('[ERRO] loading documents view:', error);
-    res.status(500).send('Error loading documents');
+    console.error('[ERRO] loading playground view:', error);
+    res.status(500).send('Error loading playground');
   }
 });
 

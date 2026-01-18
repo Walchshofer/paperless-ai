@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const logger = require('../services/logger');
-const { visualSearchClient } = require('../services/visual-rag/VisualSearchClient');
+const { visualSearchClient } = require('../services/visual-rag-client/VisualSearchClient');
 const paperlessService = require('../services/paperlessService');
 
 const DEFAULT_BATCH_SIZE = 10;

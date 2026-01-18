@@ -15,10 +15,10 @@
 
 | RAG System | Purpose | Key files / API contract |
 |---|---|---|
-| **Visual RAG Sidecar** 🔎 | Page-level element detection & visual indexing (tables, figures, zones) | `services/visual-rag-sidecar/main.py` — FastAPI endpoints: `/health`, `/index/document`, `/index/directory`, `/search`. Pydantic models: `IndexRequest`, `SearchRequest`, `SearchResponse`. **Qdrant**: `visual_pages` collection (320D, Dot) via `rag_service/qdrant_adapter.py`. |
+| **Visual RAG Sidecar** 🔎 | Page-level element detection & visual indexing (tables, figures, zones) | `containers/visual-rag/main.py` — FastAPI endpoints: `/health`, `/index/document`, `/index/directory`, `/search`. Pydantic models: `IndexRequest`, `SearchRequest`, `SearchResponse`. **Qdrant**: `visual_pages` collection (320D, Dot) via `containers/text-rag/qdrant_adapter.py`. |
 | **Ollama Visual / Visual OCR** 🖼️ | Vision-model-based OCR, geometry, overlay extraction (e.g., `qwen3-vl`) | `services/ollama/vision.js` (planner, rendering, `_callOllamaVisionAPI`, truncation+repair), `services/experts/ParallelOcrExecutor.js` (visual OCR track), `services/experts/normalization/PreVisionNormalizer.js` (geometry). Internal function contract: `ollamaService._callOllamaVisionAPI(prompt, images, options)` |
-| **Python Text RAG (RAGZ)** 📚 | Text semantic search / QA via **Qdrant** | `rag_service/app.py`, `rag_service/models.py` — endpoints: `/search`, `/context`. RAGZ stores text vectors in **Qdrant** `document_embeddings` collection (384D, Cosine) via `rag_service/qdrant_adapter.py`. |
-| **Visual Overlay Repository** 🗂️ | Visual overlay embeddings for JS services | `services/visual-rag/VisualOverlayRepository.js`, `services/visual-rag/QdrantAdapter.js`. **Qdrant**: `visual_overlays` collection (320D, Cosine). PostgreSQL retains metadata only. |
+| **Text RAG Service** 📚 | Text semantic search / QA via **Qdrant** | `containers/text-rag/app.py`, `containers/text-rag/models.py` — endpoints: `/search`, `/context`, `/health`. Text RAG stores text vectors in **Qdrant** `document_embeddings` collection (384D, Cosine) via `containers/text-rag/qdrant_adapter.py`. |
+| **Visual Overlay Repository** 🗂️ | Visual overlay embeddings for JS services | `services/visual-rag-client/VisualOverlayRepository.js`, `services/visual-rag-client/QdrantAdapter.js`. **Qdrant**: `visual_overlays` collection (320D, Cosine). PostgreSQL retains metadata only. |
 | **Internal Domain RAGs** 🗂️ | Local corpus retrievers (VAT, legal) used to augment prompts | `services/rag/InternalVatRag.js`, `services/rag/InternalLegalRag.js` — internal JS APIs (not HTTP) |
 
 > See `docs/EXPERT_PIPELINE_DECISION_TABLE.md` for pipeline stage gating and retry semantics.
@@ -44,9 +44,9 @@ Visual RAG and RAGZ are separate services with separate vector storage in **Qdra
 
 | Service | Qdrant Collection | Vector Size | Distance Metric | Adapter |
 | --- | --- | --- | --- | --- |
-| Visual RAG overlays | `visual_overlays` | 320 | Cosine | `services/visual-rag/QdrantAdapter.js` |
-| Visual RAG pages | `visual_pages` | 320 | Dot | `rag_service/qdrant_adapter.py` |
-| RAGZ text retrieval | `document_embeddings` | 384 | Cosine | `rag_service/qdrant_adapter.py` |
+| Visual RAG overlays | `visual_overlays` | 320 | Cosine | `services/visual-rag-client/QdrantAdapter.js` |
+| Visual RAG pages | `visual_pages` | 320 | Dot | `containers/text-rag/qdrant_adapter.py` |
+| Text RAG retrieval | `document_embeddings` | 384 | Cosine | `containers/text-rag/qdrant_adapter.py` |
 
 Do not share collections across these services. Each service owns its own collection and lifecycle.
 
@@ -85,16 +85,16 @@ metadata.
 
 ---
 
-## RAGZ Health Check (Required)
+## Text RAG Health Check (Required)
 
-RAGZ must expose a `/health` endpoint that validates:
+Text RAG must expose a `/health` endpoint that validates:
 - Qdrant connectivity (`QDRANT_HOST:QDRANT_PORT`)
 - `document_embeddings` collection exists and is ready
 - Collection schema matches expected dimensions (384D, Cosine)
 
 Health check example:
 ```python
-from rag_service.qdrant_adapter import qdrant_adapter
+from containers.text_rag.qdrant_adapter import qdrant_adapter
 
 health = qdrant_adapter.health_check()
 # Returns: { "healthy": true, "collections": { "document_embeddings": { "exists": true, "pointCount": 1234 } } }
@@ -167,7 +167,7 @@ results = client.search(
 
 JavaScript equivalent (using QdrantAdapter):
 ```javascript
-const { qdrantAdapter } = require('./services/visual-rag/QdrantAdapter');
+const { qdrantAdapter } = require('./services/visual-rag-client/QdrantAdapter');
 
 // Visual overlay search
 const results = await qdrantAdapter.searchVisualOverlays(queryVector, { limit: 5 });
@@ -298,8 +298,8 @@ Pick an implementation starting point (recommended):
 - `docs/PROMPT_REGISTRY_GUIDANCE_INTERACTION.md`
 - `docs/SCHEMA_EVOLUTION_GUIDE.md`
 - `docs/QDRANT_MIGRATION.md` - Migration guide from pgVector to Qdrant
-- `services/visual-rag/QdrantAdapter.js` - JavaScript Qdrant adapter
-- `rag_service/qdrant_adapter.py` - Python Qdrant adapter
+- `services/visual-rag-client/QdrantAdapter.js` - JavaScript Qdrant adapter
+- `containers/text-rag/qdrant_adapter.py` - Python Qdrant adapter
 - `.github/knowledge/guidance-expert/references/litellm-ollama.md`
 
 

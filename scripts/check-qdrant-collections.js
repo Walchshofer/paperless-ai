@@ -17,7 +17,7 @@
  *   1 - Checks failed
  */
 
-const { QdrantAdapter, COLLECTIONS } = require('../services/visual-rag/QdrantAdapter');
+const { QdrantAdapter, COLLECTIONS } = require('../services/visual-rag-client/QdrantAdapter');
 
 async function main() {
     console.log('='.repeat(60));
@@ -100,7 +100,7 @@ async function main() {
             console.log('   Some checks FAILED');
             console.log();
             console.log('   To initialize collections, run:');
-            console.log('   node -e "require(\'./services/visual-rag/QdrantAdapter\').qdrantAdapter.initialize()"');
+            console.log('   node -e "require(\'./services/visual-rag-client/QdrantAdapter\').qdrantAdapter.initialize()"');
             console.log();
             console.log('='.repeat(60));
             process.exit(1);

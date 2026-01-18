@@ -3,7 +3,7 @@ const assert = require('assert');
 const request = require('supertest');
 const { Pool } = require('pg');
 const app = require('../../server');
-const { QdrantAdapter } = require('../../services/visual-rag/QdrantAdapter');
+const { QdrantAdapter } = require('../../services/visual-rag-client/QdrantAdapter');
 
 describe('Feedback Persistence Integration', function () {
     this.timeout(30000);

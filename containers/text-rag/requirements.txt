@@ -1,0 +1,26 @@
+# Text RAG Service Dependencies
+# FastAPI and server
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+gunicorn>=21.0.0
+
+# Pydantic for data validation
+pydantic>=2.0.0
+
+# HTTP client
+requests>=2.31.0
+
+# Embeddings and ML
+sentence-transformers>=2.2.0
+numpy>=1.24.0
+
+# Search
+rank-bm25>=0.2.2
+nltk>=3.8.0
+
+# Vector store
+qdrant-client>=1.7.0
+
+# Utilities
+tqdm>=4.66.0
+python-dotenv>=1.0.0

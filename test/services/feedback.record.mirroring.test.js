@@ -1,6 +1,6 @@
 const assert = require('assert');
 const feedbackService = require('../../services/feedback/FeedbackService');
-const qdrant = require('../../services/visual-rag/QdrantAdapter');
+const qdrant = require('../../services/visual-rag-client/QdrantAdapter');
 
 describe('FeedbackService.recordGranularFeedback - Payload Mirroring', function () {
   it('inserts overlay and calls Qdrant upsert with mirrored payload', async function () {

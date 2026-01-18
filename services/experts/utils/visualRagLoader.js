@@ -16,7 +16,7 @@ let visualRagModules = null;
 function getVisualRagModules() {
     if (visualRagModules === null) {
         try {
-            visualRagModules = require('../../visual-rag');
+            visualRagModules = require('../../visual-rag-client');
         } catch (err) {
             logger.warn('[ExpertPipelineExecutor] Visual RAG modules not available:', err.message);
             visualRagModules = false;

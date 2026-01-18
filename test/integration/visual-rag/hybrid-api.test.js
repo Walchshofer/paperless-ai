@@ -2,7 +2,7 @@
 const request = require('supertest');
 const assert = require('assert');
 const app = require('../../../server');
-const { qdrantAdapter } = require('../../../services/visual-rag/QdrantAdapter');
+const { qdrantAdapter } = require('../../../services/visual-rag-client/QdrantAdapter');
 
 describe('Hybrid Search API E2E', function () {
     // Increase timeout for integration tests

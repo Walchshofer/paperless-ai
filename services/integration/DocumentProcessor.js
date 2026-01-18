@@ -43,7 +43,7 @@ const { parse, parseISO, isValid, format } = require('date-fns');
 const logger = require('../logger');
 const config = require('../../config/config');
 const truncationMetrics = require('../ollama/truncationMetrics');
-const { pdfRenderer } = require('../visual-rag/PDFRenderer');
+const { pdfRenderer } = require('../visual-rag-client/PDFRenderer');
 const { metricsCollector } = require('../metrics/PrometheusMetrics');
 
 // Import Expert Pipeline components
@@ -53,7 +53,7 @@ const { expertRegistry } = require('../experts/ExpertRegistry');
 const { ExpertPipelineExecutor, processDocument } = require('../experts/ExpertPipelineExecutor');
 const { VisualSignalAnalyzer } = require('../experts/VisualSignalAnalyzer');
 const { createNormalizationTools } = require('../experts/normalization/tools');
-const { ingestionManager } = require('../visual-rag/IngestionManager');
+const { ingestionManager } = require('../visual-rag-client/IngestionManager');
 
 // ============================================================================
 // CONFIGURATION
@@ -1857,7 +1857,7 @@ class DocumentProcessor {
 
             // Check PostgreSQL for overlays
             try {
-                const visualRagModules = require('../visual-rag');
+                const visualRagModules = require('../visual-rag-client');
                 if (visualRagModules?.visualOverlayRepository) {
                     const pgAvailable = await visualRagModules.visualOverlayRepository.isAvailable();
                     health.components.visualOverlayRepository = {

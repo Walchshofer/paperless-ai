@@ -33,7 +33,7 @@ async function testExpertPipeline() {
 
         // Step 2: Check PDF Renderer
         console.log('\n[Step 2] Checking PDF Renderer...');
-        const { pdfRenderer } = require(path.join(appRoot, 'services/visual-rag/PDFRenderer'));
+        const { pdfRenderer } = require(path.join(appRoot, 'services/visual-rag-client/PDFRenderer'));
         console.log('PDF Renderer available:', pdfRenderer.isAvailable());
 
         if (!pdfRenderer.isAvailable()) {

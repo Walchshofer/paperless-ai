@@ -8,11 +8,11 @@ import logging
 import os
 import sys
 
-# Add parent directory to path to import rag_service
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure the package can be imported when run as a script
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from ragz_service.data_manager import DataManager
-from ragz_service.qdrant_adapter import qdrant_adapter
+from data_manager import DataManager
+from qdrant_adapter import qdrant_adapter
 
 # Configure logging
 logging.basicConfig(

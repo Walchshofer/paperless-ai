@@ -2,8 +2,8 @@ const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../../logger');
 const paperlessService = require('../../paperlessService');
-const { pdfRenderer } = require('../../visual-rag/PDFRenderer');
-const { ImageNormalizer } = require('../../visual-rag/ImageNormalizer');
+const { pdfRenderer } = require('../../visual-rag-client/PDFRenderer');
+const { ImageNormalizer } = require('../../visual-rag-client/ImageNormalizer');
 const { guidanceClient } = require('../../guidance/GuidanceClient');
 
 /**

@@ -21,7 +21,7 @@ if (fs.existsSync(envPath)) {
 // 2. Load Repository
 let visualOverlayRepository;
 try {
-    const repo = require('../services/visual-rag/VisualOverlayRepository');
+    const repo = require('../services/visual-rag-client/VisualOverlayRepository');
     visualOverlayRepository = repo.visualOverlayRepository;
 } catch (err) {
     console.error('[Test] Failed to load VisualOverlayRepository. Ensure dependencies are installed.');

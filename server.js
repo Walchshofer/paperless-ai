@@ -805,8 +805,8 @@ app.get('/metrics', async (_req, res) => {
 app.get('/health/database', async (req, res) => {
   try {
     const cfg = require('./config/config');
-    const { visualOverlayRepository } = require('./services/visual-rag/VisualOverlayRepository');
-    const { qdrantAdapter } = require('./services/visual-rag/QdrantAdapter');
+    const { visualOverlayRepository } = require('./services/visual-rag-client/VisualOverlayRepository');
+    const { qdrantAdapter } = require('./services/visual-rag-client/QdrantAdapter');
 
     // Test basic connectivity
     const isConnected = await visualOverlayRepository.isAvailable(false);
@@ -1031,8 +1031,8 @@ async function validateDatabaseConnection() {
     password: cfg.postgres.password ? '******' : '<MISSING>'
   });
 
-  const { visualOverlayRepository } = require('./services/visual-rag/VisualOverlayRepository');
-  const { qdrantAdapter } = require('./services/visual-rag/QdrantAdapter');
+  const { visualOverlayRepository } = require('./services/visual-rag-client/VisualOverlayRepository');
+  const { qdrantAdapter } = require('./services/visual-rag-client/QdrantAdapter');
   
   try {
     // Test basic connectivity

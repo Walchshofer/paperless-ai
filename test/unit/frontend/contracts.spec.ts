@@ -352,3 +352,245 @@ describe('MaxSim Score Format', () => {
     }
   });
 });
+
+// ============================================================================
+// Playground Contract Tests (ticket:017.5)
+// ============================================================================
+
+// Playground Island Schema
+const PlaygroundSchema = z.object({
+  mode: z.enum(['visual-debug', 'text-debug']).default('visual-debug'),
+  collection: z.enum(['visual_pages', 'visual_overlays']).default('visual_pages'),
+  gpuState: z.enum(['idle', 'checking', 'preparing', 'ready', 'error']).default('idle'),
+  documentId: z.number().int().nullable().optional()
+});
+
+// Bounding Box Schema (normalized 0-1)
+const BoundingBoxSchema = z.object({
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  width: z.number().min(0).max(1),
+  height: z.number().min(0).max(1)
+});
+
+// Sidecar Status Schema
+const SidecarStatusSchema = z.object({
+  state: z.enum(['unknown', 'initializing', 'ready', 'error']),
+  model: z.string().optional(),
+  vram: z.object({
+    used_mb: z.number().nonnegative().optional(),
+    total_mb: z.number().nonnegative().optional()
+  }).optional(),
+  error: z.string().optional()
+});
+
+// Qdrant Payload Schema (for inspector)
+const QdrantPayloadSchema = z.object({
+  doc_id: z.number().int(),
+  correspondent_id: z.number().int().nullable().optional(),
+  tag_ids: z.array(z.number().int()).optional(),
+  created_date: z.string().optional(),
+  page_num: z.number().int().optional()
+});
+
+describe('Playground Contract (ticket:017.5)', () => {
+  it('accepts valid visual-debug mode', () => {
+    const valid = {
+      mode: 'visual-debug',
+      collection: 'visual_pages',
+      gpuState: 'ready'
+    };
+    const result = PlaygroundSchema.safeParse(valid);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts text-debug mode', () => {
+    const valid = {
+      mode: 'text-debug',
+      collection: 'visual_overlays',
+      gpuState: 'idle'
+    };
+    const result = PlaygroundSchema.safeParse(valid);
+    expect(result.success).toBe(true);
+  });
+
+  it('provides defaults when no props given', () => {
+    const minimal = {};
+    const result = PlaygroundSchema.safeParse(minimal);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.mode).toBe('visual-debug');
+      expect(result.data.collection).toBe('visual_pages');
+      expect(result.data.gpuState).toBe('idle');
+    }
+  });
+
+  it('rejects invalid collection name', () => {
+    const invalid = {
+      mode: 'visual-debug',
+      collection: 'document_embeddings' // Not a visual collection
+    };
+    const result = PlaygroundSchema.safeParse(invalid);
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects invalid GPU state', () => {
+    const invalid = {
+      gpuState: 'loading' // Not a valid state
+    };
+    const result = PlaygroundSchema.safeParse(invalid);
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts null document ID', () => {
+    const valid = {
+      documentId: null
+    };
+    const result = PlaygroundSchema.safeParse(valid);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts integer document ID', () => {
+    const valid = {
+      documentId: 12345
+    };
+    const result = PlaygroundSchema.safeParse(valid);
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('Bounding Box Schema (ticket:017.5)', () => {
+  it('accepts normalized coordinates', () => {
+    const valid = {
+      x: 0.1,
+      y: 0.2,
+      width: 0.3,
+      height: 0.4
+    };
+    const result = BoundingBoxSchema.safeParse(valid);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts boundary values', () => {
+    const valid = {
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1
+    };
+    const result = BoundingBoxSchema.safeParse(valid);
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects coordinates outside 0-1 range', () => {
+    const invalid = {
+      x: -0.1,
+      y: 0.2,
+      width: 0.3,
+      height: 0.4
+    };
+    const result = BoundingBoxSchema.safeParse(invalid);
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects coordinates greater than 1', () => {
+    const invalid = {
+      x: 0.1,
+      y: 0.2,
+      width: 1.5,
+      height: 0.4
+    };
+    const result = BoundingBoxSchema.safeParse(invalid);
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('Sidecar Status Schema (ticket:017.5)', () => {
+  it('accepts ready state with VRAM info', () => {
+    const valid = {
+      state: 'ready',
+      model: 'ColQwen3-4B-AWQ',
+      vram: {
+        used_mb: 3584,
+        total_mb: 24576
+      }
+    };
+    const result = SidecarStatusSchema.safeParse(valid);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts initializing state (503)', () => {
+    const valid = {
+      state: 'initializing',
+      model: 'ColQwen3-4B-AWQ'
+    };
+    const result = SidecarStatusSchema.safeParse(valid);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts error state with message', () => {
+    const valid = {
+      state: 'error',
+      error: 'Connection refused'
+    };
+    const result = SidecarStatusSchema.safeParse(valid);
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects invalid state', () => {
+    const invalid = {
+      state: 'loading' // Not a valid state
+    };
+    const result = SidecarStatusSchema.safeParse(invalid);
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('Qdrant Payload Schema (ticket:017.5)', () => {
+  it('accepts valid payload with all fields', () => {
+    const valid = {
+      doc_id: 12345,
+      correspondent_id: 42,
+      tag_ids: [1, 2, 3],
+      created_date: '2024-01-15',
+      page_num: 1
+    };
+    const result = QdrantPayloadSchema.safeParse(valid);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts payload with null correspondent', () => {
+    const valid = {
+      doc_id: 12345,
+      correspondent_id: null,
+      tag_ids: []
+    };
+    const result = QdrantPayloadSchema.safeParse(valid);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts minimal payload with just doc_id', () => {
+    const valid = {
+      doc_id: 12345
+    };
+    const result = QdrantPayloadSchema.safeParse(valid);
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects non-integer doc_id', () => {
+    const invalid = {
+      doc_id: 123.45
+    };
+    const result = QdrantPayloadSchema.safeParse(invalid);
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects invalid tag_ids', () => {
+    const invalid = {
+      doc_id: 123,
+      tag_ids: ['not', 'integers']
+    };
+    const result = QdrantPayloadSchema.safeParse(invalid);
+    expect(result.success).toBe(false);
+  });
+});

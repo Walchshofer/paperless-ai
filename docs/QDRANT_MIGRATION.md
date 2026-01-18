@@ -6,23 +6,24 @@ This document describes the migration from the current PostgreSQL/pgVector setup
 
 ## Current Vector Store Architecture
 
-### 1. Text RAG (RAGZ) - Python Service
-- **Location**: `rag_service/`
-- **Vector Storage**: PostgreSQL + pgVector
-- **Table**: `document_embeddings`
+### 1. Text RAG Service - Python Service
+- **Location**: `containers/text-rag/`
+- **Vector Storage**: Qdrant (migrated from PostgreSQL + pgVector)
+- **Collection**: `document_embeddings`
 - **Embedding Model**: `paraphrase-multilingual-MiniLM-L12-v2` (384 dimensions)
 - **Key Files**:
-  - `rag_service/data_manager.py` - pgVector initialization and document embedding
-  - `rag_service/search_engine.py` - Semantic search using pgVector
-  - `rag_service/state.py` - System status tracking (pgvector_ready flag)
+  - `containers/text-rag/data_manager.py` - Qdrant document embedding
+  - `containers/text-rag/search_engine.py` - Semantic search using Qdrant
+  - `containers/text-rag/state.py` - System status tracking
+  - `containers/text-rag/qdrant_adapter.py` - Qdrant client adapter
 
 ### 2. Visual RAG Sidecar - Python Service
-- **Location**: `services/visual-rag-sidecar/`
-- **Vector Storage**: In-memory tensor registry (`.pt` files on disk`), syncs to Qdrant for SOT
+- **Location**: `containers/visual-rag/`
+- **Vector Storage**: Qdrant (SOT), with local tensor cache (`.pt` files on disk)
 - **Embedding Model**: `TomoroAI/tomoro-ai-colqwen3-embed-4b-awq` (320 dimensions, 4B-AWQ quantized)
 - **Key Files**:
-  - `services/visual-rag-sidecar/main.py` - Native ColQwen3 embeddings with MaxSim scoring (`processor.score_multi_vector`)
-  - Stores embeddings as `.pt` files in `/data/indices/`
+  - `containers/visual-rag/main.py` - Native ColQwen3 embeddings with MaxSim scoring (`processor.score_multi_vector`)
+  - Stores embeddings as `.pt` files in `/data/indices/` (cache only)
 
 #### Native Protocol Alpha-9 (Unified Qdrant + ColQwen3)
 - **Summary**: A unified design where **Qdrant** is the persistent SOT for vectors and the **ColQwen3 sidecar** performs native late-interaction (MaxSim) scoring and local indexing. This is referred to in the repository as **Native Protocol Alpha-9**.
@@ -32,14 +33,15 @@ This document describes the migration from the current PostgreSQL/pgVector setup
 - **Why native PyTorch MaxSim?** Late-interaction MaxSim scoring requires patch-wise cross-similarity computations that are inefficient and lossy to emulate with single-vector SQL similarity; computing MaxSim natively with `processor.score_multi_vector` in PyTorch preserves retrieval fidelity and enables optimized GPU-accelerated scoring.
 
 ### 3. Visual Overlay Repository - JavaScript Service
-- **Location**: `services/visual-rag/`
-- **Vector Storage**: PostgreSQL + pgVector
-- **Table**: `visual_overlays`
-- **Embedding Column**: `vector(320)`
+- **Location**: `services/visual-rag-client/`
+- **Vector Storage**: Qdrant (migrated from PostgreSQL + pgVector)
+- **Collection**: `visual_overlays`
+- **Vector Dimensions**: 320
 - **Key Files**:
-  - `services/visual-rag/VisualOverlayRepository.js` - Overlay storage with vector search
-  - `services/visual-rag/IngestionManager.js` - Dual-path ingestion coordinator
-  - `services/visual-rag/HybridSearchService.js` - RRF-based hybrid search
+  - `services/visual-rag-client/VisualOverlayRepository.js` - Overlay storage with vector search
+  - `services/visual-rag-client/QdrantAdapter.js` - Qdrant client adapter for JavaScript
+  - `services/visual-rag-client/IngestionManager.js` - Dual-path ingestion coordinator
+  - `services/visual-rag-client/HybridSearchService.js` - RRF-based hybrid search
 
 ---
 
@@ -129,19 +131,19 @@ ON visual_overlays USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100
 
 | File | Vector Operations | Migration Effort |
 |------|-------------------|------------------|
-| `rag_service/data_manager.py` | `_ensure_pgvector_schema()`, `_add_documents_to_pgvector()` | High |
-| `rag_service/search_engine.py` | `semantic_search()`, `_pgvector_initialized()`, `validate_state()` | High |
-| `rag_service/state.py` | `pgvector_ready` status flag | Low |
-| `services/visual-rag/VisualOverlayRepository.js` | `checkPgVectorExtension()`, `searchByEmbedding()`, `ensureEnhancedSchema()` | High |
-| `services/visual-rag-sidecar/main.py` | In-memory tensor storage | High |
+| `containers/text-rag/data_manager.py` | `_ensure_qdrant_collection()`, `_add_documents_to_qdrant()` | High |
+| `containers/text-rag/search_engine.py` | `semantic_search()`, `_qdrant_initialized()`, `validate_state()` | High |
+| `containers/text-rag/state.py` | `qdrant_ready` status flag | Low |
+| `services/visual-rag-client/VisualOverlayRepository.js` | `checkQdrantCollection()`, `searchByEmbedding()`, `ensureCollection()` | High |
+| `containers/visual-rag/main.py` | Qdrant integration with local tensor cache | High |
 
 ### Medium Priority (Configuration & Status):
 
 | File | Dependencies | Migration Effort |
 |------|--------------|------------------|
-| `rag_service/settings.py` | No direct pgVector refs | None |
-| `services/visual-rag/IngestionManager.js` | Uses VisualOverlayRepository | Low (indirect) |
-| `services/visual-rag/HybridSearchService.js` | Uses ragService | Low (indirect) |
+| `containers/text-rag/settings.py` | No direct pgVector refs | None |
+| `services/visual-rag-client/IngestionManager.js` | Uses VisualOverlayRepository | Low (indirect) |
+| `services/visual-rag-client/HybridSearchService.js` | Uses text-rag service | Low (indirect) |
 | `config/config.js` | Database config | Medium |
 
 ### Low Priority (Documentation & Scripts):
@@ -157,11 +159,11 @@ ON visual_overlays USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100
 
 ---
 
-## Qdrant Adapter Files (Placeholder)
+## Qdrant Adapter Files
 
-Empty placeholder files have been created:
-- `rag_service/qdrant_adapter.py` (0 bytes)
-- `services/visual-rag/QdrantAdapter.js` (0 bytes)
+Qdrant adapter files for vector operations:
+- `containers/text-rag/qdrant_adapter.py` - Python adapter for text embeddings
+- `services/visual-rag-client/QdrantAdapter.js` - JavaScript adapter for visual overlays
 
 ---
 
@@ -178,8 +180,8 @@ Empty placeholder files have been created:
    - Configure persistence volumes
 
 3. **Implement Qdrant Adapters**
-   - Complete `rag_service/qdrant_adapter.py`
-   - Complete `services/visual-rag/QdrantAdapter.js`
+   - Complete `containers/text-rag/qdrant_adapter.py`
+   - Complete `services/visual-rag-client/QdrantAdapter.js`
 
 ### Phase 2: Collection Schema
 
@@ -228,17 +230,18 @@ client.create_collection(
 
 ### Phase 3: Code Migration
 
-1. **Python RAGZ Service**
-   - Replace pgVector queries in `data_manager.py`
-   - Replace pgVector queries in `search_engine.py`
-   - Update status flags in `state.py`
+1. **Python Text RAG Service**
+   - Replace pgVector queries in `containers/text-rag/data_manager.py`
+   - Replace pgVector queries in `containers/text-rag/search_engine.py`
+   - Update status flags in `containers/text-rag/state.py`
 
 2. **Visual RAG Sidecar**
-   - Replace tensor file storage with Qdrant upsert
-   - Implement MaxSim scoring via Qdrant
+   - Ensure Qdrant sync in `containers/visual-rag/main.py`
+   - Keep local tensor cache for performance
+   - Implement MaxSim scoring with Qdrant as SOT
 
-3. **JavaScript Visual RAG**
-   - Replace pg client with qdrant-js client
+3. **JavaScript Visual RAG Client**
+   - Replace pg client with qdrant-js client in `services/visual-rag-client/`
    - Update VisualOverlayRepository methods
 
 ### Phase 4: Re-ingestion
@@ -319,7 +322,7 @@ qdrant-client>=1.7.0
 }
 ```
 
-### Visual RAG Sidecar (`services/visual-rag-sidecar/requirements.txt`):
+### Visual RAG Sidecar (`containers/visual-rag/requirements.txt`):
 ```
 # Add:
 qdrant-client>=1.7.0

@@ -7,7 +7,7 @@
  * 3. Triggers Visual RAG sidecar for visual indexing (PDF -> Images -> Qdrant)
  */
 
-const { qdrantAdapter } = require('../services/visual-rag/QdrantAdapter');
+const { qdrantAdapter } = require('../services/visual-rag-client/QdrantAdapter');
 const axios = require('axios');
 
 // Configuration

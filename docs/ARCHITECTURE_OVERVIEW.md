@@ -42,6 +42,8 @@ Does NOT:
 
 ### 2) guidance-service (Python)
 
+**Location:** `containers/guidance-service/`
+
 **Role:** Constrained LLM execution and caching
 
 Responsibilities:
@@ -85,6 +87,8 @@ Does NOT:
 
 ### 4) visual-rag sidecar (Python — Native Protocol Alpha-9)
 
+**Location:** `containers/visual-rag/`
+
 **Role:** Native visual retrieval and indexing (ColQwen3 + Qdrant)
 
 Responsibilities:
@@ -100,6 +104,31 @@ Guarantees:
 Does NOT:
 - Replace PostgreSQL as SOT for relational metadata
 - Perform OCR or structured extraction (use Visual OCR / Guidance services instead)
+
+---
+
+### 5) text-rag service (Python)
+
+**Location:** `containers/text-rag/`
+
+**Role:** Text semantic search and document retrieval
+
+Responsibilities:
+- Index document text with multilingual embeddings (384-dim)
+- Provide semantic search via Qdrant `document_embeddings` collection
+- Support BM25 + semantic hybrid search
+- Expose `/search`, `/context`, `/health` endpoints
+- Maintain compatibility with paraphrase-multilingual-MiniLM-L12-v2 model
+
+Guarantees:
+- Text-only retrieval (no visual processing)
+- Best-effort enrichment; pipeline can operate without it
+- Fallback option when visual-rag is unavailable
+
+Does NOT:
+- Process images or visual content (use visual-rag for that)
+- Perform constrained generation (use guidance-service)
+- Replace visual retrieval (complementary service)
 
 ---
 
@@ -132,7 +161,7 @@ Failures are isolated per service and never cascade.
 
 - **PostgreSQL**: Source-of-truth (SOT) for relational metadata and RLHF / `feedback_events` (ACID guarantees)
 - **Qdrant**: SOT for vector retrieval (text & visual) — high-performance nearest-neighbor search and vector storage
-- **Payload Mirroring**: Mirror `doc_id`, `correspondent_id`, and `tag_ids` into Qdrant payloads for expert filtering (see `rag_service/qdrant_adapter.py`).
+- **Payload Mirroring**: Mirror `doc_id`, `correspondent_id`, and `tag_ids` into Qdrant payloads for expert filtering (see `containers/text-rag/qdrant_adapter.py`).
 
 ---
 

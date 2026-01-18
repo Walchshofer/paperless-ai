@@ -1,6 +1,6 @@
 /* eslint-env mocha */
 const assert = require('assert');
-const { HybridSearchService } = require('../../services/visual-rag/HybridSearchService');
+const { HybridSearchService } = require('../../services/visual-rag-client/HybridSearchService');
 
 describe('HybridSearchService Integration', function () {
     const mockVisualResult = {

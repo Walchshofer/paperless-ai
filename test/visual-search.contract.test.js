@@ -2,7 +2,7 @@
 const request = require('supertest');
 const assert = require('assert');
 const app = require('../server');
-const { visualSearchClient } = require('../services/visual-rag/VisualSearchClient');
+const { visualSearchClient } = require('../services/visual-rag-client/VisualSearchClient');
 
 describe('Visual Search API Contract', () => {
     let originalSearchImage;

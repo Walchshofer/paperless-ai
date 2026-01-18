@@ -8,7 +8,7 @@
  * 3. Similarity search
  * 4. Cleanup
  */
-const { qdrantAdapter } = require('../services/visual-rag/QdrantAdapter');
+const { qdrantAdapter } = require('../services/visual-rag-client/QdrantAdapter');
 
 async function verify() {
     console.log('[Verify] Initializing Qdrant adapter...');

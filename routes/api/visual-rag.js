@@ -13,7 +13,7 @@ const express = require('express');
 const path = require('path');
 const router = express.Router();
 const { ingestionManager, BatchIngestionJob, visualOverlayRepository, pdfRenderer } = require('../../services/visual-rag');
-const { getLegendForDomain, DOMAIN_FIELD_SPECS } = require('../../services/visual-rag/overlayConfig');
+const { getLegendForDomain, DOMAIN_FIELD_SPECS } = require('../../services/visual-rag-client/overlayConfig');
 const logger = require('../../services/logger');
 const paperlessService = require('../../services/paperlessService');
 const config = require('../../config/config');
@@ -206,7 +206,7 @@ router.post('/search', async (req, res) => {
  *         description: Sidecar unavailable or initializing
  */
 router.post('/search/visual', async (req, res) => {
-    const { visualSearchClient, ErrorTypes } = require('../../services/visual-rag/VisualSearchClient');
+    const { visualSearchClient, ErrorTypes } = require('../../services/visual-rag-client/VisualSearchClient');
     const { metricsCollector } = require('../../services/metrics/PrometheusMetrics');
 
     const requestId = req.headers['x-request-id'] || `req-${Date.now()}`;

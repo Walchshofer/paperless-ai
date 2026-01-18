@@ -8,7 +8,7 @@
  */
 
 const assert = require('assert');
-const { VisualSearchClient, ErrorTypes, CircuitBreakerStates } = require('../../services/visual-rag/VisualSearchClient');
+const { VisualSearchClient, ErrorTypes, CircuitBreakerStates } = require('../../services/visual-rag-client/VisualSearchClient');
 const { startAlpha9SidecarMock, MockStates } = require('../helpers/sidecar-mock-alpha9');
 
 describe('Circuit Breaker State Transitions - Alpha-9', function () {

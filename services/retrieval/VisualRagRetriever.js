@@ -29,8 +29,8 @@
 
 const logger = require('../logger');
 const config = require('../../config/config');
-const { visualOverlayRepository } = require('../visual-rag/VisualOverlayRepository');
-const { ingestionManager } = require('../visual-rag/IngestionManager');
+const { visualOverlayRepository } = require('../visual-rag-client/VisualOverlayRepository');
+const { ingestionManager } = require('../visual-rag-client/IngestionManager');
 
 class VisualRagRetriever {
     constructor(options = {}) {

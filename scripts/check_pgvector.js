@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { visualOverlayRepository } = require('../services/visual-rag/VisualOverlayRepository');
+const { visualOverlayRepository } = require('../services/visual-rag-client/VisualOverlayRepository');
 
 (async () => {
   try {

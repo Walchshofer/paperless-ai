@@ -55,7 +55,7 @@ if (process.env.RAG_SERVICE_ENABLED === 'true') {
     try {
         // Strategy 1: Prefer to reuse VisualOverlayRepository's pool if available
         try {
-            const { visualOverlayRepository } = require('../services/visual-rag/VisualOverlayRepository');
+            const { visualOverlayRepository } = require('../services/visual-rag-client/VisualOverlayRepository');
             if (visualOverlayRepository) {
                 await visualOverlayRepository.isAvailable();
                 const client = await visualOverlayRepository.pool.connect();

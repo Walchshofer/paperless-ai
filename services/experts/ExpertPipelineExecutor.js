@@ -1012,7 +1012,7 @@ class ExpertPipelineExecutor {
       const { visualQueryGenerator } = require('./VisualQueryGenerator');
 
       if (typeof context.visualSidecarAvailable !== 'boolean') {
-        const { VisualSearchClient } = require('../visual-rag/VisualSearchClient');
+        const { VisualSearchClient } = require('../visual-rag-client/VisualSearchClient');
         const visualSearchClient = new VisualSearchClient();
         context.visualSidecarAvailable = await visualSearchClient.isAvailable();
       }
@@ -1411,7 +1411,7 @@ class ExpertPipelineExecutor {
 
     try {
       const { VisualQueryExecutor } = require('./VisualQueryExecutor');
-      const { VisualSearchClient } = require('../visual-rag/VisualSearchClient');
+      const { VisualSearchClient } = require('../visual-rag-client/VisualSearchClient');
 
       if (typeof context.visualSidecarAvailable !== 'boolean') {
         const visualSearchClient = new VisualSearchClient();

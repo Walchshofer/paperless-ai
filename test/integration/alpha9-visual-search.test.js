@@ -24,7 +24,7 @@ const {
 } = require('../fixtures/visual_search');
 
 // Import client for direct testing
-const { VisualSearchClient, ErrorTypes, VALID_COLLECTIONS } = require('../../services/visual-rag/VisualSearchClient');
+const { VisualSearchClient, ErrorTypes, VALID_COLLECTIONS } = require('../../services/visual-rag-client/VisualSearchClient');
 
 describe('Alpha-9 Visual Search API', function () {
     this.timeout(30000);

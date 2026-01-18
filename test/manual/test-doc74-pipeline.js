@@ -29,7 +29,7 @@ async function testDoc74() {
 
         // Step 2: Check PDF Renderer
         console.log('\n[Step 2] Checking PDF Renderer...');
-        const { pdfRenderer } = require(path.join(appRoot, 'services/visual-rag/PDFRenderer'));
+        const { pdfRenderer } = require(path.join(appRoot, 'services/visual-rag-client/PDFRenderer'));
         console.log('PDF Renderer available:', pdfRenderer.isAvailable());
 
         // Step 3: Render PDF to images at 300 DPI

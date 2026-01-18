@@ -9,7 +9,7 @@ const logger = require('../logger');
 const path = require('path');
 const fs = require('fs').promises;
 const { metricsCollector } = require('../metrics/PrometheusMetrics');
-const { qdrantAdapter } = require('../visual-rag/QdrantAdapter');
+const { qdrantAdapter } = require('../visual-rag-client/QdrantAdapter');
 
 // Lazy-load pg to allow graceful degradation
 let Pool = null;

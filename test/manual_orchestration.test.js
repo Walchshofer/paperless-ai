@@ -21,7 +21,7 @@ describe('Manual Orchestration Route /manual/updateDocument', function() {
     feedbackService.recordGranularFeedback = async () => ({ errors: [{ type: 'insertion', error: 'DB down' }] });
 
     // Stub QdrantAdapter and metrics
-    const qdrant = require('../services/visual-rag/QdrantAdapter');
+    const qdrant = require('../services/visual-rag-client/QdrantAdapter');
     const origUpdatePayload = qdrant.qdrantAdapter.updatePayloadForDoc;
     let qCalled = false;
     qdrant.qdrantAdapter.updatePayloadForDoc = async (collectionName, id, payload) => { qCalled = true; return { status: 'ok', updated: 1 }; };
@@ -91,7 +91,7 @@ describe('Manual Orchestration Route /manual/updateDocument', function() {
     paperlessService.getDocument = async (id) => ({ id, tags: [1], correspondent: null });
 
     // Stub QdrantAdapter and metrics to assert NOT called
-    const qdrant = require('../services/visual-rag/QdrantAdapter');
+    const qdrant = require('../services/visual-rag-client/QdrantAdapter');
     const origUpdatePayload = qdrant.qdrantAdapter.updatePayloadForDoc;
     let qCalled = false;
     qdrant.qdrantAdapter.updatePayloadForDoc = async () => { qCalled = true; return { status: 'ok', updated: 0 }; };

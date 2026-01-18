@@ -1,6 +1,6 @@
 /* eslint-env mocha */
 const assert = require('assert');
-const { QdrantAdapter, COLLECTIONS } = require('../../services/visual-rag/QdrantAdapter');
+const { QdrantAdapter, COLLECTIONS } = require('../../services/visual-rag-client/QdrantAdapter');
 
 describe('QdrantAdapter Unit Tests', function () {
     it('should upsert visual overlays and call client.upsert with correct args', async function () {

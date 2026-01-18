@@ -1,6 +1,6 @@
 const axios = require('axios');
 const config = require('../../config/config');
-const FieldProfiler = require('../visual-rag/FieldProfiler');
+const FieldProfiler = require('../visual-rag-client/FieldProfiler');
 const PromptFactory = require('../PromptFactory');
 const ExtractionValidator = require('../ExtractionValidator');
 

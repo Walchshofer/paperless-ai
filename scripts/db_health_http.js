@@ -2,7 +2,7 @@
 const express = require('express');
 const app = express();
 const cfg = require('../config/config');
-const { visualOverlayRepository } = require('../services/visual-rag/VisualOverlayRepository');
+const { visualOverlayRepository } = require('../services/visual-rag-client/VisualOverlayRepository');
 
 const port = process.env.PAPERLESS_AI_PORT || 3001;
 

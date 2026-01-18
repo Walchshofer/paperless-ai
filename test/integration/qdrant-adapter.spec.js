@@ -9,7 +9,7 @@
  */
 
 const assert = require('assert');
-const { QdrantAdapter, COLLECTIONS } = require('../../services/visual-rag/QdrantAdapter');
+const { QdrantAdapter, COLLECTIONS } = require('../../services/visual-rag-client/QdrantAdapter');
 
 describe('QdrantAdapter Integration Tests', function () {
     this.timeout(30000); // Allow time for Qdrant operations

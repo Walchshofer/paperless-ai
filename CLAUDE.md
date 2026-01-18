@@ -17,7 +17,7 @@ The services are built using the repository root as context:
 visual-rag:
   build:
     context: .
-    dockerfile: services/visual-rag-sidecar/Dockerfile
+    dockerfile: containers/visual-rag/Dockerfile
 ```
 
 **Why parent context?**
@@ -35,24 +35,27 @@ This ensures the context path `..` correctly resolves to the parent directory co
 
 ## Service Architecture
 
-| # | Service | Container | Host Port(s) | Purpose |
-|---|---------|-----------|--------------|---------|
-| 1 | webserver | paperless_webserver | 8000 | Paperless-ngx Web UI and API |
-| 2 | db | paperless_db | 5432 | PostgreSQL (Metadata SOT) |
-| 2b | qdrant | paperless_qdrant | 6333 | Vector Store (Qdrant) |
-| 3 | broker | paperless_broker | internal | Redis message broker |
-| 4 | gotenberg | paperless_gotenberg | internal | PDF conversion |
-| 5 | tika | paperless_tika | internal | Document analysis |
-| 6 | paperless-ai | paperless_ai | 3000 | AI automation bridge and UI |
-| 7 | visual-rag | visual_rag | 8001 | Visual RAG sidecar (GPU) |
-| 8 | bias-engine | bias_engine | 50051, 8003 | gRPC logit bias + metrics |
-| 9 | guidance-service | guidance-service | 8002 | Deterministic JSON extraction |
-| 10 | prometheus | paperless_prometheus | 9091 | Metrics collection |
-| 11 | grafana | paperless_grafana | 3001 | Metrics visualization |
+| # | Service | Container | Host Port(s) | Container Path | Purpose |
+|---|---------|-----------|--------------|----------------|---------|
+| 1 | webserver | paperless_webserver | 8000 | N/A | Paperless-ngx Web UI and API |
+| 2 | db | paperless_db | 5432 | N/A | PostgreSQL (Metadata SOT) |
+| 2b | qdrant | paperless_qdrant | 6333 | N/A | Vector Store (Qdrant) |
+| 3 | broker | paperless_broker | internal | N/A | Redis message broker |
+| 4 | gotenberg | paperless_gotenberg | internal | N/A | PDF conversion |
+| 5 | tika | paperless_tika | internal | N/A | Document analysis |
+| 6 | paperless-ai | paperless_ai | 3000 | N/A | AI automation bridge and UI |
+| 7 | visual-rag | visual_rag | 8001 | containers/visual-rag/ | Visual RAG sidecar (GPU) |
+| 8 | bias-engine | bias_engine | 50051, 8003 | containers/bias-engine/ | gRPC logit bias + metrics |
+| 9 | guidance-service | guidance-service | 8002 | containers/guidance-service/ | Deterministic JSON extraction |
+| 10 | prometheus | paperless_prometheus | 9091 | monitoring/ | Metrics collection |
+| 11 | grafana | paperless_grafana | 3001 | monitoring/ | Metrics visualization |
+| 12 | text-rag | text_rag | 8004 | containers/text-rag/ | Text semantic search & retrieval |
 
 Notes:
-- visual-rag requires NVIDIA GPU support and persists model cache and indices.
-- guidance-service connects to Ollama via `http://host.docker.internal:11434`.
+- All Python sidecar containers are located in `containers/` directory
+- visual-rag requires NVIDIA GPU support and persists model cache and indices
+- guidance-service connects to Ollama via `http://host.docker.internal:11434`
+- text-rag provides multilingual text semantic search with 384-dim embeddings
 
 ## Key Environment Variables
 
@@ -67,6 +70,7 @@ do not copy into docs or logs).
 | `BIAS_ENGINE_URL` | `bias-engine:50051` | gRPC endpoint for bias engine |
 | `GUIDANCE_SERVICE_URL` | `http://guidance-service:8002` | Guidance service endpoint |
 | `VISUAL_RAG_URL` | `http://visual-rag:8001` | Visual RAG sidecar endpoint |
+| `TEXT_RAG_URL` | `http://text-rag:8004` | Text RAG service endpoint |
 
 ## Monitoring
 
