@@ -4,7 +4,7 @@
  */
 const axios = require('axios');
 const config = require('../../config/config');
-const { pdfRenderer } = require('../../services/visual-rag');
+const { pdfRenderer } = require('../../services/visual-rag-client');
 
 const PAPERLESS_URL = 'http://localhost:8000';
 const PAPERLESS_TOKEN = process.env.PAPERLESS_API_TOKEN;

@@ -3,7 +3,7 @@ const config = require('../config/config');
 const paperlessService = require('../services/paperlessService');
 const { pdfRenderer } = require('../services/visual-rag-client/PDFRenderer');
 const { DocumentProcessor } = require('../services/integration/DocumentProcessor');
-const { visualOverlayRepository } = require('../services/visual-rag');
+const { visualOverlayRepository } = require('../services/visual-rag-client');
 
 // Constants
 const DEFAULT_DPI = 300;

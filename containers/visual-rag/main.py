@@ -40,16 +40,21 @@ from transformers import AutoModel, AutoProcessor  # type: ignore
 
 
 # --- Configuration ---
-# Model Enforcement: Only ColQwen3-4B-AWQ is allowed (ticket:005.1)
-ALLOWED_MODEL = "TomoroAI/tomoro-colqwen3-4b-awq"
-MODEL_ID = os.getenv("VISUAL_RAG_MODEL", ALLOWED_MODEL)
+# Model Enforcement: Only ColQwen3-4B models are allowed (ticket:005.1)
+# Note: tomoro-colqwen3-4b-awq was removed from HuggingFace, using tomoro-colqwen3-embed-4b
+ALLOWED_MODELS = {
+    "TomoroAI/tomoro-colqwen3-embed-4b",     # Primary model (320-dim)
+    "TomoroAI/tomoro-colqwen3-4b-awq",       # Legacy AWQ (deprecated)
+}
+DEFAULT_MODEL = "TomoroAI/tomoro-colqwen3-embed-4b"
+MODEL_ID = os.getenv("VISUAL_RAG_MODEL", DEFAULT_MODEL)
 EXPECTED_EMBEDDING_DIM = 320  # ColQwen3 native dimension
 
-# Enforce model ID matches allowed model
-if MODEL_ID != ALLOWED_MODEL:
+# Enforce model ID matches allowed models
+if MODEL_ID not in ALLOWED_MODELS:
     raise RuntimeError(
         f"Model enforcement failed: '{MODEL_ID}' is not allowed. "
-        f"Only '{ALLOWED_MODEL}' is permitted."
+        f"Allowed models: {ALLOWED_MODELS}"
     )
 
 INDEX_DIR = Path(os.getenv("INDEX_DIR", "/data/indices"))
@@ -618,7 +623,7 @@ async def lifespan(_app: Any):
     - Handles graceful shutdown and VRAM release
     """
     logger.info("🚀 Initializing ColQwen3 (4B-AWQ) on %s...", DEVICE)
-    logger.info("Model enforcement: %s (offline mode)", ALLOWED_MODEL)
+    logger.info("Model enforcement: %s (offline mode)", MODEL_ID)
 
     try:
         # Stage 1: Load processor
@@ -629,7 +634,7 @@ async def lifespan(_app: Any):
         state.processor = p_load.from_pretrained(  # type: ignore
             MODEL_ID,
             trust_remote_code=True,
-            local_files_only=True,  # No external hub connectivity
+            local_files_only=False,  # Allow model download from HuggingFace
             max_num_visual_tokens=1280
         )
 
@@ -641,7 +646,7 @@ async def lifespan(_app: Any):
         state.model = m_load.from_pretrained(  # type: ignore
             MODEL_ID,
             trust_remote_code=True,
-            local_files_only=True,  # No external hub connectivity
+            local_files_only=False,  # Allow model download from HuggingFace
             torch_dtype=torch.float16,  # type: ignore
             device_map=DEVICE,
             attn_implementation="flash_attention_2"
@@ -1016,7 +1021,7 @@ async def health() -> Dict[str, Any]:
     return {
         "status": status,
         "init": state.get_init_status(),  # ticket:005.4
-        "model_id": ALLOWED_MODEL,
+        "model_id": MODEL_ID,
         "embedding_dim": EXPECTED_EMBEDDING_DIM,
         "offline_mode": True,
         "docs": len(state.registry),

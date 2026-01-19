@@ -12,14 +12,14 @@ from sentence_transformers import (  # type: ignore
 )
 from tqdm import tqdm  # type: ignore
 
-from .logging_utils import logger
-from .settings import (
+from logging_utils import logger
+from settings import (
     CROSS_ENCODER_MODEL_NAME,
     DOCUMENTS_FILE,
     EMBEDDING_MODEL_NAME,
 )
-from .state import global_state
-from .qdrant_adapter import qdrant_adapter
+from state import global_state
+from qdrant_adapter import qdrant_adapter
 
 
 class DataManager:

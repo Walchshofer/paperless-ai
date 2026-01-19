@@ -1,8 +1,8 @@
 import traceback
 from datetime import datetime
 
-from .logging_utils import logger
-from .state import global_state
+from logging_utils import logger
+from state import global_state
 
 
 def run_indexing(

@@ -12,7 +12,7 @@
 const express = require('express');
 const path = require('path');
 const router = express.Router();
-const { ingestionManager, BatchIngestionJob, visualOverlayRepository, pdfRenderer } = require('../../services/visual-rag');
+const { ingestionManager, BatchIngestionJob, visualOverlayRepository, pdfRenderer } = require('../../services/visual-rag-client');
 const { getLegendForDomain, DOMAIN_FIELD_SPECS } = require('../../services/visual-rag-client/overlayConfig');
 const logger = require('../../services/logger');
 const paperlessService = require('../../services/paperlessService');

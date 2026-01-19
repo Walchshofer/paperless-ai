@@ -3979,7 +3979,7 @@ router.post('/manual/analyze-visual', express.json(), async (req, res) => {
     // Step 6: Extract and save overlays if overlay extraction is enabled
     let overlayCount = 0;
     if (config.visualRagSidecar?.enableOverlayExtraction && result.overlays) {
-      const { visualOverlayRepository } = require('../services/visual-rag');
+      const { visualOverlayRepository } = require('../services/visual-rag-client');
       // Delete existing overlays for this document
       await visualOverlayRepository.deleteByDocId(docId);
       // Save new overlays

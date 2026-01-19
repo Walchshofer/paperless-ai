@@ -315,39 +315,6 @@ class VisualOverlayRepository {
 
     /**
      * Check if Qdrant is available for vector operations.
-     * pgvector is no longer required - vectors are stored in Qdrant.
-     *
-     * @returns {Promise<{available: boolean, version: string|null, error: string|null}>}
-     * @deprecated Use qdrantAdapter.healthCheck() instead
-     */
-    async checkPgVectorExtension() {
-        // For backward compatibility, check Qdrant health instead
-        if (!qdrantAdapter) {
-            return {
-                available: false,
-                version: null,
-                error: 'Qdrant adapter not initialized. Vector search requires Qdrant.'
-            };
-        }
-
-        try {
-            const health = await qdrantAdapter.healthCheck();
-            return {
-                available: health.healthy,
-                version: 'qdrant',
-                error: health.healthy ? null : 'Qdrant health check failed'
-            };
-        } catch (checkError) {
-            return {
-                available: false,
-                version: null,
-                error: `Failed to check Qdrant: ${checkError.message}`
-            };
-        }
-    }
-
-    /**
-     * Check if Qdrant is available for vector operations.
      * @returns {Promise<{healthy: boolean, collections: Object}>}
      */
     async checkQdrantHealth() {

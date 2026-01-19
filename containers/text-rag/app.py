@@ -5,21 +5,21 @@ from typing import Any, Dict, List, Optional, cast
 from fastapi import Depends, FastAPI, HTTPException  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 
-from .dependencies import get_search_engine
-from .indexing import run_indexing
-from .logging_utils import logger
-from .models import (
+from dependencies import get_search_engine
+from indexing import run_indexing
+from logging_utils import logger
+from models import (
     AskQuestionRequest,
     IndexingRequest,
     IndexingStatus,
     SearchRequest,
     SearchResult,
 )
-from .qdrant_adapter import qdrant_adapter
-from .search_engine import SearchEngine
-from .startup import lifespan  # type: ignore
-from .state import global_state
-from .settings import DATA_DIR
+from qdrant_adapter import qdrant_adapter
+from search_engine import SearchEngine
+from startup import lifespan  # type: ignore
+from state import global_state
+from settings import DATA_DIR
 
 app: Any = cast(Any, FastAPI)(
     title="RAGZ Document Search API", lifespan=cast(Any, lifespan)
@@ -281,7 +281,6 @@ async def check_health() -> Dict[str, Any]:
         "search_engine": "unknown",
         "documents_loaded": False,
         "qdrant_initialized": False,
-        "pgvector_initialized": False,
         "bm25_initialized": False,
         "issues": [],  # type: ignore
         "recommendations": [],  # type: ignore
@@ -341,9 +340,6 @@ async def check_health() -> Dict[str, Any]:
                 health_status["qdrant_initialized"] = doc_coll.get(
                     "exists",
                     False,
-                )
-                health_status["pgvector_initialized"] = (
-                    health_status["qdrant_initialized"]
                 )
                 if count == 0:
                     health_status["issues"].append(

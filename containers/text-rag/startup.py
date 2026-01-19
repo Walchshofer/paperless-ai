@@ -7,18 +7,18 @@ from typing import Any, AsyncGenerator, Dict, cast
 
 from fastapi import FastAPI  # type: ignore
 
-from .data_manager import DataManager
-from .indexing import run_indexing
-from .logging_utils import logger
-from .search_engine import SearchEngine
-from .settings import (
+from data_manager import DataManager
+from indexing import run_indexing
+from logging_utils import logger
+from search_engine import SearchEngine
+from settings import (
     DATA_DIR,
     DOCUMENTS_FILE,
     BM25_FILE,
     ensure_nltk_resources,
 )
-from .qdrant_adapter import qdrant_adapter
-from .state import global_state
+from qdrant_adapter import qdrant_adapter
+from state import global_state
 
 POST_STARTUP_INDEX_INIT = False
 STARTUP_ACTION: Dict[str, Any] = {
@@ -172,9 +172,6 @@ async def startup_event() -> None:
         global_state.system_status.qdrant_ready = (
             qdrant_initialized  # type: ignore
         )
-        global_state.system_status.pgvector_ready = (
-            qdrant_initialized  # type: ignore
-        )
 
         if documents_exist:
             logger.info("Found existing data, loading without reindexing")
@@ -234,7 +231,6 @@ async def startup_event() -> None:
                     "Found valid documents and indexes, attempting to load"
                 )
                 global_state.system_status.qdrant_ready = True
-                global_state.system_status.pgvector_ready = True
 
                 if bm25_exists and global_state.search_engine:
                     try:

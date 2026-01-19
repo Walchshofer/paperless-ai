@@ -3,8 +3,8 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from .logging_utils import logger
-from .state import global_state
+from logging_utils import logger
+from state import global_state
 
 
 def get_search_engine() -> Any:

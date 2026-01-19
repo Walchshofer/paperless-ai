@@ -2,7 +2,7 @@ import os
 import nltk  # type: ignore
 from dotenv import load_dotenv
 
-from .logging_utils import logger
+from logging_utils import logger
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(ROOT_DIR, "data")

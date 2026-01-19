@@ -16,7 +16,6 @@ class SystemStatus(BaseModel):
     data_loaded: bool = False
     index_ready: bool = False
     qdrant_ready: bool = False
-    pgvector_ready: bool = False
     bm25_ready: bool = False
     indexing_status: IndexingStatus = IndexingStatus()
 

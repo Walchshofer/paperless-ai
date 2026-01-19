@@ -828,49 +828,41 @@ app.get('/health/database', async (req, res) => {
       });
     }
 
-    // Check pg_vector extension
-    const pgvectorCheck = await visualOverlayRepository.checkPgVectorExtension();
-    
     // Check schema readiness
     const schemaReady = await visualOverlayRepository.ensureEnhancedSchema();
 
-    // Check Qdrant
-    let qdrantCheck = { available: false, version: 'unknown' };
+    // Check Qdrant vector store
+    let qdrantCheck = { healthy: false, error: 'unknown' };
     try {
-      await qdrantAdapter.getCollections();
-      qdrantCheck = { available: true, version: 'connected' };
+      qdrantCheck = await qdrantAdapter.healthCheck();
     } catch (e) {
-      qdrantCheck = { available: false, error: e.message };
+      qdrantCheck = { healthy: false, error: e.message };
     }
 
     const response = {
-      status: pgvectorCheck.available && schemaReady && qdrantCheck.available ? 'healthy' : 'degraded',
+      status: schemaReady && qdrantCheck.healthy ? 'healthy' : 'degraded',
       database: {
         connected: true,
         host: cfg.postgres.host,
         port: cfg.postgres.port,
         database: cfg.postgres.database
       },
-      pgvector: {
-        available: pgvectorCheck.available,
-        version: pgvectorCheck.version,
-        error: pgvectorCheck.error
+      qdrant: {
+        healthy: qdrantCheck.healthy,
+        collections: qdrantCheck.collections,
+        error: qdrantCheck.error
       },
-      qdrant: qdrantCheck,
       schema: {
         ready: schemaReady
       }
     };
 
-    if (!pgvectorCheck.available || !schemaReady) {
+    if (!qdrantCheck.healthy || !schemaReady) {
       response.troubleshooting = [
-        'Verify docker-compose.yml uses pgvector/pgvector:pg16 image',
-        'Check PostgreSQL logs: docker logs paperless_db',
+        'Verify Qdrant container is running: docker ps | grep qdrant',
+        'Check Qdrant logs: docker logs paperless_qdrant',
         'Run migration: docker exec paperless_ai node migrations/run-migration.js'
       ];
-      if (!qdrantCheck.available) {
-        response.troubleshooting.push('Verify Qdrant container is running: docker ps | grep qdrant');
-      }
       return res.status(503).json(response);
     }
 
@@ -1053,20 +1045,8 @@ async function validateDatabaseConnection() {
       // Degrade gracefully - do not throw
     }
 
-    // Check pg_vector extension
-    console.log('[STARTUP] Checking pg_vector extension...');
-    const pgvectorCheck = await visualOverlayRepository.checkPgVectorExtension();
-    
-    if (!pgvectorCheck.available) {
-      console.error('[STARTUP] ✗ pg_vector extension not available:', pgvectorCheck.error);
-      console.error('[STARTUP] Troubleshooting:');
-      console.error('  1. Verify docker-compose.yml uses pgvector/pgvector:pg16 image');
-      console.error('  2. Check container: docker inspect paperless_db | grep Image');
-      console.error('  3. Install extension: docker exec paperless_db psql -U ' + cfg.postgres.user + ' -d ' + cfg.postgres.database + ' -c "CREATE EXTENSION vector"');
-      throw new Error('pg_vector extension not available');
-    }
-    
-    console.log('[STARTUP] ✓ pg_vector extension available (version: ' + pgvectorCheck.version + ')');
+    // Qdrant is already checked above via qdrantAdapter.getCollections()
+    // No pg_vector check needed - vectors are stored in Qdrant
 
     // Ensure schema is ready
     console.log('[STARTUP] Ensuring database schema...');
@@ -1086,7 +1066,7 @@ async function validateDatabaseConnection() {
     console.error('  1. PostgreSQL container is running: docker ps | grep paperless_db');
     console.error('  2. Environment variables are set in docker-compose.env');
     console.error('  3. Credentials match between docker-compose.env and PostgreSQL');
-    console.error('  4. Container uses pgvector image: docker inspect paperless_db | grep Image');
+    console.error('  4. Qdrant container is running: docker ps | grep qdrant');
     throw error;
   }
 }

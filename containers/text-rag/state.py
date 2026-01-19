@@ -2,9 +2,9 @@ import json
 import os
 from typing import Any, Dict, Set
 
-from .logging_utils import logger
-from .models import IndexingStatus, SystemStatus
-from .settings import STATE_FILE
+from logging_utils import logger
+from models import IndexingStatus, SystemStatus
+from settings import STATE_FILE
 
 
 class GlobalState:
@@ -32,7 +32,6 @@ class GlobalState:
                     "data_loaded": self.system_status.data_loaded,
                     "index_ready": self.system_status.index_ready,
                     "qdrant_ready": self.system_status.qdrant_ready,
-                    "pgvector_ready": self.system_status.pgvector_ready,
                     "bm25_ready": self.system_status.bm25_ready,
                 },
                 "indexed_document_ids": (
@@ -98,13 +97,11 @@ class GlobalState:
                     self.system_status.index_ready = sys_status.get(
                         "index_ready", False
                     )
+                    # Support legacy state files that used pgvector_ready
                     qdrant_ready = sys_status.get("qdrant_ready")
                     if qdrant_ready is None:
                         qdrant_ready = sys_status.get("pgvector_ready", False)
                     self.system_status.qdrant_ready = bool(qdrant_ready)
-                    self.system_status.pgvector_ready = bool(
-                        sys_status.get("pgvector_ready", qdrant_ready)
-                    )
                     self.system_status.bm25_ready = sys_status.get(
                         "bm25_ready", False
                     )

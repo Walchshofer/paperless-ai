@@ -23,7 +23,7 @@ const fs = require('fs').promises;
 const config = require('../../config/config');
 
 // Visual RAG modules
-const { ingestionManager, visualOverlayRepository, visualSearchClient, pdfRenderer } = require('../../services/visual-rag');
+const { ingestionManager, visualOverlayRepository, visualSearchClient, pdfRenderer } = require('../../services/visual-rag-client');
 
 // Paperless API config
 const PAPERLESS_URL = process.env.PAPERLESS_URL || 'http://localhost:8000';

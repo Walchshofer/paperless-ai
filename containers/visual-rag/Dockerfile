@@ -27,10 +27,17 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel packaging psutil
 RUN pip install --no-cache-dir "flash-attn==2.7.4.post1" --no-build-isolation
 
 # Install remaining pure-Python dependencies from the canonical requirements file
-COPY services/visual-rag-sidecar/requirements.txt .
+COPY containers/visual-rag/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY services/visual-rag-sidecar/main.py .
+# Reinstall the correct PyTorch version after requirements.txt
+# (some dependencies may have upgraded torch, breaking flash-attn compatibility)
+RUN pip install --no-cache-dir --force-reinstall \
+    torch==2.6.0+cu124 \
+    torchvision==0.21.0+cu124 \
+    --index-url https://download.pytorch.org/whl/cu124
+
+COPY containers/visual-rag/main.py .
 
 # Runtime defaults and index mount
 ENV QDRANT_HOST=qdrant

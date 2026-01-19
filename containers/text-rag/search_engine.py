@@ -1,7 +1,7 @@
 import os
 import pickle
 import traceback
-from typing import Any, Dict, List, Set, Tuple, cast
+from typing import Any, Dict, List, Optional, Set, Tuple, cast
 
 import numpy as np  # type: ignore
 from tqdm import tqdm  # type: ignore
@@ -9,17 +9,17 @@ from rank_bm25 import BM25Okapi  # type: ignore
 from nltk.tokenize import word_tokenize  # type: ignore
 from nltk.corpus import stopwords  # type: ignore
 
-from .logging_utils import logger
-from .models import SearchRequest, SearchResult
-from .settings import (
+from logging_utils import logger
+from models import SearchRequest, SearchResult
+from settings import (
     BM25_FILE,
     BM25_WEIGHT,
     SEMANTIC_WEIGHT,
     MAX_RESULTS,
     ensure_nltk_resources,
 )
-from .qdrant_adapter import qdrant_adapter
-from .state import global_state
+from qdrant_adapter import qdrant_adapter
+from state import global_state
 
 
 class SearchEngine:
@@ -72,7 +72,6 @@ class SearchEngine:
             valid = False
 
         global_state.system_status.qdrant_ready = qdrant_ready
-        global_state.system_status.pgvector_ready = qdrant_ready
 
         # Check BM25
         if (
