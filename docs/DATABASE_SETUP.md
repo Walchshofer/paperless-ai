@@ -286,6 +286,180 @@ docker exec -it paperless_db psql -U elfman -d paperless
 docker exec paperless_ai env | grep POSTGRES
    ```
 
+### Issue: "FATAL: database \"elfman\" does not exist" (missing DB, collation mismatch) ⚠️
+
+**Symptoms:**
+- Logs show: `FATAL: database "elfman" does not exist`
+- The PostgreSQL container has existing data so initialization skipped and env changes (e.g., `POSTGRES_DB`) were ignored.
+
+**Quick, non-destructive fixes:**
+1. List existing databases to confirm what the cluster contains:
+   ```bash
+   docker exec -it paperless_db psql -U elfman -c "\l"
+   ```
+
+2. Create the missing database with the correct collation (recommended; uses TEMPLATE template0):
+   ```bash
+   docker exec -it paperless_db psql -U postgres -c "CREATE DATABASE elfman WITH OWNER elfman LC_COLLATE='en_US.utf8' LC_CTYPE='en_US.utf8' TEMPLATE template0;"
+   ```
+
+3. Run migrations against the new DB (ensure `POSTGRES_*` env in the `paperless_ai` container points to the correct DB):
+   ```bash
+   docker exec paperless_ai node migrations/run-migration.js
+   ```
+
+4. If you intended to change the cluster-wide DB name (destructive): stop containers, remove the `pgdata` volume and restart so Postgres re-initializes with the new env vars. WARNING: this deletes all DB data.
+   ```bash
+   docker compose down
+   docker volume rm <project>_pgdata
+   docker compose --env-file docker-compose.env up -d db
+   ```
+
+**Notes:**
+- Use `TEMPLATE template0` when creating DBs with non-default collations to avoid inheriting incompatible locale metadata.
+- On Windows, prefer starting Compose with explicit env file to ensure the authoritative `docker-compose.env` values are used:
+  ```bash
+  docker compose --env-file docker-compose.env up -d
+  ```
+- If healthchecks hard-code a username (e.g., `elfman`) they can become inconsistent; we updated `docker-compose.yml` to use `${POSTGRES_USER}`/`${POSTGRES_DB}` so the check follows your configured env vars.
+
+### Issue: Collation version mismatch (warning during startup)
+
+**Symptoms:**
+- Startup or readiness checks show a warning like:
+  ```
+  WARNING:  database "paperless" has a collation version mismatch
+  DETAIL:  The database was created using collation version 2.36, but the operating system provides version 2.41.
+  HINT:  Rebuild all objects in this database that use the default collation and run ALTER DATABASE paperless REFRESH COLLATION VERSION
+  ```
+
+**Non-destructive recovery steps (recommended):**
+1. **Backup first (always):**
+   - On Linux/macOS:
+     ```bash
+     mkdir -p ./backups
+     docker exec -t paperless_db pg_dump -U postgres -F c paperless > ./backups/paperless.dump
+     ```
+   - On Windows PowerShell:
+     ```powershell
+     New-Item -ItemType Directory -Force .\backups
+     docker exec -t paperless_db pg_dump -U postgres -F c paperless | Out-File -Encoding byte .\backups\paperless.dump
+     ```
+
+2. **Rebuild indexes/objects that depend on collation:**
+   ```bash
+   docker exec -it paperless_db psql -U postgres -d paperless -c "REINDEX DATABASE paperless;"
+   ```
+
+3. **Refresh the database collation version:**
+   ```bash
+   docker exec -it paperless_db psql -U postgres -c "ALTER DATABASE paperless REFRESH COLLATION VERSION;"
+   ```
+
+4. **Verify:**
+   - Check logs and readiness:
+     ```bash
+     docker logs paperless_db --since 1m
+     docker exec paperless_db pg_isready -U ${POSTGRES_USER:-elfman} -d ${POSTGRES_DB:-paperless}
+     ```
+   - Your earlier warning should no longer appear.
+
+**Fallback (dump/restore) if problems persist:**
+- If REINDEX + REFRESH fails or you continue to see collation inconsistencies, perform a dump-and-restore into a database explicitly created with the correct locale:
+  ```bash
+  # create a new DB with the same owner and explicit collation
+  docker exec -it paperless_db psql -U postgres -c "CREATE DATABASE paperless_rebuilt WITH OWNER elfman LC_COLLATE='en_US.utf8' LC_CTYPE='en_US.utf8' TEMPLATE template0;"
+
+  # restore the dump into the new DB
+  docker exec -i paperless_db pg_restore -U postgres -d paperless_rebuilt < ./backups/paperless.dump
+
+  # test the application against the rebuilt DB and, after validation, swap names or update your env to point to the rebuilt DB
+  ```
+
+**Notes & cautions:**
+- Always take a backup before performing maintenance.
+- Perform these steps during a maintenance window and test the application after changes.
+- If you are uncertain, ask for operator assistance — I can prepare the exact PowerShell-compatible commands or perform the steps here if you want.
+
+### Removing deprecated `pgvector` extension (cleanup & prevention)
+
+If your deployment previously used `pgvector` but moved vectors to Qdrant, you may have residual extension objects, indexes or columns referencing the `vector` type. The safe, tested cleanup pattern we used is below. Follow these steps during a maintenance window.
+
+1. Backup the database (always first):
+
+   On PowerShell (Windows):
+   ```powershell
+   New-Item -ItemType Directory -Force .\backups
+   docker exec -i paperless_db bash -lc "pg_dump -U postgres -F c paperless -f /tmp/paperless.dump"
+   docker cp paperless_db:/tmp/paperless.dump .\backups\paperless.dump
+   ```
+
+   On Linux / macOS:
+   ```bash
+   mkdir -p ./backups
+   docker exec -i paperless_db bash -lc "pg_dump -U postgres -F c paperless -f /tmp/paperless.dump"
+   docker cp paperless_db:/tmp/paperless.dump ./backups/paperless.dump
+   ```
+
+2. Inspect extension and dependent objects:
+
+```bash
+# List installed extensions
+docker exec -i paperless_db psql -U elfman -d paperless -c "SELECT extname FROM pg_extension;"
+
+# Show extension detail (objects)
+docker exec -i paperless_db psql -U elfman -d paperless -c "\dx+ vector"
+
+# Find columns using the vector type
+docker exec -i paperless_db psql -U elfman -d paperless -c "SELECT n.nspname, c.relname, a.attname FROM pg_attribute a JOIN pg_class c ON a.attrelid = c.oid JOIN pg_namespace n ON c.relnamespace = n.oid JOIN pg_type t ON a.atttypid = t.oid WHERE t.typname = 'vector' AND a.attnum > 0 AND NOT a.attisdropped;"
+```
+
+3. Drop the extension (safe; use CASCADE to remove dependent objects like vector columns/indexes):
+
+```bash
+# Drop extension (will cascade)
+docker exec -i paperless_db psql -U elfman -d paperless -c "DROP EXTENSION IF EXISTS vector CASCADE;"
+```
+
+4. If any vector indexes or columns were not removed, drop them explicitly (example):
+
+```bash
+docker exec -i paperless_db psql -U elfman -d paperless -c "DROP INDEX IF EXISTS public.idx_visual_overlays_embedding_ivfflat;"
+docker exec -i paperless_db psql -U elfman -d paperless -c "ALTER TABLE public.visual_overlays DROP COLUMN IF EXISTS embedding;"
+```
+
+5. Rebuild indexes and refresh collation version (fixes collation warning if present):
+
+```bash
+docker exec -i paperless_db psql -U elfman -d paperless -c "REINDEX DATABASE paperless;"
+docker exec -i paperless_db psql -U elfman -c "ALTER DATABASE paperless REFRESH COLLATION VERSION;"
+```
+
+6. Remove any compiled extension files from the running image (only needed if you built in-container):
+
+```bash
+docker exec -i paperless_db bash -lc "rm -f /usr/lib/postgresql/16/lib/vector.so || true"
+docker exec -i paperless_db bash -lc "rm -rf /usr/share/postgresql/16/extension/vector* /usr/include/postgresql/16/server/extension/vector /usr/lib/postgresql/16/lib/bitcode/vector || true"
+```
+
+7. Remove build-time packages (if installed during on-host build steps):
+
+```bash
+docker exec -i paperless_db bash -lc "apt-get remove --purge -y build-essential git postgresql-server-dev-16 clang llvm make pkg-config libssl-dev || true; apt-get autoremove -y || true; apt-get clean -y || true"
+```
+
+8. Verify and confirm:
+
+```bash
+docker exec -i paperless_db psql -U elfman -d paperless -c "SELECT extname FROM pg_extension;"
+docker exec -i paperless_db psql -U elfman -d paperless -c "SELECT table_schema, table_name, column_name, data_type FROM information_schema.columns WHERE data_type ILIKE '%vector%';"
+docker exec paperless_db pg_isready -U ${POSTGRES_USER:-elfman} -d ${POSTGRES_DB:-paperless}
+```
+
+Notes & prevention
+- **Policy:** Do NOT include `pgvector` in runtime images. Runtime images must not ship the compiled `pgvector` extension or any pgvector-built artifacts (e.g., `vector.so` files). If you need temporary access for migration or testing, perform builds in a safe, private, build-only environment and use the provided migration/purge scripts. The repository contains a guard workflow (`.github/workflows/no-pgvector-guard.yml`) that will prevent changes that reintroduce pgvector artifacts into non-exempt areas of the repo.
+- Keep the backup `./backups/paperless.dump` until you are confident the cleanup succeeded.
+
 ### Issue: Container name has random suffix
 
 **Symptoms:**

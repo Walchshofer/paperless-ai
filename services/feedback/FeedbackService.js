@@ -309,6 +309,11 @@ class FeedbackService {
                     const originalValue = (evt.original !== undefined && evt.original !== null) ? evt.original : (evt.original_value !== undefined && evt.original_value !== null ? evt.original_value : null);
                     const correctedValue = (evt.corrected !== undefined && evt.corrected !== null) ? evt.corrected : (evt.corrected_value !== undefined && evt.corrected_value !== null ? evt.corrected_value : null);
                     const context = evt.context || evt.meta || {};
+                    // Ensure the request id header is propagated into the stored context for auditability
+                    // Do not overwrite an explicit request_id/requestId provided by the caller
+                    if (!context.request_id && !context.requestId && requestId) {
+                        context.request_id = requestId;
+                    }
                     const userId = (evt.user_id !== undefined && evt.user_id !== null) ? evt.user_id : null;
 
                     // 1. Handle Visual Annotations (insert into visual_overlays)
@@ -372,17 +377,14 @@ class FeedbackService {
 
                             const qdrantPoint = {
                                 id: vectorId,
-                                embedding,
+                                vector: embedding,
                                 payload: {
                                     doc_id: docId,
                                     correspondent_id: correspondentId,
                                     tag_ids: tagIds,
                                     page_number: page,
                                     semantic_label: label
-                                },
-                                docId,
-                                correspondentId,
-                                tagIds
+                                }
                             };
 
                             // Retry logic to handle sidecar warming up (503 Initializing)

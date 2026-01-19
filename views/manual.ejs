@@ -112,19 +112,23 @@
                   <!-- Server-side placeholder for Manual Editor Island -->
                   <div data-testid="manual-editor-island-root">
                     <div role="tablist" aria-label="Manual Editor Tabs" style="display:flex;gap:8px;margin-bottom:8px">
-                      <button role="tab" data-testid="tab-metadata" aria-selected="true">Metadata</button>
-                      <button role="tab" data-testid="tab-content" aria-selected="false">Content</button>
-                      <button role="tab" data-testid="tab-fields" aria-selected="false">Fields</button>
+                      <button role="tab" data-testid="tab-metadata" aria-selected="true" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">Metadata</button>
+                      <button role="tab" data-testid="tab-content" aria-selected="false" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">Content</button>
+                      <button role="tab" data-testid="tab-fields" aria-selected="false" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">Fields</button>
+                      <button role="tab" data-testid="tab-ai-debug" aria-selected="false" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">AI Debug</button>
                     </div>
                     <div id="manual-editor-panel">
-                      <div data-panel="metadata">
+                      <div data-panel="metadata" data-testid="panel-metadata">
                         <label>Title <input data-testid="manual-title-input" type="text"/></label>
                       </div>
-                      <div data-panel="content" style="display:none">
+                      <div data-panel="content" data-testid="panel-content" style="display:none">
                         <textarea data-testid="manual-content-input" rows="4" style="width:100%"></textarea>
                       </div>
-                      <div data-panel="fields" style="display:none">
+                      <div data-panel="fields" data-testid="panel-fields" style="display:none">
                         <div><input data-testid="field-name-0" placeholder="Field name"/><input data-testid="field-value-0" placeholder="Field value"/></div>
+                      </div>
+                      <div data-panel="ai-debug" data-testid="panel-ai-debug" style="display:none">
+                        <div>AI Debug information will appear here (GPU state dependent)</div>
                       </div>
                     </div>
                     <div style="margin-top:8px">
@@ -1121,7 +1125,7 @@ return object;
           // Dev fallback for Manual Editor island (inject interactive markup and listeners)
           document.querySelectorAll('[data-island="manual-editor-island"]').forEach(el => {
             if (!el.querySelector('[data-testid="manual-editor-island-root"]')) {
-              el.innerHTML = "\n                <div data-testid=\"manual-editor-island-root\">\n                  <div role=\"tablist\" aria-label=\"Manual Editor Tabs\" style=\"display:flex;gap:8px;margin-bottom:8px\">\n                    <button role=\"tab\" data-testid=\"tab-metadata\" aria-selected=\"true\">Metadata</button>\n                    <button role=\"tab\" data-testid=\"tab-content\" aria-selected=\"false\">Content</button>\n                    <button role=\"tab\" data-testid=\"tab-fields\" aria-selected=\"false\">Fields</button>\n                  </div>\n                  <div id=\"manual-editor-panel\">\n                    <div data-panel=\"metadata\">\n                      <label>Title <input data-testid=\"manual-title-input\" type=\"text\"/></label>\n                    </div>\n                    <div data-panel=\"content\" style=\"display:none\">\n                      <textarea data-testid=\"manual-content-input\" rows=\"4\" style=\"width:100%\"></textarea>\n                    </div>\n                    <div data-panel=\"fields\" style=\"display:none\">\n                      <div><input data-testid=\"field-name-0\" placeholder=\"Field name\"/><input data-testid=\"field-value-0\" placeholder=\"Field value\"/></div>\n                    </div>\n                  </div>\n                  <div style=\"margin-top:8px\">\n                    <button data-testid=\"manual-save-btn\">Save</button>\n                  </div>\n                </div>\n              ";
+              el.innerHTML = "\n                <div data-testid=\"manual-editor-island-root\">\n                  <div role=\"tablist\" aria-label=\"Manual Editor Tabs\" style=\"display:flex;gap:8px;margin-bottom:8px\">\n                    <button role=\"tab\" data-testid=\"tab-metadata\" aria-selected=\"true\" onclick=\"(function(){ const root = this.closest('[data-testid=\\\'manual-editor-island-root\\\']'); const tabs = Array.from(root.querySelectorAll('[role=\\\'tab\\\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);\">Metadata</button>\n                    <button role=\"tab\" data-testid=\"tab-content\" aria-selected=\"false\" onclick=\"(function(){ const root = this.closest('[data-testid=\\\'manual-editor-island-root\\\']'); const tabs = Array.from(root.querySelectorAll('[role=\\\'tab\\\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);\">Content</button>\n                    <button role=\"tab\" data-testid=\"tab-fields\" aria-selected=\"false\" onclick=\"(function(){ const root = this.closest('[data-testid=\\\'manual-editor-island-root\\\']'); const tabs = Array.from(root.querySelectorAll('[role=\\\'tab\\\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);\">Fields</button>\n                    <button role=\"tab\" data-testid=\"tab-ai-debug\" aria-selected=\"false\">AI Debug</button>\n                  </div>\n                  <div id=\"manual-editor-panel\">\n                    <div data-panel=\"metadata\" data-testid=\"panel-metadata\">\n                      <label>Title <input data-testid=\"manual-title-input\" type=\"text\"/></label>\n                    </div>\n                    <div data-panel=\"content\" data-testid=\"panel-content\" style=\"display:none\">\n                      <textarea data-testid=\"manual-content-input\" rows=\"4\" style=\"width:100%\"></textarea>\n                    </div>\n                    <div data-panel=\"fields\" data-testid=\"panel-fields\" style=\"display:none\">\n                      <div><input data-testid=\"field-name-0\" placeholder=\"Field name\"/><input data-testid=\"field-value-0\" placeholder=\"Field value\"/></div>\n                    </div>\n                    <div data-panel=\"ai-debug\" data-testid=\"panel-ai-debug\" style=\"display:none\">\n                      <div>AI Debug information will appear here (GPU state dependent)</div>\n                    </div>\n                  </div>\n                  <div style=\"margin-top:8px\">\n                    <button data-testid=\"manual-save-btn\">Save</button>\n                  </div>\n                </div>\n              ";
 
               try {
                 const root = el.querySelector('[data-testid="manual-editor-island-root"]');
@@ -1136,7 +1140,7 @@ return object;
                     const title = root.querySelector('[data-testid="manual-title-input"]'); if(title) payload.metadata.title = title.value||'';
                     const content = root.querySelector('[data-testid="manual-content-input"]'); if(content) payload.content = content.value||'';
                     const fname = root.querySelector('[data-testid="field-name-0"]'); const fval = root.querySelector('[data-testid="field-value-0"]'); if(fname && fname.value) payload.fields.push({ name: fname.value, value: fval ? fval.value : '' });
-                    document.dispatchEvent(new CustomEvent('payload:ready', { detail: payload }));
+                    (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(new CustomEvent('payload:ready', { detail: payload })); })();
                   });
                 }
               } catch(e){ console.warn('Dev manual editor setup failed', e); }
@@ -1146,14 +1150,25 @@ return object;
           // Dev fallback for Feedback Controls island (inject listeners)
           document.querySelectorAll('[data-island="feedback-controls-island"]').forEach(el => {
             if (!el.querySelector('[data-testid="feedback-controls-island-root"]')) {
-              el.innerHTML = "\n                <div data-testid=\"feedback-controls-island-root\">\n                  <button data-testid=\"thumbs-up-tags\">👍 Tags</button>\n                  <button data-testid=\"thumbs-down-tags\">👎 Tags</button>\n                </div>\n              ";
+              el.innerHTML = "\n                <div data-testid=\"feedback-controls-island-root\">\n                  <button data-testid=\"thumbs-up-tags\" aria-pressed=\"false\">👍 Tags</button>\n                  <button data-testid=\"thumbs-down-tags\" aria-pressed=\"false\">👎 Tags</button>\n                </div>\n              ";
               try {
                 const root = el.querySelector('[data-testid="feedback-controls-island-root"]');
                 if (root) {
                   const up = root.querySelector('[data-testid="thumbs-up-tags"]');
                   const down = root.querySelector('[data-testid="thumbs-down-tags"]');
-                  if (up) up.addEventListener('click', ()=> document.dispatchEvent(new CustomEvent('feedback:updated', { detail:{ component:'tags', feedback_type:'thumbs_up' } }))); 
-                  if (down) down.addEventListener('click', ()=> document.dispatchEvent(new CustomEvent('feedback:updated', { detail:{ component:'tags', feedback_type:'thumbs_down' } }))); 
+                  if (up) up.addEventListener('click', ()=>{
+                    const current = up.getAttribute('aria-pressed') === 'true';
+                    up.setAttribute('aria-pressed', (!current).toString());
+                    if (down) down.setAttribute('aria-pressed', 'false');
+                    (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(new CustomEvent('feedback:updated', { detail:{ component:'tags', feedback_type:'thumbs_up' } })); })();
+                    (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(new CustomEvent('feedback:confirmed', { detail:{ component:'tags', documentId: null } })); })();
+                  });
+                  if (down) down.addEventListener('click', ()=>{
+                    const current = down.getAttribute('aria-pressed') === 'true';
+                    down.setAttribute('aria-pressed', (!current).toString());
+                    if (up) up.setAttribute('aria-pressed', 'false');
+                    (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(new CustomEvent('feedback:updated', { detail:{ component:'tags', feedback_type:'thumbs_down' } })); })();
+                  });
                 }
               } catch(e){ console.warn('Dev feedback setup failed', e); }
             }

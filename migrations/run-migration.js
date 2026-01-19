@@ -101,15 +101,17 @@ async function runMigration(migrationFile) {
             });
         }
 
-        // Check for pgvector extension
+        // Enforce policy: pgvector is deprecated and must not be present in runtime clusters.
         const vectorCheck = await client.query(`
             SELECT extname FROM pg_extension WHERE extname = 'vector'
         `);
 
         if (vectorCheck.rows.length > 0) {
-            console.log('✅ pgvector extension enabled');
+            console.error('\n❌ pgvector extension detected. pgvector is deprecated and not supported as a runtime layer.');
+            console.error('Please remove the extension (DROP EXTENSION vector CASCADE) and run the cleanup script: scripts/purge-pgvector.sh');
+            process.exit(2);
         } else {
-            console.log('⚠️  pgvector extension not found (may need superuser)');
+            console.log('✅ pgvector not present (ok)');
         }
 
         client.release();

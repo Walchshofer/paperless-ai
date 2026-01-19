@@ -314,12 +314,7 @@ const defaultRenderers = {
               }
               confirm.disabled = true;
               confirm.textContent = 'Confirmed';
-              document.dispatchEvent(createCustomEvent('feedback:confirmed', {
-                ...ann,
-                documentId: props.documentId || null,
-                page: props.page || null,
-                bbox
-              }));
+              (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(createCustomEvent('feedback:confirmed', { ...ann, documentId: props.documentId || null, page: props.page || null, bbox })); })();
             } catch(e){ console.warn('Failed to confirm match (runtime)', e); }
           });
 
@@ -419,25 +414,29 @@ const defaultRenderers = {
 
     el.innerHTML = `\n      <div data-testid="feedback-controls-island-root" role="group" aria-label="Feedback Controls">\n        ${rows}\n      </div>\n      <script>\n        (function(){\n          try {\n            const root = document.currentScript.parentElement.querySelector('[data-testid="feedback-controls-island-root"]');\n            if (!root) return;\n            const ups = Array.from(root.querySelectorAll('[data-testid^="thumbs-up-"]'));
             const downs = Array.from(root.querySelectorAll('[data-testid^="thumbs-down-"]'));
-            ups.forEach(u => {\n              u.addEventListener('click', ()=>{\n                const name = u.getAttribute('data-testid').replace('thumbs-up-','');\n                u.setAttribute('aria-pressed', (u.getAttribute('aria-pressed') !== 'true') ? 'true' : 'false');\n                const d = root.querySelector("[data-testid=\"thumbs-down-\${name}\"]"); if (d) d.setAttribute('aria-pressed','false');\n                document.dispatchEvent(createCustomEvent('feedback:updated', { component: name, feedback_type: 'thumbs_up' }));\n                document.dispatchEvent(createCustomEvent('feedback:confirmed', { component: name, documentId: (root.closest('[data-props]') && JSON.parse(root.closest('[data-props]').getAttribute('data-props')||'{}').documentId) || null }));\n              });\n            });\n            downs.forEach(d => {\n              d.addEventListener('click', ()=>{\n                const name = d.getAttribute('data-testid').replace('thumbs-down-','');\n                d.setAttribute('aria-pressed', (d.getAttribute('aria-pressed') !== 'true') ? 'true' : 'false');\n                const u = root.querySelector("[data-testid=\"thumbs-up-\${name}\"]"); if (u) u.setAttribute('aria-pressed','false');\n                document.dispatchEvent(createCustomEvent('feedback:updated', { component: name, feedback_type: 'thumbs_down' }));\n              });\n            });\n          } catch(e){ console.warn('feedback-controls-island runtime setup failed', e); }\n        })();\n      </script>\n    `;
+            ups.forEach(u => {\n              u.addEventListener('click', ()=>{\n                const name = u.getAttribute('data-testid').replace('thumbs-up-','');\n                u.setAttribute('aria-pressed', (u.getAttribute('aria-pressed') !== 'true') ? 'true' : 'false');\n                const d = root.querySelector("[data-testid=\"thumbs-down-\${name}\"]"); if (d) d.setAttribute('aria-pressed','false');\n                document.dispatchEvent(createCustomEvent('feedback:updated', { component: name, feedback_type: 'thumbs_up' }));\n                document.dispatchEvent(createCustomEvent('feedback:confirmed', { component: name, documentId: (root.closest('[data-props]') && JSON.parse(root.closest('[data-props]').getAttribute('data-props')||'{}').documentId) || null }));\n              });\n            });\n            downs.forEach(d => {\n              d.addEventListener('click', ()=>{\n                const name = d.getAttribute('data-testid').replace('thumbs-down-','');\n                d.setAttribute('aria-pressed', (d.getAttribute('aria-pressed') !== 'true') ? 'true' : 'false');\n                const u = root.querySelector("[data-testid=\"thumbs-up-\${name}\"]"); if (u) u.setAttribute('aria-pressed','false');\n                (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') { _doc.dispatchEvent(createCustomEvent('feedback:updated', { component: name, feedback_type: 'thumbs_down' })); } })();\n              });\n            });\n          } catch(e){ console.warn('feedback-controls-island runtime setup failed', e); }\n        })();\n      </script>\n    `;
   },
   'manual-editor-island': (el) => {
     el.innerHTML = `
       <div data-testid="manual-editor-island-root">
         <div role="tablist" aria-label="Manual Editor Tabs" style="display:flex;gap:8px;margin-bottom:8px">
-          <button role="tab" data-testid="tab-metadata" aria-selected="true">Metadata</button>
-          <button role="tab" data-testid="tab-content" aria-selected="false">Content</button>
-          <button role="tab" data-testid="tab-fields" aria-selected="false">Fields</button>
+          <button role="tab" data-testid="tab-metadata" aria-selected="true" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">Metadata</button>
+          <button role="tab" data-testid="tab-content" aria-selected="false" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">Content</button>
+          <button role="tab" data-testid="tab-fields" aria-selected="false" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">Fields</button>
+          <button role="tab" data-testid="tab-ai-debug" aria-selected="false" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">AI Debug</button>
         </div>
         <div id="manual-editor-panel">
-          <div data-panel="metadata">
+          <div data-panel="metadata" data-testid="panel-metadata">
             <label>Title <input data-testid="manual-title-input" type="text"/></label>
           </div>
-          <div data-panel="content" style="display:none">
+          <div data-panel="content" data-testid="panel-content" style="display:none">
             <textarea data-testid="manual-content-input" rows="4" style="width:100%"></textarea>
           </div>
-          <div data-panel="fields" style="display:none">
+          <div data-panel="fields" data-testid="panel-fields" style="display:none">
             <div><input data-testid="field-name-0" placeholder="Field name"/><input data-testid="field-value-0" placeholder="Field value"/></div>
+          </div>
+          <div data-panel="ai-debug" style="display:none">
+            <div data-testid="panel-ai-debug">AI Debug information will appear here (GPU state dependent)</div>
           </div>
         </div>
         <div style="margin-top:8px">
@@ -577,12 +576,12 @@ function mountIslands(container = document) {
                 u.setAttribute('aria-pressed', (u.getAttribute('aria-pressed') !== 'true') ? 'true' : 'false');
                 const d = root.querySelector(`[data-testid="thumbs-down-${nm}"]`);
                 if (d) d.setAttribute('aria-pressed','false');
-                document.dispatchEvent(createCustomEvent('feedback:updated', { component: nm, feedback_type: 'thumbs_up' }));
+                (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(createCustomEvent('feedback:updated', { component: nm, feedback_type: 'thumbs_up' })); })();
                 // emit confirmation for thumbs up
                 const propsRaw = el.getAttribute('data-props') || '{}';
                 let props = {};
                 try { props = JSON.parse(propsRaw); } catch{ props = {}; }
-                document.dispatchEvent(createCustomEvent('feedback:confirmed', { component: nm, documentId: props.documentId || null }));
+                (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(createCustomEvent('feedback:confirmed', { component: nm, documentId: props.documentId || null })); })();
               });
             });
             downs.forEach((d) => {
@@ -591,7 +590,7 @@ function mountIslands(container = document) {
                 d.setAttribute('aria-pressed', (d.getAttribute('aria-pressed') !== 'true') ? 'true' : 'false');
                 const u = root.querySelector(`[data-testid="thumbs-up-${nm}"]`);
                 if (u) u.setAttribute('aria-pressed','false');
-                document.dispatchEvent(createCustomEvent('feedback:updated', { component: nm, feedback_type: 'thumbs_down' }));
+                (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(createCustomEvent('feedback:updated', { component: nm, feedback_type: 'thumbs_down' })); })();
               });
             });
           }
@@ -672,7 +671,7 @@ function mountIslands(container = document) {
                 transactional: true,
               };
 
-              document.dispatchEvent(createCustomEvent('payload:ready', payload));
+              const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(createCustomEvent('payload:ready', payload));
 
               // POST to Hybrid SOT orchestrator
               try {
@@ -687,14 +686,14 @@ function mountIslands(container = document) {
                   });
                   if (res.ok) {
                     const result = await res.json().catch(() => ({}));
-                    document.dispatchEvent(createCustomEvent('sync:success', { documentId: props.documentId, ...result }));
+                    const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(createCustomEvent('sync:success', { documentId: props.documentId, ...result }));
                   } else {
                     const errorData = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
                     throw new Error(errorData.message || `Sync failed with status ${res.status}`);
                   }
                 }
               } catch (err) {
-                document.dispatchEvent(createCustomEvent('sync:failed', { documentId: props.documentId, error: err.message || 'Sync failed' }));
+                  const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(createCustomEvent('sync:failed', { documentId: props.documentId, error: err.message || 'Sync failed' }));
               }
             });
           }
@@ -729,11 +728,11 @@ const eventBus = {
         console.warn(`eventBus: dispatch validation failed for '${eventName}'`, result.error.errors);
         return false;
       }
-      document.dispatchEvent(createCustomEvent(eventName, result.data));
+      (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(createCustomEvent(eventName, result.data)); })();
       return true;
     }
     // No schema defined - dispatch without validation
-    document.dispatchEvent(createCustomEvent(eventName, detail));
+    (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(createCustomEvent(eventName, detail)); })();
     return true;
   },
 
@@ -758,8 +757,13 @@ const eventBus = {
         callback(e.detail);
       }
     };
-    document.addEventListener(eventName, handler);
-    return () => document.removeEventListener(eventName, handler);
+    const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null;
+    if (_doc && typeof _doc.addEventListener === 'function'){
+      _doc.addEventListener(eventName, handler);
+      return () => _doc.removeEventListener(eventName, handler);
+    }
+    console.warn('eventBus: document not available to register listener', eventName);
+    return () => {};
   }
 };
 

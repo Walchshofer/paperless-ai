@@ -36,7 +36,7 @@ class QdrantAdapter {
         // Initialize Qdrant Client
         this.client = new QdrantClient({
             url,
-            apiKey,
+            apiKey
         });
 
         // Initialize Circuit Breaker for Qdrant operations

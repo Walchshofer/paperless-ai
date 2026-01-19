@@ -586,9 +586,9 @@ module.exports = {
   }
 };
 
-// Validate pgvector is available
+// PostgreSQL host check
 if (!process.env.POSTGRES_HOST && !process.env.PAPERLESS_DBHOST) {
-  console.warn('[CONFIG] WARNING: PostgreSQL host not configured. pgvector will not be available.');
+  console.warn('[CONFIG] NOTICE: PostgreSQL host not configured. pgvector is deprecated and will not be available. Qdrant is the supported Vector SOT.');
 }
 
 /**

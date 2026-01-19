@@ -55,6 +55,8 @@ describe('Feedback Persistence (PostgreSQL)', function() {
 
     it('should insert granular feedback and visual overlays in a transaction', async function() {
         const docId = 999999; // Test ID
+        await pool.query('DELETE FROM visual_overlays WHERE doc_id = $1', [docId]);
+        await pool.query('DELETE FROM feedback_events WHERE doc_id = $1', [docId]);
         const feedbackEvents = [
             {
                 type: 'correction',
@@ -186,7 +188,7 @@ it('should store embedding on manual annotation and rollback on transactional er
     const overlayRes = await pool.query("SELECT * FROM visual_overlays WHERE doc_id = $1 AND source = 'manual'", [docId]);
     assert.ok(overlayRes.rows.length >= 1, 'expected overlay row inserted');
     assert.ok(overlayRes.rows[0].bbox, 'bbox should be present');
-    assert.ok(overlayRes.rows[0].embedding !== null && overlayRes.rows[0].embedding !== undefined, 'embedding should be stored');
+    assert.ok(overlayRes.rows[0].vector_id, 'vector_id should be stored');
 
     // 2) Transactional failure should rollback both tables
     await pool.query('DELETE FROM visual_overlays WHERE doc_id = $1', [docId]);

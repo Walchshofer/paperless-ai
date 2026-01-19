@@ -9,8 +9,10 @@ describe('Distance Metric Lock - Alpha-9', function () {
 
     const info = await client.getCollection('visual_pages');
     const params = info.config.params.vectors || {};
-    const size = params.size || params.default?.size;
-    const distance = params.distance || params.default?.distance;
+    const size = params.size || params.default?.size ||
+      params.page_embedding?.size;
+    const distance = params.distance || params.default?.distance ||
+      params.page_embedding?.distance;
 
     assert.strictEqual(size, 320, 'visual_pages should be 320 dimensions');
     assert.strictEqual(distance, 'Dot', 'visual_pages should use Dot product distance');
@@ -27,7 +29,8 @@ describe('Distance Metric Lock - Alpha-9', function () {
 
     const overlayInfo = await client.getCollection('visual_overlays');
     const overlayParams = overlayInfo.config.params.vectors || {};
-    const overlayDistance = overlayParams.distance || overlayParams.default?.distance;
+    const overlayDistance = overlayParams.distance ||
+      overlayParams.default?.distance;
     const overlaySize = overlayParams.size || overlayParams.default?.size;
 
     assert.strictEqual(overlaySize, 320);

@@ -18,6 +18,7 @@
  */
 
 const assert = require('assert');
+const fs = require('fs');
 const http = require('http');
 const path = require('path');
 
@@ -54,7 +55,17 @@ before(async function() {
         __dirname,
         '../../guidance-bias-engine/guidance/ipc/proto/bias_service.proto'
     );
-    const packageDef = protoLoader.loadSync(protoPath, {
+    const fallbackProtoPath = path.join(
+        __dirname,
+        '../../containers/bias-engine/guidance/ipc/proto/bias_service.proto'
+    );
+    const resolvedProtoPath = fs.existsSync(protoPath) ?
+        protoPath :
+        fallbackProtoPath;
+    if (!fs.existsSync(resolvedProtoPath)) {
+        throw new Error(`Bias proto not found at ${resolvedProtoPath}`);
+    }
+    const packageDef = protoLoader.loadSync(resolvedProtoPath, {
         keepCase: true,
         longs: String,
         enums: String,

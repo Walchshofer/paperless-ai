@@ -10,9 +10,13 @@ const HOST = process.env.QDRANT_HOST || 'localhost';
 const PORT = process.env.QDRANT_PORT || 6333;
 
 const EXPECTED_COLLECTIONS = {
-    'document_embeddings': { size: 384, distance: 'Cosine' },
-    'visual_overlays': { size: 320, distance: 'Cosine' },
-    'visual_pages': { size: 320, distance: 'Dot' }
+    document_embeddings: { size: 384, distance: 'Cosine' },
+    visual_overlays: { size: 320, distance: 'Cosine' },
+    visual_pages: {
+        size: 320,
+        distance: 'Dot',
+        vectorName: 'page_embedding'
+    }
 };
 
 async function verify() {
@@ -35,10 +39,10 @@ async function verify() {
             // Fetch detailed info to check config
             const info = await client.getCollection(name);
             const params = info.config.params.vectors;
-            
-            // Handle Qdrant's nested vector config structure if present, or simple structure
-            const size = params.size || params.default?.size;
-            const distance = params.distance || params.default?.distance;
+            const size = params.size || params.default?.size ||
+                (config.vectorName ? params[config.vectorName]?.size : null);
+            const distance = params.distance || params.default?.distance ||
+                (config.vectorName ? params[config.vectorName]?.distance : null);
 
             if (size !== config.size || distance !== config.distance) {
                 console.error(`❌ Invalid config for ${name}: Expected ${config.size}/${config.distance}, got ${size}/${distance}`);

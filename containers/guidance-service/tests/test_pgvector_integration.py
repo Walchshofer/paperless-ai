@@ -15,6 +15,10 @@ import os
 # Skip all tests if psycopg2 is not available
 pytest.importorskip("psycopg2")
 
+# pgvector integration tests are deprecated — pgvector support is removed.
+import pytest
+pytest.skip("pgvector integration tests deprecated: pgvector support removed (use Qdrant)", allow_module_level=True)
+
 
 class TestDatabaseConnection:
     """Tests for database connection handling."""

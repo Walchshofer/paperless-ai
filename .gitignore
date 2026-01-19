@@ -175,6 +175,26 @@ openai_debug.log
 *.log
 logs/
 logs/*
+
+# ============================================================================
+# Playwright & E2E Artifacts (do not commit test artifacts)
+# ============================================================================
+# Playwright test outputs and traces
+test-results/
+test-results/**
+test-logs/
+test-logs/**
+playwright-report/
+playwright-report/**
+# Playwright trace file patterns
+*.trace
+*.trace.zip
+# Screenshots and videos
+*.png
+*.webp
+*.mp4
+.videos/
+.screenshots/
 # ============================================================================
 # Project-Specific: Build & Distribution
 # ============================================================================

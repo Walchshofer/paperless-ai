@@ -42,7 +42,7 @@
   "author": "Clusterzx",
   "license": "MIT",
   "dependencies": {
-    "@qdrant/js-client-rest": "^1.7.0",
+    "@qdrant/js-client-rest": "1.13.0",
     "axios": "^1.13.2",
     "bcryptjs": "^3.0.2",
     "better-sqlite3": "^11.8.1",

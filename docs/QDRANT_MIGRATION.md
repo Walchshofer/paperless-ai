@@ -67,6 +67,13 @@ This document describes the migration from the current PostgreSQL/pgVector setup
 
 ## pgVector Dependencies (To Replace)
 
+Policy: No backward compatibility layers to pgvector
+
+- pgvector is deprecated and *must not* be included in runtime images or re-introduced as a compatibility fallback.
+- Any PR that adds build-time or runtime support for pgvector (e.g., Dockerfiles that install `pgvector`, workflows that build/publish a `pgvector` Postgres image, or code paths that attempt to read/write `vector` columns) will be rejected by policy.
+- A repository guard has been added (`.github/workflows/no-pgvector-guard.yml`) to block pushes/pull-requests that introduce forbidden pgvector artifacts.
+
+
 ### Python Dependencies (`requirements.txt`):
 ```
 psycopg2-binary>=2.9.0  # PostgreSQL driver

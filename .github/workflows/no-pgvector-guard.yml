@@ -1,0 +1,50 @@
+name: Guard - No pgvector
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  scan-for-pgvector:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan repository for pgvector artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Scanning for forbidden pgvector patterns..."
+          FAIL=0
+
+          # Patterns to detect (exclude migrations/docs/purge scripts)
+          GREP_OPTS=(--line-number --extended-regexp)
+          EXCLUDE_DIRS=(--exclude-dir=docs --exclude-dir=migrations --exclude-dir=scripts --exclude-dir=.git --exclude-dir=coverage)
+
+          patterns=(
+            "CREATE EXTENSION[[:space:]]+vector"
+            "pgvector"
+            "::vector"
+            "vector\([[:digit:]]+\)"
+            "vector.so"
+            "\\$libdir/vector"
+          )
+
+          for pat in "${patterns[@]}"; do
+            echo "Checking pattern: $pat"
+            matches=$(grep -R "${pat}" "${EXCLUDE_DIRS[@]}" . || true)
+            if [ -n "$matches" ]; then
+              echo "--- FORBIDDEN PATTERN FOUND: $pat ---"
+              echo "$matches"
+              FAIL=1
+            fi
+          done
+
+          if [ "$FAIL" -eq 1 ]; then
+            echo "\nERROR: pgvector artifacts detected in repository. Backward compatibility layers to pgvector are not allowed. Please remove references or document an exception in docs/QDRANT_MIGRATION.md."
+            exit 1
+          fi
+
+          echo "OK: no forbidden pgvector patterns found."

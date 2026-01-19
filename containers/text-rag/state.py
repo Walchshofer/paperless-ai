@@ -97,10 +97,8 @@ class GlobalState:
                     self.system_status.index_ready = sys_status.get(
                         "index_ready", False
                     )
-                    # Support legacy state files that used pgvector_ready
-                    qdrant_ready = sys_status.get("qdrant_ready")
-                    if qdrant_ready is None:
-                        qdrant_ready = sys_status.get("pgvector_ready", False)
+                    # Use explicit Qdrant readiness; do not fall back to legacy pgvector flags
+                    qdrant_ready = sys_status.get("qdrant_ready", False)
                     self.system_status.qdrant_ready = bool(qdrant_ready)
                     self.system_status.bm25_ready = sys_status.get(
                         "bm25_ready", False

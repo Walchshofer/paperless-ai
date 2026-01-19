@@ -1363,6 +1363,15 @@ router.get('/history', async (req, res) => {
   }
 });
 
+// Backwards-compatible redirect: /history/:id -> /history/doc/:id
+router.get('/history/:id', (req, res) => {
+  const documentId = req.params.id;
+  if (!documentId) {
+    return res.status(400).send('Document ID is required');
+  }
+  return res.redirect(`/history/doc/${documentId}`);
+});
+
 router.get('/history/doc/:id', async (req, res) => {
   try {
     const documentId = req.params.id;
@@ -1382,24 +1391,49 @@ router.get('/history/doc/:id', async (req, res) => {
         }))
       : [];
 
+    // Build tag objects for templates that expect id/name pairs
+    const tagObjects = Array.isArray(document?.tags)
+      ? await Promise.all(document.tags.map(async tagId => {
+          const tagName = await paperlessService.getTagTextFromId(tagId);
+          return { id: tagId, name: tagName || `Tag ${tagId}` };
+        }))
+      : [];
+
     let correspondentName = 'Not assigned';
     if (document?.correspondent) {
       const correspondent = await paperlessService.getCorrespondentNameById(document.correspondent);
       correspondentName = correspondent?.name || correspondent?.value || correspondentName;
     }
 
+    const correspondentId = document?.correspondent || null;
+    const documentType = document?.document_type || document?.type || null;
+    const modifiedAt = document?.modified || document?.modified_at || null;
     const createdAt = document?.created || document?.created_at || '';
     const paperlessBaseUrl = process.env.PAPERLESS_API_URL
       ? process.env.PAPERLESS_API_URL.replace(/\/api$/, '')
       : '';
+
+    const metadata = {
+      correspondent: correspondentName || null,
+      correspondentId,
+      tags: tagObjects,
+      documentType,
+      created: createdAt || null,
+      modified: modifiedAt || null
+    };
 
     res.render('history-document', {
       documentId: document?.id || documentId,
       title: document?.title || `Document ${documentId}`,
       content: content || 'No content available for this document.',
       tags,
+      tagObjects,
+      metadata,
       correspondent: correspondentName,
+      correspondentId,
+      documentType,
       createdAt,
+      modifiedAt,
       paperlessUrl: paperlessBaseUrl
     });
   } catch (error) {
