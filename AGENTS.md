@@ -42,6 +42,6 @@
 - **Serena Bridge:** CODEX uses `bridge/codex-serena-bridge.py` for async
   Serena access.
   Use Serena tools normally; the bridge is transparent to agents.
-- **Bridge Logs:** Debug output is written to `bridge_debug.log`.
+- **Bridge Logs:** Debug output is written to stderr by default; set `CODEX_BRIDGE_LOG_FILE` to enable file logging (legacy `bridge_debug.log`).
 - **Entrypoint:** `server.js` (Node/Express).
 - **Tests:** `npm test`, `npm run test:integration` (sidecar-enabled).

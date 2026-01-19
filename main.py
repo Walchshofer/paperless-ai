@@ -3,9 +3,9 @@ from typing import Any
 
 import uvicorn
 
-from rag_service.app import app  # type: ignore
-from rag_service.logging_utils import logger
-from rag_service.startup import STARTUP_ACTION  # type: ignore
+from ragz_service.app import app  # type: ignore
+from ragz_service.logging_utils import logger
+from ragz_service.startup import STARTUP_ACTION  # type: ignore
 
 
 def _apply_startup_args(args: Any):

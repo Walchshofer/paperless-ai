@@ -166,7 +166,7 @@ $stdioText
 ## Next Steps
 
 $(if ($unitExitCode -eq 0 -and $integrationExitCode -eq 0 -and $e2eExitCode -eq 0 -and $stdioExitCode -eq 0 -and $codexVerified -eq 'y') {
-    "- Deploy bridge to production`n- Update CODEX configuration`n- Monitor bridge_debug.log for issues`n- Consider changing LOG_LEVEL to INFO for production"
+    "- Deploy bridge to production`n- Update CODEX configuration`n- Monitor bridge logs via stderr or set `CODEX_BRIDGE_LOG_FILE` to enable file logging`n- Consider changing LOG_LEVEL to INFO for production"
 } else {
     "- Review test failures`n- Create tickets for bug fixes`n- Re-run validation after fixes"
 })

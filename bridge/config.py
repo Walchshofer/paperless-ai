@@ -16,11 +16,7 @@ PROJECT_DIR = os.getenv(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)),
 )
 
-LOG_FILE = os.getenv("CODEX_BRIDGE_LOG_FILE")
-if not LOG_FILE:
-    LOG_FILE = os.getenv("LOG_FILE")
-if not LOG_FILE:
-    LOG_FILE = os.path.join(PROJECT_DIR, "bridge_debug.log")
+LOG_FILE = os.getenv("CODEX_BRIDGE_LOG_FILE") or os.getenv("LOG_FILE") or None
 
 SSE_TIMEOUT = float(os.getenv("SSE_TIMEOUT", "30"))
 SSE_READ_TIMEOUT = float(os.getenv("SSE_READ_TIMEOUT", "300"))

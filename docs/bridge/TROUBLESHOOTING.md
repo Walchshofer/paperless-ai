@@ -77,8 +77,7 @@ Action:
 
 ## Useful commands & log locations
 
-- Tail logs: `tail -F /var/log/codex-serena-bridge.log` or
-  `tail -F bridge_debug.log`
+- Tail logs: `tail -F $CODEX_BRIDGE_LOG_FILE` (if set) or stream the bridge process stderr via your supervisor/service manager.
 - Run a quick local check with Mock Serena server in tests:
   - `pytest test/integration/test_connection_lifecycle.py -q`
 

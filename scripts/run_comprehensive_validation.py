@@ -180,7 +180,7 @@ def main(non_interactive: bool = True) -> int:
 
     ## Next Steps
 
-    {('- Deploy bridge to production\n- Update CODEX configuration\n- Monitor bridge_debug.log for issues\n- Consider changing LOG_LEVEL to INFO for production' if unit_code == 0 and integration_code == 0 and e2e_code == 0 and stdio_code == 0 and codex_verified else '- Review test failures\n- Create tickets for bug fixes\n- Re-run validation after fixes')}
+{('- Deploy bridge to production\n- Update CODEX configuration\n- Monitor bridge logs via stderr or set `CODEX_BRIDGE_LOG_FILE` to enable file logging\n- Consider changing LOG_LEVEL to INFO for production' if unit_code == 0 and integration_code == 0 and e2e_code == 0 and stdio_code == 0 and codex_verified else '- Review test failures\n- Create tickets for bug fixes\n- Re-run validation after fixes') }
     """)
 
     report_file.write_text(md, encoding="utf8")

@@ -37,7 +37,7 @@ defaults when needed for testing or deployment.
 Defaults:
 - `SERENA_BASE` = `http://127.0.0.1:9121`
 - `PROJECT_DIR` = `C:\Users\pwalc\MyApps\paperless-ai`
-- `LOG_FILE` = `bridge_debug.log` (in `PROJECT_DIR`)
+- `LOG_FILE` = Not set by default; set `CODEX_BRIDGE_LOG_FILE` to enable file logging, otherwise logs go to stderr.
 - `SSE_TIMEOUT` = `30` seconds
 - `SSE_READ_TIMEOUT` = `300` seconds
 - `REQUEST_TIMEOUT_DEFAULT` = `60` seconds
@@ -70,11 +70,11 @@ Environment overrides:
 
 ## Troubleshooting
 
-- **No tools listed:** Check `bridge_debug.log` and confirm Serena is running
+- **No tools listed:** Check bridge logs (stderr or set `CODEX_BRIDGE_LOG_FILE` to enable file logs) and confirm Serena is running
   on `SERENA_BASE`.
 - **Repeated reconnects:** Verify `SERENA_BASE` and SSE connectivity.
 - **Timeouts:** Increase `REQUEST_TIMEOUT_*` values or check Serena latency.
-- **Logging:** The bridge logs to `bridge_debug.log` and stderr.
+- **Logging:** The bridge logs to stderr by default; set `CODEX_BRIDGE_LOG_FILE` to enable file logging.
 
 ## Sequence Diagram
 

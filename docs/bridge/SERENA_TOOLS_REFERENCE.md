@@ -53,7 +53,7 @@ Expected: JSON-RPC response containing 28 tool definitions.
 
 ## Diagnostics
 
-- `bridge_debug.log` should include:
+- Bridge logs (stderr or file if `CODEX_BRIDGE_LOG_FILE` set) should include:
   - `Fetched 28 tools: ...`
   - `tools/list` requests when CODEX queries tools
 - If count is not 28, ensure Serena is reachable and LOG_LEVEL=DEBUG during

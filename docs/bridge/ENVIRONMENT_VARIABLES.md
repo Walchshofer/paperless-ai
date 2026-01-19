@@ -30,9 +30,8 @@ bridge (`bridge/codex-serena-bridge.py`) and recommended defaults.
   - Description: Preferred log file path for the bridge.
 
 - LOG_FILE
-  - Default: `./bridge_debug.log` (project dir)
-  - Description: File path used for bridge logs when
-    `CODEX_BRIDGE_LOG_FILE` is unset.
+  - Default: unset (legacy; prefer `CODEX_BRIDGE_LOG_FILE`)
+  - Description: Optional file path for bridge logs. If unset, logs go to stderr.
   - Example: `export LOG_FILE=/var/log/codex-serena-bridge.log`
 
 - LOG_LEVEL
@@ -139,7 +138,7 @@ services:
       - SERENA_API_KEY=${SERENA_API_KEY}
       - LOG_LEVEL=INFO
     volumes:
-      - ./bridge_debug.log:/var/log/codex-serena-bridge.log
+      - ./bridge_debug.log:/var/log/codex-serena-bridge.log # optional - use CODEX_BRIDGE_LOG_FILE to enable file logging
 ```
 
 ## Notes

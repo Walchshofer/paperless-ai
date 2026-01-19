@@ -8,8 +8,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(PROJECT_ROOT))
 
-from rag_service.data_manager import DataManager  # noqa: E402
-from rag_service.logging_utils import logger  # noqa: E402
+from ragz_service.data_manager import DataManager  # noqa: E402
+from ragz_service.logging_utils import logger  # noqa: E402
 
 
 def main():

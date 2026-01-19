@@ -19,7 +19,7 @@
 - PASS: LOG_LEVEL=DEBUG in CODEX config
 - PASS: BRIDGE_TEST_STUBS not set
 - PASS: MCP SDK import works in venv (mcp 1.25.0)
-- PASS: bridge_debug.log cleared
+- PASS: bridge logs cleared
 
 ## Test Results
 
@@ -51,7 +51,7 @@
 - BLOCKED: Bridge stays running after errors
 
 ## Log Analysis
-- FAIL: bridge_debug.log contains only STARTUP/INFO lines, no STDIO
+- FAIL: bridge logs contain only STARTUP/INFO lines, no STDIO
   lifecycle or connection manager logs
 - INFO: Serena log shows SSE session + list requests at 23:56:41; this
   appears to predate the CODEX spawn attempts

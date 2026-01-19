@@ -377,7 +377,7 @@ The CODEX-Serena bridge keeps CODEX on STDIO while maintaining an SSE session to
 - `SERENA_SSE_URL` — SSE endpoint (default: `${SERENA_BASE}/sse`).
 - `SERENA_API_KEY` — Optional API key for Serena (secure secret; default: not set).
 - `PROJECT_DIR` — Project directory used for default log file locations (default: repo root).
-- `CODEX_BRIDGE_LOG_FILE` — Path to bridge log file (default: `${PROJECT_DIR}/bridge_debug.log`).
+- `CODEX_BRIDGE_LOG_FILE` — Optional path to bridge log file (default: not set; logs go to stderr).
 - `LOG_LEVEL` — Bridge log level (`DEBUG|INFO|WARN|ERROR`, default: `INFO`).
 - `SSE_TIMEOUT` — SSE inactivity timeout in seconds (default: `30`).
 - `REQUEST_TIMEOUT` — Request forwarding timeout in seconds (default: `60`).

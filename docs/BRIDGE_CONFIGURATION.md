@@ -8,7 +8,7 @@ This document provides a concise configuration guide for the CODEX → Serena br
 - `SERENA_SSE_URL` — SSE endpoint (default: `${SERENA_BASE}/sse`).
 - `SERENA_API_KEY` — (optional) API key for Serena requests; if required, set this to authenticate API calls.
 - `PROJECT_DIR` — Project root (used for default log path; default: repository root).
-- `CODEX_BRIDGE_LOG_FILE` — File to write bridge logs to (default: `${PROJECT_DIR}/bridge_debug.log`).
+- `CODEX_BRIDGE_LOG_FILE` — Optional path to write bridge logs to (default: not set; logs go to stderr).
 - `LOG_LEVEL` — Logging level for the bridge (`DEBUG|INFO|WARN|ERROR`, default: `INFO`).
 - `SSE_TIMEOUT` — Timeout in seconds for SSE operations (default: `30`).
 - `REQUEST_TIMEOUT` — Timeout in seconds for per-request operations forwarded to Serena (default: `60`).
@@ -72,7 +72,7 @@ Below is an example `code.json` snippet to spawn the bridge process from CODEX/h
 
 ## Logging & Debugging
 
-- By default, logs are written to both stderr and the configured `CODEX_BRIDGE_LOG_FILE`.
+- By default, logs are written to stderr only. To enable persistent file logging, set `CODEX_BRIDGE_LOG_FILE` to a writable path.
 - For debugging connectivity issues, set `LOG_LEVEL=DEBUG` and inspect the log for:
   - `Connecting to Serena SSE (attempt N)` – SSE connect attempts
   - `SSE connection error:` – connection-level errors and reasons

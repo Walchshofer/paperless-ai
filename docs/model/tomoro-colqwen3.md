@@ -8,7 +8,7 @@
         <methodology>Late Interaction (MaxSim)</methodology>
         <embedding_type>Single 320-d vector per image patch (dense)</embedding_type>
         <embedding_size>320</embedding_size>
-        <context_window>32k tokens</context_window>
+        <context_window>32768</context_window>
         <token_budget>Up to 1280 visual tokens per page (5120 for video)</token_budget>
         <output>Multi-vector (seq_len × 320), L2-normalized</output>
         <precision>bfloat16, FlashAttention 2</precision>
@@ -16,6 +16,10 @@
         <file_size>8.5 GB</file_size>
         <primary_strength>Zero-Loss Visual Retrieval (Finds charts, layouts, and handwriting without OCR)</primary_strength>
     </technical_specs>
+
+    <token_limits>
+        <context_window>32768</context_window>
+    </token_limits>
 
     <notes>
         <note>When migrating from ColQwen2, existing indexes are not byte-compatible; re-indexing is required. See `migrations/04_change_embeddings_to_320.js` and `scripts/migrate_visual_rag_colqwen3.js` for migration guidance.</note>
