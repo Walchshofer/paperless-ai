@@ -180,7 +180,7 @@ class CircuitBreaker {
                 const isLastAttempt = attempt === retries;
                 const isTimeout = error.name === 'TimeoutError';
 
-                logger.warn({
+                const logPayload = {
                     event: 'circuit_breaker_operation_failed',
                     serviceName: this.serviceName,
                     attempt: attempt + 1,
@@ -188,7 +188,13 @@ class CircuitBreaker {
                     isTimeout,
                     isLastAttempt,
                     error: error.message
-                });
+                };
+
+                if (isLastAttempt || !isTimeout) {
+                    logger.warn(logPayload);
+                } else {
+                    logger.debug(logPayload);
+                }
 
                 if (isTimeout) {
                     this.stats.timeoutCalls++;
