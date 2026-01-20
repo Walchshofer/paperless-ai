@@ -682,7 +682,13 @@ class VisualSearchClient {
         if (error.response) {
             // Server responded with error
             const detail = error.response.data?.detail || error.response.statusText;
-            return new Error(`${message}: ${error.response.status} - ${detail}`);
+            const wrapped = new Error(`${message}: ${error.response.status} - ${detail}`);
+            wrapped.status = error.response.status;
+            wrapped.detail = detail;
+            if (wrapped.status === 503) {
+                wrapped.type = ErrorTypes.SIDECAR_INITIALIZING;
+            }
+            return wrapped;
         } else if (error.request) {
             // No response received
             return new Error(`${message}: No response from sidecar (${this.baseUrl})`);

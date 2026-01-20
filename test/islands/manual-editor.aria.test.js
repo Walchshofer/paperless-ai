@@ -53,7 +53,7 @@ describe('island runtime - Manual Editor ARIA and focus', function () {
     mountIslands(document);
 
     const tabs = Array.from(anchor.querySelectorAll('[role="tab"]'));
-    assert.ok(tabs.length === 3, 'expected 3 tabs');
+    assert.ok(tabs.length === 4, 'expected 4 tabs');
 
     // Simulate ArrowRight key on the first tab element
     const e = new window.KeyboardEvent('keydown', { key: 'ArrowRight' });

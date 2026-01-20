@@ -1,4 +1,5 @@
 const assert = require('assert');
+const { randomUUID } = require('crypto');
 const fetch = require('node-fetch');
 const { queryDb } = require('../helpers/db-poll');
 const {
@@ -25,12 +26,16 @@ describe('Payload Mirroring - Alpha-9', function () {
 
     // Simulate Qdrant point upsert that the mirroring pipeline would create
     // Use Qdrant points upsert API
-    const pointId = `pt-${docId}`;
+    const pointId = randomUUID();
     const payload = {
       id: pointId,
+      vector: new Array(320).fill(0),
       payload: {
         doc_id: pgRow.doc_id,
-        correspondent_id: pgRow.context?.correspondent_id || null
+        correspondent_id: pgRow.context?.correspondent_id || null,
+        metadata: {
+          event_type: pgRow.event_type
+        }
       }
     };
 

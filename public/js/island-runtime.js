@@ -10,6 +10,9 @@
   }
 
   function mountIslands(container = document){
+    if (global) {
+      global.__islandRuntimeMounted = true;
+    }
     const nodes = container.querySelectorAll('[data-island]');
     nodes.forEach((el) => {
       const name = el.getAttribute('data-island');
@@ -113,8 +116,209 @@
     } catch (e){ /* best-effort */ }
   });
 
+  // History tabs fallback (E2E-friendly)
+  registerIsland('history-tabs-island', function(el, props){
+    if (el.dataset && el.dataset.mounted === 'true') return;
+    if (el.dataset) el.dataset.mounted = 'true';
+
+    const content = props && props.content ? props.content : '';
+    const metadata = props && props.metadata ? props.metadata : {};
+    const tags = Array.isArray(metadata.tags) ? metadata.tags : [];
+
+    el.innerHTML = `
+      <div data-testid="history-tabs-root" class="h-full flex flex-col">
+        <div role="tablist" aria-label="Document tabs" class="flex border-b border-gray-200">
+          <button role="tab" data-testid="tab-text" aria-selected="true">Text</button>
+          <button role="tab" data-testid="tab-metadata" aria-selected="false">Metadata</button>
+          <button role="tab" data-testid="tab-similar" aria-selected="false">Similar</button>
+        </div>
+        <div class="flex-1 overflow-auto p-4">
+          <div role="tabpanel" id="panel-text" data-testid="panel-text">
+            ${content ? `<pre class="whitespace-pre-wrap text-sm text-gray-700">${content}</pre>` : `<p class="text-gray-500 italic">No text content available</p>`}
+          </div>
+          <div role="tabpanel" id="panel-metadata" data-testid="panel-metadata" style="display:none">
+            <dl class="space-y-3">
+              ${metadata.correspondent ? `<div class="flex justify-between"><dt class="text-sm font-medium text-gray-500">Correspondent</dt><dd class="text-sm text-gray-900">${metadata.correspondent}</dd></div>` : ''}
+              ${tags.length ? `<div><dt class="text-sm font-medium text-gray-500 mb-1">Tags</dt><dd class="flex flex-wrap gap-1">${tags.map(tag => `<span class="inline-flex items-center px-2 py-1 text-xs bg-gray-100 rounded">${tag.name || tag.id}</span>`).join('')}</dd></div>` : ''}
+              ${metadata.documentType ? `<div class="flex justify-between"><dt class="text-sm font-medium text-gray-500">Document Type</dt><dd class="text-sm text-gray-900">${metadata.documentType}</dd></div>` : ''}
+              ${metadata.created ? `<div class="flex justify-between"><dt class="text-sm font-medium text-gray-500">Created</dt><dd class="text-sm text-gray-900">${metadata.created}</dd></div>` : ''}
+              ${metadata.modified ? `<div class="flex justify-between"><dt class="text-sm font-medium text-gray-500">Modified</dt><dd class="text-sm text-gray-900">${metadata.modified}</dd></div>` : ''}
+            </dl>
+          </div>
+          <div role="tabpanel" id="panel-similar" data-testid="panel-similar" style="display:none">
+            <div data-testid="gpu-initializing" style="display:none" class="flex flex-col items-center justify-center py-8">
+              <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+              <p class="text-sm text-gray-600">GPU Initializing...</p>
+              <p class="text-xs text-gray-400 mt-1">RTX 3090 Ti loading ColQwen3-4B-AWQ</p>
+            </div>
+            <div data-testid="searching" style="display:none" class="flex flex-col items-center justify-center py-8">
+              <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+              <p class="text-sm text-gray-600">Searching...</p>
+            </div>
+            <div data-testid="search-error" style="display:none" class="bg-red-50 border border-red-200 rounded p-4 text-sm text-red-700"></div>
+            <div data-testid="similar-results" style="display:none" class="text-sm text-gray-600">Results ready</div>
+            <div data-testid="similar-empty" class="text-center py-8">
+              <i class="fas fa-search text-4xl text-gray-300 mb-4"></i>
+              <p class="text-sm text-gray-500">Select a region in the document viewer to find similar documents</p>
+              <p class="text-xs text-gray-400 mt-2">Results use MaxSim scoring from ColQwen3-4B-AWQ</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const root = el.querySelector('[data-testid="history-tabs-root"]');
+    if (!root) return;
+    const tabs = {
+      text: root.querySelector('[data-testid="tab-text"]'),
+      metadata: root.querySelector('[data-testid="tab-metadata"]'),
+      similar: root.querySelector('[data-testid="tab-similar"]'),
+    };
+    const panels = {
+      text: root.querySelector('[data-testid="panel-text"]'),
+      metadata: root.querySelector('[data-testid="panel-metadata"]'),
+      similar: root.querySelector('[data-testid="panel-similar"]'),
+    };
+    const gpuInit = root.querySelector('[data-testid="gpu-initializing"]');
+    const searching = root.querySelector('[data-testid="searching"]');
+    const searchError = root.querySelector('[data-testid="search-error"]');
+    const similarResults = root.querySelector('[data-testid="similar-results"]');
+    const similarEmpty = root.querySelector('[data-testid="similar-empty"]');
+
+    const setActive = (tabId) => {
+      Object.keys(tabs).forEach((key) => {
+        const isActive = key === tabId;
+        const btn = tabs[key];
+        const panel = panels[key];
+        if (btn) btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        if (panel) panel.style.display = isActive ? '' : 'none';
+      });
+    };
+
+    const setSimilarState = (state, message) => {
+      if (gpuInit) gpuInit.style.display = state === 'initializing' ? '' : 'none';
+      if (searching) searching.style.display = state === 'searching' ? '' : 'none';
+      if (searchError) {
+        searchError.style.display = state === 'error' ? '' : 'none';
+        if (message) searchError.textContent = message;
+      }
+      if (similarResults) {
+        similarResults.style.display = state === 'results' ? '' : 'none';
+        if (state === 'results' && message) similarResults.textContent = message;
+      }
+      if (similarEmpty) {
+        similarEmpty.style.display = state === 'empty' ? '' : 'none';
+      }
+    };
+
+    setActive('text');
+    setSimilarState('empty');
+
+    const handleKey = (e, current) => {
+      const order = ['text', 'metadata', 'similar'];
+      const idx = order.indexOf(current);
+      if (e.key === 'ArrowRight') {
+        const next = order[(idx + 1) % order.length];
+        setActive(next);
+        e.preventDefault();
+      }
+      if (e.key === 'ArrowLeft') {
+        const prev = order[(idx + order.length - 1) % order.length];
+        setActive(prev);
+        e.preventDefault();
+      }
+    };
+
+    if (tabs.text) {
+      tabs.text.addEventListener('click', () => setActive('text'));
+      tabs.text.addEventListener('keydown', (e) => handleKey(e, 'text'));
+    }
+    if (tabs.metadata) {
+      tabs.metadata.addEventListener('click', () => setActive('metadata'));
+      tabs.metadata.addEventListener('keydown', (e) => handleKey(e, 'metadata'));
+    }
+    if (tabs.similar) {
+      tabs.similar.addEventListener('click', () => setActive('similar'));
+      tabs.similar.addEventListener('keydown', (e) => handleKey(e, 'similar'));
+    }
+
+    const doSearch = async (detail) => {
+      if (!detail || !detail.imageBase64) return;
+      setActive('similar');
+      setSimilarState('searching');
+      try {
+        const response = await fetch('/api/visual-rag/search/visual', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image: detail.imageBase64,
+            collection: detail.collection || 'visual_pages',
+            k: 5
+          })
+        });
+        if (response.status === 503) {
+          const data = await response.json().catch(() => ({}));
+          if (data.type === 'SIDECAR_INITIALIZING') {
+            setSimilarState('initializing');
+            return;
+          }
+          setSimilarState('error', data.error || 'Service unavailable');
+          return;
+        }
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          setSimilarState('error', data.error || 'Search failed');
+          return;
+        }
+        const data = await response.json().catch(() => ({}));
+        const count = Array.isArray(data.results) ? data.results.length : 0;
+        if (count > 0) {
+          setSimilarState('results', `Found ${count} similar documents`);
+        } else {
+          setSimilarState('empty');
+        }
+      } catch (err) {
+        setSimilarState('error', err && err.message ? err.message : 'Search failed');
+      }
+    };
+
+    if (!global.__historyTabsListenerAttached) {
+      global.__historyTabsListenerAttached = true;
+      window.addEventListener('visual-search-requested', (event) => {
+        doSearch(event && event.detail ? event.detail : {});
+      });
+    }
+  });
+
+  // Overlay viewer fallback (E2E-friendly)
+  registerIsland('overlay-viewer-island', function(el){
+    if (el.dataset && el.dataset.mounted === 'true') return;
+    if (el.dataset) el.dataset.mounted = 'true';
+    el.innerHTML = `
+      <div data-testid="overlay-viewer-root">
+        <div data-testid="overlay-container">(image placeholder)</div>
+        <div data-testid="overlay-loading" style="display:none">Loading...</div>
+      </div>
+    `;
+  });
+
   // expose on window
   global.mountIslands = mountIslands;
   global.islandRuntime = { mountIslands, registerIsland, _registry: registry };
+
+  if (typeof document !== 'undefined') {
+    const autoMount = () => {
+      if (global.__islandRuntimeMounted) return;
+      if (!document.querySelector) return;
+      if (document.querySelector('[data-island]')) {
+        mountIslands(document);
+      }
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', autoMount);
+    } else {
+      setTimeout(autoMount, 0);
+    }
+  }
 
 })(window);

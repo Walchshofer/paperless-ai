@@ -13,9 +13,13 @@ const healthMetricsService = require('./services/HealthMetricsService');
 const PatternDetectionEngine = require('./services/PatternDetectionEngine');
 const { metricsCollector } = require('./services/metrics/PrometheusMetrics');
 
-// Add environment variables for RAG service if not already set
-process.env.RAG_SERVICE_URL = process.env.RAG_SERVICE_URL || 'http://webserver:8000';
-process.env.RAG_SERVICE_ENABLED = process.env.RAG_SERVICE_ENABLED || 'true';
+// Add environment variables for RAG service if not already set.
+if (process.env.RAG_SERVICE_ENABLED === undefined) {
+  process.env.RAG_SERVICE_ENABLED = 'false';
+}
+if (process.env.RAG_SERVICE_ENABLED === 'true' && !process.env.RAG_SERVICE_URL) {
+  process.env.RAG_SERVICE_URL = 'http://text_rag:8004';
+}
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const Logger = require('./services/loggerService');

@@ -5,27 +5,29 @@ const app = require('../server');
 const { visualSearchClient } = require('../services/visual-rag-client/VisualSearchClient');
 
 describe('Visual Search API Contract', () => {
-    let originalSearchImage;
+    let originalSearchImageAlpha9;
     let originalIsAvailable;
 
     before(() => {
         // Save original methods
-        originalSearchImage = visualSearchClient.searchImage;
+        originalSearchImageAlpha9 = visualSearchClient.searchImageAlpha9;
         originalIsAvailable = visualSearchClient.isAvailable;
     });
 
     after(() => {
         // Restore original methods
-        visualSearchClient.searchImage = originalSearchImage;
+        visualSearchClient.searchImageAlpha9 = originalSearchImageAlpha9;
         visualSearchClient.isAvailable = originalIsAvailable;
     });
 
     beforeEach(() => {
         // Default mocks
         visualSearchClient.isAvailable = async () => true;
-        visualSearchClient.searchImage = async (image, options) => {
+        visualSearchClient.searchImageAlpha9 = async (image, collection, filters, k) => {
             return {
-                query: '[IMAGE]',
+                collectionUsed: collection,
+                scoreType: 'maxsim',
+                executionTimeMs: 10,
                 results: [
                     {
                         docId: 123,
@@ -34,8 +36,7 @@ describe('Visual Search API Contract', () => {
                         filePath: 'docs/test.pdf',
                         metadata: { title: 'Test Doc' }
                     }
-                ],
-                totalResults: 1
+                ]
             };
         };
     });

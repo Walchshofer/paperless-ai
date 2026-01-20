@@ -94,6 +94,7 @@ export default function HistoryTabsIsland(props: HistoryTabsProps) {
     imageBase64: string,
     collection: string = 'visual_pages'
   ) => {
+    setActiveTab('similar');
     setIsSearching(true);
     setSearchError(null);
     setIsInitializing(false);

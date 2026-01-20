@@ -334,6 +334,9 @@ Generate targeted visual queries for field validation and missing field detectio
 - **Mechanism:** Native ColQwen3 late-interaction MaxSim (`processor.score_multi_vector`) executed by the Visual RAG Sidecar (320-dim multi-vector per patch).
 - **Gate:** Accept hits when MaxSim score >= **0.85** (configurable threshold for high-precision retrieval).
 - **Fallback:** If the Visual RAG Sidecar returns `503 Initializing` or is unavailable, route the query to Text RAG (Qdrant `document_embeddings`) as the fallback retrieval path.
+- Fallback must be **explicit and user-visible** (UI banner/state + response metadata).
+- Emit telemetry reason code: `visual_503_fallback_text`.
+- Mark evidence source as `text` and **lower confidence** or flag `manual_review` when visual evidence is required.
 
 **Payload Mirroring & Hybrid SOT Checklist**
 - Persist granular feedback events in `feedback_events` (Postgres) and store overlay vectors solely in Qdrant (`visual_overlays.vector_id` links to Qdrant point).

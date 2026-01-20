@@ -210,6 +210,7 @@ router.post('/search/visual', async (req, res) => {
     const { metricsCollector } = require('../../services/metrics/PrometheusMetrics');
 
     const requestId = req.headers['x-request-id'] || `req-${Date.now()}`;
+    res.setHeader('X-Request-Id', requestId);
 
     try {
         const {
@@ -229,7 +230,10 @@ router.post('/search/visual', async (req, res) => {
 
         // Validate simple base64 shape
         if (!isValidBase64(image)) {
-            logger.warn('[Visual-RAG API] Invalid base64 image payload', { request_id: requestId });
+            const logLevel = process.env.NODE_ENV === 'test' ? 'debug' : 'warn';
+            logger[logLevel]('[Visual-RAG API] Invalid base64 image payload', {
+                request_id: requestId
+            });
             return res.status(400).json({
                 success: false,
                 error: 'Invalid image (not valid base64)'
@@ -265,6 +269,7 @@ router.post('/search/visual', async (req, res) => {
             return res.status(503).json({
                 success: false,
                 error: 'Visual search service is temporarily unavailable',
+                errorType: ErrorTypes.CIRCUIT_OPEN,
                 circuit_breaker: 'open',
                 fallback: 'text_only_rag_available'
             });
@@ -322,9 +327,6 @@ router.post('/search/visual', async (req, res) => {
             filters_applied: Object.keys(qdrantFilters)
         });
 
-        // Set X-Request-Id response header (ticket:006.3)
-        res.setHeader('X-Request-Id', requestId);
-
         res.json({
             success: true,
             query: '[IMAGE]',
@@ -348,6 +350,7 @@ router.post('/search/visual', async (req, res) => {
                 success: false,
                 error: 'Visual search sidecar is initializing',
                 type: 'SIDECAR_INITIALIZING',
+                errorType: ErrorTypes.SIDECAR_INITIALIZING,
                 detail: error.detail,
                 fallback: 'text_only_rag_available'
             });
@@ -373,6 +376,7 @@ router.post('/search/visual', async (req, res) => {
                 success: false,
                 error: 'Visual search request timed out',
                 type: 'TIMEOUT',
+                errorType: ErrorTypes.TIMEOUT,
                 fallback: 'text_only_rag_available'
             });
         }

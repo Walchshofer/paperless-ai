@@ -7,7 +7,7 @@ The `paperless-ai` frontend is a **Multi-Page Application (MPA)** built on a tra
 -   **Server-Side Rendering (SSR):** [Express.js](https://expressjs.com/) + [EJS (Embedded JavaScript)](https://ejs.co/).
 -   **Client-Side Logic:** Vanilla JavaScript (ES6+) with a custom component pattern.
 -   **Styling:** [Tailwind CSS](https://tailwindcss.com/) (CDN) + custom CSS files.
--   **No Build Step:** Currently, there is no frontend build pipeline (Webpack/Vite). Files are served directly from `public/`.
+-   **No Build Step (Vanilla):** There is no build pipeline for legacy JS/CSS; files are served directly from `public/`. **Preact Islands** introduce a build step that outputs `public/js/dist/island-runtime.js` from `src/islands/`.
 
 ## Directory Structure
 
@@ -224,6 +224,22 @@ build: {
   }
 }
 ```
+
+### Runtime Bundle Requirement (Alpha-9)
+The islands runtime is built from `src/islands/runtime.ts` plus the components
+in `src/islands/*`. The build output is served as
+`public/js/dist/island-runtime.js` (ES module, Preact-based).
+
+Pages that render `data-island` anchors must load the runtime once and call
+`mountIslands()` (inline module script or a deferred loader). The runtime should
+also auto-mount on `DOMContentLoaded` to cover full-page loads.
+
+A minimal `public/js/island-runtime.js` fallback may exist for tests or
+development scaffolding, but production pages must rely on the bundled runtime
+as the source of truth.
+
+Legacy `scripts/build-island-runtime.js` has been removed; use the islands
+bundle build (Vite library mode) as the authoritative path.
 
 ## 3. Implementation Plan
 

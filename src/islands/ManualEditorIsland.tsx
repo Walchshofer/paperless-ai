@@ -237,8 +237,24 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
       transactional: true,
     };
 
+    const metadata = {
+      title,
+      correspondent,
+      documentType,
+    };
+
+    const eventDetail = {
+      type: 'payload:ready',
+      documentId: props.documentId ?? null,
+      page,
+      metadata,
+      content,
+      fields: custom_fields,
+      timestamp: Date.now(),
+    };
+
     // Dispatch payload:ready event for cross-island communication
-    document.dispatchEvent(new CustomEvent('payload:ready', { detail: payload }));
+    document.dispatchEvent(new CustomEvent('payload:ready', { detail: eventDetail }));
 
     try {
       // Hybrid SOT orchestrator endpoint

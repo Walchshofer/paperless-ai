@@ -15,13 +15,16 @@
  */
 
 const logger = require('../logger');
-const { visualSearchClient } = require('./VisualSearchClient');
-const ragService = require('../ragService');
+
+const getDefaultVisualSearchClient = () =>
+    require('./VisualSearchClient').visualSearchClient;
+const getDefaultRagService = () => require('../ragService');
 
 class HybridSearchService {
     constructor(options = {}) {
-        this.visualSearchClient = options.visualSearchClient || visualSearchClient;
-        this.ragService = options.ragService || ragService;
+        this.visualSearchClient = options.visualSearchClient ||
+            getDefaultVisualSearchClient();
+        this.ragService = options.ragService || getDefaultRagService();
 
         // RRF parameters
         this.rrfK = options.rrfK || 60;  // Standard RRF constant
@@ -62,7 +65,9 @@ class HybridSearchService {
             );
 
             const status = await Promise.race([statusPromise, timeoutPromise]);
-            this._textAvailable = status.server_up && (status.index_ready || status.data_loaded);
+            this._textAvailable = Boolean(
+            status.server_up && (status.index_ready || status.data_loaded)
+        );
         } catch (error) {
             logger.debug('[HybridSearchService] Text RAG check failed:', error.message);
             this._textAvailable = false;
@@ -405,6 +410,7 @@ class HybridSearchService {
                 visualRank: item.visualRank,
                 textRank: item.textRank,
                 sources: item.sources,
+                source: item.sources.length === 1 ? item.sources[0] : 'hybrid',
                 inBoth: item.sources.length === 2,
                 ...item.data
             }));
@@ -435,10 +441,24 @@ class HybridSearchService {
     }
 }
 
-// Export singleton and class
-const hybridSearchService = new HybridSearchService();
+// Export singleton and class (lazy init to avoid heavy deps in tests)
+let hybridSearchServiceInstance;
 
-module.exports = {
+function getHybridSearchService() {
+    if (!hybridSearchServiceInstance) {
+        hybridSearchServiceInstance = new HybridSearchService();
+    }
+    return hybridSearchServiceInstance;
+}
+
+const exportsObj = {
     HybridSearchService,
-    hybridSearchService
+    getHybridSearchService
 };
+
+Object.defineProperty(exportsObj, 'hybridSearchService', {
+    enumerable: true,
+    get: () => getHybridSearchService()
+});
+
+module.exports = exportsObj;

@@ -88,6 +88,8 @@ class ExpertPipelineExecutor {
     this.translator = options.translator || null;
     this.semanticRouter = options.semanticRouter || null;
     this.metricsCollector = options.metricsCollector || metricsCollector || null;
+    this.visualSearchClient = options.visualSearchClient || null;
+    this.ragService = options.ragService || null;
 
     // Execution statistics
     this.stats = {
@@ -132,6 +134,21 @@ class ExpertPipelineExecutor {
       this._visualOverlayRepository = modules.visualOverlayRepository;
       logger.debug('[ExpertPipelineExecutor] Visual RAG components initialized');
     }
+  }
+
+  _getVisualSearchClient() {
+    if (this.visualSearchClient) {
+      return this.visualSearchClient;
+    }
+    const { VisualSearchClient } = require('../visual-rag-client/VisualSearchClient');
+    return new VisualSearchClient();
+  }
+
+  _getRagService() {
+    if (this.ragService) {
+      return this.ragService;
+    }
+    return require('../ragService');
   }
 
   /**
@@ -1362,7 +1379,7 @@ class ExpertPipelineExecutor {
       context.getStageOutput('text_extraction') ||
       {};
 
-    const buildFallbackOutput = (reason, error = null) => {
+    const buildFallbackOutput = (reason, error = null, extraMetadata = {}) => {
       const timing = Date.now() - stageStart;
       const fallbackOutput = {
         fields: (extractionResults.fields || []).map(f => ({
@@ -1378,7 +1395,8 @@ class ExpertPipelineExecutor {
           timeout_queries: 0,
           fallback: true,
           fallback_reason: reason,
-          error: error?.message
+          error: error?.message,
+          ...extraMetadata
         },
         executionTimeMs: timing
       };
@@ -1411,28 +1429,22 @@ class ExpertPipelineExecutor {
 
     try {
       const { VisualQueryExecutor } = require('./VisualQueryExecutor');
-      const { VisualSearchClient } = require('../visual-rag-client/VisualSearchClient');
-
-      if (typeof context.visualSidecarAvailable !== 'boolean') {
-        const visualSearchClient = new VisualSearchClient();
-        context.visualSidecarAvailable = await visualSearchClient.isAvailable();
-      }
-
-      if (!context.visualSidecarAvailable) {
-        const { output } = buildFallbackOutput('visual_sidecar_unavailable');
-        context.skipStage(stage.id, 'visual_sidecar_unavailable');
-
-        logger.warn({
-          event: 'visual_query_execution_sidecar_unavailable',
-          stageId: stage.id,
-          documentId: context.document?.id
-        });
-
-        return { status: 'skipped', output, abort: false };
-      }
-
       const queryOutput = context.getStageOutput('visual_queries');
       const visualQueries = queryOutput?.queries || [];
+
+      const fallbackReason = 'visual_503_fallback_text';
+
+      if (!visualQueries || visualQueries.length === 0) {
+        const { output } = buildFallbackOutput('no_queries');
+        context.skipStage(stage.id, 'no_queries');
+        logger.info({
+          event: 'visual_query_execution_skipped',
+          stageId: stage.id,
+          documentId: context.document?.id,
+          reason: 'no_queries'
+        });
+        return { status: 'skipped', output, abort: false };
+      }
 
       const documentImage =
         context.document?.imageBase64 || context.document?.imageBuffer || context.document?.imagePath;
@@ -1446,9 +1458,143 @@ class ExpertPipelineExecutor {
           'general'
       };
 
+      const adjustTextFallbackFields = (fields = []) => fields.map(field => {
+        const next = { ...field, visual_confirmation: false };
+        if (Number.isFinite(next.confidence)) {
+          next.confidence = Math.max(0, Math.min(1, next.confidence * 0.9));
+          next.confidence_adjusted = true;
+        }
+        return next;
+      });
+
+      const executeTextFallback = async (reason, visualError = null) => {
+        const ragService = this._getRagService();
+        let status = null;
+        try {
+          status = await ragService.checkStatus();
+        } catch (statusError) {
+          status = { server_up: false, error: statusError.message };
+        }
+
+        const textAvailable = Boolean(
+          status &&
+          status.server_up &&
+          (status.index_ready || status.data_loaded) &&
+          !status.disabled
+        );
+
+        if (!textAvailable) {
+          const textError = new Error(
+            status?.error || 'Text RAG unavailable'
+          );
+          textError.code = status?.disabled ? 'RAG_DISABLED' : 'TEXT_RAG_UNAVAILABLE';
+          context.addError(stage.id, textError);
+
+          const { output } = buildFallbackOutput(reason, textError, {
+            evidence_source: 'none',
+            manual_review_required: true,
+            text_status: status,
+            text_fallback_unavailable: true,
+            text_fallback_error: textError.message
+          });
+          output.fields = adjustTextFallbackFields(extractionResults.fields || []);
+
+          logger.error({
+            event: 'visual_text_fallback_unavailable',
+            stageId: stage.id,
+            documentId: context.document?.id,
+            reason,
+            error: textError.message
+          });
+
+          return { status: 'error', output, abort: false };
+        }
+
+        const requestId = context?.options?.requestId;
+        const textEvidence = await Promise.all(visualQueries.map(async query => {
+          try {
+            const results = await ragService.search(query.question, { requestId });
+            const matches = Array.isArray(results)
+              ? results.filter(result =>
+                String(result.doc_id || '') === String(documentMetadata.id || '')
+              )
+              : [];
+            return {
+              field_target: query.field_target,
+              question: query.question,
+              matches: matches.slice(0, 3)
+            };
+          } catch (searchError) {
+            return {
+              field_target: query.field_target,
+              question: query.question,
+              matches: [],
+              error: searchError.message
+            };
+          }
+        }));
+
+        const { output } = buildFallbackOutput(reason, visualError, {
+          evidence_source: 'text',
+          manual_review_required: true,
+          text_status: status,
+          text_evidence: textEvidence
+        });
+        output.fields = adjustTextFallbackFields(extractionResults.fields || []);
+
+        if (this.metricsCollector?.recordFallback) {
+          this.metricsCollector.recordFallback({
+            pipelineId: context.options?.pipelineId,
+            from: 'visual',
+            to: 'text',
+            reason
+          });
+        }
+
+        logger.warn({
+          event: 'visual_query_execution_text_fallback',
+          stageId: stage.id,
+          documentId: context.document?.id,
+          reason,
+          textEvidenceCount: textEvidence.length
+        });
+
+        return { status: 'warning', output, abort: false };
+      };
+
+      const visualSearchClient = this._getVisualSearchClient();
+      if (typeof context.visualSidecarAvailable !== 'boolean') {
+        try {
+          context.visualSidecarAvailable = await visualSearchClient.isAvailable();
+        } catch (availabilityError) {
+          context.visualSidecarAvailable = false;
+          logger.warn({
+            event: 'visual_sidecar_availability_check_failed',
+            stageId: stage.id,
+            documentId: context.document?.id,
+            error: availabilityError.message
+          });
+        }
+      }
+
+      if (!context.visualSidecarAvailable) {
+        return await executeTextFallback(fallbackReason, new Error('Visual sidecar unavailable'));
+      }
+
+      if (!documentImage) {
+        const { output } = buildFallbackOutput('no_image');
+        context.skipStage(stage.id, 'no_image');
+        logger.info({
+          event: 'visual_query_execution_skipped',
+          stageId: stage.id,
+          documentId: context.document?.id,
+          reason: 'no_image'
+        });
+        return { status: 'skipped', output, abort: false };
+      }
+
       this._initVisualRag();
 
-      const visualSearchClient = new VisualSearchClient();
       const executor = new VisualQueryExecutor(visualSearchClient, this._visualOverlayRepository, {
         ...(stage.executorConfig || {}),
         metricsCollector: this.metricsCollector
@@ -1460,6 +1606,29 @@ class ExpertPipelineExecutor {
         documentMetadata,
         documentImage
       });
+
+      const shouldFallbackToText = (metadata) => {
+        if (!metadata?.fallback) {
+          return false;
+        }
+        if (metadata.fallback_reason === 'circuit_breaker_open') {
+          return true;
+        }
+        if (metadata.error_status === 503) {
+          return true;
+        }
+        if (metadata.error_type === 'SIDECAR_INITIALIZING') {
+          return true;
+        }
+        return false;
+      };
+
+      if (shouldFallbackToText(result.execution_metadata)) {
+        const fallbackError = result.execution_metadata?.error
+          ? new Error(result.execution_metadata.error)
+          : new Error('Visual query execution unavailable');
+        return await executeTextFallback(fallbackReason, fallbackError);
+      }
 
       const timing = Date.now() - stageStart;
 

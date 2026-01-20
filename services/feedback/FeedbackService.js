@@ -73,6 +73,8 @@ class FeedbackService {
         this.feedbackDir = options.feedbackDir || path.join(process.cwd(), 'data', 'feedback');
         this._initialized = false;
         this._pool = null;
+        this._schemaEnsured = false;
+        this._schemaEnsuring = null;
     }
 
     get pool() {
@@ -88,6 +90,50 @@ class FeedbackService {
         } catch (err) {
             logger.error(`[FeedbackService] Initialization failed: ${err.message}`);
         }
+    }
+
+    async _ensureSchema() {
+        if (this._schemaEnsured) return;
+        if (this._schemaEnsuring) {
+            await this._schemaEnsuring;
+            return;
+        }
+
+        this._schemaEnsuring = (async () => {
+            const activePool = this.pool;
+            if (!activePool) return;
+            const client = await activePool.connect();
+            try {
+                await client.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto"');
+                await client.query(`
+                    CREATE TABLE IF NOT EXISTS feedback_events (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        doc_id INT NOT NULL,
+                        user_id INT,
+                        event_type VARCHAR(50) NOT NULL,
+                        field_name VARCHAR(100),
+                        original_value JSONB,
+                        corrected_value JSONB,
+                        context JSONB,
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        processed BOOLEAN DEFAULT FALSE
+                    )
+                `);
+                await client.query('CREATE INDEX IF NOT EXISTS idx_feedback_doc_id ON feedback_events(doc_id)');
+                await client.query('CREATE INDEX IF NOT EXISTS idx_feedback_processed_false ON feedback_events(created_at) WHERE processed = FALSE');
+                await client.query('CREATE INDEX IF NOT EXISTS idx_feedback_event_type ON feedback_events(event_type)');
+                await client.query('ALTER TABLE IF EXISTS visual_overlays ADD COLUMN IF NOT EXISTS source VARCHAR(50)');
+                await client.query('ALTER TABLE IF EXISTS visual_overlays ADD COLUMN IF NOT EXISTS bbox JSONB');
+                await client.query('ALTER TABLE IF EXISTS visual_overlays ADD COLUMN IF NOT EXISTS vector_id UUID');
+                this._schemaEnsured = true;
+            } catch (err) {
+                logger.warn('feedback_schema_ensure_failed', { error: err.message });
+            } finally {
+                client.release();
+            }
+        })();
+
+        await this._schemaEnsuring;
     }
 
     /**
@@ -199,10 +245,37 @@ class FeedbackService {
         const requestId = options.requestId || 'unknown';
         const docId = parseInt(documentId, 10);
 
+        const extractBbox = (context, event, correctedValue) => {
+            if (context && Array.isArray(context.bbox)) return context.bbox;
+            if (event && Array.isArray(event.bbox)) return event.bbox;
+            if (correctedValue && typeof correctedValue === 'object') {
+                if (Array.isArray(correctedValue.bbox)) return correctedValue.bbox;
+                if (Array.isArray(correctedValue.box)) return correctedValue.box;
+            }
+            return null;
+        };
+        const normalizeBbox = (bbox) => {
+            if (!Array.isArray(bbox) || bbox.length !== 4) return null;
+            const values = bbox.map(val => Number(val));
+            if (values.some(val => Number.isNaN(val))) return null;
+            return values;
+        };
+        const resolveLabel = (fieldName, context, correctedValue) => {
+            if (correctedValue && typeof correctedValue === 'object') {
+                if (correctedValue.label) return correctedValue.label;
+                if (correctedValue.field) return correctedValue.field;
+            }
+            if (context && context.label) return context.label;
+            if (fieldName) return fieldName;
+            return 'annotation';
+        };
+
         if (!this.pool) {
             logger.error('PostgreSQL not configured, granular feedback lost');
             return { errors: [{ type: 'config_error', error: 'No database connection' }] };
         }
+
+        await this._ensureSchema();
 
         // Basic payload validation
         if (!Array.isArray(feedbackEvents)) {
@@ -217,17 +290,27 @@ class FeedbackService {
                 throw err;
             }
             // Treat explicit null/undefined types as absent. Preserve explicit nulls in payload where intended but avoid inserting NULL into NOT NULL columns.
-            const type = (evt.type !== undefined && evt.type !== null) ? evt.type : (evt.event_type || null);
+            const type = (evt.type !== undefined && evt.type !== null)
+                ? evt.type
+                : (evt.event_type || null);
             const ctx = evt.context || evt.meta || {};
-            // Accept bbox either on the context or on the event payload for flexibility
-            const bbox = Array.isArray(ctx.bbox) ? ctx.bbox : (Array.isArray(evt.bbox) ? evt.bbox : null);
-            // Validate bbox if the event is explicitly an annotation or if a bbox was provided
-            if (type === 'annotation' || bbox) {
-                if (!Array.isArray(bbox) || bbox.length !== 4 || !bbox.every(n => typeof n === 'number')) {
-                    const err = new Error('Invalid annotation: bbox must be [x,y,w,h] numeric array');
-                    err.statusCode = 400;
-                    throw err;
-                }
+            const correctedValue = (evt.corrected !== undefined && evt.corrected !== null)
+                ? evt.corrected
+                : (evt.corrected_value !== undefined && evt.corrected_value !== null
+                    ? evt.corrected_value
+                    : null);
+            const bboxRaw = extractBbox(ctx, evt, correctedValue);
+            const bbox = normalizeBbox(bboxRaw);
+            const requiresBbox = type === 'annotation';
+            if (requiresBbox && !bbox) {
+                const err = new Error('Invalid annotation: bbox must be an array of 4 numbers');
+                err.statusCode = 400;
+                throw err;
+            }
+            if (!requiresBbox && bboxRaw && !bbox) {
+                const err = new Error('Invalid annotation: bbox must be an array of 4 numbers');
+                err.statusCode = 400;
+                throw err;
             }
         }
 
@@ -317,15 +400,17 @@ class FeedbackService {
                     const userId = (evt.user_id !== undefined && evt.user_id !== null) ? evt.user_id : null;
 
                     // 1. Handle Visual Annotations (insert into visual_overlays)
-                    if (eventType === 'annotation' || (context && context.bbox)) {
-                        const bbox = Array.isArray(context.bbox) ? context.bbox : (Array.isArray(evt.bbox) ? evt.bbox : null);
+                    const bbox = normalizeBbox(extractBbox(context, evt, correctedValue));
+                    if (bbox) {
                         const page = context.page || evt.page || 1;
-                        const label = fieldName || context.label || 'annotation';
+                        const label = resolveLabel(fieldName, context, correctedValue);
+                        const source = context.source || evt.source || 'manual';
                         const overlayData = {
                             label,
                             box: bbox,
+                            bbox,
                             metadata: context,
-                            source: 'manual'
+                            source
                         };
 
                         // Compute a simple embedding (deterministic) - prefer ragService if available
@@ -362,13 +447,19 @@ class FeedbackService {
                             page,
                             JSON.stringify(overlayData),
                             label,
-                            'manual',
-                            JSON.stringify(bbox)
+                            source,
+                            bbox ? JSON.stringify(bbox) : null
                         ]);
 
                         const overlayId = overlayResult.rows[0]?.id;
                         const correspondentId = resolveCorrespondentId(context, evt);
                         const tagIds = resolveTagIds(context, evt);
+                        const payloadMetadata = {
+                            ...context,
+                            request_id: context.request_id || context.requestId || requestId,
+                            event_type: eventType,
+                            field_name: fieldName
+                        };
 
                         if (qdrantAdapter && Array.isArray(embedding)) {
                             // Use deterministic UUID for Qdrant point id so we can mirror vector_id into Postgres
@@ -383,7 +474,13 @@ class FeedbackService {
                                     correspondent_id: correspondentId,
                                     tag_ids: tagIds,
                                     page_number: page,
-                                    semantic_label: label
+                                    semantic_label: label,
+                                    label,
+                                    bbox,
+                                    source,
+                                    event_type: eventType,
+                                    field_name: fieldName,
+                                    metadata: payloadMetadata
                                 }
                             };
 

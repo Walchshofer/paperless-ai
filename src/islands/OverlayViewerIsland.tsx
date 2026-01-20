@@ -39,16 +39,20 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const imageRef = useRef<HTMLImageElement>(null);
 
   const [isDrawMode, setIsDrawMode] = useState(false);
+  const drawModeRef = useRef(false);
   const [isDrawing, setIsDrawing] = useState(false);
+  const isDrawingRef = useRef(false);
+  const pointerActiveRef = useRef(false);
   const [boxes, setBoxes] = useState<BoundingBox[]>([]);
   const [currentBox, setCurrentBox] = useState<BoundingBox | null>(null);
+  const currentBoxRef = useRef<BoundingBox | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
   // Image URL for the document page
   const imageUrl = documentId
-    ? `/api/documents/${documentId}/thumb/?page=${page}`
+    ? `/thumb/${documentId}?page=${page}`
     : null;
 
   // Load the document image
@@ -101,92 +105,47 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   // Start drawing a new box
   const handleMouseDown = useCallback(
     (e: MouseEvent | TouchEvent) => {
-      if (!isDrawMode) return;
+      if (!drawModeRef.current) return;
 
       e.preventDefault();
       const pos = getRelativePosition(e);
 
-      setIsDrawing(true);
-      setCurrentBox({
+      const nextBox = {
         id: `box-${Date.now()}`,
         x: pos.x,
         y: pos.y,
         width: 0,
         height: 0
-      });
+      };
+
+      isDrawingRef.current = true;
+      currentBoxRef.current = nextBox;
+      setIsDrawing(true);
+      setCurrentBox(nextBox);
       setWarning(null);
     },
-    [isDrawMode, getRelativePosition]
+    [getRelativePosition]
   );
 
   // Update box size while drawing
   const handleMouseMove = useCallback(
     (e: MouseEvent | TouchEvent) => {
-      if (!isDrawing || !currentBox) return;
+      if (!isDrawingRef.current || !currentBoxRef.current) return;
 
       e.preventDefault();
       const pos = getRelativePosition(e);
 
-      setCurrentBox((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          width: pos.x - prev.x,
-          height: pos.y - prev.y
-        };
-      });
+      const nextBox = {
+        ...currentBoxRef.current,
+        width: pos.x - currentBoxRef.current.x,
+        height: pos.y - currentBoxRef.current.y
+      };
+
+      currentBoxRef.current = nextBox;
+      setCurrentBox(nextBox);
     },
-    [isDrawing, currentBox, getRelativePosition]
+    [getRelativePosition]
   );
-
-  // Finish drawing and validate box
-  const handleMouseUp = useCallback(() => {
-    if (!isDrawing || !currentBox) return;
-
-    setIsDrawing(false);
-
-    const container = containerRef.current;
-    if (!container) return;
-
-    // Normalize box (handle negative dimensions)
-    const normalizedBox: BoundingBox = {
-      ...currentBox,
-      x: currentBox.width < 0 ? currentBox.x + currentBox.width : currentBox.x,
-      y:
-        currentBox.height < 0 ? currentBox.y + currentBox.height : currentBox.y,
-      width: Math.abs(currentBox.width),
-      height: Math.abs(currentBox.height)
-    };
-
-    // Check minimum size
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
-
-    if (
-      normalizedBox.width < MIN_SELECTION_SIZE ||
-      normalizedBox.height < MIN_SELECTION_SIZE
-    ) {
-      setWarning('Selection too small. Please draw a larger box.');
-      setCurrentBox(null);
-      return;
-    }
-
-    const widthFraction = normalizedBox.width / containerWidth;
-    const heightFraction = normalizedBox.height / containerHeight;
-
-    if (widthFraction < MIN_SIZE_FRACTION || heightFraction < MIN_SIZE_FRACTION) {
-      setWarning('Selection too small to yield meaningful results.');
-      setCurrentBox(null);
-      return;
-    }
-
-    // Add to boxes list
-    setBoxes((prev) => [...prev, normalizedBox]);
-    setCurrentBox(null);
-
-    // Capture region and dispatch event
-    captureAndDispatch(normalizedBox);
-  }, [isDrawing, currentBox]);
 
   // Capture the selected region as base64 and dispatch event
   const captureAndDispatch = useCallback(
@@ -194,7 +153,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       const container = containerRef.current;
       const img = imageRef.current;
 
-      if (!container || !img || !imageLoaded) return;
+      if (!container || !img) return;
+      if (!imageLoaded && !imageError) return;
 
       try {
         // Create a canvas to capture the region
@@ -203,8 +163,10 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         if (!ctx) return;
 
         // Calculate scale between displayed image and actual image
-        const scaleX = img.naturalWidth / container.clientWidth;
-        const scaleY = img.naturalHeight / container.clientHeight;
+        const naturalWidth = img.naturalWidth || container.clientWidth;
+        const naturalHeight = img.naturalHeight || container.clientHeight;
+        const scaleX = naturalWidth / container.clientWidth;
+        const scaleY = naturalHeight / container.clientHeight;
 
         // Source rectangle (in original image coordinates)
         const srcX = box.x * scaleX;
@@ -215,17 +177,22 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         canvas.width = srcWidth;
         canvas.height = srcHeight;
 
-        ctx.drawImage(
-          img,
-          srcX,
-          srcY,
-          srcWidth,
-          srcHeight,
-          0,
-          0,
-          srcWidth,
-          srcHeight
-        );
+        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+          ctx.drawImage(
+            img,
+            srcX,
+            srcY,
+            srcWidth,
+            srcHeight,
+            0,
+            0,
+            srcWidth,
+            srcHeight
+          );
+        } else {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
 
         // Get base64 PNG
         const dataUrl = canvas.toDataURL('image/png');
@@ -257,8 +224,74 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         setWarning('Failed to capture selection. Please try again.');
       }
     },
-    [documentId, page, imageLoaded, onRegionSelected]
+    [documentId, page, imageLoaded, imageError, onRegionSelected]
   );
+
+  // Finish drawing and validate box
+  const handleMouseUp = useCallback((e?: MouseEvent | TouchEvent) => {
+    if (!isDrawingRef.current || !currentBoxRef.current) return;
+
+    if (e) {
+      const pos = getRelativePosition(e);
+      currentBoxRef.current = {
+        ...currentBoxRef.current,
+        width: pos.x - currentBoxRef.current.x,
+        height: pos.y - currentBoxRef.current.y
+      };
+      setCurrentBox(currentBoxRef.current);
+    }
+
+    const activeBox = currentBoxRef.current;
+    isDrawingRef.current = false;
+    setIsDrawing(false);
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Normalize box (handle negative dimensions)
+    const normalizedBox: BoundingBox = {
+      ...activeBox,
+      x: activeBox.width < 0 ? activeBox.x + activeBox.width : activeBox.x,
+      y:
+        activeBox.height < 0
+          ? activeBox.y + activeBox.height
+          : activeBox.y,
+      width: Math.abs(activeBox.width),
+      height: Math.abs(activeBox.height)
+    };
+
+    // Check minimum size
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+
+    if (
+      normalizedBox.width < MIN_SELECTION_SIZE ||
+      normalizedBox.height < MIN_SELECTION_SIZE
+    ) {
+      setWarning('Selection too small. Please draw a larger box.');
+      currentBoxRef.current = null;
+      setCurrentBox(null);
+      return;
+    }
+
+    const widthFraction = normalizedBox.width / containerWidth;
+    const heightFraction = normalizedBox.height / containerHeight;
+
+    if (widthFraction < MIN_SIZE_FRACTION || heightFraction < MIN_SIZE_FRACTION) {
+      setWarning('Selection too small to yield meaningful results.');
+      currentBoxRef.current = null;
+      setCurrentBox(null);
+      return;
+    }
+
+    // Add to boxes list
+    setBoxes((prev) => [...prev, normalizedBox]);
+    currentBoxRef.current = null;
+    setCurrentBox(null);
+
+    // Capture region and dispatch event
+    captureAndDispatch(normalizedBox);
+  }, [captureAndDispatch, getRelativePosition]);
 
   // Remove a specific box
   const removeBox = useCallback((boxId: string) => {
@@ -273,12 +306,96 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
   // Toggle draw mode
   const toggleDrawMode = useCallback(() => {
-    setIsDrawMode((prev) => !prev);
-    if (isDrawMode) {
+    const next = !drawModeRef.current;
+    drawModeRef.current = next;
+    setIsDrawMode(next);
+    if (!next) {
+      isDrawingRef.current = false;
+      currentBoxRef.current = null;
       setIsDrawing(false);
       setCurrentBox(null);
     }
+  }, []);
+
+  useEffect(() => {
+    drawModeRef.current = isDrawMode;
   }, [isDrawMode]);
+
+  useEffect(() => {
+    const handleGlobalUp = (event: Event) => {
+      if (isDrawingRef.current) {
+        handleMouseUp(event as MouseEvent);
+      }
+    };
+
+    window.addEventListener('pointerup', handleGlobalUp);
+    window.addEventListener('mouseup', handleGlobalUp);
+    window.addEventListener('touchend', handleGlobalUp);
+
+    return () => {
+      window.removeEventListener('pointerup', handleGlobalUp);
+      window.removeEventListener('mouseup', handleGlobalUp);
+      window.removeEventListener('touchend', handleGlobalUp);
+    };
+  }, [handleMouseUp]);
+
+  const handlePointerDown = useCallback(
+    (e: PointerEvent) => {
+      if (!drawModeRef.current) return;
+      pointerActiveRef.current = true;
+      if (containerRef.current?.setPointerCapture) {
+        containerRef.current.setPointerCapture(e.pointerId);
+      }
+      handleMouseDown(e as any);
+    },
+    [handleMouseDown]
+  );
+
+  const handlePointerMove = useCallback(
+    (e: PointerEvent) => {
+      handleMouseMove(e as any);
+    },
+    [handleMouseMove]
+  );
+
+  const handlePointerUp = useCallback(
+    (e: PointerEvent) => {
+      handleMouseUp(e as any);
+      pointerActiveRef.current = false;
+      if (containerRef.current?.releasePointerCapture) {
+        containerRef.current.releasePointerCapture(e.pointerId);
+      }
+    },
+    [handleMouseUp]
+  );
+
+  const handlePointerCancel = useCallback((e: PointerEvent) => {
+    pointerActiveRef.current = false;
+    if (containerRef.current?.releasePointerCapture) {
+      containerRef.current.releasePointerCapture(e.pointerId);
+    }
+  }, []);
+
+  const handleMouseDownFallback = useCallback(
+    (e: MouseEvent | TouchEvent) => {
+      if (pointerActiveRef.current) return;
+      handleMouseDown(e);
+    },
+    [handleMouseDown]
+  );
+
+  const handleMouseMoveFallback = useCallback(
+    (e: MouseEvent | TouchEvent) => {
+      if (pointerActiveRef.current) return;
+      handleMouseMove(e);
+    },
+    [handleMouseMove]
+  );
+
+  const handleMouseUpFallback = useCallback((e?: MouseEvent | TouchEvent) => {
+    if (pointerActiveRef.current) return;
+    handleMouseUp(e);
+  }, [handleMouseUp]);
 
   // Draw boxes on canvas
   useEffect(() => {
@@ -326,7 +443,12 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   }, [boxes, currentBox, isDrawing]);
 
   return (
-    <div data-testid="overlay-viewer-root" className="h-full flex flex-col">
+    <div
+      data-testid="overlay-viewer-root"
+      data-has-boxes={boxes.length}
+      data-has-warning={warning ? 'true' : 'false'}
+      className="h-full flex flex-col"
+    >
       {/* Toolbar */}
       <div className="flex items-center gap-2 p-2 border-b border-gray-200">
         <button
@@ -378,23 +500,33 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           cursor: isDrawMode ? 'crosshair' : 'default',
           touchAction: isDrawMode ? 'none' : 'auto'
         }}
-        onMouseDown={handleMouseDown as any}
-        onMouseMove={handleMouseMove as any}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={() => {
-          if (isDrawing) handleMouseUp();
+        onPointerDown={handlePointerDown as any}
+        onPointerMove={handlePointerMove as any}
+        onPointerUp={handlePointerUp as any}
+        onPointerCancel={handlePointerCancel as any}
+        onPointerLeave={() => {
+          if (isDrawingRef.current) handleMouseUp();
         }}
-        onTouchStart={handleMouseDown as any}
-        onTouchMove={handleMouseMove as any}
-        onTouchEnd={handleMouseUp}
+        onMouseDown={handleMouseDownFallback as any}
+        onMouseMove={handleMouseMoveFallback as any}
+        onMouseUp={handleMouseUpFallback as any}
+        onMouseLeave={() => {
+          if (pointerActiveRef.current) return;
+          if (isDrawingRef.current) handleMouseUp();
+        }}
+        onTouchStart={handleMouseDownFallback as any}
+        onTouchMove={handleMouseMoveFallback as any}
+        onTouchEnd={handleMouseUpFallback as any}
       >
         {/* Document Image */}
         {imageUrl && !imageError ? (
           <img
             ref={imageRef}
             alt={`Document ${documentId} page ${page}`}
-            className="w-full h-full object-contain"
+            className="w-full h-full object-contain pointer-events-none select-none"
             data-testid="document-image"
+            draggable={false}
+            onDragStart={(e) => e.preventDefault()}
             style={{ display: imageLoaded ? 'block' : 'none' }}
           />
         ) : null}
@@ -459,15 +591,18 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             </button>
           </div>
         ))}
-      </div>
 
-      {/* Instructions */}
-      {isDrawMode && boxes.length === 0 && (
-        <div className="p-2 text-center text-xs text-gray-500 bg-blue-50">
-          <i className="fas fa-info-circle mr-1"></i>
-          Click and drag to select a region for visual search
-        </div>
-      )}
+        {/* Instructions */}
+        {isDrawMode && boxes.length === 0 && (
+          <div
+            className="absolute bottom-2 left-2 right-2 p-2 text-center text-xs text-gray-500 bg-blue-50 rounded pointer-events-none"
+            data-testid="selection-instructions"
+          >
+            <i className="fas fa-info-circle mr-1"></i>
+            Click and drag to select a region for visual search
+          </div>
+        )}
+      </div>
     </div>
   );
 }

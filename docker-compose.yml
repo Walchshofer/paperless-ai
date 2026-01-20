@@ -107,6 +107,8 @@ services:
         condition: service_healthy
       guidance-service:
         condition: service_healthy
+      text-rag:
+        condition: service_healthy
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -120,6 +122,8 @@ services:
       - VECTOR_STORE=qdrant
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
+      - RAG_SERVICE_URL=http://text_rag:8004
+      - RAG_SERVICE_ENABLED=true
 
   # 7. VISUAL RETRIEVAL SIDECAR
   visual-rag:

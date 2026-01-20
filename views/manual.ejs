@@ -104,6 +104,9 @@
                 <div id="messageArea" class="mb-6 hidden">
                     <!-- Messages will be inserted here -->
                 </div>
+                <div id="visualFallbackBanner" class="mb-6 hidden rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    Visual analysis is unavailable. Showing text-only results. Visual evidence required for full validation.
+                </div>
 
                 <!-- Island anchors (auditable via data-testid) -->
                 <div data-island="visual-annotation-island" data-testid="visual-annotation-island" data-props='<%- JSON.stringify({ documentId: vm && vm.documentId ? vm.documentId : null }) %>'></div>
@@ -125,7 +128,15 @@
                         <textarea data-testid="manual-content-input" rows="4" style="width:100%"></textarea>
                       </div>
                       <div data-panel="fields" data-testid="panel-fields" style="display:none">
-                        <div><input data-testid="field-name-0" placeholder="Field name"/><input data-testid="field-value-0" placeholder="Field value"/></div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                          <span>Custom Fields</span>
+                          <button data-testid="add-field-btn" type="button">+ Add Field</button>
+                        </div>
+                        <div data-testid="field-row-0">
+                          <input data-testid="field-name-0" placeholder="Field name"/>
+                          <input data-testid="field-value-0" placeholder="Field value"/>
+                          <button data-testid="remove-field-0" type="button">×</button>
+                        </div>
                       </div>
                       <div data-panel="ai-debug" data-testid="panel-ai-debug" style="display:none">
                         <div>AI Debug information will appear here (GPU state dependent)</div>
@@ -192,8 +203,6 @@
                             </div>
                             <div class="flex flex-col lg:flex-row gap-4">
                                 <div id="overlayContainer" class="flex-1 min-h-[600px] bg-bg-primary rounded border border-border-color p-4 overflow-auto">
-                                    <div data-island="visual-annotation-island" data-testid="visual-annotation-island" data-props='<%- JSON.stringify({ documentId: vm && vm.documentId ? vm.documentId : null, page: 1 }) %>'></div>
-
                                     <div id="overlayLoading" class="flex items-center justify-center h-[400px] text-text-secondary">
                                         <i class="fas fa-spinner fa-spin mr-2"></i> Rendering high-resolution preview...
                                     </div>
@@ -791,7 +800,11 @@ return object;
     <script src="js/dashboard.js"></script>
     <script src="js/components/OverlayViewer.js"></script>
     <script src="js/components/OverlayLegend.js"></script>
-    <script type="module" src="/js/dist/island-runtime.js"></script>
+    <script type="module">
+        import { mountIslands } from '/js/dist/island-runtime.js';
+        mountIslands(document);
+        window.__islandRuntimeMounted = true;
+    </script>
     <script>
         // Overlay Viewer Integration
         let overlayViewer = null;
@@ -1071,6 +1084,15 @@ return object;
                     throw new Error(data.error || 'Visual analysis failed');
                 }
 
+                const fallbackBanner = document.getElementById('visualFallbackBanner');
+                if (fallbackBanner) {
+                    const showFallback = Boolean(
+                        data.fallback &&
+                        data.fallback.evidence_source === 'text'
+                    );
+                    fallbackBanner.classList.toggle('hidden', !showFallback);
+                }
+
                 // Update suggested tags
                 const suggestedTagsContainer = document.getElementById('suggestedTags');
                 if (data.result.tags && Array.isArray(data.result.tags)) {
@@ -1114,7 +1136,10 @@ return object;
 
     <!-- Dev: lightweight island mount fallback so E2E skeleton can assert runtime placeholder without build step -->
     <script>
-      document.addEventListener('DOMContentLoaded', function() {
+      function initDevIslands() {
+        if (typeof window !== 'undefined' && window.__islandRuntimeMounted) {
+          return;
+        }
         try {
           document.querySelectorAll('[data-island="visual-annotation-island"]').forEach(el => {
             if (!el.querySelector('[data-testid="visual-annotation-island-root"]')) {
@@ -1124,26 +1149,156 @@ return object;
 
           // Dev fallback for Manual Editor island (inject interactive markup and listeners)
           document.querySelectorAll('[data-island="manual-editor-island"]').forEach(el => {
-            if (!el.querySelector('[data-testid="manual-editor-island-root"]')) {
-              el.innerHTML = "\n                <div data-testid=\"manual-editor-island-root\">\n                  <div role=\"tablist\" aria-label=\"Manual Editor Tabs\" style=\"display:flex;gap:8px;margin-bottom:8px\">\n                    <button role=\"tab\" data-testid=\"tab-metadata\" aria-selected=\"true\" onclick=\"(function(){ const root = this.closest('[data-testid=\\\'manual-editor-island-root\\\']'); const tabs = Array.from(root.querySelectorAll('[role=\\\'tab\\\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);\">Metadata</button>\n                    <button role=\"tab\" data-testid=\"tab-content\" aria-selected=\"false\" onclick=\"(function(){ const root = this.closest('[data-testid=\\\'manual-editor-island-root\\\']'); const tabs = Array.from(root.querySelectorAll('[role=\\\'tab\\\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);\">Content</button>\n                    <button role=\"tab\" data-testid=\"tab-fields\" aria-selected=\"false\" onclick=\"(function(){ const root = this.closest('[data-testid=\\\'manual-editor-island-root\\\']'); const tabs = Array.from(root.querySelectorAll('[role=\\\'tab\\\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);\">Fields</button>\n                    <button role=\"tab\" data-testid=\"tab-ai-debug\" aria-selected=\"false\">AI Debug</button>\n                  </div>\n                  <div id=\"manual-editor-panel\">\n                    <div data-panel=\"metadata\" data-testid=\"panel-metadata\">\n                      <label>Title <input data-testid=\"manual-title-input\" type=\"text\"/></label>\n                    </div>\n                    <div data-panel=\"content\" data-testid=\"panel-content\" style=\"display:none\">\n                      <textarea data-testid=\"manual-content-input\" rows=\"4\" style=\"width:100%\"></textarea>\n                    </div>\n                    <div data-panel=\"fields\" data-testid=\"panel-fields\" style=\"display:none\">\n                      <div><input data-testid=\"field-name-0\" placeholder=\"Field name\"/><input data-testid=\"field-value-0\" placeholder=\"Field value\"/></div>\n                    </div>\n                    <div data-panel=\"ai-debug\" data-testid=\"panel-ai-debug\" style=\"display:none\">\n                      <div>AI Debug information will appear here (GPU state dependent)</div>\n                    </div>\n                  </div>\n                  <div style=\"margin-top:8px\">\n                    <button data-testid=\"manual-save-btn\">Save</button>\n                  </div>\n                </div>\n              ";
+            function attachManualEditor(container) {
+              if (container.dataset.meiWired === 'true') {
+                return;
+              }
+              container.dataset.meiWired = 'true';
 
-              try {
-                const root = el.querySelector('[data-testid="manual-editor-island-root"]');
-                if (root) {
-                  const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
-                  const panels = Array.from(root.querySelectorAll('[data-panel]'));
-                  function setActive(i){ tabs.forEach((t,ii)=>t.setAttribute('aria-selected', String(ii===i))); panels.forEach((p,ii)=>p.style.display = ii===i ? '' : 'none'); }
-                  tabs.forEach((t,i)=>{ t.addEventListener('click', ()=> setActive(i)); t.addEventListener('keydown', (e)=>{ if(e.key==='ArrowLeft'){ setActive((i+tabs.length-1)%tabs.length); } if(e.key==='ArrowRight'){ setActive((i+1)%tabs.length); }}); });
-                  const save = root.querySelector('[data-testid="manual-save-btn"]');
-                  if (save) save.addEventListener('click', ()=>{
-                    const payload = { documentId: null, metadata:{}, content:'', fields:[] };
-                    const title = root.querySelector('[data-testid="manual-title-input"]'); if(title) payload.metadata.title = title.value||'';
-                    const content = root.querySelector('[data-testid="manual-content-input"]'); if(content) payload.content = content.value||'';
-                    const fname = root.querySelector('[data-testid="field-name-0"]'); const fval = root.querySelector('[data-testid="field-value-0"]'); if(fname && fname.value) payload.fields.push({ name: fname.value, value: fval ? fval.value : '' });
-                    (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(new CustomEvent('payload:ready', { detail: payload })); })();
-                  });
+              function getRoot() {
+                return container.querySelector('[data-testid="manual-editor-island-root"]');
+              }
+
+              function setActive(i, focusTab) {
+                const root = getRoot();
+                if (!root) {
+                  return;
                 }
-              } catch(e){ console.warn('Dev manual editor setup failed', e); }
+                const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
+                const panels = Array.from(root.querySelectorAll('[data-panel]'));
+                tabs.forEach((t, ii) => t.setAttribute('aria-selected', String(ii === i)));
+                panels.forEach((p, ii) => {
+                  p.style.display = ii === i ? '' : 'none';
+                });
+                if (focusTab && tabs[i]) {
+                  tabs[i].focus();
+                }
+              }
+
+              const root = getRoot();
+              if (root) {
+                const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
+                const initialIndex = Math.max(
+                  0,
+                  tabs.findIndex(t => t.getAttribute('aria-selected') === 'true')
+                );
+                setActive(initialIndex);
+              }
+
+              container.addEventListener('click', (e) => {
+                const rootEl = getRoot();
+                if (!rootEl) {
+                  return;
+                }
+                const tabs = Array.from(rootEl.querySelectorAll('[role="tab"]'));
+                const tabTarget = e.target instanceof HTMLElement
+                  ? e.target.closest('[role="tab"]')
+                  : null;
+                if (tabTarget) {
+                  const idx = tabs.indexOf(tabTarget);
+                  if (idx >= 0) {
+                    setActive(idx, true);
+                  }
+                }
+
+                const addBtn = e.target instanceof HTMLElement
+                  ? e.target.closest('[data-testid="add-field-btn"]')
+                  : null;
+                if (addBtn) {
+                  const rows = rootEl.querySelectorAll('[data-testid^="field-row-"]');
+                  const nextIndex = rows.length;
+                  const panel = rootEl.querySelector('[data-testid="panel-fields"]');
+                  if (!panel) {
+                    return;
+                  }
+                  const row = document.createElement('div');
+                  row.setAttribute('data-testid', `field-row-${nextIndex}`);
+                  row.innerHTML =
+                    `<input data-testid="field-name-${nextIndex}" placeholder="Field name"/>` +
+                    `<input data-testid="field-value-${nextIndex}" placeholder="Field value"/>` +
+                    `<button data-testid="remove-field-${nextIndex}" type="button">×</button>`;
+                  panel.appendChild(row);
+                }
+
+                const removeBtn = e.target instanceof HTMLElement
+                  ? e.target.closest('[data-testid^="remove-field-"]')
+                  : null;
+                if (removeBtn) {
+                  const row = removeBtn.closest('[data-testid^="field-row-"]');
+                  if (row) {
+                    row.remove();
+                  }
+                }
+
+                const saveBtn = e.target instanceof HTMLElement
+                  ? e.target.closest('[data-testid="manual-save-btn"]')
+                  : null;
+                if (saveBtn) {
+                  const payload = {
+                    documentId: null,
+                    metadata: {},
+                    content: '',
+                    fields: []
+                  };
+                  const title = rootEl.querySelector('[data-testid="manual-title-input"]');
+                  if (title) {
+                    payload.metadata.title = title.value || '';
+                  }
+                  const content = rootEl.querySelector('[data-testid="manual-content-input"]');
+                  if (content) {
+                    payload.content = content.value || '';
+                  }
+                  rootEl.querySelectorAll('[data-testid^="field-row-"]').forEach(row => {
+                    const name = row.querySelector('[data-testid^="field-name-"]');
+                    const value = row.querySelector('[data-testid^="field-value-"]');
+                    if (name && name.value) {
+                      payload.fields.push({
+                        name: name.value,
+                        value: value ? value.value : ''
+                      });
+                    }
+                  });
+                  (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(new CustomEvent('payload:ready', { detail: payload })); })();
+                }
+              });
+
+              container.addEventListener('keydown', (e) => {
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
+                  return;
+                }
+                const rootEl = getRoot();
+                if (!rootEl) {
+                  return;
+                }
+                const tabs = Array.from(rootEl.querySelectorAll('[role="tab"]'));
+                const focused = document.activeElement instanceof HTMLElement
+                  ? document.activeElement
+                  : null;
+                const idx = focused ? tabs.indexOf(focused) : -1;
+                if (idx < 0) {
+                  return;
+                }
+                e.preventDefault();
+                if (e.key === 'ArrowLeft') {
+                  setActive((idx + tabs.length - 1) % tabs.length, true);
+                }
+                if (e.key === 'ArrowRight') {
+                  setActive((idx + 1) % tabs.length, true);
+                }
+              });
+            }
+
+            if (!el.querySelector('[data-testid="manual-editor-island-root"]')) {
+              el.innerHTML = "\n                <div data-testid=\"manual-editor-island-root\">\n                  <div role=\"tablist\" aria-label=\"Manual Editor Tabs\" style=\"display:flex;gap:8px;margin-bottom:8px\">\n                    <button role=\"tab\" data-testid=\"tab-metadata\" aria-selected=\"true\">Metadata</button>\n                    <button role=\"tab\" data-testid=\"tab-content\" aria-selected=\"false\">Content</button>\n                    <button role=\"tab\" data-testid=\"tab-fields\" aria-selected=\"false\">Fields</button>\n                    <button role=\"tab\" data-testid=\"tab-ai-debug\" aria-selected=\"false\">AI Debug</button>\n                  </div>\n                  <div id=\"manual-editor-panel\">\n                    <div data-panel=\"metadata\" data-testid=\"panel-metadata\">\n                      <label>Title <input data-testid=\"manual-title-input\" type=\"text\"/></label>\n                    </div>\n                    <div data-panel=\"content\" data-testid=\"panel-content\" style=\"display:none\">\n                      <textarea data-testid=\"manual-content-input\" rows=\"4\" style=\"width:100%\"></textarea>\n                    </div>\n                    <div data-panel=\"fields\" data-testid=\"panel-fields\" style=\"display:none\">\n                      <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:8px\">\n                        <span>Custom Fields</span>\n                        <button data-testid=\"add-field-btn\" type=\"button\">+ Add Field</button>\n                      </div>\n                      <div data-testid=\"field-row-0\">\n                        <input data-testid=\"field-name-0\" placeholder=\"Field name\"/>\n                        <input data-testid=\"field-value-0\" placeholder=\"Field value\"/>\n                        <button data-testid=\"remove-field-0\" type=\"button\">×</button>\n                      </div>\n                    </div>\n                    <div data-panel=\"ai-debug\" data-testid=\"panel-ai-debug\" style=\"display:none\">\n                      <div>AI Debug information will appear here (GPU state dependent)</div>\n                    </div>\n                  </div>\n                  <div style=\"margin-top:8px\">\n                    <button data-testid=\"manual-save-btn\">Save</button>\n                  </div>\n                </div>\n              ";
+            }
+
+            try {
+              const root = el.querySelector('[data-testid="manual-editor-island-root"]');
+              if (root) {
+                attachManualEditor(el);
+              }
+            } catch (e) {
+              console.warn('Dev manual editor setup failed', e);
             }
           });
 
@@ -1151,32 +1306,38 @@ return object;
           document.querySelectorAll('[data-island="feedback-controls-island"]').forEach(el => {
             if (!el.querySelector('[data-testid="feedback-controls-island-root"]')) {
               el.innerHTML = "\n                <div data-testid=\"feedback-controls-island-root\">\n                  <button data-testid=\"thumbs-up-tags\" aria-pressed=\"false\">👍 Tags</button>\n                  <button data-testid=\"thumbs-down-tags\" aria-pressed=\"false\">👎 Tags</button>\n                </div>\n              ";
-              try {
-                const root = el.querySelector('[data-testid="feedback-controls-island-root"]');
-                if (root) {
-                  const up = root.querySelector('[data-testid="thumbs-up-tags"]');
-                  const down = root.querySelector('[data-testid="thumbs-down-tags"]');
-                  if (up) up.addEventListener('click', ()=>{
-                    const current = up.getAttribute('aria-pressed') === 'true';
-                    up.setAttribute('aria-pressed', (!current).toString());
-                    if (down) down.setAttribute('aria-pressed', 'false');
-                    (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(new CustomEvent('feedback:updated', { detail:{ component:'tags', feedback_type:'thumbs_up' } })); })();
-                    (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(new CustomEvent('feedback:confirmed', { detail:{ component:'tags', documentId: null } })); })();
-                  });
-                  if (down) down.addEventListener('click', ()=>{
-                    const current = down.getAttribute('aria-pressed') === 'true';
-                    down.setAttribute('aria-pressed', (!current).toString());
-                    if (up) up.setAttribute('aria-pressed', 'false');
-                    (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(new CustomEvent('feedback:updated', { detail:{ component:'tags', feedback_type:'thumbs_down' } })); })();
-                  });
-                }
-              } catch(e){ console.warn('Dev feedback setup failed', e); }
             }
+            try {
+              const root = el.querySelector('[data-testid="feedback-controls-island-root"]');
+              if (root && !root.dataset.wired) {
+                root.dataset.wired = 'true';
+                const up = root.querySelector('[data-testid="thumbs-up-tags"]');
+                const down = root.querySelector('[data-testid="thumbs-down-tags"]');
+                if (up) up.addEventListener('click', () => {
+                  const current = up.getAttribute('aria-pressed') === 'true';
+                  up.setAttribute('aria-pressed', (!current).toString());
+                  if (down) down.setAttribute('aria-pressed', 'false');
+                  (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(new CustomEvent('feedback:updated', { detail:{ component:'tags', feedback_type:'thumbs_up' } })); })();
+                  (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(new CustomEvent('feedback:confirmed', { detail:{ component:'tags', documentId: null } })); })();
+                });
+                if (down) down.addEventListener('click', () => {
+                  const current = down.getAttribute('aria-pressed') === 'true';
+                  down.setAttribute('aria-pressed', (!current).toString());
+                  if (up) up.setAttribute('aria-pressed', 'false');
+                  (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(new CustomEvent('feedback:updated', { detail:{ component:'tags', feedback_type:'thumbs_down' } })); })();
+                });
+              }
+            } catch(e){ console.warn('Dev feedback setup failed', e); }
           });
         } catch (e) {
           console.warn('Dev island mount failed', e);
         }
-      });
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initDevIslands);
+      } else {
+        initDevIslands();
+      }
     </script>
 </body>
 </html>

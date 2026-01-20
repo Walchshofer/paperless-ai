@@ -195,16 +195,10 @@
 
     <!-- Island Runtime (ticket:017.4) -->
     <!-- Use built runtime from the asset pipeline (public/js/dist/island-runtime.js) -->
-    <script src="js/dist/island-runtime.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Mount islands after DOM ready
-            if (typeof mountIslands === 'function') {
-                mountIslands(document);
-            } else if (typeof window.islandRuntime !== 'undefined') {
-                window.islandRuntime.mountIslands(document);
-            }
-        });
+    <script type="module">
+        import { mountIslands } from '/js/dist/island-runtime.js';
+        mountIslands(document);
+        window.__islandRuntimeMounted = true;
     </script>
 </body>
 </html>

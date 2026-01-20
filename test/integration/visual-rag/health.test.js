@@ -12,10 +12,13 @@ describe('Visual RAG sidecar health (integration)', function() {
         while (Date.now() - start < timeoutMs) {
             try {
                 const res = await axios.get('http://localhost:8001/health', { timeout: 5000 });
-                if (res && res.data && res.data.model_loaded === true) {
+                const data = res && res.data ? res.data : null;
+                const modelLoaded = data?.model_loaded === true
+                    || data?.init?.model_loaded === true;
+                if (modelLoaded) {
                     return; // success
                 }
-                last = res && res.data ? res.data : last;
+                last = data || last;
             } catch (err) {
                 last = err.message;
             }

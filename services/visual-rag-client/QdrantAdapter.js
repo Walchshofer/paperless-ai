@@ -162,6 +162,27 @@ class QdrantAdapter {
     }
 
     /**
+     * Delete points by explicit point IDs
+     * @param {string} collection
+     * @param {Array<string|number>} pointIds
+     * @returns {Promise<Object>}
+     */
+    async deleteByIds(collection, pointIds) {
+        const ids = Array.isArray(pointIds) ? pointIds : [pointIds];
+        const result = await this.circuitBreaker.execute(async () => {
+            return await this.client.delete(collection, {
+                points: ids
+            });
+        });
+
+        if (result.fallback || !result.success) {
+            throw result.error || new Error(`Delete failed for ${collection} ids=${ids.length}`);
+        }
+
+        return { status: 'ok' };
+    }
+
+    /**
      * Update payload for a document across standard collections
      * @param {number|string} docId 
      * @param {Object} metadata 
@@ -349,8 +370,10 @@ class QdrantAdapter {
             distance: COLLECTIONS.visual_overlays.distance
         });
         await this.ensureCollection(COLLECTIONS.visual_pages.name, {
-            size: COLLECTIONS.visual_pages.vectorSize,
-            distance: COLLECTIONS.visual_pages.distance
+            page_embedding: {
+                size: COLLECTIONS.visual_pages.vectorSize,
+                distance: COLLECTIONS.visual_pages.distance
+            }
         });
     }
 
@@ -396,7 +419,20 @@ class QdrantAdapter {
 
     // Visual Overlays Helpers
     async upsertVisualOverlays(points) {
-        return this.upsert(COLLECTIONS.visual_overlays.name, points);
+        const normalizedPoints = (points || []).map(point => {
+            if (point.vector) {
+                return point;
+            }
+            if (!point.embedding) {
+                return point;
+            }
+            const { embedding, ...rest } = point;
+            return {
+                ...rest,
+                vector: embedding
+            };
+        });
+        return this.upsert(COLLECTIONS.visual_overlays.name, normalizedPoints);
     }
 
     async searchVisualOverlays(vector, options = {}) {
@@ -414,15 +450,58 @@ class QdrantAdapter {
 
     // Visual Pages Helpers
     async upsertVisualPages(points) {
-        return this.upsert(COLLECTIONS.visual_pages.name, points);
+        const normalizedPoints = (points || []).map(point => {
+            if (point.vector) {
+                return point;
+            }
+            if (!point.embedding) {
+                return point;
+            }
+            const { embedding, ...rest } = point;
+            return {
+                ...rest,
+                vector: {
+                    page_embedding: embedding
+                }
+            };
+        });
+        return this.upsert(COLLECTIONS.visual_pages.name, normalizedPoints);
     }
 
     async searchVisualPages(vector, options = {}) {
-        return this.search(COLLECTIONS.visual_pages.name, {
-            vector,
-            limit: options.limit || 10,
-            with_payload: true
-        });
+        const candidates = [
+            {
+                vector: {
+                    page_embedding: vector
+                }
+            },
+            {
+                vector,
+                vector_name: 'page_embedding'
+            },
+            {
+                vector: {
+                    name: 'page_embedding',
+                    vector
+                }
+            }
+        ];
+
+        for (const payload of candidates) {
+            try {
+                return await this.search(COLLECTIONS.visual_pages.name, {
+                    ...payload,
+                    limit: options.limit || 10,
+                    with_payload: true
+                });
+            } catch (error) {
+                if (!error.message || !error.message.includes('Bad Request')) {
+                    throw error;
+                }
+            }
+        }
+
+        throw new Error('Bad Request');
     }
 
     async deleteVisualPagesByDocId(docId) {
@@ -431,7 +510,20 @@ class QdrantAdapter {
 
     // Document Embeddings Helpers
     async upsertDocumentEmbeddings(points) {
-        return this.upsert(COLLECTIONS.document_embeddings.name, points);
+        const normalizedPoints = (points || []).map(point => {
+            if (point.vector) {
+                return point;
+            }
+            if (!point.embedding) {
+                return point;
+            }
+            const { embedding, ...rest } = point;
+            return {
+                ...rest,
+                vector: embedding
+            };
+        });
+        return this.upsert(COLLECTIONS.document_embeddings.name, normalizedPoints);
     }
 
     async searchDocumentEmbeddings(vector, options = {}) {
@@ -443,6 +535,9 @@ class QdrantAdapter {
     }
 
     async deleteDocumentEmbeddings(docId) {
+        if (Array.isArray(docId)) {
+            return this.deleteByIds(COLLECTIONS.document_embeddings.name, docId);
+        }
         return this.deleteByDocId(COLLECTIONS.document_embeddings.name, docId);
     }
 

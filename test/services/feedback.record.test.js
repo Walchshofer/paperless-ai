@@ -13,6 +13,9 @@ describe('FeedbackService.recordGranularFeedback', function() {
     // Mock client that records queries
     const fakeClient = {
       query: async (sql, params) => {
+        if (!Array.isArray(params)) {
+          return { rows: [] };
+        }
         // Capture the context param which is last
         const ctxJson = params[6];
         inserted.push(JSON.parse(ctxJson));

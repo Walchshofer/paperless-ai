@@ -253,7 +253,22 @@ test.describe('Manual Route UI - Complete User Flow', () => {
 
 test.describe('Cross-Island Event Communication', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`${BASE_URL}/manual`, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null);
+    const response = await page.goto(`${BASE_URL}/manual`, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null);
+
+    if (response && (response.url().includes('/login') || await page.locator('form[action="/login"]').count() > 0)) {
+      const user = process.env.PAPERLESS_ADMIN_USER || 'elfman';
+      const pass = process.env.PAPERLESS_ADMIN_PASSWORD || process.env.POSTGRES_PASSWORD || 'P2tr3ck!1976';
+
+      await page.goto(`${BASE_URL}/login`, { waitUntil: 'load' });
+      await page.fill('#username', user);
+      await page.fill('#password', pass);
+      await Promise.all([
+        page.waitForNavigation({ waitUntil: 'load', timeout: 10000 }),
+        page.click('button[type="submit"]')
+      ]).catch(() => null);
+
+      await page.goto(`${BASE_URL}/manual`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    }
   });
 
   test('feedback:confirmed event is dispatched', async ({ page }) => {

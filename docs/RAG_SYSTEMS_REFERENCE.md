@@ -50,6 +50,8 @@ Visual RAG and RAGZ are separate services with separate vector storage in **Qdra
 
 Do not share collections across these services. Each service owns its own collection and lifecycle.
 
+**paperless-ai runtime boundary (required):** The paperless-ai container is the orchestrator/UI only. Text RAG and Visual RAG run as distinct services; do not embed or start RAG servers inside paperless-ai.
+
 **PostgreSQL Role**: PostgreSQL is retained for metadata storage only (document info, overlay metadata, feedback events). All vector operations use Qdrant.
 
 ### Runtime Dimension Adaptation (Temporary Workaround)
@@ -179,6 +181,7 @@ const results = await qdrantAdapter.searchVisualOverlays(queryVector, { limit: 5
 ## Fallbacks & contracts
 - **Authority**: `PromptRegistry` remains the source of truth for prompts and schemas.
 - **Fallback chain**: Guidance (optional) → PromptRegistry → `JsonRepair`.
+- **No silent fallbacks**: Visual→Text fallback must be explicit (UI banner/state + telemetry reason code `visual_503_fallback_text`), and responses must mark evidence source as `text`.
 - **Prompt safety**: Preserve required schema fields and evidence constraints. Any prompt change must include tests and a PR note explaining behavioral impact.
 
 ---

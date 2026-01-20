@@ -6,7 +6,28 @@ const paperlessService = require('./paperlessService');
 
 class RagService {
   constructor() {
-    this.baseUrl = process.env.RAG_SERVICE_URL || 'http://localhost:8000';
+    this.baseUrl = process.env.RAG_SERVICE_URL || 'http://text_rag:8004';
+  }
+
+  _isExplicitlyDisabled() {
+    return process.env.RAG_SERVICE_ENABLED &&
+      process.env.RAG_SERVICE_ENABLED !== 'true';
+  }
+
+  _assertEnabled() {
+    if (this._isExplicitlyDisabled()) {
+      const error = new Error('Text RAG service disabled (RAG_SERVICE_ENABLED)');
+      error.code = 'RAG_DISABLED';
+      throw error;
+    }
+  }
+
+  _buildHeaders(options = {}) {
+    const headers = { ...(options.headers || {}) };
+    if (options.requestId) {
+      headers['X-Request-Id'] = options.requestId;
+    }
+    return headers;
   }
 
   /**
@@ -14,6 +35,15 @@ class RagService {
    * @returns {Promise<{status: string, index_ready: boolean, data_loaded: boolean}>}
    */
   async checkStatus() {
+    if (this._isExplicitlyDisabled()) {
+      return {
+        server_up: false,
+        data_loaded: false,
+        index_ready: false,
+        disabled: true,
+        error: 'Text RAG service disabled (RAG_SERVICE_ENABLED)'
+      };
+    }
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
@@ -53,9 +83,13 @@ class RagService {
    */
   async search(query, filters = {}) {
     try {
+      this._assertEnabled();
+      const { requestId, headers, ...payload } = filters || {};
       const response = await axios.post(`${this.baseUrl}/search`, {
         query,
-        ...filters
+        ...payload
+      }, {
+        headers: this._buildHeaders({ requestId, headers })
       });
       return response.data;
     } catch (error) {
@@ -71,6 +105,7 @@ class RagService {
    */
   async askQuestion(question) {
     try {
+      this._assertEnabled();
       // 1. Get context from the RAG service
       const response = await axios.post(`${this.baseUrl}/context`, { 
         question,
@@ -150,6 +185,7 @@ class RagService {
    */
   async indexDocuments(force = false) {
     try {
+      this._assertEnabled();
       const response = await axios.post(`${this.baseUrl}/indexing/start`, { 
         force, 
         background: true 
@@ -167,6 +203,7 @@ class RagService {
    */
   async checkForUpdates() {
     try {
+      this._assertEnabled();
       const response = await axios.post(`${this.baseUrl}/indexing/check`);
       return response.data;
     } catch (error) {
@@ -181,6 +218,7 @@ class RagService {
    */
   async getIndexingStatus() {
     try {
+      this._assertEnabled();
       const response = await axios.get(`${this.baseUrl}/indexing/status`);
       return response.data;
     } catch (error) {
@@ -196,6 +234,7 @@ class RagService {
    */
   async initialize(force = false) {
     try {
+      this._assertEnabled();
       const response = await axios.post(`${this.baseUrl}/initialize`, { force });
       return response.data;
     } catch (error) {

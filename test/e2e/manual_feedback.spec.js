@@ -63,11 +63,15 @@ describe('Manual Feedback UI - E2E', function () {
         document.removeEventListener('payload:ready', listener);
         const payload = e.detail;
         assert.strictEqual(payload.documentId, 42);
-        assert.strictEqual(payload.metadata.title, 'E2E Doc');
-        assert.strictEqual(payload.content, 'Some content');
-        assert.ok(Array.isArray(payload.fields));
-        assert.strictEqual(payload.fields[0].name, 'invoice');
-        assert.strictEqual(payload.fields[0].value, 'A-123');
+        assert.ok(payload.document_updates, 'document_updates should be present');
+        assert.strictEqual(payload.document_updates.title, 'E2E Doc');
+        assert.strictEqual(payload.document_updates.content, 'Some content');
+        assert.ok(
+          Array.isArray(payload.document_updates.custom_fields),
+          'custom_fields should be array'
+        );
+        assert.strictEqual(payload.document_updates.custom_fields[0].name, 'invoice');
+        assert.strictEqual(payload.document_updates.custom_fields[0].value, 'A-123');
         done();
       } catch (err) { done(err); }
     }

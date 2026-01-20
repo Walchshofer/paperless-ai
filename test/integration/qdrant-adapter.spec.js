@@ -9,13 +9,15 @@
  */
 
 const assert = require('assert');
+const { randomUUID } = require('crypto');
 const { QdrantAdapter, COLLECTIONS } = require('../../services/visual-rag-client/QdrantAdapter');
 
 describe('QdrantAdapter Integration Tests', function () {
     this.timeout(30000); // Allow time for Qdrant operations
 
     let adapter;
-    const testDocId = 'test_doc_' + Date.now();
+    const testDocId = randomUUID();
+    const testDocNumeric = Date.now();
 
     before(async function () {
         // Skip if QDRANT_HOST not set (CI without Qdrant)
@@ -37,7 +39,7 @@ describe('QdrantAdapter Integration Tests', function () {
         if (adapter) {
             try {
                 await adapter.deleteDocumentEmbeddings([testDocId]);
-                await adapter.deleteVisualOverlaysByDocId(parseInt(testDocId.split('_')[2], 10));
+                await adapter.deleteVisualOverlaysByDocId(testDocNumeric);
             } catch (e) {
                 // Ignore cleanup errors
             }
@@ -121,8 +123,8 @@ describe('QdrantAdapter Integration Tests', function () {
 
     describe('Visual Overlays (320D)', function () {
         const testEmbedding = new Array(320).fill(0).map(() => Math.random());
-        const overlayId = 'overlay_' + Date.now();
-        const docId = Date.now();
+        const overlayId = randomUUID();
+        const docId = testDocNumeric;
 
         it('should upsert visual overlays', async function () {
             const result = await adapter.upsertVisualOverlays([
@@ -165,7 +167,7 @@ describe('QdrantAdapter Integration Tests', function () {
 
     describe('Visual Pages (320D, Dot Product)', function () {
         const testEmbedding = new Array(320).fill(0).map(() => Math.random());
-        const pageId = 'page_' + Date.now();
+        const pageId = randomUUID();
         const docId = Date.now();
 
         it('should upsert visual pages', async function () {

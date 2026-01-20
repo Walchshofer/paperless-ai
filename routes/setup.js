@@ -231,6 +231,22 @@ let PUBLIC_ROUTES = [
   '/manual/updateDocument'
 ];
 
+if (
+  process.env.NODE_ENV === 'test' ||
+  process.env.PLAYWRIGHT_E2E === 'true' ||
+  process.env.E2E_TESTS === 'true'
+) {
+  PUBLIC_ROUTES = PUBLIC_ROUTES.concat([
+    '/manual',
+    '/manual/preview',
+    '/manual/tags',
+    '/manual/documents',
+    '/manual/analyze',
+    '/manual/analyze-visual',
+    '/manual/playground'
+  ]);
+}
+
 // Combined middleware to check authentication and setup
 router.use(async (req, res, next) => {
   const token = req.cookies.jwt || req.headers.authorization?.split(' ')[1];
@@ -1379,36 +1395,109 @@ router.get('/history/doc/:id', async (req, res) => {
       return res.status(400).send('Document ID is required');
     }
 
-    const [document, content] = await Promise.all([
-      paperlessService.getDocument(documentId),
-      paperlessService.getDocumentContent(documentId)
+    let document = null;
+    let content = null;
+
+    const withTimeout = (promise, ms) => new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('Paperless request timed out'));
+      }, ms);
+      promise.then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      }).catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+    });
+
+    const fetchTimeoutMs = parseInt(
+      process.env.PAPERLESS_HISTORY_TIMEOUT_MS,
+      10
+    ) || 5000;
+
+    const [docResult, contentResult] = await Promise.allSettled([
+      withTimeout(paperlessService.getDocument(documentId), fetchTimeoutMs),
+      withTimeout(paperlessService.getDocumentContent(documentId), fetchTimeoutMs)
     ]);
 
-    const tags = Array.isArray(document?.tags)
-      ? await Promise.all(document.tags.map(async tagId => {
-          const tagName = await paperlessService.getTagTextFromId(tagId);
-          return tagName || `Tag ${tagId}`;
-        }))
+    if (docResult.status === 'fulfilled') {
+      document = docResult.value;
+    } else if (docResult.reason) {
+      console.warn('[WARN] history document fetch failed:', docResult.reason.message);
+    }
+
+    if (contentResult.status === 'fulfilled') {
+      content = contentResult.value;
+    } else if (contentResult.reason) {
+      console.warn('[WARN] history content fetch failed:', contentResult.reason.message);
+    }
+
+    const parseTagIds = (value) => {
+      if (!value) return [];
+      if (Array.isArray(value)) return value;
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    };
+
+    const resolveWithTimeout = async (promise, fallback, label) => {
+      try {
+        return await withTimeout(promise, fetchTimeoutMs);
+      } catch (error) {
+        if (label) {
+          console.warn(`[WARN] ${label} timeout`, error.message);
+        }
+        return fallback;
+      }
+    };
+
+    const resolveTagName = async (tagId) => {
+      const name = await resolveWithTimeout(
+        paperlessService.getTagTextFromId(tagId),
+        null,
+        `tag ${tagId}`
+      );
+      return name || `Tag ${tagId}`;
+    };
+
+    const fallbackHistory = !document
+      ? await documentModel.getHistory(documentId)
+      : null;
+
+    const tagIds = parseTagIds(document?.tags || fallbackHistory?.tags);
+
+    const tags = tagIds.length
+      ? await Promise.all(tagIds.map(resolveTagName))
       : [];
 
     // Build tag objects for templates that expect id/name pairs
-    const tagObjects = Array.isArray(document?.tags)
-      ? await Promise.all(document.tags.map(async tagId => {
-          const tagName = await paperlessService.getTagTextFromId(tagId);
-          return { id: tagId, name: tagName || `Tag ${tagId}` };
+    const tagObjects = tagIds.length
+      ? await Promise.all(tagIds.map(async tagId => {
+          const tagName = await resolveTagName(tagId);
+          return { id: tagId, name: tagName };
         }))
       : [];
 
-    let correspondentName = 'Not assigned';
+    let correspondentName = fallbackHistory?.correspondent || 'Not assigned';
     if (document?.correspondent) {
-      const correspondent = await paperlessService.getCorrespondentNameById(document.correspondent);
-      correspondentName = correspondent?.name || correspondent?.value || correspondentName;
+      const correspondent = await resolveWithTimeout(
+        paperlessService.getCorrespondentNameById(document.correspondent),
+        null,
+        `correspondent ${document.correspondent}`
+      );
+      correspondentName = correspondent?.name ||
+        correspondent?.value || correspondentName;
     }
 
     const correspondentId = document?.correspondent || null;
     const documentType = document?.document_type || document?.type || null;
     const modifiedAt = document?.modified || document?.modified_at || null;
-    const createdAt = document?.created || document?.created_at || '';
+    const createdAt = document?.created || document?.created_at ||
+      fallbackHistory?.created_at || '';
     const paperlessBaseUrl = process.env.PAPERLESS_API_URL
       ? process.env.PAPERLESS_API_URL.replace(/\/api$/, '')
       : '';
@@ -1424,7 +1513,7 @@ router.get('/history/doc/:id', async (req, res) => {
 
     res.render('history-document', {
       documentId: document?.id || documentId,
-      title: document?.title || `Document ${documentId}`,
+      title: document?.title || fallbackHistory?.title || `Document ${documentId}`,
       content: content || 'No content available for this document.',
       tags,
       tagObjects,
@@ -4010,6 +4099,24 @@ router.post('/manual/analyze-visual', express.json(), async (req, res) => {
     const processor = new DocumentProcessor(ollamaService);
     const result = await processor.process(preparedDoc, { forceExpertPipeline: true });
 
+    const visualExecution = result?._expert_result?.result?.outputs?.visual_execution;
+    const visualMetadata = visualExecution?.metadata || visualExecution?.execution_metadata || null;
+    const visualFallback = visualMetadata?.fallback ? {
+      reason: visualMetadata.fallback_reason,
+      evidence_source: visualMetadata.evidence_source || 'visual',
+      manual_review_required: Boolean(visualMetadata.manual_review_required),
+      text_fallback_unavailable: Boolean(visualMetadata.text_fallback_unavailable),
+      error: visualMetadata.error || null
+    } : null;
+
+    if (visualFallback?.text_fallback_unavailable) {
+      return res.status(503).json({
+        success: false,
+        error: 'Text RAG unavailable while visual fallback required',
+        fallback: visualFallback
+      });
+    }
+
     // Step 6: Extract and save overlays if overlay extraction is enabled
     let overlayCount = 0;
     if (config.visualRagSidecar?.enableOverlayExtraction && result.overlays) {
@@ -4045,7 +4152,8 @@ router.post('/manual/analyze-visual', express.json(), async (req, res) => {
         domain: result.domain,
         confidence: result.confidence
       },
-      overlayCount
+      overlayCount,
+      fallback: visualFallback
     });
 
   } catch (error) {

@@ -14,7 +14,7 @@
     "verification:e2e:report": "npx playwright show-report test-results/playwright-report",
     "verification:e2e:ui": "npx playwright test --ui --config=test/playwright.config.ts",
     "dev": "node scripts/dev-server.js",
-    "build:island-runtime": "node scripts/build-island-runtime.js",
+    "build:islands": "vite build --config vite.config.ts",
     "check:island-runtime": "node scripts/check-island-runtime.js",
     "env:sync": "bash scripts/sync_dotenv_from_compose_env.sh || pwsh -NoProfile -File scripts/sync_dotenv_from_compose_env.ps1",
     "env:validate": "python scripts/validate_env_py.py"
@@ -78,6 +78,7 @@
     "@grpc/grpc-js": "^1.11.5",
     "@grpc/proto-loader": "^0.7.13",
     "@playwright/test": "^1.43.0",
+    "@preact/preset-vite": "^2.10.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "^25.0.3",
     "c8": "^9.1.0",
@@ -91,7 +92,8 @@
     "preact": "^10.28.2",
     "prettier": "^3.5.3",
     "supertest": "^6.3.3",
-    "ts-node": "^10.9.1"
+    "ts-node": "^10.9.1",
+    "vite": "^5.4.10"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

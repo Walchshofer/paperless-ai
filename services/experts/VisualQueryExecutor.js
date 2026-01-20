@@ -358,6 +358,8 @@ class VisualQueryExecutor {
         } catch (error) {
             const latency = Date.now() - startTime;
             const isTimeout = error.message?.includes('timeout') || latency >= this.config.hardTimeout;
+            const errorStatus = error?.status;
+            const errorType = error?.type;
 
             this._updateStats(false, isTimeout, latency);
             if (isTimeout && this.metricsCollector?.recordVisualQueryTimeout) {
@@ -379,6 +381,8 @@ class VisualQueryExecutor {
                 success: false,
                 query,
                 error: error.message,
+                error_status: errorStatus,
+                error_type: errorType,
                 isTimeout,
                 bounding_boxes: [],
                 latency
@@ -724,6 +728,8 @@ class VisualQueryExecutor {
         const failed = queryResults.filter(r => !r.success).length;
         const timeouts = queryResults.filter(r => r.isTimeout).length;
         const totalLatency = queryResults.reduce((sum, r) => sum + (r.latency || 0), 0);
+        const errorStatus = queryResults.find(r => r.error_status)?.error_status || null;
+        const errorType = queryResults.find(r => r.error_type)?.error_type || null;
 
         return {
             total_queries_executed: queryResults.length,
@@ -734,7 +740,9 @@ class VisualQueryExecutor {
             total_latency_ms: totalLatency,
             average_query_latency_ms: queryResults.length > 0 ? totalLatency / queryResults.length : 0,
             visual_confirmation_rate: successful / Math.max(1, queryResults.length),
-            execution_duration_ms: Date.now() - startTime
+            execution_duration_ms: Date.now() - startTime,
+            error_status: errorStatus,
+            error_type: errorType
         };
     }
 
@@ -761,7 +769,9 @@ class VisualQueryExecutor {
                 execution_duration_ms: Date.now() - startTime,
                 fallback: true,
                 fallback_reason: reason,
-                error: error?.message
+                error: error?.message,
+                error_status: error?.status || null,
+                error_type: error?.type || null
             }
         };
     }

@@ -14,6 +14,8 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Red Pen Visual Search Flow', () => {
   const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
+  const HISTORY_DOC_ID =
+    process.env.PLAYWRIGHT_HISTORY_DOC_ID || '1';
 
   // Helper to handle login if required
   async function handleLogin(page: any, targetUrl: string) {
@@ -49,8 +51,9 @@ test.describe('Red Pen Visual Search Flow', () => {
     return response;
   }
 
+
   test('Red Pen toggle enables drawing mode', async ({ page }) => {
-    const url = `${BASE_URL}/history/1`;
+    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
     const response = await handleLogin(page, url);
 
     if (!response || response.status() >= 400) {
@@ -84,7 +87,7 @@ test.describe('Red Pen Visual Search Flow', () => {
   test('Drawing a box triggers visual-search-requested event', async ({
     page
   }) => {
-    const url = `${BASE_URL}/history/1`;
+    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
     const response = await handleLogin(page, url);
 
     if (!response || response.status() >= 400) {
@@ -149,7 +152,7 @@ test.describe('Red Pen Visual Search Flow', () => {
   });
 
   test('Small box shows warning message', async ({ page }) => {
-    const url = `${BASE_URL}/history/1`;
+    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
     const response = await handleLogin(page, url);
 
     if (!response || response.status() >= 400) {
@@ -198,7 +201,7 @@ test.describe('Red Pen Visual Search Flow', () => {
   });
 
   test('Clear boxes button removes all selections', async ({ page }) => {
-    const url = `${BASE_URL}/history/1`;
+    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
     const response = await handleLogin(page, url);
 
     if (!response || response.status() >= 400) {
@@ -252,7 +255,7 @@ test.describe('Red Pen Visual Search Flow', () => {
   test('503 Initializing state shows GPU loading indicator', async ({
     page
   }) => {
-    const url = `${BASE_URL}/history/1`;
+    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
     const response = await handleLogin(page, url);
 
     if (!response || response.status() >= 400) {
@@ -318,7 +321,7 @@ test.describe('Red Pen Visual Search Flow', () => {
   });
 
   test('Successful search displays MaxSim results', async ({ page }) => {
-    const url = `${BASE_URL}/history/1`;
+    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
     const response = await handleLogin(page, url);
 
     if (!response || response.status() >= 400) {
@@ -388,7 +391,7 @@ test.describe('Red Pen Visual Search Flow', () => {
   test('Full E2E flow: Draw → Search → Switch to Similar tab', async ({
     page
   }) => {
-    const url = `${BASE_URL}/history/1`;
+    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
     const response = await handleLogin(page, url);
 
     if (!response || response.status() >= 400) {

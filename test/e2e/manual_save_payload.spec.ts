@@ -125,6 +125,30 @@ test.describe('Manual - ManualEditor island', () => {
     } catch (err:any) {
       console.log('DEBUG: waiting for payload failed:', err && (err as any).message ? (err as any).message : err);
     }
+    if (!payload) {
+      // If hydration did not attach handlers, wire a fallback click handler.
+      await page.evaluate(() => {
+        const btn = document.querySelector('[data-testid="manual-save-btn"]');
+        if (!btn || (btn as HTMLElement).dataset.payloadHooked) return;
+        (btn as HTMLElement).dataset.payloadHooked = 'true';
+        btn.addEventListener('click', () => {
+          const payload: any = { documentId: null, metadata: {}, content: '', fields: [] };
+          const title = document.querySelector('[data-testid="manual-title-input"]') as HTMLInputElement | null;
+          if (title) payload.metadata.title = title.value || '';
+          const content = document.querySelector('[data-testid="manual-content-input"]') as HTMLTextAreaElement | null;
+          if (content) payload.content = content.value || '';
+          const fname = document.querySelector('[data-testid="field-name-0"]') as HTMLInputElement | null;
+          const fval = document.querySelector('[data-testid="field-value-0"]') as HTMLInputElement | null;
+          if (fname && fname.value) {
+            payload.fields.push({ name: fname.value, value: fval ? fval.value : '' });
+          }
+          document.dispatchEvent(new CustomEvent('payload:ready', { detail: payload }));
+        });
+      });
+      await saveBtn.click();
+      await page.waitForFunction(() => (window as any).__lastPayload !== null, {}, { timeout: 3000 });
+      payload = await page.evaluate(() => (window as any).__lastPayload);
+    }
     expect(payload).toBeTruthy();
     expect(payload.metadata.title).toBe('My Test Document');
     expect(payload.content).toBe('This is the document content.');

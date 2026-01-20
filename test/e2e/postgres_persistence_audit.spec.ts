@@ -13,14 +13,14 @@ const TEST_DOC_ID = Number(process.env.TEST_DOC_ID || '1');
 
 test.describe('PostgreSQL Persistence Audit', () => {
   const testRequestId = `e2e-pg-audit-${Date.now()}`;
-  let createdEventIds: number[] = [];
+  let createdEventIds: string[] = [];
 
   // Clean up test data after suite
   test.afterAll(async () => {
     if (createdEventIds.length > 0) {
       try {
         await queryDb(
-          'DELETE FROM feedback_events WHERE id = ANY($1::int[])',
+          'DELETE FROM feedback_events WHERE id::text = ANY($1::text[])',
           [createdEventIds]
         );
       } catch (err) {
@@ -75,7 +75,7 @@ test.describe('PostgreSQL Persistence Audit', () => {
     }
 
     // Track for cleanup
-    if (row?.id) createdEventIds.push(row.id);
+    if (row?.id) createdEventIds.push(String(row.id));
 
     // Verify required fields
     expect(row).toBeTruthy();
@@ -161,7 +161,7 @@ test.describe('PostgreSQL Persistence Audit', () => {
 
     // Track for cleanup
     rows.forEach((r: any) => {
-      if (r.id) createdEventIds.push(r.id);
+      if (r.id) createdEventIds.push(String(r.id));
     });
 
     // Should have all 3 events
@@ -197,7 +197,7 @@ test.describe('PostgreSQL Persistence Audit', () => {
       data: {
         documentId: TEST_DOC_ID,
         events: [{
-          event_type: 'annotation',
+          event_type: 'correction',
           field_name: 'complex_test',
           corrected_value: complexValue,
           context: { test_id: complexRequestId }
@@ -231,7 +231,7 @@ test.describe('PostgreSQL Persistence Audit', () => {
     }
 
     const row = rows[0];
-    createdEventIds.push(row.id);
+    createdEventIds.push(String(row.id));
 
     // Parse the corrected_value
     const stored = typeof row.corrected_value === 'string'
@@ -294,7 +294,7 @@ test.describe('PostgreSQL Persistence Audit', () => {
     }
 
     const row = rows[0];
-    createdEventIds.push(row.id);
+    createdEventIds.push(String(row.id));
 
     // The request_id should be stored in context
     const context = row.context || {};

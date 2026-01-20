@@ -179,25 +179,29 @@ describe('Bias Engine Integration', function() {
                 getBiasEngineUrl(),
                 grpc.credentials.createInsecure()
             );
-
-            // Act
             const deadline = Date.now() + 5000;
 
-            // Assert
-            return new Promise((resolve) => {
-                client.waitForReady(deadline, (err) => {
-                    if (err) {
-                        console.log(`Bias engine not reachable at ${getBiasEngineUrl()}`);
-                        this.skip();
-                        return;
-                    }
-                    assert.ok(true, 'Bias engine is reachable');
-                    if (typeof client.close === 'function') {
-                        client.close();
-                    }
-                    resolve();
+            try {
+                await new Promise((resolve, reject) => {
+                    client.waitForReady(deadline, (err) => {
+                        if (err) {
+                            reject(err);
+                            return;
+                        }
+                        resolve();
+                    });
                 });
-            });
+            } catch (err) {
+                console.log(`Bias engine not reachable at ${getBiasEngineUrl()}`);
+                this.skip();
+                return;
+            } finally {
+                if (typeof client.close === 'function') {
+                    client.close();
+                }
+            }
+
+            assert.ok(true, 'Bias engine is reachable');
         });
     });
 
@@ -206,30 +210,34 @@ describe('Bias Engine Integration', function() {
             // Arrange
             const metricsUrl = getMetricsUrl();
 
-            // Act & Assert
-            return new Promise((resolve) => {
-                const req = http.get(metricsUrl, (res) => {
-                    assert.strictEqual(res.statusCode, 200, 'Metrics endpoint should return 200');
+            try {
+                const data = await new Promise((resolve, reject) => {
+                    const req = http.get(metricsUrl, (res) => {
+                        if (res.statusCode !== 200) {
+                            reject(new Error(`Metrics endpoint returned ${res.statusCode}`));
+                            return;
+                        }
 
-                    let data = '';
-                    res.on('data', chunk => data += chunk);
-                    res.on('end', () => {
-                        assert.ok(data.includes('bias_requests_total'), 'Should include request counter');
-                        assert.ok(data.includes('bias_computation_seconds'), 'Should include timing metric');
-                        resolve();
+                        let body = '';
+                        res.on('data', chunk => {
+                            body += chunk;
+                        });
+                        res.on('end', () => resolve(body));
+                    });
+
+                    req.on('error', reject);
+                    req.setTimeout(5000, () => {
+                        req.destroy();
+                        reject(new Error('Metrics endpoint timeout'));
                     });
                 });
 
-                req.on('error', () => {
-                    console.log('Metrics endpoint not reachable, skipping');
-                    this.skip();
-                });
-
-                req.setTimeout(5000, () => {
-                    req.destroy();
-                    this.skip();
-                });
-            });
+                assert.ok(data.includes('bias_requests_total'), 'Should include request counter');
+                assert.ok(data.includes('bias_computation_seconds'), 'Should include timing metric');
+            } catch (err) {
+                console.log('Metrics endpoint not reachable, skipping');
+                this.skip();
+            }
         });
     });
 
@@ -389,21 +397,26 @@ describe('Guidance Service with Bias Engine', function() {
 
         const guidanceUrl = getGuidanceUrl();
 
-        return new Promise((resolve) => {
-            const req = http.get(`${guidanceUrl}/health`, (res) => {
-                if (res.statusCode === 200) {
-                    assert.ok(true, 'Guidance service is healthy');
-                    resolve();
-                } else {
-                    this.skip();
-                }
+        try {
+            await new Promise((resolve, reject) => {
+                const req = http.get(`${guidanceUrl}/health`, (res) => {
+                    if (res.statusCode === 200) {
+                        resolve();
+                        return;
+                    }
+                    reject(new Error(`Guidance health returned ${res.statusCode}`));
+                });
+
+                req.on('error', reject);
+                req.setTimeout(5000, () => {
+                    req.destroy();
+                    reject(new Error('Guidance health timeout'));
+                });
             });
 
-            req.on('error', () => this.skip());
-            req.setTimeout(5000, () => {
-                req.destroy();
-                this.skip();
-            });
-        });
+            assert.ok(true, 'Guidance service is healthy');
+        } catch (err) {
+            this.skip();
+        }
     });
 });
