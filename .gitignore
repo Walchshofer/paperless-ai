@@ -179,22 +179,35 @@ logs/*
 # ============================================================================
 # Playwright & E2E Artifacts (do not commit test artifacts)
 # ============================================================================
-# Playwright test outputs and traces
+# Playwright test outputs and traces (ignore per-run artifact dirs and granular artifacts)
 test-results/
 test-results/**
+# Per-run Playwright artifact directories
+test-results/**/.playwright-artifacts-*
+# Traces / screenshots / videos (store under test-results)
+test-results/**/traces/
+test-results/**/screenshots/
+test-results/**/videos/
+test-results/**/trace.zip
+# Friendly patterns produced by Playwright runs
+test-results/**/test-failed-*.png
 test-logs/
 test-logs/**
 playwright-report/
 playwright-report/**
 # Playwright trace file patterns
 *.trace
-*.trace.zip
-# Screenshots and videos
+# Screenshots and videos (also ignore any media files under test-results)
 *.png
 *.webp
 *.mp4
 .videos/
 .screenshots/
+
+# Sensitive or local-only artifacts
+.planning/
+test/.auth/
+test/artifacts/
 # ============================================================================
 # Project-Specific: Build & Distribution
 # ============================================================================
