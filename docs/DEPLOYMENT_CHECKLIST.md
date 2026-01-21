@@ -45,6 +45,19 @@ services:
     command: python codex-bridge.py
 ```
 
+### Docker registry credentials 💡
+If you encounter `error from registry: unauthorized` when `docker compose` pulls images, ensure the following before retrying:
+
+- Authenticate to the registries that host the images (examples):
+  - `docker login ghcr.io` (GitHub Container Registry; use a Personal Access Token with `read:packages` scope)
+  - `docker login` (Docker Hub)
+- Inspect `%USERPROFILE%\\.docker\\config.json` for expired credentials or custom credential helpers and clear/re-authenticate if needed.
+- After authenticating, run:
+  ```bash
+  docker compose --env-file docker-compose.env pull
+  docker compose --env-file docker-compose.env up -d --build
+  ```
+
 - Ensure `CODEX_BRIDGE_LOG_FILE` points to a writable path and logs are rotated by your logging/host agent.
 
 ## Verification

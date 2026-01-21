@@ -21,7 +21,7 @@ All runtime variables for Paperless-NGX + paperless-ai should live there. Other
 > See also: the migration guide: `docs/ENV_DOTENV_MIGRATION.md` — provides a step-by-step checklist for migrating to a repo-root `.env` compatibility file and CI validation flows.
 
 
-We audited `docs/ENVIRONMENT_VARIABLES.md` against the authoritative `paperless-ngx/docker-compose.env` and `paperless-ngx/docker-compose.yml` and found these practical gaps and pain points:
+We audited `docs/ENVIRONMENT_VARIABLES.md` against the authoritative `paperless-ai/docker-compose.env` and `paperless-ai/docker-compose.yml` and found these practical gaps and pain points:
 
 - **Index-name inconsistency (HIGH RISK)**: Some code and tools reference `DEFAULT_INDEX_NAME`, while compose and docs recommend `VISUAL_RAG_INDEX_NAME`. This creates brittle config and test failures. Recommendation: standardize on `VISUAL_RAG_INDEX_NAME` and maintain `DEFAULT_INDEX_NAME` as a backward-compatible alias (e.g., set `DEFAULT_INDEX_NAME=${VISUAL_RAG_INDEX_NAME}` in `docker-compose.env`).
 
@@ -46,12 +46,12 @@ We audited `docs/ENVIRONMENT_VARIABLES.md` against the authoritative `paperless-
 ---
 
 ## Recommended env-management strategy (simple, safe) ✅
-Goal: keep `paperless-ngx/docker-compose.env` as the single source of truth while making device/service-specific mappings explicit and testable.
+Goal: keep `paperless-ai/docker-compose.env` as the single source of truth while making device/service-specific mappings explicit and testable.
 
 1. **Canonical names & safe aliases**
    - Pick canonical env names for service-critical settings. Example for Visual RAG:
      - Canonical: `VISUAL_RAG_INDEX_NAME`, `VISUAL_RAG_INDEX_DIR`, `VISUAL_RAG_TIMEOUT`, `MEDIA_DIR`
-     - Back-compat alias: set `DEFAULT_INDEX_NAME=${VISUAL_RAG_INDEX_NAME}` in `docker-compose.env`
+     - Back-compat alias: set `DEFAULT_INDEX_NAME=${VISUAL_RAG_INDEX_NAME}` in `paperless-ai/docker-compose.env`
    - Document the canonical names in `docs/ENVIRONMENT_VARIABLES.md` and mark aliases as compat-only.
 
 > CI: A GitHub Actions workflow `validate-env` runs on PRs and `main`. It attempts to generate a compatibility `.env` from `docker-compose.env` (repo root) and runs `scripts/validate_env_py.py` and the unit tests. The job will fail when required variables are missing or empty; this prevents changes that break the env contract from being merged.

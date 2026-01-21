@@ -9,12 +9,17 @@ Implements 320-dim ColQwen3-4B-AWQ model with:
 - Python Detox standards (005.5)
 """
 # Standard library imports
+import asyncio
 import base64
+import binascii
 import glob
 import io
 import logging
 import os
+import threading
 import time
+from collections.abc import AsyncIterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
@@ -36,6 +41,7 @@ from qdrant_client.models import (  # type: ignore
     VectorParams,  # type: ignore
 )
 from transformers import AutoModel, AutoProcessor  # type: ignore
+from prometheus_fastapi_instrumentator import Instrumentator  # type: ignore
 
 
 # --- Configuration ---
@@ -46,6 +52,7 @@ ALLOWED_MODELS = {
 }
 DEFAULT_MODEL = "TomoroAI/tomoro-colqwen3-embed-4b"
 MODEL_ID = os.getenv("VISUAL_RAG_MODEL", DEFAULT_MODEL)
+MODEL_REVISION = os.getenv("MODEL_REVISION", "main")
 EXPECTED_EMBEDDING_DIM = 320  # ColQwen3 native dimension
 
 # Enforce model ID matches allowed models
@@ -57,29 +64,61 @@ if MODEL_ID not in ALLOWED_MODELS:
         )
     )
 
-INDEX_DIR = Path(os.getenv("INDEX_DIR", "/data/indices"))
-DEVICE = "cuda"
+# Attention implementation: sdpa (default), flash_attention_2, eager
+ATTN_IMPLEMENTATION = os.getenv("ATTN_IMPLEMENTATION", "sdpa")
+
+# Offline mode configuration
+OFFLINE_MODE = os.getenv("HF_HUB_OFFLINE", "0") == "1"
+
+# Qdrant configuration
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
-QDRANT_PORT = int(os.getenv("QDRANT_PORT", 6333))
-DPI = int(os.getenv("VISION_RENDER_DPI", 300))
+QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
+REQUIRE_QDRANT = os.getenv("REQUIRE_QDRANT", "false").lower() == "true"
+
+# Index and device configuration
+INDEX_DIR = Path(os.getenv("INDEX_DIR", "/data/indices"))
+DEVICE = os.getenv("DEVICE", "cuda")
+DPI = int(os.getenv("VISION_RENDER_DPI", "300"))
+
+# Resource limits
+MAX_IMAGE_SIZE_MB = int(os.getenv("MAX_IMAGE_SIZE_MB", "50"))
+MAX_PDF_SIZE_MB = int(os.getenv("MAX_PDF_SIZE_MB", "100"))
+MAX_PRELOAD_INDICES = int(os.getenv("MAX_PRELOAD_INDICES", "1000"))
+
+# Allowed paths for directory indexing (security)
+ALLOWED_INDEX_PATHS_ENV = os.getenv(
+    "ALLOWED_INDEX_PATHS",
+    "/data/documents,/data/imports"
+)
+ALLOWED_INDEX_PATHS = [
+    Path(p.strip()).resolve()
+    for p in ALLOWED_INDEX_PATHS_ENV.split(",")
+    if p.strip()
+]
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("visual_rag_native")
 
+# Thread pool for blocking I/O operations
+io_executor = ThreadPoolExecutor(max_workers=4)
 
-# --- Visual Qdrant Adapter (Singleton) - ticket:005.3 ---
+
+# --- Visual Qdrant Adapter (Thread-Safe Singleton) - ticket:005.3 ---
 class VisualQdrantAdapter:
     """
-    Singleton Qdrant adapter for visual RAG collections (ticket:005.3).
+    Thread-safe singleton Qdrant adapter for visual RAG collections.
     """
 
     _instance: Optional["VisualQdrantAdapter"] = None
+    _lock = threading.Lock()
 
     def __new__(cls) -> "VisualQdrantAdapter":
-        """Singleton pattern."""
+        """Thread-safe singleton pattern with double-check locking."""
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._initialized = False  # type: ignore
         return cls._instance
 
     def __init__(self) -> None:
@@ -90,7 +129,7 @@ class VisualQdrantAdapter:
 
         self.host = QDRANT_HOST
         self.port = QDRANT_PORT
-        self.client: Any = None  # type: ignore
+        self.client: Any = None
         self.collections = {"visual_pages", "visual_overlays"}
 
     def connect(self) -> bool:
@@ -104,7 +143,7 @@ class VisualQdrantAdapter:
             return True
         except Exception as exc:
             logger.error("⚠️ Qdrant connection failed: %s", exc)
-            self.client = None  # type: ignore
+            self.client = None
             return False
 
     def ensure_collections(self) -> None:
@@ -114,31 +153,33 @@ class VisualQdrantAdapter:
 
         for coll_name in self.collections:
             try:
-                resp: Any = self.client.get_collections()  # type: ignore
+                resp: Any = self.client.get_collections()
                 exists = any(
-                    c.name == coll_name  # type: ignore
-                    for c in resp.collections  # type: ignore
+                    c.name == coll_name
+                    for c in resp.collections
                 )
 
                 if exists:
                     # Validate Distance Metric Lock
-                    info = self.client.get_collection(  # type: ignore
-                        coll_name
-                    )
-                    cfg: Any = info.config.params.vectors  # type: ignore
+                    info = self.client.get_collection(coll_name)
+                    cfg: Any = info.config.params.vectors
                     if isinstance(cfg, dict):
-                        page_cfg = cfg.get("page_embedding")  # type: ignore
+                        page_cfg: Any = cfg.get(  # type: ignore
+                            "page_embedding"
+                        )
                         if page_cfg:
-                            dist = page_cfg.distance  # type: ignore
+                            dist: Any = (  # type: ignore
+                                page_cfg.distance
+                            )
                             if dist != Distance.DOT:  # type: ignore
                                 logger.warning(
-                                    "Distance mismatch in %s: %s != DOT",
+                                    "Distance mismatch in %s: %s",
                                     coll_name, dist  # type: ignore
                                 )
                     logger.info("Collection '%s' verified", coll_name)
                 else:
                     logger.info("Creating collection '%s'", coll_name)
-                    self.client.create_collection(  # type: ignore
+                    self.client.create_collection(
                         collection_name=coll_name,
                         vectors_config={
                             "page_embedding": VectorParams(
@@ -166,7 +207,7 @@ class VisualQdrantAdapter:
 
         for field_name, schema_type in fields:
             try:
-                self.client.create_payload_index(  # type: ignore
+                self.client.create_payload_index(
                     collection_name=collection_name,
                     field_name=field_name,
                     field_schema=schema_type,
@@ -181,9 +222,7 @@ class VisualQdrantAdapter:
     def build_filter(
         self, filters: Optional["SearchFilters"]
     ) -> Optional[Any]:
-        """
-        Build Qdrant Filter from SearchFilters (ticket:005.3).
-        """
+        """Build Qdrant Filter from SearchFilters."""
         if not filters:
             return None
 
@@ -218,7 +257,7 @@ class VisualQdrantAdapter:
         if not conditions:
             return None
 
-        return Filter(must=conditions)  # type: ignore[call-arg]
+        return Filter(must=conditions)  # type: ignore
 
     def search(
         self,
@@ -227,16 +266,14 @@ class VisualQdrantAdapter:
         limit: int = 5,
         filters: Optional["SearchFilters"] = None
     ) -> List[Dict[str, Any]]:
-        """
-        Search with Expert Filtering (ticket:005.3).
-        """
+        """Search with Expert Filtering."""
         if not self.client:
             raise RuntimeError("Qdrant not connected")
 
         if collection_name not in self.collections:
             raise ValueError(f"Invalid collection: {collection_name}")
 
-        query_filter = self.build_filter(filters)  # type: ignore
+        query_filter = self.build_filter(filters)
 
         hits: Any = self.client.search(
             collection_name=collection_name,
@@ -247,12 +284,12 @@ class VisualQdrantAdapter:
 
         return [
             {
-                "doc_id": (  # type: ignore
-                    h.payload.get("doc_id")  # type: ignore
-                    if h.payload else h.id  # type: ignore
+                "doc_id": (
+                    h.payload.get("doc_id")
+                    if h.payload else h.id
                 ),
-                "score": h.score,  # type: ignore
-                "payload": h.payload  # type: ignore
+                "score": h.score,
+                "payload": h.payload
             }
             for h in hits
         ]
@@ -293,16 +330,14 @@ class VisualQdrantAdapter:
 
             for coll_name in self.collections:
                 try:
-                    info = self.client.get_collection(
-                        coll_name
-                    )
+                    info = self.client.get_collection(coll_name)
                     points = int(
-                        getattr(info, "points_count", 0) or 0  # type: ignore
+                        getattr(info, "points_count", 0) or 0
                     )
                     details[coll_name] = {
                         "exists": True,
                         "point_count": points,
-                        "status": str(info.status),  # type: ignore
+                        "status": str(info.status),
                     }
                     total_points += points
                 except Exception:
@@ -321,7 +356,7 @@ class VisualQdrantAdapter:
             return {"healthy": False, "error": str(e)}
 
 
-# Singleton instance (ticket:005.3)
+# Singleton instance
 qdrant_adapter = VisualQdrantAdapter()
 
 
@@ -345,16 +380,14 @@ class IndexDirectoryRequest(BaseModel):
 
 
 class SearchFilters(BaseModel):
-    """Expert Filtering options for search (ticket:005.2)."""
+    """Expert Filtering options for search."""
     doc_id: Optional[int] = None
     tag_ids: Optional[List[int]] = None
     correspondent_id: Optional[int] = None
 
 
 class SearchRequest(BaseModel):
-    """
-    Search request for text and image queries (ticket:005.2).
-    """
+    """Search request for text and image queries."""
     query: Optional[str] = Field(
         default=None,
         description="Text query (backward compatible alias)"
@@ -383,7 +416,7 @@ class SearchRequest(BaseModel):
 
 
 class SearchResult(BaseModel):
-    """Individual search result (ticket:005.2)."""
+    """Individual search result."""
     doc_id: int
     score: float
     page_num: Optional[int] = None
@@ -391,7 +424,7 @@ class SearchResult(BaseModel):
 
 
 class SearchResponse(BaseModel):
-    """Search response with MaxSim scoring (ticket:005.2)."""
+    """Search response with MaxSim scoring."""
     results: List[SearchResult]
     score_type: str = Field(
         default="maxsim",
@@ -405,9 +438,7 @@ class SearchResponse(BaseModel):
 
 
 class GlobalState:
-    """
-    Initialization state for 503 response (ticket:005.4).
-    """
+    """Initialization state for 503 response."""
     model: Any = None
     processor: Any = None
     qdrant: Any = None
@@ -440,9 +471,7 @@ state = GlobalState()
 
 
 def _check_ready_or_503() -> None:
-    """
-    Raise 503 if initializing (ticket:005.4).
-    """
+    """Raise 503 if initializing."""
     if state.initializing:
         raise HTTPException(
             status_code=503,
@@ -455,43 +484,102 @@ def _check_ready_or_503() -> None:
         )
 
 
-def _decode_base64_image(image_b64: str) -> Any:
-    """
-    Decode and validate a Base64 encoded image (ticket:005.2).
-    """
+def _validate_base64_size(
+    data_b64: str,
+    max_size_mb: int,
+    data_type: str = "data"
+) -> None:
+    """Validate base64 encoded data size before decoding."""
+    # Base64 is approximately 4/3 of original size
+    estimated_size = len(data_b64) * 3 // 4
+    max_bytes = max_size_mb * 1024 * 1024
+
+    if estimated_size > max_bytes:
+        size_mb = estimated_size // (1024 * 1024)
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"{data_type} too large: ~{size_mb}MB "
+                f"exceeds limit of {max_size_mb}MB"
+            )
+        )
+
+
+def _decode_base64_image(
+    image_b64: str,
+    max_size_mb: int = MAX_IMAGE_SIZE_MB
+) -> Any:
+    """Decode and validate a Base64 encoded image with size limit."""
+    _validate_base64_size(image_b64, max_size_mb, "Image")
+
     try:
         img_data = base64.b64decode(image_b64)
+
+        # Double-check decoded size
+        if len(img_data) > max_size_mb * 1024 * 1024:
+            size_mb = len(img_data) // (1024 * 1024)
+            raise HTTPException(
+                status_code=413,
+                detail=f"Decoded image too large: {size_mb}MB"
+            )
+
         img: Any = Image.open(io.BytesIO(img_data))  # type: ignore
 
         # Validate format is supported
-        formats = ("JPEG", "PNG", "BMP", "TIFF", "WEBP", None)
-        if img.format not in formats:  # type: ignore
+        supported_formats = ("JPEG", "PNG", "BMP", "TIFF", "WEBP", None)
+        img_format: Any = img.format  # type: ignore
+        if img_format not in supported_formats:
             raise HTTPException(
                 status_code=400,
-                detail=(
-                    f"Unsupported image format: {img.format}"  # type: ignore
-                )
+                detail=f"Unsupported image format: {img_format}"
             )
 
         return cast(Any, img.convert("RGB"))  # type: ignore
-    except base64.binascii.Error as e:  # type: ignore
+    except binascii.Error as e:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid Base64 encoding: {e}"
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        if isinstance(e, HTTPException):
-            raise
         raise HTTPException(
             status_code=400,
             detail=f"Failed to decode image: {e}"
         )
 
 
+def _validate_directory_path(path: str) -> Path:
+    """Validate that path is within allowed directories."""
+    try:
+        req_path = Path(path).resolve()
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid path: {e}"
+        )
+
+    if not ALLOWED_INDEX_PATHS:
+        raise HTTPException(
+            status_code=403,
+            detail="No allowed index paths configured"
+        )
+
+    for allowed in ALLOWED_INDEX_PATHS:
+        try:
+            req_path.relative_to(allowed)
+            return req_path
+        except ValueError:
+            continue
+
+    raise HTTPException(
+        status_code=403,
+        detail=f"Path not allowed. Must be under: {ALLOWED_INDEX_PATHS}"
+    )
+
+
 def _validate_model_dimensions(model: Any, processor: Any) -> None:
-    """
-    Validate ColQwen3 model outputs 320-dimensional embeddings.
-    """
+    """Validate ColQwen3 model outputs expected dimensional embeddings."""
     logger.info("Validating model dimensions...")
 
     config: Any = getattr(model, "config", None)
@@ -501,11 +589,9 @@ def _validate_model_dimensions(model: Any, processor: Any) -> None:
 
         if proj_dim is not None and proj_dim != EXPECTED_EMBEDDING_DIM:
             raise RuntimeError(
-                (
-                    f"Architecture mismatch: model projection_dim={proj_dim}, "
-                    f"expected {EXPECTED_EMBEDDING_DIM}. "
-                    "Only ColQwen3-4B-AWQ (320-dim) is supported."
-                )
+                f"Architecture mismatch: model projection_dim={proj_dim}, "
+                f"expected {EXPECTED_EMBEDDING_DIM}. "
+                "Only ColQwen3-4B-AWQ (320-dim) is supported."
             )
 
         logger.info(
@@ -514,15 +600,12 @@ def _validate_model_dimensions(model: Any, processor: Any) -> None:
         )
 
     try:
-        from PIL import Image as PILImage  # type: ignore
-        test_img: Any = PILImage.new(  # type: ignore
+        test_img: Any = Image.new(  # type: ignore
             "RGB", (224, 224), color="gray"
         )
 
         with torch.inference_mode():  # type: ignore
-            inputs: Any = processor.process_images(  # type: ignore
-                [test_img]
-            ).to(DEVICE)
+            inputs: Any = processor.process_images([test_img]).to(DEVICE)
             out: Any = model(**inputs)
             embeddings: Any = out.embeddings
 
@@ -530,12 +613,10 @@ def _validate_model_dimensions(model: Any, processor: Any) -> None:
 
             if actual_dim != EXPECTED_EMBEDDING_DIM:
                 raise RuntimeError(
-                    (
-                        f"Dimension validation failed: model outputs "
-                        f"{actual_dim}-dim embeddings, expected "
-                        f"{EXPECTED_EMBEDDING_DIM}. "
-                        "Ensure ColQwen3-4B-AWQ is loaded."
-                    )
+                    f"Dimension validation failed: model outputs "
+                    f"{actual_dim}-dim embeddings, expected "
+                    f"{EXPECTED_EMBEDDING_DIM}. "
+                    "Ensure ColQwen3-4B-AWQ is loaded."
                 )
 
             logger.info(
@@ -545,30 +626,28 @@ def _validate_model_dimensions(model: Any, processor: Any) -> None:
     except RuntimeError:
         raise
     except Exception as exc:
-        logger.warning(
-            "Could not perform runtime dimension check: %s", exc
-        )
+        logger.warning("Could not perform runtime dimension check: %s", exc)
 
 
-# --- Lifespan Manager - ticket:005.4 ---
+# --- Lifespan Manager ---
 @asynccontextmanager
-async def lifespan(_app: Any):
-    """
-    Initializes the 320-dim ColQwen3 bridge on startup.
-    """
-    logger.info("🚀 Initializing ColQwen3 (4B-AWQ) on %s...", DEVICE)
-    logger.info("Model enforcement: %s (offline mode)", MODEL_ID)
+async def lifespan(_app: Any) -> AsyncIterator[None]:
+    """Initializes the 320-dim ColQwen3 bridge on startup."""
+    logger.info("🚀 Initializing ColQwen3 (4B) on %s...", DEVICE)
+    logger.info("Model: %s (revision: %s)", MODEL_ID, MODEL_REVISION)
+    logger.info("Attention implementation: %s", ATTN_IMPLEMENTATION)
+    logger.info("Offline mode: %s", OFFLINE_MODE)
 
     try:
         # Stage 1: Load processor
         state.init_stage = "loading_processor"
         logger.info("Stage: %s", state.init_stage)
 
-        p_load: Any = AutoProcessor  # type: ignore
-        state.processor = p_load.from_pretrained(  # type: ignore
+        state.processor = AutoProcessor.from_pretrained(  # type: ignore
             MODEL_ID,
+            revision=MODEL_REVISION,
             trust_remote_code=True,
-            local_files_only=False,
+            local_files_only=OFFLINE_MODE,
             max_num_visual_tokens=1280
         )
 
@@ -576,22 +655,22 @@ async def lifespan(_app: Any):
         state.init_stage = "loading_model"
         logger.info("Stage: %s", state.init_stage)
 
-        m_load: Any = AutoModel  # type: ignore
-        state.model = m_load.from_pretrained(  # type: ignore
+        state.model = AutoModel.from_pretrained(  # type: ignore
             MODEL_ID,
+            revision=MODEL_REVISION,
             trust_remote_code=True,
-            local_files_only=False,
-            # FIX: Changed from torch_dtype to dtype
-            dtype=torch.float16,  # type: ignore
+            local_files_only=OFFLINE_MODE,
+            torch_dtype=torch.float16,  # type: ignore
             device_map=DEVICE,
-            attn_implementation="flash_attention_2"
+            attn_implementation=ATTN_IMPLEMENTATION
         ).eval()  # type: ignore
 
         # Stage 3: Validate dimensions
         state.init_stage = "validating"
         logger.info("Stage: %s", state.init_stage)
         _validate_model_dimensions(
-            state.model, state.processor  # type: ignore
+            state.model,  # type: ignore
+            state.processor  # type: ignore
         )
 
         # Stage 4: Connect Qdrant adapter
@@ -602,25 +681,55 @@ async def lifespan(_app: Any):
                 qdrant_adapter.ensure_collections()
                 state.qdrant = qdrant_adapter.client
                 logger.info("✅ Qdrant adapter initialized")
+            elif REQUIRE_QDRANT:
+                raise RuntimeError(
+                    "Qdrant connection required but failed"
+                )
             else:
-                logger.warning("⚠️ Qdrant adapter connection failed")
+                logger.warning(
+                    "⚠️ Qdrant unavailable; using local registry only"
+                )
+        except RuntimeError:
+            raise
         except Exception as exc:
+            if REQUIRE_QDRANT:
+                raise RuntimeError(
+                    f"Qdrant initialization failed: {exc}"
+                )
             logger.warning("⚠️ Qdrant initialization failed: %s", exc)
 
         # Stage 5: Load indices from disk
         state.init_stage = "loading_indices"
         logger.info("Stage: %s", state.init_stage)
         INDEX_DIR.mkdir(parents=True, exist_ok=True)
-        for p in INDEX_DIR.glob("*.pt"):
-            loaded: Any = cast(Any, torch.load(  # type: ignore
-                p, map_location="cpu", weights_only=True
-            ))
-            state.registry[p.stem] = loaded
+
+        indices = sorted(
+            INDEX_DIR.glob("*.pt"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True
+        )
+
+        loaded_count = 0
+        for p in indices[:MAX_PRELOAD_INDICES]:
+            try:
+                loaded: Any = torch.load(  # type: ignore
+                    p, map_location="cpu", weights_only=True
+                )
+                state.registry[p.stem] = loaded
+                loaded_count += 1
+            except Exception as exc:
+                logger.warning("Failed to load index %s: %s", p, exc)
+
+        if len(indices) > MAX_PRELOAD_INDICES:
+            logger.warning(
+                "Only preloaded %d of %d indices",
+                loaded_count, len(indices)
+            )
 
         # Ready: Model in VRAM, transition to 200 OK
         state.init_stage = "ready"
         state.initializing = False
-        vram_alloc = float(cast(Any, torch).cuda.memory_allocated())
+        vram_alloc = float(torch.cuda.memory_allocated())  # type: ignore
         logger.info(
             "✅ Ready. Registry size: %d, VRAM: %.2fGB",
             len(state.registry),
@@ -635,25 +744,29 @@ async def lifespan(_app: Any):
 
     yield
 
-    # Graceful shutdown: release VRAM (ticket:005.4)
+    # Graceful shutdown: release VRAM
     logger.info("🛑 Shutting down, releasing VRAM...")
     state.registry.clear()
     state.model = None
     state.processor = None
-    if cast(Any, torch).cuda.is_available():
-        cast(Any, torch).cuda.empty_cache()
+    if torch.cuda.is_available():  # type: ignore
+        torch.cuda.empty_cache()  # type: ignore
+    io_executor.shutdown(wait=True)
     logger.info("✅ Shutdown complete")
 
 
-app = FastAPI(  # type: ignore
-    title="Native ColQwen3 Visual RAG", lifespan=lifespan
+app: FastAPI = FastAPI(  # type: ignore
+    title="Native ColQwen3 Visual RAG",
+    lifespan=lifespan
 )
+Instrumentator().instrument(app).expose(app)  # type: ignore
 
 
 # --- Endpoints ---
 
 async def _process_images(
-    doc_id: int, pil_images: List[Any]
+    doc_id: int,
+    pil_images: List[Any]
 ) -> Dict[str, Any]:
     """Shared logic for processing document images."""
     doc_id_str = str(doc_id)
@@ -661,11 +774,11 @@ async def _process_images(
         with torch.inference_mode():  # type: ignore
             inputs = state.processor.process_images(pil_images).to(DEVICE)
             out = state.model(**inputs)
-            embeddings: Any = out.embeddings.to(  # type: ignore
-                torch.bfloat16  # type: ignore
-            ).cpu()
+            emb: Any = out.embeddings
+            embeddings: Any = emb.to(torch.bfloat16).cpu()  # type: ignore
 
-        torch.save(embeddings, INDEX_DIR / f"{doc_id_str}.pt")  # type: ignore
+        # Update in-memory registry for MaxSim (ephemeral)
+        # Note: Persistence is handled by Qdrant SOT below
         state.registry[doc_id_str] = embeddings
 
         if state.qdrant:
@@ -679,10 +792,13 @@ async def _process_images(
 
                 # Mean pooling for vector index
                 mean_vec: List[float] = (
-                    embeddings.float().view(-1, 320).mean(dim=0).tolist()
+                    embeddings.float()
+                    .view(-1, EXPECTED_EMBEDDING_DIM)
+                    .mean(dim=0)
+                    .tolist()
                 )
 
-                state.qdrant.upsert(  # type: ignore
+                state.qdrant.upsert(
                     collection_name="visual_pages",
                     points=[
                         PointStruct(
@@ -702,14 +818,16 @@ async def _process_images(
                     "⚠️ Qdrant sync failed for %s: %s", doc_id_str, exc
                 )
 
-        vram: float = float(cast(Any, torch).cuda.memory_allocated()) / 1e9
+        vram_used = torch.cuda.memory_allocated()  # type: ignore
+        vram_gb: float = float(vram_used) / 1e9    # type: ignore
         return {
             "status": "success",
             "doc_id": doc_id,
-            "vram_gb": f"{vram:.2f}"
+            "page_count": len(pil_images),
+            "vram_gb": f"{vram_gb:.2f}"
         }
     except Exception as exc:
-        logger.error("Index error for %s: %s", doc_id_str, exc)
+        logger.exception("Index error for %s", doc_id_str)
         raise exc
 
 
@@ -721,15 +839,18 @@ async def index_document(payload: IndexRequest) -> Dict[str, Any]:
     try:
         pil_images: List[Any] = []
         for img_b64 in payload.images:
-            img_data = base64.b64decode(img_b64)
-            img: Any = Image.open(  # type: ignore
-                io.BytesIO(img_data)
-            ).convert("RGB")
+            img = _decode_base64_image(img_b64)
             pil_images.append(img)
 
         return await _process_images(payload.doc_id, pil_images)
-    except Exception:
-        raise HTTPException(status_code=500, detail="Indexing failure")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Indexing failed for doc %s", payload.doc_id)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Indexing failure: {type(exc).__name__}"
+        )
 
 
 @app.post("/index/pdf")  # type: ignore
@@ -738,14 +859,35 @@ async def index_pdf(payload: IndexPdfRequest) -> Dict[str, Any]:
     _check_ready_or_503()
 
     try:
+        _validate_base64_size(payload.pdf_data, MAX_PDF_SIZE_MB, "PDF")
+
         pdf_bytes = base64.b64decode(payload.pdf_data)
-        pil_images: List[Any] = list(convert_from_bytes(  # type: ignore
-            pdf_bytes, dpi=DPI, fmt="jpeg", thread_count=4
-        ))
+
+        if len(pdf_bytes) > MAX_PDF_SIZE_MB * 1024 * 1024:
+            size_mb = len(pdf_bytes) // (1024 * 1024)
+            raise HTTPException(
+                status_code=413,
+                detail=f"PDF too large: {size_mb}MB"
+            )
+
+        # Run PDF conversion in executor to avoid blocking
+        loop = asyncio.get_event_loop()
+        pil_images: List[Any] = await loop.run_in_executor(
+            io_executor,
+            lambda: list(convert_from_bytes(  # type: ignore
+                pdf_bytes, dpi=DPI, fmt="jpeg", thread_count=4
+            ))
+        )
+
         return await _process_images(payload.doc_id, pil_images)
+    except HTTPException:
+        raise
     except Exception as exc:
-        logger.error("PDF index error for doc %s: %s", payload.doc_id, exc)
-        raise HTTPException(status_code=500, detail="PDF Indexing failure")
+        logger.exception("PDF index error for doc %s", payload.doc_id)
+        raise HTTPException(
+            status_code=500,
+            detail=f"PDF indexing failure: {type(exc).__name__}"
+        )
 
 
 @app.post("/index/directory")  # type: ignore
@@ -754,28 +896,42 @@ async def index_directory(payload: IndexDirectoryRequest) -> Dict[str, Any]:
     _check_ready_or_503()
 
     try:
-        image_paths = sorted(glob.glob(os.path.join(payload.path, "*")))
-        pil_images: List[Any] = []
-        for p in image_paths:
-            exts = ('.png', '.jpg', '.jpeg', '.bmp', '.tiff')
-            if p.lower().endswith(exts):
-                pil_images.append(
-                    Image.open(p).convert("RGB")  # type: ignore
-                )
+        # Validate path is within allowed directories
+        validated_path = _validate_directory_path(payload.path)
 
-        return await _process_images(
-            payload.doc_id, pil_images
-        )
+        image_paths = sorted(glob.glob(str(validated_path / "*")))
+        pil_images: List[Any] = []
+
+        valid_exts = ('.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.webp')
+        for p in image_paths:
+            if p.lower().endswith(valid_exts):
+                try:
+                    pil_images.append(
+                        Image.open(p).convert("RGB")  # type: ignore
+                    )
+                except Exception as exc:
+                    logger.warning("Failed to load image %s: %s", p, exc)
+
+        if not pil_images:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No valid images found in {validated_path}"
+            )
+
+        return await _process_images(payload.doc_id, pil_images)
+    except HTTPException:
+        raise
     except Exception as exc:
-        logger.error("Directory index error: %s", exc)
-        raise HTTPException(status_code=500, detail="Indexing failure")
+        logger.exception("Directory index error for %s", payload.path)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Directory indexing failure: {type(exc).__name__}"
+        )
 
 
 @app.post("/search", response_model=SearchResponse)  # type: ignore
 async def search(payload: SearchRequest) -> SearchResponse:
-    """
-    Search endpoint for text and image queries (ticket:005.2, 005.4).
-    """
+    """Search endpoint for text and image queries."""
     start_time = time.time()
 
     _check_ready_or_503()
@@ -790,9 +946,12 @@ async def search(payload: SearchRequest) -> SearchResponse:
         )
 
     # Determine query type
-    query_type = "hybrid" if text_query and image_query else (
-        "text" if text_query else "image"
-    )
+    if text_query and image_query:
+        query_type = "hybrid"
+    elif text_query:
+        query_type = "text"
+    else:
+        query_type = "image"
 
     # Validate collection
     valid_collections = {"visual_pages", "visual_overlays"}
@@ -811,7 +970,7 @@ async def search(payload: SearchRequest) -> SearchResponse:
     try:
         with torch.inference_mode():  # type: ignore
             if image_query:
-                # Image-to-image search (ticket:005.2)
+                # Image-to-image search
                 query_img = _decode_base64_image(image_query)
                 q_inputs = state.processor.process_images(
                     [query_img]
@@ -825,9 +984,8 @@ async def search(payload: SearchRequest) -> SearchResponse:
             q_out = state.model(**q_inputs)
 
             # Full tensor for MaxSim (High Fidelity)
-            query_emb = q_out.embeddings.to(
-                torch.float16  # type: ignore
-            ).cpu()
+            q_emb: Any = q_out.embeddings
+            query_emb = q_emb.to(torch.float16).cpu()  # type: ignore
 
             # Mean pool for Qdrant/Dense fallback
             query_vec = (
@@ -835,9 +993,12 @@ async def search(payload: SearchRequest) -> SearchResponse:
             )
     except HTTPException:
         raise
-    except Exception:
+    except Exception as exc:
         logger.exception("Embedding generation failure")
-        raise HTTPException(status_code=500, detail="Embedding error")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Embedding error: {type(exc).__name__}"
+        )
 
     results: List[SearchResult] = []
     score_type = "maxsim"
@@ -856,6 +1017,8 @@ async def search(payload: SearchRequest) -> SearchResponse:
 
             # Top-K
             tk_count = min(payload.k, len(scores_tensor))
+            top_val: Any
+            top_idx: Any
             top_val, top_idx = torch.topk(  # type: ignore
                 scores_tensor, tk_count
             )
@@ -884,7 +1047,7 @@ async def search(payload: SearchRequest) -> SearchResponse:
 
     # 3. Strategy B: Qdrant Dense Search with Expert Filtering
     score_type = "dense"
-    if qdrant_adapter.client:  # type: ignore
+    if qdrant_adapter.client:
         try:
             hits = qdrant_adapter.search(
                 collection_name=payload.collection_name,
@@ -909,9 +1072,12 @@ async def search(payload: SearchRequest) -> SearchResponse:
                 execution_time_ms=round(execution_time, 2),
                 query_type=query_type
             )
-        except Exception:
+        except Exception as exc:
             logger.exception("Qdrant search failure")
-            raise HTTPException(status_code=500, detail="Search error")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Search error: {type(exc).__name__}"
+            )
 
     execution_time = (time.time() - start_time) * 1000
     return SearchResponse(
@@ -923,15 +1089,62 @@ async def search(payload: SearchRequest) -> SearchResponse:
     )
 
 
+@app.delete("/index/{doc_id}")  # type: ignore
+async def delete_document(doc_id: int) -> Dict[str, Any]:
+    """Delete a document from the index."""
+    _check_ready_or_503()
+
+    doc_id_str = str(doc_id)
+    deleted_from: List[str] = []
+
+    # Remove from local registry
+    if doc_id_str in state.registry:
+        del state.registry[doc_id_str]
+        deleted_from.append("registry")
+
+    # Remove from disk
+    index_path = INDEX_DIR / f"{doc_id_str}.pt"
+    if index_path.exists():
+        try:
+            index_path.unlink()
+            deleted_from.append("disk")
+        except Exception as exc:
+            logger.error(
+                "Failed to delete %s from disk: %s", doc_id_str, exc
+            )
+
+    # Remove from Qdrant
+    if state.qdrant:
+        try:
+            state.qdrant.delete(
+                collection_name="visual_pages",
+                points_selector=[doc_id]
+            )
+            deleted_from.append("qdrant")
+        except Exception as exc:
+            logger.error(
+                "Failed to delete %s from Qdrant: %s", doc_id_str, exc
+            )
+
+    if not deleted_from:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Document {doc_id} not found"
+        )
+
+    return {
+        "status": "success",
+        "doc_id": doc_id,
+        "deleted_from": deleted_from
+    }
+
+
 @app.get("/health")  # type: ignore
 async def health() -> Dict[str, Any]:
-    """
-    Health endpoint with initialization status.
-    """
-    vram: float = float(
-        cast(Any, torch).cuda.memory_allocated() / 1e9
-        if cast(Any, torch).cuda.is_available() else 0
-    )
+    """Health endpoint with initialization status."""
+    vram: float = 0.0
+    if torch.cuda.is_available():  # type: ignore
+        vram = float(torch.cuda.memory_allocated() / 1e9)  # type: ignore
 
     if state.init_error:
         status = "error"
@@ -946,10 +1159,43 @@ async def health() -> Dict[str, Any]:
         "status": status,
         "init": state.get_init_status(),
         "model_id": MODEL_ID,
+        "model_revision": MODEL_REVISION,
         "embedding_dim": EXPECTED_EMBEDDING_DIM,
-        "offline_mode": True,
+        "attn_implementation": ATTN_IMPLEMENTATION,
+        "offline_mode": OFFLINE_MODE,
         "docs": len(state.registry),
         "vram_gb": round(vram, 2),
         "vram": f"{vram:.2f}GB",
-        "qdrant": qdrant_health
+        "qdrant": qdrant_health,
+        "config": {
+            "max_image_size_mb": MAX_IMAGE_SIZE_MB,
+            "max_pdf_size_mb": MAX_PDF_SIZE_MB,
+            "max_preload_indices": MAX_PRELOAD_INDICES,
+            "allowed_index_paths": [str(p) for p in ALLOWED_INDEX_PATHS],
+            "require_qdrant": REQUIRE_QDRANT
+        }
     }
+
+
+@app.get("/ready")  # type: ignore
+async def ready() -> Dict[str, Any]:
+    """Kubernetes readiness probe endpoint."""
+    if state.initializing:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Initializing: {state.init_stage}"
+        )
+
+    if state.init_error:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Initialization error: {state.init_error}"
+        )
+
+    return {"ready": True}
+
+
+@app.get("/live")  # type: ignore
+async def live() -> Dict[str, Any]:
+    """Kubernetes liveness probe endpoint."""
+    return {"live": True}

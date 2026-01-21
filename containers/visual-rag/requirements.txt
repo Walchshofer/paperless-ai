@@ -12,6 +12,11 @@ autoawq==0.2.9
 auto-round==0.9.2
 qwen-vl-utils
 
+# Required for AutoProcessor (vision/multimodal models)
+sentencepiece
+protobuf
+scipy
+
 # Retrieval Speed Tier (Model Requirement)
 fast-plaid
 fastkmeans

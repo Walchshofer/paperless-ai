@@ -88,7 +88,7 @@ class DataManager:
             self.initialize_models()
 
     def initialize_models(self) -> bool:
-        """Initialize NLP models and Qdrant + PostgreSQL (metadata)."""
+        """Initialize NLP models and Qdrant."""
         try:
             if self.sentence_transformer is None:
                 logger.info("Initializing sentence transformer model")

@@ -38,7 +38,9 @@ $dirs = @(
     "benchmarks",
     "scripts",
     "monitoring/grafana/dashboards",
-    "monitoring/grafana/datasources"
+    "monitoring/grafana/datasources",
+    "monitoring/grafana/provisioning/dashboards",
+    "monitoring/grafana/provisioning/datasources"
 )
 foreach ($d in $dirs) { 
     $FullDir = Join-Path $ProjectRoot $d
@@ -388,6 +390,30 @@ services:
     networks:
       - guidance-net
 
+  postgres:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=elfman
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=paperless_test
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - guidance-net
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    environment:
+      - QDRANT__STORAGE__ON_DISK_PAYLOAD=true
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - guidance-net
+
   ollama:
     image: ollama/ollama:latest
     ports:
@@ -420,11 +446,16 @@ services:
   grafana:
     image: grafana/grafana
     ports: ["3000:3000"]
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
     networks:
       - guidance-net
 
 volumes:
   ollama_data:
+  postgres_data:
+  qdrant_data:
 
 networks:
   guidance-net:
@@ -463,6 +494,35 @@ scrape_configs:
   - job_name: 'ollama'
     static_configs:
       - targets: ['ollama:8002']
+
+  - job_name: 'visual-rag'
+    static_configs:
+      - targets: ['visual-rag:8001']
+'@
+
+New-ProjectFile "monitoring/grafana/provisioning/datasources/datasource.yml" @'
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+'@
+
+New-ProjectFile "monitoring/grafana/provisioning/dashboards/dashboard.yml" @'
+apiVersion: 1
+
+providers:
+  - name: 'Default'
+    orgId: 1
+    folder: ''
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    options:
+      path: /var/lib/grafana/dashboards
 '@
 
 # 7. Generate K8s Manifests (Updated with Env & Ports)
