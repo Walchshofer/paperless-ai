@@ -174,7 +174,7 @@ async function initPoolWithRetry(maxRetries = 3, retryDelayMs = 1000) {
 
             return pool;
         } catch (connectionError) {
-            logger.warn({
+            const logPayload = {
                 event: 'postgres_connection_failed',
                 attempt,
                 maxRetries,
@@ -182,7 +182,13 @@ async function initPoolWithRetry(maxRetries = 3, retryDelayMs = 1000) {
                 port,
                 error: connectionError.message,
                 code: connectionError.code
-            });
+            };
+
+            if (attempt < maxRetries) {
+                logger.debug(logPayload);
+            } else {
+                logger.warn(logPayload);
+            }
 
             if (attempt < maxRetries) {
                 await new Promise(resolve => setTimeout(resolve, retryDelayMs));

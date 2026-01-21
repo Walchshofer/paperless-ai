@@ -46,7 +46,7 @@ if (process.env.RAG_SERVICE_ENABLED === 'true') {
 // ============================================================================
 
 /**
- * Ensure visual_overlays table has embedding column for integration tests
+ * Ensure visual_overlays table has vector_id column for integration tests
  * Attempts two strategies:
  * 1. Use VisualOverlayRepository's connection pool (preferred)
  * 2. Create direct pg connection as fallback
@@ -60,11 +60,11 @@ if (process.env.RAG_SERVICE_ENABLED === 'true') {
                 await visualOverlayRepository.isAvailable();
                 const client = await visualOverlayRepository.pool.connect();
                 await client.query(
-                    'ALTER TABLE visual_overlays ADD COLUMN IF NOT EXISTS embedding JSONB DEFAULT NULL;'
+                    'ALTER TABLE visual_overlays ADD COLUMN IF NOT EXISTS vector_id UUID;'
                 );
                 client.release();
                 console.log(
-                    '✅ [test] visual_overlays.embedding column ensured via repository pool'
+                    '✅ [test] visual_overlays.vector_id column ensured via repository pool'
                 );
                 return;
             }
@@ -107,13 +107,13 @@ if (process.env.RAG_SERVICE_ENABLED === 'true') {
 
             const client = await pool.connect();
             await client.query(
-                'ALTER TABLE visual_overlays ADD COLUMN IF NOT EXISTS embedding JSONB DEFAULT NULL;'
+                'ALTER TABLE visual_overlays ADD COLUMN IF NOT EXISTS vector_id UUID;'
             );
             client.release();
             await pool.end();
 
             console.log(
-                '✅ [test] visual_overlays.embedding column ensured via direct pool'
+                '✅ [test] visual_overlays.vector_id column ensured via direct pool'
             );
             return;
         } catch (directPoolError) {
@@ -124,7 +124,7 @@ if (process.env.RAG_SERVICE_ENABLED === 'true') {
                 hint: 'Ensure PostgreSQL is running and connection parameters are correct'
             });
             console.warn(
-                '⚠️ [test] Could not ensure visual_overlays.embedding column'
+                '⚠️ [test] Could not ensure visual_overlays.vector_id column'
             );
             return;
         }

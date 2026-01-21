@@ -1,54 +1,59 @@
-import { G as s, _ as u } from "./hooks.module-DczbA9Kc.mjs";
-import l from "./visual-annotation.island.js";
-import m from "./feedback-controls.island.js";
-import f from "./manual-editor.island.js";
-import c from "./history-tabs.island.js";
-import p from "./overlay-viewer.island.js";
-import w from "./playground.island.js";
-const a = {
-  "visual-annotation-island": l,
-  "feedback-controls-island": m,
-  "manual-editor-island": f,
-  "history-tabs-island": c,
-  "overlay-viewer-island": p,
-  "playground-island": w
+import { G as l, _ as m } from "./hooks.module-DczbA9Kc.mjs";
+import c from "./visual-annotation.island.js";
+import f from "./feedback-controls.island.js";
+import p from "./manual-editor.island.js";
+import w from "./history-tabs.island.js";
+import y from "./overlay-viewer.island.js";
+import g from "./playground.island.js";
+const i = {
+  "visual-annotation-island": c,
+  "feedback-controls-island": f,
+  "manual-editor-island": p,
+  "history-tabs-island": w,
+  "overlay-viewer-island": y,
+  "playground-island": g
 };
-function y(n) {
-  const o = n.getAttribute("data-props") || "{}";
+function I(t) {
+  const o = t.getAttribute("data-props") || "{}";
   try {
     return JSON.parse(o);
-  } catch (t) {
-    return console.warn("island-runtime: failed to parse props", t), null;
+  } catch (n) {
+    return console.warn("island-runtime: failed to parse props", n), null;
   }
 }
-function I(n, o) {
-  a[n] = o;
+function b(t, o) {
+  i[t] = o;
 }
-function r(n = document) {
-  typeof window < "u" && (window.__islandRuntimeMounted = !0), n.querySelectorAll("[data-island]").forEach((t) => {
-    const e = t.getAttribute("data-island");
+function d(t = document) {
+  typeof window < "u" && (window.__islandRuntimeMounted = !0), t.querySelectorAll("[data-island]").forEach((n) => {
+    const e = n.getAttribute("data-island");
     if (!e) return;
-    const i = a[e];
-    if (!i) {
+    const s = i[e];
+    if (!s) {
       console.warn(`island-runtime: no component for '${e}'`);
       return;
     }
-    const d = y(t);
-    d !== null && (s(u(i, d), t), t.dataset && (t.dataset.mounted = "true"));
+    const u = I(n);
+    if (u === null) return;
+    l(m(s, u), n);
+    const r = n;
+    r.dataset && (r.dataset.mounted = "true");
+    const a = r.querySelector('[data-testid$="-root"]');
+    a && !a.getAttribute("data-hydrated") && a.setAttribute("data-hydrated", "true");
   });
 }
 if (typeof window < "u") {
-  window.mountIslands = r, window.islandRuntime = {
-    mountIslands: r,
-    registerIsland: I,
-    _registry: a
+  window.mountIslands = d, window.islandRuntime = {
+    mountIslands: d,
+    registerIsland: b,
+    _registry: i
   };
-  const n = () => {
-    window.__islandRuntimeMounted || document.querySelector("[data-island]") && r(document);
+  const t = () => {
+    window.__islandRuntimeMounted || document.querySelector("[data-island]") && d(document);
   };
-  document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", n) : setTimeout(n, 0);
+  document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", t) : setTimeout(t, 0);
 }
 export {
-  r as mountIslands,
-  I as registerIsland
+  d as mountIslands,
+  b as registerIsland
 };

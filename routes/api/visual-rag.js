@@ -489,7 +489,12 @@ router.post('/feedback', async (req, res) => {
         // If any overlay upserts were deferred due to sidecar initializing, return 202
         if (result && Array.isArray(result.errors) && result.errors.some(e => e.type === 'deferred_ingest')) {
             logger.warn('[Visual-RAG API] Feedback deferred due to sidecar initializing', { request_id: requestId, hardware_target: 'RTX 3090 Ti' });
-            return res.status(202).json({ success: true, message: 'Deferred ingest recorded', result });
+            return res.status(202).json({
+                success: true,
+                deferred: true,
+                message: 'Deferred ingest recorded',
+                result
+            });
         }
 
         res.json({ success: true, result });
@@ -963,75 +968,6 @@ router.post('/ingest/:docId', async (req, res) => {
         });
     } catch (error) {
         logger.error(`[Visual-RAG API] Ingest failed for ${docId}:`, error.message);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-const feedbackService = require('../../services/feedback/FeedbackService');
-
-/**
- * @swagger
- * /api/visual-rag/feedback:
- *   post:
- *     summary: Record user feedback
- *     description: Submit granular feedback (corrections, annotations) for a document
- *     tags: [Visual RAG, Feedback]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - documentId
- *               - events
- *             properties:
- *               documentId:
- *                 type: integer
- *               events:
- *                 type: array
- *                 items:
- *                   type: object
- *                   properties:
- *                     type:
- *                       type: string
- *                       enum: [correction, annotation, verification]
- *                     field:
- *                       type: string
- *                     original:
- *                       type: string
- *                     corrected:
- *                       type: string
- *     responses:
- *       200:
- *         description: Feedback recorded
- *       500:
- *         description: Failed to record feedback
- */
-router.post('/feedback', async (req, res) => {
-    try {
-        const { documentId, events } = req.body;
-        const requestId = req.headers['x-request-id'] || `req-${Date.now()}`;
-
-        if (!documentId || !Array.isArray(events)) {
-            return res.status(400).json({ error: 'Invalid payload: documentId and events array required' });
-        }
-
-        const result = await feedbackService.recordGranularFeedback(documentId, events, { requestId });
-
-        // If there are deferred ingests, signal accepted (202) and provide details
-        const hasDeferred = Array.isArray(result.errors) && result.errors.some(e => e.type && e.type.startsWith('deferred'));
-        if (hasDeferred) {
-            logger.info('[Visual-RAG API] Feedback accepted with deferred ingestion', { request_id: requestId, documentId, hardware_target: 'RTX 3090 Ti' });
-            return res.status(202).json({ success: true, deferred: true, details: result.errors, ...result });
-        }
-
-        res.json({
-            success: true,
-            ...result
-        });
-    } catch (error) {
-        logger.error('[Visual-RAG API] Feedback recording failed:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });

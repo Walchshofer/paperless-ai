@@ -13,6 +13,12 @@
 <body class="h-full">
     <% /* Ensure `vm` exists to avoid ReferenceError when rendering anchors in environments without view model */ %>
     <% var vm = typeof vm !== 'undefined' ? vm : {}; %>
+    <% var manualProps = {
+         documentId: vm.documentId || null,
+         metadata: vm.metadata || {},
+         content: vm.content || '',
+         fields: vm.fields || []
+       }; %>
     <button id="themeToggle" class="theme-toggle">
         <i class="fas fa-moon dark:fas fa-sun"></i>
     </button>
@@ -109,9 +115,9 @@
                 </div>
 
                 <!-- Island anchors (auditable via data-testid) -->
-                <div data-island="visual-annotation-island" data-testid="visual-annotation-island" data-props='<%- JSON.stringify({ documentId: vm && vm.documentId ? vm.documentId : null }) %>'></div>
-                <div data-island="feedback-controls-island" data-testid="feedback-controls-island" data-props='<%- JSON.stringify({ documentId: vm && vm.documentId ? vm.documentId : null }) %>'></div>
-                <div data-island="manual-editor-island" data-testid="manual-editor-island" data-props='<%- JSON.stringify({ documentId: vm && vm.documentId ? vm.documentId : null }) %>'>
+                <div data-island="visual-annotation-island" data-testid="visual-annotation-island" data-props="<%= JSON.stringify({ documentId: manualProps.documentId }) %>"></div>
+                <div data-island="feedback-controls-island" data-testid="feedback-controls-island" data-props="<%= JSON.stringify({ documentId: manualProps.documentId }) %>"></div>
+                <div data-island="manual-editor-island" data-testid="manual-editor-island" data-props="<%= JSON.stringify(manualProps) %>">
                   <!-- Server-side placeholder for Manual Editor Island -->
                   <div data-testid="manual-editor-island-root">
                     <div role="tablist" aria-label="Manual Editor Tabs" style="display:flex;gap:8px;margin-bottom:8px">

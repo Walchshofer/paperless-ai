@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test';
-import { pollForFeedbackEvent, queryDb } from '../helpers/db-poll';
 
 /**
  * E2E User Flow Test - Manual Route UI
@@ -12,28 +11,29 @@ import { pollForFeedbackEvent, queryDb } from '../helpers/db-poll';
  * 5. Save and verify persistence
  */
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
-const TEST_DOC_ID = Number(process.env.TEST_DOC_ID || '1');
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
+const MANUAL_URL = `${BASE_URL}/manual`;
+
+async function gotoManual(page: any) {
+  const response = await page.goto(MANUAL_URL, {
+    waitUntil: 'domcontentloaded',
+    timeout: 15000
+  }).catch(() => null);
+
+  const loginFormPresent = response && (
+    response.url().includes('/login') ||
+    await page.locator('form[action="/login"]').count() > 0
+  );
+
+  if (loginFormPresent) {
+    throw new Error('Auth state missing for /manual (login redirect).');
+  }
+}
 
 test.describe('Manual Route UI - Complete User Flow', () => {
   // Handle login if needed
   test.beforeEach(async ({ page }) => {
-    const response = await page.goto(`${BASE_URL}/manual`, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null);
-
-    if (response && (response.url().includes('/login') || await page.locator('form[action="/login"]').count() > 0)) {
-      const user = process.env.PAPERLESS_ADMIN_USER || 'elfman';
-      const pass = process.env.PAPERLESS_ADMIN_PASSWORD || process.env.POSTGRES_PASSWORD || 'P2tr3ck!1976';
-
-      await page.goto(`${BASE_URL}/login`, { waitUntil: 'load' });
-      await page.fill('#username', user);
-      await page.fill('#password', pass);
-      await Promise.all([
-        page.waitForNavigation({ waitUntil: 'load', timeout: 10000 }),
-        page.click('button[type="submit"]')
-      ]).catch(() => null);
-
-      await page.goto(`${BASE_URL}/manual`, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    }
+    await gotoManual(page);
   });
 
   test('complete user flow: annotation, feedback, save', async ({ page }) => {
@@ -253,22 +253,7 @@ test.describe('Manual Route UI - Complete User Flow', () => {
 
 test.describe('Cross-Island Event Communication', () => {
   test.beforeEach(async ({ page }) => {
-    const response = await page.goto(`${BASE_URL}/manual`, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null);
-
-    if (response && (response.url().includes('/login') || await page.locator('form[action="/login"]').count() > 0)) {
-      const user = process.env.PAPERLESS_ADMIN_USER || 'elfman';
-      const pass = process.env.PAPERLESS_ADMIN_PASSWORD || process.env.POSTGRES_PASSWORD || 'P2tr3ck!1976';
-
-      await page.goto(`${BASE_URL}/login`, { waitUntil: 'load' });
-      await page.fill('#username', user);
-      await page.fill('#password', pass);
-      await Promise.all([
-        page.waitForNavigation({ waitUntil: 'load', timeout: 10000 }),
-        page.click('button[type="submit"]')
-      ]).catch(() => null);
-
-      await page.goto(`${BASE_URL}/manual`, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    }
+    await gotoManual(page);
   });
 
   test('feedback:confirmed event is dispatched', async ({ page }) => {
@@ -334,3 +319,4 @@ test.describe('Cross-Island Event Communication', () => {
     }
   });
 });
+

@@ -13,6 +13,12 @@ type Field = {
 
 type SyncState = 'idle' | 'syncing' | 'synced' | 'error';
 
+function dispatchEventSafe(name: string, detail: any) {
+  if (typeof document === 'undefined') return;
+  if (typeof document.dispatchEvent !== 'function') return;
+  document.dispatchEvent(new CustomEvent(name, { detail }));
+}
+
 export default function ManualEditorIsland(props: Partial<ManualEditorContract>) {
   const [active, setActive] = useState<TabKeys>('metadata');
   const [gpuState, setGpuState] = useState<GpuState>('idle');
@@ -254,7 +260,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
     };
 
     // Dispatch payload:ready event for cross-island communication
-    document.dispatchEvent(new CustomEvent('payload:ready', { detail: eventDetail }));
+    dispatchEventSafe('payload:ready', eventDetail);
 
     try {
       // Hybrid SOT orchestrator endpoint
@@ -270,9 +276,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
       if (res.ok) {
         const result = await res.json().catch(() => ({}));
         setSyncState('synced');
-        document.dispatchEvent(new CustomEvent('sync:success', {
-          detail: { documentId: props.documentId, ...result }
-        }));
+        dispatchEventSafe('sync:success', { documentId: props.documentId, ...result });
       } else {
         const errorData = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
         throw new Error(errorData.message || `Sync failed with status ${res.status}`);
@@ -280,9 +284,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
     } catch (err: any) {
       setSyncState('error');
       setSyncError(err.message || 'Sync failed');
-      document.dispatchEvent(new CustomEvent('sync:failed', {
-        detail: { documentId: props.documentId, error: err.message }
-      }));
+      dispatchEventSafe('sync:failed', { documentId: props.documentId, error: err.message });
     }
   }, [props.documentId, props.page, title, correspondent, documentType, content, fields, initialValues]);
 
@@ -313,7 +315,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
   }, [gpuState, content, props.documentId]);
 
   return (
-    <div data-testid="manual-editor-island-root" className="mei-root">
+    <div data-testid="manual-editor-island-root" data-hydrated="true" className="mei-root">
       {/* Sync Badge */}
       {syncState !== 'idle' && (
         <div
@@ -340,6 +342,8 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
           id="tab-metadata-btn"
           type="button"
           role="tab"
+          aria-selected={active === 'metadata'}
+          tabIndex={active === 'metadata' ? 0 : -1}
           aria-controls="panel-metadata"
           data-testid="tab-metadata"
           onClick={() => setActive('metadata')}
@@ -351,6 +355,8 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
           id="tab-content-btn"
           type="button"
           role="tab"
+          aria-selected={active === 'content'}
+          tabIndex={active === 'content' ? 0 : -1}
           aria-controls="panel-content"
           data-testid="tab-content"
           onClick={() => setActive('content')}
@@ -362,6 +368,8 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
           id="tab-fields-btn"
           type="button"
           role="tab"
+          aria-selected={active === 'fields'}
+          tabIndex={active === 'fields' ? 0 : -1}
           aria-controls="panel-fields"
           data-testid="tab-fields"
           onClick={() => setActive('fields')}
@@ -373,6 +381,8 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
           id="tab-ai-debug-btn"
           type="button"
           role="tab"
+          aria-selected={active === 'ai-debug'}
+          tabIndex={active === 'ai-debug' ? 0 : -1}
           aria-controls="panel-ai-debug"
           data-testid="tab-ai-debug"
           onClick={() => setActive('ai-debug')}

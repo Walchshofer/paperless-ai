@@ -13,6 +13,7 @@ env:
   QDRANT_URL: http://localhost:6333
   SIDECAR_URL: http://localhost:8001
   NODE_ENV: test
+  METRICS_INTERNAL_ONLY: 'false'
 
 jobs:
   handshake-tests:

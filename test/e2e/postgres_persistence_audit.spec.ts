@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { pollForFeedbackEvent, queryDb } from '../helpers/db-poll';
+import { getTestDocId } from '../helpers/fixtures';
 
 /**
  * PostgreSQL Persistence Audit Test
@@ -8,8 +9,8 @@ import { pollForFeedbackEvent, queryDb } from '../helpers/db-poll';
  * with all required fields and proper JSON serialization.
  */
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
-const TEST_DOC_ID = Number(process.env.TEST_DOC_ID || '1');
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
+const TEST_DOC_ID = getTestDocId();
 
 test.describe('PostgreSQL Persistence Audit', () => {
   const testRequestId = `e2e-pg-audit-${Date.now()}`;
@@ -309,3 +310,4 @@ test.describe('PostgreSQL Persistence Audit', () => {
     }
   });
 });
+

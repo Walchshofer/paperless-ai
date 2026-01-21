@@ -1,4 +1,14 @@
 import { defineConfig, devices } from '@playwright/test';
+import path from 'path';
+
+const storageStatePath = process.env.PLAYWRIGHT_STORAGE_STATE ||
+  path.resolve(process.cwd(), 'test', '.auth', 'storageState.json');
+const globalSetupPath = path.resolve(
+  process.cwd(),
+  'test',
+  'e2e',
+  'global-setup.js'
+);
 
 /**
  * Playwright Configuration for E2E Tests
@@ -56,9 +66,12 @@ export default defineConfig({
     ['list'],
   ],
 
+  globalSetup: globalSetupPath,
+
   // Shared settings for all projects
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
+    storageState: storageStatePath,
     headless: true,
 
     // Capture screenshot on failure

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { pollForFeedbackEvent, queryDb } from '../helpers/db-poll';
+import { getTestDocId } from '../helpers/fixtures';
 import {
   pollForQdrantPoints,
   getPointsByDocId,
@@ -16,8 +17,8 @@ import {
  * mirrored to Qdrant vector store with matching payload fields.
  */
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
-const TEST_DOC_ID = Number(process.env.TEST_DOC_ID || '1');
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
+const TEST_DOC_ID = getTestDocId();
 
 test.describe('Qdrant Payload Mirroring Verification', () => {
   const testRequestId = `e2e-qdrant-${Date.now()}`;
@@ -97,15 +98,13 @@ test.describe('Qdrant Payload Mirroring Verification', () => {
 
     // Find the point for our annotation
     const point = points.find((p: any) =>
-      p.payload?.metadata?.request_id === annotationRequestId ||
-      p.payload?.label === 'Invoice Number'
+      p.payload?.metadata?.request_id === annotationRequestId
     );
 
     if (!point) {
-      console.log('Could not find matching point in Qdrant');
+      console.log('Could not find matching point in Qdrant for request_id');
       console.log('Available points:', JSON.stringify(points, null, 2));
-      // Not a hard failure - the point might have different structure
-      return;
+      throw new Error(`Qdrant point not found for request_id=${annotationRequestId}`);
     }
 
     // Verify payload fields
@@ -113,6 +112,7 @@ test.describe('Qdrant Payload Mirroring Verification', () => {
 
     // doc_id must be present
     expect(payload.doc_id).toBe(TEST_DOC_ID);
+    expect(payload.metadata?.request_id).toBe(annotationRequestId);
 
     // tag_ids should be mirrored if implementation supports it
     if (payload.tag_ids) {
@@ -356,3 +356,4 @@ test.describe('Qdrant Payload Mirroring Verification', () => {
     }
   });
 });
+

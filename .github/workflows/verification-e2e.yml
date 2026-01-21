@@ -37,6 +37,7 @@ jobs:
         env:
           POSTGRES_URL: 'postgres://elfman:password@localhost:5432/paperless_test'
           PAPERLESS_MOCK_URL: 'http://localhost:3001'
+          METRICS_INTERNAL_ONLY: 'false'
         run: npx playwright test --config=test/playwright.config.ts --reporter=list
       - name: Upload playwright trace
         if: always()

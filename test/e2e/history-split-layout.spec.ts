@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { getHistoryDocId } from '../helpers/fixtures';
 
 /**
  * History Split Layout E2E Tests
@@ -13,11 +14,15 @@ import { test, expect } from '@playwright/test';
  */
 
 test.describe('History Split Layout - Islands', () => {
-  const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
+  const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
+  const HISTORY_DOC_ID = getHistoryDocId();
+  const HISTORY_URL = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
 
-  // Helper to handle login if required
-  async function handleLogin(page: any, targetUrl: string) {
-    const response = await page.goto(targetUrl, { waitUntil: 'load', timeout: 10000 }).catch(() => null);
+  async function gotoHistory(page: any) {
+    const response = await page.goto(HISTORY_URL, {
+      waitUntil: 'load',
+      timeout: 10000
+    }).catch(() => null);
 
     const loginFormPresent = response && (
       response.url().includes('/login') ||
@@ -25,28 +30,17 @@ test.describe('History Split Layout - Islands', () => {
     );
 
     if (loginFormPresent) {
-      const user = process.env.PAPERLESS_ADMIN_USER || 'elfman';
-      const pass = process.env.PAPERLESS_ADMIN_PASSWORD || process.env.POSTGRES_PASSWORD || 'P2tr3ck!1976';
-      await page.goto(`${BASE_URL}/login`, { waitUntil: 'load' });
-      await page.fill('#username', user);
-      await page.fill('#password', pass);
-      await Promise.all([
-        page.waitForNavigation({ waitUntil: 'load', timeout: 10000 }),
-        page.click('button[type="submit"]')
-      ]).catch(() => null);
-
-      return page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      throw new Error('Auth state missing for /history (login redirect).');
     }
 
     return response;
   }
 
   test('mounts overlay-viewer-island and history-tabs-island', async ({ page }) => {
-    const url = `${BASE_URL}/history/1`;
-    const response = await handleLogin(page, url);
+    const response = await gotoHistory(page);
 
     if (!response || response.status() >= 400) {
-      test.skip(true, `History page not available at ${url} - skipping island mount test`);
+      test.skip(true, `History page not available at ${HISTORY_URL} - skipping island mount test`);
       return;
     }
 
@@ -69,11 +63,10 @@ test.describe('History Split Layout - Islands', () => {
   });
 
   test('history-tabs-island shows three tabs (Text, Metadata, Similar)', async ({ page }) => {
-    const url = `${BASE_URL}/history/1`;
-    const response = await handleLogin(page, url);
+    const response = await gotoHistory(page);
 
     if (!response || response.status() >= 400) {
-      test.skip(true, `History page not available at ${url}`);
+      test.skip(true, `History page not available at ${HISTORY_URL}`);
       return;
     }
 
@@ -96,11 +89,10 @@ test.describe('History Split Layout - Islands', () => {
   });
 
   test('tab navigation switches between panels', async ({ page }) => {
-    const url = `${BASE_URL}/history/1`;
-    const response = await handleLogin(page, url);
+    const response = await gotoHistory(page);
 
     if (!response || response.status() >= 400) {
-      test.skip(true, `History page not available at ${url}`);
+      test.skip(true, `History page not available at ${HISTORY_URL}`);
       return;
     }
 
@@ -131,11 +123,10 @@ test.describe('History Split Layout - Islands', () => {
   });
 
   test('ARIA attributes are present on tabs', async ({ page }) => {
-    const url = `${BASE_URL}/history/1`;
-    const response = await handleLogin(page, url);
+    const response = await gotoHistory(page);
 
     if (!response || response.status() >= 400) {
-      test.skip(true, `History page not available at ${url}`);
+      test.skip(true, `History page not available at ${HISTORY_URL}`);
       return;
     }
 
@@ -161,11 +152,10 @@ test.describe('History Split Layout - Islands', () => {
   });
 
   test('visual-search-requested event triggers similar tab population', async ({ page }) => {
-    const url = `${BASE_URL}/history/1`;
-    const response = await handleLogin(page, url);
+    const response = await gotoHistory(page);
 
     if (!response || response.status() >= 400) {
-      test.skip(true, `History page not available at ${url}`);
+      test.skip(true, `History page not available at ${HISTORY_URL}`);
       return;
     }
 
@@ -197,11 +187,10 @@ test.describe('History Split Layout - Islands', () => {
   });
 
   test('503 Initializing state shows GPU loading indicator', async ({ page }) => {
-    const url = `${BASE_URL}/history/1`;
-    const response = await handleLogin(page, url);
+    const response = await gotoHistory(page);
 
     if (!response || response.status() >= 400) {
-      test.skip(true, `History page not available at ${url}`);
+      test.skip(true, `History page not available at ${HISTORY_URL}`);
       return;
     }
 
@@ -251,11 +240,10 @@ test.describe('History Split Layout - Islands', () => {
   });
 
   test('5-column grid layout is applied', async ({ page }) => {
-    const url = `${BASE_URL}/history/1`;
-    const response = await handleLogin(page, url);
+    const response = await gotoHistory(page);
 
     if (!response || response.status() >= 400) {
-      test.skip(true, `History page not available at ${url}`);
+      test.skip(true, `History page not available at ${HISTORY_URL}`);
       return;
     }
 
@@ -274,3 +262,4 @@ test.describe('History Split Layout - Islands', () => {
     expect(tabsCount).toBe(1);
   });
 });
+

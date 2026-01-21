@@ -261,6 +261,10 @@ const metricsRetentionDays = parseEnvInt(
   process.env.METRICS_RETENTION_DAYS,
   30
 );
+// Metrics access control
+const metricsInternalOnly = String(process.env.METRICS_INTERNAL_ONLY || 'true').toLowerCase() === 'true';
+const metricsAllowedCidrs = process.env.METRICS_ALLOWED_CIDRS || '127.0.0.1,::1';
+const trustProxy = String(process.env.TRUST_PROXY || 'false').toLowerCase() === 'true';
 
 console.log('Loaded environment variables:', {
   PAPERLESS_API_URL: process.env.PAPERLESS_API_URL,
@@ -355,7 +359,10 @@ module.exports = {
   expertPipelineEnabled: parseEnvBoolean(process.env.EXPERT_PIPELINE_ENABLED, 'yes'),
   metrics: {
     enabled: metricsEnabled,
-    retentionDays: metricsRetentionDays
+    retentionDays: metricsRetentionDays,
+    internalOnly: metricsInternalOnly,
+    allowedCidrs: metricsAllowedCidrs,
+    trustProxy: trustProxy
   },
   vatRag: {
     corpusPath: path.join(currentDir, 'data', 'austrian_vat')

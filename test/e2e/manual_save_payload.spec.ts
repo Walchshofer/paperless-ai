@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Manual - ManualEditor island', () => {
   test('manual editor island mounts and has a save button', async ({ page }) => {
-    const base = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
+    const base = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
     const url = `${base}/manual`;
 
     const response = await page.goto(url, { waitUntil: 'load', timeout: 10000 }).catch(() => null);
@@ -160,7 +160,7 @@ test.describe('Manual - ManualEditor island', () => {
   });
 
   test('manual editor island supports keyboard navigation', async ({ page }) => {
-    const base = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
+    const base = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
     const url = `${base}/manual`;
 
     const response = await page.goto(url, { waitUntil: 'load', timeout: 10000 }).catch(() => null);
@@ -194,12 +194,19 @@ test.describe('Manual - ManualEditor island', () => {
     await page.keyboard.press('ArrowRight');
     await expect(tabFields).toHaveAttribute('aria-selected', 'true');
 
+    const tabAiDebug = page.locator('[data-testid="tab-ai-debug"]');
+
+    // Arrow Right -> AI Debug
+    await page.keyboard.press('ArrowRight');
+    await expect(tabAiDebug).toHaveAttribute('aria-selected', 'true');
+
     // Arrow Right -> Loop to Metadata
     await page.keyboard.press('ArrowRight');
     await expect(tabMetadata).toHaveAttribute('aria-selected', 'true');
 
-    // Arrow Left -> Fields
+    // Arrow Left -> AI Debug
     await page.keyboard.press('ArrowLeft');
-    await expect(tabFields).toHaveAttribute('aria-selected', 'true');
+    await expect(tabAiDebug).toHaveAttribute('aria-selected', 'true');
   });
 });
+

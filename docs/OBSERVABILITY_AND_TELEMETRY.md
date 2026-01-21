@@ -168,6 +168,53 @@ continue without error.
 If `ENABLE_MODEL_METRICS` is set to `no`, metrics recording is disabled and
 `/metrics` returns HTTP 204.
 
+### Restricting `/metrics` to the internal network (Fail-Hard) ⚠️
+
+For security, `/metrics` is restricted to internal networks by default and
+paperless-ai will fail to start if the configuration is invalid while
+`METRICS_INTERNAL_ONLY=true` (the default for production).
+
+Environment variables:
+
+- `METRICS_INTERNAL_ONLY` — `true` | `false` (default: `true`)
+  - When `true`, the process will validate that `METRICS_ALLOWED_CIDRS` is
+    set and correctly formatted on startup and will exit with a clear error
+    message if not.
+- `METRICS_ALLOWED_CIDRS` — CSV of IPv4 addresses or CIDRs (example:
+  `127.0.0.1,::1,172.18.0.0/16`) — **required** when `METRICS_INTERNAL_ONLY=true`.
+- `TRUST_PROXY` — `true` | `false` (default: `false`) — set to `true` when
+  paperless-ai runs behind a trusted reverse proxy/load-balancer so that
+  `X-Forwarded-For` is respected. Only set this if your proxy is trusted to
+  avoid IP spoofing.
+
+Behavior and operational notes:
+
+- The server fails fast during startup with the error:
+  `Startup failure: METRICS_INTERNAL_ONLY=true but METRICS_ALLOWED_CIDRS is missing or invalid. Set METRICS_ALLOWED_CIDRS to include your Prometheus network or set METRICS_INTERNAL_ONLY=false for tests.`
+  This makes misconfiguration visible immediately in CI/CD and deployments.
+- Local development/CI: set `METRICS_INTERNAL_ONLY=false` or configure a test
+  CIDR (for example `127.0.0.1`) in CI environment variables to avoid
+  unexpected startup failures.
+- If Prometheus scrapes paperless-ai from outside the cluster/network you
+  plan to deploy into, you must either run Prometheus on the same internal
+  network (recommended) or migrate to a token-based scrape approach (see
+  the monitoring docs for guidance).
+
+Add the following to your Prometheus job when Prometheus runs in the same
+internal Docker/k8s network (no additional auth required):
+
+```yaml
+  - job_name: 'paperless-ai'
+    static_configs:
+      - targets: ['paperless-ai:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+```
+
+If you must scrape from outside the cluster, use a secure token-based
+approach and update your Prometheus scrape config accordingly (see docs).
+
+
 ## Dashboards
 
 Grafana dashboards live in `monitoring/grafana/dashboards/`:

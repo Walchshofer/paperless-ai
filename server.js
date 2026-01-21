@@ -12,6 +12,8 @@ const duplicateDetector = require('./services/DuplicateDetector');
 const healthMetricsService = require('./services/HealthMetricsService');
 const PatternDetectionEngine = require('./services/PatternDetectionEngine');
 const { metricsCollector } = require('./services/metrics/PrometheusMetrics');
+const { validateInternalMetricsConfig } = require('./metrics/validateInternalMetricsConfig');
+const { allowInternalNetwork } = require('./routes/internal-auth');
 
 // Add environment variables for RAG service if not already set.
 if (process.env.RAG_SERVICE_ENABLED === undefined) {
@@ -43,7 +45,8 @@ const txtLogger = new Logger({
 });
 
 const app = express();
-let runningTask = false;
+app.set('trust proxy', process.env.TRUST_PROXY === 'true');
+let runningTask = false; 
 
 
 const corsOptions = {
@@ -742,7 +745,7 @@ app.get('/health', async (req, res) => {
  *             schema:
  *               type: string
  */
-app.get('/metrics', async (_req, res) => {
+app.get('/metrics', allowInternalNetwork, async (_req, res) => {
   try {
     if (metricsCollector.enabled === false) {
       res.status(204).send('');
@@ -1084,7 +1087,17 @@ async function startServer() {
     // Validate database connection before starting server
     await validateDatabaseConnection();
 
-    const server = app.listen(port, () => {
+    // Validate metrics internal config (fail-fast)
+    try {
+      if (String(process.env.METRICS_INTERNAL_ONLY || 'true').toLowerCase() === 'true') {
+        validateInternalMetricsConfig();
+      }
+    } catch (err) {
+      console.error(err.message);
+      process.exit(1);
+    }
+
+    const server = app.listen(port, () => { 
       const actualPort = server.address().port;
       process.env.PAPERLESS_AI_PORT = actualPort;
       console.log(`Server running on port ${actualPort}`);

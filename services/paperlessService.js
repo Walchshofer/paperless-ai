@@ -1829,6 +1829,14 @@ async getOrCreateDocumentType(name) {
       }
 
       logger.debug('Final update data: %o', apiPayload);
+      if (Object.keys(apiPayload).length === 0) {
+        logger.info('No document updates to apply', {
+          documentId,
+          requestId
+        });
+        if (currentDoc) return currentDoc;
+        return await this.getDocument(documentId);
+      }
       // Propagate request-id if provided to Paperless API
       const headers = {};
       if (requestId) headers['X-Request-Id'] = requestId;

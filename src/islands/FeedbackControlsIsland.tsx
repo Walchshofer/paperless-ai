@@ -12,6 +12,12 @@ try {
   // Server/test: CSS module may not be available at runtime
 }
 
+function dispatchEventSafe(name: string, detail: any) {
+  if (typeof document === 'undefined') return;
+  if (typeof document.dispatchEvent !== 'function') return;
+  document.dispatchEvent(new CustomEvent(name, { detail }));
+}
+
 export default function FeedbackControlsIsland(
   props: Partial<FeedbackControlsContract>
 ) {
@@ -52,15 +58,14 @@ export default function FeedbackControlsIsland(
     if (props.documentId != null) detail.documentId = props.documentId;
 
     // Dispatch updated event (legacy/consumer)
-    document.dispatchEvent(new CustomEvent('feedback:updated', { detail }));
+    dispatchEventSafe('feedback:updated', detail);
 
     // Publish a confirmation event for thumbs_up only
     if (feedback_type === 'thumbs_up') {
-      document.dispatchEvent(
-        new CustomEvent('feedback:confirmed', {
-          detail: { component, documentId: props.documentId || null }
-        })
-      );
+      dispatchEventSafe('feedback:confirmed', {
+        component,
+        documentId: props.documentId || null
+      });
     }
 
     // Persist to backend
@@ -121,6 +126,7 @@ export default function FeedbackControlsIsland(
   return (
     <div
       data-testid="feedback-controls-island-root"
+      data-hydrated="true"
       role="group"
       aria-label="Feedback Controls"
       className={`fci-root ${styles.root ?? ''}`}
@@ -139,6 +145,7 @@ export default function FeedbackControlsIsland(
               <button
                 type="button"
                 data-testid={`thumbs-up-${c}`}
+                aria-pressed={stateMap[c] === 'up'}
                 ref={(el) => {
                   refs.current[c] = Object.assign(refs.current[c] || {}, { up: el });
                 }}
@@ -152,6 +159,7 @@ export default function FeedbackControlsIsland(
               <button
                 type="button"
                 data-testid={`thumbs-down-${c}`}
+                aria-pressed={stateMap[c] === 'down'}
                 ref={(el) => {
                   refs.current[c] = Object.assign(refs.current[c] || {}, { down: el });
                 }}

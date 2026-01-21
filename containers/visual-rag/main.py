@@ -9,7 +9,6 @@ Implements 320-dim ColQwen3-4B-AWQ model with:
 - Python Detox standards (005.5)
 """
 # Standard library imports
-import asyncio
 import base64
 import glob
 import io
@@ -28,20 +27,19 @@ from PIL import Image  # type: ignore
 from pydantic import BaseModel, Field  # type: ignore
 from qdrant_client import QdrantClient  # type: ignore
 from qdrant_client.models import (  # type: ignore
-    Distance,
-    FieldCondition,
-    Filter,
-    MatchValue,
-    PayloadSchemaType,
-    PointStruct,
-    VectorParams,
+    Distance,  # type: ignore
+    FieldCondition,  # type: ignore
+    Filter,  # type: ignore
+    MatchValue,  # type: ignore
+    PayloadSchemaType,  # type: ignore
+    PointStruct,  # type: ignore
+    VectorParams,  # type: ignore
 )
 from transformers import AutoModel, AutoProcessor  # type: ignore
 
 
 # --- Configuration ---
-# Model Enforcement: Only ColQwen3-4B models are allowed (ticket:005.1)
-# Note: tomoro-colqwen3-4b-awq was removed from HuggingFace, using tomoro-colqwen3-embed-4b
+# Only ColQwen3-4B models are allowed (ticket:005.1)
 ALLOWED_MODELS = {
     "TomoroAI/tomoro-colqwen3-embed-4b",     # Primary model (320-dim)
     "TomoroAI/tomoro-colqwen3-4b-awq",       # Legacy AWQ (deprecated)
@@ -53,8 +51,10 @@ EXPECTED_EMBEDDING_DIM = 320  # ColQwen3 native dimension
 # Enforce model ID matches allowed models
 if MODEL_ID not in ALLOWED_MODELS:
     raise RuntimeError(
-        f"Model enforcement failed: '{MODEL_ID}' is not allowed. "
-        f"Allowed models: {ALLOWED_MODELS}"
+        (
+            f"Model enforcement failed: '{MODEL_ID}' is not allowed. "
+            f"Allowed models: {ALLOWED_MODELS}"
+        )
     )
 
 INDEX_DIR = Path(os.getenv("INDEX_DIR", "/data/indices"))
@@ -71,11 +71,6 @@ logger = logging.getLogger("visual_rag_native")
 class VisualQdrantAdapter:
     """
     Singleton Qdrant adapter for visual RAG collections (ticket:005.3).
-
-    Supports:
-    - visual_pages (320-dim, DOT distance)
-    - visual_overlays (320-dim, DOT distance)
-    - Expert Filtering (doc_id, tag_ids, correspondent_id)
     """
 
     _instance: Optional["VisualQdrantAdapter"] = None
@@ -95,7 +90,7 @@ class VisualQdrantAdapter:
 
         self.host = QDRANT_HOST
         self.port = QDRANT_PORT
-        self.client: Optional[QdrantClient] = None
+        self.client: Any = None  # type: ignore
         self.collections = {"visual_pages", "visual_overlays"}
 
     def connect(self) -> bool:
@@ -109,7 +104,7 @@ class VisualQdrantAdapter:
             return True
         except Exception as exc:
             logger.error("⚠️ Qdrant connection failed: %s", exc)
-            self.client = None
+            self.client = None  # type: ignore
             return False
 
     def ensure_collections(self) -> None:
@@ -119,33 +114,36 @@ class VisualQdrantAdapter:
 
         for coll_name in self.collections:
             try:
-                resp: Any = self.client.get_collections()
+                resp: Any = self.client.get_collections()  # type: ignore
                 exists = any(
-                    c.name == coll_name for c in resp.collections
+                    c.name == coll_name  # type: ignore
+                    for c in resp.collections  # type: ignore
                 )
 
                 if exists:
                     # Validate Distance Metric Lock
-                    info = self.client.get_collection(coll_name)
-                    cfg = info.config.params.vectors
+                    info = self.client.get_collection(  # type: ignore
+                        coll_name
+                    )
+                    cfg: Any = info.config.params.vectors  # type: ignore
                     if isinstance(cfg, dict):
-                        page_cfg = cfg.get("page_embedding")
+                        page_cfg = cfg.get("page_embedding")  # type: ignore
                         if page_cfg:
-                            dist = page_cfg.distance
-                            if dist != Distance.DOT:
+                            dist = page_cfg.distance  # type: ignore
+                            if dist != Distance.DOT:  # type: ignore
                                 logger.warning(
                                     "Distance mismatch in %s: %s != DOT",
-                                    coll_name, dist
+                                    coll_name, dist  # type: ignore
                                 )
                     logger.info("Collection '%s' verified", coll_name)
                 else:
                     logger.info("Creating collection '%s'", coll_name)
-                    self.client.create_collection(
+                    self.client.create_collection(  # type: ignore
                         collection_name=coll_name,
                         vectors_config={
                             "page_embedding": VectorParams(
                                 size=EXPECTED_EMBEDDING_DIM,
-                                distance=Distance.DOT
+                                distance=Distance.DOT  # type: ignore
                             )
                         },
                     )
@@ -160,15 +158,15 @@ class VisualQdrantAdapter:
         if not self.client:
             return
 
-        fields = [
-            ("doc_id", PayloadSchemaType.INTEGER),
-            ("correspondent_id", PayloadSchemaType.INTEGER),
-            ("tag_ids", PayloadSchemaType.INTEGER),
+        fields: List[Any] = [
+            ("doc_id", PayloadSchemaType.INTEGER),  # type: ignore
+            ("correspondent_id", PayloadSchemaType.INTEGER),  # type: ignore
+            ("tag_ids", PayloadSchemaType.INTEGER),  # type: ignore
         ]
 
         for field_name, schema_type in fields:
             try:
-                self.client.create_payload_index(
+                self.client.create_payload_index(  # type: ignore
                     collection_name=collection_name,
                     field_name=field_name,
                     field_schema=schema_type,
@@ -182,20 +180,14 @@ class VisualQdrantAdapter:
 
     def build_filter(
         self, filters: Optional["SearchFilters"]
-    ) -> Optional[Filter]:
+    ) -> Optional[Any]:
         """
         Build Qdrant Filter from SearchFilters (ticket:005.3).
-
-        Args:
-            filters: SearchFilters with doc_id, tag_ids, correspondent_id
-
-        Returns:
-            Qdrant Filter or None if no filters
         """
         if not filters:
             return None
 
-        conditions: List[FieldCondition] = []
+        conditions: List[Any] = []
 
         if filters.doc_id is not None:
             conditions.append(
@@ -226,7 +218,7 @@ class VisualQdrantAdapter:
         if not conditions:
             return None
 
-        return Filter(must=conditions)
+        return Filter(must=conditions)  # type: ignore[call-arg]
 
     def search(
         self,
@@ -237,15 +229,6 @@ class VisualQdrantAdapter:
     ) -> List[Dict[str, Any]]:
         """
         Search with Expert Filtering (ticket:005.3).
-
-        Args:
-            collection_name: Target collection
-            query_vector: 320-dim query embedding
-            limit: Number of results
-            filters: Expert Filtering options
-
-        Returns:
-            List of search results with doc_id, score, payload
         """
         if not self.client:
             raise RuntimeError("Qdrant not connected")
@@ -253,9 +236,9 @@ class VisualQdrantAdapter:
         if collection_name not in self.collections:
             raise ValueError(f"Invalid collection: {collection_name}")
 
-        query_filter = self.build_filter(filters)
+        query_filter = self.build_filter(filters)  # type: ignore
 
-        hits = self.client.search(
+        hits: Any = self.client.search(
             collection_name=collection_name,
             query_vector=("page_embedding", query_vector),
             query_filter=query_filter,
@@ -264,9 +247,12 @@ class VisualQdrantAdapter:
 
         return [
             {
-                "doc_id": h.payload.get("doc_id") if h.payload else h.id,
-                "score": h.score,
-                "payload": h.payload
+                "doc_id": (  # type: ignore
+                    h.payload.get("doc_id")  # type: ignore
+                    if h.payload else h.id  # type: ignore
+                ),
+                "score": h.score,  # type: ignore
+                "payload": h.payload  # type: ignore
             }
             for h in hits
         ]
@@ -307,12 +293,16 @@ class VisualQdrantAdapter:
 
             for coll_name in self.collections:
                 try:
-                    info = self.client.get_collection(coll_name)
-                    points = int(getattr(info, "points_count", 0) or 0)
+                    info = self.client.get_collection(
+                        coll_name
+                    )
+                    points = int(
+                        getattr(info, "points_count", 0) or 0  # type: ignore
+                    )
                     details[coll_name] = {
                         "exists": True,
                         "point_count": points,
-                        "status": str(info.status),
+                        "status": str(info.status),  # type: ignore
                     }
                     total_points += points
                 except Exception:
@@ -363,11 +353,7 @@ class SearchFilters(BaseModel):
 
 class SearchRequest(BaseModel):
     """
-    Search request supporting both text and image queries (ticket:005.2).
-
-    For text search: provide query_text
-    For image search: provide query_image (Base64)
-    Both can be provided for hybrid search.
+    Search request for text and image queries (ticket:005.2).
     """
     query: Optional[str] = Field(
         default=None,
@@ -420,17 +406,13 @@ class SearchResponse(BaseModel):
 
 class GlobalState:
     """
-    Explicitly typed state container for Pylance transparency.
-
-    Tracks initialization state for 503 Initializing response (ticket:005.4).
+    Initialization state for 503 response (ticket:005.4).
     """
     model: Any = None
     processor: Any = None
     qdrant: Any = None
-    # doc_id string keys for the 320-dim tensor registry
     registry: Dict[str, Any] = {}
 
-    # Initialization tracking (ticket:005.4)
     initializing: bool = True
     init_stage: str = "starting"
     init_error: Optional[str] = None
@@ -456,15 +438,10 @@ class GlobalState:
 
 state = GlobalState()
 
-# Timeout configuration (ticket:005.4)
-RETRIEVAL_TIMEOUT_SECONDS = 5.0
-
 
 def _check_ready_or_503() -> None:
     """
-    Check if service is ready, raise 503 if initializing (ticket:005.4).
-
-    Returns 503 with body "Initializing" during VRAM warmup.
+    Raise 503 if initializing (ticket:005.4).
     """
     if state.initializing:
         raise HTTPException(
@@ -478,60 +455,26 @@ def _check_ready_or_503() -> None:
         )
 
 
-async def _with_timeout(
-    coro: Any,
-    timeout: float = RETRIEVAL_TIMEOUT_SECONDS
-) -> Any:
-    """
-    Wrap coroutine with timeout (ticket:005.4).
-
-    Args:
-        coro: Coroutine to execute
-        timeout: Timeout in seconds (default: 5s)
-
-    Returns:
-        Result of coroutine
-
-    Raises:
-        HTTPException: If timeout exceeded
-    """
-    try:
-        return await asyncio.wait_for(coro, timeout=timeout)
-    except asyncio.TimeoutError:
-        logger.error("Request timed out after %.1fs", timeout)
-        raise HTTPException(
-            status_code=504,
-            detail=f"Request timeout ({timeout}s exceeded)"
-        )
-
-
 def _decode_base64_image(image_b64: str) -> Any:
     """
     Decode and validate a Base64 encoded image (ticket:005.2).
-
-    Args:
-        image_b64: Base64 encoded image string
-
-    Returns:
-        PIL Image in RGB format
-
-    Raises:
-        HTTPException: If image is invalid or corrupt
     """
     try:
         img_data = base64.b64decode(image_b64)
-        img = Image.open(io.BytesIO(img_data))
+        img: Any = Image.open(io.BytesIO(img_data))  # type: ignore
 
         # Validate format is supported
-        if img.format not in ("JPEG", "PNG", "BMP", "TIFF", "WEBP", None):
+        formats = ("JPEG", "PNG", "BMP", "TIFF", "WEBP", None)
+        if img.format not in formats:  # type: ignore
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported image format: {img.format}"
+                detail=(
+                    f"Unsupported image format: {img.format}"  # type: ignore
+                )
             )
 
-        # Convert to RGB for ColQwen3 processing
-        return img.convert("RGB")
-    except base64.binascii.Error as e:
+        return cast(Any, img.convert("RGB"))  # type: ignore
+    except base64.binascii.Error as e:  # type: ignore
         raise HTTPException(
             status_code=400,
             detail=f"Invalid Base64 encoding: {e}"
@@ -548,25 +491,21 @@ def _decode_base64_image(image_b64: str) -> Any:
 def _validate_model_dimensions(model: Any, processor: Any) -> None:
     """
     Validate ColQwen3 model outputs 320-dimensional embeddings.
-
-    Raises:
-        RuntimeError: If model architecture or dimensions don't match.
     """
     logger.info("Validating model dimensions...")
 
-    # Check model config for embedding dimension if available
     config: Any = getattr(model, "config", None)
     if config is not None:
-        # ColQwen3 stores projection_dim or hidden_size
         proj_dim = getattr(config, "projection_dim", None)
         hidden_size = getattr(config, "hidden_size", None)
 
-        # Validate projection_dim if present
         if proj_dim is not None and proj_dim != EXPECTED_EMBEDDING_DIM:
             raise RuntimeError(
-                f"Architecture mismatch: model projection_dim={proj_dim}, "
-                f"expected {EXPECTED_EMBEDDING_DIM}. "
-                f"Only ColQwen3-4B-AWQ (320-dim) is supported."
+                (
+                    f"Architecture mismatch: model projection_dim={proj_dim}, "
+                    f"expected {EXPECTED_EMBEDDING_DIM}. "
+                    "Only ColQwen3-4B-AWQ (320-dim) is supported."
+                )
             )
 
         logger.info(
@@ -574,26 +513,29 @@ def _validate_model_dimensions(model: Any, processor: Any) -> None:
             proj_dim, hidden_size
         )
 
-    # Runtime validation: generate a test embedding
     try:
         from PIL import Image as PILImage  # type: ignore
-        test_img = PILImage.new("RGB", (224, 224), color="gray")
+        test_img: Any = PILImage.new(  # type: ignore
+            "RGB", (224, 224), color="gray"
+        )
 
         with torch.inference_mode():  # type: ignore
-            inputs: Any = processor.process_images([test_img]).to(DEVICE)
+            inputs: Any = processor.process_images(  # type: ignore
+                [test_img]
+            ).to(DEVICE)
             out: Any = model(**inputs)
             embeddings: Any = out.embeddings
 
-            # Get the embedding dimension (last axis)
-            emb_shape = embeddings.shape
-            actual_dim = emb_shape[-1]
+            actual_dim = embeddings.shape[-1]
 
             if actual_dim != EXPECTED_EMBEDDING_DIM:
                 raise RuntimeError(
-                    f"Dimension validation failed: model outputs "
-                    f"{actual_dim}-dim embeddings, expected "
-                    f"{EXPECTED_EMBEDDING_DIM}. "
-                    f"Ensure ColQwen3-4B-AWQ is loaded."
+                    (
+                        f"Dimension validation failed: model outputs "
+                        f"{actual_dim}-dim embeddings, expected "
+                        f"{EXPECTED_EMBEDDING_DIM}. "
+                        "Ensure ColQwen3-4B-AWQ is loaded."
+                    )
                 )
 
             logger.info(
@@ -601,7 +543,6 @@ def _validate_model_dimensions(model: Any, processor: Any) -> None:
                 actual_dim
             )
     except RuntimeError:
-        # Re-raise RuntimeError (validation failures)
         raise
     except Exception as exc:
         logger.warning(
@@ -609,18 +550,11 @@ def _validate_model_dimensions(model: Any, processor: Any) -> None:
         )
 
 
-# --- Lifespan Manager (Replaces deprecated on_event) - ticket:005.4 ---
+# --- Lifespan Manager - ticket:005.4 ---
 @asynccontextmanager
 async def lifespan(_app: Any):
     """
     Initializes the 320-dim ColQwen3 bridge on startup.
-
-    Implements 503 Initializing state tracking (ticket:005.4):
-    - Tracks init stages: starting -> loading_processor ->
-      loading_model -> validating -> connecting_qdrant ->
-      loading_indices -> ready
-    - Sets state.initializing = False when model is ready
-    - Handles graceful shutdown and VRAM release
     """
     logger.info("🚀 Initializing ColQwen3 (4B-AWQ) on %s...", DEVICE)
     logger.info("Model enforcement: %s (offline mode)", MODEL_ID)
@@ -634,7 +568,7 @@ async def lifespan(_app: Any):
         state.processor = p_load.from_pretrained(  # type: ignore
             MODEL_ID,
             trust_remote_code=True,
-            local_files_only=False,  # Allow model download from HuggingFace
+            local_files_only=False,
             max_num_visual_tokens=1280
         )
 
@@ -646,8 +580,9 @@ async def lifespan(_app: Any):
         state.model = m_load.from_pretrained(  # type: ignore
             MODEL_ID,
             trust_remote_code=True,
-            local_files_only=False,  # Allow model download from HuggingFace
-            torch_dtype=torch.float16,  # type: ignore
+            local_files_only=False,
+            # FIX: Changed from torch_dtype to dtype
+            dtype=torch.float16,  # type: ignore
             device_map=DEVICE,
             attn_implementation="flash_attention_2"
         ).eval()  # type: ignore
@@ -655,7 +590,9 @@ async def lifespan(_app: Any):
         # Stage 3: Validate dimensions
         state.init_stage = "validating"
         logger.info("Stage: %s", state.init_stage)
-        _validate_model_dimensions(state.model, state.processor)
+        _validate_model_dimensions(
+            state.model, state.processor  # type: ignore
+        )
 
         # Stage 4: Connect Qdrant adapter
         state.init_stage = "connecting_qdrant"
@@ -664,7 +601,7 @@ async def lifespan(_app: Any):
             if qdrant_adapter.connect():
                 qdrant_adapter.ensure_collections()
                 state.qdrant = qdrant_adapter.client
-                logger.info("✅ Qdrant adapter initialized with collections")
+                logger.info("✅ Qdrant adapter initialized")
             else:
                 logger.warning("⚠️ Qdrant adapter connection failed")
         except Exception as exc:
@@ -675,18 +612,19 @@ async def lifespan(_app: Any):
         logger.info("Stage: %s", state.init_stage)
         INDEX_DIR.mkdir(parents=True, exist_ok=True)
         for p in INDEX_DIR.glob("*.pt"):
-            loaded: Any = torch.load(  # type: ignore
+            loaded: Any = cast(Any, torch.load(  # type: ignore
                 p, map_location="cpu", weights_only=True
-            )
+            ))
             state.registry[p.stem] = loaded
 
         # Ready: Model in VRAM, transition to 200 OK
         state.init_stage = "ready"
         state.initializing = False
+        vram_alloc = float(cast(Any, torch).cuda.memory_allocated())
         logger.info(
             "✅ Ready. Registry size: %d, VRAM: %.2fGB",
             len(state.registry),
-            torch.cuda.memory_allocated() / 1e9  # type: ignore
+            vram_alloc / 1e9
         )
 
     except Exception as exc:
@@ -702,8 +640,8 @@ async def lifespan(_app: Any):
     state.registry.clear()
     state.model = None
     state.processor = None
-    if torch.cuda.is_available():  # type: ignore
-        torch.cuda.empty_cache()  # type: ignore
+    if cast(Any, torch).cuda.is_available():
+        cast(Any, torch).cuda.empty_cache()
     logger.info("✅ Shutdown complete")
 
 
@@ -717,14 +655,12 @@ app = FastAPI(  # type: ignore
 async def _process_images(
     doc_id: int, pil_images: List[Any]
 ) -> Dict[str, Any]:
-    """Shared logic for processing and indexing a list of PIL images."""
+    """Shared logic for processing document images."""
     doc_id_str = str(doc_id)
     try:
         with torch.inference_mode():  # type: ignore
-            # Processor handles Dynamic Resolution patching
             inputs = state.processor.process_images(pil_images).to(DEVICE)
             out = state.model(**inputs)
-            # embeddings is the native 320-dim output for ColQwen3
             embeddings: Any = out.embeddings.to(  # type: ignore
                 torch.bfloat16  # type: ignore
             ).cpu()
@@ -741,12 +677,12 @@ async def _process_images(
                     buffer.getvalue()
                 ).decode("utf-8")
 
-                # Mean pooling for vector index (approximate semantic rep)
+                # Mean pooling for vector index
                 mean_vec: List[float] = (
                     embeddings.float().view(-1, 320).mean(dim=0).tolist()
                 )
 
-                state.qdrant.upsert(
+                state.qdrant.upsert(  # type: ignore
                     collection_name="visual_pages",
                     points=[
                         PointStruct(
@@ -766,7 +702,7 @@ async def _process_images(
                     "⚠️ Qdrant sync failed for %s: %s", doc_id_str, exc
                 )
 
-        vram: float = torch.cuda.memory_allocated() / 1e9  # type: ignore
+        vram: float = float(cast(Any, torch).cuda.memory_allocated()) / 1e9
         return {
             "status": "success",
             "doc_id": doc_id,
@@ -779,17 +715,16 @@ async def _process_images(
 
 @app.post("/index/document")  # type: ignore
 async def index_document(payload: IndexRequest) -> Dict[str, Any]:
-    """Index document images (ticket:005.4: uses 503 check)."""
+    """Index document images."""
     _check_ready_or_503()
 
     try:
         pil_images: List[Any] = []
         for img_b64 in payload.images:
             img_data = base64.b64decode(img_b64)
-            # Surgical ignore for unresolved PIL members
-            img = Image.open(  # type: ignore
+            img: Any = Image.open(  # type: ignore
                 io.BytesIO(img_data)
-            ).convert("RGB")  # type: ignore
+            ).convert("RGB")
             pil_images.append(img)
 
         return await _process_images(payload.doc_id, pil_images)
@@ -799,15 +734,14 @@ async def index_document(payload: IndexRequest) -> Dict[str, Any]:
 
 @app.post("/index/pdf")  # type: ignore
 async def index_pdf(payload: IndexPdfRequest) -> Dict[str, Any]:
-    """Index PDF document (ticket:005.4: uses 503 check)."""
+    """Index PDF document."""
     _check_ready_or_503()
 
     try:
         pdf_bytes = base64.b64decode(payload.pdf_data)
-        # Render PDF to images at configured DPI
-        pil_images = convert_from_bytes(
+        pil_images: List[Any] = list(convert_from_bytes(  # type: ignore
             pdf_bytes, dpi=DPI, fmt="jpeg", thread_count=4
-        )
+        ))
         return await _process_images(payload.doc_id, pil_images)
     except Exception as exc:
         logger.error("PDF index error for doc %s: %s", payload.doc_id, exc)
@@ -816,17 +750,22 @@ async def index_pdf(payload: IndexPdfRequest) -> Dict[str, Any]:
 
 @app.post("/index/directory")  # type: ignore
 async def index_directory(payload: IndexDirectoryRequest) -> Dict[str, Any]:
-    """Index images from directory (ticket:005.4: uses 503 check)."""
+    """Index images from directory."""
     _check_ready_or_503()
 
     try:
         image_paths = sorted(glob.glob(os.path.join(payload.path, "*")))
         pil_images: List[Any] = []
         for p in image_paths:
-            if p.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff')):
-                pil_images.append(Image.open(p).convert("RGB"))  # type: ignore
+            exts = ('.png', '.jpg', '.jpeg', '.bmp', '.tiff')
+            if p.lower().endswith(exts):
+                pil_images.append(
+                    Image.open(p).convert("RGB")  # type: ignore
+                )
 
-        return await _process_images(payload.doc_id, pil_images)
+        return await _process_images(
+            payload.doc_id, pil_images
+        )
     except Exception as exc:
         logger.error("Directory index error: %s", exc)
         raise HTTPException(status_code=500, detail="Indexing failure")
@@ -835,18 +774,12 @@ async def index_directory(payload: IndexDirectoryRequest) -> Dict[str, Any]:
 @app.post("/search", response_model=SearchResponse)  # type: ignore
 async def search(payload: SearchRequest) -> SearchResponse:
     """
-    Search endpoint supporting text and image queries (ticket:005.2, 005.4).
-
-    - Text query: Uses process_texts for semantic search
-    - Image query: Uses process_images for visual similarity search
-    - Hybrid: Combines both for enhanced retrieval
-    - 5-second timeout for retrieval calls (ticket:005.4)
+    Search endpoint for text and image queries (ticket:005.2, 005.4).
     """
     start_time = time.time()
 
-    _check_ready_or_503()  # ticket:005.4
+    _check_ready_or_503()
 
-    # Validate at least one query type is provided
     text_query = payload.get_text_query()
     image_query = payload.query_image
 
@@ -866,12 +799,15 @@ async def search(payload: SearchRequest) -> SearchResponse:
     if payload.collection_name not in valid_collections:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid collection: {payload.collection_name}. "
-                   f"Valid: {valid_collections}"
+            detail=(
+                f"Invalid collection: {payload.collection_name}. "
+                f"Valid: {valid_collections}"
+            )
         )
 
-    # 1. Compute Query Embedding (Native ColQwen3)
+    # 1. Compute Query Embedding
     query_emb: Any = None
+    query_vec: List[float] = []
     try:
         with torch.inference_mode():  # type: ignore
             if image_query:
@@ -881,7 +817,7 @@ async def search(payload: SearchRequest) -> SearchResponse:
                     [query_img]
                 ).to(DEVICE)
             else:
-                # Text-to-image search (original behavior)
+                # Text-to-image search
                 q_inputs = state.processor.process_texts(
                     [text_query]
                 ).to(DEVICE)
@@ -893,8 +829,8 @@ async def search(payload: SearchRequest) -> SearchResponse:
                 torch.float16  # type: ignore
             ).cpu()
 
-            # Mean pool for Qdrant/Dense fallback (Approximate)
-            query_vec: List[float] = (
+            # Mean pool for Qdrant/Dense fallback
+            query_vec = (
                 query_emb.float().mean(dim=1).view(-1).tolist()
             )
     except HTTPException:
@@ -906,8 +842,7 @@ async def search(payload: SearchRequest) -> SearchResponse:
     results: List[SearchResult] = []
     score_type = "maxsim"
 
-    # 2. Strategy A: Native MaxSim (Preferred for Visual RAG accuracy)
-    # If we have tensors in memory, use them for late-interaction scoring.
+    # 2. Strategy A: Native MaxSim
     if state.registry:
         try:
             doc_ids = list(state.registry.keys())
@@ -920,10 +855,9 @@ async def search(payload: SearchRequest) -> SearchResponse:
                 )[0]
 
             # Top-K
-            top_val: Any
-            top_idx: Any
+            tk_count = min(payload.k, len(scores_tensor))
             top_val, top_idx = torch.topk(  # type: ignore
-                scores_tensor, min(payload.k, len(scores_tensor))
+                scores_tensor, tk_count
             )
 
             indices = cast(List[int], top_idx.tolist())  # type: ignore
@@ -947,19 +881,16 @@ async def search(payload: SearchRequest) -> SearchResponse:
             )
         except Exception:
             logger.exception("MaxSim search failure, attempting fallback")
-            # Fallthrough to Qdrant if MaxSim fails
 
-    # 3. Strategy B: Qdrant Dense Search with Expert Filtering (ticket:005.3)
-    # Used if registry is empty or MaxSim failed.
+    # 3. Strategy B: Qdrant Dense Search with Expert Filtering
     score_type = "dense"
-    if qdrant_adapter.client:
+    if qdrant_adapter.client:  # type: ignore
         try:
-            # Use singleton adapter with Expert Filtering
             hits = qdrant_adapter.search(
                 collection_name=payload.collection_name,
                 query_vector=query_vec,
                 limit=payload.k,
-                filters=payload.filters  # Expert Filtering (005.3)
+                filters=payload.filters
             )
 
             for h in hits:
@@ -995,19 +926,13 @@ async def search(payload: SearchRequest) -> SearchResponse:
 @app.get("/health")  # type: ignore
 async def health() -> Dict[str, Any]:
     """
-    Health endpoint with initialization status (ticket:005.1, 005.3, 005.4).
-
-    Returns:
-        - status: "healthy" | "initializing" | "error"
-        - init: Detailed initialization status (005.4)
-        - qdrant: Adapter health with collection details (005.3)
+    Health endpoint with initialization status.
     """
     vram: float = float(
         cast(Any, torch).cuda.memory_allocated() / 1e9
         if cast(Any, torch).cuda.is_available() else 0
     )
 
-    # Determine status (ticket:005.4)
     if state.init_error:
         status = "error"
     elif state.initializing:
@@ -1015,12 +940,11 @@ async def health() -> Dict[str, Any]:
     else:
         status = "healthy"
 
-    # Get Qdrant adapter health (ticket:005.3)
     qdrant_health = qdrant_adapter.health_check()
 
     return {
         "status": status,
-        "init": state.get_init_status(),  # ticket:005.4
+        "init": state.get_init_status(),
         "model_id": MODEL_ID,
         "embedding_dim": EXPECTED_EMBEDDING_DIM,
         "offline_mode": True,

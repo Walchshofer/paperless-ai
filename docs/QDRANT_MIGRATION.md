@@ -84,9 +84,9 @@ psycopg2-binary>=2.9.0  # PostgreSQL driver
 "pg": "^8.16.3"  // PostgreSQL client
 ```
 
-### Database Schema (Current):
+### Database Schema (Legacy pgvector-era - metadata only)
 
-#### Table: `document_embeddings` (RAGZ)
+#### Legacy table: `document_embeddings` (RAGZ metadata only)
 ```sql
 CREATE TABLE document_embeddings (
     id SERIAL PRIMARY KEY,
@@ -95,17 +95,14 @@ CREATE TABLE document_embeddings (
     correspondent TEXT,
     created DATE,
     content TEXT,
-    embedding vector(384),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE INDEX idx_embedding_cosine
-ON document_embeddings USING ivfflat (embedding vector_cosine_ops)
-WITH (lists = 100);
+-- Legacy table retained for metadata only. Embeddings live in Qdrant
+-- `document_embeddings` (384D, Cosine). Do not add pgvector columns.
 ```
 
-#### Table: `visual_overlays` (Visual RAG)
+#### Legacy table: `visual_overlays` (metadata only)
 ```sql
 CREATE TABLE visual_overlays (
     id SERIAL PRIMARY KEY,
@@ -119,15 +116,11 @@ CREATE TABLE visual_overlays (
     domain_signals JSONB DEFAULT '[]',
     retrieval_quality_score FLOAT DEFAULT 0.0,
     expert_routing_weights JSONB DEFAULT '{}',
-    embedding vector(320),
+    vector_id UUID,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE INDEX idx_visual_overlays_embedding
-ON visual_overlays USING hnsw (embedding vector_cosine_ops);
-
-CREATE INDEX idx_visual_overlays_embedding_ivfflat
-ON visual_overlays USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+-- Legacy table retained for metadata only. Vectors live in Qdrant
+-- `visual_overlays` (320D, Cosine). Do not add pgvector columns.
 ```
 
 ---

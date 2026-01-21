@@ -4,6 +4,12 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [preact()],
+  resolve: {
+    alias: {
+      'react': 'preact/compat',
+      'react-dom': 'preact/compat'
+    }
+  },
   publicDir: false,
   css: {
     modules: {

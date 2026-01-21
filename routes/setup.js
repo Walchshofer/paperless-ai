@@ -19,6 +19,7 @@ const bcrypt = require('bcryptjs');
 const cookieParser = require('cookie-parser');
 const { authenticateJWT, isAuthenticated } = require('./auth.js');
 const logger = require('../services/logger');
+const { normalizeManualUpdatePayload } = require('../services/manualUpdateNormalizer');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const customService = require('../services/customService.js');
 const { expertRegistry } = require('../services/experts/ExpertRegistry');
@@ -656,6 +657,18 @@ router.get('/playground', protectApiRoute, async (req, res) => {
   } catch (error) {
     console.error('[ERRO] loading playground view:', error);
     res.status(500).send('Error loading playground');
+  }
+});
+
+// Dev-only: shadcn/ui compatibility test page
+router.get('/islands/shadcn-compat', protectApiRoute, async (req, res) => {
+  try {
+    res.render('islands/shadcn-compat', {
+      version: configFile.PAPERLESS_AI_VERSION || ' '
+    });
+  } catch (error) {
+    console.error('[ERRO] loading shadcn compat view:', error);
+    res.status(500).send('Error loading view');
   }
 });
 
@@ -4379,7 +4392,7 @@ router.post('/manual/updateDocument', express.json(), async (req, res) => {
 
     // If unified payload
     if (req.body.document_updates || req.body.feedback_events || req.body.visual_annotations) {
-      const documentUpdates = req.body.document_updates || {};
+      let documentUpdates = req.body.document_updates || {};
       const feedbackEvents = req.body.feedback_events || req.body.feedbackEvents || [];
       const transactional = Boolean(req.body.transactional);
 
@@ -4402,8 +4415,46 @@ router.post('/manual/updateDocument', express.json(), async (req, res) => {
         logger.warn('manual.updateDocument.fetch_original_failed', { requestId, documentId, error: e.message });
       }
 
+      // Normalize updates before sending to Paperless
+      try {
+        documentUpdates = await normalizeManualUpdatePayload(documentUpdates, requestId);
+      } catch (normErr) {
+        const status = normErr.statusCode || 400;
+        logger.warn('manual.updateDocument.normalize_failed', {
+          requestId,
+          documentId,
+          error: normErr.message
+        });
+        return res.status(status).json({ error: normErr.message });
+      }
+
+      const updateTimeoutMs = parseInt(
+        process.env.PAPERLESS_UPDATE_TIMEOUT_MS,
+        10
+      ) || 5000;
+      const withTimeout = (promise, ms) => new Promise((resolve, reject) => {
+        const timer = setTimeout(() => resolve(null), ms);
+        promise.then((value) => {
+          clearTimeout(timer);
+          resolve(value);
+        }).catch((error) => {
+          clearTimeout(timer);
+          reject(error);
+        });
+      });
+
       // Proceed to update Paperless (primary source of truth)
-      const updateDocument = await paperlessService.updateDocument(documentId, documentUpdates, { requestId });
+      const updateDocument = await withTimeout(
+        paperlessService.updateDocument(documentId, documentUpdates, { requestId }),
+        updateTimeoutMs
+      ).catch((err) => {
+        logger.warn('manual.updateDocument.paperless_update_timeout', {
+          requestId,
+          documentId,
+          error: err.message
+        });
+        return null;
+      });
 
       if (!updateDocument) {
         const msg = 'Failed to update document in Paperless';
@@ -4420,9 +4471,10 @@ router.post('/manual/updateDocument', express.json(), async (req, res) => {
         }
         // Otherwise, best-effort: return partial success
         // Attempt to persist feedback events if not already done
+        let feedbackResult = null;
         if (!transactional && feedbackEvents.length > 0) {
           try {
-            const feedbackResult = await feedbackService.recordGranularFeedback(documentId, feedbackEvents, { requestId });
+            feedbackResult = await feedbackService.recordGranularFeedback(documentId, feedbackEvents, { requestId });
             logger.info('manual.updateDocument.feedback_persisted_after_paperless_failure', { requestId, documentId, result: feedbackResult });
           } catch (feedErr) {
             logger.error('manual.updateDocument.feedback_persist_after_paperless_failed', { requestId, documentId, error: feedErr.message });
@@ -4432,7 +4484,11 @@ router.post('/manual/updateDocument', express.json(), async (req, res) => {
             } catch (mErr) { logger.debug('metrics_increment_failed', { error: mErr.message }); }
           }
         }
-        return res.status(500).json({ error: msg });
+        return res.status(202).json({
+          error: msg,
+          partial: true,
+          feedback: feedbackResult
+        });
       }
 
       // If non-transactional, attempt feedback persistence but do not fail the update if it errors

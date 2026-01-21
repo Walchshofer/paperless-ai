@@ -71,6 +71,7 @@ jobs:
           POSTGRES_PASSWORD: testpass
           QDRANT_HOST: localhost
           QDRANT_PORT: 6333
+          METRICS_INTERNAL_ONLY: 'false'
         run: npm test -- test/integration/feedback_persistence.test.js --reporter spec
 
       - name: Upload test output on failure

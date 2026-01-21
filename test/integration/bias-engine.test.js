@@ -98,7 +98,6 @@ before(async function() {
                     return;
                 }
                 process.env.BIAS_ENGINE_URL = `localhost:${port}`;
-                biasServer.start();
                 resolve();
             }
         );

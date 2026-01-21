@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 // Basic E2E skeleton: assert island mount and interactive element presence
 test.describe('Manual - Visual Annotation island', () => {
   test('mounts visual annotation island and shows draw controls', async ({ page, baseURL }) => {
-    const base = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
+    const base = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
     const url = `${base}/manual`;
 
     const response = await page.goto(url, { waitUntil: 'load', timeout: 10000 }).catch(() => null);

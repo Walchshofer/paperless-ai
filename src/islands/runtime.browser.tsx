@@ -5,6 +5,7 @@ import ManualEditorIsland from './ManualEditorIsland';
 import HistoryTabsIsland from './HistoryTabsIsland';
 import OverlayViewerIsland from './OverlayViewerIsland';
 import PlaygroundIsland from './PlaygroundIsland';
+import ShadcnCompat from './shadcn-compat';
 
 type IslandComponent = (props: any) => JSX.Element;
 
@@ -17,6 +18,7 @@ const registry: IslandRegistry = {
   'history-tabs-island': HistoryTabsIsland,
   'overlay-viewer-island': OverlayViewerIsland,
   'playground-island': PlaygroundIsland,
+  'shadcn-compat': ShadcnCompat,
 };
 
 function parseProps(el: Element): Record<string, any> | null {
@@ -52,8 +54,13 @@ export function mountIslands(container: ParentNode = document) {
     if (props === null) return;
 
     render(h(Component, props), el as HTMLElement);
-    if ((el as HTMLElement).dataset) {
-      (el as HTMLElement).dataset.mounted = 'true';
+    const host = el as HTMLElement;
+    if (host.dataset) {
+      host.dataset.mounted = 'true';
+    }
+    const root = host.querySelector('[data-testid$="-root"]') as HTMLElement | null;
+    if (root && !root.getAttribute('data-hydrated')) {
+      root.setAttribute('data-hydrated', 'true');
     }
   });
 }

@@ -46,8 +46,8 @@
 
         <div class="mt-6 bg-white border border-gray-200 rounded-lg p-4">
             <div class="grid gap-4 md:grid-cols-5 min-h-96">
-                <div class="md:col-span-3" data-island="overlay-viewer-island" data-testid="overlay-viewer" data-props='<%- JSON.stringify({ documentId: documentId, page: 1 }) %>'></div>
-                <div class="md:col-span-2" data-island="history-tabs-island" data-testid="history-tabs" data-props='<%- JSON.stringify({ documentId: documentId, content, metadata }) %>'></div>
+                <div class="md:col-span-3" data-island="overlay-viewer-island" data-testid="overlay-viewer" data-props="<%= JSON.stringify({ documentId: documentId, page: 1 }) %>"></div>
+                <div class="md:col-span-2" data-island="history-tabs-island" data-testid="history-tabs" data-props="<%= JSON.stringify({ documentId: documentId, content, metadata }) %>"></div>
             </div>
         </div>
     </main>

@@ -10,7 +10,7 @@ import { test, expect } from '@playwright/test';
  */
 
 test.describe('Alpha-9 Full Pipeline E2E', () => {
-  const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
+  const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
 
   // Helper to handle login
   async function handleLogin(page: any, targetUrl: string) {
@@ -93,7 +93,7 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     });
 
     // 1. Open History Document (already done)
-    expect(page.url()).toContain('/history/1');
+    expect(page.url()).toMatch(/\/history\/(doc\/)?1/);
 
     // 2. Select Red Pen tool
     const redPenToggle = page.locator('[data-testid="red-pen-toggle"]');
@@ -416,3 +416,4 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     await expect(errorElement).toBeVisible();
   });
 });
+

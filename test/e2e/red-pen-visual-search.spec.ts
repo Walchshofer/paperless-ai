@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { getHistoryDocId } from '../helpers/fixtures';
 
 /**
  * Red Pen Visual Search E2E Tests
@@ -13,39 +14,23 @@ import { test, expect } from '@playwright/test';
  */
 
 test.describe('Red Pen Visual Search Flow', () => {
-  const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
-  const HISTORY_DOC_ID =
-    process.env.PLAYWRIGHT_HISTORY_DOC_ID || '1';
+  const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
+  const HISTORY_DOC_ID = getHistoryDocId();
+  const HISTORY_URL = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
 
-  // Helper to handle login if required
-  async function handleLogin(page: any, targetUrl: string) {
-    const response = await page
-      .goto(targetUrl, { waitUntil: 'load', timeout: 10000 })
-      .catch(() => null);
+  async function gotoHistory(page: any) {
+    const response = await page.goto(HISTORY_URL, {
+      waitUntil: 'load',
+      timeout: 10000
+    }).catch(() => null);
 
-    const loginFormPresent =
-      response &&
-      (response.url().includes('/login') ||
-        (await page.locator('form[action="/login"]').count()) > 0);
+    const loginFormPresent = response && (
+      response.url().includes('/login') ||
+      (await page.locator('form[action="/login"]').count()) > 0
+    );
 
     if (loginFormPresent) {
-      const user = process.env.PAPERLESS_ADMIN_USER || 'elfman';
-      const pass =
-        process.env.PAPERLESS_ADMIN_PASSWORD ||
-        process.env.POSTGRES_PASSWORD ||
-        'P2tr3ck!1976';
-      await page.goto(`${BASE_URL}/login`, { waitUntil: 'load' });
-      await page.fill('#username', user);
-      await page.fill('#password', pass);
-      await Promise.all([
-        page.waitForNavigation({ waitUntil: 'load', timeout: 10000 }),
-        page.click('button[type="submit"]')
-      ]).catch(() => null);
-
-      return page.goto(targetUrl, {
-        waitUntil: 'domcontentloaded',
-        timeout: 20000
-      });
+      throw new Error('Auth state missing for /history (login redirect).');
     }
 
     return response;
@@ -53,11 +38,10 @@ test.describe('Red Pen Visual Search Flow', () => {
 
 
   test('Red Pen toggle enables drawing mode', async ({ page }) => {
-    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
-    const response = await handleLogin(page, url);
+    const response = await gotoHistory(page);
 
     if (!response || response.status() >= 400) {
-      test.skip(true, `History page not available at ${url}`);
+      test.skip(true, `History page not available at ${HISTORY_URL}`);
       return;
     }
 
@@ -87,11 +71,10 @@ test.describe('Red Pen Visual Search Flow', () => {
   test('Drawing a box triggers visual-search-requested event', async ({
     page
   }) => {
-    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
-    const response = await handleLogin(page, url);
+    const response = await gotoHistory(page);
 
     if (!response || response.status() >= 400) {
-      test.skip(true, `History page not available at ${url}`);
+      test.skip(true, `History page not available at ${HISTORY_URL}`);
       return;
     }
 
@@ -152,11 +135,10 @@ test.describe('Red Pen Visual Search Flow', () => {
   });
 
   test('Small box shows warning message', async ({ page }) => {
-    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
-    const response = await handleLogin(page, url);
+    const response = await gotoHistory(page);
 
     if (!response || response.status() >= 400) {
-      test.skip(true, `History page not available at ${url}`);
+      test.skip(true, `History page not available at ${HISTORY_URL}`);
       return;
     }
 
@@ -201,11 +183,10 @@ test.describe('Red Pen Visual Search Flow', () => {
   });
 
   test('Clear boxes button removes all selections', async ({ page }) => {
-    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
-    const response = await handleLogin(page, url);
+    const response = await gotoHistory(page);
 
     if (!response || response.status() >= 400) {
-      test.skip(true, `History page not available at ${url}`);
+      test.skip(true, `History page not available at ${HISTORY_URL}`);
       return;
     }
 
@@ -255,11 +236,10 @@ test.describe('Red Pen Visual Search Flow', () => {
   test('503 Initializing state shows GPU loading indicator', async ({
     page
   }) => {
-    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
-    const response = await handleLogin(page, url);
+    const response = await gotoHistory(page);
 
     if (!response || response.status() >= 400) {
-      test.skip(true, `History page not available at ${url}`);
+      test.skip(true, `History page not available at ${HISTORY_URL}`);
       return;
     }
 
@@ -321,11 +301,10 @@ test.describe('Red Pen Visual Search Flow', () => {
   });
 
   test('Successful search displays MaxSim results', async ({ page }) => {
-    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
-    const response = await handleLogin(page, url);
+    const response = await gotoHistory(page);
 
     if (!response || response.status() >= 400) {
-      test.skip(true, `History page not available at ${url}`);
+      test.skip(true, `History page not available at ${HISTORY_URL}`);
       return;
     }
 
@@ -391,11 +370,10 @@ test.describe('Red Pen Visual Search Flow', () => {
   test('Full E2E flow: Draw → Search → Switch to Similar tab', async ({
     page
   }) => {
-    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
-    const response = await handleLogin(page, url);
+    const response = await gotoHistory(page);
 
     if (!response || response.status() >= 400) {
-      test.skip(true, `History page not available at ${url}`);
+      test.skip(true, `History page not available at ${HISTORY_URL}`);
       return;
     }
 
@@ -459,3 +437,4 @@ test.describe('Red Pen Visual Search Flow', () => {
     await expect(results).toBeVisible();
   });
 });
+

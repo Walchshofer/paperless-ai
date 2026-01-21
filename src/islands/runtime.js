@@ -202,7 +202,7 @@ const defaultRenderers = {
   'visual-annotation-island': (el) => {
     // Interactive red-pen style annotation canvas + save UI
     el.innerHTML = `
-      <div data-testid="visual-annotation-island-root" style="font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;">
+      <div data-testid="visual-annotation-island-root" data-hydrated="true" style="font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
           <button data-testid="draw-toggle" aria-pressed="false">Draw Mode</button>
           <button data-testid="save-annotations">Save Annotations</button>
@@ -412,13 +412,13 @@ const defaultRenderers = {
     const comps = Array.isArray(props.availableComponents) ? props.availableComponents : ['tags'];
     const rows = comps.map(c => `\n        <div data-testid="feedback-controls-${c}" style="display:inline-block;margin-right:8px">\n          <button data-testid="thumbs-up-${c}" aria-pressed="false">👍 ${c}</button>\n          <button data-testid="thumbs-down-${c}" aria-pressed="false">👎 ${c}</button>\n        </div>\n      `).join('');
 
-    el.innerHTML = `\n      <div data-testid="feedback-controls-island-root" role="group" aria-label="Feedback Controls">\n        ${rows}\n      </div>\n      <script>\n        (function(){\n          try {\n            const root = document.currentScript.parentElement.querySelector('[data-testid="feedback-controls-island-root"]');\n            if (!root) return;\n            const ups = Array.from(root.querySelectorAll('[data-testid^="thumbs-up-"]'));
+    el.innerHTML = `\n      <div data-testid="feedback-controls-island-root" data-hydrated="true" role="group" aria-label="Feedback Controls">\n        ${rows}\n      </div>\n      <script>\n        (function(){\n          try {\n            const root = document.currentScript.parentElement.querySelector('[data-testid="feedback-controls-island-root"]');\n            if (!root) return;\n            const ups = Array.from(root.querySelectorAll('[data-testid^="thumbs-up-"]'));
             const downs = Array.from(root.querySelectorAll('[data-testid^="thumbs-down-"]'));
             ups.forEach(u => {\n              u.addEventListener('click', ()=>{\n                const name = u.getAttribute('data-testid').replace('thumbs-up-','');\n                u.setAttribute('aria-pressed', (u.getAttribute('aria-pressed') !== 'true') ? 'true' : 'false');\n                const d = root.querySelector("[data-testid=\"thumbs-down-\${name}\"]"); if (d) d.setAttribute('aria-pressed','false');\n                document.dispatchEvent(createCustomEvent('feedback:updated', { component: name, feedback_type: 'thumbs_up' }));\n                document.dispatchEvent(createCustomEvent('feedback:confirmed', { component: name, documentId: (root.closest('[data-props]') && JSON.parse(root.closest('[data-props]').getAttribute('data-props')||'{}').documentId) || null }));\n              });\n            });\n            downs.forEach(d => {\n              d.addEventListener('click', ()=>{\n                const name = d.getAttribute('data-testid').replace('thumbs-down-','');\n                d.setAttribute('aria-pressed', (d.getAttribute('aria-pressed') !== 'true') ? 'true' : 'false');\n                const u = root.querySelector("[data-testid=\"thumbs-up-\${name}\"]"); if (u) u.setAttribute('aria-pressed','false');\n                (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') { _doc.dispatchEvent(createCustomEvent('feedback:updated', { component: name, feedback_type: 'thumbs_down' })); } })();\n              });\n            });\n          } catch(e){ console.warn('feedback-controls-island runtime setup failed', e); }\n        })();\n      </script>\n    `;
   },
   'manual-editor-island': (el) => {
     el.innerHTML = `
-      <div data-testid="manual-editor-island-root">
+      <div data-testid="manual-editor-island-root" data-hydrated="true">
         <div role="tablist" aria-label="Manual Editor Tabs" style="display:flex;gap:8px;margin-bottom:8px">
           <button role="tab" data-testid="tab-metadata" aria-selected="true" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">Metadata</button>
           <button role="tab" data-testid="tab-content" aria-selected="false" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">Content</button>
@@ -447,10 +447,11 @@ const defaultRenderers = {
     // Note: Event wiring is handled in the post-mount setup in mountIslands() for JSDOM compatibility
   },
   'history-tabs-island': (el) => {
-    el.innerHTML = `\n      <div data-testid="history-tabs-root">\n        <button data-testid="tab-text">Text</button>\n        <button data-testid="tab-metadata">Metadata</button>\n        <button data-testid="tab-similar">Similar</button>\n        <div data-testid="similar-results">(results placeholder)</div>\n      </div>\n    `;
+    el.innerHTML = `\n      <div data-testid="history-tabs-root" data-hydrated="true">\n        <div role="tablist" aria-label="Document tabs" style="display:flex;gap:8px;margin-bottom:8px">\n          <button role="tab" data-testid="tab-text" aria-selected="true">Text</button>\n          <button role="tab" data-testid="tab-metadata" aria-selected="false">Metadata</button>\n          <button role="tab" data-testid="tab-similar" aria-selected="false">Similar</button>\n        </div>\n        <div data-panel="text" data-testid="panel-text">Text content unavailable</div>\n        <div data-panel="metadata" data-testid="panel-metadata" style="display:none">Metadata unavailable</div>\n        <div data-panel="similar" data-testid="panel-similar" style="display:none">\n          <div data-testid="gpu-initializing" style="display:none">GPU Initializing...</div>\n          <div data-testid="similar-results" style="display:none"></div>\n          <div data-testid="similar-empty">No similar results yet</div>\n        </div>\n      </div>\n    `;
   },
+
   'overlay-viewer-island': (el) => {
-    el.innerHTML = `\n      <div data-testid="overlay-viewer-root">\n        <div id="overlayContainer" data-testid="overlay-container">(image placeholder)</div>\n        <div id="overlayLoading" data-testid="overlay-loading" class="hidden">Loading...</div>\n      </div>\n    `;
+    el.innerHTML = `\n      <div data-testid="overlay-viewer-root" data-hydrated="true">\n        <div id="overlayContainer" data-testid="overlay-container">(image placeholder)</div>\n        <div id="overlayLoading" data-testid="overlay-loading" class="hidden">Loading...</div>\n      </div>\n    `;
   },
   'playground-island': (el, props = {}) => {
     // Playground Island default renderer (ticket:017.2)
@@ -696,6 +697,104 @@ function mountIslands(container = document) {
                   const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(createCustomEvent('sync:failed', { documentId: props.documentId, error: err.message || 'Sync failed' }));
               }
             });
+          }
+        }
+        if (name === 'history-tabs-island') {
+          const root = el.querySelector('[data-testid="history-tabs-root"]');
+          if (root) {
+            const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
+            const panels = {
+              text: root.querySelector('[data-panel="text"]'),
+              metadata: root.querySelector('[data-panel="metadata"]'),
+              similar: root.querySelector('[data-panel="similar"]')
+            };
+            const setActive = (id) => {
+              tabs.forEach((t) => {
+                const tid = t.getAttribute('data-testid')?.replace('tab-', '');
+                const active = tid === id;
+                t.setAttribute('aria-selected', active ? 'true' : 'false');
+              });
+              Object.entries(panels).forEach(([key, panel]) => {
+                if (!panel) return;
+                panel.style.display = key === id ? '' : 'none';
+              });
+            };
+            tabs.forEach((t) => {
+              const tid = t.getAttribute('data-testid')?.replace('tab-', '');
+              if (!tid) return;
+              t.addEventListener('click', () => setActive(tid));
+            });
+            setActive('text');
+
+            const gpuInit = root.querySelector('[data-testid="gpu-initializing"]');
+            const resultsEl = root.querySelector('[data-testid="similar-results"]');
+            const emptyEl = root.querySelector('[data-testid="similar-empty"]');
+
+            const handleSearch = async (detail) => {
+              const imageBase64 = detail && detail.imageBase64;
+              if (!imageBase64) return;
+              setActive('similar');
+              if (gpuInit) gpuInit.style.display = 'none';
+              if (resultsEl) {
+                resultsEl.style.display = 'none';
+                resultsEl.textContent = '';
+              }
+              if (emptyEl) emptyEl.style.display = 'none';
+
+              if (typeof fetch !== 'function') {
+                if (resultsEl) {
+                  resultsEl.style.display = '';
+                  resultsEl.textContent = 'Search unavailable';
+                }
+                return;
+              }
+
+              try {
+                const res = await fetch('/api/visual-rag/search/visual', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    image: imageBase64,
+                    collection: detail.collection || 'visual_pages',
+                    k: 5
+                  })
+                });
+
+                if (res.status === 503) {
+                  const data = await res.json().catch(() => ({}));
+                  if (data.type === 'SIDECAR_INITIALIZING') {
+                    if (gpuInit) gpuInit.style.display = '';
+                    return;
+                  }
+                  throw new Error(data.error || 'Service unavailable');
+                }
+
+                if (!res.ok) {
+                  const data = await res.json().catch(() => ({}));
+                  throw new Error(data.error || `Search failed (${res.status})`);
+                }
+
+                const data = await res.json().catch(() => ({}));
+                const results = Array.isArray(data.results) ? data.results : [];
+                if (resultsEl) {
+                  resultsEl.style.display = '';
+                  resultsEl.textContent = `${results.length} similar documents`;
+                }
+                if (emptyEl) emptyEl.style.display = results.length ? 'none' : '';
+              } catch (err) {
+                if (resultsEl) {
+                  resultsEl.style.display = '';
+                  resultsEl.textContent = 'Search failed';
+                }
+              }
+            };
+
+            const win = (typeof window !== 'undefined') ? window : null;
+            if (win && typeof win.addEventListener === 'function') {
+              win.addEventListener('visual-search-requested', (e) => {
+                handleSearch(e.detail || {});
+              });
+            }
           }
         }
       } catch{ /* best-effort */ }

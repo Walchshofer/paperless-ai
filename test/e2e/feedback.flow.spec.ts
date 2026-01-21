@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { pollForFeedbackEvent, queryDb } from '../helpers/db-poll';
+import { getTestDocId } from '../helpers/fixtures';
 
 // E2E: Verify feedback persistence, fields, and request-id tracing
 test.describe('Feedback Flow E2E', () => {
   test('feedback events persist to Postgres with correct fields and request id tracking', async ({ page }) => {
-    const docId = Number(process.env.TEST_DOC_ID || '1');
+    const docId = getTestDocId();
 
     // Deterministic request id for tracing
     const requestId = `e2e-${Date.now()}`;
@@ -23,7 +24,7 @@ test.describe('Feedback Flow E2E', () => {
     const beforeTs = Date.now();
 
     // POST to orchestrator endpoint (this simulates the UI flow and propagates X-Request-Id)
-    const resp = await page.request.post(`http://localhost:3000/manual/updateDocument`, {
+    const resp = await page.request.post(`http://127.0.0.1:3000/manual/updateDocument`, {
       headers: { 'X-Request-Id': requestId },
       data: {
         documentId: docId,

@@ -213,7 +213,9 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             }
           }
         });
-        window.dispatchEvent(event);
+        if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+          window.dispatchEvent(event);
+        }
 
         // Call callback if provided
         if (onRegionSelected) {
@@ -445,6 +447,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   return (
     <div
       data-testid="overlay-viewer-root"
+      data-hydrated="true"
       data-has-boxes={boxes.length}
       data-has-warning={warning ? 'true' : 'false'}
       className="h-full flex flex-col"

@@ -34,6 +34,8 @@ jobs:
           done
 
       - name: Run Visual RAG integration tests
+        env:
+          METRICS_INTERNAL_ONLY: 'false'
         run: |
           npm ci
           npm test -- test/integration/visual-rag --reporter spec

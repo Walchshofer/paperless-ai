@@ -65,13 +65,19 @@ Tests visual annotation drawing and interactions.
 
 2. **Environment Variables**: Set required variables or use defaults:
    ```bash
-   export PLAYWRIGHT_BASE_URL=http://localhost:3000
-   export PROMETHEUS_METRICS_URL=http://localhost:9091/metrics
-   export VISUAL_RAG_URL=http://localhost:8001
-   export QDRANT_URL=http://localhost:6333
+   export PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000
+   export PROMETHEUS_METRICS_URL=http://127.0.0.1:9091/metrics
+   export VISUAL_RAG_URL=http://127.0.0.1:8001
+   export QDRANT_URL=http://127.0.0.1:6333
    export QDRANT_COLLECTION=visual_overlays
-   export TEST_DOC_ID=1
+   export PAPERLESS_API_URL=http://127.0.0.1:8000/api
+   export PAPERLESS_API_TOKEN=your-token
+   export TEST_DOC_ID=1  # optional override for fixture selection
+   export E2E_SKIP_FIXTURE_SETUP=false
    ```
+
+   Fixture setup runs in Playwright global setup and writes
+   `test/.auth/fixtures.json` with the resolved document id.
 
 3. **Authentication** (if login required):
    ```bash
@@ -168,7 +174,7 @@ console.log(result.mismatches);
 ```javascript
 const { snapshotMetrics } = require('../helpers/metrics-snapshot');
 
-const metricsText = await snapshotMetrics('http://localhost:9091/metrics');
+const metricsText = await snapshotMetrics('http://127.0.0.1:9091/metrics');
 const hasMetric = metricsText.includes('visual_queries_executed_total');
 ```
 
@@ -233,10 +239,12 @@ The tests are configured for CI environments:
   run: npm run verification:e2e
   env:
     CI: true
-    PLAYWRIGHT_BASE_URL: http://localhost:3000
+    PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
 ```
 
 CI-specific behavior:
 - `retries: 2` - Retry failed tests twice
 - `workers: 1` - Sequential test execution
 - `forbidOnly: true` - Fail if test.only is present
+
+

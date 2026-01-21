@@ -251,7 +251,7 @@ export default function HistoryTabsIsland(props: HistoryTabsProps) {
   );
 
   return (
-    <div data-testid="history-tabs-root" className="h-full flex flex-col">
+    <div data-testid="history-tabs-root" data-hydrated="true" className="h-full flex flex-col">
       {/* Tab Navigation */}
       <div
         role="tablist"

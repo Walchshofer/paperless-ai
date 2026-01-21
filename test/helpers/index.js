@@ -29,6 +29,14 @@ const {
 // Prometheus metrics utilities
 const { snapshotMetrics } = require('./metrics-snapshot');
 
+// E2E fixture helpers
+const {
+  ensureE2EFixtures,
+  loadFixtureData,
+  getTestDocId,
+  getHistoryDocId
+} = require('./fixtures');
+
 // Sidecar mock utilities (if available)
 let sidecarMock = {};
 try {
@@ -54,6 +62,12 @@ module.exports = {
 
   // Metrics helpers
   snapshotMetrics,
+
+  // Fixture helpers
+  ensureE2EFixtures,
+  loadFixtureData,
+  getTestDocId,
+  getHistoryDocId,
 
   // Sidecar mock (if available)
   ...sidecarMock

@@ -242,7 +242,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
   }, []);
 
   return (
-    <div data-testid="visual-annotation-island-root">
+    <div data-testid="visual-annotation-island-root" data-hydrated="true">
       {/* Full-page blocking modal for GPU Preparing state */}
       {(status === 'preparing' || status === 'checking') && (
         <div

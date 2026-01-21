@@ -40,7 +40,7 @@ The Visual RAG system serves **two distinct functions** in the expert pipeline:
 | Component | Purpose | Status | Implementation |
 |-----------|---------|--------|----------------|
 | **Visual RAG Sidecar** | Visual embedding & retrieval | ✅ Implemented | `services/visual-rag-sidecar/main.py` |
-| **VisualSearchClient** | Circuit-breaker wrapper | ✅ Implemented | `services/visual-rag/VisualSearchClient.js` |
+| **VisualSearchClient** | Circuit-breaker wrapper | ✅ Implemented | `services/visual-rag-client/VisualSearchClient.js` |
 | **ParallelOcrExecutor** | Orchestrates 3 tracks | ⚠️ Partial | `services/experts/ParallelOcrExecutor.js` |
 | **Element Detection** | Layout analysis | ❌ Not Implemented | `/detect_elements` endpoint missing |
 

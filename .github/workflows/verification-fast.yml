@@ -15,6 +15,7 @@ env:
   POSTGRES_PASSWORD: ""
   POSTGRES_DB: ""
   POSTGRES_HOST: ""
+  METRICS_INTERNAL_ONLY: 'false'
 
 jobs:
   verification-fast:
