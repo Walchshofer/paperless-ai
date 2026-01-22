@@ -1761,9 +1761,9 @@ async getOrCreateDocumentType(name) {
           // Ensure provided custom_fields are in the expected format (array of objects)
           if (!Array.isArray(updateData.custom_fields)) {
             logger.warn('custom_fields should be an array; attempting to convert', { documentId });
-            // Attempt to coerce an object map into array
+            // Attempt to coerce an object map into array, ensuring values are strings
             if (typeof updateData.custom_fields === 'object' && updateData.custom_fields !== null) {
-              updateData.custom_fields = Object.entries(updateData.custom_fields).map(([name, value]) => ({ name, value }));
+              updateData.custom_fields = Object.entries(updateData.custom_fields).map(([name, value]) => ({ name, value: value === null || value === undefined ? '' : (typeof value === 'object' ? JSON.stringify(value) : String(value)) }));
             } else {
               // If we can't coerce, clear to empty array to avoid breaking the API
               updateData.custom_fields = [];
@@ -1773,11 +1773,19 @@ async getOrCreateDocumentType(name) {
           // Normalize custom fields to the expected Paperless format: { field: <id>, value: <value> }
           try {
             const normalized = [];
+            // Ensure all custom field values are serialized to strings to avoid
+            // Django length/validation errors when numeric values are present.
+            const normalizeValue = (v) => {
+              if (v === null || v === undefined) return '';
+              if (typeof v === 'object') return JSON.stringify(v);
+              return String(v);
+            };
+
             for (const cf of updateData.custom_fields) {
               if (!cf) continue;
               // Accept either {name, value} or {field, value}
               if (cf.field) {
-                normalized.push({ field: cf.field, value: cf.value });
+                normalized.push({ field: cf.field, value: normalizeValue(cf.value) });
                 continue;
               }
 
@@ -1785,13 +1793,13 @@ async getOrCreateDocumentType(name) {
                 // Resolve name to existing field id
                 const existing = await this.findExistingCustomField(cf.name);
                 if (existing && existing.id) {
-                  normalized.push({ field: existing.id, value: cf.value });
+                  normalized.push({ field: existing.id, value: normalizeValue(cf.value) });
                   continue;
                 }
                 // Try to create it safely (best-effort)
                 const created = await this.createCustomFieldSafely(cf.name, 'string');
                 if (created && created.id) {
-                  normalized.push({ field: created.id, value: cf.value });
+                  normalized.push({ field: created.id, value: normalizeValue(cf.value) });
                   continue;
                 }
                 logger.warn('Could not resolve or create custom field for name %s, skipping', cf.name);

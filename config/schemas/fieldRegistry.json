@@ -162,6 +162,183 @@
       "optional": true
     },
 
+    "lab_panel_name": {
+      "type": "string",
+      "description": "Name of the lab panel (e.g. Standardlabor, Immunstatus, Zytokinprofil)",
+      "domain": "medical"
+    },
+    "lab_report_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date on the lab report (YYYY-MM-DD)",
+      "domain": "medical"
+    },
+    "crp_mg_l": {
+      "type": "number",
+      "description": "C-reactive protein (CRP), mg/L; aliases: CRP, C-reaktives Protein",
+      "domain": "medical"
+    },
+    "esr_mm_h": {
+      "type": "number",
+      "description": "Erythrocyte sedimentation rate (ESR/BSG), mm/h; aliases: BSG, Blutsenkung",
+      "domain": "medical"
+    },
+    "ferritin_ug_l": {
+      "type": "number",
+      "description": "Ferritin, µg/L",
+      "domain": "medical"
+    },
+    "fibrinogen_g_l": {
+      "type": "number",
+      "description": "Fibrinogen, g/L",
+      "domain": "medical"
+    },
+    "d_dimer_mg_l_feu": {
+      "type": "number",
+      "description": "D-Dimer, mg/L FEU",
+      "domain": "medical"
+    },
+    "alt_u_l": {
+      "type": "number",
+      "description": "Alanine aminotransferase (ALT/GPT), U/L",
+      "domain": "medical"
+    },
+    "ast_u_l": {
+      "type": "number",
+      "description": "Aspartate aminotransferase (AST/GOT), U/L",
+      "domain": "medical"
+    },
+    "g_gt_u_l": {
+      "type": "number",
+      "description": "Gamma-glutamyl transferase (GGT), U/L",
+      "domain": "medical"
+    },
+    "ldh_u_l": {
+      "type": "number",
+      "description": "Lactate dehydrogenase (LDH), U/L",
+      "domain": "medical"
+    },
+    "creatinine_mg_dl": {
+      "type": "number",
+      "description": "Creatinine, mg/dL",
+      "domain": "medical"
+    },
+    "igg_g_l": {
+      "type": "number",
+      "description": "IgG total, g/L",
+      "domain": "medical"
+    },
+    "iga_g_l": {
+      "type": "number",
+      "description": "IgA, g/L",
+      "domain": "medical"
+    },
+    "igm_g_l": {
+      "type": "number",
+      "description": "IgM, g/L",
+      "domain": "medical"
+    },
+    "igg1_g_l": {
+      "type": "number",
+      "description": "IgG1 subclass, g/L",
+      "domain": "medical"
+    },
+    "igg2_g_l": {
+      "type": "number",
+      "description": "IgG2 subclass, g/L",
+      "domain": "medical"
+    },
+    "igg3_g_l": {
+      "type": "number",
+      "description": "IgG3 subclass, g/L",
+      "domain": "medical"
+    },
+    "igg4_g_l": {
+      "type": "number",
+      "description": "IgG4 subclass, g/L",
+      "domain": "medical"
+    },
+    "c3c_g_l": {
+      "type": "number",
+      "description": "Complement C3c, g/L",
+      "domain": "medical"
+    },
+    "c4_g_l": {
+      "type": "number",
+      "description": "Complement C4, g/L",
+      "domain": "medical"
+    },
+    "mbl_ng_ml": {
+      "type": "number",
+      "description": "Mannose-binding lectin (MBL), ng/mL",
+      "domain": "medical"
+    },
+    "il6_pg_ml": {
+      "type": "number",
+      "description": "Interleukin-6 (IL-6), pg/mL",
+      "domain": "medical"
+    },
+    "tnfa_pg_ml": {
+      "type": "number",
+      "description": "Tumor necrosis factor alpha (TNF-α), pg/mL",
+      "domain": "medical"
+    },
+    "il1b_pg_ml": {
+      "type": "number",
+      "description": "Interleukin-1β, pg/mL",
+      "domain": "medical"
+    },
+    "il17_pg_ml": {
+      "type": "number",
+      "description": "Interleukin-17, pg/mL",
+      "domain": "medical"
+    },
+    "tsh_u_u_ml": {
+      "type": "number",
+      "description": "TSH, µU/mL",
+      "domain": "medical"
+    },
+    "ft3_pg_ml": {
+      "type": "number",
+      "description": "Free T3, pg/mL",
+      "domain": "medical"
+    },
+    "ft4_ng_dl": {
+      "type": "number",
+      "description": "Free T4, ng/dL",
+      "domain": "medical"
+    },
+    "cortisol_morning_ug_dl": {
+      "type": "number",
+      "description": "Morning serum cortisol, µg/dL",
+      "domain": "medical"
+    },
+    "vitd25_oh_ng_ml": {
+      "type": "number",
+      "description": "25-OH vitamin D, ng/mL",
+      "domain": "medical"
+    },
+    "vitb12_pg_ml": {
+      "type": "number",
+      "description": "Vitamin B12, pg/mL",
+      "domain": "medical"
+    },
+    "folate_ng_ml": {
+      "type": "number",
+      "description": "Folate, ng/mL",
+      "domain": "medical"
+    },
+    "lab_values_json": {
+      "type": "string",
+      "description": "Raw lab results as JSON string (for parameters without dedicated fields)",
+      "domain": "medical"
+    },
+    "lab_abnormal_flags_json": {
+      "type": "string",
+      "description": "JSON string: parameter → {value, unit, reference_range, direction}",
+      "domain": "medical"
+    },
+
     "contract_parties": {
       "type": "array",
       "itemType": "string",

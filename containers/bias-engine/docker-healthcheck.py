@@ -6,18 +6,26 @@ import os
 # Ensure the script can find proto modules within the container's PYTHONPATH
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+# Try multiple import paths (robust to packaging variations)
+pb2 = None
+pb2_grpc = None
 try:
-    # Attempt to import generated gRPC code from the expected container path
-    from guidance.ipc import logit_bias_service_pb2 as pb2
-    from guidance.ipc import logit_bias_service_pb2_grpc as pb2_grpc
+    # Primary import used by the running server
+    from guidance.ipc.proto import bias_service_pb2 as pb2
+    from guidance.ipc.proto import bias_service_pb2_grpc as pb2_grpc
 except ImportError:
     try:
-        # Fallback for alternative directory structures
-        import logit_bias_service_pb2 as pb2
-        import logit_bias_service_pb2_grpc as pb2_grpc
+        # Alternative package layout
+        from guidance.ipc import bias_service_pb2 as pb2
+        from guidance.ipc import bias_service_pb2_grpc as pb2_grpc
     except ImportError:
-        pb2 = None
-        pb2_grpc = None
+        try:
+            # Legacy / alternate names
+            import bias_service_pb2 as pb2
+            import bias_service_pb2_grpc as pb2_grpc
+        except ImportError:
+            pb2 = None
+            pb2_grpc = None
 
 
 def check_health():

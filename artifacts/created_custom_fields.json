@@ -1,0 +1,347 @@
+{
+  "created": [
+    {
+      "id": 45,
+      "name": "invoice_number",
+      "data_type": "string",
+      "extra_data": null
+    },
+    {
+      "id": 46,
+      "name": "invoice_amount",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 47,
+      "name": "invoice_vat",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 48,
+      "name": "invoice_net",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 49,
+      "name": "total_gross",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 50,
+      "name": "total_net",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 51,
+      "name": "vat_rate",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 52,
+      "name": "patient_name",
+      "data_type": "string",
+      "extra_data": null
+    },
+    {
+      "id": 53,
+      "name": "doctor_name",
+      "data_type": "string",
+      "extra_data": null
+    },
+    {
+      "id": 54,
+      "name": "diagnosis",
+      "data_type": "string",
+      "extra_data": null
+    },
+    {
+      "id": 55,
+      "name": "medication",
+      "data_type": "string",
+      "extra_data": {
+        "format": "json"
+      }
+    },
+    {
+      "id": 56,
+      "name": "appointment_date",
+      "data_type": "string",
+      "extra_data": null
+    },
+    {
+      "id": 57,
+      "name": "crp_mg_l",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 58,
+      "name": "esr_mm_h",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 59,
+      "name": "ferritin_ug_l",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 60,
+      "name": "fibrinogen_g_l",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 61,
+      "name": "d_dimer_mg_l_feu",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 62,
+      "name": "alt_u_l",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 63,
+      "name": "ast_u_l",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 64,
+      "name": "g_gt_u_l",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 65,
+      "name": "ldh_u_l",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 66,
+      "name": "creatinine_mg_dl",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 67,
+      "name": "igg_g_l",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 68,
+      "name": "iga_g_l",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 69,
+      "name": "igm_g_l",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 70,
+      "name": "igg1_g_l",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 71,
+      "name": "igg2_g_l",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 72,
+      "name": "igg3_g_l",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 73,
+      "name": "igg4_g_l",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 74,
+      "name": "c3c_g_l",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 75,
+      "name": "c4_g_l",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 76,
+      "name": "mbl_ng_ml",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 77,
+      "name": "il6_pg_ml",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 78,
+      "name": "tnfa_pg_ml",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 79,
+      "name": "il1b_pg_ml",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 80,
+      "name": "il17_pg_ml",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 81,
+      "name": "tsh_u_u_ml",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 82,
+      "name": "ft3_pg_ml",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 83,
+      "name": "ft4_ng_dl",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 84,
+      "name": "cortisol_morning_ug_dl",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 85,
+      "name": "vitd25_oh_ng_ml",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 86,
+      "name": "vitb12_pg_ml",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 87,
+      "name": "folate_ng_ml",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    },
+    {
+      "id": 88,
+      "name": "contract_value",
+      "data_type": "string",
+      "extra_data": {
+        "format": "number"
+      }
+    }
+  ],
+  "timestamp": "2026-01-22T12:04:35.009Z"
+}

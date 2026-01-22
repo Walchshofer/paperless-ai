@@ -1,0 +1,113 @@
+{
+  "converted": [
+    {
+      "id": 46,
+      "name": "invoice_amount",
+      "old_type": "string",
+      "new_type": "monetary",
+      "extra_data": {
+        "default_currency": "EUR"
+      }
+    },
+    {
+      "id": 4,
+      "name": "Invoice Amount",
+      "old_type": "monetary",
+      "new_type": "monetary",
+      "extra_data": {
+        "default_currency": "EUR"
+      }
+    },
+    {
+      "id": 47,
+      "name": "invoice_vat",
+      "old_type": "string",
+      "new_type": "monetary",
+      "extra_data": {
+        "default_currency": "EUR"
+      }
+    },
+    {
+      "id": 48,
+      "name": "invoice_net",
+      "old_type": "string",
+      "new_type": "monetary",
+      "extra_data": {
+        "default_currency": "EUR"
+      }
+    },
+    {
+      "id": 49,
+      "name": "total_gross",
+      "old_type": "string",
+      "new_type": "monetary",
+      "extra_data": {
+        "default_currency": "EUR"
+      }
+    },
+    {
+      "id": 50,
+      "name": "total_net",
+      "old_type": "string",
+      "new_type": "monetary",
+      "extra_data": {
+        "default_currency": "EUR"
+      }
+    },
+    {
+      "id": 88,
+      "name": "contract_value",
+      "old_type": "string",
+      "new_type": "monetary",
+      "extra_data": {
+        "default_currency": "EUR"
+      }
+    }
+  ],
+  "failedConversions": [],
+  "deleted": [
+    {
+      "id": 56,
+      "name": "appointment_date",
+      "keeper_id": 5,
+      "keeper_name": "Appointment Date"
+    },
+    {
+      "id": 55,
+      "name": "medication",
+      "keeper_id": 7,
+      "keeper_name": "Medication"
+    },
+    {
+      "id": 54,
+      "name": "diagnosis",
+      "keeper_id": 3,
+      "keeper_name": "Diagnosis"
+    },
+    {
+      "id": 53,
+      "name": "doctor_name",
+      "keeper_id": 2,
+      "keeper_name": "Doctor Name"
+    },
+    {
+      "id": 52,
+      "name": "patient_name",
+      "keeper_id": 1,
+      "keeper_name": "Patient Name"
+    },
+    {
+      "id": 46,
+      "name": "invoice_amount",
+      "keeper_id": 4,
+      "keeper_name": "Invoice Amount"
+    },
+    {
+      "id": 45,
+      "name": "invoice_number",
+      "keeper_id": 10,
+      "keeper_name": "Invoice Number"
+    }
+  ],
+  "renamed": []
+}

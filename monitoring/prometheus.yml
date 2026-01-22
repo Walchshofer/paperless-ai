@@ -3,25 +3,27 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  # Bias Engine - gRPC Logit Bias Computation
+  # Bias Engine - Standardized to port 8003
   - job_name: 'bias-engine'
     static_configs:
-      - targets: ['bias-engine:8001']
-    metrics_path: /metrics
+      - targets: ['bias-engine:8003']
 
-  # Guidance Service - Deterministic JSON Extraction
+  # Guidance Service - Confirmed port 8002
   - job_name: 'guidance-service'
     static_configs:
       - targets: ['guidance-service:8002']
-    metrics_path: /metrics
 
-  # Visual RAG - Vision Pipeline
+  # Visual RAG - Confirmed port 8001
   - job_name: 'visual-rag'
     static_configs:
       - targets: ['visual-rag:8001']
-    metrics_path: /metrics
 
-  # Paperless-AI - Main Application
+  # Text RAG - Document Search API on port 8004
+  - job_name: 'text-rag'
+    static_configs:
+      - targets: ['text-rag:8004']
+
+  # Paperless-AI - Port 3000 (Verify instrumentation in server.js)
   - job_name: 'paperless-ai'
     static_configs:
       - targets: ['paperless-ai:3000']

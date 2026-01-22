@@ -33,4 +33,32 @@ describe('PaperlessService.custom_fields normalization', function () {
     paperlessService.client = origClient;
     paperlessService.findExistingCustomField = origFind;
   });
+
+  it('should coerce numeric custom_field values to strings', async function () {
+    const docId = 8888;
+
+    // Stub client.patch to capture payload
+    const origClient = paperlessService.client;
+    paperlessService.client = {
+      patch: async (path, payload, opts) => {
+        capturedPayload = payload;
+        return { data: { id: docId } };
+      },
+      get: async () => ({ data: { id: docId, tags: [], correspondent: null } })
+    };
+
+    // Stub findExistingCustomField to return an object with id
+    const origFind = paperlessService.findExistingCustomField;
+    paperlessService.findExistingCustomField = async (name) => ({ id: 99, name });
+
+    let capturedPayload = null;
+    await paperlessService.updateDocument(docId, { custom_fields: [{ name: 'myNumber', value: 123 }] }, { requestId: 't2' });
+
+    assert.ok(capturedPayload, 'Expected payload to be sent to Paperless API');
+    assert.strictEqual(capturedPayload.custom_fields[0].value, '123');
+
+    // cleanup
+    paperlessService.client = origClient;
+    paperlessService.findExistingCustomField = origFind;
+  });
 });

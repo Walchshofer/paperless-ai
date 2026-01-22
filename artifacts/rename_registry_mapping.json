@@ -1,0 +1,54 @@
+{
+  "renamed": [
+    {
+      "id": 10,
+      "old_name": "Invoice Number",
+      "new_name": "invoice_number",
+      "document_count": 15,
+      "result": "renamed"
+    },
+    {
+      "id": 4,
+      "old_name": "Invoice Amount",
+      "new_name": "invoice_amount",
+      "document_count": 27,
+      "result": "renamed"
+    },
+    {
+      "id": 1,
+      "old_name": "Patient Name",
+      "new_name": "patient_name",
+      "document_count": 29,
+      "result": "renamed"
+    },
+    {
+      "id": 2,
+      "old_name": "Doctor Name",
+      "new_name": "doctor_name",
+      "document_count": 22,
+      "result": "renamed"
+    },
+    {
+      "id": 3,
+      "old_name": "Diagnosis",
+      "new_name": "diagnosis",
+      "document_count": 12,
+      "result": "renamed"
+    },
+    {
+      "id": 7,
+      "old_name": "Medication",
+      "new_name": "medication",
+      "document_count": 2,
+      "result": "renamed"
+    },
+    {
+      "id": 5,
+      "old_name": "Appointment Date",
+      "new_name": "appointment_date",
+      "document_count": 8,
+      "result": "renamed"
+    }
+  ],
+  "timestamp": "2026-01-22T12:12:17.344Z"
+}
