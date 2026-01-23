@@ -34,10 +34,21 @@ class QdrantAdapter {
         const url = `http://${host}:${port}`;
 
         // Initialize Qdrant Client
+        const checkCompatibility = (qdrantConfig && typeof qdrantConfig.checkCompatibility !== 'undefined') ? qdrantConfig.checkCompatibility : (process.env.QDRANT_CHECK_COMPATIBILITY !== 'false');
         this.client = new QdrantClient({
             url,
-            apiKey
+            apiKey,
+            checkCompatibility
         });
+
+        let clientVersion = 'unknown';
+        try {
+            clientVersion = require('@qdrant/js-client-rest/package.json').version;
+        } catch (err) {
+            logger.warn('[QdrantAdapter] Could not read @qdrant/js-client-rest version: ' + (err && err.message));
+        }
+
+        logger.info(`[QdrantAdapter] Initialized client at ${url} (client=${clientVersion}, checkCompatibility=${checkCompatibility})`);
 
         // Initialize Circuit Breaker for Qdrant operations
         // We use a dedicated breaker instance for vector DB operations
