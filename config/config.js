@@ -680,9 +680,30 @@ console.log('[CONFIG] Database configuration loaded:', {
 // Hot-reload runtime overrides (in-memory)
 let runtimeOverrides = {};
 
-function createNestedProxy(rootObj, path = []) {
-  return new Proxy(rootObj, {
+// Keep a stable reference to the original config object so we can
+// resolve underlying values by path without being confused by proxies.
+const _originalConfig = module.exports;
+
+// Cache proxies by path (e.g. '' | 'ollama' | 'ollama.apiUrl') to avoid
+// creating many proxy instances for the same logical path.
+const _proxyByPath = new Map();
+
+function _getFromOriginal(pathParts) {
+  let cur = _originalConfig;
+  for (const p of pathParts) {
+    if (cur && typeof cur === 'object' && p in cur) cur = cur[p]; else { cur = undefined; break; }
+  }
+  return cur;
+}
+
+function createNestedProxy(path = []) {
+  const pathKey = path.join('.');
+  if (_proxyByPath.has(pathKey)) return _proxyByPath.get(pathKey);
+
+  const handler = {
     get(target, prop) {
+      const propStr = String(prop);
+
       // Management helpers
       if (prop === 'updateRuntime')
         return (key, value) => {
@@ -697,23 +718,30 @@ function createNestedProxy(rootObj, path = []) {
       if (prop === 'clearRuntimeOverrides') return () => { runtimeOverrides = {}; };
       if (prop === 'getRuntimeOverrides') return () => JSON.parse(JSON.stringify(runtimeOverrides));
 
-      const propStr = String(prop);
-
-      // Check for an override at the current path
+      // Check for an override at the full path
+      const fullPath = path.concat(propStr);
       let cur = runtimeOverrides;
-      for (const p of path) {
+      for (const p of fullPath) {
         if (cur && typeof cur === 'object' && p in cur) cur = cur[p]; else { cur = undefined; break; }
       }
-      if (cur && typeof cur === 'object' && propStr in cur) return cur[propStr];
+      if (cur !== undefined) return cur;
 
-      const val = target[prop];
-      if (val && typeof val === 'object' && !Array.isArray(val)) {
-        return createNestedProxy(val, path.concat(propStr));
+      // Fall back to the original configuration values
+      const underlying = _getFromOriginal(fullPath);
+      if (underlying && typeof underlying === 'object' && !Array.isArray(underlying)) {
+        // Return a proxy for the deeper path so nested accesses continue
+        return createNestedProxy(fullPath);
       }
-      return val;
+      return underlying;
     }
-  });
+  };
+
+  // Use an inert empty object as the proxy target; all behavior is driven
+  // by the handler which resolves into the original config and overrides.
+  const proxy = new Proxy({}, handler);
+  _proxyByPath.set(pathKey, proxy);
+  return proxy;
 }
 
 // Export a proxied config so runtime overrides work for nested accesses like config.ollama.apiUrl
-module.exports = createNestedProxy(module.exports);
+module.exports = createNestedProxy([]);

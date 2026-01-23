@@ -12,6 +12,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
+import { AspectRatioSchema } from '../../../src/ui/contracts/AspectRatio.contract';
 
 // Import contracts (paths relative to test location)
 // Note: In actual test environment, these would be imported from src/ui/contracts
@@ -80,19 +81,9 @@ const Base64Schema = z
     { message: 'Invalid Base64 string' }
   );
 
-// 320-dim aspect ratio validation (ColQwen3 constraint)
-const AspectRatioSchema = z.object({
-  width: z.number().positive(),
-  height: z.number().positive()
-}).refine(
-  (val) => {
-    // ColQwen3-4B-AWQ has a 1,280 patch limit
-    // At 14x14 pixels per patch, max image area is ~250,880 pixels
-    const totalPatches = Math.ceil(val.width / 14) * Math.ceil(val.height / 14);
-    return totalPatches <= 1280;
-  },
-  { message: 'Image exceeds 1,280 patch limit for ColQwen3' }
-);
+// Aspect ratio validation extracted to `src/ui/contracts/AspectRatio.contract.ts`
+// See the contract tests in `test/unit/contracts/aspectRatio.contract.test.ts` for
+// coverage of standard and edge-case sizes.
 
 describe('OverlayViewer Contract', () => {
   it('accepts valid document ID and page', () => {

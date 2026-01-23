@@ -1,4 +1,5 @@
-const config = require('../../config/config');
+import { describe, it, expect } from 'vitest';
+import config from '../../config/config';
 
 describe('Config hot-reload foundation', () => {
   it('applies flat runtime overrides', () => {
