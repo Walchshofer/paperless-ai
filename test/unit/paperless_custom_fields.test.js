@@ -61,4 +61,33 @@ describe('PaperlessService.custom_fields normalization', function () {
     paperlessService.client = origClient;
     paperlessService.findExistingCustomField = origFind;
   });
+
+  it('should JSON-stringify objects and truncate long values to 255 chars', async function () {
+    const docId = 9999;
+
+    const origClient = paperlessService.client;
+    paperlessService.client = {
+      patch: async (path, payload, opts) => {
+        capturedPayload = payload;
+        return { data: { id: docId } };
+      },
+      get: async () => ({ data: { id: docId, tags: [], correspondent: null } })
+    };
+
+    const origFind = paperlessService.findExistingCustomField;
+    paperlessService.findExistingCustomField = async (name) => ({ id: 1001, name });
+
+    let capturedPayload = null;
+    const bigObj = { a: 'x'.repeat(300) };
+    await paperlessService.updateDocument(docId, { custom_fields: [{ name: 'big', value: bigObj }] }, { requestId: 't3' });
+
+    assert.ok(capturedPayload, 'Expected payload to be sent');
+    const val = capturedPayload.custom_fields[0].value;
+    assert.ok(typeof val === 'string');
+    assert.ok(val.length <= 255, 'Value should be truncated to 255 chars');
+
+    // cleanup
+    paperlessService.client = origClient;
+    paperlessService.findExistingCustomField = origFind;
+  });
 });

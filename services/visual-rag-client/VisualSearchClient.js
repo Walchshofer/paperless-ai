@@ -52,7 +52,8 @@ class VisualSearchClient {
         this._maxConcurrent = options.maxConcurrent || config.visualRagSidecar?.maxConcurrent || 5;
         this._active = 0;
         this._queue = [];
-        this.queryTimeout = options.queryTimeout || config.visualRagSidecar?.queryTimeout || 500;
+        // Use a more tolerant default for query timeout to avoid circuit breaker opens during model warm-up
+        this.queryTimeout = options.queryTimeout || config.visualRagSidecar?.queryTimeout || 2000;
 
         this.client = axios.create({
             baseURL: this.baseUrl,

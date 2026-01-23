@@ -181,7 +181,7 @@ Recommended values for a single NVIDIA RTX 3090 Ti (24GB VRAM):
 
 **Notes:**
 - `VISION_RENDER_DPI=300` gives better fidelity for small fonts, tables and charts; increase only if you have sufficient GPU memory and storage. Video indexing can be configured by `VIDEO_FRAME_INTERVAL` or by enabling `VIDEO_KEYFRAME_DETECTION` to capture scene changes rather than fixed intervals.
-- `VISUAL_RAG_QUERY_TIMEOUT=500` (ms; short query-level timeout used for visual search operations - defaults to 500ms to preserve low-latency behavior)
+- `VISUAL_RAG_QUERY_TIMEOUT=500` (ms; short query-level timeout used for visual search operations - defaults to 500ms to preserve low-latency behavior). For heavy model warm-up scenarios increase to `2000` ms (e.g., `VISUAL_RAG_QUERY_TIMEOUT=2000`).
 - `VISUAL_RAG_MAX_CONCURRENT=5` (max concurrent visual queries against the sidecar; default 5 to limit resource contention)
 
 **Package upgrades required in `services/visual-rag-sidecar/requirements.txt`**:
@@ -348,7 +348,7 @@ Below are the advanced variables (section 20 in `docker-compose.env`) with recom
 - gpt2 provides 90%+ accuracy for most models
 
 **Metrics Configuration**:
-- `BIAS_ENGINE_METRICS_URL` - Full URL for Prometheus metrics scraping (default: `http://bias-engine:8003/metrics`)
+- `BIAS_ENGINE_METRICS_URL` - Full URL for Prometheus metrics scraping (default: `http://bias-engine:8003/metrics`). Note: The bias-engine metrics port is standardized to **8003** (was previously 8001 in older configurations). Ensure `METRICS_PORT=8003` is set in `docker-compose.env` and service environment if you run the container separately.
   - Internal container uses `METRICS_PORT=8001`
   - Docker host mapping: `8003:8001` (see docker-compose.yml:146)
   - Prometheus scrapes via container name + host port: `bias-engine:8003`

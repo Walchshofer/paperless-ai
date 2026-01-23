@@ -6,6 +6,7 @@ const path = require('path');
 const { parse, isValid, parseISO, format } = require('date-fns');
 const FieldMatcher = require('./FieldMatcher');
 const logger = require('./logger');
+const { normalizeCustomFieldValue } = require('./customFieldUtils');
 
 class PaperlessService {
   constructor() {
@@ -1775,17 +1776,11 @@ async getOrCreateDocumentType(name) {
             const normalized = [];
             // Ensure all custom field values are serialized to strings to avoid
             // Django length/validation errors when numeric values are present.
-            const normalizeValue = (v) => {
-              if (v === null || v === undefined) return '';
-              if (typeof v === 'object') return JSON.stringify(v);
-              return String(v);
-            };
-
             for (const cf of updateData.custom_fields) {
               if (!cf) continue;
               // Accept either {name, value} or {field, value}
               if (cf.field) {
-                normalized.push({ field: cf.field, value: normalizeValue(cf.value) });
+                normalized.push({ field: cf.field, value: normalizeCustomFieldValue(cf.value) });
                 continue;
               }
 
@@ -1793,13 +1788,13 @@ async getOrCreateDocumentType(name) {
                 // Resolve name to existing field id
                 const existing = await this.findExistingCustomField(cf.name);
                 if (existing && existing.id) {
-                  normalized.push({ field: existing.id, value: normalizeValue(cf.value) });
+                  normalized.push({ field: existing.id, value: normalizeCustomFieldValue(cf.value) });
                   continue;
                 }
                 // Try to create it safely (best-effort)
                 const created = await this.createCustomFieldSafely(cf.name, 'string');
                 if (created && created.id) {
-                  normalized.push({ field: created.id, value: normalizeValue(cf.value) });
+                  normalized.push({ field: created.id, value: normalizeCustomFieldValue(cf.value) });
                   continue;
                 }
                 logger.warn('Could not resolve or create custom field for name %s, skipping', cf.name);
@@ -1981,4 +1976,7 @@ async getOrCreateDocumentType(name) {
 }
 
 
-module.exports = new PaperlessService();
+const instance = new PaperlessService();
+module.exports = instance;
+// Export helper for other services to use directly
+module.exports.normalizeCustomFieldValue = normalizeCustomFieldValue;

@@ -10,6 +10,7 @@ const AzureOpenAI = require('openai').AzureOpenAI;
 const config = require('../config/config');
 const paperlessService = require('./paperlessService');
 const logger = require('./logger');
+const { normalizeCustomFieldValue } = require('./customFieldUtils');
 const fs = require('fs').promises;
 const path = require('path');
 const RestrictionPromptService = require('./restrictionPromptService');
@@ -239,6 +240,11 @@ class AzureOpenAIService {
       ? data.custom_fields
       : {};
 
+    const normalizedCustomFields = {};
+    for (const k of Object.keys(customFields || {})) {
+      normalizedCustomFields[k] = normalizeCustomFieldValue(customFields[k]);
+    }
+
     return {
       title: data?.title ?? null,
       correspondent: data?.correspondent ?? null,
@@ -246,7 +252,7 @@ class AzureOpenAIService {
       document_type: data?.document_type ?? null,
       document_date: data?.document_date ?? null,
       language: data?.language ?? null,
-      custom_fields: customFields
+      custom_fields: normalizedCustomFields
     };
   }
 

@@ -3331,6 +3331,12 @@ async function processDocument(document, ollamaService, options = {}) {
         }
 
         if (Object.keys(customFields).length > 0) {
+          // Normalize values to avoid sending raw numbers / objects to Paperless
+          const { normalizeCustomFieldValue } = require('../../customFieldUtils');
+          for (const k of Object.keys(customFields)) {
+            customFields[k] = normalizeCustomFieldValue(customFields[k]);
+          }
+
           await paperlessService.updateDocument(document.id, {
             custom_fields: customFields
           });

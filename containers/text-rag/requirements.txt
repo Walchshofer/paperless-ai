@@ -24,3 +24,6 @@ qdrant-client>=1.7.0
 # Utilities
 tqdm>=4.66.0
 python-dotenv>=1.0.0
+
+# Prometheus instrumentation for FastAPI
+prometheus-fastapi-instrumentator>=6.0.0

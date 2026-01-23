@@ -370,6 +370,12 @@ module.exports = {
             ? normalizedData.custom_fields
             : {};
 
+        const { normalizeCustomFieldValue } = require('../../customFieldUtils');
+        const normalizedCustomFields = {};
+        for (const k of Object.keys(customFields || {})) {
+            normalizedCustomFields[k] = normalizeCustomFieldValue(customFields[k]);
+        }
+
         return {
             tags: Array.isArray(normalizedData.tags) ? normalizedData.tags : [],
             correspondent: normalizedData.correspondent || null,
@@ -377,7 +383,7 @@ module.exports = {
             document_date: normalizedData.document_date || null,
             document_type: normalizedData.document_type || null,
             language: normalizedData.language || null,
-            custom_fields: customFields
+            custom_fields: normalizedCustomFields
         };
     },
 

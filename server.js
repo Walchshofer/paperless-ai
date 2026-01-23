@@ -76,6 +76,22 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// Expose Prometheus metrics early to avoid being shadowed by static routes
+app.get('/metrics', allowInternalNetwork, async (_req, res) => {
+  try {
+    if (metricsCollector.enabled === false) {
+      res.status(204).send('');
+      return;
+    }
+    const payload = await metricsCollector.getMetrics();
+    res.setHeader('Content-Type', metricsCollector.contentType);
+    res.status(200).send(payload);
+  } catch (error) {
+    logger.warn({ event: 'metrics_export_failed', error: error.message });
+    res.status(500).send('');
+  }
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(cookieParser());
 
@@ -745,23 +761,8 @@ app.get('/health', async (req, res) => {
  *             schema:
  *               type: string
  */
-app.get('/metrics', allowInternalNetwork, async (_req, res) => {
-  try {
-    if (metricsCollector.enabled === false) {
-      res.status(204).send('');
-      return;
-    }
-    const payload = await metricsCollector.getMetrics();
-    res.setHeader('Content-Type', metricsCollector.contentType);
-    res.status(200).send(payload);
-  } catch (error) {
-    logger.warn({
-      event: 'metrics_export_failed',
-      error: error.message
-    });
-    res.status(500).send('');
-  }
-});
+// Metrics route moved earlier in the file to avoid being shadowed by static middleware
+// (see the top-level metrics registration near the body parsers).
 
 /**
  * @swagger

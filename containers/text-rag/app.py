@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, cast
 
 from fastapi import Depends, FastAPI, HTTPException  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
+from prometheus_fastapi_instrumentator import Instrumentator  # type: ignore
 
 from dependencies import get_search_engine
 from indexing import run_indexing
@@ -24,6 +25,13 @@ from settings import DATA_DIR
 app: Any = cast(Any, FastAPI)(
     title="RAGZ Document Search API", lifespan=cast(Any, lifespan)
 )
+
+# Instrument Prometheus metrics for FastAPI (exposes /metrics)
+try:
+    Instrumentator().instrument(app).expose(app)  # type: ignore
+except Exception as e:
+    logger.warning(
+        'Failed to initialize Instrumentator for metrics: %s', str(e))
 
 app.add_middleware(
     CORSMiddleware,

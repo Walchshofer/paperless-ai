@@ -9,6 +9,7 @@ const OpenAI = require('openai');
 const config = require('../config/config');
 const paperlessService = require('./paperlessService');
 const fs = require('fs').promises;
+const { normalizeCustomFieldValue } = require('./customFieldUtils');
 const path = require('path');
 const { model } = require('./ollamaService');
 const RestrictionPromptService = require('./restrictionPromptService');
@@ -248,6 +249,12 @@ class OpenAIService {
       ? data.custom_fields
       : {};
 
+    // Normalize custom field values so numeric values can't trigger Django len() errors
+    const normalizedCustomFields = {};
+    for (const k of Object.keys(customFields || {})) {
+      normalizedCustomFields[k] = normalizeCustomFieldValue(customFields[k]);
+    }
+
     return {
       title: data?.title ?? null,
       correspondent: data?.correspondent ?? null,
@@ -255,7 +262,7 @@ class OpenAIService {
       document_type: data?.document_type ?? null,
       document_date: data?.document_date ?? null,
       language: data?.language ?? null,
-      custom_fields: customFields
+      custom_fields: normalizedCustomFields
     };
   }
 
