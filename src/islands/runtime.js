@@ -217,6 +217,10 @@ const schemaMap = {
   'history-tabs-island': HistoryTabsSchema,
   'overlay-viewer-island': OverlayViewerSchema,
   'playground-island': PlaygroundSchema,
+  // Base settings islands scaffolding (P1.3)
+  'overview-dashboard-island': z.object({ type: z.literal('overview-dashboard').optional() }).optional(),
+  'settings-sidebar-island': z.object({ type: z.literal('settings-sidebar').optional() }).optional(),
+  'restart-banner-island': z.object({ type: z.literal('restart-banner').optional(), visible: z.boolean().optional() }).optional(),
 };
 
 // Helper to create a Cross-Environment CustomEvent (JSDOM vs Node)
@@ -491,6 +495,44 @@ const defaultRenderers = {
   'overlay-viewer-island': (el) => {
     el.innerHTML = `\n      <div data-testid="overlay-viewer-root" data-hydrated="true">\n        <div id="overlayContainer" data-testid="overlay-container">(image placeholder)</div>\n        <div id="overlayLoading" data-testid="overlay-loading" class="hidden">Loading...</div>\n      </div>\n    `;
   },
+
+  'overview-dashboard-island': (el, props = {}) => {
+    el.innerHTML = `
+      <div data-testid="overview-dashboard-root" data-hydrated="true" style="padding:12px;font-family:system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;">
+        <h2 style="margin:0 0 8px 0">Overview</h2>
+        <div data-testid="overview-cards">(placeholder) summary cards will render here</div>
+      </div>
+    `;
+  },
+
+  'settings-sidebar-island': (el, props = {}) => {
+    el.innerHTML = `
+      <div data-testid="settings-sidebar-root" data-hydrated="true" style="padding:8px;font-family:system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;">
+        <nav aria-label="Settings navigation">
+          <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px;">
+            <li>Overview</li>
+            <li>Connection</li>
+            <li>AI Provider</li>
+            <li>Expert Models</li>
+            <li>Advanced</li>
+            <li>Developer</li>
+          </ul>
+        </nav>
+        <div style="margin-top:8px" data-testid="dev-toggle">Developer Mode: Off</div>
+      </div>
+    `;
+  },
+
+  'restart-banner-island': (el, props = {}) => {
+    const visible = props && props.visible ? '' : 'none';
+    el.innerHTML = `
+      <div data-testid="restart-banner-root" data-hydrated="true" style="display:${visible};padding:8px;background:#fff7ed;border:1px solid #f59e0b;">
+        <span>⚠️ <span data-testid="restart-message">Restart required for changes to take effect</span></span>
+        <button data-testid="restart-btn" style="margin-left:8px;padding:4px 8px;">Restart Now</button>
+      </div>
+    `;
+  },
+
   'playground-island': (el, props = {}) => {
     // Playground Island default renderer (ticket:017.2)
     const collection = props.collection || 'visual_pages';
