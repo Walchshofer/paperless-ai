@@ -98,8 +98,7 @@ services:
       # Explicit metrics/proxy environment enforcement
       - TRUST_PROXY=${TRUST_PROXY:-true}
       - METRICS_INTERNAL_ONLY=${METRICS_INTERNAL_ONLY:-true}
-      - 'METRICS_ALLOWED_CIDRS=${METRICS_ALLOWED_CIDRS:-127.0.0.1,::1,172.16.0.0/12,10.0.0.0/8}'
-      - VISUAL_RAG_QUERY_TIMEOUT=${VISUAL_RAG_QUERY_TIMEOUT:-2000}
+      - 'METRICS_ALLOWED_CIDRS=${METRICS_ALLOWED_CIDRS:-127.0.0.1,::1,172.18.0.0/16,10.0.0.0/8}'
     networks:
       - monitoring
       - default
@@ -145,10 +144,7 @@ services:
     restart: unless-stopped
     ports:
       - "50051:50051"
-      - "8003:8003"
     env_file: .env
-    environment:
-      - METRICS_PORT=8003
     volumes:
       - bias_engine_models:/models
       - ./containers/bias-engine/docker-healthcheck.py:/usr/local/bin/docker-healthcheck.py:ro

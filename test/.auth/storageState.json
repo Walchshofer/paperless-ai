@@ -2,10 +2,10 @@
   "cookies": [
     {
       "name": "jwt",
-      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJlbGZtYW4iLCJpYXQiOjE3Njg5MTExNjcsImV4cCI6MTc2ODk5NzU2N30.8WdvdygmwQe9c1RQ1CxO2y25h8J3NqZ1xqYfaJqsbls",
-      "domain": "127.0.0.1",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJlbGZtYW4iLCJpYXQiOjE3NjkxMzQxMzQsImV4cCI6MTc2OTIyMDUzNH0.vea4PnOnb_vmem8FGQ1A-tuETvwxVC2giany-JlmH3Q",
+      "domain": "localhost",
       "path": "/",
-      "expires": 1768997567.600768,
+      "expires": 1769220534.269822,
       "httpOnly": true,
       "secure": false,
       "sameSite": "Lax"
@@ -13,7 +13,7 @@
   ],
   "origins": [
     {
-      "origin": "http://127.0.0.1:3000",
+      "origin": "http://localhost:3000",
       "localStorage": [
         {
           "name": "theme",

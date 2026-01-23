@@ -66,6 +66,8 @@ Embedding:    320-dim multi-vector per patch (bfloat16)
 | **Embedding Size** | 320-d | Patch-level vectors; multi-vector per page |
 | **Context Window** | 32k tokens | Up to 1280 visual tokens/page |
 | **Output Format** | bfloat16, L2-normalized | Multi-vector sequence |
+
+**Note:** When computing visual patches for ColQwen3 we use a **32×32 pixel patch size** and enforce a maximum of **1,280 patches per page**, which corresponds to a maximum effective image area of ~1.31M pixels. These constants are captured in code in `src/ui/contracts/AspectRatio.contract.ts` as `COLQWEN3_PATCH_SIZE = 32` and `COLQWEN3_MAX_PATCHES = 1280`.
 | **Precision** | bfloat16 | FlashAttention 2 optimized |
 | **Storage Efficiency** | 13× vs ColQwen2 | Dense indexing benefits |
 | **VRAM Requirement** | Optimized for RTX 3090 Ti / Ampere SM86 | 4B-AWQ reduces memory pressure; baseline profiles target ~3.5 GB per-query for quantized workloads |
