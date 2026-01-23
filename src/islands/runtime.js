@@ -87,6 +87,38 @@ const SyncFailedEventSchema = z.object({
   timestamp: z.number().optional(),
 });
 
+// Settings-related event schemas
+const SettingsChangedEventSchema = z.object({
+  type: z.literal('settings:changed'),
+  category: z.enum(['connection', 'ai-provider', 'expert-models', 'advanced', 'developer']),
+  settings: z.record(z.any()),
+  requiresRestart: z.boolean().optional().default(false),
+});
+
+const SettingsSavedEventSchema = z.object({
+  type: z.literal('settings:saved'),
+  category: z.enum(['connection', 'ai-provider', 'expert-models', 'advanced', 'developer']).optional(),
+  success: z.boolean().optional().default(true),
+  message: z.string().optional().nullable(),
+});
+
+const RestartRequiredEventSchema = z.object({
+  type: z.literal('settings:restart-required'),
+  reason: z.string().optional(),
+  settings: z.array(z.string()).optional().default([]),
+});
+
+const PresetLoadedEventSchema = z.object({
+  type: z.literal('preset:loaded'),
+  presetName: z.string(),
+  changedSettings: z.record(z.any()).optional(),
+});
+
+const DeveloperToggledEventSchema = z.object({
+  type: z.literal('developer:toggled'),
+  enabled: z.boolean()
+});
+
 // Event schema registry for both-side validation
 const eventSchemaMap = {
   'annotation:created': AnnotationCreatedEventSchema,
@@ -95,6 +127,12 @@ const eventSchemaMap = {
   'feedback:updated': FeedbackUpdatedEventSchema,
   'payload:ready': PayloadReadyEventSchema,
   'sync:failed': SyncFailedEventSchema,
+  // Settings events
+  'settings:changed': SettingsChangedEventSchema,
+  'settings:saved': SettingsSavedEventSchema,
+  'settings:restart-required': RestartRequiredEventSchema,
+  'preset:loaded': PresetLoadedEventSchema,
+  'developer:toggled': DeveloperToggledEventSchema,
 };
 
 const FeedbackControlsSchema = z.object({

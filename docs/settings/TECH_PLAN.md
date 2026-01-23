@@ -230,6 +230,22 @@ sequenceDiagram
 
 ---
 
+## Phase 1 Amendment (short)
+
+Decision: **Proceed with shadcn/ui** (P0.1 Decision Gate — 2026-01-23)
+
+Phase 1 kickoff tasks (short):
+- **P1.0**: Add Zod contracts for Settings domains under `src/ui/contracts/` (Connection, AI Provider, Expert Models, Advanced, Developer). Add unit tests. — Owner: frontend — Est 2-3 days ✅
+- **P1.1**: Add settings events to `src/islands/runtime.js` (register `settings:changed`, `settings:saved`, `settings:restart-required`, `preset:loaded`, `developer:toggled`) and add tests. — Owner: frontend — Est 1 day ✅
+- **P1.2**: Implement config hot-reload foundations in `config/config.js` (in-memory `runtimeOverrides`, `updateRuntime`) with tests. — Owner: implement — Est 3 days ✅
+- **P1.3**: Scaffold base islands (OverviewDashboard, SettingsSidebar, RestartBanner) with placeholder UI and smoke tests. — Owner: frontend — Est 2 days ✅
+
+Notes:
+- Playwright E2E for Phase 0 passed; Vitest had environment-related failures that are non-blocking for shadcn adoption. Add test infra remediation tasks to backlog.
+- Keep `feature/shadcn-compat-phase0` artifacts attached to P0.0 results.
+
+---
+
 ### 1.5 Persistent Restart Banner
 
 **Core Principle**: Non-blocking, sticky banner at top of settings page that accumulates restart-required changes.
