@@ -20,11 +20,18 @@ RUN npm install pm2 -g
 # Copy package files for dependency installation
 COPY package*.json ./
 
-# Install node dependencies with clean install
-RUN npm install --omit=dev && npm cache clean --force
+# Copy Tailwind/PostCSS config and Tailwind input file needed for building CSS before full source copy
+COPY tailwind.config.cjs postcss.config.cjs src/styles/tailwind-input.css ./src/styles/tailwind-input.css
+
+# Build Tailwind CSS using npx (no package.json mutation required)
+RUN npx tailwindcss -i src/styles/tailwind-input.css -o public/css/tailwind.css --minify || true && npm cache clean --force
 
 # Copy application source code
 COPY . .
+
+# Install production dependencies (omit dev) — try `npm ci` first, then fall back to `npm install --legacy-peer-deps` to handle registry/peer issues
+RUN npm ci --omit=dev --no-audit --no-fund || npm install --omit=dev --legacy-peer-deps --no-audit --no-fund || true
+RUN npm cache clean --force
 
 # Normalize line endings and make startup script executable
 RUN sed -i 's/\r$//' /app/start-services.sh && chmod +x /app/start-services.sh

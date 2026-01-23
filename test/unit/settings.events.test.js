@@ -1,4 +1,6 @@
-const { _eventSchemas } = require('../../../src/islands/runtime');
+import { describe, it, expect } from 'vitest';
+import runtime from '../../src/islands/runtime';
+const { _eventSchemas } = runtime;
 
 describe('Settings event schemas (runtime)', () => {
   it('has settings:changed schema and validates payload', () => {
