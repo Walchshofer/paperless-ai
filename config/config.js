@@ -676,3 +676,44 @@ console.log('[CONFIG] Database configuration loaded:', {
     host: process.env.POSTGRES_HOST ? 'POSTGRES_HOST' : (process.env.PAPERLESS_DBHOST ? 'PAPERLESS_DBHOST' : 'default')
   }
 });
+
+// Hot-reload runtime overrides (in-memory)
+let runtimeOverrides = {};
+
+function createNestedProxy(rootObj, path = []) {
+  return new Proxy(rootObj, {
+    get(target, prop) {
+      // Management helpers
+      if (prop === 'updateRuntime')
+        return (key, value) => {
+          const parts = String(key).split('.');
+          let cur = runtimeOverrides;
+          for (let i = 0; i < parts.length - 1; i++) {
+            if (cur[parts[i]] === undefined || typeof cur[parts[i]] !== 'object') cur[parts[i]] = {};
+            cur = cur[parts[i]];
+          }
+          cur[parts[parts.length - 1]] = value;
+        };
+      if (prop === 'clearRuntimeOverrides') return () => { runtimeOverrides = {}; };
+      if (prop === 'getRuntimeOverrides') return () => JSON.parse(JSON.stringify(runtimeOverrides));
+
+      const propStr = String(prop);
+
+      // Check for an override at the current path
+      let cur = runtimeOverrides;
+      for (const p of path) {
+        if (cur && typeof cur === 'object' && p in cur) cur = cur[p]; else { cur = undefined; break; }
+      }
+      if (cur && typeof cur === 'object' && propStr in cur) return cur[propStr];
+
+      const val = target[prop];
+      if (val && typeof val === 'object' && !Array.isArray(val)) {
+        return createNestedProxy(val, path.concat(propStr));
+      }
+      return val;
+    }
+  });
+}
+
+// Export a proxied config so runtime overrides work for nested accesses like config.ollama.apiUrl
+module.exports = createNestedProxy(module.exports);
