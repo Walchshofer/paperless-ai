@@ -43,7 +43,11 @@ class QdrantAdapter {
 
         let clientVersion = 'unknown';
         try {
-            clientVersion = require('@qdrant/js-client-rest/package.json').version;
+            const mainPath = require.resolve('@qdrant/js-client-rest');
+            // climb to package root (dist/cjs/index.js -> ../../.. -> package.json)
+            const pkgPath = require('path').resolve(mainPath, '../../../package.json');
+            const pkg = JSON.parse(require('fs').readFileSync(pkgPath, 'utf8'));
+            clientVersion = pkg.version || clientVersion;
         } catch (err) {
             logger.warn('[QdrantAdapter] Could not read @qdrant/js-client-rest version: ' + (err && err.message));
         }
