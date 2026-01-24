@@ -5885,6 +5885,545 @@ router.get('/api/processing-status', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/runtime/state:
+ *   get:
+ *     summary: Get current runtime system state
+ *     description: Returns runtime state including circuit breaker, VRAM, Qdrant, sidecars, and background sync info
+ *     tags:
+ *       - System
+ *     responses:
+ *       200:
+ *         description: Runtime state retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 circuitBreaker:
+ *                   type: object
+ *                 vram:
+ *                   type: object
+ *                 qdrant:
+ *                   type: object
+ *                 sidecars:
+ *                   type: object
+ *                 backgroundSync:
+ *                   type: object
+ */
+router.get('/api/runtime/state', async (req, res) => {
+  try {
+    const runtimeState = {
+      circuitBreaker: {
+        state: 'CLOSED',
+        failures: 0,
+        successes: 0
+      },
+      vram: {
+        used: 'N/A',
+        total: 'N/A',
+        utilization: 0
+      },
+      qdrant: {
+        connected: false,
+        collections: 0,
+        documents: 0
+      },
+      sidecars: {
+        visualRag: false,
+        guidance: false,
+        biasEngine: false
+      },
+      backgroundSync: {
+        lastSync: null,
+        nextSync: null,
+        running: false,
+        documentsProcessed: 0
+      }
+    };
+
+    // Check Qdrant status
+    try {
+      if (qdrantAdapter && typeof qdrantAdapter.getCollectionInfo === 'function') {
+        const collections = await qdrantAdapter.getCollectionInfo();
+        if (collections) {
+          runtimeState.qdrant.connected = true;
+          runtimeState.qdrant.collections = Array.isArray(collections) ? collections.length : 0;
+          runtimeState.qdrant.documents = collections.reduce((sum, col) => sum + (col.points_count || 0), 0);
+        }
+      }
+    } catch (qdrantError) {
+      logger.debug('[RUNTIME-STATE] Qdrant check failed', { error: qdrantError.message });
+    }
+
+    // Check Visual RAG sidecar status
+    try {
+      const visualRagUrl = process.env.VISUAL_RAG_URL || 'http://visual-rag:8001';
+      const visualRagResponse = await axios.get(`${visualRagUrl}/health`, { timeout: 2000 });
+      runtimeState.sidecars.visualRag = visualRagResponse.status === 200;
+    } catch (visualRagError) {
+      logger.debug('[RUNTIME-STATE] Visual RAG health check failed', { error: visualRagError.message });
+    }
+
+    // Check Guidance service status
+    try {
+      const guidanceUrl = process.env.GUIDANCE_SERVICE_URL || 'http://guidance-service:8002';
+      const guidanceResponse = await axios.get(`${guidanceUrl}/health`, { timeout: 2000 });
+      runtimeState.sidecars.guidance = guidanceResponse.status === 200;
+    } catch (guidanceError) {
+      logger.debug('[RUNTIME-STATE] Guidance service health check failed', { error: guidanceError.message });
+    }
+
+    // Check Bias Engine status
+    try {
+      const biasEngineUrl = process.env.BIAS_ENGINE_URL || 'bias-engine:50051';
+      // For gRPC service, we'll just check if the env var is set
+      runtimeState.sidecars.biasEngine = !!process.env.BIAS_ENGINE_URL;
+    } catch (biasEngineError) {
+      logger.debug('[RUNTIME-STATE] Bias engine check failed', { error: biasEngineError.message });
+    }
+
+    // Get background sync status
+    try {
+      const processingStatus = await documentModel.getCurrentProcessingStatus();
+      if (processingStatus) {
+        runtimeState.backgroundSync.running = processingStatus.isProcessing || false;
+        runtimeState.backgroundSync.documentsProcessed = processingStatus.processedCount || 0;
+        runtimeState.backgroundSync.lastSync = processingStatus.lastProcessedTime || null;
+        runtimeState.backgroundSync.nextSync = processingStatus.nextScheduledTime || null;
+      }
+    } catch (syncError) {
+      logger.debug('[RUNTIME-STATE] Background sync check failed', { error: syncError.message });
+    }
+
+    res.json(runtimeState);
+  } catch (error) {
+    logger.error('[RUNTIME-STATE] Failed to fetch runtime state', { error: error.message });
+    res.status(500).json({ error: 'Failed to fetch runtime state' });
+  }
+});
+
+/**
+ * @swagger
+ * /settings/presets:
+ *   get:
+ *     summary: List available configuration presets
+ *     description: Returns a list of predefined configuration presets
+ *     tags:
+ *       - Settings
+ *     responses:
+ *       200:
+ *         description: Presets retrieved successfully
+ */
+router.get('/settings/presets', async (req, res) => {
+  try {
+    const presetsDir = path.join(__dirname, '..', 'config', 'presets');
+    const files = await fs.readdir(presetsDir);
+    const presetFiles = files.filter(f => f.endsWith('.json'));
+
+    const presets = [];
+    for (const file of presetFiles) {
+      try {
+        const filePath = path.join(presetsDir, file);
+        const content = await fs.readFile(filePath, 'utf8');
+        const preset = JSON.parse(content);
+
+        // Return only metadata, not settings
+        presets.push({
+          name: preset.name,
+          displayName: preset.displayName,
+          description: preset.description,
+          category: preset.category,
+          icon: preset.icon
+        });
+      } catch (error) {
+        logger.warn('[PRESETS] Failed to load preset file', { file, error: error.message });
+      }
+    }
+
+    res.json({ presets });
+  } catch (error) {
+    logger.error('[PRESETS] Failed to list presets', { error: error.message });
+    res.status(500).json({ error: 'Failed to list presets' });
+  }
+});
+
+/**
+ * @swagger
+ * /settings/presets/{name}:
+ *   post:
+ *     summary: Load or preview a configuration preset
+ *     description: Load a preset and apply settings, or preview changes without applying
+ *     tags:
+ *       - Settings
+ *     parameters:
+ *       - name: name
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               preview:
+ *                 type: boolean
+ *                 description: If true, return diff without applying
+ */
+router.post('/settings/presets/:name', async (req, res) => {
+  try {
+    const { name } = req.params;
+    const { preview = false } = req.body;
+
+    // Load preset file
+    const presetPath = path.join(__dirname, '..', 'config', 'presets', `${name}.json`);
+    const presetContent = await fs.readFile(presetPath, 'utf8');
+    const preset = JSON.parse(presetContent);
+
+    // Load current .env settings
+    const envPath = path.join(__dirname, '..', 'data', '.env');
+    let currentEnv = {};
+    try {
+      const envContent = await fs.readFile(envPath, 'utf8');
+      envContent.split('\n').forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#')) {
+          const [key, ...valueParts] = trimmed.split('=');
+          if (key) {
+            currentEnv[key.trim()] = valueParts.join('=').trim();
+          }
+        }
+      });
+    } catch (error) {
+      logger.warn('[PRESETS] Failed to read current .env', { error: error.message });
+    }
+
+    // Calculate diff
+    const changes = [];
+    let requiresRestart = false;
+
+    for (const [key, newValue] of Object.entries(preset.settings)) {
+      const currentValue = currentEnv[key];
+      if (currentValue !== newValue) {
+        changes.push({
+          key,
+          currentValue: currentValue || null,
+          newValue,
+          category: 'Preset'
+        });
+        requiresRestart = true; // Most preset changes require restart
+      }
+    }
+
+    const diff = {
+      presetName: preset.displayName,
+      changes,
+      requiresRestart
+    };
+
+    // If preview mode, return diff without applying
+    if (preview) {
+      return res.json({ diff });
+    }
+
+    // Apply preset settings
+    for (const [key, value] of Object.entries(preset.settings)) {
+      currentEnv[key] = value;
+    }
+
+    // Write updated .env file
+    const envLines = Object.entries(currentEnv).map(([key, value]) => `${key}=${value}`);
+    await fs.writeFile(envPath, envLines.join('\n') + '\n', 'utf8');
+
+    logger.info('[PRESETS] Applied preset', { preset: name, changesCount: changes.length });
+
+    res.json({
+      success: true,
+      preset: name,
+      requiresRestart,
+      changesCount: changes.length
+    });
+  } catch (error) {
+    logger.error('[PRESETS] Failed to load preset', { error: error.message });
+
+    if (error.code === 'ENOENT') {
+      return res.status(404).json({ error: 'Preset not found' });
+    }
+
+    res.status(500).json({ error: 'Failed to load preset' });
+  }
+});
+
+/**
+ * @swagger
+ * /settings/export:
+ *   get:
+ *     summary: Export current settings as .env file
+ *     description: Downloads all current settings as a .env file with timestamp
+ *     tags:
+ *       - Settings
+ *     responses:
+ *       200:
+ *         description: Settings exported successfully
+ *         content:
+ *           text/plain:
+ *             schema:
+ *               type: string
+ */
+router.get('/settings/export', async (req, res) => {
+  try {
+    const envPath = path.join(__dirname, '..', 'data', '.env');
+    let envContent = '';
+
+    try {
+      envContent = await fs.readFile(envPath, 'utf8');
+    } catch (error) {
+      logger.error('[EXPORT] Failed to read .env file', { error: error.message });
+      return res.status(500).json({ error: 'Failed to read settings' });
+    }
+
+    // Parse and group settings by category
+    const lines = envContent.split('\n');
+    const grouped = {
+      connection: [],
+      ai: [],
+      expert: [],
+      features: [],
+      processing: [],
+      performance: [],
+      other: []
+    };
+
+    lines.forEach(line => {
+      const trimmed = line.trim();
+
+      // Keep comments and empty lines
+      if (!trimmed || trimmed.startsWith('#')) {
+        return;
+      }
+
+      // Categorize based on key name
+      const [key] = trimmed.split('=');
+      if (!key) return;
+
+      const keyUpper = key.toUpperCase();
+
+      if (keyUpper.includes('PAPERLESS') || keyUpper.includes('API_URL') || keyUpper.includes('API_TOKEN')) {
+        grouped.connection.push(trimmed);
+      } else if (keyUpper.includes('OPENAI') || keyUpper.includes('OLLAMA') || keyUpper.includes('AZURE') || keyUpper.includes('AI_PROVIDER')) {
+        grouped.ai.push(trimmed);
+      } else if (keyUpper.includes('MEDICAL') || keyUpper.includes('FINANCIAL') || keyUpper.includes('LEGAL') || keyUpper.includes('EXPERT')) {
+        grouped.expert.push(trimmed);
+      } else if (keyUpper.includes('ENABLE') || keyUpper.includes('ENABLED') || keyUpper.includes('FORCE') || keyUpper.includes('GUIDANCE')) {
+        grouped.features.push(trimmed);
+      } else if (keyUpper.includes('SCAN') || keyUpper.includes('PROCESSING') || keyUpper.includes('AUTOMATIC')) {
+        grouped.processing.push(trimmed);
+      } else if (keyUpper.includes('TOKEN') || keyUpper.includes('TIMEOUT') || keyUpper.includes('THRESHOLD') || keyUpper.includes('LIMIT')) {
+        grouped.performance.push(trimmed);
+      } else {
+        grouped.other.push(trimmed);
+      }
+    });
+
+    // Build categorized .env content
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    let exportContent = `# Paperless-AI Settings Export
+# Generated: ${new Date().toISOString()}
+# Timestamp: ${timestamp}
+
+`;
+
+    if (grouped.connection.length > 0) {
+      exportContent += `# === Connection Settings ===\n${grouped.connection.join('\n')}\n\n`;
+    }
+
+    if (grouped.ai.length > 0) {
+      exportContent += `# === AI Provider Settings ===\n${grouped.ai.join('\n')}\n\n`;
+    }
+
+    if (grouped.expert.length > 0) {
+      exportContent += `# === Expert Models ===\n${grouped.expert.join('\n')}\n\n`;
+    }
+
+    if (grouped.features.length > 0) {
+      exportContent += `# === Feature Flags ===\n${grouped.features.join('\n')}\n\n`;
+    }
+
+    if (grouped.processing.length > 0) {
+      exportContent += `# === Processing Settings ===\n${grouped.processing.join('\n')}\n\n`;
+    }
+
+    if (grouped.performance.length > 0) {
+      exportContent += `# === Performance Settings ===\n${grouped.performance.join('\n')}\n\n`;
+    }
+
+    if (grouped.other.length > 0) {
+      exportContent += `# === Other Settings ===\n${grouped.other.join('\n')}\n\n`;
+    }
+
+    // Set headers for file download
+    const filename = `paperless-ai-settings-${timestamp}.env`;
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(exportContent);
+
+    logger.info('[EXPORT] Settings exported successfully', { filename });
+  } catch (error) {
+    logger.error('[EXPORT] Failed to export settings', { error: error.message });
+    res.status(500).json({ error: 'Failed to export settings' });
+  }
+});
+
+/**
+ * @swagger
+ * /settings/import:
+ *   post:
+ *     summary: Import settings from .env file
+ *     description: Upload and validate a .env file, optionally preview changes before applying
+ *     tags:
+ *       - Settings
+ *     requestBody:
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *               preview:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Import successful or preview generated
+ */
+router.post('/settings/import', async (req, res) => {
+  try {
+    // Check if file was uploaded
+    if (!req.files || !req.files.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const uploadedFile = req.files.file;
+    const preview = req.body.preview === 'true' || req.body.preview === true;
+
+    // Validate file type
+    if (!uploadedFile.name.endsWith('.env')) {
+      return res.status(400).json({ error: 'Invalid file type. Please upload a .env file' });
+    }
+
+    // Parse uploaded .env content
+    const uploadedContent = uploadedFile.data.toString('utf8');
+    const uploadedSettings = {};
+    const parseErrors = [];
+
+    uploadedContent.split('\n').forEach((line, index) => {
+      const trimmed = line.trim();
+
+      // Skip comments and empty lines
+      if (!trimmed || trimmed.startsWith('#')) {
+        return;
+      }
+
+      // Parse key=value
+      const equalIndex = trimmed.indexOf('=');
+      if (equalIndex === -1) {
+        parseErrors.push(`Line ${index + 1}: Invalid format (expected KEY=VALUE)`);
+        return;
+      }
+
+      const key = trimmed.substring(0, equalIndex).trim();
+      const value = trimmed.substring(equalIndex + 1).trim();
+
+      if (!key) {
+        parseErrors.push(`Line ${index + 1}: Empty key`);
+        return;
+      }
+
+      uploadedSettings[key] = value;
+    });
+
+    // Return validation errors if any
+    if (parseErrors.length > 0) {
+      return res.status(400).json({
+        error: 'Invalid .env file format',
+        details: parseErrors
+      });
+    }
+
+    // Load current .env settings
+    const envPath = path.join(__dirname, '..', 'data', '.env');
+    let currentEnv = {};
+    try {
+      const envContent = await fs.readFile(envPath, 'utf8');
+      envContent.split('\n').forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#')) {
+          const [key, ...valueParts] = trimmed.split('=');
+          if (key) {
+            currentEnv[key.trim()] = valueParts.join('=').trim();
+          }
+        }
+      });
+    } catch (error) {
+      logger.warn('[IMPORT] Failed to read current .env', { error: error.message });
+    }
+
+    // Calculate diff
+    const changes = [];
+    let requiresRestart = false;
+
+    for (const [key, newValue] of Object.entries(uploadedSettings)) {
+      const currentValue = currentEnv[key];
+      if (currentValue !== newValue) {
+        changes.push({
+          key,
+          currentValue: currentValue || null,
+          newValue,
+          category: 'Import'
+        });
+        requiresRestart = true; // Imported settings likely require restart
+      }
+    }
+
+    const diff = {
+      presetName: 'Imported Settings',
+      changes,
+      requiresRestart
+    };
+
+    // If preview mode, return diff without applying
+    if (preview) {
+      return res.json({ diff, settingsCount: Object.keys(uploadedSettings).length });
+    }
+
+    // Apply imported settings
+    const mergedEnv = { ...currentEnv, ...uploadedSettings };
+
+    // Write updated .env file
+    const envLines = Object.entries(mergedEnv).map(([key, value]) => `${key}=${value}`);
+    await fs.writeFile(envPath, envLines.join('\n') + '\n', 'utf8');
+
+    logger.info('[IMPORT] Settings imported successfully', {
+      changesCount: changes.length,
+      totalSettings: Object.keys(uploadedSettings).length
+    });
+
+    res.json({
+      success: true,
+      requiresRestart,
+      changesCount: changes.length,
+      totalSettings: Object.keys(uploadedSettings).length
+    });
+  } catch (error) {
+    logger.error('[IMPORT] Failed to import settings', { error: error.message });
+    res.status(500).json({ error: 'Failed to import settings' });
+  }
+});
+
 router.get('/api/rag-test', async (req, res) => {
   RAGService.initialize();
   try { 

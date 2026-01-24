@@ -1,0 +1,20 @@
+{
+  "name": "medical",
+  "displayName": "Medical",
+  "description": "Medical domain configuration with specialized expert models for healthcare documents",
+  "category": "medical",
+  "icon": "🏥",
+  "settings": {
+    "EXPERT_PIPELINE_ENABLED": "yes",
+    "MEDICAL_VISION_MODEL": "llava-med-v1.6",
+    "MEDICAL_ANALYSIS_MODEL": "medtext-llama3",
+    "MEDICAL_RADIOLOGY_MODEL": "llava-med-v1.6",
+    "ENABLE_VISUAL_RAG": "yes",
+    "GUIDANCE_SERVICE_ENABLED": "yes",
+    "ENABLE_MODEL_METRICS": "yes",
+    "TOKEN_LIMIT": "128000",
+    "RESPONSE_TOKENS": "8192",
+    "TEXT_QUALITY_THRESHOLD": "75",
+    "MAX_VISION_PAGES": "8"
+  }
+}

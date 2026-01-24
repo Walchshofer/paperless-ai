@@ -1,0 +1,19 @@
+{
+  "name": "legal",
+  "displayName": "Legal",
+  "description": "Legal domain configuration with specialized expert models for legal documents and contracts",
+  "category": "legal",
+  "icon": "⚖️",
+  "settings": {
+    "EXPERT_PIPELINE_ENABLED": "yes",
+    "LEGAL_VISION_MODEL": "qwen3-vl:8b",
+    "LEGAL_ANALYSIS_MODEL": "gpt-oss",
+    "ENABLE_VISUAL_RAG": "yes",
+    "GUIDANCE_SERVICE_ENABLED": "yes",
+    "ENABLE_MODEL_METRICS": "yes",
+    "TOKEN_LIMIT": "128000",
+    "RESPONSE_TOKENS": "8192",
+    "TEXT_QUALITY_THRESHOLD": "70",
+    "MAX_VISION_PAGES": "10"
+  }
+}

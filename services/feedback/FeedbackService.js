@@ -11,6 +11,10 @@ const fs = require('fs').promises;
 const { metricsCollector } = require('../metrics/PrometheusMetrics');
 const { qdrantAdapter } = require('../visual-rag-client/QdrantAdapter');
 
+// Respect strict mode for tests: when enabled, surface DB connectivity/schema errors
+const PG_STRICT_MODE = (process.env.PG_STRICT_MODE === 'true' || process.env.PG_STRICT_MODE === 'yes');
+if (PG_STRICT_MODE) logger.info('FeedbackService PG_STRICT_MODE enabled');
+
 // Lazy-load pg to allow graceful degradation
 let Pool = null;
 let pool = null;
@@ -58,13 +62,15 @@ function initPool() {
         database: process.env.POSTGRES_DB || 'paperless',
         user: readEnvFallback('POSTGRES_USER') || readEnvFallback('PAPERLESS_DBUSER'),
         password: readEnvFallback('POSTGRES_PASSWORD') || readEnvFallback('PAPERLESS_DBPASS'),
-        max: 5,
+        // Increase pool size and connection timeout to be more robust in CI/slow envs
+        max: parseInt(process.env.TEST_PG_MAX_CLIENTS || '10', 10),
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000
+        connectionTimeoutMillis: parseInt(process.env.TEST_PG_CONN_TIMEOUT || '10000', 10)
     };
 
     pool = new Pool(config);
     pool.on('error', (err) => logger.error('PostgreSQL pool error', err));
+    pool.on('connect', () => logger.debug('PostgreSQL pool connected'));
     return pool;
 }
 
@@ -128,6 +134,7 @@ class FeedbackService {
                 this._schemaEnsured = true;
             } catch (err) {
                 logger.warn('feedback_schema_ensure_failed', { error: err.message });
+                if (process.env.PG_STRICT_MODE === 'true' || process.env.PG_STRICT_MODE === 'yes') throw err;
             } finally {
                 client.release();
             }
@@ -272,6 +279,9 @@ class FeedbackService {
 
         if (!this.pool) {
             logger.error('PostgreSQL not configured, granular feedback lost');
+            if (process.env.PG_STRICT_MODE === 'true' || process.env.PG_STRICT_MODE === 'yes') {
+                throw new Error('No database connection (PG_STRICT_MODE)');
+            }
             return { errors: [{ type: 'config_error', error: 'No database connection' }] };
         }
 
@@ -611,9 +621,11 @@ class FeedbackService {
                     metricsCollector.recordIntegrationError('feedback_ingest');
                 }
 
-                // If this looks like an aborted-transaction from a bad pooled client, destroy and retry once
+                // If this looks like an aborted-transaction from a bad pooled client, or a connection-level error,
+                // destroy and retry once. Also treat DNS/connectivity errors as retriable.
                 const msg = err && err.message ? err.message : '';
                 const isAborted = /current transaction is aborted/i.test(msg);
+                const isConnectionError = /(connection terminated|getaddrinfo ENOTFOUND|ECONNREFUSED|connection timeout)/i.test(msg);
 
                 // Save the error for later diagnostics
                 err._destroyClient = true;
@@ -633,13 +645,17 @@ class FeedbackService {
                 // mark as destroyed so finally block doesn't attempt a double-release
                 clientDestroyed = true;
 
-                if (isAborted && attempt < maxAttempts) {
-                    logger.info('recordGranularFeedback_retrying', { requestId, documentId: docId, attempt: attempt + 1 });
+                if ((isAborted || isConnectionError) && attempt < maxAttempts) {
+                    logger.info('recordGranularFeedback_retrying', { requestId, documentId: docId, attempt: attempt + 1, reason: isConnectionError ? 'connection_error' : 'aborted_transaction' });
+                    // Wait briefly before retrying on connection-related issues
+                    if (isConnectionError) await new Promise(res => setTimeout(res, 500 * attempt));
                     // Try again with a fresh client
                     continue;
                 }
 
                 if (options.transactional) throw err;
+                // In strict mode surface the error instead of returning a best-effort object
+                if (process.env.PG_STRICT_MODE === 'true' || process.env.PG_STRICT_MODE === 'yes') throw err;
                 return { inserted: [], overlays: [], errors: [{ type: 'transaction_failed', error: err.message }] };
             } finally {
                 // Ensure we attempt to release client if not already destroyed and only if we allocated it here

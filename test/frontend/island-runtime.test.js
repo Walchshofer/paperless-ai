@@ -8,9 +8,57 @@ describe('Island runtime (browser build)', function(){
   it('mounts playground-island from built dist file', async function(){
     const runtimePath = path.join(__dirname, '..', '..', 'public', 'js', 'dist', 'island-runtime.js');
 
+    // Provide a fake 2D context before any script runs so built islands that call
+    // canvas APIs won't hit JSDOM's unimplemented stub error
+    const fakeCtx = {
+      getImageData: () => ({ data: new Uint8ClampedArray(0) }),
+      putImageData: () => {},
+      measureText: () => ({ width: 0 }),
+      fillRect: () => {},
+      clearRect: () => {},
+      drawImage: () => {},
+      beginPath: () => {},
+      arc: () => {},
+      fillText: () => {},
+      getContextAttributes: () => ({})
+    };
+
     const dom = new JSDOM(`<!doctype html><html><head></head><body>
       <div data-island="playground-island" data-props='{"collection":"visual_pages","gpuState":"idle"}'></div>
-    </body></html>`, { runScripts: 'dangerously', resources: 'usable' });
+    </body></html>`, {
+      runScripts: 'dangerously',
+      resources: 'usable',
+      beforeParse(window) {
+        try {
+          if (window && window.HTMLCanvasElement && !window.HTMLCanvasElement.prototype.getContext) {
+            window.HTMLCanvasElement.prototype.getContext = function() { return fakeCtx; };
+          }
+        } catch (e) {
+          console.warn('[test] Could not set canvas.getContext in beforeParse:', e && e.message);
+        }
+      }
+    });
+
+    // Stub canvas getContext (JSDOM does not implement canvas) to avoid test-time errors
+    try {
+      if (dom.window && dom.window.HTMLCanvasElement && !dom.window.HTMLCanvasElement.prototype.getContext) {
+        const fakeCtx = {
+          getImageData: () => ({ data: new Uint8ClampedArray(0) }),
+          putImageData: () => {},
+          measureText: () => ({ width: 0 }),
+          fillRect: () => {},
+          clearRect: () => {},
+          drawImage: () => {},
+          beginPath: () => {},
+          arc: () => {},
+          fillText: () => {},
+          getContextAttributes: () => ({})
+        };
+        dom.window.HTMLCanvasElement.prototype.getContext = function() { return fakeCtx; };
+      }
+    } catch (e) {
+      console.warn('[test] Could not stub canvas.getContext:', e && e.message);
+    }
 
     const originalGlobals = {
       window: global.window,
@@ -20,7 +68,19 @@ describe('Island runtime (browser build)', function(){
     };
     global.window = dom.window;
     global.document = dom.window.document;
-    global.navigator = dom.window.navigator;
+    // Some Node runtimes expose a read-only navigator; use defineProperty for compatibility
+    try {
+      Object.defineProperty(global, 'navigator', {
+        value: dom.window.navigator,
+        configurable: true,
+        writable: true
+      });
+    } catch (e) {
+      // Fallback to assignment if defineProperty isn't allowed
+      try { global.navigator = dom.window.navigator; } catch (err) {
+        console.warn('[test] Could not set global.navigator:', err && err.message);
+      }
+    }
     global.HTMLElement = dom.window.HTMLElement;
 
     try {
@@ -40,7 +100,20 @@ describe('Island runtime (browser build)', function(){
       await new Promise(resolve => setTimeout(resolve, 0));
       global.window = originalGlobals.window;
       global.document = originalGlobals.document;
-      global.navigator = originalGlobals.navigator;
+      // Restore navigator safely (may be a getter-only in some Node environments)
+      try {
+        if (originalGlobals.navigator === undefined) {
+          try { delete global.navigator; } catch (e) { /* ignore */ }
+        } else {
+          Object.defineProperty(global, 'navigator', {
+            value: originalGlobals.navigator,
+            configurable: true,
+            writable: true
+          });
+        }
+      } catch (e) {
+        try { global.navigator = originalGlobals.navigator; } catch (err) { /* ignore */ }
+      }
       global.HTMLElement = originalGlobals.HTMLElement;
     }
 

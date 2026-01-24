@@ -35,6 +35,47 @@ if (process.env.GUIDANCE_ENABLED === 'false' || process.env.GUIDANCE_SERVICE_ENA
     console.warn('[test] Guidance service disabled for this run.');
 }
 
+// Patch JSDOM globally to provide a fake canvas 2D context before any script runs.
+// This avoids "Not implemented: HTMLCanvasElement.prototype.getContext" errors
+// when built islands call canvas APIs during mount-time.
+try {
+    const jsdom = require('jsdom');
+    const OriginalJSDOM = jsdom.JSDOM;
+    class JSDOMWithCanvasStub extends OriginalJSDOM {
+        constructor(html, options) {
+            options = options || {};
+            const userBeforeParse = options.beforeParse;
+            options.beforeParse = function(window) {
+                try {
+                    if (window && window.HTMLCanvasElement && !window.HTMLCanvasElement.prototype.getContext) {
+                        const fakeCtx = {
+                            getImageData: () => ({ data: new Uint8ClampedArray(0) }),
+                            putImageData: () => {},
+                            measureText: () => ({ width: 0 }),
+                            fillRect: () => {},
+                            clearRect: () => {},
+                            drawImage: () => {},
+                            beginPath: () => {},
+                            arc: () => {},
+                            fillText: () => {},
+                            getContextAttributes: () => ({})
+                        };
+                        window.HTMLCanvasElement.prototype.getContext = function() { return fakeCtx; };
+                    }
+                } catch (e) {
+                    console.warn('[test/setup-env] canvas stub failed:', e && e.message);
+                }
+                if (typeof userBeforeParse === 'function') userBeforeParse(window);
+            };
+            super(html, options);
+        }
+    }
+    jsdom.JSDOM = JSDOMWithCanvasStub;
+    console.log('[test/setup-env] Patched JSDOM to inject canvas.getContext stub');
+} catch (e) {
+    console.warn('[test/setup-env] Could not patch JSDOM for canvas stub:', e && e.message);
+}
+
 if (process.env.RAG_SERVICE_ENABLED === 'true') {
     console.log(`[test] RAG Service enabled at ${process.env.RAG_SERVICE_URL}`);
 } else {
@@ -52,17 +93,40 @@ if (process.env.RAG_SERVICE_ENABLED === 'true') {
  * 2. Create direct pg connection as fallback
  */
 (async function ensureTestDbSchema() {
+    // Retry helper with exponential backoff
+    const wait = (ms) => new Promise((res) => setTimeout(res, ms));
+    async function retry(fn, { attempts = 8, initialDelay = 1000 } = {}) {
+        let delay = initialDelay;
+        for (let i = 0; i < attempts; ++i) {
+            try {
+                return await fn();
+            } catch (err) {
+                if (i === attempts - 1) throw err;
+                console.warn(`[test] Retry ${i + 1}/${attempts} failed: ${err && err.message}. Retrying in ${delay}ms`);
+                await wait(delay);
+                delay *= 2;
+            }
+        }
+    }
+
     try {
         // Strategy 1: Prefer to reuse VisualOverlayRepository's pool if available
         try {
             const { visualOverlayRepository } = require('../services/visual-rag-client/VisualOverlayRepository');
             if (visualOverlayRepository) {
-                await visualOverlayRepository.isAvailable();
-                const client = await visualOverlayRepository.pool.connect();
-                await client.query(
-                    'ALTER TABLE visual_overlays ADD COLUMN IF NOT EXISTS vector_id UUID;'
-                );
-                client.release();
+                await retry(async () => {
+                    await visualOverlayRepository.isAvailable();
+                    const client = await visualOverlayRepository.pool.connect();
+                    try {
+                        await client.query(
+                            'ALTER TABLE visual_overlays ADD COLUMN IF NOT EXISTS vector_id UUID;'
+                        );
+                    } finally {
+                        client.release();
+                    }
+                }, { attempts: 8, initialDelay: 1000 });
+
+                process.env.PG_AVAILABLE = 'true';
                 console.log(
                     '✅ [test] visual_overlays.vector_id column ensured via repository pool'
                 );
@@ -77,10 +141,12 @@ if (process.env.RAG_SERVICE_ENABLED === 'true') {
             // Fall through to Strategy 2
         }
 
-        // Strategy 2: Direct pg connection as fallback
+        // Strategy 2: Direct pg connection as fallback (with retries)
         try {
             const { Pool } = require('pg');
-            const host = process.env.POSTGRES_HOST || process.env.PAPERLESS_DBHOST || 'localhost';
+            const configuredHost = process.env.POSTGRES_HOST || process.env.PAPERLESS_DBHOST;
+            // Try container name as well (paperless_db) — helpful when tests run in the compose network
+            const defaultHosts = configuredHost ? [configuredHost, 'paperless_db', '127.0.0.1', 'localhost'] : ['paperless_db', '127.0.0.1', 'localhost'];
             const port = parseInt(process.env.POSTGRES_PORT || '5432', 10);
             const database = process.env.POSTGRES_DB || 'paperless';
             const user = getTestEnv('POSTGRES_USER', 'PAPERLESS_DBUSER');
@@ -88,47 +154,82 @@ if (process.env.RAG_SERVICE_ENABLED === 'true') {
 
             // Skip connection if credentials are missing
             if (!user || !password) {
+                process.env.PG_AVAILABLE = 'false';
                 console.warn('⚠️ [test] Skipping database schema initialization due to missing credentials');
+                if (process.env.PG_STRICT_MODE === 'true' || process.env.PG_STRICT_MODE === 'yes') {
+                    throw new Error('PG_STRICT_MODE enabled but database credentials missing. Set POSTGRES_USER and POSTGRES_PASSWORD or unset PG_STRICT_MODE.');
+                }
                 return;
             }
 
-            const pool = new Pool({
-                host,
-                port,
-                database,
-                user,
-                password,
-                max: 1,
-                idleTimeoutMillis: 1000,
-                connectionTimeoutMillis: 5000
-            });
+            // Try candidate hosts sequentially within the retry loop. This handles cases
+            // where Docker DNS name (e.g., 'db') is not resolvable from the host running
+            // tests (common on Windows or when services are not attached to the same
+            // network). We still use exponential backoff across attempts.
+            await retry(async () => {
+                let lastErr;
+                for (const hostCandidate of defaultHosts) {
+                    const pool = new Pool({
+                        host: hostCandidate,
+                        port,
+                        database,
+                        user,
+                        password,
+                        max: 1,
+                        idleTimeoutMillis: 1000,
+                        connectionTimeoutMillis: 10000
+                    });
 
-            console.log(`[test] Attempting direct pool connection to ${host}:${port}/${database}`);
+                    console.log(`[test] Attempting direct pool connection to ${hostCandidate}:${port}/${database}`);
 
-            const client = await pool.connect();
-            await client.query(
-                'ALTER TABLE visual_overlays ADD COLUMN IF NOT EXISTS vector_id UUID;'
-            );
-            client.release();
-            await pool.end();
+                    try {
+                        const client = await pool.connect();
+                        try {
+                            await client.query(
+                                'ALTER TABLE visual_overlays ADD COLUMN IF NOT EXISTS vector_id UUID;'
+                            );
+                            await pool.end();
+                            // success - return from retry fn
+                            return;
+                        } finally {
+                            client.release();
+                        }
+                    } catch (err) {
+                        lastErr = err;
+                        console.warn(`[test] Direct pool connection to ${hostCandidate} failed: ${err && err.message}`);
+                        try { await pool.end(); } catch (e) {}
+                        // try next hostCandidate
+                    }
+                }
+                // If we reach here, all host candidates failed - throw last error to trigger retry
+                throw lastErr || new Error('Direct pool connection failed for all host candidates');
+            }, { attempts: 8, initialDelay: 1000 });
 
+            process.env.PG_AVAILABLE = 'true';
             console.log(
                 '✅ [test] visual_overlays.vector_id column ensured via direct pool'
             );
             return;
         } catch (directPoolError) {
+            process.env.PG_AVAILABLE = 'false';
             console.warn({
                 event: 'test_schema_direct_pool_failed',
-                error: directPoolError.message,
-                code: directPoolError.code,
+                error: directPoolError && directPoolError.message,
+                code: directPoolError && directPoolError.code,
                 hint: 'Ensure PostgreSQL is running and connection parameters are correct'
             });
             console.warn(
                 '⚠️ [test] Could not ensure visual_overlays.vector_id column'
             );
+            // If strict mode is requested, surface a clear error early rather than
+            // letting downstream services throw ambiguous DNS/connection errors.
+            if (process.env.PG_STRICT_MODE === 'true' || process.env.PG_STRICT_MODE === 'yes') {
+                throw new Error('PG_STRICT_MODE enabled but database not reachable. Start PostgreSQL or unset PG_STRICT_MODE for local runs.');
+            }
             return;
         }
     } catch (unexpectedError) {
+        process.env.PG_AVAILABLE = 'false';
         console.error({
             event: 'test_schema_unexpected_error',
             error: unexpectedError.message,
@@ -137,6 +238,9 @@ if (process.env.RAG_SERVICE_ENABLED === 'true') {
         console.error(
             '❌ [test] Unexpected error during schema initialization'
         );
+        if (process.env.PG_STRICT_MODE === 'true' || process.env.PG_STRICT_MODE === 'yes') {
+            throw unexpectedError;
+        }
     }
 })();
 

@@ -1,0 +1,21 @@
+{
+  "name": "financial",
+  "displayName": "Financial",
+  "description": "Financial domain configuration with specialized expert models for financial documents and invoices",
+  "category": "financial",
+  "icon": "💰",
+  "settings": {
+    "EXPERT_PIPELINE_ENABLED": "yes",
+    "FINANCIAL_ANALYSIS_MODEL": "fino1-8b",
+    "FINANCIAL_REASONING_MODEL": "llm-pro-finance-8b",
+    "FINANCIAL_VISION_MODEL": "llm-pro-finance-8b",
+    "FINANCIAL_VAT_EXPERT_MODEL": "llm-pro-finance-8b",
+    "ENABLE_VISUAL_RAG": "yes",
+    "GUIDANCE_SERVICE_ENABLED": "yes",
+    "ENABLE_MODEL_METRICS": "yes",
+    "DUPLICATE_DETECTION_ENABLED": "yes",
+    "TOKEN_LIMIT": "128000",
+    "RESPONSE_TOKENS": "4096",
+    "TEXT_QUALITY_THRESHOLD": "70"
+  }
+}

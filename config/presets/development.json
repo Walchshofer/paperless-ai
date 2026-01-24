@@ -1,0 +1,23 @@
+{
+  "name": "development",
+  "displayName": "Development",
+  "description": "Local development configuration with Ollama, debug logging, and all features enabled",
+  "category": "development",
+  "icon": "🔧",
+  "settings": {
+    "AI_PROVIDER": "ollama",
+    "OLLAMA_API_URL": "http://host.docker.internal:11434",
+    "EXPERT_PIPELINE_ENABLED": "yes",
+    "ENABLE_VISUAL_RAG": "yes",
+    "ENABLE_VISUAL_RAG_SIDECAR": "yes",
+    "GUIDANCE_SERVICE_ENABLED": "yes",
+    "ENABLE_MODEL_METRICS": "yes",
+    "DUPLICATE_DETECTION_ENABLED": "yes",
+    "OCR_CHECKPOINT_ENABLED": "yes",
+    "SUMMARY_FALLBACK_ENABLED": "yes",
+    "DISABLE_AUTOMATIC_PROCESSING": "no",
+    "SCAN_INTERVAL": "*/5 * * * *",
+    "TOKEN_LIMIT": "128000",
+    "RESPONSE_TOKENS": "4096"
+  }
+}

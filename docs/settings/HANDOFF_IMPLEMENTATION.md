@@ -1093,7 +1093,7 @@ EXPERT_MEDICAL_VISION=qwen3-vl:8b
 
 **Week 1: Phase 0 + Phase 1 Start**
 
-- Days 1-3: P0 (shadcn/ui testing) → **DECISION GATE**
+- Days 1-3: P0 (shadcn/ui testing) → **DECISION GATE** (COMPLETED: Proceed with shadcn/ui — 2026-01-23, see `docs/settings/tickets/completed/P0.1-shadcn-decision-gate.md`)
 - Days 4-5: P1.1 start (Tailwind build setup)
 
 **Week 2: Phase 1 Completion**
@@ -1577,12 +1577,12 @@ ls -lh public/js/*.island.js
 
 ### Phase 0 Success Criteria
 
-- [ ] shadcn/ui installed and configured
-- [ ] Critical components tested (Tabs, Dialog, Form controls)
-- [ ] Compatibility report documented
-- [ ] Pivot decision made (proceed with shadcn/ui OR pivot to Headless UI)
-- [ ] If proceeding: All critical components work in production quality
-- [ ] If pivoting: Headless UI installed and tested
+- [x] shadcn/ui installed and configured (✅ 2026-01-23)
+- [x] Critical components tested (Tabs, Dialog, Form controls) (✅ 2026-01-23)
+- [x] Compatibility report documented (✅ P0.0-shadcn-compatibility-results.md)
+- [x] Pivot decision made (proceed with shadcn/ui OR pivot to Headless UI) (✅ Decision: Proceed with shadcn/ui)
+- [x] If proceeding: All critical components work in production quality (✅ Playwright E2E passed)
+- [N/A] If pivoting: Headless UI installed and tested (Not applicable - proceeding with shadcn/ui)
 
 ### Phase 1 Success Criteria
 

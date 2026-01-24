@@ -49,6 +49,12 @@
                 <div data-island="overview-dashboard-island" data-testid="overview-dashboard-island" data-props='{}'></div>
                 <div data-island="settings-sidebar-island" data-testid="settings-sidebar-island" data-props='{}'></div>
 
+                <!-- Phase 3: Developer Settings Island -->
+                <div data-island="developer-settings-island" data-testid="developer-settings-island" data-props='{}'></div>
+
+                <!-- Phase 4: Presets Manager Island -->
+                <div data-island="presets-manager-island" data-testid="presets-manager-island" data-props='{}'></div>
+
                 <!-- Main Form Card -->
                 <div class="material-card">
                     <!-- Tab Navigation -->
@@ -1358,5 +1364,13 @@
     }
 });
     </script>
+
+    <!-- Islands Runtime and Bundles -->
+    <script type="module" src="/js/dist/island-runtime.js"></script>
+    <script type="module" src="/js/dist/overview-dashboard.island.js"></script>
+    <script type="module" src="/js/dist/settings-sidebar.island.js"></script>
+    <script type="module" src="/js/dist/restart-banner.island.js"></script>
+    <script type="module" src="/js/dist/developer-settings.island.js"></script>
+    <script type="module" src="/js/dist/presets-manager.island.js"></script>
 </body>
 </html>

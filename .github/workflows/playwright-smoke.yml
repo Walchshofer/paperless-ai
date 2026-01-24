@@ -1,0 +1,73 @@
+name: Playwright smoke - Settings Scaffolding
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  playwright-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build islands (frontend)
+        run: npm run build:islands
+
+      - name: Start server
+        run: |
+          nohup node server.js > server.log 2>&1 &
+          echo "Server started"
+
+      - name: Wait for server
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8000/ >/dev/null 2>&1; then
+              echo "server ready"; exit 0;
+            fi
+            sleep 2
+          done
+          cat server.log || true
+          exit 1
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright smoke test (settings scaffolding)
+        env:
+          E2E_SKIP_SERVICE_CHECKS: 'true'
+          E2E_SKIP_FIXTURE_SETUP: 'true'
+          E2E_SKIP_AUTH_SETUP: 'true'
+        run: npx playwright test test/e2e/settings_scaffolding.spec.ts --config=test/playwright.config.ts --reporter=html,dot
+
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-settings-scaffolding
+          path: playwright-report/
+          retention-days: 30
+
+      - name: Upload Playwright screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-screenshots-settings-scaffolding
+          path: test-results/
+          retention-days: 30
+
+      - name: Display Playwright report summary
+        if: always()
+        run: |
+          npx playwright show-report --reporter=list || true
+        continue-on-error: true

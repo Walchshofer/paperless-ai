@@ -6,6 +6,14 @@ import HistoryTabsIsland from './HistoryTabsIsland';
 import OverlayViewerIsland from './OverlayViewerIsland';
 import PlaygroundIsland from './PlaygroundIsland';
 import ShadcnCompat from './shadcn-compat';
+import OverviewDashboardIsland from './OverviewDashboardIsland';
+import SettingsSidebarIsland from './SettingsSidebarIsland';
+import ConnectionSettingsIsland from './ConnectionSettingsIsland';
+import AIProviderIsland from './AIProviderIsland';
+import ExpertModelsIsland from './ExpertModelsIsland';
+import RestartBannerIsland from './RestartBannerIsland';
+import DeveloperSettingsIsland from './DeveloperSettingsIsland';
+import PresetsManagerIsland from './PresetsManagerIsland';
 
 type IslandComponent = (props: any) => JSX.Element;
 
@@ -19,6 +27,14 @@ const registry: IslandRegistry = {
   'overlay-viewer-island': OverlayViewerIsland,
   'playground-island': PlaygroundIsland,
   'shadcn-compat': ShadcnCompat,
+  'overview-dashboard-island': OverviewDashboardIsland,
+  'settings-sidebar-island': SettingsSidebarIsland,
+  'connection-settings-island': ConnectionSettingsIsland,
+  'ai-provider-island': AIProviderIsland,
+  'expert-models-island': ExpertModelsIsland,
+  'restart-banner-island': RestartBannerIsland,
+  'developer-settings-island': DeveloperSettingsIsland,
+  'presets-manager-island': PresetsManagerIsland,
 };
 
 function parseProps(el: Element): Record<string, any> | null {

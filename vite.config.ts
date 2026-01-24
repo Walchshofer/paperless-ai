@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import preact from '@preact/preset-vite';
 import path from 'path';
@@ -29,7 +30,15 @@ export default defineConfig({
         'history-tabs': path.resolve(__dirname, 'src/islands/HistoryTabsIsland.tsx'),
         'overlay-viewer': path.resolve(__dirname, 'src/islands/OverlayViewerIsland.tsx'),
         'playground': path.resolve(__dirname, 'src/islands/PlaygroundIsland.tsx'),
-        'visual-annotation': path.resolve(__dirname, 'src/islands/VisualAnnotationIsland.tsx')
+        'visual-annotation': path.resolve(__dirname, 'src/islands/VisualAnnotationIsland.tsx'),
+        'overview-dashboard': path.resolve(__dirname, 'src/islands/OverviewDashboardIsland.tsx'),
+        'settings-sidebar': path.resolve(__dirname, 'src/islands/SettingsSidebarIsland.tsx'),
+        'connection-settings': path.resolve(__dirname, 'src/islands/ConnectionSettingsIsland.tsx'),
+        'ai-provider': path.resolve(__dirname, 'src/islands/AIProviderIsland.tsx'),
+        'expert-models': path.resolve(__dirname, 'src/islands/ExpertModelsIsland.tsx'),
+        'restart-banner': path.resolve(__dirname, 'src/islands/RestartBannerIsland.tsx'),
+        'developer-settings': path.resolve(__dirname, 'src/islands/DeveloperSettingsIsland.tsx'),
+        'presets-manager': path.resolve(__dirname, 'src/islands/PresetsManagerIsland.tsx')
       },
       formats: ['es'],
       fileName: (format, entryName) => {
@@ -37,5 +46,10 @@ export default defineConfig({
         return `${entryName}.island.js`;
       }
     }
+  },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./test/setup.ts'],
+    globals: true
   }
 });

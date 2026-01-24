@@ -232,7 +232,7 @@ sequenceDiagram
 
 ## Phase 1 Amendment (short)
 
-Decision: **Proceed with shadcn/ui** (P0.1 Decision Gate — 2026-01-23)
+Decision: **Proceed with shadcn/ui** (P0.1 Decision Gate — 2026-01-23). Artifacts & report: `test-results/playwright-report/index.html`, `test-results/playwright-shadcn-compat/screenshot-after-interactions.png`. See `docs/settings/tickets/completed/P0.1-shadcn-decision-gate.md` for details.
 
 Phase 1 kickoff tasks (short):
 - **P1.0**: Add Zod contracts for Settings domains under `src/ui/contracts/` (Connection, AI Provider, Expert Models, Advanced, Developer). Add unit tests. — Owner: frontend — Est 2-3 days ✅
