@@ -3566,7 +3566,7 @@ router.get('/settings', async (req, res) => {
   const legalVisionModel = process.env.LEGAL_VISION_MODEL || 'qwen3-vl:8b';
   const legalAnalysisModel = process.env.LEGAL_ANALYSIS_MODEL || 'gpt-oss';
   const legalOrchestratorModel = process.env.LEGAL_ORCHESTRATOR_MODEL || orchestratorModel;
-  let config = {
+  let settingsConfig = {
     PAPERLESS_API_URL: (process.env.PAPERLESS_API_URL || 'http://localhost:8000').replace(/\/api$/, ''),
     PAPERLESS_API_TOKEN: process.env.PAPERLESS_API_TOKEN || '',
     PAPERLESS_USERNAME: process.env.PAPERLESS_USERNAME || '',
@@ -3664,16 +3664,16 @@ router.get('/settings', async (req, res) => {
     savedConfig.TAGS = normalizeArray(savedConfig.TAGS);
     savedConfig.PROMPT_TAGS = normalizeArray(savedConfig.PROMPT_TAGS);
 
-    config = { ...config, ...savedConfig };
+    settingsConfig = { ...settingsConfig, ...savedConfig };
   }
 
   // Debug-output
-  console.log('Current config TAGS:', config.TAGS);
-  console.log('Current config PROMPT_TAGS:', config.PROMPT_TAGS);
+  console.log('Current config TAGS:', settingsConfig.TAGS);
+  console.log('Current config PROMPT_TAGS:', settingsConfig.PROMPT_TAGS);
   const version = configFile.PAPERLESS_AI_VERSION || ' ';
-  res.render('settings', { 
+  res.render('settings', {
     version,
-    config,
+    config: settingsConfig,
     success: isConfigured ? 'The application is already configured. You can update the configuration below.' : undefined,
     settingsError: showErrorCheckSettings ? 'Please check your settings. Something is not working correctly.' : undefined
   });

@@ -226,7 +226,7 @@ describe('LocalTranslator', function() {
             executor._delay = async (ms) => { delays.push(ms); return Promise.resolve(); };
 
             const routerMessages = promptRegistry.buildMessages('SYS_ROUTER_V1', { source_system: 'test', filename: 'f.pdf' });
-            const result = await executor._classifyDocumentWithRetry({ id: 'doc-2' }, executor, routerMessages, {});
+            const result = await executor._classifyDocumentWithRetry({ id: 'doc-2' }, executor, routerMessages, { retryCfg: { baseDelay: 10, maxRetries: 3 } });
 
             // _parseResponse returns flat structure with _meta added
             assert.ok(result && (result.primary_domain === 'Financial' || result.classification?.primary_domain === 'Financial'));
@@ -261,7 +261,7 @@ describe('LocalTranslator', function() {
             executor._delay = async (ms) => { delays.push(ms); return Promise.resolve(); };
 
             const routerMessages = promptRegistry.buildMessages('SYS_ROUTER_V1', { source_system: 'test', filename: 'f.pdf' });
-            const res = await executor._classifyDocumentWithRetry({ id: 'doc-3' }, executor, routerMessages, {});
+            const res = await executor._classifyDocumentWithRetry({ id: 'doc-3' }, executor, routerMessages, { retryCfg: { baseDelay: 5, maxRetries: 3 } });
             // _parseResponse returns flat structure with _meta added
             assert.ok(res && (res.primary_domain === 'Legal' || res.classification?.primary_domain === 'Legal'));
             assert.strictEqual(delays.length, 1);

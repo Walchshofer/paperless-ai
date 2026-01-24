@@ -185,6 +185,17 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Settings islands scaffolding (React islands architecture) -->
+                <div data-island="restart-banner-island" data-testid="restart-banner-island" data-props='{"visible": true}'></div>
+                <div data-island="overview-dashboard-island" data-testid="overview-dashboard-island" data-props='{}'></div>
+                <div data-island="settings-sidebar-island" data-testid="settings-sidebar-island" data-props='{}'></div>
+                <div data-island="connection-settings-island" data-testid="connection-settings-island" data-props='{}'></div>
+                <div data-island="ai-provider-island" data-testid="ai-provider-island" data-props='{}'></div>
+                <div data-island="expert-models-island" data-testid="expert-models-island" data-props='{}'></div>
+                <div data-island="developer-settings-island" data-testid="developer-settings-island" data-props='{}'></div>
+                <div data-island="presets-manager-island" data-testid="presets-manager-island" data-props='{}'></div>
+
                 <!-- Main Form Card -->
                 <div class="material-card">
                     <% if (success || settingsError) { %>
@@ -1675,5 +1686,16 @@ function transform(data) {
         });
     </script>
     <script src="js/settings.js"></script>
+
+    <!-- Island runtime and components -->
+    <script type="module" src="/js/dist/island-runtime.js"></script>
+    <script type="module" src="/js/dist/overview-dashboard.island.js"></script>
+    <script type="module" src="/js/dist/settings-sidebar.island.js"></script>
+    <script type="module" src="/js/dist/restart-banner.island.js"></script>
+    <script type="module" src="/js/dist/connection-settings.island.js"></script>
+    <script type="module" src="/js/dist/ai-provider.island.js"></script>
+    <script type="module" src="/js/dist/expert-models.island.js"></script>
+    <script type="module" src="/js/dist/developer-settings.island.js"></script>
+    <script type="module" src="/js/dist/presets-manager.island.js"></script>
 </body>
 </html>

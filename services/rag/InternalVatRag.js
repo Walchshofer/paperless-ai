@@ -32,11 +32,15 @@ class InternalVatRag {
 
   async _loadCorpus() {
     if (this._loaded) return;
-    try {
-      const files = await fs.readdir(this.corpusPath);
+
+    const triedPaths = [];
+
+    const tryLoad = async (p) => {
+      triedPaths.push(p);
+      const files = await fs.readdir(p);
       const mdFiles = files.filter((f) => f.toLowerCase().endsWith('.md'));
       const reads = mdFiles.map(async (fname) => {
-        const fp = path.join(this.corpusPath, fname);
+        const fp = path.join(p, fname);
         const text = await fs.readFile(fp, 'utf8');
         const tokens = tokenize(text);
         const freqMap = tokens.reduce((m, t) => {
@@ -46,11 +50,55 @@ class InternalVatRag {
       });
       this.cache = await Promise.all(reads);
       this._loaded = true;
+      return true;
+    };
+
+    try {
+      // Primary path (may be overridden in tests or config)
+      await tryLoad(this.corpusPath);
+      return;
     } catch (err) {
-      // Don't crash the app; keep corpus empty
-      this.cache = [];
-      this._loaded = true;
-      console.warn('InternalVatRag failed to load corpus:', err.message);
+      // Attempt a couple of reasonable fallbacks before giving up
+      try {
+        if (config.vatRag && config.vatRag.corpusPath && config.vatRag.corpusPath !== this.corpusPath) {
+          try {
+            await tryLoad(config.vatRag.corpusPath);
+            return;
+          } catch (e) {
+            // continue to next fallback
+          }
+        }
+
+        if (process.env.TEST_VAT_RAG_CORPUS) {
+          try {
+            await tryLoad(process.env.TEST_VAT_RAG_CORPUS);
+            return;
+          } catch (e) {
+            // continue
+          }
+        }
+
+        // Last ditch: fallback to default data dir
+        const defaultPath = path.join(process.cwd(), 'data', 'austrian_vat');
+        if (defaultPath !== this.corpusPath) {
+          try {
+            await tryLoad(defaultPath);
+            return;
+          } catch (e) {
+            // continue
+          }
+        }
+
+        // If we reach here, nothing worked — preserve empty cache but record paths for debugging
+        this.cache = [];
+        this._loaded = true;
+        console.warn(`InternalVatRag failed to load corpus. Tried paths: ${triedPaths.join(', ')}. Last error: ${err.message}`);
+      } catch (finalErr) {
+        // Ensure we don't crash the app due to corpus load issues
+        this.cache = [];
+        this._loaded = true;
+        console.warn('InternalVatRag failed to load corpus (final):', finalErr.message);
+      }
     }
   }
 

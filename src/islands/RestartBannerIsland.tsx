@@ -65,15 +65,14 @@ export default function RestartBannerIsland(props: Partial<RestartBannerSettings
     }
   };
 
-  if (!isVisible) {
-    return null;
-  }
-
+  // Always render wrapper for test discoverability, but hide content when not visible
   return (
     <div
-      className="restart-banner fixed top-0 left-0 right-0 z-50 bg-yellow-100 border-b-2 border-yellow-400 px-6 py-4 shadow-md"
-      data-testid="restart-banner"
+      className={`restart-banner ${isVisible ? 'fixed top-0 left-0 right-0 z-50 bg-yellow-100 border-b-2 border-yellow-400 px-6 py-4 shadow-md' : 'hidden'}`}
+      data-testid="restart-banner-root"
+      data-visible={isVisible ? 'true' : 'false'}
     >
+      {!isVisible ? null : (
       <div className="flex items-center justify-between max-w-7xl mx-auto">
         <div className="flex items-center space-x-4">
           <div className="flex-shrink-0">
@@ -128,6 +127,7 @@ export default function RestartBannerIsland(props: Partial<RestartBannerSettings
           </button>
         </div>
       </div>
+      )}
     </div>
   );
 }

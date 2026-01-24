@@ -52,7 +52,7 @@ export default function OverviewDashboardIsland(
   };
 
   return (
-    <div className="overview-dashboard space-y-6 p-6">
+    <div className="overview-dashboard space-y-6 p-6" data-testid="overview-dashboard-root">
       <div className="space-y-2">
         <h2 className="text-2xl font-bold">Settings Overview</h2>
         <p className="text-gray-600">Quick summary of your current configuration</p>
