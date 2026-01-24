@@ -10,26 +10,45 @@ const configFile = require('../config/config.js');
  *   get:
  *     summary: Chat interface page
  *     description: |
- *       Renders the chat interface where users can have conversations with documents.
- *       Displays a list of all documents available for chat.
+ *       Renders the chat interface page where users can interact with document-specific AI assistants.
+ *       This page displays a list of available documents and the chat interface for the selected document.
  *     tags:
- *       - Chat
  *       - Navigation
+ *       - Chat
  *     parameters:
  *       - in: query
  *         name: open
  *         schema:
  *           type: string
- *         description: Optional parameter to open chat with a specific document
+ *         description: ID of document to open immediately in chat
+ *         required: false
+ *     security:
+ *       - BearerAuth: []
  *     responses:
  *       200:
- *         description: Chat page rendered successfully
+ *         description: Chat interface page rendered successfully
  *         content:
  *           text/html:
  *             schema:
  *               type: string
+ *       401:
+ *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Invalid or expired token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       500:
- *         description: Error loading documents
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.get('/chat', async (req, res) => {
   try {
@@ -142,7 +161,6 @@ router.get('/chat/init', async (req, res) => {
   res.json(result);
 });
 
-// Nachricht senden
 /**
  * @swagger
  * /chat/message:

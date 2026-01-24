@@ -8,12 +8,41 @@ const internalLegalRag = require('../../services/rag/InternalLegalRag');
 describe('Internal RAG integration (VAT & Legal)', function () {
   this.timeout(10000);
 
+  const fs = require('fs');
+  const os = require('os');
+
   beforeEach(() => {
     // Force reload corpus between tests
     internalVatRag._loaded = false;
     internalVatRag.cache = [];
     internalLegalRag._loaded = false;
     internalLegalRag.cache = [];
+
+    // Ensure test corpora exist in a temp directory and point services at them
+    const tmpDir = path.join(os.tmpdir(), 'paperless_test_corpora');
+    const vatDir = path.join(tmpDir, 'austrian_vat');
+    const legalDir = path.join(tmpDir, 'legal_corpus');
+    fs.mkdirSync(vatDir, { recursive: true });
+    fs.mkdirSync(legalDir, { recursive: true });
+
+    // Create minimal sample files if missing
+    const vatSample = path.join(vatDir, 'sample.md');
+    if (!fs.existsSync(vatSample)) {
+      fs.writeFileSync(vatSample, '# Sample VAT\n\nReverse Charge §19');
+    }
+    const legalSample = path.join(legalDir, 'sample.md');
+    if (!fs.existsSync(legalSample)) {
+      fs.writeFileSync(legalSample, '# Sample Legal\n\nContract liability example');
+    }
+
+    // Override corpus paths for the test run on both the instance and config
+    internalVatRag.corpusPath = vatDir;
+    internalLegalRag.corpusPath = legalDir;
+    const cfg = require('../../config/config');
+    cfg.vatRag = cfg.vatRag || {};
+    cfg.vatRag.corpusPath = vatDir;
+    cfg.legalRag = cfg.legalRag || {};
+    cfg.legalRag.corpusPath = legalDir;
   });
 
   it('InternalVatRag._loadCorpus() should read files from data/austrian_vat', async () => {

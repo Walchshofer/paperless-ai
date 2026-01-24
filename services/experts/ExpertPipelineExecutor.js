@@ -2556,7 +2556,9 @@ class ExpertPipelineExecutor {
 
     executor = executor || this;
 
-    const retryCfg = config.routerRetry || {};
+    // Allow tests or callers to override retry configuration via options.retryCfg
+    const defaultRetryCfg = config.routerRetry || {};
+    const retryCfg = Object.assign({}, defaultRetryCfg, _options.retryCfg || {});
     const maxRetries = typeof retryCfg.maxRetries === 'number' ? retryCfg.maxRetries : 3;
     const baseDelay = typeof retryCfg.baseDelay === 'number' ? retryCfg.baseDelay : 1000;
     const maxDelay = typeof retryCfg.maxDelay === 'number' ? retryCfg.maxDelay : 10000;

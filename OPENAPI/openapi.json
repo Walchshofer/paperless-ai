@@ -567,14 +567,14 @@
     },
     "/health": {
       "get": {
-        "summary": "System health check endpoint",
-        "description": "Provides information about the current system health status.\nThis endpoint checks database connectivity and returns system operational status.\nUsed for monitoring and automated health checks.\n",
+        "summary": "Health check endpoint",
+        "description": "Checks the health status of the application and its dependencies.\nReturns HTTP 200 if healthy, HTTP 503 if not configured or database unavailable.\n",
         "tags": [
           "System"
         ],
         "responses": {
           "200": {
-            "description": "System is healthy and operational",
+            "description": "Application is healthy",
             "content": {
               "application/json": {
                 "schema": {
@@ -613,7 +613,7 @@
             }
           },
           "503": {
-            "description": "Service unavailable",
+            "description": "Application is not healthy",
             "content": {
               "application/json": {
                 "schema": {
@@ -765,6 +765,13 @@
           },
           "302": {
             "description": "Redirect to setup page if no users exist, or to dashboard if already authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
             "headers": {
               "Location": {
                 "schema": {
@@ -925,343 +932,6 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "/sampleData/{id}": {
-      "get": {
-        "summary": "Get sample data for a document",
-        "description": "Retrieves sample data extracted from a document, including processed text content\nand any metadata that has been extracted or processed by the AI.\n\nThis endpoint is commonly used for previewing document data in the UI before\ncompleting document processing or updating metadata.\n",
-        "tags": [
-          "Documents",
-          "API"
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            },
-            "description": "Document ID to retrieve sample data for",
-            "example": 123
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Document sample data retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "content": {
-                      "type": "string",
-                      "description": "Extracted text content from the document",
-                      "example": "Invoice from Acme Corp. Total amount: $125.00, Due date: 2023-08-15"
-                    },
-                    "metadata": {
-                      "type": "object",
-                      "description": "Any metadata that has been extracted from the document",
-                      "properties": {
-                        "title": {
-                          "type": "string",
-                          "example": "Acme Corp Invoice - August 2023"
-                        },
-                        "tags": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          },
-                          "example": [
-                            "Invoice",
-                            "Finance"
-                          ]
-                        },
-                        "correspondent": {
-                          "type": "string",
-                          "example": "Acme Corp"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Document not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "Document not found"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/playground": {
-      "get": {
-        "summary": "AI playground testing environment",
-        "description": "Renders the AI playground page for experimenting with document analysis.\n\nThis interactive environment allows users to test different AI providers and prompts\non document content without affecting the actual document processing workflow.\nUsers can paste document text, customize prompts, and see raw AI responses\nto better understand how the AI models analyze document content.\n\nThe playground is useful for fine-tuning prompts and testing AI capabilities\nbefore applying them to actual document processing.\n",
-        "tags": [
-          "Navigation",
-          "Documents"
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Playground page rendered successfully",
-            "content": {
-              "text/html": {
-                "schema": {
-                  "type": "string",
-                  "description": "HTML content of the AI playground interface"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - user not authenticated",
-            "headers": {
-              "Location": {
-                "schema": {
-                  "type": "string",
-                  "example": "/login"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/thumb/{documentId}": {
-      "get": {
-        "summary": "Get document thumbnail",
-        "description": "Retrieves the thumbnail image for a specific document from the Paperless-ngx system.\nThis endpoint proxies the request to the Paperless-ngx API and returns the thumbnail\nimage for display in the UI.\n\nThe thumbnail is returned as an image file in the format provided by Paperless-ngx,\ntypically JPEG or PNG.\n",
-        "tags": [
-          "Documents",
-          "API"
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "documentId",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            },
-            "description": "ID of the document to retrieve thumbnail for",
-            "example": 123
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Thumbnail retrieved successfully",
-            "content": {
-              "image/*": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Document or thumbnail not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "Thumbnail not found"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error or Paperless-ngx connection failure",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/document/{docId}/render": {
-      "get": {
-        "summary": "Render document page at high resolution",
-        "description": "Downloads PDF from Paperless-ngx and renders a specific page at the requested DPI (default 300)",
-        "tags": [
-          "Documents"
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "docId",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            },
-            "description": "The document ID"
-          },
-          {
-            "in": "query",
-            "name": "page",
-            "schema": {
-              "type": "integer",
-              "default": 1
-            },
-            "description": "Page number to render (1-indexed)"
-          },
-          {
-            "in": "query",
-            "name": "dpi",
-            "schema": {
-              "type": "integer",
-              "default": 300
-            },
-            "description": "DPI resolution for rendering"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Rendered page image",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "image": {
-                      "type": "string",
-                      "description": "Base64-encoded PNG image"
-                    },
-                    "page": {
-                      "type": "integer"
-                    },
-                    "totalPages": {
-                      "type": "integer"
-                    },
-                    "width": {
-                      "type": "integer"
-                    },
-                    "height": {
-                      "type": "integer"
-                    },
-                    "dpi": {
-                      "type": "integer"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Document not found"
-          },
-          "500": {
-            "description": "Server error"
-          }
-        }
-      }
-    },
-    "/api/document/{docId}/page-count": {
-      "get": {
-        "summary": "Get document page count",
-        "description": "Returns the number of pages in a PDF document without full rendering",
-        "tags": [
-          "Documents"
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "docId",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            },
-            "description": "The document ID"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Page count",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "docId": {
-                      "type": "integer"
-                    },
-                    "pageCount": {
-                      "type": "integer"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Document not found"
-          },
-          "500": {
-            "description": "Server error"
           }
         }
       }
@@ -1680,6 +1350,294 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/sampleData/{id}": {
+      "get": {
+        "summary": "Get sample data for a document",
+        "description": "Retrieves sample data extracted from a document, including processed text content\nand any metadata that has been extracted or processed by the AI.\n\nThis endpoint is commonly used for previewing document data in the UI before\ncompleting document processing or updating metadata.\n",
+        "tags": [
+          "Documents",
+          "API"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Document ID to retrieve sample data for",
+            "example": 123
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document sample data retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "content": {
+                      "type": "string",
+                      "description": "Extracted text content from the document",
+                      "example": "Invoice from Acme Corp. Total amount: $125.00, Due date: 2023-08-15"
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "description": "Any metadata that has been extracted from the document",
+                      "properties": {
+                        "title": {
+                          "type": "string",
+                          "example": "Acme Corp Invoice - August 2023"
+                        },
+                        "tags": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "example": [
+                            "Invoice",
+                            "Finance"
+                          ]
+                        },
+                        "correspondent": {
+                          "type": "string",
+                          "example": "Acme Corp"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Document not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/thumb/{documentId}": {
+      "get": {
+        "summary": "Get document thumbnail",
+        "description": "Retrieves the thumbnail image for a specific document from the Paperless-ngx system.\nThis endpoint proxies the request to the Paperless-ngx API and returns the thumbnail\nimage for display in the UI.\n\nThe thumbnail is returned as an image file in the format provided by Paperless-ngx,\ntypically JPEG or PNG.\n",
+        "tags": [
+          "Documents",
+          "API"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "documentId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID of the document to retrieve thumbnail for",
+            "example": 123
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thumbnail retrieved successfully",
+            "content": {
+              "image/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document or thumbnail not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Thumbnail not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error or Paperless-ngx connection failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/document/{docId}/render": {
+      "get": {
+        "summary": "Render document page at high resolution",
+        "description": "Downloads PDF from Paperless-ngx and renders a specific page at the requested DPI (default 300)",
+        "tags": [
+          "Documents"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "docId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The document ID"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Page number to render (1-indexed)"
+          },
+          {
+            "in": "query",
+            "name": "dpi",
+            "schema": {
+              "type": "integer",
+              "default": 300
+            },
+            "description": "DPI resolution for rendering"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rendered page image",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "image": {
+                      "type": "string",
+                      "description": "Base64-encoded PNG image"
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "totalPages": {
+                      "type": "integer"
+                    },
+                    "width": {
+                      "type": "integer"
+                    },
+                    "height": {
+                      "type": "integer"
+                    },
+                    "dpi": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/document/{docId}/page-count": {
+      "get": {
+        "summary": "Get document page count",
+        "description": "Returns the number of pages in a PDF document without full rendering",
+        "tags": [
+          "Documents"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "docId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The document ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page count",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "docId": {
+                      "type": "integer"
+                    },
+                    "pageCount": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found"
+          },
+          "500": {
+            "description": "Server error"
           }
         }
       }
@@ -2184,6 +2142,472 @@
                       "example": "Error during document scan"
                     }
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/webhook/document": {
+      "post": {
+        "summary": "Webhook for document updates",
+        "description": "Processes incoming webhook notifications from Paperless-ngx about document\nchanges, additions, or deletions. The webhook allows Paperless-AI to respond\nto document changes in real-time.\n\nWhen a new document is added or updated in Paperless-ngx, this endpoint can\ntrigger automatic AI processing for metadata extraction.\n",
+        "tags": [
+          "Documents",
+          "API",
+          "System"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "event_type",
+                  "document_id"
+                ],
+                "properties": {
+                  "event_type": {
+                    "type": "string",
+                    "description": "Type of event that occurred",
+                    "enum": [
+                      "added",
+                      "updated",
+                      "deleted"
+                    ],
+                    "example": "added"
+                  },
+                  "document_id": {
+                    "type": "integer",
+                    "description": "ID of the affected document",
+                    "example": 123
+                  },
+                  "document_info": {
+                    "type": "object",
+                    "description": "Additional information about the document (optional)",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "example": "Invoice"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook processed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Document event processed"
+                    },
+                    "processing_queued": {
+                      "type": "boolean",
+                      "description": "Whether AI processing was queued for this document",
+                      "example": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid webhook payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error": {
+                      "type": "string",
+                      "example": "Missing required fields: event_type, document_id"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Unauthorized: Invalid API key"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error processing webhook",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/manual/analyze-visual": {
+      "post": {
+        "summary": "Analyze document using Visual Expert Pipeline",
+        "description": "Renders the document at 300 DPI and processes it through the Expert Pipeline\nwith vision capabilities. This uses the router model (qwen3-vl:8b) to classify\nthe document and extract visual overlays.\n",
+        "tags": [
+          "Documents",
+          "API"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "docId"
+                ],
+                "properties": {
+                  "docId": {
+                    "type": "integer",
+                    "description": "The document ID from Paperless-ngx"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Visual analysis results from Expert Pipeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "result": {
+                      "type": "object",
+                      "description": "Expert Pipeline analysis result"
+                    },
+                    "overlayCount": {
+                      "type": "integer",
+                      "description": "Number of overlays extracted"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters"
+          },
+          "404": {
+            "description": "Document not found"
+          },
+          "500": {
+            "description": "Server error or PDF rendering failed"
+          }
+        }
+      }
+    },
+    "/manual/playground": {
+      "post": {
+        "summary": "Process document using a custom prompt in playground mode",
+        "description": "Analyzes document content using a custom user-provided prompt.\nThis endpoint is primarily used for testing and experimenting with different prompts\nwithout affecting the actual document processing workflow.\n\nThe analysis is performed using the AI provider configured in the application settings,\nbut with a custom prompt that overrides the default system prompt.\n",
+        "tags": [
+          "Documents",
+          "API"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "content"
+                ],
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "description": "The document text content to analyze",
+                    "example": "Invoice from Acme Corp. Total amount: $125.00, Due date: 2023-08-15"
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "description": "Custom prompt to use for analysis",
+                    "example": "Extract the company name, invoice amount, and due date from this document."
+                  },
+                  "documentId": {
+                    "type": "string",
+                    "description": "Optional document ID for tracking metrics",
+                    "example": "doc_123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Document analysis results using the custom prompt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "string",
+                      "description": "The raw AI response using the custom prompt",
+                      "example": "Company: Acme Corp\nAmount: $125.00\nDue Date: 2023-08-15"
+                    },
+                    "metrics": {
+                      "type": "object",
+                      "description": "Token usage metrics (when using OpenAI)",
+                      "properties": {
+                        "promptTokens": {
+                          "type": "number",
+                          "example": 350
+                        },
+                        "completionTokens": {
+                          "type": "number",
+                          "example": 120
+                        },
+                        "totalTokens": {
+                          "type": "number",
+                          "example": 470
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error or AI provider not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/manual/updateDocument": {
+      "post": {
+        "summary": "Update document metadata in Paperless-ngx",
+        "description": "Updates document metadata such as tags, correspondent and title in the Paperless-ngx system.\nThis endpoint handles the translation between tag names and IDs, and manages the creation of\nnew tags or correspondents if they don't exist in the system.\n\nThe endpoint also removes any unused tags from the document to keep the metadata clean.\n",
+        "tags": [
+          "Documents",
+          "API"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "documentId"
+                ],
+                "properties": {
+                  "documentId": {
+                    "type": "number",
+                    "description": "ID of the document to update in Paperless-ngx",
+                    "example": 123
+                  },
+                  "tags": {
+                    "type": "array",
+                    "description": "List of tags to apply (can be tag IDs or names)",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "example": [
+                      "Invoice",
+                      42,
+                      "Finance"
+                    ]
+                  },
+                  "correspondent": {
+                    "type": "string",
+                    "description": "Correspondent name to assign to the document",
+                    "example": "Acme Corp"
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "New title for the document",
+                    "example": "Acme Corp Invoice - August 2023"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Document successfully updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Document updated successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters or tag processing errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "Failed to create tag: Invalid tag name"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/playground": {
+      "get": {
+        "summary": "AI playground testing environment",
+        "description": "Renders the AI playground page for experimenting with document analysis.\n\nThis interactive environment allows users to test different AI providers and prompts\non document content without affecting the actual document processing workflow.\nUsers can paste document text, customize prompts, and see raw AI responses\nto better understand how the AI models analyze document content.\n\nThe playground is useful for fine-tuning prompts and testing AI capabilities\nbefore applying them to actual document processing.\n",
+        "tags": [
+          "Navigation",
+          "Documents"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Playground page rendered successfully",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "description": "HTML content of the AI playground interface"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - user not authenticated",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "example": "/login"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -2958,136 +3382,6 @@
         }
       }
     },
-    "/api/webhook/document": {
-      "post": {
-        "summary": "Webhook for document updates",
-        "description": "Processes incoming webhook notifications from Paperless-ngx about document\nchanges, additions, or deletions. The webhook allows Paperless-AI to respond\nto document changes in real-time.\n\nWhen a new document is added or updated in Paperless-ngx, this endpoint can\ntrigger automatic AI processing for metadata extraction.\n",
-        "tags": [
-          "Documents",
-          "API",
-          "System"
-        ],
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "event_type",
-                  "document_id"
-                ],
-                "properties": {
-                  "event_type": {
-                    "type": "string",
-                    "description": "Type of event that occurred",
-                    "enum": [
-                      "added",
-                      "updated",
-                      "deleted"
-                    ],
-                    "example": "added"
-                  },
-                  "document_id": {
-                    "type": "integer",
-                    "description": "ID of the affected document",
-                    "example": 123
-                  },
-                  "document_info": {
-                    "type": "object",
-                    "description": "Additional information about the document (optional)",
-                    "properties": {
-                      "title": {
-                        "type": "string",
-                        "example": "Invoice"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Webhook processed successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Document event processed"
-                    },
-                    "processing_queued": {
-                      "type": "boolean",
-                      "description": "Whether AI processing was queued for this document",
-                      "example": true
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid webhook payload",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "error": {
-                      "type": "string",
-                      "example": "Missing required fields: event_type, document_id"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid or missing API key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "Unauthorized: Invalid API key"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error processing webhook",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/dashboard": {
       "get": {
         "summary": "Main dashboard page",
@@ -3769,300 +4063,13 @@
         }
       }
     },
-    "/manual/analyze-visual": {
-      "post": {
-        "summary": "Analyze document using Visual Expert Pipeline",
-        "description": "Renders the document at 300 DPI and processes it through the Expert Pipeline\nwith vision capabilities. This uses the router model (qwen3-vl:8b) to classify\nthe document and extract visual overlays.\n",
-        "tags": [
-          "Documents",
-          "API"
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "docId"
-                ],
-                "properties": {
-                  "docId": {
-                    "type": "integer",
-                    "description": "The document ID from Paperless-ngx"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Visual analysis results from Expert Pipeline",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "result": {
-                      "type": "object",
-                      "description": "Expert Pipeline analysis result"
-                    },
-                    "overlayCount": {
-                      "type": "integer",
-                      "description": "Number of overlays extracted"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request parameters"
-          },
-          "404": {
-            "description": "Document not found"
-          },
-          "500": {
-            "description": "Server error or PDF rendering failed"
-          }
-        }
-      }
-    },
-    "/manual/playground": {
-      "post": {
-        "summary": "Process document using a custom prompt in playground mode",
-        "description": "Analyzes document content using a custom user-provided prompt.\nThis endpoint is primarily used for testing and experimenting with different prompts\nwithout affecting the actual document processing workflow.\n\nThe analysis is performed using the AI provider configured in the application settings,\nbut with a custom prompt that overrides the default system prompt.\n",
-        "tags": [
-          "Documents",
-          "API"
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "content"
-                ],
-                "properties": {
-                  "content": {
-                    "type": "string",
-                    "description": "The document text content to analyze",
-                    "example": "Invoice from Acme Corp. Total amount: $125.00, Due date: 2023-08-15"
-                  },
-                  "prompt": {
-                    "type": "string",
-                    "description": "Custom prompt to use for analysis",
-                    "example": "Extract the company name, invoice amount, and due date from this document."
-                  },
-                  "documentId": {
-                    "type": "string",
-                    "description": "Optional document ID for tracking metrics",
-                    "example": "doc_123"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Document analysis results using the custom prompt",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "result": {
-                      "type": "string",
-                      "description": "The raw AI response using the custom prompt",
-                      "example": "Company: Acme Corp\nAmount: $125.00\nDue Date: 2023-08-15"
-                    },
-                    "metrics": {
-                      "type": "object",
-                      "description": "Token usage metrics (when using OpenAI)",
-                      "properties": {
-                        "promptTokens": {
-                          "type": "number",
-                          "example": 350
-                        },
-                        "completionTokens": {
-                          "type": "number",
-                          "example": 120
-                        },
-                        "totalTokens": {
-                          "type": "number",
-                          "example": 470
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request parameters",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error or AI provider not configured",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/manual/updateDocument": {
-      "post": {
-        "summary": "Update document metadata in Paperless-ngx",
-        "description": "Updates document metadata such as tags, correspondent and title in the Paperless-ngx system.\nThis endpoint handles the translation between tag names and IDs, and manages the creation of\nnew tags or correspondents if they don't exist in the system.\n\nThe endpoint also removes any unused tags from the document to keep the metadata clean.\n",
-        "tags": [
-          "Documents",
-          "API"
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "documentId"
-                ],
-                "properties": {
-                  "documentId": {
-                    "type": "number",
-                    "description": "ID of the document to update in Paperless-ngx",
-                    "example": 123
-                  },
-                  "tags": {
-                    "type": "array",
-                    "description": "List of tags to apply (can be tag IDs or names)",
-                    "items": {
-                      "oneOf": [
-                        {
-                          "type": "number"
-                        },
-                        {
-                          "type": "string"
-                        }
-                      ]
-                    },
-                    "example": [
-                      "Invoice",
-                      42,
-                      "Finance"
-                    ]
-                  },
-                  "correspondent": {
-                    "type": "string",
-                    "description": "Correspondent name to assign to the document",
-                    "example": "Acme Corp"
-                  },
-                  "title": {
-                    "type": "string",
-                    "description": "New title for the document",
-                    "example": "Acme Corp Invoice - August 2023"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Document successfully updated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Document updated successfully"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request parameters or tag processing errors",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "errors": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "example": [
-                        "Failed to create tag: Invalid tag name"
-                      ]
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/processing-status": {
       "get": {
-        "summary": "Get document processing status",
-        "description": "Returns the current status of document processing operations.\nThis endpoint provides information about documents in the processing queue\nand the current processing state (active/idle).\n\nThe status information can be used by UIs to display progress indicators\nand provide real-time feedback about background processing operations.\n",
+        "summary": "Get current document processing status",
+        "description": "Returns the current status of document processing, including the number of documents\nbeing processed and any active background tasks.\n",
         "tags": [
-          "Documents",
           "System",
+          "API",
           "API"
         ],
         "security": [
@@ -4111,6 +4118,11 @@
                           "example": "processing"
                         }
                       }
+                    },
+                    "processedCount": {
+                      "type": "integer",
+                      "description": "Total number of documents processed",
+                      "example": 42
                     }
                   }
                 }
@@ -4134,7 +4146,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "Failed to fetch processing status",
             "content": {
               "application/json": {
                 "schema": {
@@ -4148,6 +4160,145 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/runtime/state": {
+      "get": {
+        "summary": "Get current runtime system state",
+        "description": "Returns runtime state including circuit breaker, VRAM, Qdrant, sidecars, and background sync info",
+        "tags": [
+          "System"
+        ],
+        "responses": {
+          "200": {
+            "description": "Runtime state retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "circuitBreaker": {
+                      "type": "object"
+                    },
+                    "vram": {
+                      "type": "object"
+                    },
+                    "qdrant": {
+                      "type": "object"
+                    },
+                    "sidecars": {
+                      "type": "object"
+                    },
+                    "backgroundSync": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings/presets": {
+      "get": {
+        "summary": "List available configuration presets",
+        "description": "Returns a list of predefined configuration presets",
+        "tags": [
+          "Settings"
+        ],
+        "responses": {
+          "200": {
+            "description": "Presets retrieved successfully"
+          }
+        }
+      }
+    },
+    "/settings/presets/{name}": {
+      "post": {
+        "summary": "Load or preview a configuration preset",
+        "description": "Load a preset and apply settings, or preview changes without applying",
+        "tags": [
+          "Settings"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "preview": {
+                    "type": "boolean",
+                    "description": "If true, return diff without applying"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings/export": {
+      "get": {
+        "summary": "Export current settings as .env file",
+        "description": "Downloads all current settings as a .env file with timestamp",
+        "tags": [
+          "Settings"
+        ],
+        "responses": {
+          "200": {
+            "description": "Settings exported successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings/import": {
+      "post": {
+        "summary": "Import settings from .env file",
+        "description": "Upload and validate a .env file, optionally preview changes before applying",
+        "tags": [
+          "Settings"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "preview": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Import successful or preview generated"
           }
         }
       }

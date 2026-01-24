@@ -88,8 +88,31 @@ describe('Island runtime (browser build)', function(){
         assert.fail(`Runtime file missing: ${runtimePath}`);
       }
 
-      const runtimeModule = await import(pathToFileURL(runtimePath).href);
-      const mountIslands = runtimeModule.mountIslands ||
+      let runtimeModule;
+      try {
+        runtimeModule = await import(pathToFileURL(runtimePath).href);
+      } catch (e) {
+        // Fallback: evaluate the built script inside JSDOM if dynamic import fails
+        let evalErr = null;
+        try {
+          const code = fs.readFileSync(runtimePath, 'utf8');
+          try {
+            dom.window.eval(code);
+          } catch (err) {
+            evalErr = err;
+          }
+        } catch (fsErr) {
+          // If reading the file fails, throw a combined error
+          throw new Error(`${e.message}; additionally failed to read runtime file: ${fsErr.message}`);
+        }
+        if (evalErr) {
+          // Provide both original import error and eval error for easier debugging
+          throw new Error(`Dynamic import failed: ${e.message}; evaluation failed: ${evalErr.message}`);
+        }
+        runtimeModule = null;
+      }
+
+      const mountIslands = (runtimeModule && (runtimeModule.mountIslands)) ||
         dom.window.mountIslands ||
         dom.window.islandRuntime?.mountIslands;
       if (typeof mountIslands !== 'function') {

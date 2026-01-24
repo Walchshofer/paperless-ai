@@ -20,9 +20,10 @@ describe('Settings Zod Contracts (smoke tests)', () => {
   });
 
   it('validates ExpertModelsSettings sample', () => {
-    const sample = { medical: { enabled: true, vision: 'llava-med-v1.6' }, expertPipelineEnabled: true };
+    const sample = { medical: { vision: 'llava-med-v1.6', analysis: 'medtext-llama3' }, expertPipelineEnabled: true };
     const parsed = ExpertModelsSettingsSchema.parse(sample);
-    expect(parsed.medical?.enabled).toBe(true);
+    expect(parsed.medical?.vision).toBe('llava-med-v1.6');
+    expect(parsed.expertPipelineEnabled).toBe(true);
   });
 
   it('validates AdvancedSettings sample', () => {
@@ -32,8 +33,9 @@ describe('Settings Zod Contracts (smoke tests)', () => {
   });
 
   it('validates DeveloperSettings sample', () => {
-    const sample = { developerMode: true, featureFlags: { islands: true } };
+    const sample = { featureFlags: { expertPipelineEnabled: true, visualRagEnabled: false } };
     const parsed = DeveloperSettingsSchema.parse(sample);
-    expect(parsed.developerMode).toBe(true);
+    expect(parsed.featureFlags?.expertPipelineEnabled).toBe(true);
+    expect(parsed.featureFlags?.visualRagEnabled).toBe(false);
   });
 });

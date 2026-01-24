@@ -8,6 +8,9 @@ const AIServiceFactory = require('./services/aiServiceFactory');
 const documentModel = require('./services/documentModel');
 const setupService = require('./services/setupService');
 const setupRoutes = require('./routes/setup');
+const authRoutes = require('./routes/auth');
+const documentsRoutes = require('./routes/documents');
+const chatRoutes = require('./routes/chat');
 const duplicateDetector = require('./services/DuplicateDetector');
 const healthMetricsService = require('./services/HealthMetricsService');
 const PatternDetectionEngine = require('./services/PatternDetectionEngine');
@@ -611,8 +614,10 @@ async function scanDocuments() {
 }
 
 // Routes
+app.use('/', authRoutes);
+app.use('/', documentsRoutes);
+app.use('/', chatRoutes);
 app.use('/', setupRoutes);
-const authRoutes = require('./routes/auth');
 const ragRoutes = require('./routes/rag');
 const visualRagRoutes = require('./routes/api/visual-rag');
 const feedbackRoutes = require('./routes/api/feedback');

@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "test": "mocha --require test/setup-env.js test/**/*.{test,spec}.js --timeout 30000 --reporter spec --exit",
-    "test:integration": "cross-env GUIDANCE_ENABLED=true GUIDANCE_SERVICE_ENABLED=yes RAG_SERVICE_ENABLED=true mocha --require test/setup-env.js test/**/*.{test,spec}.js --timeout 60000 --reporter spec",
+"test:integration": "npm run build:islands && npm run env:sync || node -e \"const fs=require('fs'); if(!fs.existsSync('.env')) fs.writeFileSync('.env','POSTGRES_USER=elfman\\nPOSTGRES_PASSWORD=password\\nPOSTGRES_DB=paperless_test\\n',{mode:0o600}); console.log('ensured .env')\" && cross-env GUIDANCE_ENABLED=true GUIDANCE_SERVICE_ENABLED=yes RAG_SERVICE_ENABLED=true QDRANT_HOST=qdrant QDRANT_PORT=6333 QDRANT_URL=http://qdrant:6333 METRICS_INTERNAL_ONLY=false mocha --require test/setup-env.js test/**/*.{test,spec}.js --timeout 60000 --reporter spec","
     "test:performance": "mocha --require test/setup-env.js \"test/performance/**/*.{test,spec}.js\" --timeout 60000 --reporter spec --exit",
     "test:coverage": "c8 --reporter=text --reporter=lcov npm test",
     "test:report": "node scripts/test-report.js",
@@ -106,6 +106,7 @@
     "tailwind-merge": "^1.14.0",
     "tailwindcss": "^3.4.16",
     "ts-node": "^10.9.1",
+    "typescript": "^5.9.3",
     "vite": "^5.4.10",
     "vitest": "^1.1.8"
   },

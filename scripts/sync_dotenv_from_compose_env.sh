@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Use pipefail if supported; some shells (or older bash) may not support it in the same way
+if ! (set -o pipefail 2>/dev/null); then
+  echo "INFO: shell does not support pipefail; continuing without strict pipefail" >&2
+else
+  set -euo pipefail
+fi
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 # Source is the repo-root `docker-compose.env`; generate repo-root `.env` for compatibility
 SRC="$ROOT_DIR/docker-compose.env"

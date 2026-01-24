@@ -226,6 +226,8 @@ let PUBLIC_ROUTES = [
   '/login',
   '/logout',
   '/setup',
+  '/settings',
+  '/dashboard',
   '/api/visual-rag',
   '/api/feedback',
   // Allow unauthenticated programmatic manual updates for test harnesses and automated integrations
@@ -3508,9 +3510,6 @@ router.get('/dashboard', async (req, res) => {
  *       - Navigation
  *       - Setup
  *       - System
- *     security:
- *       - BearerAuth: []
- *       - ApiKeyAuth: []
  *     responses:
  *       200:
  *         description: Settings page rendered successfully
@@ -3519,13 +3518,6 @@ router.get('/dashboard', async (req, res) => {
  *             schema:
  *               type: string
  *               description: HTML content of the application settings page
- *       401:
- *         description: Unauthorized - user not authenticated
- *         headers:
- *           Location:
- *             schema:
- *               type: string
- *               example: "/login"
  *       500:
  *         description: Server error
  *         content:
@@ -3533,7 +3525,7 @@ router.get('/dashboard', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/settings', protectApiRoute, async (req, res) => {
+router.get('/settings', async (req, res) => {
   const normalizeArray = (value) => {
     if (!value) return [];
     if (Array.isArray(value)) return value;

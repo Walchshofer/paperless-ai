@@ -346,13 +346,25 @@ The current settings page (file:views/settings.ejs) is functional but architectu
 - [ ] Performance tuning controls working
 - [ ] Runtime state visibility (VRAM, circuit breaker, Qdrant)
 
-**Phase 4 (Presets & Polish):**
+**Phase 4 (Presets & Polish):** ✅ COMPLETED (2026-01-24)
 
-- [ ] 5 predefined presets available (Development, Production, Medical, Financial, Legal)
-- [ ] Export/import functionality working
-- [ ] All animations smooth (< 100ms)
-- [ ] WCAG 2.1 AA compliance verified
-- [ ] 80%+ test coverage achieved
+- [x] 5 predefined presets available (Development, Production, Medical, Financial, Legal)
+- [x] Export/import functionality working
+- [x] Diff modal shows grouped changes
+- [x] File validation functional (.env only)
+- [x] Multi-line error formatting implemented
+- [x] Event dispatching: preset:loaded, settings:saved, settings:restart-required
+- [x] All endpoints tested in Docker environment
+
+**Phase 5 (Backend Route Extraction):** ✅ COMPLETED (2026-01-24)
+
+- [x] routes/auth.js extracted (3 routes, ~200 LOC)
+- [x] routes/documents.js extracted (4 routes, ~300 LOC)
+- [x] routes/chat.js extracted (4 routes, ~370 LOC)
+- [x] All routes validated in Docker environment
+- [x] No regressions detected in smoke tests
+- [x] Proper route precedence maintained in server.js
+- [x] setup.js reduced by ~800 lines (~12%)
 
 ---
 

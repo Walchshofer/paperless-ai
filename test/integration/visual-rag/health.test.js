@@ -11,7 +11,8 @@ describe('Visual RAG sidecar health (integration)', function() {
 
         while (Date.now() - start < timeoutMs) {
             try {
-                const res = await axios.get('http://localhost:8001/health', { timeout: 5000 });
+                const baseUrl = process.env.VISUAL_RAG_URL || `http://${process.env.VISUAL_RAG_HOST || 'visual-rag-sidecar'}:${process.env.VISUAL_RAG_PORT || 8001}`;
+                const res = await axios.get(`${baseUrl}/health`, { timeout: 5000 });
                 const data = res && res.data ? res.data : null;
                 const modelLoaded = data?.model_loaded === true
                     || data?.init?.model_loaded === true;

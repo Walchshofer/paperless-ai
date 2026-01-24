@@ -1,6 +1,9 @@
 # ============================================================================
 # paperless-ai .gitignore
 # ============================================================================
+# Local, ephemeral artifacts used by some handoffs (see docs/AGENT_READ_POLICY.md).
+# Prefer using Serena memories (`run-active`, `handoff-next`) or tracked `artifacts/` for
+# files that must be reviewed. The `.claude/` directory is intentionally gitignored.
 .claude/
 .claude-*/ 
 

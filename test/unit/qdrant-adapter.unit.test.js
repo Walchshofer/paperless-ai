@@ -1,10 +1,12 @@
 /* eslint-env mocha */
 const assert = require('assert');
 const { QdrantAdapter, COLLECTIONS } = require('../../services/visual-rag-client/QdrantAdapter');
+const HOST = process.env.QDRANT_HOST || 'localhost';
+const PORT = parseInt(process.env.QDRANT_PORT || '6333');
 
 describe('QdrantAdapter Unit Tests', function () {
     it('should upsert visual overlays and call client.upsert with correct args', async function () {
-        const adapter = new QdrantAdapter({ host: 'localhost', port: 6333 });
+        const adapter = new QdrantAdapter({ host: HOST, port: PORT });
         let called = false;
         const saved = {};
         adapter.client = {
@@ -27,7 +29,7 @@ describe('QdrantAdapter Unit Tests', function () {
     });
 
     it('should search visual overlays and return mapped results', async function () {
-        const adapter = new QdrantAdapter({ host: 'localhost', port: 6333 });
+        const adapter = new QdrantAdapter({ host: HOST, port: PORT });
         adapter.client = {
             search: async (collectionName, { vector, limit }) => [
                 { id: 'p1', score: 0.98, payload: { doc_id: 1, semantic_label: 'test' } }
@@ -41,7 +43,7 @@ describe('QdrantAdapter Unit Tests', function () {
     });
 
     it('should delete visual overlays by doc id and return ok', async function () {
-        const adapter = new QdrantAdapter({ host: 'localhost', port: 6333 });
+        const adapter = new QdrantAdapter({ host: HOST, port: PORT });
         let deleteCalled = false;
         adapter.client = {
             delete: async (collectionName, body) => { deleteCalled = true; return; }
@@ -53,7 +55,7 @@ describe('QdrantAdapter Unit Tests', function () {
     });
 
     it('should get a point via getPoint and return payload', async function () {
-        const adapter = new QdrantAdapter({ host: 'localhost', port: 6333 });
+        const adapter = new QdrantAdapter({ host: HOST, port: PORT });
         adapter.client = {
             getPoint: async (collectionName, id) => ({ id, payload: { doc_id: 2 } })
         };
@@ -64,7 +66,7 @@ describe('QdrantAdapter Unit Tests', function () {
     });
 
     it('healthCheck should reflect collections existence', async function () {
-        const adapter = new QdrantAdapter({ host: 'localhost', port: 6333 });
+        const adapter = new QdrantAdapter({ host: HOST, port: PORT });
         adapter.client = {
             getCollections: async () => ({ collections: [{ name: COLLECTIONS.visual_overlays.name }] })
         };
@@ -75,7 +77,7 @@ describe('QdrantAdapter Unit Tests', function () {
     });
 
     it('should upsert document embeddings', async function () {
-        const adapter = new QdrantAdapter({ host: 'localhost', port: 6333 });
+        const adapter = new QdrantAdapter({ host: HOST, port: PORT });
         let called = false;
         adapter.client = {
             upsert: async (collectionName, { points }) => { called = true; return; }

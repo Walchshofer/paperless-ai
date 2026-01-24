@@ -39,11 +39,21 @@ describe('Payload Mirroring - Alpha-9', function () {
       }
     };
 
-    const res = await fetch(`${QDRANT_URL || 'http://localhost:6333'}/collections/${COLLECTION_NAME}/points?wait=true`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ points: [payload] })
-    });
+    const qUrl = QDRANT_URL || `http://${process.env.QDRANT_HOST || 'localhost'}:${process.env.QDRANT_PORT || 6333}`;
+    let res;
+    try {
+      res = await fetch(`${qUrl}/collections/${COLLECTION_NAME}/points?wait=true`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ points: [payload] })
+      });
+    } catch (err) {
+      if (/ECONNREFUSED|ENOTFOUND/i.test(err.message)) {
+        this.skip();
+        return;
+      }
+      throw err;
+    }
 
     if (!res.ok) {
       const text = await res.text();
