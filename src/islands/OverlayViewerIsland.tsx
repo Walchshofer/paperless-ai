@@ -32,11 +32,40 @@ const MIN_SELECTION_SIZE = 20;
 const MIN_SIZE_FRACTION = 0.01;
 
 export default function OverlayViewerIsland(props: OverlayViewerProps) {
-  const { documentId, page = 1, onRegionSelected } = props;
+  const { documentId: initialDocumentId, page: initialPage = 1, originalUrl: initialOriginalUrl = null, onRegionSelected } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+
+  // Allow dynamic updates from page-level events
+  const [docId, setDocId] = useState<number | null>(initialDocumentId || null);
+  const [page, setPage] = useState<number>(initialPage);
+  const [originalUrl, setOriginalUrl] = useState<string | null>(initialOriginalUrl || null);
+
+  // Listen for page/document change events from the page and update in-place
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const d = (e as CustomEvent)?.detail || {};
+      if (d.documentId !== undefined && d.documentId !== null) setDocId(d.documentId);
+      if (d.page !== undefined && d.page !== null) setPage(Number(d.page));
+      // Accept either camelCase `originalUrl` or snake_case `original_url` from different emitters
+      if (Object.prototype.hasOwnProperty.call(d, 'originalUrl')) setOriginalUrl(d.originalUrl || null);
+      else if (Object.prototype.hasOwnProperty.call(d, 'original_url')) setOriginalUrl(d.original_url || null);
+    };
+
+    window.addEventListener('overlay:document-changed', handler as EventListener);
+    return () => {
+      window.removeEventListener('overlay:document-changed', handler as EventListener);
+    };
+  }, []);
+
+
+  useEffect(() => {
+    if (initialDocumentId !== undefined && initialDocumentId !== null) {
+      setDocId(initialDocumentId);
+    }
+  }, [initialDocumentId]);
 
   const [isDrawMode, setIsDrawMode] = useState(false);
   const drawModeRef = useRef(false);
@@ -49,10 +78,13 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  const [legend, setLegend] = useState<Array<{ key: string; label: string; color: string; isMandatory?: boolean }>>([]);
 
-  // Image URL for the document page
-  const imageUrl = documentId
-    ? `/thumb/${documentId}?page=${page}`
+  // Image URL for the document page — prefer `originalUrl` if provided (paperless direct link), otherwise use internal download route
+  const imageUrl = docId
+    ? (originalUrl
+        ? `${originalUrl}${originalUrl.includes('?') ? '&' : '?'}page=${page}`
+        : `/documents/${docId}/download/original/?page=${page}`)
     : null;
 
   // Load the document image
@@ -67,6 +99,13 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     img.onload = () => {
       if (imageRef.current) {
         imageRef.current.src = img.src;
+        // Progressive loading guard for very large images
+        try {
+          const area = (img.naturalWidth || 0) * (img.naturalHeight || 0);
+          if (area > 20000000) {
+            setWarning('Large document image detected. Rendering may be slow.');
+          }
+        } catch (e) { /* ignore */ }
       }
       setImageLoaded(true);
     };
@@ -203,7 +242,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           detail: {
             imageBase64: base64,
             collection: 'visual_pages',
-            documentId,
+            documentId: docId,
             page,
             bbox: {
               x: box.x / container.clientWidth,
@@ -442,6 +481,23 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         currentBox.height
       );
     }
+
+    // Fetch legend for domain if needed (simple heuristic: if any box has a domain, use it; otherwise default to 'general')
+    (async () => {
+      try {
+        const domain = boxes.length > 0 ? (boxes[0].domain || 'general') : 'general';
+        const resp = await fetch(`/api/visual-rag/legend/${domain}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          setLegend(Array.isArray(data) ? data : []);
+        } else {
+          setLegend([]);
+        }
+      } catch (e) {
+        setLegend([]);
+      }
+    })();
+
   }, [boxes, currentBox, isDrawing]);
 
   return (
@@ -450,6 +506,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       data-hydrated="true"
       data-has-boxes={boxes.length}
       data-has-warning={warning ? 'true' : 'false'}
+      data-original-url={originalUrl || ''}
       className="h-full flex flex-col"
     >
       {/* Toolbar */}
@@ -479,7 +536,20 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           </button>
         )}
 
-        <span className="text-xs text-gray-400 ml-auto">
+        <div className="ml-4">
+          {legend.length > 0 && (
+            <div data-testid="overlay-legend" className="flex items-center gap-2 text-xs text-gray-600">
+              {legend.map((item) => (
+                <div key={item.key} className="flex items-center gap-1">
+                  <span style={{ width: 12, height: 12, background: item.color, display: 'inline-block', borderRadius: 2 }} aria-hidden="true"></span>
+                  <span>{item.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <span data-testid="overlay-page-indicator" className="text-xs text-gray-400 ml-auto">
           Page {page}
         </span>
       </div>
@@ -529,6 +599,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             className="w-full h-full object-contain pointer-events-none select-none"
             data-testid="document-image"
             draggable={false}
+            crossOrigin="anonymous"
             onDragStart={(e) => e.preventDefault()}
             style={{ display: imageLoaded ? 'block' : 'none' }}
           />

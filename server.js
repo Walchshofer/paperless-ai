@@ -631,12 +631,16 @@ app.use('/', setupRoutes);
 const ragRoutes = require('./routes/rag');
 const visualRagRoutes = require('./routes/api/visual-rag');
 const feedbackRoutes = require('./routes/api/feedback');
+const settingsApiRoutes = require('./routes/api/settings');
 
 // Mount Visual RAG routes (always enabled - provides hybrid search)
 app.use('/api/visual-rag', visualRagRoutes);
 
 // Mount Feedback routes (always enabled - user feedback collection)
 app.use('/api/feedback', feedbackRoutes);
+
+// Mount Settings API routes (for islands)
+app.use('/api/settings', settingsApiRoutes);
 
 // Mount RAG routes if enabled
 if (process.env.RAG_SERVICE_ENABLED === 'true') {

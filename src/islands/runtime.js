@@ -190,6 +190,8 @@ const HistoryTabsSchema = z.object({
 const OverlayViewerSchema = z.object({
   documentId: z.number().int().nullable(),
   page: z.number().int().optional(),
+  originalUrl: z.string().optional(),
+  pageCount: z.number().int().optional(),
 });
 
 // Playground Island schema (ticket:017.2)
@@ -492,8 +494,53 @@ const defaultRenderers = {
     el.innerHTML = `\n      <div data-testid="history-tabs-root" data-hydrated="true">\n        <div role="tablist" aria-label="Document tabs" style="display:flex;gap:8px;margin-bottom:8px">\n          <button role="tab" data-testid="tab-text" aria-selected="true">Text</button>\n          <button role="tab" data-testid="tab-metadata" aria-selected="false">Metadata</button>\n          <button role="tab" data-testid="tab-similar" aria-selected="false">Similar</button>\n        </div>\n        <div data-panel="text" data-testid="panel-text">Text content unavailable</div>\n        <div data-panel="metadata" data-testid="panel-metadata" style="display:none">Metadata unavailable</div>\n        <div data-panel="similar" data-testid="panel-similar" style="display:none">\n          <div data-testid="gpu-initializing" style="display:none">GPU Initializing...</div>\n          <div data-testid="similar-results" style="display:none"></div>\n          <div data-testid="similar-empty">No similar results yet</div>\n        </div>\n      </div>\n    `;
   },
 
-  'overlay-viewer-island': (el) => {
-    el.innerHTML = `\n      <div data-testid="overlay-viewer-root" data-hydrated="true">\n        <div id="overlayContainer" data-testid="overlay-container">(image placeholder)</div>\n        <div id="overlayLoading" data-testid="overlay-loading" class="hidden">Loading...</div>\n      </div>\n    `;
+  'overlay-viewer-island': (el, props = {}) => {
+    const page = props.page || 1;
+    const initialOriginal = props.originalUrl || '';
+    el.innerHTML = `
+      <div data-testid="overlay-viewer-root" data-hydrated="true" data-original-url="${initialOriginal}">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <span data-testid="overlay-page-indicator">Page ${page}</span>
+        </div>
+        <div id="overlayContainer" data-testid="overlay-container">
+          <img data-testid="document-image" alt="document" style="display:block;max-width:100%;height:auto;" />
+        </div>
+        <div id="overlayLoading" data-testid="overlay-loading" class="hidden">Loading...</div>
+      </div>
+      <script>
+        (function(){
+          try {
+            const root = document.currentScript.parentElement.querySelector('[data-testid="overlay-viewer-root"]');
+            if (!root) return;
+            const pageEl = root.querySelector('[data-testid="overlay-page-indicator"]');
+            const img = root.querySelector('img[data-testid="document-image"]');
+
+            const buildSrc = (d) => {
+              const page = d.page || 1;
+              const original = d.originalUrl || d.original_url || '';
+              if (original) return original + (original.includes('?') ? '&' : '?') + 'page=' + page;
+              if (d.documentId) return '/documents/' + d.documentId + '/download/original/?page=' + page;
+              return '';
+            };
+
+            window.addEventListener('overlay:document-changed', (e) => {
+              const d = (e && e.detail) || {};
+              if (pageEl && d.page !== undefined && d.page !== null) pageEl.textContent = 'Page ' + d.page;
+
+              // Set root attribute for tests
+              const resolvedOriginal = d.originalUrl || d.original_url || '';
+              root.setAttribute('data-original-url', resolvedOriginal);
+
+              // Update image src
+              if (img) {
+                const src = buildSrc(d);
+                if (src) img.src = src;
+              }
+            });
+          } catch (e) { /* ignore */ }
+        })();
+      </script>
+    `;
   },
 
   'overview-dashboard-island': (el, props = {}) => {
@@ -873,6 +920,32 @@ function mountIslands(container = document) {
             if (win && typeof win.addEventListener === 'function') {
               win.addEventListener('visual-search-requested', (e) => {
                 handleSearch(e.detail || {});
+              });
+            }
+          }
+        }
+
+        if (name === 'overlay-viewer-island') {
+          const root = el.querySelector('[data-testid="overlay-viewer-root"]');
+          if (root) {
+            const pageEl = root.querySelector('[data-testid="overlay-page-indicator"]');
+            const img = root.querySelector('img[data-testid="document-image"]');
+            if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+              window.addEventListener('overlay:document-changed', (e) => {
+                const d = (e && e.detail) || {};
+                if (pageEl && d.page !== undefined && d.page !== null) pageEl.textContent = 'Page ' + d.page;
+
+                // Set a test-visible attribute for original url (accepts camelCase or snake_case)
+                const resolvedOriginal = d.originalUrl || d.original_url || '';
+                root.setAttribute('data-original-url', resolvedOriginal);
+
+                // Update inline image src if present (runtime browser fallback for tests)
+                if (img) {
+                  let src = '';
+                  if (resolvedOriginal) src = resolvedOriginal + (resolvedOriginal.includes('?') ? '&' : '?') + 'page=' + (d.page || 1);
+                  else if (d.documentId) src = '/documents/' + d.documentId + '/download/original/?page=' + (d.page || 1);
+                  if (src) img.src = src;
+                }
               });
             }
           }

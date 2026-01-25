@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full" data-theme="light">
+<html lang="en" class="h-full" data-theme="light" data-page="manual">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,7 +17,8 @@
          documentId: vm.documentId || null,
          metadata: vm.metadata || {},
          content: vm.content || '',
-         fields: vm.fields || []
+         fields: vm.fields || [],
+         originalUrl: vm.original_url || null
        }; %>
     <button id="themeToggle" class="theme-toggle">
         <i class="fas fa-moon dark:fas fa-sun"></i>
@@ -169,10 +170,10 @@
                         <div class="flex justify-between items-center mb-4">
                             <h2 class="card-title mb-0">Document Preview</h2>
                             <div class="flex gap-2">
-                                <button id="viewTextBtn" class="px-3 py-1 text-sm bg-accent-primary text-white rounded hover:bg-accent-secondary transition-colors">
+                                <button id="viewTextBtn" data-testid="view-text-btn" class="px-3 py-1 text-sm bg-accent-primary text-white rounded hover:bg-accent-secondary transition-colors">
                                     <i class="fas fa-file-alt mr-1"></i> Text
                                 </button>
-                                <button id="viewVisualBtn" class="px-3 py-1 text-sm bg-bg-secondary text-text-primary border border-border-color rounded hover:bg-hover-bg transition-colors">
+                                <button id="viewVisualBtn" data-testid="view-visual-btn" class="px-3 py-1 text-sm bg-bg-secondary text-text-primary border border-border-color rounded hover:bg-hover-bg transition-colors">
                                     <i class="fas fa-image mr-1"></i> Visual
                                 </button>
                             </div>
@@ -198,20 +199,18 @@
                         <div id="visualPreviewSection" class="stat-box hidden">
                             <!-- Page Navigation -->
                             <div id="pageNavigation" class="flex items-center justify-center gap-4 mb-3 hidden">
-                                <button id="prevPage" class="px-3 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed">
+                                <button id="prevPage" data-testid="prev-page-btn" class="px-3 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed">
                                     <i class="fas fa-chevron-left"></i>
                                 </button>
-                                <span id="pageIndicator" class="text-sm text-text-secondary">Page 1 of 1</span>
-                                <button id="nextPage" class="px-3 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed">
+                                <span id="pageIndicator" data-testid="overlay-page-indicator" class="text-sm text-text-secondary">Page 1 of 1</span>
+                                <button id="nextPage" data-testid="next-page-btn" class="px-3 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed">
                                     <i class="fas fa-chevron-right"></i>
                                 </button>
                                 <span class="text-xs text-text-secondary ml-2">@ 300 DPI</span>
                             </div>
                             <div class="flex flex-col lg:flex-row gap-4">
                                 <div id="overlayContainer" class="flex-1 min-h-[600px] bg-bg-primary rounded border border-border-color p-4 overflow-auto">
-                                    <div id="overlayLoading" class="flex items-center justify-center h-[400px] text-text-secondary">
-                                        <i class="fas fa-spinner fa-spin mr-2"></i> Rendering high-resolution preview...
-                                    </div>
+                                    <div data-island="overlay-viewer-island" data-testid="overlay-viewer-island" data-props="<%= JSON.stringify({ documentId: manualProps.documentId, page: 1, originalUrl: manualProps.originalUrl }) %>"></div>
                                 </div>
                                 <div id="overlayLegendContainer" class="lg:w-64 flex-shrink-0"></div>
                             </div>
@@ -496,6 +495,8 @@ async function handleDocumentSelection(documentId) {
         document.getElementById('currentTags').innerHTML = '';
         document.getElementById('suggestedTags').innerHTML = '';
         updateHiddenTagsInput(); // Clear hidden input when no document is selected
+        // Clear fields panel
+        dispatchDocumentFields([]);
         return;
     }
 
@@ -503,19 +504,19 @@ async function handleDocumentSelection(documentId) {
     document.getElementById('analyzeBtn').disabled = false;
     document.getElementById('chatBtn').disabled = false;
     document.getElementById('analyzeVisualBtn').disabled = false;
-    
+
     try {
         const response = await fetch(`/manual/preview/${documentId}`);
         if (!response.ok) throw new Error('Failed to fetch document content');
         const data = await response.json();
-        
+
         if (!data.content) {
             throw new Error('Document content is missing');
         }
-        
+
         document.getElementById('contentPreview').textContent = data.content || 'No content available';
         document.getElementById('hiddenId').value = data.id;
-        
+
         document.getElementById('currentTags').innerHTML = '';
         document.getElementById('suggestedTags').innerHTML = '';
 
@@ -532,9 +533,148 @@ async function handleDocumentSelection(documentId) {
 
         updateCorrespondentDisplay(data.correspondent);
         updateTitleDisplay(data.title);
+
+        // Update overlay count badge
+        if (data.overlayCount !== undefined) {
+            const overlayCountEl = document.getElementById('overlayCount');
+            if (overlayCountEl) {
+                overlayCountEl.textContent = data.overlayCount;
+            }
+        }
+
+        // Populate ManualEditorIsland fields tab with visual fields
+        if (data.visualFields && data.visualFields.length > 0) {
+            dispatchDocumentFields(data.visualFields);
+        } else if (data.customFields && data.customFields.length > 0) {
+            // Fall back to Paperless custom fields
+            const fields = data.customFields.map(cf => ({
+                label: cf.field?.name || `Field ${cf.field}`,
+                value: cf.value || '',
+                domain: 'PAPERLESS',
+                confidence: 1.0
+            }));
+            dispatchDocumentFields(fields);
+        } else {
+            dispatchDocumentFields([]);
+        }
+
+        // Update ManualEditorIsland with title and content
+        dispatchDocumentMetadata({
+            title: data.title,
+            content: data.content,
+            correspondent: data.correspondent,
+            pageCount: data.pageCount || 1
+        });
+
+        // Notify overlay viewer island about the selected document (original url + page)
+        // Initialize page navigation controls and dispatch the current page (default 1)
+        const originalUrl = data.original_url || null;
+        let currentPage = 1;
+        const pageCount = data.pageCount || 1;
+
+        // Update page navigation UI
+        const pageNav = document.getElementById('pageNavigation');
+        const pageIndicator = document.getElementById('pageIndicator');
+        const prevBtn = document.getElementById('prevPage');
+        const nextBtn = document.getElementById('nextPage');
+
+        if (pageNav) {
+          pageNav.classList.toggle('hidden', pageCount <= 1);
+        }
+        if (pageIndicator) {
+          pageIndicator.textContent = `Page ${currentPage} of ${pageCount}`;
+        }
+        if (prevBtn) prevBtn.disabled = currentPage <= 1;
+        if (nextBtn) nextBtn.disabled = currentPage >= pageCount;
+
+        function dispatchOverlayDocumentChanged() {
+          window.dispatchEvent(new CustomEvent('overlay:document-changed', {
+            detail: { documentId: data.id, page: currentPage, originalUrl }
+          }));
+        }
+
+        if (prevBtn) {
+          prevBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (currentPage > 1) {
+              currentPage -= 1;
+              if (pageIndicator) pageIndicator.textContent = `Page ${currentPage} of ${pageCount}`;
+              if (prevBtn) prevBtn.disabled = currentPage <= 1;
+              if (nextBtn) nextBtn.disabled = currentPage >= pageCount;
+              dispatchOverlayDocumentChanged();
+            }
+          });
+        }
+
+        if (nextBtn) {
+          nextBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (currentPage < pageCount) {
+              currentPage += 1;
+              if (pageIndicator) pageIndicator.textContent = `Page ${currentPage} of ${pageCount}`;
+              if (prevBtn) prevBtn.disabled = currentPage <= 1;
+              if (nextBtn) nextBtn.disabled = currentPage >= pageCount;
+              dispatchOverlayDocumentChanged();
+            }
+          });
+        }
+
+        // Dispatch initial event so the island can load the first page
+        dispatchOverlayDocumentChanged();
+
     } catch (error) {
         showMessage('Error loading document content: ' + error.message);
     }
+}
+
+// Dispatch fields to ManualEditorIsland
+function dispatchDocumentFields(fields) {
+    const fieldsPanel = document.querySelector('[data-testid="panel-fields"]');
+    if (!fieldsPanel) return;
+
+    // Generate field rows HTML
+    const fieldRowsHtml = fields.map((field, idx) => `
+        <div data-testid="field-row-${idx}" class="flex gap-2 items-center mb-2">
+            <input data-testid="field-name-${idx}" value="${field.label || ''}" placeholder="Field name" class="flex-1 px-2 py-1 border rounded text-sm"/>
+            <input data-testid="field-value-${idx}" value="${field.value || ''}" placeholder="Field value" class="flex-1 px-2 py-1 border rounded text-sm"/>
+            <span class="text-xs text-gray-400" title="Confidence: ${((field.confidence || 0) * 100).toFixed(0)}%">${field.domain || 'GENERAL'}</span>
+            <button data-testid="remove-field-${idx}" type="button" class="text-red-500 hover:text-red-700">×</button>
+        </div>
+    `).join('');
+
+    // Update fields panel content
+    fieldsPanel.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span class="font-medium">${fields.length} Fields Detected</span>
+            <button data-testid="add-field-btn" type="button" class="text-sm text-blue-600 hover:text-blue-800">+ Add Field</button>
+        </div>
+        ${fieldRowsHtml || '<p class="text-gray-500 text-sm">No fields detected. Run Visual Analysis to extract fields.</p>'}
+    `;
+
+    // Dispatch custom event for React island sync
+    window.dispatchEvent(new CustomEvent('manual:fields-updated', {
+        detail: { fields, documentId: currentDocument }
+    }));
+}
+
+// Dispatch metadata to ManualEditorIsland
+function dispatchDocumentMetadata(metadata) {
+    // Update title input if exists
+    const titleInput = document.querySelector('[data-testid="manual-title-input"]');
+    if (titleInput && metadata.title) {
+        titleInput.value = metadata.title;
+    }
+
+    // Update content textarea if exists
+    const contentInput = document.querySelector('[data-testid="manual-content-input"]');
+    if (contentInput && metadata.content) {
+        contentInput.value = metadata.content.substring(0, 10000); // Limit for textarea
+    }
+
+    // Dispatch custom event for React island sync
+    window.dispatchEvent(new CustomEvent('manual:metadata-updated', {
+        detail: metadata
+    }));
 }
 
 // Analysis Functions
@@ -804,32 +944,15 @@ return object;
         });
     </script>
     <script src="js/dashboard.js"></script>
-    <script src="js/components/OverlayViewer.js"></script>
-    <script src="js/components/OverlayLegend.js"></script>
     <script type="module">
         import { mountIslands } from '/js/dist/island-runtime.js';
         mountIslands(document);
         window.__islandRuntimeMounted = true;
     </script>
     <script>
-        // Overlay Viewer Integration
-        let overlayViewer = null;
-        let overlayLegend = null;
-        let overlaysLoaded = false;
-        let currentViewMode = 'text'; // 'text' or 'visual'
-
-        // Page navigation state
-        let currentPage = 1;
-        let totalPages = 1;
-        let cachedPageCount = null;
-
-        // View toggle buttons
-        document.getElementById('viewTextBtn').addEventListener('click', () => switchView('text'));
-        document.getElementById('viewVisualBtn').addEventListener('click', () => switchView('visual'));
-
-        function switchView(mode) {
-            currentViewMode = mode;
-            const textSection = document.getElementById('textPreviewSection');
+        // Overlay Viewer Integration is now handled by `overlay-viewer-island`.
+        // Legacy overlay scripts removed; islands are the single source of truth for overlays.
+    </script>
             const visualSection = document.getElementById('visualPreviewSection');
             const textBtn = document.getElementById('viewTextBtn');
             const visualBtn = document.getElementById('viewVisualBtn');
@@ -1140,48 +1263,7 @@ return object;
         });
     </script>
 
-    <!-- Dev: lightweight island mount fallback so E2E skeleton can assert runtime placeholder without build step -->
-    <script>
-      function initDevIslands() {
-        if (typeof window !== 'undefined' && window.__islandRuntimeMounted) {
-          return;
-        }
-        try {
-          document.querySelectorAll('[data-island="visual-annotation-island"]').forEach(el => {
-            if (!el.querySelector('[data-testid="visual-annotation-island-root"]')) {
-              el.innerHTML = "\n                <div data-testid=\"visual-annotation-island-root\">\n                  <button data-testid=\"draw-toggle\">Draw Mode</button>\n                  <div data-testid=\"annotation-canvas\">(canvas placeholder)</div>\n                </div>\n              ";
-            }
-          });
-
-          // Dev fallback for Manual Editor island (inject interactive markup and listeners)
-          document.querySelectorAll('[data-island="manual-editor-island"]').forEach(el => {
-            function attachManualEditor(container) {
-              if (container.dataset.meiWired === 'true') {
-                return;
-              }
-              container.dataset.meiWired = 'true';
-
-              function getRoot() {
-                return container.querySelector('[data-testid="manual-editor-island-root"]');
-              }
-
-              function setActive(i, focusTab) {
-                const root = getRoot();
-                if (!root) {
-                  return;
-                }
-                const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
-                const panels = Array.from(root.querySelectorAll('[data-panel]'));
-                tabs.forEach((t, ii) => t.setAttribute('aria-selected', String(ii === i)));
-                panels.forEach((p, ii) => {
-                  p.style.display = ii === i ? '' : 'none';
-                });
-                if (focusTab && tabs[i]) {
-                  tabs[i].focus();
-                }
-              }
-
-              const root = getRoot();
+    <!-- Dev fallback removed. Islands are authoritative in all environments; for E2E skeletons use the test-only helper in `test/helpers/dev-islands.js` -->
               if (root) {
                 const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
                 const initialIndex = Math.max(

@@ -1378,7 +1378,7 @@ This document defines the user flows for the modernized Settings Page with Islan
 
 ## References
 
-- **Epic Brief**: spec:6e0e0983-e5b6-41d3-98e0-9cd4d0ddb783/56121be3-201f-43d2-a410-592c99bbeaa8
+- **Epic Brief**: C:\Users\pwalc\MyApps\paperless-ai\docs\settings\EPIC_BRIEF.md
 - **Current Implementation**: file:views/settings.ejs, file:public/js/settings.js
 - **Islands Runtime**: file:src/islands/runtime.js
 - **Existing Islands**: file:src/islands/ (VisualAnnotation, FeedbackControls, ManualEditor, HistoryTabs, OverlayViewer, Playground)

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-page="rag">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -687,6 +687,99 @@
             </div>
         </div>
 
+        <!-- Overlay Viewer Island (Visual-RAG) -->
+        <aside class="overlay-sidebar mt-4 p-2 bg-white border rounded" data-island="overlay-viewer-island" data-testid="overlay-viewer-island" data-props="<%= JSON.stringify({ documentId: vm.documentId || null, page: 1, originalUrl: vm.original_url || null }) %>"></aside>
+
+    <div id="ragFallbackBanner" class="mt-4 hidden rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="visual-503-banner">
+      Visual analysis is unavailable. Showing text-only results. Visual evidence required for full validation.
+    </div>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        // Listen for visual search events triggered by overlay islands
+        window.addEventListener('visual-search-requested', async (e) => {
+          const detail = e.detail || {};
+          const chatContainer = document.getElementById('chat-container');
+          const status = document.createElement('div');
+          status.className = 'system-message';
+          status.textContent = 'Visual search in progress...';
+          chatContainer.appendChild(status);
+
+          try {
+            const resp = await fetch('/api/visual-rag/search/visual', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Request-Id': `visual-${Date.now()}` },
+              body: JSON.stringify({ image: detail.imageBase64, collection: detail.collection || 'visual_pages', k: 5, filters: { doc_id: detail.documentId || null } })
+            });
+
+            if (resp.status === 503) {
+              // Show fallback banner and run text fallback via /api/rag/search
+              const banner = document.getElementById('ragFallbackBanner');
+              if (banner) banner.classList.remove('hidden');
+              // Emit telemetry event
+              try { fetch('/api/telemetry/event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event: 'visual_rag_fallback_triggered', reason: 'visual_503_fallback_text', request_id: `visual-${Date.now()}` }) }); } catch (e) { /* ignore */ }
+
+              // Simple text fallback: search using doc id (server-side will use text RAG)
+              try {
+                const textResp = await fetch('/api/rag/search', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ query: `Document ${detail.documentId}` })
+                });
+                if (textResp.ok) {
+                  const data = await textResp.json();
+                  const msg = document.createElement('div');
+                  msg.className = 'system-message';
+                  msg.innerHTML = `Text fallback executed. ${data.results ? data.results.length : 0} results found.`;
+                  chatContainer.appendChild(msg);
+                }
+              } catch (e) {
+                const err = document.createElement('div'); err.className = 'system-message'; err.textContent = 'Text fallback failed.'; chatContainer.appendChild(err);
+              }
+            } else if (resp.ok) {
+              const json = await resp.json();
+              const msg = document.createElement('div');
+              msg.className = 'system-message';
+              msg.innerHTML = `Visual search returned ${json.totalResults || (json.results && json.results.length) || 0} results.`;
+              chatContainer.appendChild(msg);
+            } else {
+              const err = await resp.json();
+              const msg = document.createElement('div');
+              msg.className = 'system-message';
+              msg.textContent = `Visual search error: ${err.error || resp.statusText}`;
+              chatContainer.appendChild(msg);
+            }
+          } catch (err) {
+            const msg = document.createElement('div'); msg.className = 'system-message'; msg.textContent = `Visual search failed: ${err.message}`; chatContainer.appendChild(msg);
+          } finally {
+            // Remove in-progress message after a short delay
+            setTimeout(() => { try { status.remove(); } catch(e){} }, 1500);
+          }
+        });
+
+      // Ensure this page dispatches `overlay:document-changed` on load and listens for preview page changes
+      (function() {
+        try {
+          const anchor = document.querySelector('[data-island="overlay-viewer-island"]');
+          if (!anchor) return;
+          let props = {};
+          try { props = JSON.parse(anchor.getAttribute('data-props') || '{}'); } catch (e) { props = {}; }
+          const docId = props.documentId || null;
+          const originalUrl = props.originalUrl || null;
+          const page = props.page || 1;
+
+          window.dispatchEvent(new CustomEvent('overlay:document-changed', { detail: { documentId: docId, page, originalUrl } }));
+          window.addEventListener('preview:page-changed', (e) => {
+            const d = (e as CustomEvent)?.detail || {};
+            const newPage = d.page || page;
+            const newDoc = d.documentId || docId;
+            const newOriginal = d.originalUrl || originalUrl;
+            window.dispatchEvent(new CustomEvent('overlay:document-changed', { detail: { documentId: newDoc, page: newPage, originalUrl: newOriginal } }));
+          });
+        } catch (e) { /* ignore */ }
+      })();
+    </script>
+
         <div id="error-message" class="hidden"></div>
 
         <div class="typing-indicator hidden" id="typing-indicator">
@@ -707,7 +800,7 @@
                 <button class="ai-toggle active" style="visibility: hidden;" id="ai-toggle" aria-label="Toggle AI" title="Enable/disable AI response">
                     <i class="fas fa-robot"></i>
                 </button>
-                <button class="send-button" id="send-button" aria-label="Send message">
+                <button class="send-button" id="send-button" data-testid="rag-send-button" aria-label="Send message">
                     <i class="fas fa-paper-plane"></i>
                 </button>
             </div>

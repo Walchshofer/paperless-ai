@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full" data-theme="light">
+<html lang="en" class="h-full" data-theme="light" data-page="playground">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -125,6 +125,7 @@
             <!-- PlaygroundIsland Anchor (ticket:017.4) -->
             <div
                 data-island="playground-island"
+                data-testid="playground-island"
                 data-props='{"mode": "visual-debug", "collection": "visual_pages", "gpuState": "idle"}'
                 class="island-container bg-white rounded-lg shadow-lg"
             ></div>
@@ -173,6 +174,30 @@
                 });
             });
         });
+    </script>
+
+    <!-- Dispatch overlay:document-changed from playground anchors so islands remain in sync -->
+    <script>
+      (function() {
+        try {
+          const anchor = document.querySelector('[data-island="overlay-viewer-island"]') || document.querySelector('[data-island="playground-island"]');
+          if (!anchor) return;
+          let props = {};
+          try { props = JSON.parse(anchor.getAttribute('data-props') || '{}'); } catch (e) { props = {}; }
+          const docId = props.documentId || null;
+          const originalUrl = props.originalUrl || null;
+          const page = props.page || 1;
+          window.dispatchEvent(new CustomEvent('overlay:document-changed', { detail: { documentId: docId, page, originalUrl } }));
+
+          window.addEventListener('preview:page-changed', (e) => {
+            const d = (e as CustomEvent)?.detail || {};
+            const newPage = d.page || page;
+            const newDoc = d.documentId || docId;
+            const newOriginal = d.originalUrl || originalUrl;
+            window.dispatchEvent(new CustomEvent('overlay:document-changed', { detail: { documentId: newDoc, page: newPage, originalUrl: newOriginal } }));
+          });
+        } catch (e) { /* ignore */ }
+      })();
     </script>
 
     <!-- GitHub stars script -->

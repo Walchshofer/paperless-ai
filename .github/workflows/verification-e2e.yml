@@ -29,16 +29,40 @@ jobs:
         run: npm ci
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
+      - name: Start Visual RAG sidecar (for reingest test)
+        run: |
+          docker compose up -d visual-rag
+      - name: Wait for Visual RAG readiness
+        run: |
+          timeout=120
+          i=0
+          until curl -fsS http://127.0.0.1:8001/ready || [ $i -gt $timeout ]; do
+            echo "Waiting for Visual RAG readiness... ($i)"
+            i=$((i+5))
+            sleep 5
+          done
       - name: Run migrations
         env:
           POSTGRES_URL: 'postgres://elfman:password@localhost:5432/paperless_test'
         run: node migrations/run-migration.js || true
-      - name: Run Playwright E2E
+      - name: Run Playwright E2E (full)
         env:
           POSTGRES_URL: 'postgres://elfman:password@localhost:5432/paperless_test'
           PAPERLESS_MOCK_URL: 'http://localhost:3001'
           METRICS_INTERNAL_ONLY: 'false'
         run: npx playwright test --config=test/playwright.config.ts --reporter=list
+      - name: Run reingest-verify test (verbose, HTML report)
+        env:
+          POSTGRES_URL: 'postgres://elfman:password@localhost:5432/paperless_test'
+          VISUAL_RAG_URL: 'http://127.0.0.1:8001'
+        run: |
+          npx playwright test test/e2e/reingest-verify.spec.ts --reporter=html --workers=1
+      - name: Upload playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/**
       - name: Upload playwright trace
         if: always()
         uses: actions/upload-artifact@v4

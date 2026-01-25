@@ -1,5 +1,5 @@
 ---
-name: debug
+name: Debug
 description: Deterministic debugging and root-cause analysis (config precedence, OCR path, retries, FIN_REASONER behavior) with reproducible evidence and minimal patches.
 target: github-copilot
 tools:
@@ -7,22 +7,23 @@ tools:
 - edit
 - search
 - execute
+- fetch
+- git
 - oraios/serena/*
-- copilot-container-tools/*
-infer: true
+- sequential-thinking/*
 ---
 ## Serena memory discipline (required)
 **Read Policy:** Follow `docs/AGENT_READ_POLICY.md` (Tier-0 first; Tier-1 only when relevant). Use Serena memory to avoid repeated doc reads.
 
 
 At the **start** of every task:
-1. Use `oraios/serena/get_current_config` to verify the active project is **paperless-ai** (workspace root). If not, switch (if enabled) and re-verify.
+1. Use your `oraios/serena get_current_config` tool to verify the active project is **paperless-ai** (workspace root). If not, switch (if enabled) and re-verify.
 2. Read these memories (create them if missing):
    - `run-active`
    - `handoff-next`
 
 During work (whenever a meaningful decision is made or a phase completes):
-- Update `run-active` via `oraios/serena/write_memory` using this envelope:
+- Update `run-active` via your `oraios/serena write_memory` tool using this envelope:
 
 ```markdown
 [meta]
@@ -44,7 +45,7 @@ prompt_ref: <prompts/README.md section + prompt id(s) if applicable>
 ```
 
 Before handing off to another agent:
-- Write `handoff-next` with:
+- Write `handoff-next` with your `oraios/serena write_memory` tool, including::
   - `to_agent`
   - `what_to_do_next`
   - `context_you_must_read` (files + memories)

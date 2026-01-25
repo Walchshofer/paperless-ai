@@ -15,9 +15,9 @@ tools:
 
 Use Copilot delegation explicitly:
 
-- `/delegate frontend-design-architect` for concept/IA/contracts planning
-- `/delegate frontend-design-implementer` for code changes
-- `/delegate frontend-design-auditor` for verification and drift prevention
+- `@frontend-design-architect` for concept/IA/contracts planning
+- `@frontend-design-implementer` for code changes
+- `@frontend-design-auditor` for verification and drift prevention
 
 After selecting, write a short routing note to Serena memory:
 - Update `run-active` with the chosen agent and rationale.
@@ -78,9 +78,9 @@ Route based on dominant intent:
    - Always: Tier 0
    - Tier 1: only if the task touches frontend specifics (`docs/FRONTEND_ARCHITECTURE.md`).
 3) Delegate to exactly one specialist agent using Copilot's `/delegate` command:
-   - `/delegate frontend-design-architect` for design direction, IA, island planning.
-   - `/delegate frontend-design-implementer` for code changes.
-   - `/delegate frontend-design-auditor` for guardrail verification / audit.
+   - `@frontend-design-architect` for design direction, IA, island planning.
+   - `@frontend-design-implementer` for code changes.
+   - `@frontend-design-auditor` for guardrail verification / audit.
 
 4) Record the decision in Serena memory:
    - Update `run-active` with the chosen agent, intent, and target files.

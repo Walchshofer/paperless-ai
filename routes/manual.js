@@ -3,6 +3,15 @@ const router = express.Router();
 const paperlessService = require('../services/paperlessService.js');
 const configFile = require('../config/config.js');
 
+// Visual RAG integration for overlay/field retrieval
+let visualOverlayRepository = null;
+try {
+    const visualRagClient = require('../services/visual-rag-client');
+    visualOverlayRepository = visualRagClient.visualOverlayRepository;
+} catch (e) {
+    console.warn('[Manual Route] Visual RAG client not available:', e.message);
+}
+
 /**
  * @swagger
  * /manual/preview/{id}:
@@ -95,14 +104,70 @@ router.get('/manual/preview/:id', async (req, res) => {
     }
 
     const document = await response.json();
-    //map the tags to their names
+
+    // Map tags to their names
     document.tags = await Promise.all(document.tags.map(async tag => {
       const tagName = await paperlessService.getTagTextFromId(tag);
       return tagName;
+    }));
+
+    // Get correspondent name if available
+    let correspondentName = null;
+    if (document.correspondent) {
+      try {
+        correspondentName = await paperlessService.getCorrespondentName(document.correspondent);
+      } catch (e) {
+        console.warn('Could not fetch correspondent name:', e.message);
+      }
     }
-    ));
-    console.log('Document Data:', document);
-    res.json({ content: document.content, title: document.title, id: document.id, tags: document.tags });
+
+    // Fetch visual-rag overlays/fields if available
+    let overlays = [];
+    let fields = [];
+    if (visualOverlayRepository) {
+      try {
+        overlays = await visualOverlayRepository.getByDocId(documentId);
+        // Transform overlays to field format for ManualEditorIsland
+        fields = overlays.map(o => {
+          const data = o.overlayData || {};
+          return {
+            label: data.label || o.semanticLabel || 'Unknown',
+            value: data.value || data.text || null,
+            domain: data.domain || 'GENERAL',
+            confidence: data.confidence || o.confidence || 0.5,
+            paperlessMapping: data.paperlessMapping || null,
+            isMandatory: data.isMandatory || false,
+            pageNumber: o.pageNumber || 1
+          };
+        });
+      } catch (e) {
+        console.warn('Could not fetch visual overlays:', e.message);
+      }
+    }
+
+    // Get custom fields from Paperless if available
+    const customFields = document.custom_fields || [];
+
+    console.log('Document Data:', { id: document.id, overlaysCount: overlays.length, fieldsCount: fields.length });
+
+    const paperlessBaseUrl = process.env.PAPERLESS_API_URL
+      ? process.env.PAPERLESS_API_URL.replace(/\/api$/, '')
+      : '';
+
+    res.json({
+      content: document.content,
+      title: document.title,
+      id: document.id,
+      tags: document.tags,
+      correspondent: correspondentName,
+      correspondentId: document.correspondent,
+      pageCount: document.page_count || 1,
+      mimeType: document.mime_type,
+      customFields: customFields,
+      visualFields: fields,
+      overlayCount: overlays.length,
+      original_url: paperlessBaseUrl ? `${paperlessBaseUrl}/documents/${document.id}/download/original/` : null
+    });
   } catch (error) {
     console.error('Content fetch error:', error);
     res.status(500).json({ error: `Error fetching document content: ${error.message}` });
@@ -152,6 +217,7 @@ router.get('/manual/preview/:id', async (req, res) => {
  */
 router.get('/manual', async (req, res) => {
   const version = configFile.PAPERLESS_AI_VERSION || ' ';
+  // Provide placeholders for original_url and page_count; these will be populated by client when a document is selected
   res.render('manual', {
     title: 'Document Review',
     error: null,
@@ -159,7 +225,9 @@ router.get('/manual', async (req, res) => {
     version,
     paperlessUrl: process.env.PAPERLESS_API_URL,
     paperlessToken: process.env.PAPERLESS_API_TOKEN,
-    config: {}
+    config: {},
+    original_url: null,
+    page_count: null
   });
 });
 

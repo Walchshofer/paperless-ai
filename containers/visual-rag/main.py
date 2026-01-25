@@ -275,11 +275,14 @@ class VisualQdrantAdapter:
 
         query_filter = self.build_filter(filters)
 
-        hits: Any = self.client.search(
+        # Use query_points (qdrant-client 1.16+)
+        response = self.client.query_points(
             collection_name=collection_name,
-            query_vector=("page_embedding", query_vector),
+            query=query_vector,
+            using="page_embedding",
             query_filter=query_filter,
-            limit=limit
+            limit=limit,
+            with_payload=True
         )
 
         return [
@@ -291,7 +294,7 @@ class VisualQdrantAdapter:
                 "score": h.score,
                 "payload": h.payload
             }
-            for h in hits
+            for h in response.points
         ]
 
     def upsert(

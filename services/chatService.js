@@ -10,6 +10,19 @@ const { promisify } = require('util');
 const pipeline = promisify(stream.pipeline);
 const { OpenAI } = require('openai');
 
+// Optional text-rag integration for semantic context retrieval
+let textRagClient = null;
+const TEXT_RAG_URL = process.env.TEXT_RAG_URL || 'http://text-rag:8004';
+try {
+  const axios = require('axios');
+  textRagClient = axios.create({
+    baseURL: TEXT_RAG_URL,
+    timeout: 10000
+  });
+} catch (e) {
+  console.warn('[ChatService] Text-RAG client not available:', e.message);
+}
+
 class ChatService {
   constructor() {
     this.chats = new Map(); // Stores chat histories: documentId -> messages[]
@@ -54,6 +67,27 @@ class ChatService {
   }
 
   /**
+   * Fetches semantic context from text-rag service
+   * @param {string} query - Search query
+   * @param {number} topK - Number of results
+   * @returns {Promise<Array>} Relevant context snippets
+   */
+  async getSemanticContext(query, topK = 5) {
+    if (!textRagClient) return [];
+
+    try {
+      const response = await textRagClient.post('/search', {
+        query,
+        top_k: topK
+      });
+      return response.data || [];
+    } catch (error) {
+      console.warn('[ChatService] Text-RAG search failed:', error.message);
+      return [];
+    }
+  }
+
+  /**
    * Initializes a new chat for a document
    * @param {string} documentId - The ID of the document
    */
@@ -71,19 +105,37 @@ class ChatService {
         documentContent = await fs.promises.readFile(filePath, 'utf8');
       }
 
-      // Create initial system prompt
+      // Optionally fetch additional semantic context from text-rag
+      let semanticContext = '';
+      if (options.useTextRag !== false && textRagClient) {
+        try {
+          const ragResults = await this.getSemanticContext(document.title, 3);
+          if (ragResults.length > 0) {
+            semanticContext = '\n\nRelated context from document archive:\n' +
+              ragResults
+                .filter(r => r.doc_id !== parseInt(documentId)) // Exclude current doc
+                .slice(0, 2)
+                .map(r => `- ${r.title}: ${r.snippet}`)
+                .join('\n');
+          }
+        } catch (e) {
+          console.warn('[ChatService] Could not fetch semantic context:', e.message);
+        }
+      }
+
+      // Create initial system prompt with document content and optional RAG context
       const messages = [
         {
           role: "system",
-          content: `You are a helpful assistant for the document "${document.title}". 
-                   Use the following document content as context for your responses. 
+          content: `You are a helpful assistant for the document "${document.title}".
+                   Use the following document content as context for your responses.
                    If you don't know something or it's not in the document, please say so honestly.
-                   
+
                    Document content:
-                   ${documentContent}`
+                   ${documentContent}${semanticContext}`
         }
       ];
-      
+
       const requestedModel = typeof options.model === 'string' && options.model.trim()
         ? options.model.trim()
         : null;
@@ -91,13 +143,15 @@ class ChatService {
       this.chats.set(documentId, {
         messages,
         documentTitle: document.title,
-        model: requestedModel
+        model: requestedModel,
+        useTextRag: options.useTextRag !== false
       });
 
       return {
         documentTitle: document.title,
         initialized: true,
-        model: requestedModel
+        model: requestedModel,
+        hasRagContext: semanticContext.length > 0
       };
     } catch (error) {
       console.error(`Error initializing chat for document ${documentId}:`, error);

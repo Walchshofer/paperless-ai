@@ -211,7 +211,9 @@ router.get('/history/doc/:id', async (req, res) => {
       documentType,
       createdAt,
       modifiedAt,
-      paperlessUrl: paperlessBaseUrl
+      paperlessUrl: paperlessBaseUrl,
+      original_url: paperlessBaseUrl ? `${paperlessBaseUrl}/documents/${document?.id}/download/original/` : null,
+      page_count: document?.page_count || 1
     });
   } catch (error) {
     console.error('[ERROR] loading history document:', error);

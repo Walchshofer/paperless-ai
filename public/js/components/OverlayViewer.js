@@ -1,105 +1,23 @@
-/**
- * OverlayViewer - Renders visual overlays on document images
- *
- * Supports color-coded bounding boxes with domain-specific styling,
- * interactive tooltips, and click handling for the Visual RAG UI.
- *
- * Uses canvas rendering for smooth performance with many overlays.
- * Coordinates are in 0-1000 range (normalized from Qwen3-VL output).
- */
+/* DEPRECATED: `OverlayViewer.js` (legacy) — Overlay rendering has been migrated to `overlay-viewer-island` (Preact island).
+   This file is retained as a compatibility stub for older pages but no longer performs real rendering.
+   Remove this file only after islands are validated and legacy pages are cleaned.
+*/
 (function() {
-  class OverlayViewer {
-    constructor(containerEl, options = {}) {
-      this.container = typeof containerEl === 'string'
-        ? document.querySelector(containerEl)
-        : containerEl;
+  // No-op compatibility stub to avoid runtime errors if legacy pages still import this file.
+  function OverlayViewerStub(containerEl /*, options */) {
+    console.warn('OverlayViewer (legacy) is deprecated. Use `overlay-viewer-island`.');
+    this.container = typeof containerEl === 'string' ? document.querySelector(containerEl) : containerEl;
+    this.overlays = [];
+  }
+  OverlayViewerStub.prototype.setImage = function() { /* no-op */ };
+  OverlayViewerStub.prototype.setOverlays = function() { /* no-op */ };
+  OverlayViewerStub.prototype.destroy = function() { /* no-op */ };
 
-      if (!this.container) {
-        throw new Error('OverlayViewer: container not found');
-      }
-
-      this.imageEl = null;
-      this.overlayCanvas = null;
-      this.overlays = [];
-      this.domain = options.domain || 'GENERAL';
-      this.showMandatoryOnly = options.showMandatoryOnly || false;
-      this.onOverlayClick = options.onOverlayClick || null;
-      this.onOverlayHover = options.onOverlayHover || null;
-      this.scale = 1;
-      this.hoveredOverlay = null;
-
-      this._init();
-    }
-
-    _init() {
-      // Create wrapper with relative positioning
-      this.wrapper = document.createElement('div');
-      this.wrapper.className = 'overlay-viewer-wrapper';
-      this.wrapper.style.position = 'relative';
-      this.wrapper.style.display = 'inline-block';
-      this.container.appendChild(this.wrapper);
-
-      // Create canvas for overlays
-      this.overlayCanvas = document.createElement('canvas');
-      this.overlayCanvas.className = 'overlay-canvas';
-      this.overlayCanvas.style.position = 'absolute';
-      this.overlayCanvas.style.top = '0';
-      this.overlayCanvas.style.left = '0';
-      this.overlayCanvas.style.pointerEvents = 'auto';
-      this.overlayCanvas.style.cursor = 'default';
-      this.wrapper.appendChild(this.overlayCanvas);
-
-      // Create tooltip element
-      this.tooltip = document.createElement('div');
-      this.tooltip.className = 'overlay-tooltip';
-      this.tooltip.style.display = 'none';
-      this.tooltip.style.position = 'absolute';
-      this.tooltip.style.backgroundColor = '#1f2937';
-      this.tooltip.style.color = '#ffffff';
-      this.tooltip.style.padding = '8px 12px';
-      this.tooltip.style.borderRadius = '8px';
-      this.tooltip.style.fontSize = '13px';
-      this.tooltip.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-      this.tooltip.style.zIndex = '100';
-      this.tooltip.style.pointerEvents = 'none';
-      this.tooltip.style.maxWidth = '280px';
-      this.wrapper.appendChild(this.tooltip);
-
-      // Add event listeners
-      this.overlayCanvas.addEventListener('mousemove', this._handleMouseMove.bind(this));
-      this.overlayCanvas.addEventListener('mouseleave', this._hideTooltip.bind(this));
-      this.overlayCanvas.addEventListener('click', this._handleClick.bind(this));
-
-      // Handle window resize
-      this._resizeHandler = this._handleResize.bind(this);
-      window.addEventListener('resize', this._resizeHandler);
-    }
-
-    /**
-     * Set the document image to render overlays on
-     * @param {HTMLImageElement} imgEl - Image element
-     */
-    setImage(imgEl) {
-      // Remove previous image if exists
-      if (this.imageEl && this.imageEl.parentNode === this.wrapper) {
-        this.wrapper.removeChild(this.imageEl);
-      }
-
-      this.imageEl = imgEl;
-      this.imageEl.style.display = 'block';
-      this.wrapper.insertBefore(imgEl, this.overlayCanvas);
-
-      // Wait for image to load if needed
-      if (imgEl.complete) {
-        this._resizeCanvas();
-        this._render();
-      } else {
-        imgEl.addEventListener('load', () => {
-          this._resizeCanvas();
-          this._render();
-        }, { once: true });
-      }
-    }
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { OverlayViewer: OverlayViewerStub };
+  }
+  window.OverlayViewer = OverlayViewerStub;
+})();
 
     /**
      * Set overlays to render
