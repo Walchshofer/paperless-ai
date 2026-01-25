@@ -39,6 +39,7 @@ describe('ComponentName', function() {
 - Default timeout: 30 seconds
 - AI-simulated flows: 30-60 seconds (set explicitly)
 - Integration tests: 60 seconds
+- Re-ingest / e2e tests: 120 seconds (or configurable via env `E2E_TIMEOUT`) - reingest flows may involve IO and sidecar processing and require extended timeouts
 
 ## Mock Services
 - Prefer lightweight mock classes (e.g., `MockOllamaService`)
@@ -67,6 +68,8 @@ it('should process document correctly', async function() {
 - Validator-driven retries (document-scoped)
 - Visual OCR vs Tesseract selection threshold behavior
 - Negative tests (timeouts, unavailable services)
+- Re-ingestion e2e: verify single-doc reingest path (original PDF → Qdrant points in `visual_pages`/`visual_overlays` and `document_embeddings` where applicable → Postgres `vector_id` mapping) and cleanup
+- Qdrant collection assertions: tests that verify collection presence and distance/dimension semantics (skip when `QDRANT_HOST` not set)
 
 ## Commands
 ```bash

@@ -1,7 +1,21 @@
 ---
-description: Implement and debug integrations with the Paperless-ngx REST API (documents, tags, bulk ops, permissions).
-tools: ["search/codebase", "search/usages", "web/fetch", "web/githubRepo", "oraios/serena/*", "context7/*", "github/*"]
+description: Implement and debug integrations with the Paperless-ngx REST API (documents, tags, correspondents, document types, storage paths, tasks, bulk ops, permissions).
+tools:
+- read
+- search
+- oraios/serena/*
+- copilot-container-tools/*
+infer: true
+name: paperless-api-expert
+target: github-copilot
 ---
+## Doc-first and standards
+
+- Follow the doc-first rule: if changes affect runtime behavior, update documentation first. 
+- Follow JavaScript conventions (CommonJS, semicolons, single quotes) for `**/*.js`. 
+- Follow the repo testing conventions when adding/updating tests. 
+
+
 
 
 ## Serena memory discipline

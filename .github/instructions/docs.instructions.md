@@ -16,10 +16,12 @@ The following files are the source of truth. Code MUST align with these:
 6. `docs/ARCHITECTURE_OVERVIEW.md` - System architecture
 7. `docs/OBSERVABILITY_AND_TELEMETRY.md` - Logging standards
 8. `docs/ENVIRONMENT_VARIABLES.md` - Configuration
+9. `docs/QDRANT_MIGRATION.md` - Qdrant collection definitions, SOT, and re-ingestion guidance (VECTOR STORE Tier-0 doc)
 
 ## Doc-First Rule
 - Documentation changes come **before** code changes
 - If implementation affects runtime behavior, update docs first
+- Changes affecting vector storage (Qdrant) or re-ingestion MUST update `docs/QDRANT_MIGRATION.md` and include an automated re-ingestion e2e test as part of the PR (see `test/e2e/reingest-verify.spec.js` example)
 
 ## Markdown Guidelines
 

@@ -74,6 +74,11 @@ with assistant():
 - Handle indexing operations in `indexing.py`
 - Manage state via `state.py`
 
+#### Qdrant Collection Validation
+- RAG services must ensure the presence and correct configuration of Qdrant collections prior to accepting indexing/upsert requests.
+- Validate collection vector size and distance semantics (e.g., `document_embeddings` 384 Cosine, `visual_pages` 320 Dot, `visual_overlays` 320 Cosine).
+- Implement graceful deferred ingest behavior when Qdrant is unavailable and record metrics for retry orchestration.
+
 ## Logging
 - Use structured logging (JSON format)
 - Include request IDs for tracing

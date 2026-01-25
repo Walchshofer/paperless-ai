@@ -6,6 +6,13 @@ This document describes the migration from the current PostgreSQL/pgVector setup
 
 ## Current Vector Store Architecture
 
+### Collection Ownership & Separation
+- **Text RAG**: dedicated collection `document_embeddings` (384 dimensions, **Cosine**). This collection stores document-level text embeddings used by `text-rag` services.
+- **Visual RAG**: two dedicated collections:
+  - `visual_pages` — multi-vector page embeddings (320 dimensions, **Dot**) used for ColQwen3 late-interaction / MaxSim scoring.
+  - `visual_overlays` — overlay/region vectors (320 dimensions, **Cosine**) used for overlay retrieval and annotation. Payload mirroring is required: each point payload MUST include `doc_id`, `correspondent_id`, and `tag_ids`. The Postgres table `visual_overlays` holds a `vector_id` (UUID) that links to the corresponding Qdrant point.
+- **Important:** These are **separate Qdrant collections** (not filters inside a single collection). Provision and validate them independently to enforce Distance Metric Locks and correct scoring semantics.
+
 ### 1. Text RAG Service - Python Service
 - **Location**: `containers/text-rag/`
 - **Vector Storage**: Qdrant (migrated from PostgreSQL + pgVector)

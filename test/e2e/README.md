@@ -74,6 +74,8 @@ Tests visual annotation drawing and interactions.
    export PAPERLESS_API_TOKEN=your-token
    export TEST_DOC_ID=1  # optional override for fixture selection
    export E2E_SKIP_FIXTURE_SETUP=false
+
+   NOTE: If your local `.env` or `docker-compose` exposes sidecars under container hostnames (e.g., `visual-rag`), the Playwright runner (which runs on the host) may not be able to resolve those names. In such cases, override the URL to a host-accessible address (127.0.0.1) as shown above, or set `VISUAL_RAG_URL` to `http://host.docker.internal:8001` on Docker Desktop for Windows/macOS.
    ```
 
    Fixture setup runs in Playwright global setup and writes

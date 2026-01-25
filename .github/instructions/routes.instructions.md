@@ -38,6 +38,44 @@ Every route must have OpenAPI 3.0.0 documentation:
 router.get('/api/example', async (req, res) => {
     // Implementation
 });
+
+/**
+ * @swagger
+ * /api/visual-rag/batch/start:
+ *   post:
+ *     summary: Start a batch visual re-ingest job
+ *     description: |
+ *       Start a re-ingest job for Paperless originals. Accepts filters such as `pdfOnly` and a list of `ids`.
+ *     tags:
+ *       - Documents
+ *       - API
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               filters:
+ *                 type: object
+ *                 properties:
+ *                   pdfOnly:
+ *                     type: boolean
+ *                   ids:
+ *                     type: array
+ *                     items:
+ *                       type: integer
+ *     responses:
+ *       200:
+ *         description: Re-ingest job accepted
+ *       400:
+ *         description: Bad request
+ *       429:
+ *         description: Rate limit exceeded - batch re-ingests should be rate limited to protect sidecars
+ */
+router.post('/api/visual-rag/batch/start', async (req, res) => {
+    // Implementation
+});
 ```
 
 ## Available Tags

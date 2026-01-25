@@ -10,6 +10,12 @@
 - All retries must be bounded; no infinite loops.
 - Any new cross-service call must propagate `X-Request-Id`.
 
+### Qdrant / Vector Store Requirements (Node)
+- Services that interact with Qdrant must perform **startup validation** of required collections and their configurations (dimension and distance metric). Failure to validate must surface as a critical health failure and prevent accepting ingestion requests.
+- Do not add `pgvector`/embedding columns to Postgres tables at runtime; Postgres is metadata-only for vector storage. This is enforced by the Detox Rule.
+- Upsert paths must mirror minimal payload metadata to Postgres (e.g., `doc_id`, `correspondent_id`, `tag_ids`) and write `vector_id` UUIDs to link to Qdrant points.
+- Implement deferred ingest queues and retry metrics for transient Qdrant failures; avoid data loss on sidecar outages.
+
 ## Python (guidance-service)
 - Provider abstraction must keep model identity stable for caching.
 - Validate final JSON before returning for constrained templates.

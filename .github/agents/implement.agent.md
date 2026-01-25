@@ -1,6 +1,6 @@
 ---
-name: Implement
-description: Implement production code changes for paperless-ai with strict adherenceto decision tables, service boundaries, validation guardrails, and observability requirements; produces plan, diffs, tests, and telemetry updates.
+name: implement
+description: Implement production code changes for paperless-ai with strict adherence to decision tables, service boundaries, validation guardrails, and observability requirements; produces plan, diffs, tests, and telemetry updates.
 target: github-copilot
 tools:
 - read
@@ -8,9 +8,9 @@ tools:
 - search
 - execute
 - fetch
-- git
 - oraios/serena/*
-- context7/*
+- copilot-container-tools/*
+infer: true
 ---
 ## Serena memory discipline (required)
 **Read Policy:** Follow `docs/AGENT_READ_POLICY.md` (Tier-0 first; Tier-1 only when relevant). Use Serena memory to avoid repeated doc reads.

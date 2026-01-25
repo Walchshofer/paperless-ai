@@ -34,6 +34,11 @@ Every service should implement:
 - Graceful shutdown
 - Error surfacing (not silent failures)
 
+### Ingestion & Qdrant Responsibilities
+- Services that ingest or upsert vectors must implement a Qdrant-aware health check that validates collection presence and vector configuration (size/distance).
+- On successful Qdrant upsert, services must mirror minimal metadata to Postgres and populate a `vector_id` UUID linking the relational row to the Qdrant point.
+- If Qdrant upsert fails, implement a deferred ingest queue and record retryable failure metrics. Do not write embedding vectors into Postgres (respect the no-pgvector runtime rule).
+
 ### Cross-Service Communication
 - Always propagate `X-Request-Id` header
 - Set explicit timeouts

@@ -48,6 +48,12 @@ description: JavaScript coding standards for paperless-ai Node.js codebase
 - Stages must not invoke retries directly
 - Stages must not assume Guidance availability
 
+### Qdrant / Vector Store Contracts
+- Services interacting with Qdrant must validate required collections and their vector configuration (size, distance) during startup and health checks.
+- Text RAG: `document_embeddings` — 384d Cosine. Visual RAG: `visual_pages` — 320d Dot; `visual_overlays` — 320d Cosine.
+- Services performing upserts must also mirror minimal payload metadata to Postgres and write the `vector_id` (UUID) for auditability. Do not store embedding vectors in Postgres (no `pgvector` columns at runtime).
+- Any Qdrant collection mismatch (dimension or distance) is a critical error and must fail fast with clear logs and metrics.
+
 ## PromptRegistry Rules
 - PromptRegistry is authoritative; Guidance is optional optimization
 - Prompt edits must preserve output schema guarantees

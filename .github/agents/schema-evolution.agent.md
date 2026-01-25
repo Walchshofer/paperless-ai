@@ -1,17 +1,13 @@
 ---
-name: Schema Evolution
+name: schema-evolution
 description: Evolve schemas and contracts safely with backward compatibility, migrations, and tests aligned to pipeline stage contracts.
 target: github-copilot
 tools:
 - read
-- edit
 - search
-- execute
-- fetch
-- git
-- sequential-thinking/*
 - oraios/serena/*
-- context7/*
+- copilot-container-tools/*
+infer: true
 ---
 ## Serena memory discipline (required)
 **Read Policy:** Follow `docs/AGENT_READ_POLICY.md` (Tier-0 first; Tier-1 only when relevant). Use Serena memory to avoid repeated doc reads.

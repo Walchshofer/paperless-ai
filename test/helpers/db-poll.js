@@ -2,12 +2,6 @@ const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs');
 
-function getPostgresHost() {
-    if (process.env.POSTGRES_HOST) return process.env.POSTGRES_HOST;
-    if (process.env.PAPERLESS_DBHOST) return process.env.PAPERLESS_DBHOST;
-    return 'localhost';
-}
-
 function readEnvFallback(key) {
     if (process.env[key] !== undefined && process.env[key] !== '') return process.env[key];
     try {
@@ -26,6 +20,14 @@ function readEnvFallback(key) {
         }
     } catch (e) { /* ignore */ }
     return undefined;
+}
+
+function getPostgresHost() {
+    if (process.env.POSTGRES_HOST) return process.env.POSTGRES_HOST;
+    const envHost = readEnvFallback('POSTGRES_HOST') || readEnvFallback('PAPERLESS_DBHOST');
+    if (envHost) return envHost;
+    if (process.env.PAPERLESS_DBHOST) return process.env.PAPERLESS_DBHOST;
+    return 'localhost';
 }
 
 const config = {
@@ -49,8 +51,14 @@ const config = {
  */
 async function pollForFeedbackEvent(docId, eventType, timeoutMs = 5000, intervalMs = 500) {
     // Backwards-compatible wrapper that throws on timeout (was returning null previously)
-    const sql = `SELECT * FROM feedback_events WHERE doc_id = $1 AND event_type = $2 ORDER BY created_at DESC LIMIT 1`;
-    const row = await pollForRow({ sql, params: [parseInt(docId, 10), eventType], timeoutMs, intervalMs });
+    const sqlNumeric = `SELECT * FROM feedback_events WHERE doc_id = $1 AND event_type = $2 ORDER BY created_at DESC LIMIT 1`;
+    const sqlText = `SELECT * FROM feedback_events WHERE doc_id::text = $1 AND event_type = $2 ORDER BY created_at DESC LIMIT 1`;
+
+    const isNumericId = typeof docId === 'number' || (/^\d+$/.test(String(docId)));
+    const sql = isNumericId ? sqlNumeric : sqlText;
+    const param = isNumericId ? parseInt(docId, 10) : String(docId);
+
+    const row = await pollForRow({ sql, params: [param, eventType], timeoutMs, intervalMs });
     return row;
 }
 

@@ -1,17 +1,13 @@
 ---
-name: Pipeline Orchestration
-description: "Optimize and debug ExpertPipelineExecutor chains, OCR selection, retries,\\ validation, and PromptRegistry\u2194Guidance behavior per decision tables."
+name: pipeline-orchestration
+description: "Optimize and debug ExpertPipelineExecutor chains, OCR selection, retries, and LLM orchestration according to the Expert Pipeline Decision Table.md."
 target: github-copilot
 tools:
 - read
-- edit
 - search
-- execute
-- fetch
-- git
-- sequential-thinking/*
 - oraios/serena/*
-- context7/*
+- copilot-container-tools/*
+infer: true
 ---
 ## Serena memory discipline (required)
 **Read Policy:** Follow `docs/AGENT_READ_POLICY.md` (Tier-0 first; Tier-1 only when relevant). Use Serena memory to avoid repeated doc reads.

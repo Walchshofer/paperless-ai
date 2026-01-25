@@ -88,6 +88,14 @@ All Guidance and VLM calls must use a Context Pack as the sole context source:
 
 Raw OCR dumps are forbidden; only evidence snippets are allowed.
 
+## Vector Store Ownership (Qdrant Collections)
+
+- **Qdrant is the Source Of Truth (SOT)** for all vector embeddings. Collections are provisioned and validated independently; **do not** model text and visual vectors as filters in a single collection.
+  - **Text RAG**: `document_embeddings` — *384d*, **Cosine** (document-level text embeddings used by `text-rag`).
+  - **Visual RAG**: `visual_pages` — *320d*, **Dot** (multi-vector page embeddings for ColQwen3 late-interaction/MaxSim scoring).
+  - **Visual RAG**: `visual_overlays` — *320d*, **Cosine** (overlay/region embeddings used for overlay retrieval and annotation). Payload mirroring is **required**: Qdrant point payload MUST include at least `doc_id`, `correspondent_id`, and `tag_ids`. PostgreSQL stores metadata and a `vector_id` (UUID) linking to the Qdrant point; **Postgres MUST NOT** store embedding vectors (no `pgvector` columns).
+- **Enforcement**: Distance Metric Locks (see `docs/QDRANT_MIGRATION.md`) must be enforced at collection creation and validated during startup/health checks. SOT ownership implies the orchestrator and pipeline stages must treat Qdrant as authoritative for retrieval.
+
 ---
 
 ## Stage 3: Pre-Vision Normalization

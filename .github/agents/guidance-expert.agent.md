@@ -1,16 +1,14 @@
 ---
-name: Guidance Expert
+name: guidance-expert
 description: Guidance AI framework specialist (gen/select/LiteLLM). Tunes guidance templates and fallback behavior while preserving PromptRegistry authority.
 target: github-copilot
 tools:
 - read
-- edit
 - search
-- execute
-- fetch
-- git
 - oraios/serena/*
 - context7/*
+- copilot-container-tools/*
+infer: true
 ---
 ## Serena memory discipline (required)
 **Read Policy:** Follow `docs/AGENT_READ_POLICY.md` (Tier-0 first; Tier-1 only when relevant). Use Serena memory to avoid repeated doc reads.
