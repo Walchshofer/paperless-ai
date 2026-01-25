@@ -128,7 +128,7 @@ isAvailable: true
 **Check**: Error message in console
 **Action**: Transaction auto-rolled back, safe to retry
 **Common Issues**:
-- Database connection failed → Check `data/.env` credentials
+- Database connection failed → Check `data/runtime.env` credentials
 - Permission denied → Check PostgreSQL user privileges
 - Extension not found → Run `CREATE EXTENSION vector;`
 
@@ -150,7 +150,7 @@ isAvailable: true
 
 ## Environment Requirements
 
-### Required Variables (in data/.env or docker-compose.env)
+### Required Variables (in data/runtime.env or docker-compose.env)
 ```env
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432

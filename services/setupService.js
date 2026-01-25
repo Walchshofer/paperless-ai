@@ -8,7 +8,8 @@ const logger = require('./logger');
 
 class SetupService {
   constructor() {
-    this.envPath = path.join(process.cwd(), 'data', '.env');
+    // Runtime environment file persisted by the app (renamed from data/.env ➜ data/runtime.env)
+    this.envPath = path.join(process.cwd(), 'data', 'runtime.env');
     this.configured = null; // Variable to store the configuration status
   }
 

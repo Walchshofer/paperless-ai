@@ -25,7 +25,8 @@ const { DocumentProcessor } = require('../services/integration/DocumentProcessor
 const { qdrantAdapter } = require('../services/visual-rag-client/QdrantAdapter');
 const axios = require('axios');
 const config = require('../config/config.js');
-require('dotenv').config({ path: '../data/.env' });
+// Load runtime env persisted by setup (renamed to data/runtime.env)
+require('dotenv').config({ path: '../data/runtime.env' });
 
 // Simple in-memory cache for expert models to avoid frequent registry scans
 const _expertModelsCache = {
