@@ -27,6 +27,12 @@ test('OverlayViewer updates page when manual preview page changes (smoke)', asyn
 
   await page.goto('/manual');
 
+  // Ensure the test-side safeguard removed any initial setup modal so E2E can proceed
+  const setupSelector = 'body :is(#setupForm, form#setupForm, [data-page="setup"], .modal[role="dialog"])';
+  // Small grace period for global-setup actions to run (should be already handled)
+  await page.waitForTimeout(200);
+  await expect(page.locator(setupSelector)).toHaveCount(0);
+
   // Ensure the overlay anchor is present and mount islands (test-only injection)
   await page.evaluate(() => {
     if (!document.querySelector('[data-testid="overlay-viewer-island"]')) {
@@ -122,4 +128,21 @@ test('OverlayViewer updates page when manual preview page changes (smoke)', asyn
   const src2 = await docImage.getAttribute('src');
   expect(src2).toContain('/documents/42/download/original/');
   expect(src2).toContain('page=2');
+
+  // Reset to Page 1 and verify navigation using the island controls (E2E)
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('overlay:document-changed', { detail: { documentId: 42, page: 1, originalUrl: '/documents/42/download/original/' } }));
+  });
+  await expect(page.locator('text=Page 1')).toBeVisible();
+
+  // Click next in the island and assert page changed and image updated
+  await page.click('[data-testid="overlay-next-page"]');
+  await expect(page.locator('text=Page 2')).toBeVisible();
+  const srcAfterClick = await docImage.getAttribute('src');
+  expect(srcAfterClick).toContain('/documents/42/download/original/');
+  expect(srcAfterClick).toContain('page=2');
+
+  // Click prev and assert we return to Page 1
+  await page.click('[data-testid="overlay-prev-page"]');
+  await expect(page.locator('text=Page 1')).toBeVisible();
 });
