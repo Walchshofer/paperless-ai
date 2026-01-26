@@ -6,19 +6,47 @@
     <title>Paperless-AI Dashboard</title>
     <script src="https://cdn.tailwindcss.com/3.4.16"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.0/css/all.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap">
     <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/self-guiding.css">
     <link rel="stylesheet" href="css/overlay-viewer.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
 </head>
 <body class="h-full">
     <% /* Ensure `vm` exists to avoid ReferenceError when rendering anchors in environments without view model */ %>
     <% var vm = typeof vm !== 'undefined' ? vm : {}; %>
+    <% var manualVm = vm.manual || {}; %>
     <% var manualProps = {
-         documentId: vm.documentId || null,
-         metadata: vm.metadata || {},
-         content: vm.content || '',
-         fields: vm.fields || [],
-         originalUrl: vm.original_url || null
+         documentId: manualVm.documentId || null,
+         metadata: manualVm.metadata || {},
+         content: manualVm.content || '',
+         fields: manualVm.fields || [],
+         originalUrl: manualVm.originalUrl || null
+       }; %>
+    <% var viewModeProps = {
+         documentId: manualProps.documentId,
+         mode: 'text',
+         visualEnabled: true
+       }; %>
+    <% var tagsProps = {
+         documentId: manualProps.documentId,
+         currentTags: manualVm.tags || [],
+         suggestedTags: [],
+         availableTags: []
+       }; %>
+    <% var aiAnalysisProps = {
+         documentId: manualProps.documentId,
+         content: manualProps.content || '',
+         gpuState: 'idle'
+       }; %>
+    <% var manualWorkspaceProps = {
+         documentId: manualProps.documentId,
+         content: manualProps.content || '',
+         title: (manualProps.metadata && manualProps.metadata.title) || null,
+         correspondent: (manualProps.metadata && manualProps.metadata.correspondent) || null,
+         tags: manualVm.tags || [],
+         originalUrl: manualProps.originalUrl || null,
+         pageCount: manualVm.pageCount || null
        }; %>
     <button id="themeToggle" class="theme-toggle">
         <i class="fas fa-moon dark:fas fa-sun"></i>
@@ -33,7 +61,7 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <img src="/favicon.ico" class="no-invert" alt="Paperless AI Logo" style="height: 60px;">
-                <h1 class="brand-title">Paperless-AI<small style="display: block;"><%= version %></small></h1>
+                <h1 class="brand-title">Paperless-AI<small style="display: block;"><%= vm.version || '' %></small></h1>
             </div>
 
             <nav class="sidebar-nav">
@@ -106,59 +134,22 @@
 
         <!-- Main Content -->
         <main class="main-content">
-            <div class="content-wrapper">
-                <!-- Message Area -->
-                <div id="messageArea" class="mb-6 hidden">
-                    <!-- Messages will be inserted here -->
-                </div>
-                <div id="visualFallbackBanner" class="mb-6 hidden rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    Visual analysis is unavailable. Showing text-only results. Visual evidence required for full validation.
-                </div>
+            <div class="content-wrapper sg-shell">
+                <div
+                    data-island="manual-workspace-island"
+                    data-testid="manual-workspace-island"
+                    data-props="<%= JSON.stringify(manualWorkspaceProps) %>"
+                ></div>
 
                 <!-- Island anchors (auditable via data-testid) -->
                 <div data-island="visual-annotation-island" data-testid="visual-annotation-island" data-props="<%= JSON.stringify({ documentId: manualProps.documentId }) %>"></div>
                 <div data-island="feedback-controls-island" data-testid="feedback-controls-island" data-props="<%= JSON.stringify({ documentId: manualProps.documentId }) %>"></div>
-                <div data-island="manual-editor-island" data-testid="manual-editor-island" data-props="<%= JSON.stringify(manualProps) %>">
-                  <!-- Server-side placeholder for Manual Editor Island -->
-                  <div data-testid="manual-editor-island-root">
-                    <div role="tablist" aria-label="Manual Editor Tabs" style="display:flex;gap:8px;margin-bottom:8px">
-                      <button role="tab" data-testid="tab-metadata" aria-selected="true" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">Metadata</button>
-                      <button role="tab" data-testid="tab-content" aria-selected="false" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">Content</button>
-                      <button role="tab" data-testid="tab-fields" aria-selected="false" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">Fields</button>
-                      <button role="tab" data-testid="tab-ai-debug" aria-selected="false" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">AI Debug</button>
-                    </div>
-                    <div id="manual-editor-panel">
-                      <div data-panel="metadata" data-testid="panel-metadata">
-                        <label>Title <input data-testid="manual-title-input" type="text"/></label>
-                      </div>
-                      <div data-panel="content" data-testid="panel-content" style="display:none">
-                        <textarea data-testid="manual-content-input" rows="4" style="width:100%"></textarea>
-                      </div>
-                      <div data-panel="fields" data-testid="panel-fields" style="display:none">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                          <span>Custom Fields</span>
-                          <button data-testid="add-field-btn" type="button">+ Add Field</button>
-                        </div>
-                        <div data-testid="field-row-0">
-                          <input data-testid="field-name-0" placeholder="Field name"/>
-                          <input data-testid="field-value-0" placeholder="Field value"/>
-                          <button data-testid="remove-field-0" type="button">×</button>
-                        </div>
-                      </div>
-                      <div data-panel="ai-debug" data-testid="panel-ai-debug" style="display:none">
-                        <div>AI Debug information will appear here (GPU state dependent)</div>
-                      </div>
-                    </div>
-                    <div style="margin-top:8px">
-                      <button data-testid="manual-save-btn">Save</button>
-                    </div>
-                  </div>
-                </div>
+                <div data-island="manual-editor-island" data-testid="manual-editor-island" data-props="<%= JSON.stringify(manualProps) %>"></div>
         
                 <!-- Document Selection -->
                 <div class="material-card mb-6">
                     <h2 class="card-title">Select Document</h2>
-                    <select id="documentSelect" class="w-full rounded-md border-border-color bg-bg-primary text-text-primary p-2 focus:border-accent-primary focus:ring-accent-primary">
+                    <select id="documentSelect" data-testid="manual-document-select" class="w-full rounded-md border-border-color bg-bg-primary text-text-primary p-2 focus:border-accent-primary focus:ring-accent-primary">
                         <option value="">Choose a document...</option>
                     </select>
                 </div>
@@ -169,14 +160,11 @@
                     <div class="material-card col-span-2">
                         <div class="flex justify-between items-center mb-4">
                             <h2 class="card-title mb-0">Document Preview</h2>
-                            <div class="flex gap-2">
-                                <button id="viewTextBtn" data-testid="view-text-btn" class="px-3 py-1 text-sm bg-accent-primary text-white rounded hover:bg-accent-secondary transition-colors">
-                                    <i class="fas fa-file-alt mr-1"></i> Text
-                                </button>
-                                <button id="viewVisualBtn" data-testid="view-visual-btn" class="px-3 py-1 text-sm bg-bg-secondary text-text-primary border border-border-color rounded hover:bg-hover-bg transition-colors">
-                                    <i class="fas fa-image mr-1"></i> Visual
-                                </button>
-                            </div>
+                            <div
+                                data-island="view-mode-toggle-island"
+                                data-testid="view-mode-toggle-island"
+                                data-props="<%= JSON.stringify(viewModeProps) %>"
+                            ></div>
                         </div>
                         <!-- Correspondent Info -->
                         <div id="correspondentInfo" class="stat-box mb-4 hidden">
@@ -191,32 +179,20 @@
                         <!-- Text Preview (default) -->
                         <div id="textPreviewSection" class="stat-box">
                             <div id="documentPreview" class="min-h-[600px] bg-bg-primary rounded border border-border-color p-4">
-                                <div id="contentPreview" class="h-[600px] overflow-y-auto font-mono text-sm whitespace-pre-wrap"></div>
+                                <div id="contentPreview" data-testid="manual-content-preview" class="h-[600px] overflow-y-auto font-mono text-sm whitespace-pre-wrap"></div>
                             </div>
                         </div>
 
                         <!-- Visual Preview with Overlays (hidden by default) -->
                         <div id="visualPreviewSection" class="stat-box hidden">
-                            <!-- Page Navigation -->
-                            <div id="pageNavigation" class="flex items-center justify-center gap-4 mb-3 hidden">
-                                <button id="prevPage" data-testid="prev-page-btn" class="px-3 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <i class="fas fa-chevron-left"></i>
-                                </button>
-                                <span id="pageIndicator" data-testid="manual-overlay-page-indicator" class="text-sm text-text-secondary">Page 1 of 1</span>
-                                <button id="nextPage" data-testid="next-page-btn" class="px-3 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <i class="fas fa-chevron-right"></i>
-                                </button>
-                                <span class="text-xs text-text-secondary ml-2">@ 300 DPI</span>
-                            </div>
                             <div class="flex flex-col lg:flex-row gap-4">
                                 <div id="overlayContainer" class="flex-1 min-h-[600px] bg-bg-primary rounded border border-border-color p-4 overflow-auto">
-                                    <div data-island="overlay-viewer-island" data-testid="overlay-viewer-island" data-props="<%= JSON.stringify({ documentId: manualProps.documentId, page: 1, originalUrl: manualProps.originalUrl }) %>"></div>
+                                    <div
+                                        data-island="overlay-viewer-island"
+                                        data-testid="overlay-viewer-island"
+                                        data-props="<%= JSON.stringify({ documentId: manualProps.documentId, page: 1, originalUrl: manualProps.originalUrl, pageCount: manualVm.pageCount || null, overlayMode: 'document', showLegend: true, allowSelection: true, images: manualVm.images || [], overlaysByImage: manualVm.overlaysByImage || {} }) %>"
+                                    ></div>
                                 </div>
-                                <div id="overlayLegendContainer" class="lg:w-64 flex-shrink-0"></div>
-                            </div>
-                            <div id="overlayStats" class="mt-3 text-sm text-text-secondary hidden">
-                                <span id="overlayCount">0</span> fields detected
-                                <span id="mandatoryCount" class="ml-2 text-orange-500"></span>
                             </div>
                         </div>
                     </div>
@@ -226,658 +202,27 @@
                         <!-- AI Analysis Card -->
                         <div class="material-card mb-6">
                             <h2 class="card-title">AI Analysis</h2>
-                            <button id="analyzeBtn" data-testid="analyze-btn"
-                                    class="w-full flex justify-center items-center px-4 py-2 border border-border-color rounded-md shadow-sm text-sm font-medium text-text-primary bg-bg-primary hover:bg-hover-bg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-primary transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" 
-                                    disabled>
-                                    <i class="fas fa-robot mr-2"></i>
-                                    Analyze with AI
-                            </button>
-                            <button id="chatBtn" data-testid="open-chat-btn"
-                                    class="mt-2 w-full flex justify-center items-center px-4 py-2 border border-border-color rounded-md shadow-sm text-sm font-medium text-text-primary bg-bg-primary hover:bg-hover-bg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-primary transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    disabled>
-                                    <i class="fas fa-comment mr-2"></i>
-                                    Chat with AI (Beta)
-                            </button>
-                            <button id="analyzeVisualBtn" data-testid="analyze-visual-btn"
-                                    class="mt-2 w-full flex justify-center items-center px-4 py-2 border border-accent-primary rounded-md shadow-sm text-sm font-medium text-accent-primary bg-bg-primary hover:bg-accent-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-primary transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    disabled>
-                                    <i class="fas fa-eye mr-2"></i>
-                                    Visual Analysis (Expert Pipeline)
-                            </button>
-                            <div id="aiStatus" class="mt-4 hidden">
-                                <div class="flex items-center">
-                                    <div class="mr-3">
-                                        <i class="fas fa-spinner fa-spin text-accent-primary"></i>
-                                    </div>
-                                    <div class="text-sm text-text-secondary">
-                                        AI is analyzing the document...
-                                    </div>
-                                </div>
-                            </div>
+                            <div
+                                data-island="ai-analysis-island"
+                                data-testid="ai-analysis-island"
+                                data-props="<%= JSON.stringify(aiAnalysisProps) %>"
+                            ></div>
                         </div>
         
                         <!-- Tags Card -->
                         <div class="material-card">
                             <h2 class="card-title">Tags</h2>
-                            <!-- AI Suggested Tags -->
-                            <div class="mb-4">
-                                <h3 class="text-sm font-medium text-text-secondary mb-2">AI Suggestions</h3>
-                                <div id="suggestedTags" class="flex flex-wrap gap-2"></div>
-                                <input type="hidden" id="tags" name="tags" value="">
-                            </div>
-        
-                            <!-- Current Tags -->
-                            <div class="mb-4">
-                                <div class="flex justify-between items-center mb-2">
-                                    <h3 class="text-sm font-medium text-text-secondary">Current Tags</h3>
-                                    <button id="saveTagsBtn" data-testid="save-tags-btn"
-                                            class="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200">
-                                        Save Tags
-                                    </button>
-                                </div>
-                                <div id="currentTags" class="flex flex-wrap gap-2"></div>
-                            </div>
-        
-                            <!-- Add New Tag -->
-                            <div>
-                                <h3 class="text-sm font-medium text-text-secondary mb-2">Add New Tag</h3>
-                                <div class="flex space-x-2">
-                                    <select id="newTagSelect" class="flex-1 rounded-md border-border-color bg-bg-primary text-text-primary focus:border-accent-primary focus:ring-accent-primary">
-                                        <option value="">Select a tag...</option>
-                                    </select>
-                                    <button id="addTagBtn" class="inline-flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-accent-primary hover:bg-accent-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-primary transition-all duration-200">
-                                        <i class="fas fa-plus"></i>
-                                    </button>
-                                    <input type="hidden" id="hiddenId" value="">
-                                </div>
-                            </div>
+                            <div
+                                data-island="tags-manager-island"
+                                data-testid="tags-manager-island"
+                                data-props="<%= JSON.stringify(tagsProps) %>"
+                            ></div>
                         </div>
                     </div>
                 </div>
             </div>
         </main>
     </div>
-    <script>
-// Global Variables
-let availableTags = [];
-let currentDocument = null;
-let currentCorrespondent = null;
-let isUpdating = false;
-
-// Show message (error or success)
-function showMessage(message, type = 'error') {
-    const messageArea = document.getElementById('messageArea');
-    const bgColor = type === 'error' ? 'bg-red-50' : 'bg-green-50';
-    const textColor = type === 'error' ? 'text-red-700' : 'text-green-700';
-    const borderColor = type === 'error' ? 'border-red-200' : 'border-green-200';
-    const iconClass = type === 'error' ? 'fa-exclamation-circle text-red-400' : 'fa-check-circle text-green-400';
-
-    messageArea.className = `mb-4 p-4 rounded-md ${bgColor} border ${borderColor}`;
-    messageArea.innerHTML = `
-        <div class="flex">
-            <div class="flex-shrink-0">
-                <i class="fas ${iconClass}"></i>
-            </div>
-            <div class="ml-3">
-                <p class="text-sm ${textColor}">${message}</p>
-            </div>
-        </div>
-    `;
-    messageArea.classList.remove('hidden');
-
-    setTimeout(() => {
-        messageArea.classList.add('hidden');
-    }, 5000);
-}
-
-// API Functions
-async function fetchTags() {
-    try {
-        const response = await fetch('/manual/tags');
-        if (!response.ok) throw new Error('Failed to fetch tags');
-        const tags = await response.json();
-        availableTags = tags;
-        updateTagSelect(tags);
-    } catch (error) {
-        showMessage('Error loading tags: ' + error.message);
-    }
-}
-
-async function fetchDocuments() {
-    try {
-        const response = await fetch('/manual/documents');
-        if (!response.ok) throw new Error('Failed to fetch documents');
-        const documents = await response.json();
-        updateDocumentSelect(documents);
-    } catch (error) {
-        showMessage('Error loading documents: ' + error.message);
-    }
-}
-
-// UI Update Functions
-function updateDocumentSelect(documents) {
-    if (!Array.isArray(documents)) return;
-    const select = document.getElementById('documentSelect');
-    select.innerHTML = '<option value="">Choose a document...</option>';
-    documents.forEach(doc => {
-        const option = document.createElement('option');
-        option.value = doc.id;
-        option.textContent = doc.title || doc.original_filename || `Document ${doc.id}`;
-        select.appendChild(option);
-    });
-}
-
-function updateTagSelect(tags) {
-    if (!Array.isArray(tags)) return;
-    const select = document.getElementById('newTagSelect');
-    select.innerHTML = '<option value="">Select a tag...</option>';
-    tags.forEach(tag => {
-        const option = document.createElement('option');
-        option.value = tag.id;
-        option.textContent = tag.name;
-        select.appendChild(option);
-    });
-}
-
-function updateCorrespondentDisplay(correspondent) {
-    const correspondentInfo = document.getElementById('correspondentInfo');
-    const correspondentName = document.getElementById('correspondentName');
-    
-    if (correspondent) {
-        correspondentName.textContent = correspondent.name || correspondent;
-        correspondentInfo.classList.remove('hidden');
-        currentCorrespondent = correspondent;
-    } else {
-        correspondentInfo.classList.add('hidden');
-        currentCorrespondent = null;
-    }
-}
-
-function updateTitleDisplay(title) {
-    const titleInfo = document.getElementById('titleInfo');
-    const titleName = document.getElementById('titleName');
-    
-    if (title) {
-        titleName.textContent = title.name || title;
-        titleInfo.classList.remove('hidden');
-    } else {
-        titleInfo.classList.add('hidden');
-    }
-}
-
-function updateSuggestedTags(tags) {
-    if (!Array.isArray(tags)) return;
-    
-    const suggestedTags = document.getElementById('suggestedTags');
-    suggestedTags.innerHTML = '';
-    
-    tags.forEach(tag => {
-        const tagElement = createTagElement(tag, 'blue', true);
-        if (tagElement) {
-            suggestedTags.appendChild(tagElement);
-        }
-    });
-}
-
-// Tag Management Functions
-function createTagElement(tag, color = 'gray', isSuggested = false) {
-    if (!tag) return null;
-
-    // If tag is just an ID string/number, look up the full tag object in availableTags
-    let fullTag = tag;
-    if (typeof tag === 'string' || typeof tag === 'number') {
-        fullTag = availableTags.find(t => t.id === parseInt(tag)) || { id: tag, name: tag };
-    }
-
-    const tagId = fullTag.id;
-    const tagName = fullTag.name;
-
-    const tagElement = document.createElement('span');
-    tagElement.className = `inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-${color}-100 text-${color}-800`;
-    tagElement.dataset.tagId = tagId;
-    
-    const nameSpan = document.createElement('span');
-    nameSpan.textContent = tagName;
-    tagElement.appendChild(nameSpan);
-
-    const removeButton = document.createElement('button');
-    removeButton.className = `ml-1 text-${color}-600 hover:text-${color}-800`;
-    removeButton.innerHTML = '<i class="fas fa-times"></i>';
-    removeButton.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        tagElement.remove();
-        updateHiddenTagsInput(); // Update hidden input when tag is removed
-    };
-    tagElement.appendChild(removeButton);
-
-    if (isSuggested) {
-        const addButton = document.createElement('button');
-        addButton.className = `ml-1 text-${color}-600 hover:text-${color}-800`;
-        addButton.innerHTML = '<i class="fas fa-plus"></i>';
-        addButton.onclick = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const newTag = createTagElement(tag);
-            if (newTag) {
-                document.getElementById('currentTags').appendChild(newTag);
-                updateHiddenTagsInput(); // Update hidden input when tag is added
-                tagElement.remove();
-            }
-        };
-        tagElement.appendChild(addButton);
-    }
-
-    return tagElement;
-}
-
-// Function to update the hidden input field with current tags
-function updateHiddenTagsInput() {
-    const currentTagElements = document.getElementById('currentTags').children;
-    const tagIds = Array.from(currentTagElements)
-        .map(el => el.dataset.tagId)
-        .filter(id => id); // Filter out any undefined/null values
-
-    // Update the hidden input field
-    const hiddenInput = document.getElementById('tags');
-    if (hiddenInput) {
-        hiddenInput.value = tagIds.join(',');
-    }
-}
-
-// Document Handling Functions
-async function handleDocumentSelection(documentId) {
-    if (!documentId) {
-        document.getElementById('analyzeBtn').disabled = true;
-        document.getElementById('chatBtn').disabled = true;
-        document.getElementById('analyzeVisualBtn').disabled = true;
-        document.getElementById('contentPreview').textContent = '';
-        document.getElementById('currentTags').innerHTML = '';
-        document.getElementById('suggestedTags').innerHTML = '';
-        updateHiddenTagsInput(); // Clear hidden input when no document is selected
-        // Clear fields panel
-        dispatchDocumentFields([]);
-        return;
-    }
-
-    currentDocument = documentId;
-    document.getElementById('analyzeBtn').disabled = false;
-    document.getElementById('chatBtn').disabled = false;
-    document.getElementById('analyzeVisualBtn').disabled = false;
-
-    try {
-        const response = await fetch(`/manual/preview/${documentId}`);
-        if (!response.ok) throw new Error('Failed to fetch document content');
-        const data = await response.json();
-
-        if (!data.content) {
-            throw new Error('Document content is missing');
-        }
-
-        document.getElementById('contentPreview').textContent = data.content || 'No content available';
-        document.getElementById('hiddenId').value = data.id;
-
-        document.getElementById('currentTags').innerHTML = '';
-        document.getElementById('suggestedTags').innerHTML = '';
-
-        if (data.tags && Array.isArray(data.tags)) {
-            const currentTagsContainer = document.getElementById('currentTags');
-            data.tags.forEach(tag => {
-                const tagElement = createTagElement(tag, 'gray', false);
-                if (tagElement) {
-                    currentTagsContainer.appendChild(tagElement);
-                }
-            });
-            updateHiddenTagsInput(); // Update hidden input with initial tags
-        }
-
-        updateCorrespondentDisplay(data.correspondent);
-        updateTitleDisplay(data.title);
-
-        // Update overlay count badge
-        if (data.overlayCount !== undefined) {
-            const overlayCountEl = document.getElementById('overlayCount');
-            if (overlayCountEl) {
-                overlayCountEl.textContent = data.overlayCount;
-            }
-        }
-
-        // Populate ManualEditorIsland fields tab with visual fields
-        if (data.visualFields && data.visualFields.length > 0) {
-            dispatchDocumentFields(data.visualFields);
-        } else if (data.customFields && data.customFields.length > 0) {
-            // Fall back to Paperless custom fields
-            const fields = data.customFields.map(cf => ({
-                label: cf.field?.name || `Field ${cf.field}`,
-                value: cf.value || '',
-                domain: 'PAPERLESS',
-                confidence: 1.0
-            }));
-            dispatchDocumentFields(fields);
-        } else {
-            dispatchDocumentFields([]);
-        }
-
-        // Update ManualEditorIsland with title and content
-        dispatchDocumentMetadata({
-            title: data.title,
-            content: data.content,
-            correspondent: data.correspondent,
-            pageCount: data.pageCount || 1
-        });
-
-        // Notify overlay viewer island about the selected document (original url + page)
-        // Initialize page navigation controls and dispatch the current page (default 1)
-        const originalUrl = data.original_url || null;
-        let currentPage = 1;
-        const pageCount = data.pageCount || 1;
-
-        // Update page navigation UI
-        const pageNav = document.getElementById('pageNavigation');
-        const pageIndicator = document.getElementById('pageIndicator');
-        const prevBtn = document.getElementById('prevPage');
-        const nextBtn = document.getElementById('nextPage');
-
-        if (pageNav) {
-          pageNav.classList.toggle('hidden', pageCount <= 1);
-        }
-        if (pageIndicator) {
-          pageIndicator.textContent = `Page ${currentPage} of ${pageCount}`;
-        }
-        if (prevBtn) prevBtn.disabled = currentPage <= 1;
-        if (nextBtn) nextBtn.disabled = currentPage >= pageCount;
-
-        function dispatchOverlayDocumentChanged() {
-          window.dispatchEvent(new CustomEvent('overlay:document-changed', {
-            detail: { documentId: data.id, page: currentPage, originalUrl }
-          }));
-        }
-
-        if (prevBtn) {
-          prevBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (currentPage > 1) {
-              currentPage -= 1;
-              if (pageIndicator) pageIndicator.textContent = `Page ${currentPage} of ${pageCount}`;
-              if (prevBtn) prevBtn.disabled = currentPage <= 1;
-              if (nextBtn) nextBtn.disabled = currentPage >= pageCount;
-              dispatchOverlayDocumentChanged();
-            }
-          });
-        }
-
-        if (nextBtn) {
-          nextBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (currentPage < pageCount) {
-              currentPage += 1;
-              if (pageIndicator) pageIndicator.textContent = `Page ${currentPage} of ${pageCount}`;
-              if (prevBtn) prevBtn.disabled = currentPage <= 1;
-              if (nextBtn) nextBtn.disabled = currentPage >= pageCount;
-              dispatchOverlayDocumentChanged();
-            }
-          });
-        }
-
-        // Dispatch initial event so the island can load the first page
-        dispatchOverlayDocumentChanged();
-
-    } catch (error) {
-        showMessage('Error loading document content: ' + error.message);
-    }
-}
-
-// Dispatch fields to ManualEditorIsland
-function dispatchDocumentFields(fields) {
-    const fieldsPanel = document.querySelector('[data-testid="panel-fields"]');
-    if (!fieldsPanel) return;
-
-    // Generate field rows HTML
-    const fieldRowsHtml = fields.map((field, idx) => `
-        <div data-testid="field-row-${idx}" class="flex gap-2 items-center mb-2">
-            <input data-testid="field-name-${idx}" value="${field.label || ''}" placeholder="Field name" class="flex-1 px-2 py-1 border rounded text-sm"/>
-            <input data-testid="field-value-${idx}" value="${field.value || ''}" placeholder="Field value" class="flex-1 px-2 py-1 border rounded text-sm"/>
-            <span class="text-xs text-gray-400" title="Confidence: ${((field.confidence || 0) * 100).toFixed(0)}%">${field.domain || 'GENERAL'}</span>
-            <button data-testid="remove-field-${idx}" type="button" class="text-red-500 hover:text-red-700">×</button>
-        </div>
-    `).join('');
-
-    // Update fields panel content
-    fieldsPanel.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <span class="font-medium">${fields.length} Fields Detected</span>
-            <button data-testid="add-field-btn" type="button" class="text-sm text-blue-600 hover:text-blue-800">+ Add Field</button>
-        </div>
-        ${fieldRowsHtml || '<p class="text-gray-500 text-sm">No fields detected. Run Visual Analysis to extract fields.</p>'}
-    `;
-
-    // Dispatch custom event for React island sync
-    window.dispatchEvent(new CustomEvent('manual:fields-updated', {
-        detail: { fields, documentId: currentDocument }
-    }));
-}
-
-// Dispatch metadata to ManualEditorIsland
-function dispatchDocumentMetadata(metadata) {
-    // Update title input if exists
-    const titleInput = document.querySelector('[data-testid="manual-title-input"]');
-    if (titleInput && metadata.title) {
-        titleInput.value = metadata.title;
-    }
-
-    // Update content textarea if exists
-    const contentInput = document.querySelector('[data-testid="manual-content-input"]');
-    if (contentInput && metadata.content) {
-        contentInput.value = metadata.content.substring(0, 10000); // Limit for textarea
-    }
-
-    // Dispatch custom event for React island sync
-    window.dispatchEvent(new CustomEvent('manual:metadata-updated', {
-        detail: metadata
-    }));
-}
-
-// Analysis Functions
-async function handleAnalysis() {
-    if (!currentDocument) return;
-
-    const aiStatus = document.getElementById('aiStatus');
-    aiStatus.classList.remove('hidden');
-    
-    try {
-        let content = document.getElementById('contentPreview').textContent;
-        
-        if (!content || content === 'No content available') {
-            throw new Error('No document content available for analysis');
-        }
-
-        if(content.length > 50000) {
-            content = content.substring(0, 50000);
-        }
-
-        const currentTagElements = document.getElementById('currentTags').children;
-        const documentId = document.getElementById('hiddenId').value;
-        const existingTags = Array.from(currentTagElements)
-            .map(el => el.dataset.tagId)
-            .filter(id => !isNaN(parseInt(id)))
-            .map(id => parseInt(id));
-
-        const response = await fetch('/manual/analyze', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                content: content,
-                existingTags: existingTags,
-                correspondent: currentCorrespondent,
-                id: documentId
-            })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Analysis failed');
-        }
-
-        const result = await response.json();
-
-        let suggestedTags = [];
-        if (result.document && result.document.tags) {
-            suggestedTags = result.document.tags.map(tag => ({
-                id: tag,
-                name: tag
-            }));
-        }
-
-        updateSuggestedTags(suggestedTags);
-
-        if (result.document && result.document.correspondent) {
-            updateCorrespondentDisplay(result.document.correspondent);
-            updateTitleDisplay(result.document.title);
-        }
-        showMessage('Analysis completed successfully', 'success');
-    } catch (error) {
-        showMessage('Error during analysis: ' + error.message);
-        console.error('Analysis error:', error);
-    } finally {
-        aiStatus.classList.add('hidden');
-    }
-}
-
-async function handleChat() {
-    const documentId = document.getElementById('hiddenId').value;
-
-    window.location.href= `/chat?open=${documentId}`
-}
-
-async function updateDocumentTags() {
-    if (!currentDocument || isUpdating) return;
-
-    isUpdating = true;
-    try {
-        const titleElement = document.getElementById('titleName');
-        const tagsElement = document.getElementById('tags');
-        
-        // Add null checks
-        const titleValue = titleElement ? titleElement.textContent : '';
-        const tagIds = tagsElement && tagsElement.value ? tagsElement.value.split(',').filter(id => id) : [];
-
-        const response = await fetch('/manual/updateDocument', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                documentId: currentDocument,
-                tags: tagIds,
-                correspondent: currentCorrespondent,
-                title: titleValue
-            })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to update document');
-        }
-
-        const result = await response.json();
-        showMessage('Tags updated successfully', 'success');
-    } catch (error) {
-        showMessage('Error updating tags: ' + error.message);
-        console.error('Update error:', error);
-    } finally {
-        isUpdating = false;
-    }
-}
-
-
-// Initialize everything when the DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    // Document selection
-    document.getElementById('documentSelect').addEventListener('change', (e) => {
-        handleDocumentSelection(e.target.value);
-    });
-
-    // Analyze button
-    document.getElementById('analyzeBtn').addEventListener('click', handleAnalysis);
-
-    // Chat button
-    document.getElementById('chatBtn').addEventListener('click', handleChat);
-
-    // Save tags button
-    document.getElementById('saveTagsBtn').addEventListener('click', updateDocumentTags);
-
-    // Add tag button
-    document.getElementById('addTagBtn').addEventListener('click', (e) => {
-        e.preventDefault();
-        const select = document.getElementById('newTagSelect');
-        const tagId = select.value;
-        if (!tagId) return;
-
-        const tag = availableTags.find(t => t.id === parseInt(tagId));
-        if (tag) {
-            const tagElement = createTagElement(tag);
-            if (tagElement) {
-                document.getElementById('currentTags').appendChild(tagElement);
-                updateHiddenTagsInput(); // Update hidden input when new tag is added
-                select.value = '';
-            }
-        }
-    });
-
-    // Initial data fetch
-    fetchTags();
-    fetchDocuments();
-
-    const form = document.querySelector('form');
-    if (form) {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            // Serialize form data excluding tags if none are present
-            const formData = serializeFormWithoutEmptyTags(this);
-            
-            // Send form data using fetch
-            fetch(this.action, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(formData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                showMessage('Settings saved successfully', 'success');
-            })
-            .catch(error => {
-                showMessage('Error saving settings: ' + error.message);
-            });
-        });
-    }
-});
-
-function serializeFormWithoutEmptyTags(formElement) {
-    const formData = new FormData(formElement);
-    const currentTags = document.getElementById('currentTags');
-
-    // If there are no visible tags, remove the tags field from form data
-    if (!currentTags || currentTags.children.length === 0) {
-        formData.delete('tags');
-    }
-
-    // Convert FormData to an object
-    const object = {};
-    formData.forEach((value, key) => {
-        // Only include the tags field if we have visible tags
-        if (key !== 'tags' || currentTags.children.length > 0) {
-            object[key] = value;
-        }
-    });
-
-return object;
-}
-    </script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const mobileMenuButton = document.getElementById('mobileMenuButton');
@@ -929,7 +274,8 @@ return object;
     <script>
         // GitHub stars (guarded in tests/CI)
         document.addEventListener('DOMContentLoaded', function() {
-            if (window.__DISABLE_GITHUB_FETCH__ || '<%= config.DISABLE_GITHUB_FETCH %>' === 'true') return;
+            const disableGithubFetch = '<%= (vm.config && vm.config.disableGithubFetch) || 'no' %>' === 'true';
+            if (window.__DISABLE_GITHUB_FETCH__ || disableGithubFetch) return;
 
             async function getStarsCount() {
                 try {
@@ -952,448 +298,5 @@ return object;
         mountIslands(document);
         window.__islandRuntimeMounted = true;
     </script>
-    <script>
-        // Overlay Viewer Integration is now handled by `overlay-viewer-island`.
-        // Legacy overlay scripts removed; islands are the single source of truth for overlays.
-    </script>
-            const visualSection = document.getElementById('visualPreviewSection');
-            const textBtn = document.getElementById('viewTextBtn');
-            const visualBtn = document.getElementById('viewVisualBtn');
-
-            if (mode === 'text') {
-                textSection.classList.remove('hidden');
-                visualSection.classList.add('hidden');
-                textBtn.classList.add('bg-accent-primary', 'text-white');
-                textBtn.classList.remove('bg-bg-secondary', 'text-text-primary', 'border', 'border-border-color');
-                visualBtn.classList.remove('bg-accent-primary', 'text-white');
-                visualBtn.classList.add('bg-bg-secondary', 'text-text-primary', 'border', 'border-border-color');
-            } else {
-                textSection.classList.add('hidden');
-                visualSection.classList.remove('hidden');
-                visualBtn.classList.add('bg-accent-primary', 'text-white');
-                visualBtn.classList.remove('bg-bg-secondary', 'text-text-primary', 'border', 'border-border-color');
-                textBtn.classList.remove('bg-accent-primary', 'text-white');
-                textBtn.classList.add('bg-bg-secondary', 'text-text-primary', 'border', 'border-border-color');
-
-                // Load overlays if not already loaded and document is selected
-                if (!overlaysLoaded && currentDocument) {
-                    loadVisualOverlays(currentDocument);
-                }
-            }
-        }
-
-        async function loadVisualOverlays(docId) {
-            if (!docId) return;
-
-            const container = document.getElementById('overlayContainer');
-            const loading = document.getElementById('overlayLoading');
-            const legendContainer = document.getElementById('overlayLegendContainer');
-            const statsEl = document.getElementById('overlayStats');
-            const pageNav = document.getElementById('pageNavigation');
-
-            loading.classList.remove('hidden');
-            container.innerHTML = '';
-            container.appendChild(loading);
-
-            try {
-                // Get page count first
-                if (cachedPageCount === null) {
-                    const infoRes = await fetch(`/api/document/${docId}/page-count`);
-                    if (infoRes.ok) {
-                        const info = await infoRes.json();
-                        totalPages = info.pageCount || 1;
-                        cachedPageCount = totalPages;
-                    } else {
-                        totalPages = 1;
-                        cachedPageCount = 1;
-                    }
-                } else {
-                    totalPages = cachedPageCount;
-                }
-
-                currentPage = 1;
-
-                // Load the first page at high resolution
-                await loadPageImage(docId, currentPage);
-
-                // Update page navigation
-                updatePageNavigation();
-
-                overlaysLoaded = true;
-            } catch (error) {
-                console.error('Failed to load visual overlays:', error);
-                loading.classList.add('hidden');
-                container.innerHTML = `<div class="text-center text-red-500 py-8">Failed to load visual preview: ${error.message}</div>`;
-            }
-        }
-
-        async function loadPageImage(docId, page) {
-            const container = document.getElementById('overlayContainer');
-            const loading = document.getElementById('overlayLoading');
-            const legendContainer = document.getElementById('overlayLegendContainer');
-            const statsEl = document.getElementById('overlayStats');
-
-            // Show loading
-            loading.classList.remove('hidden');
-
-            try {
-                // Render high-res image for this page
-                const renderRes = await fetch(`/api/document/${docId}/render?page=${page}&dpi=300`);
-                if (!renderRes.ok) throw new Error('Failed to render page');
-
-                const renderData = await renderRes.json();
-
-                // Create image from base64
-                const img = new Image();
-                img.src = `data:image/png;base64,${renderData.image}`;
-                img.style.maxWidth = '100%';
-                img.style.height = 'auto';
-
-                await new Promise((resolve, reject) => {
-                    img.onload = resolve;
-                    img.onerror = () => reject(new Error('Failed to load rendered image'));
-                });
-
-                // Update total pages if provided
-                if (renderData.totalPages) {
-                    totalPages = renderData.totalPages;
-                }
-
-                // Fetch overlays for this page
-                const overlayRes = await fetch(`/api/visual-rag/overlays/${docId}?page=${page}`);
-                const data = await overlayRes.json();
-
-                loading.classList.add('hidden');
-
-                // Clear container and add image
-                container.innerHTML = '';
-                container.appendChild(img);
-
-                // Initialize overlay viewer
-                if (overlayViewer) {
-                    overlayViewer.destroy();
-                }
-
-                overlayViewer = new OverlayViewer(container, {
-                    onOverlayClick: (overlay) => {
-                        console.log('Clicked overlay:', overlay);
-                    },
-                    onOverlayHover: (overlay) => {
-                        if (overlay && overlayLegend) {
-                            overlayLegend.highlightField(overlay.label.toLowerCase().replace(/\s+/g, '_'));
-                        } else if (overlayLegend) {
-                            overlayLegend.clearHighlights();
-                        }
-                    }
-                });
-
-                overlayViewer.setImage(img);
-
-                if (data.overlays && data.overlays.length > 0) {
-                    const domain = data.overlays[0]?.domain || 'GENERAL';
-                    overlayViewer.setOverlays(data.overlays, domain);
-
-                    // Initialize legend
-                    if (overlayLegend) {
-                        overlayLegend.destroy();
-                    }
-                    overlayLegend = new OverlayLegend(legendContainer, {
-                        domain: domain,
-                        onFilterChange: ({ mandatoryOnly }) => {
-                            overlayViewer.toggleMandatoryOnly(mandatoryOnly);
-                        }
-                    });
-
-                    // Show stats
-                    const stats = overlayViewer.getStats();
-                    document.getElementById('overlayCount').textContent = stats.total;
-                    const mandatoryEl = document.getElementById('mandatoryCount');
-                    if (stats.mandatory > 0) {
-                        mandatoryEl.textContent = `(${stats.mandatory} mandatory)`;
-                    } else {
-                        mandatoryEl.textContent = '';
-                    }
-                    statsEl.classList.remove('hidden');
-                } else {
-                    legendContainer.innerHTML = '';
-                    statsEl.classList.add('hidden');
-                }
-            } catch (error) {
-                console.error('Failed to load page:', error);
-                loading.classList.add('hidden');
-                container.innerHTML = `<div class="text-center text-red-500 py-8">Failed to load page: ${error.message}</div>`;
-            }
-        }
-
-        function updatePageNavigation() {
-            const pageNav = document.getElementById('pageNavigation');
-            const pageIndicator = document.getElementById('pageIndicator');
-            const prevBtn = document.getElementById('prevPage');
-            const nextBtn = document.getElementById('nextPage');
-
-            if (totalPages > 1) {
-                pageNav.classList.remove('hidden');
-                pageIndicator.textContent = `Page ${currentPage} of ${totalPages}`;
-                prevBtn.disabled = currentPage <= 1;
-                nextBtn.disabled = currentPage >= totalPages;
-            } else {
-                pageNav.classList.add('hidden');
-            }
-        }
-
-        // Page navigation handlers
-        document.getElementById('prevPage').addEventListener('click', async () => {
-            if (currentPage > 1 && currentDocument) {
-                currentPage--;
-                await loadPageImage(currentDocument, currentPage);
-                updatePageNavigation();
-            }
-        });
-
-        document.getElementById('nextPage').addEventListener('click', async () => {
-            if (currentPage < totalPages && currentDocument) {
-                currentPage++;
-                await loadPageImage(currentDocument, currentPage);
-                updatePageNavigation();
-            }
-        });
-
-        // Reset overlays when document changes
-        const originalHandleDocumentSelection = handleDocumentSelection;
-        handleDocumentSelection = async function(documentId) {
-            overlaysLoaded = false;
-            cachedPageCount = null; // Reset page count cache
-            currentPage = 1;
-            totalPages = 1;
-
-            if (overlayViewer) {
-                overlayViewer.destroy();
-                overlayViewer = null;
-            }
-            if (overlayLegend) {
-                overlayLegend.destroy();
-                overlayLegend = null;
-            }
-            document.getElementById('overlayContainer').innerHTML = `
-                <div id="overlayLoading" class="flex items-center justify-center h-[400px] text-text-secondary">
-                    <i class="fas fa-spinner fa-spin mr-2"></i> Rendering high-resolution preview...
-                </div>
-            `;
-            document.getElementById('overlayLegendContainer').innerHTML = '';
-            document.getElementById('overlayStats').classList.add('hidden');
-            document.getElementById('pageNavigation').classList.add('hidden');
-
-            await originalHandleDocumentSelection(documentId);
-
-            // Auto-load visual if in visual mode
-            if (currentViewMode === 'visual' && documentId) {
-                loadVisualOverlays(documentId);
-            }
-        };
-
-        // Visual Analysis button handler
-        document.getElementById('analyzeVisualBtn').addEventListener('click', async () => {
-            if (!currentDocument) return;
-
-            const btn = document.getElementById('analyzeVisualBtn');
-            const status = document.getElementById('aiStatus');
-            const statusText = status.querySelector('.text-sm');
-
-            btn.disabled = true;
-            status.classList.remove('hidden');
-            statusText.textContent = 'Running Visual Analysis (Expert Pipeline)...';
-
-            try {
-                const response = await fetch('/manual/analyze-visual', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ docId: currentDocument })
-                });
-
-                const data = await response.json();
-
-                if (!data.success) {
-                    throw new Error(data.error || 'Visual analysis failed');
-                }
-
-                const fallbackBanner = document.getElementById('visualFallbackBanner');
-                if (fallbackBanner) {
-                    const showFallback = Boolean(
-                        data.fallback &&
-                        data.fallback.evidence_source === 'text'
-                    );
-                    fallbackBanner.classList.toggle('hidden', !showFallback);
-                }
-
-                // Update suggested tags
-                const suggestedTagsContainer = document.getElementById('suggestedTags');
-                if (data.result.tags && Array.isArray(data.result.tags)) {
-                    const tagHtml = data.result.tags.map(tag =>
-                        `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent-primary/10 text-accent-primary cursor-pointer hover:bg-accent-primary hover:text-white transition-colors" onclick="addSuggestedTag(this, '${tag}')">${tag}</span>`
-                    ).join('');
-                    suggestedTagsContainer.innerHTML = tagHtml;
-                }
-
-                // Show correspondent suggestion
-                if (data.result.correspondent) {
-                    const correspondentDisplay = document.getElementById('correspondentDisplay');
-                    if (correspondentDisplay) {
-                        correspondentDisplay.textContent = `Suggested: ${data.result.correspondent}`;
-                    }
-                }
-
-                // Reload overlays if in visual mode
-                if (currentViewMode === 'visual') {
-                    overlaysLoaded = false;
-                    cachedPageCount = null;
-                    await loadVisualOverlays(currentDocument);
-                }
-
-                statusText.textContent = `Visual analysis complete! Domain: ${data.result.domain || 'general'}, Overlays: ${data.overlayCount}`;
-                setTimeout(() => {
-                    status.classList.add('hidden');
-                    btn.disabled = false;
-                }, 3000);
-
-            } catch (error) {
-                console.error('Visual analysis error:', error);
-                statusText.textContent = `Error: ${error.message}`;
-                setTimeout(() => {
-                    status.classList.add('hidden');
-                    btn.disabled = false;
-                }, 5000);
-            }
-        });
-    </script>
-
-    <!-- Dev fallback removed. Islands are authoritative in all environments; for E2E skeletons use the test-only helper in `test/helpers/dev-islands.js` -->
-              if (root) {
-                const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
-                const initialIndex = Math.max(
-                  0,
-                  tabs.findIndex(t => t.getAttribute('aria-selected') === 'true')
-                );
-                setActive(initialIndex);
-              }
-
-              container.addEventListener('click', (e) => {
-                const rootEl = getRoot();
-                if (!rootEl) {
-                  return;
-                }
-                const tabs = Array.from(rootEl.querySelectorAll('[role="tab"]'));
-                const tabTarget = e.target instanceof HTMLElement
-                  ? e.target.closest('[role="tab"]')
-                  : null;
-                if (tabTarget) {
-                  const idx = tabs.indexOf(tabTarget);
-                  if (idx >= 0) {
-                    setActive(idx, true);
-                  }
-                }
-
-                const addBtn = e.target instanceof HTMLElement
-                  ? e.target.closest('[data-testid="add-field-btn"]')
-                  : null;
-                if (addBtn) {
-                  const rows = rootEl.querySelectorAll('[data-testid^="field-row-"]');
-                  const nextIndex = rows.length;
-                  const panel = rootEl.querySelector('[data-testid="panel-fields"]');
-                  if (!panel) {
-                    return;
-                  }
-                  const row = document.createElement('div');
-                  row.setAttribute('data-testid', `field-row-${nextIndex}`);
-                  row.innerHTML =
-                    `<input data-testid="field-name-${nextIndex}" placeholder="Field name"/>` +
-                    `<input data-testid="field-value-${nextIndex}" placeholder="Field value"/>` +
-                    `<button data-testid="remove-field-${nextIndex}" type="button">×</button>`;
-                  panel.appendChild(row);
-                }
-
-                const removeBtn = e.target instanceof HTMLElement
-                  ? e.target.closest('[data-testid^="remove-field-"]')
-                  : null;
-                if (removeBtn) {
-                  const row = removeBtn.closest('[data-testid^="field-row-"]');
-                  if (row) {
-                    row.remove();
-                  }
-                }
-
-                const saveBtn = e.target instanceof HTMLElement
-                  ? e.target.closest('[data-testid="manual-save-btn"]')
-                  : null;
-                if (saveBtn) {
-                  const payload = {
-                    documentId: null,
-                    metadata: {},
-                    content: '',
-                    fields: []
-                  };
-                  const title = rootEl.querySelector('[data-testid="manual-title-input"]');
-                  if (title) {
-                    payload.metadata.title = title.value || '';
-                  }
-                  const content = rootEl.querySelector('[data-testid="manual-content-input"]');
-                  if (content) {
-                    payload.content = content.value || '';
-                  }
-                  rootEl.querySelectorAll('[data-testid^="field-row-"]').forEach(row => {
-                    const name = row.querySelector('[data-testid^="field-name-"]');
-                    const value = row.querySelector('[data-testid^="field-value-"]');
-                    if (name && name.value) {
-                      payload.fields.push({
-                        name: name.value,
-                        value: value ? value.value : ''
-                      });
-                    }
-                  });
-                  (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(new CustomEvent('payload:ready', { detail: payload })); })();
-                }
-              });
-
-              container.addEventListener('keydown', (e) => {
-                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
-                  return;
-                }
-                const rootEl = getRoot();
-                if (!rootEl) {
-                  return;
-                }
-                const tabs = Array.from(rootEl.querySelectorAll('[role="tab"]'));
-                const focused = document.activeElement instanceof HTMLElement
-                  ? document.activeElement
-                  : null;
-                const idx = focused ? tabs.indexOf(focused) : -1;
-                if (idx < 0) {
-                  return;
-                }
-                e.preventDefault();
-                if (e.key === 'ArrowLeft') {
-                  setActive((idx + tabs.length - 1) % tabs.length, true);
-                }
-                if (e.key === 'ArrowRight') {
-                  setActive((idx + 1) % tabs.length, true);
-                }
-              });
-            }
-
-            if (!el.querySelector('[data-testid="manual-editor-island-root"]')) {
-              el.innerHTML = "\n                <div data-testid=\"manual-editor-island-root\">\n                  <div role=\"tablist\" aria-label=\"Manual Editor Tabs\" style=\"display:flex;gap:8px;margin-bottom:8px\">\n                    <button role=\"tab\" data-testid=\"tab-metadata\" aria-selected=\"true\">Metadata</button>\n                    <button role=\"tab\" data-testid=\"tab-content\" aria-selected=\"false\">Content</button>\n                    <button role=\"tab\" data-testid=\"tab-fields\" aria-selected=\"false\">Fields</button>\n                    <button role=\"tab\" data-testid=\"tab-ai-debug\" aria-selected=\"false\">AI Debug</button>\n                  </div>\n                  <div id=\"manual-editor-panel\">\n                    <div data-panel=\"metadata\" data-testid=\"panel-metadata\">\n                      <label>Title <input data-testid=\"manual-title-input\" type=\"text\"/></label>\n                    </div>\n                    <div data-panel=\"content\" data-testid=\"panel-content\" style=\"display:none\">\n                      <textarea data-testid=\"manual-content-input\" rows=\"4\" style=\"width:100%\"></textarea>\n                    </div>\n                    <div data-panel=\"fields\" data-testid=\"panel-fields\" style=\"display:none\">\n                      <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:8px\">\n                        <span>Custom Fields</span>\n                        <button data-testid=\"add-field-btn\" type=\"button\">+ Add Field</button>\n                      </div>\n                      <div data-testid=\"field-row-0\">\n                        <input data-testid=\"field-name-0\" placeholder=\"Field name\"/>\n                        <input data-testid=\"field-value-0\" placeholder=\"Field value\"/>\n                        <button data-testid=\"remove-field-0\" type=\"button\">×</button>\n                      </div>\n                    </div>\n                    <div data-panel=\"ai-debug\" data-testid=\"panel-ai-debug\" style=\"display:none\">\n                      <div>AI Debug information will appear here (GPU state dependent)</div>\n                    </div>\n                  </div>\n                  <div style=\"margin-top:8px\">\n                    <button data-testid=\"manual-save-btn\">Save</button>\n                  </div>\n                </div>\n              ";
-            }
-
-            try {
-              const root = el.querySelector('[data-testid="manual-editor-island-root"]');
-              if (root) {
-                attachManualEditor(el);
-              }
-            } catch (e) {
-              console.warn('Dev manual editor setup failed', e);
-            }
-          });
-
-          /* Dev fallbacks removed from production templates. For test-only skeletons
-             and DOM fallbacks use `test/helpers/dev-islands.js` and call
-             `initDevIslands(document)` from your tests. */
-
+</body>
+</html>

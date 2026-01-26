@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ImagesSchema, OverlaysByImageSchema } from './VisualOverlays.contract';
 
 /**
  * ManualEditor Contract
@@ -35,6 +36,10 @@ export const ManualEditorSchema = z.object({
   activeTab: z.enum(['metadata', 'content', 'fields', 'ai-debug']).optional(),
   // GPU state passed from parent
   gpuState: z.enum(['idle', 'checking', 'preparing', 'ready', 'error']).optional(),
+
+  // Visual overlays payloads (optional)
+  images: ImagesSchema.optional(),
+  overlaysByImage: OverlaysByImageSchema.optional(),
 });
 
 // Payload Ready event schema
