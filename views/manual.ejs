@@ -192,6 +192,12 @@
                                         data-testid="overlay-viewer-island"
                                         data-props="<%= JSON.stringify({ documentId: manualProps.documentId, page: 1, originalUrl: manualProps.originalUrl, pageCount: manualVm.pageCount || null, overlayMode: 'document', showLegend: true, allowSelection: true, images: manualVm.images || [], overlaysByImage: manualVm.overlaysByImage || {} }) %>"
                                     ></div>
+
+                                    <div
+                                        data-island="visual-overlays-island"
+                                        data-testid="visual-overlays-island"
+                                        data-props="<%= JSON.stringify({ documentId: manualProps.documentId, images: manualVm.images || [], overlaysByImage: manualVm.overlaysByImage || {} }) %>"
+                                    ></div>
                                 </div>
                             </div>
                         </div>
