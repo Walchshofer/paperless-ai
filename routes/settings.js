@@ -7,8 +7,7 @@ const config = require('../config/config.js');
 const logger = require('../services/logger');
 const fs = require('fs').promises;
 const path = require('path');
-// Load runtime env persisted by setup (renamed to data/runtime.env)
-require('dotenv').config({ path: '../data/runtime.env' });
+require('dotenv').config({ path: '../data/.env' });
 
 // Helper functions for model limits
 const parseOllamaModelLimits = (value) => {

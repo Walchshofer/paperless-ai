@@ -1,0 +1,25 @@
+[meta]
+timestamp: 2026-01-25T18:10:00Z
+agent: GitHub Copilot
+stage: 050-implement
+prompt_ref: prompts/summaries/020-frontend-handoff-implementer.md
+
+[to_agent]
+- implementer
+
+[what_to_do_next]
+- Review infra run results from test-agent: Playwright E2E failed due to initial setup modal blocking the manual page.
+- Apply fix: ensure `paperless_ai` has PAPERLESS_API_URL and PAPERLESS_API_TOKEN set and the initial setup is considered complete (set `PAPERLESS_AI_INITIAL_SETUP=no` or seed the DB via setup API).
+- Re-run Playwright E2E locally and confirm `test/e2e/manual-overlay-page.spec.ts` passes; attach traces, screenshots, and logs to this memory and the PR.
+
+[context_you_must_read]
+- run-active (this memory)
+- test-results/playwright-report
+- test-results/e2e-artifacts/manual-overlay-page-*/
+- docker-compose.yml
+- docker-compose.env
+
+[acceptance_criteria]
+- Playwright E2E passes on provisioned infra for 3 consecutive runs.
+- Artifacts attached: screenshots, traces, and logs.
+- If fix requires infra changes, a documented PR with repro steps and remediation is opened and linked here.

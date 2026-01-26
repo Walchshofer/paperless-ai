@@ -437,7 +437,7 @@ interface RestartBannerState {
 
 **Existing Data Storage**:
 
-- **Primary**: `data/runtime.env` file (environment variables)
+- **Primary**: `data/.env` file (environment variables)
 - **Runtime**: `config/config.js` in-memory object
 - **Client**: localStorage for UI state (theme, developer mode, sidebar state)
 
@@ -717,7 +717,7 @@ sequenceDiagram
     participant Island
     participant HotReloadAPI as POST /settings/apply
     participant Config as config/config.js
-    participant EnvFile as data/runtime.env
+    participant EnvFile as data/.env
     
     Island->>HotReloadAPI: {settings, requiresRestart}
     HotReloadAPI->>EnvFile: Write all settings
@@ -918,7 +918,7 @@ module.exports = {
 
 **Backend → .env File**:
 
-- All settings written to `data/runtime.env` via `setupService.updateEnvFile()`
+- All settings written to `data/.env` via `setupService.updateEnvFile()`
 - Existing mechanism preserved
 
 **Backend → config/config.js**:

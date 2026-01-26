@@ -247,7 +247,7 @@ PAPERLESS_DBUSER=elfman
 PAPERLESS_DBPASS=<your_password>
 ```
 
-Migration loads from `data/runtime.env` if present.
+Migration loads from `data/.env` if present.
 
 ## Success Criteria
 

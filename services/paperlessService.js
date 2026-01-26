@@ -24,7 +24,7 @@ class PaperlessService {
       let apiUrl = config.paperless.apiUrl;
       let apiToken = config.paperless.apiToken;
 
-      // Fallback: read host data/runtime.env directly if config lacks values
+      // Fallback: read host data/.env directly if config lacks values
       if ((!apiUrl || !apiToken) && require('fs').existsSync(require('path').join(process.cwd(), 'data', '.env'))) {
         try {
           const envText = require('fs').readFileSync(require('path').join(process.cwd(), 'data', '.env'), 'utf8');

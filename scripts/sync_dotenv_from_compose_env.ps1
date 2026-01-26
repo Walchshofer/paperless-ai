@@ -3,9 +3,6 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RootDir = Split-Path -Parent $ScriptDir
 
 # Define header early so it's available for both fallback and normal paths
-# NOTE: This script now writes both a repo-root .env (for legacy docker-compose)
-# and a `data/runtime.env` file which is intended to be used as the app's
-# runtime persisted configuration (do not commit data/runtime.env).
 $header = "# Auto-generated .env (compatibility for legacy docker-compose)`n# Generated from: docker-compose.env`n# Do not edit directly — edit docker-compose.env and re-run this script: scripts\sync_dotenv_from_compose_env.ps1`n"
 
 # Use repo-root docker-compose.env as the authoritative source and generate repo-root .env for compatibility
@@ -81,22 +78,10 @@ foreach ($k in $keys) {
     $kv[$k] = $v
 }
 
-# Write header and resolved key=values to repo-root .env
+# Write header and resolved key=values
 Set-Content -Path $DST -Value $header -Encoding UTF8
 foreach ($k in $kv.Keys) {
     Add-Content -Path $DST -Value ("$k=$($kv[$k])") -Encoding UTF8
 }
 
-# Also write a runtime env for the app to use and persist at runtime: data/runtime.env
-# This file is intended to be written by the sync helper for local/dev environments
-# and mirrors resolved values from docker-compose.env. The app's setup service will
-# read/write this file as its runtime configuration store.
-$runtimeDir = Join-Path (Split-Path $SRC -Parent) 'data'
-if (-not (Test-Path -Path $runtimeDir)) { New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null }
-$RUNTIME_DST = Join-Path $runtimeDir 'runtime.env'
-Set-Content -Path $RUNTIME_DST -Value ("# Auto-generated runtime env (data/runtime.env) - generated from: $SRC`n# Do not edit directly in repo — edit docker-compose.env and re-run scripts/sync_dotenv_from_compose_env.ps1`) -Encoding UTF8
-foreach ($k in $kv.Keys) {
-    Add-Content -Path $RUNTIME_DST -Value ("$k=$($kv[$k])") -Encoding UTF8
-}
-
-Write-Host "Generated $DST and $RUNTIME_DST from $SRC (resolved values)"
+Write-Host "Generated $DST from $SRC (resolved values)"

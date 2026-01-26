@@ -8,61 +8,8 @@ const logger = require('./logger');
 
 class SetupService {
   constructor() {
-    // Runtime environment file persisted by the app (renamed from data/.env ➜ data/runtime.env)
-    this.envPath = path.join(process.cwd(), 'data', 'runtime.env');
+    this.envPath = path.join(process.cwd(), 'data', '.env');
     this.configured = null; // Variable to store the configuration status
-  }
-
-  /**
-   * Attempt a safe migration from legacy `data/.env` to `data/runtime.env`.
-   * - If legacy exists and runtime file is missing, copy legacy -> runtime and
-   *   rename legacy to `.migrated` to preserve a backup.
-   * - Operation is idempotent and safe; returns true if migration occurred.
-   */
-  async migrateLegacyEnv(baseDir = process.cwd()) {
-    const legacyPath = path.join(baseDir, 'data', '.env');
-    const runtimePath = baseDir === process.cwd() ? this.envPath : path.join(baseDir, 'data', 'runtime.env');
-
-    try {
-      // Check legacy presence
-      await fs.access(legacyPath);
-    } catch (e) {
-      // Legacy file not present
-      return false;
-    }
-
-    try {
-      // If runtime already exists, skip migration
-      await fs.access(runtimePath);
-      console.info('[setup] runtime env already present, skipping legacy migration');
-      return false;
-    } catch (e) {
-      // runtime missing; proceed
-    }
-
-    try {
-      // Ensure data directory exists
-      const dataDir = path.dirname(runtimePath);
-      await fs.mkdir(dataDir, { recursive: true });
-
-      // Copy legacy to runtime
-      await fs.copyFile(legacyPath, runtimePath);
-
-      // Rename legacy to .migrated to preserve original
-      const migratedPath = `${legacyPath}.migrated`;
-      try {
-        await fs.rename(legacyPath, migratedPath);
-        console.info(`[setup] Migrated ${legacyPath} -> ${migratedPath}`);
-      } catch (renameErr) {
-        // If rename fails, leave legacy in place but log the condition
-        console.warn('[setup] Legacy env found but failed to rename after copying:', renameErr && renameErr.message ? renameErr.message : renameErr);
-      }
-
-      return true;
-    } catch (err) {
-      console.error('[setup] Migration from data/.env to data/runtime.env failed:', err && err.message ? err.message : err);
-      return false;
-    }
   }
 
   async loadConfig() {
@@ -310,21 +257,13 @@ class SetupService {
     const delayBetweenAttempts = 5000; // 5 seconds in milliseconds
     let attempts = 0;
 
-    // Attempt to migrate legacy env if present (non-destructive)
+    // First check if .env exists and if PAPERLESS_API_URL is set
     try {
-      await this.migrateLegacyEnv();
-    } catch (e) {
-      // ignore migration failures here; we'll surface issues below
-      console.warn('[setup] migrateLegacyEnv failed (ignored):', e && e.message ? e.message : e);
-    }
-
-    // First check if runtime env exists and if PAPERLESS_API_URL is set
-    try {
-      // Check if runtime env file exists
+      // Check if .env file exists
       try {
         await fs.access(this.envPath, fs.constants.F_OK);
       } catch (err) {
-        console.log('No runtime env file found. Starting setup process...');
+        console.log('No .env file found. Starting setup process...');
         this.configured = false;
         return false;
       }

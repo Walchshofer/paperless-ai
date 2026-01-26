@@ -21,7 +21,7 @@ This checklist is used to ensure model context windows in `docs/model/` are auth
 - [ ] Add references for any models missing an explicit `<references>` block in `docs/model/*.md`.
 
 ## How to set per-model overrides
-If you run into truncation in production, set `OLLAMA_MODEL_LIMITS_JSON` in `docker-compose.env` or `data/runtime.env` with entries like:
+If you run into truncation in production, set `OLLAMA_MODEL_LIMITS_JSON` in `docker-compose.env` or `data/.env` with entries like:
 
 ```json
 {"qwen3-vl:8b": {"vision": {"contextWindow": 256000, "maxResponseTokens": 4096}}}
