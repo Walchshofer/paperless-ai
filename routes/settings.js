@@ -243,7 +243,9 @@ router.get('/settings', async (req, res) => {
     EXTERNAL_API_HEADERS: process.env.EXTERNAL_API_HEADERS || '{}',
     EXTERNAL_API_BODY: process.env.EXTERNAL_API_BODY || '{}',
     EXTERNAL_API_TIMEOUT: process.env.EXTERNAL_API_TIMEOUT || '5000',
-    EXTERNAL_API_TRANSFORM: process.env.EXTERNAL_API_TRANSFORM || ''
+    EXTERNAL_API_TRANSFORM: process.env.EXTERNAL_API_TRANSFORM || '',
+    // Test/CI: allow disabling external GitHub fetches to avoid flaky rate-limited requests
+    DISABLE_GITHUB_FETCH: process.env.DISABLE_GITHUB_FETCH || 'no'
   };
 
   if (isConfigured) {

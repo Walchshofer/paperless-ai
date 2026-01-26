@@ -298,6 +298,15 @@ process.env.GENERAL_MODEL = process.env.GENERAL_MODEL || 'sauerkraut-llama3.1:8b
 // process.env.OLLAMA_EMBEDDING_MODEL = ... (intentionally not set)
 
 console.log('[test] Environment configuration complete');
+// Test helper: expose dev-islands helper for tests to use when they need DOM fallbacks
+try {
+  global.__devIslandsHelper = require('./helpers/dev-islands');
+  console.log('[test] dev-islands helper loaded');
+} catch (e) {
+  // Not critical for tests that don't need dev fallbacks
+  console.warn('[test] dev-islands helper not available:', e && e.message);
+}
+
 console.log({
     event: 'test_env_initialized',
     models: {

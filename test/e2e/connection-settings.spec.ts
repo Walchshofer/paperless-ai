@@ -1,6 +1,12 @@
 import { test, expect } from '@playwright/test';
+const { waitForIsland } = require('../helpers/island-waits');
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL || process.env.PAPERLESS_BASE_URL || 'http://localhost:3000';
+
+// Prevent external GitHub fetches in tests
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => { window.__DISABLE_GITHUB_FETCH__ = true; });
+});
 
 test.describe('ConnectionSettingsIsland smoke test', () => {
   test('island mounts and displays all connection fields', async ({ page }) => {
@@ -12,19 +18,20 @@ test.describe('ConnectionSettingsIsland smoke test', () => {
     await page.goto(`${BASE}/settings#connection`, { waitUntil: 'networkidle' });
 
     // Wait for connection settings island to mount
-    await page.waitForSelector('[data-island="connection-settings-island"][data-mounted="true"]', { timeout: 10000 });
+    await waitForIsland(page, 'connection-settings-island', 10000);
+    await expect(page.locator('[data-island="connection-settings-island"]')).toBeVisible();
 
-    // Verify heading
-    await expect(page.locator('[data-testid="connection-settings-root"] >> text=Connection Settings')).toBeVisible();
+    // Verify heading (use role-based locator to avoid matching paragraph text)
+    await expect(page.locator('[data-testid="connection-settings-root"]').getByRole('heading', { name: 'Connection Settings' })).toBeVisible();
 
     // Verify all form fields are present
     await expect(page.locator('[data-testid="api-url-input"]')).toBeVisible();
     await expect(page.locator('[data-testid="api-token-input"]')).toBeVisible();
     await expect(page.locator('[data-testid="username-input"]')).toBeVisible();
 
-    // Verify buttons are present
-    await expect(page.locator('[data-testid="test-connection-button"]')).toBeVisible();
-    await expect(page.locator('[data-testid="save-button"]')).toBeVisible();
+    // Verify buttons are present (scope to connection settings root to avoid matching multiple islands)
+    await expect(page.locator('[data-testid="connection-settings-root"] [data-testid="test-connection-button"]')).toBeVisible();
+    await expect(page.locator('[data-testid="connection-settings-root"] [data-testid="save-button"]')).toBeVisible();
 
     // Verify required field indicators
     await expect(page.locator('label[for="api-url"] >> text=*')).toBeVisible();
@@ -36,31 +43,32 @@ test.describe('ConnectionSettingsIsland smoke test', () => {
       fullPage: true
     });
 
-    // Assert no console errors
-    expect(consoleErrors, 'no console errors during mount').toEqual([]);
+    // Assert no console errors (ignore known GitHub fetch noise)
+    const filteredConsoleErrors = consoleErrors.filter(msg => !/Failed to fetch stars|api\.github\.com|Failed to load resource: the server responded with a status of 403/.test(msg));
+    expect(filteredConsoleErrors, 'no console errors during mount (excluding known GitHub noise)').toEqual([]);
   });
 
   test('form validation: buttons disabled when required fields empty', async ({ page }) => {
     await page.goto(`${BASE}/settings#connection`, { waitUntil: 'networkidle' });
-    await page.waitForSelector('[data-island="connection-settings-island"][data-mounted="true"]', { timeout: 10000 });
+    await waitForIsland(page, 'connection-settings-island', 10000);
 
-    // Both buttons should be disabled when fields are empty
-    await expect(page.locator('[data-testid="test-connection-button"]')).toBeDisabled();
-    await expect(page.locator('[data-testid="save-button"]')).toBeDisabled();
+    // Both buttons should be disabled when fields are empty (scope to connection settings root)
+    await expect(page.locator('[data-testid="connection-settings-root"] [data-testid="test-connection-button"]')).toBeDisabled();
+    await expect(page.locator('[data-testid="connection-settings-root"] [data-testid="save-button"]')).toBeDisabled();
 
     // Fill in API URL only
     await page.fill('[data-testid="api-url-input"]', 'http://localhost:8000');
 
     // Buttons should still be disabled (token is required)
-    await expect(page.locator('[data-testid="test-connection-button"]')).toBeDisabled();
-    await expect(page.locator('[data-testid="save-button"]')).toBeDisabled();
+    await expect(page.locator('[data-testid="connection-settings-root"] [data-testid="test-connection-button"]')).toBeDisabled();
+    await expect(page.locator('[data-testid="connection-settings-root"] [data-testid="save-button"]')).toBeDisabled();
 
     // Fill in API Token
     await page.fill('[data-testid="api-token-input"]', 'test-token-123');
 
-    // Buttons should now be enabled
-    await expect(page.locator('[data-testid="test-connection-button"]')).toBeEnabled();
-    await expect(page.locator('[data-testid="save-button"]')).toBeEnabled();
+    // Buttons should now be enabled (scope to connection settings root)
+    await expect(page.locator('[data-testid="connection-settings-root"] [data-testid="test-connection-button"]')).toBeEnabled();
+    await expect(page.locator('[data-testid="connection-settings-root"] [data-testid="save-button"]')).toBeEnabled();
 
     // Take screenshot
     await page.screenshot({
@@ -71,7 +79,7 @@ test.describe('ConnectionSettingsIsland smoke test', () => {
 
   test('test connection button shows loading state', async ({ page }) => {
     await page.goto(`${BASE}/settings#connection`, { waitUntil: 'networkidle' });
-    await page.waitForSelector('[data-island="connection-settings-island"][data-mounted="true"]', { timeout: 10000 });
+    await waitForIsland(page, 'connection-settings-island', 10000);
 
     // Fill in required fields
     await page.fill('[data-testid="api-url-input"]', 'http://localhost:8000');
@@ -195,8 +203,8 @@ test.describe('ConnectionSettingsIsland smoke test', () => {
       });
     });
 
-    // Click save button
-    const saveButton = page.locator('[data-testid="save-button"]');
+    // Click save button (scope to connection settings root)
+    const saveButton = page.locator('[data-testid="connection-settings-root"] [data-testid="save-button"]');
     await saveButton.click();
 
     // Verify loading state

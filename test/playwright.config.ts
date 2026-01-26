@@ -1,6 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 import path from 'path';
 
+// During E2E test runs, disable external GitHub stars fetch to avoid rate-limited 403s in CI
+process.env.DISABLE_GITHUB_FETCH = process.env.DISABLE_GITHUB_FETCH || 'true';
+
 const storageStatePath = process.env.PLAYWRIGHT_STORAGE_STATE ||
   path.resolve(process.cwd(), 'test', '.auth', 'storageState.json');
 const globalSetupPath = path.resolve(

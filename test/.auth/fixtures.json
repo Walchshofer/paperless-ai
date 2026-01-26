@@ -6,5 +6,5 @@
   "tagIds": [],
   "created": "2025-12-20",
   "source": "doc:74",
-  "paperlessApiUrl": "http://127.0.0.1:8000/api"
+  "paperlessApiUrl": "http://localhost:8000/api"
 }

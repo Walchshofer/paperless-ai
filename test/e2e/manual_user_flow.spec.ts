@@ -11,7 +11,7 @@ import { test, expect } from '@playwright/test';
  * 5. Save and verify persistence
  */
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 const MANUAL_URL = `${BASE_URL}/manual`;
 
 async function gotoManual(page: any) {

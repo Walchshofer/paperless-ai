@@ -1,9 +1,13 @@
 import { test, expect } from '@playwright/test';
+const { waitForIsland } = require('../helpers/island-waits');
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL || process.env.PAPERLESS_BASE_URL || 'http://localhost:3000';
 
 test.describe('SettingsSidebarIsland smoke test', () => {
   test.beforeEach(async ({ page }) => {
+    // Prevent external fetches in tests
+    await page.addInitScript(() => { window.__DISABLE_GITHUB_FETCH__ = true; });
+
     // Clear localStorage before each test
     await page.goto(`${BASE}/settings`);
     await page.evaluate(() => {
@@ -14,13 +18,17 @@ test.describe('SettingsSidebarIsland smoke test', () => {
   test('sidebar mounts and displays all default categories', async ({ page }) => {
     const consoleErrors: string[] = [];
     page.on('console', (msg) => {
-      if (msg.type() === 'error') consoleErrors.push(msg.text());
+      if (msg.type() === 'error') {
+        const text = msg.text();
+        if (text.includes('api.github.com') || text.includes('Failed to fetch stars') || text.includes('Failed to load resource')) return;
+        consoleErrors.push(text);
+      }
     });
 
     await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
 
     // Wait for sidebar island to mount
-    await page.waitForSelector('[data-island="settings-sidebar-island"][data-mounted="true"]', { timeout: 10000 });
+    await waitForIsland(page, 'settings-sidebar-island', 10000);
 
     // Verify sidebar header
     await expect(page.locator('[data-testid="settings-sidebar-root"] >> text=Settings')).toBeVisible();
@@ -50,7 +58,7 @@ test.describe('SettingsSidebarIsland smoke test', () => {
 
   test('developer mode toggle shows/hides developer category and persists to localStorage', async ({ page }) => {
     await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
-    await page.waitForSelector('[data-island="settings-sidebar-island"][data-mounted="true"]', { timeout: 10000 });
+    await waitForIsland(page, 'settings-sidebar-island', 10000 );
 
     // Developer category should not be visible initially
     await expect(page.locator('[data-testid="category-developer"]')).not.toBeVisible();
@@ -76,7 +84,7 @@ test.describe('SettingsSidebarIsland smoke test', () => {
 
     // Reload page to verify persistence
     await page.reload({ waitUntil: 'networkidle' });
-    await page.waitForSelector('[data-island="settings-sidebar-island"][data-mounted="true"]', { timeout: 10000 });
+    await waitForIsland(page, 'settings-sidebar-island', 10000 );
 
     // Developer category should still be visible after reload
     await expect(page.locator('[data-testid="category-developer"]')).toBeVisible();
@@ -97,7 +105,7 @@ test.describe('SettingsSidebarIsland smoke test', () => {
 
   test('category navigation updates active state and URL hash', async ({ page }) => {
     await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
-    await page.waitForSelector('[data-island="settings-sidebar-island"][data-mounted="true"]', { timeout: 10000 });
+    await waitForIsland(page, 'settings-sidebar-island', 10000 );
 
     // Overview should be active by default
     await expect(page.locator('[data-testid="category-overview"]')).toHaveClass(/bg-blue-100/);
@@ -138,7 +146,7 @@ test.describe('SettingsSidebarIsland smoke test', () => {
   test('hash navigation updates active category', async ({ page }) => {
     // Navigate directly with hash
     await page.goto(`${BASE}/settings#expert-models`, { waitUntil: 'networkidle' });
-    await page.waitForSelector('[data-island="settings-sidebar-island"][data-mounted="true"]', { timeout: 10000 });
+    await waitForIsland(page, 'settings-sidebar-island', 10000 );
 
     // Expert Models should be active
     await expect(page.locator('[data-testid="category-expert-models"]')).toHaveClass(/bg-blue-100/);

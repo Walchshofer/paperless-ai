@@ -90,6 +90,21 @@ async function pollForRow({ sql, params = [], timeoutMs = 5000, intervalMs = 500
     }
 }
 
+// Check whether Postgres is reachable. Returns true if a simple 'SELECT 1' succeeds within timeout.
+async function isPostgresAvailable(timeoutMs = 2000) {
+    const pool = new Pool(config);
+    try {
+        const controller = new Promise((resolve, reject) => setTimeout(() => reject(new Error('timeout')), timeoutMs));
+        const query = pool.query('SELECT 1');
+        await Promise.race([controller, query]);
+        return true;
+    } catch (e) {
+        return false;
+    } finally {
+        await pool.end();
+    }
+}
+
 /**
  * Generic query helper for test verification.
  * @param {string} sql - SQL query.
@@ -109,5 +124,6 @@ async function queryDb(sql, params = []) {
 module.exports = {
     pollForFeedbackEvent,
     pollForRow,
-    queryDb
+    queryDb,
+    isPostgresAvailable
 };

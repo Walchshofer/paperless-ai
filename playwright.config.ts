@@ -16,7 +16,7 @@ export default defineConfig({
   ],
   globalSetup: 'test/e2e/global-setup.js',
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
     storageState: process.env.PLAYWRIGHT_STORAGE_STATE || 'test/.auth/storageState.json',
     headless: true,
     screenshot: 'only-on-failure',

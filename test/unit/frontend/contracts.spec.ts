@@ -21,7 +21,8 @@ import { AspectRatioSchema } from '../../../src/ui/contracts/AspectRatio.contrac
 // OverlayViewer Contract Schema
 const OverlayViewerSchema = z.object({
   documentId: z.number().int().nullable(),
-  page: z.number().int().nonnegative().optional()
+  page: z.number().int().nonnegative().optional(),
+  originalUrl: z.string().optional()
 });
 
 // Tag schema
@@ -114,6 +115,12 @@ describe('OverlayViewer Contract', () => {
     const invalid = { documentId: 'abc', page: 1 };
     const result = OverlayViewerSchema.safeParse(invalid);
     expect(result.success).toBe(false);
+  });
+
+  it('accepts relative originalUrl paths', () => {
+    const valid = { documentId: 42, originalUrl: '/documents/42/download/original/' };
+    const result = OverlayViewerSchema.safeParse(valid);
+    expect(result.success).toBe(true);
   });
 });
 
