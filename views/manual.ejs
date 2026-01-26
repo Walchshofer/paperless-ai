@@ -202,7 +202,7 @@
                                 <button id="prevPage" data-testid="prev-page-btn" class="px-3 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed">
                                     <i class="fas fa-chevron-left"></i>
                                 </button>
-                                <span id="pageIndicator" data-testid="overlay-page-indicator" class="text-sm text-text-secondary">Page 1 of 1</span>
+                                <span id="pageIndicator" data-testid="manual-overlay-page-indicator" class="text-sm text-text-secondary">Page 1 of 1</span>
                                 <button id="nextPage" data-testid="next-page-btn" class="px-3 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed">
                                     <i class="fas fa-chevron-right"></i>
                                 </button>
@@ -226,19 +226,19 @@
                         <!-- AI Analysis Card -->
                         <div class="material-card mb-6">
                             <h2 class="card-title">AI Analysis</h2>
-                            <button id="analyzeBtn" 
+                            <button id="analyzeBtn" data-testid="analyze-btn"
                                     class="w-full flex justify-center items-center px-4 py-2 border border-border-color rounded-md shadow-sm text-sm font-medium text-text-primary bg-bg-primary hover:bg-hover-bg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-primary transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" 
                                     disabled>
                                     <i class="fas fa-robot mr-2"></i>
                                     Analyze with AI
                             </button>
-                            <button id="chatBtn"
+                            <button id="chatBtn" data-testid="open-chat-btn"
                                     class="mt-2 w-full flex justify-center items-center px-4 py-2 border border-border-color rounded-md shadow-sm text-sm font-medium text-text-primary bg-bg-primary hover:bg-hover-bg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-primary transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                     disabled>
                                     <i class="fas fa-comment mr-2"></i>
                                     Chat with AI (Beta)
                             </button>
-                            <button id="analyzeVisualBtn"
+                            <button id="analyzeVisualBtn" data-testid="analyze-visual-btn"
                                     class="mt-2 w-full flex justify-center items-center px-4 py-2 border border-accent-primary rounded-md shadow-sm text-sm font-medium text-accent-primary bg-bg-primary hover:bg-accent-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-primary transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                     disabled>
                                     <i class="fas fa-eye mr-2"></i>
@@ -927,19 +927,22 @@ return object;
         });
     </script>
     <script>
-        // get github stars count from repo
-        async function getStarsCount() {
-            try {
-                const response = await fetch('https://api.github.com/repos/clusterzx/paperless-ai');
-                if (!response.ok) throw new Error('Failed to fetch repo info');
-                
-                const data = await response.json();
-                document.getElementById('starCount').textContent = data.stargazers_count.toLocaleString();
-            } catch (error) {
-                console.error('Failed to fetch stars count:', error);
-            }
-        }
+        // GitHub stars (guarded in tests/CI)
         document.addEventListener('DOMContentLoaded', function() {
+            if (window.__DISABLE_GITHUB_FETCH__ || '<%= config.DISABLE_GITHUB_FETCH %>' === 'true') return;
+
+            async function getStarsCount() {
+                try {
+                    const response = await fetch('https://api.github.com/repos/clusterzx/paperless-ai');
+                    if (!response.ok) throw new Error('Failed to fetch repo info');
+
+                    const data = await response.json();
+                    document.getElementById('starCount').textContent = data.stargazers_count.toLocaleString();
+                } catch (error) {
+                    console.warn('Failed to fetch stars count (ignored in tests/CI):', error);
+                }
+            }
+
             getStarsCount();
         });
     </script>
@@ -1390,42 +1393,7 @@ return object;
             }
           });
 
-          // Dev fallback for Feedback Controls island (inject listeners)
-          document.querySelectorAll('[data-island="feedback-controls-island"]').forEach(el => {
-            if (!el.querySelector('[data-testid="feedback-controls-island-root"]')) {
-              el.innerHTML = "\n                <div data-testid=\"feedback-controls-island-root\">\n                  <button data-testid=\"thumbs-up-tags\" aria-pressed=\"false\">👍 Tags</button>\n                  <button data-testid=\"thumbs-down-tags\" aria-pressed=\"false\">👎 Tags</button>\n                </div>\n              ";
-            }
-            try {
-              const root = el.querySelector('[data-testid="feedback-controls-island-root"]');
-              if (root && !root.dataset.wired) {
-                root.dataset.wired = 'true';
-                const up = root.querySelector('[data-testid="thumbs-up-tags"]');
-                const down = root.querySelector('[data-testid="thumbs-down-tags"]');
-                if (up) up.addEventListener('click', () => {
-                  const current = up.getAttribute('aria-pressed') === 'true';
-                  up.setAttribute('aria-pressed', (!current).toString());
-                  if (down) down.setAttribute('aria-pressed', 'false');
-                  (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(new CustomEvent('feedback:updated', { detail:{ component:'tags', feedback_type:'thumbs_up' } })); })();
-                  (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(new CustomEvent('feedback:confirmed', { detail:{ component:'tags', documentId: null } })); })();
-                });
-                if (down) down.addEventListener('click', () => {
-                  const current = down.getAttribute('aria-pressed') === 'true';
-                  down.setAttribute('aria-pressed', (!current).toString());
-                  if (up) up.setAttribute('aria-pressed', 'false');
-                  (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(new CustomEvent('feedback:updated', { detail:{ component:'tags', feedback_type:'thumbs_down' } })); })();
-                });
-              }
-            } catch(e){ console.warn('Dev feedback setup failed', e); }
-          });
-        } catch (e) {
-          console.warn('Dev island mount failed', e);
-        }
-      }
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initDevIslands);
-      } else {
-        initDevIslands();
-      }
-    </script>
-</body>
-</html>
+          /* Dev fallbacks removed from production templates. For test-only skeletons
+             and DOM fallbacks use `test/helpers/dev-islands.js` and call
+             `initDevIslands(document)` from your tests. */
+

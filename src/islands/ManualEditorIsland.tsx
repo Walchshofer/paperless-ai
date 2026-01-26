@@ -100,6 +100,36 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
     return () => { mounted = false; };
   }, []);
 
+  // Listen for metadata updates dispatched from legacy scripts so the island stays in sync with page-level actions
+  useEffect(() => {
+    const onMetadataUpdated = (e: any) => {
+      const meta = e?.detail || {};
+      // Test-only hook for visibility in unit tests
+      try { (window as any).__manual_island_last_meta = meta; } catch (err) { /* ignore */ }
+      if (meta.title !== undefined) setTitle(meta.title || '');
+      if (meta.content !== undefined) setContent(meta.content || '');
+      if (meta.correspondent !== undefined) setCorrespondent(meta.correspondent || '');
+    };
+
+    window.addEventListener('manual:metadata-updated', onMetadataUpdated as EventListener);
+    return () => window.removeEventListener('manual:metadata-updated', onMetadataUpdated as EventListener);
+  }, []);
+
+  // Listen for field extraction updates (visual/AI) and update island fields
+  useEffect(() => {
+    const onFieldsUpdated = (e: any) => {
+      const f = e?.detail?.fields || [];
+      // Test-only hook for visibility in unit tests
+      try { (window as any).__manual_island_last_fields = f; } catch (err) { /* ignore */ }
+      // Normalize incoming fields into island Field type
+      const normalized = (f && f.length > 0) ? f.map((it: any) => ({ name: it.label || it.name || '', value: it.value != null ? String(it.value) : '' })) : [];
+      setFields(normalizeFields(normalized as any));
+    };
+
+    window.addEventListener('manual:fields-updated', onFieldsUpdated as EventListener);
+    return () => window.removeEventListener('manual:fields-updated', onFieldsUpdated as EventListener);
+  }, []);
+
   // Clear sync badge after 5 seconds
   useEffect(() => {
     if (syncState === 'synced') {
@@ -113,6 +143,11 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
       }
     };
   }, [syncState]);
+
+  // Test-only marker to indicate the island mounted
+  useEffect(() => {
+    try { (window as any).__manual_island_mounted = true; } catch (e) { /* ignore */ }
+  }, []);
 
   const onKeyDown = useCallback((e: KeyboardEvent) => {
     const order: TabKeys[] = ['metadata', 'content', 'fields', 'ai-debug'];

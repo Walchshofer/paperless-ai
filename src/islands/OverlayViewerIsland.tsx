@@ -34,14 +34,15 @@ const MIN_SIZE_FRACTION = 0.01;
 export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const { documentId: initialDocumentId, page: initialPage = 1, originalUrl: initialOriginalUrl = null, onRegionSelected } = props;
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef(null as HTMLDivElement | null);
+  const canvasRef = useRef(null as HTMLCanvasElement | null);
+  const imageRef = useRef(null as HTMLImageElement | null);
 
   // Allow dynamic updates from page-level events
-  const [docId, setDocId] = useState<number | null>(initialDocumentId || null);
-  const [page, setPage] = useState<number>(initialPage);
-  const [originalUrl, setOriginalUrl] = useState<string | null>(initialOriginalUrl || null);
+  const [docId, setDocId] = useState(initialDocumentId || null as number | null);
+  const [page, setPage] = useState(initialPage);
+  const [originalUrl, setOriginalUrl] = useState(initialOriginalUrl || null as string | null);
+  const [pageCount, setPageCount] = useState((props && (props as any).pageCount) || null as number | null);
 
   // Listen for page/document change events from the page and update in-place
   useEffect(() => {
@@ -52,6 +53,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       // Accept either camelCase `originalUrl` or snake_case `original_url` from different emitters
       if (Object.prototype.hasOwnProperty.call(d, 'originalUrl')) setOriginalUrl(d.originalUrl || null);
       else if (Object.prototype.hasOwnProperty.call(d, 'original_url')) setOriginalUrl(d.original_url || null);
+      if (Object.prototype.hasOwnProperty.call(d, 'pageCount')) setPageCount(d.pageCount === null ? null : Number(d.pageCount));
     };
 
     window.addEventListener('overlay:document-changed', handler as EventListener);
@@ -72,13 +74,13 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const [isDrawing, setIsDrawing] = useState(false);
   const isDrawingRef = useRef(false);
   const pointerActiveRef = useRef(false);
-  const [boxes, setBoxes] = useState<BoundingBox[]>([]);
-  const [currentBox, setCurrentBox] = useState<BoundingBox | null>(null);
-  const currentBoxRef = useRef<BoundingBox | null>(null);
+  const [boxes, setBoxes] = useState([] as BoundingBox[]);
+  const [currentBox, setCurrentBox] = useState(null as BoundingBox | null);
+  const currentBoxRef = useRef(null as BoundingBox | null);
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageError, setImageError] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
-  const [legend, setLegend] = useState<Array<{ key: string; label: string; color: string; isMandatory?: boolean }>>([]);
+  const [imageError, setImageError] = useState(null as string | null);
+  const [warning, setWarning] = useState(null as string | null);
+  const [legend, setLegend] = useState([] as Array<{ key: string; label: string; color: string; isMandatory?: boolean }>);
 
   // Image URL for the document page — prefer `originalUrl` if provided (paperless direct link), otherwise use internal download route
   const imageUrl = docId
@@ -265,7 +267,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         setWarning('Failed to capture selection. Please try again.');
       }
     },
-    [documentId, page, imageLoaded, imageError, onRegionSelected]
+    [docId, page, imageLoaded, imageError, onRegionSelected]
   );
 
   // Finish drawing and validate box
@@ -326,7 +328,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     }
 
     // Add to boxes list
-    setBoxes((prev) => [...prev, normalizedBox]);
+    setBoxes((prev: BoundingBox[]) => [...prev, normalizedBox]);
     currentBoxRef.current = null;
     setCurrentBox(null);
 
@@ -336,7 +338,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
   // Remove a specific box
   const removeBox = useCallback((boxId: string) => {
-    setBoxes((prev) => prev.filter((b) => b.id !== boxId));
+    setBoxes((prev: BoundingBox[]) => prev.filter((b: BoundingBox) => b.id !== boxId));
   }, []);
 
   // Clear all boxes
@@ -361,6 +363,20 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   useEffect(() => {
     drawModeRef.current = isDrawMode;
   }, [isDrawMode]);
+
+  // Programmatic page navigation helper — updates local state and emits an overlay:document-changed event
+  const changePage = useCallback((delta: number) => {
+    const next = Math.max(1, page + delta);
+    if (pageCount && next > pageCount) return;
+    setPage(next);
+
+    const ev = new CustomEvent('overlay:document-changed', {
+      detail: { documentId: docId, page: next, originalUrl, pageCount }
+    });
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(ev);
+    }
+  }, [page, pageCount, docId, originalUrl]);
 
   useEffect(() => {
     const handleGlobalUp = (event: Event) => {
@@ -459,7 +475,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     ctx.lineWidth = 2;
     ctx.fillStyle = 'rgba(220, 20, 60, 0.1)';
 
-    boxes.forEach((box) => {
+    boxes.forEach((box: BoundingBox) => {
       ctx.strokeRect(box.x, box.y, box.width, box.height);
       ctx.fillRect(box.x, box.y, box.width, box.height);
     });
@@ -514,7 +530,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         <button
           data-testid="red-pen-toggle"
           onClick={toggleDrawMode}
-          aria-pressed={isDrawMode}
+          aria-pressed={isDrawMode ? 'true' : 'false'}
           className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
             isDrawMode
               ? 'bg-red-600 text-white'
@@ -539,7 +555,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         <div className="ml-4">
           {legend.length > 0 && (
             <div data-testid="overlay-legend" className="flex items-center gap-2 text-xs text-gray-600">
-              {legend.map((item) => (
+              {legend.map((item: { key: string; label: string; color: string; isMandatory?: boolean }) => (
                 <div key={item.key} className="flex items-center gap-1">
                   <span style={{ width: 12, height: 12, background: item.color, display: 'inline-block', borderRadius: 2 }} aria-hidden="true"></span>
                   <span>{item.label}</span>
@@ -549,9 +565,31 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           )}
         </div>
 
-        <span data-testid="overlay-page-indicator" className="text-xs text-gray-400 ml-auto">
-          Page {page}
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            data-testid="overlay-prev-page"
+            onClick={() => changePage(-1)}
+            aria-label="Previous page"
+            disabled={page <= 1}
+            className="px-2 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <i className="fas fa-chevron-left"></i>
+          </button>
+
+          <span data-testid="overlay-page-indicator" className="text-xs text-gray-400">
+            Page {page}{pageCount ? ` of ${pageCount}` : ''}
+          </span>
+
+          <button
+            data-testid="overlay-next-page"
+            onClick={() => changePage(1)}
+            aria-label="Next page"
+            disabled={pageCount ? page >= pageCount : false}
+            className="px-2 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <i className="fas fa-chevron-right"></i>
+          </button>
+        </div>
       </div>
 
       {/* Warning Message */}
@@ -568,6 +606,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       {/* Document Viewer with Canvas Overlay */}
       <div
         ref={containerRef}
+        data-testid="overlay-container"
         className="relative flex-1 overflow-hidden bg-gray-100"
         style={{
           cursor: isDrawMode ? 'crosshair' : 'default',
@@ -595,12 +634,12 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         {imageUrl && !imageError ? (
           <img
             ref={imageRef}
-            alt={`Document ${documentId} page ${page}`}
+            alt={`Document ${docId} page ${page}`}
             className="w-full h-full object-contain pointer-events-none select-none"
             data-testid="document-image"
             draggable={false}
             crossOrigin="anonymous"
-            onDragStart={(e) => e.preventDefault()}
+            onDragStart={(e: any) => e.preventDefault()}
             style={{ display: imageLoaded ? 'block' : 'none' }}
           />
         ) : null}
@@ -643,7 +682,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         />
 
         {/* Box Labels */}
-        {boxes.map((box, idx) => (
+        {boxes.map((box: BoundingBox, idx: number) => (
           <div
             key={box.id}
             className="absolute flex items-center gap-1"

@@ -5,23 +5,49 @@ stage: 050-implement
 prompt_ref: prompts/summaries/020-frontend-handoff-implementer.md
 
 [to_agent]
-- frontend-design-router
+- @pipeline-orchestration  # CI health-checks & infra gating
+- @implement              # Open PR and small test-timeout adjustments
+- @test                   # Execute CI test runs until 3 consecutive passes
 
 [what_to_do_next]
-- Validate OverlayViewer UI contracts and tests:
-  - Review `src/islands/OverlayViewerIsland.tsx` and confirm it listens for `overlay:document-changed` events and updates using the `original_url` (or `originalUrl`) field when present.
-  - Ensure the island and its controls expose stable test hooks: add/confirm `data-testid="overlay-viewer-island"`, `data-testid="overlay-page-indicator"`, and stable nav IDs or `data-testid` attributes for previous/next page controls (`#nextPage` / `#prevPage` or testids).
-  - Add/extend unit tests (island event handling) and Playwright E2E tests asserting: island mounts, responds to dispatched events, updates the page indicator on page nav, and preserves `original_url` preference.
-- Make tests resilient to initial-setup blocking modal (non-invasive approach preferred):
-  - Add a test-only hook to auto-close or bypass the setup modal when E2E runs (e.g., detect modal and close it in global-setup, or add a small test-only script guarded by NODE_ENV/test flag). Avoid changing production behavior.
-  - Coordinate with implementer to ensure a long-term fix (e.g., ensure PAPERLESS_AI_INITIAL_SETUP is set correctly in test infra) but implement the test-side guard now to unblock E2E runs promptly.
-- Improve test fixtures & mocking:
-  - Harden `test/e2e/manual-overlay-page.spec.ts` to stub Paperless API endpoints strictly and avoid relying on DB-managed fixtures where possible.
-  - Add a short smoke unit test that verifies the island uses `original_url` when available (contract test under `test/contracts/overlay-viewer.contract.test.js`).
-- Documentation & PR:
-  - Document the UI contract (data-testids and events) in `docs/UI_CONTRACTS.md` (or append to existing overlay docs).
-  - Open a PR with the tests and UI changes; request review from `frontend-design-auditor` + `qa` and note this handoff in the PR description.
+- `@pipeline-orchestration`: Add a CI preflight health-check that verifies Qdrant and the Visual-RAG sidecar are available; implement exponential backoff and a 60s timeout for mirroring-dependent tests. Provide a short script and CI step that fails early with actionable logs when infra isn't ready.
 
+- `@implement`: Open a PR containing the test-side changes already prepared (`test/e2e/developer-settings.spec.ts`, `test/e2e/alpha9-full-pipeline.spec.ts`, `test/e2e/qdrant_payload_mirroring.spec.ts`), include traces/screenshots for the failing iterations, and add a small note in the changelog. If comfortable, add a guarded `global-setup` step to auto-close the initial setup modal to accelerate local/CI debugging (test-only change, feature-flagged).
+
+- `@test`: Run the full Playwright suite in CI, collect traces/screenshots, and iterate until **3 consecutive full-suite passes** are observed. Record each run's artifacts in `test-results/playwright-developer` and link them in the PR. If CI shows infra skips (Qdrant/sidecar), report back to `@pipeline-orchestration` and retry once infra is fixed.
+
+[context_you_must_read]
+- run-active (latest infra/test run summary)
+- test/e2e/developer-settings.spec.ts
+- test/e2e/alpha9-full-pipeline.spec.ts
+- test/e2e/qdrant_payload_mirroring.spec.ts
+- docs/EXPERT_PIPELINE_DECISION_TABLE.md
+- .github/workflows/ci.yml
+
+[acceptance_criteria]
+- CI contains a new preflight check step that confirms Qdrant and the sidecar are healthy before starting Playwright; failing preflight stops the run with actionable logs.
+- PR created: contains test changes, artifacts, and a checklist showing 3 consecutive CI runs with full success.
+- Mirroring tests either pass reliably or report known, documented skip reasons when sidecar is initializing.
+
+[notes]
+- This handoff is intended for immediate implement+CI work. If you prefer, I can open the PR and run the first two CI attempts to collect artifacts for reviewers.
+
+
+[what_to_do_next]
+- **Completed**: Validate OverlayViewer UI contracts and tests:
+  - `src/islands/OverlayViewerIsland.tsx` now listens for `overlay:document-changed` and accepts `originalUrl` / `original_url` (done).
+  - Stable `data-testid` attributes added: `overlay-viewer-island`, `overlay-page-indicator`, `overlay-prev-page`, `overlay-next-page`, `overlay-container` (done).
+  - Unit tests added/extended: `test/islands/overlay-viewer.nav.test.js` (nav controls), existing event tests updated. Playwright E2E updated to assert nav behavior (done).
+- **Completed**: Removed inline dev fallbacks from `views/manual.ejs` and moved test-only fallbacks to `test/helpers/dev-islands.js` (test helper loaded in `test/setup-env.js`).
+- **Completed**: Hardened runtime renderer `src/islands/runtime.js` to include nav controls and post-mount wiring for environments where inline scripts aren't executed (JSDOM) (done).
+
+[remaining]
+- Address a11y/lint warnings (inline styles, aria attribute format) in follow-up PRs.
+- Validate E2E stability on CI (3 consecutive successful runs required) and coordinate infra fix for setup modal if it reappears.
+
+[done_by]
+- agent: GitHub Copilot
+- timestamp: 2026-01-25T20:05:00Z
 [context_you_must_read]
 - run-active (latest infra/test run summary)
 - views/manual.ejs

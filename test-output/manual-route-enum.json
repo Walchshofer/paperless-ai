@@ -1,0 +1,430 @@
+{
+  "url": "http://localhost:3000/manual",
+  "timestamp": "2026-01-26T07:32:52.928Z",
+  "enumeration": [
+    {
+      "tag": "button",
+      "id": "themeToggle",
+      "class": "theme-toggle",
+      "data-island": null,
+      "data-testid": null,
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": "mobileMenuButton",
+      "class": "mobile-menu-button",
+      "data-island": null,
+      "data-testid": null,
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": null,
+      "data-island": "visual-annotation-island",
+      "data-testid": "visual-annotation-island",
+      "text": "Draw ModeSave Annotations0 annotations✓ Ready\n        /* Full-page blocking modal */\n        .vai-fullpage-modal {\n          position: fixed;\n          inset: 0;\n          background: rgba(0, 0, 0, 0."
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": null,
+      "data-island": null,
+      "data-testid": "visual-annotation-island-root",
+      "text": "Draw ModeSave Annotations0 annotations✓ Ready\n        /* Full-page blocking modal */\n        .vai-fullpage-modal {\n          position: fixed;\n          inset: 0;\n          background: rgba(0, 0, 0, 0."
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "vai-btn ",
+      "data-island": null,
+      "data-testid": "draw-toggle",
+      "text": "Draw Mode"
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "vai-btn vai-btn-primary",
+      "data-island": null,
+      "data-testid": "save-annotations",
+      "text": "Save Annotations"
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "vai-status",
+      "data-island": null,
+      "data-testid": "annotation-status",
+      "text": "0 annotations"
+    },
+    {
+      "tag": "span",
+      "id": null,
+      "class": "vai-ready-badge",
+      "data-island": null,
+      "data-testid": "gpu-ready-badge",
+      "text": "✓ Ready"
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "vai-canvas vai-cursor-default ",
+      "data-island": null,
+      "data-testid": "annotation-canvas",
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "vai-list",
+      "data-island": null,
+      "data-testid": "annotations-list",
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": null,
+      "data-island": "feedback-controls-island",
+      "data-testid": "feedback-controls-island",
+      "text": "Tags👍👎Correspondent👍👎Document Type👍👎\n        .fci-root {\n          font-family: system-ui, -apple-system, sans-serif;\n          position: relative;\n        }\n        .fci-sync-indicator {\n      "
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "fci-root ",
+      "data-island": null,
+      "data-testid": "feedback-controls-island-root",
+      "text": "Tags👍👎Correspondent👍👎Document Type👍👎\n        .fci-root {\n          font-family: system-ui, -apple-system, sans-serif;\n          position: relative;\n        }\n        .fci-sync-indicator {\n      "
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "fci-btn fci-btn-up  ",
+      "data-island": null,
+      "data-testid": "thumbs-up-tags",
+      "text": "👍"
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "fci-btn fci-btn-down  ",
+      "data-island": null,
+      "data-testid": "thumbs-down-tags",
+      "text": "👎"
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "fci-btn fci-btn-up  ",
+      "data-island": null,
+      "data-testid": "thumbs-up-correspondent",
+      "text": "👍"
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "fci-btn fci-btn-down  ",
+      "data-island": null,
+      "data-testid": "thumbs-down-correspondent",
+      "text": "👎"
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "fci-btn fci-btn-up  ",
+      "data-island": null,
+      "data-testid": "thumbs-up-document_type",
+      "text": "👍"
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "fci-btn fci-btn-down  ",
+      "data-island": null,
+      "data-testid": "thumbs-down-document_type",
+      "text": "👎"
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": null,
+      "data-island": "manual-editor-island",
+      "data-testid": "manual-editor-island",
+      "text": "MetadataContentFieldsAI Debug✓TitleCorrespondentDocument TypeDocument ContentCustom Fields+ Add Field×Run AI AnalysisSave\n        .mei-root {\n          font-family: system-ui, -apple-system, sans-seri"
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "mei-root",
+      "data-island": null,
+      "data-testid": "manual-editor-island-root",
+      "text": "MetadataContentFieldsAI Debug✓TitleCorrespondentDocument TypeDocument ContentCustom Fields+ Add Field×Run AI AnalysisSave\n        .mei-root {\n          font-family: system-ui, -apple-system, sans-seri"
+    },
+    {
+      "tag": "button",
+      "id": "tab-metadata-btn",
+      "class": "mei-tab mei-tab-active",
+      "data-island": null,
+      "data-testid": "tab-metadata",
+      "text": "Metadata"
+    },
+    {
+      "tag": "button",
+      "id": "tab-content-btn",
+      "class": "mei-tab ",
+      "data-island": null,
+      "data-testid": "tab-content",
+      "text": "Content"
+    },
+    {
+      "tag": "button",
+      "id": "tab-fields-btn",
+      "class": "mei-tab ",
+      "data-island": null,
+      "data-testid": "tab-fields",
+      "text": "Fields"
+    },
+    {
+      "tag": "button",
+      "id": "tab-ai-debug-btn",
+      "class": "mei-tab ",
+      "data-island": null,
+      "data-testid": "tab-ai-debug",
+      "text": "AI Debug✓"
+    },
+    {
+      "tag": "div",
+      "id": "panel-metadata",
+      "class": "mei-panel ",
+      "data-island": null,
+      "data-testid": "panel-metadata",
+      "text": "TitleCorrespondentDocument Type"
+    },
+    {
+      "tag": "input",
+      "id": "mei-title",
+      "class": "mei-input",
+      "data-island": null,
+      "data-testid": "manual-title-input",
+      "text": ""
+    },
+    {
+      "tag": "input",
+      "id": "mei-correspondent",
+      "class": "mei-input",
+      "data-island": null,
+      "data-testid": "manual-correspondent-input",
+      "text": ""
+    },
+    {
+      "tag": "input",
+      "id": "mei-doctype",
+      "class": "mei-input",
+      "data-island": null,
+      "data-testid": "manual-doctype-input",
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "id": "panel-content",
+      "class": "mei-panel mei-panel-hidden",
+      "data-island": null,
+      "data-testid": "panel-content",
+      "text": "Document Content"
+    },
+    {
+      "tag": "textarea",
+      "id": "mei-content",
+      "class": "mei-textarea",
+      "data-island": null,
+      "data-testid": "manual-content-input",
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "id": "panel-fields",
+      "class": "mei-panel mei-panel-hidden",
+      "data-island": null,
+      "data-testid": "panel-fields",
+      "text": "Custom Fields+ Add Field×"
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "mei-btn mei-btn-add",
+      "data-island": null,
+      "data-testid": "add-field-btn",
+      "text": "+ Add Field"
+    },
+    {
+      "tag": "input",
+      "id": null,
+      "class": "mei-input mei-field-name",
+      "data-island": null,
+      "data-testid": "field-name-0",
+      "text": ""
+    },
+    {
+      "tag": "input",
+      "id": null,
+      "class": "mei-input mei-field-value",
+      "data-island": null,
+      "data-testid": "field-value-0",
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "mei-btn mei-btn-remove",
+      "data-island": null,
+      "data-testid": "remove-field-0",
+      "text": "×"
+    },
+    {
+      "tag": "div",
+      "id": "panel-ai-debug",
+      "class": "mei-panel mei-panel-hidden",
+      "data-island": null,
+      "data-testid": "panel-ai-debug",
+      "text": "Run AI Analysis"
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "mei-btn mei-btn-primary",
+      "data-island": null,
+      "data-testid": "run-ai-analysis-btn",
+      "text": "Run AI Analysis"
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "mei-btn mei-btn-save",
+      "data-island": null,
+      "data-testid": "manual-save-btn",
+      "text": "Save"
+    },
+    {
+      "tag": "button",
+      "id": "viewTextBtn",
+      "class": "px-3 py-1 text-sm bg-accent-primary text-white rounded hover:bg-accent-secondary transition-colors",
+      "data-island": null,
+      "data-testid": null,
+      "text": "Text"
+    },
+    {
+      "tag": "button",
+      "id": "viewVisualBtn",
+      "class": "px-3 py-1 text-sm bg-bg-secondary text-text-primary border border-border-color rounded hover:bg-hover-bg transition-colors",
+      "data-island": null,
+      "data-testid": null,
+      "text": "Visual"
+    },
+    {
+      "tag": "button",
+      "id": "prevPage",
+      "class": "px-3 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed",
+      "data-island": null,
+      "data-testid": null,
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": "nextPage",
+      "class": "px-3 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed",
+      "data-island": null,
+      "data-testid": null,
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "id": "overlayContainer",
+      "class": "flex-1 min-h-[600px] bg-bg-primary rounded border border-border-color p-4 overflow-auto",
+      "data-island": null,
+      "data-testid": null,
+      "text": "Draw ModePage 1No document selected"
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": null,
+      "data-island": "overlay-viewer-island",
+      "data-testid": "overlay-viewer-island",
+      "text": "Draw ModePage 1No document selected"
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "h-full flex flex-col",
+      "data-island": null,
+      "data-testid": "overlay-viewer-root",
+      "text": "Draw ModePage 1No document selected"
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-3 py-1.5 text-sm font-medium rounded-lg transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200",
+      "data-island": null,
+      "data-testid": "red-pen-toggle",
+      "text": "Draw Mode"
+    },
+    {
+      "tag": "canvas",
+      "id": null,
+      "class": "absolute inset-0 pointer-events-none",
+      "data-island": null,
+      "data-testid": "annotation-canvas",
+      "text": ""
+    },
+    {
+      "tag": "img",
+      "id": null,
+      "class": null,
+      "data-island": null,
+      "data-testid": "document-image",
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": "analyzeBtn",
+      "class": "w-full flex justify-center items-center px-4 py-2 border border-border-color rounded-md shadow-sm text-sm font-medium text-text-primary bg-bg-primary hover:bg-hover-bg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-primary transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed",
+      "data-island": null,
+      "data-testid": null,
+      "text": "Analyze with AI"
+    },
+    {
+      "tag": "button",
+      "id": "chatBtn",
+      "class": "mt-2 w-full flex justify-center items-center px-4 py-2 border border-border-color rounded-md shadow-sm text-sm font-medium text-text-primary bg-bg-primary hover:bg-hover-bg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-primary transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed",
+      "data-island": null,
+      "data-testid": null,
+      "text": "Chat with AI (Beta)"
+    },
+    {
+      "tag": "button",
+      "id": "analyzeVisualBtn",
+      "class": "mt-2 w-full flex justify-center items-center px-4 py-2 border border-accent-primary rounded-md shadow-sm text-sm font-medium text-accent-primary bg-bg-primary hover:bg-accent-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-primary transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed",
+      "data-island": null,
+      "data-testid": null,
+      "text": "Visual Analysis (Expert Pipeline)"
+    },
+    {
+      "tag": "button",
+      "id": "saveTagsBtn",
+      "class": "px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200",
+      "data-island": null,
+      "data-testid": "save-tags-btn",
+      "text": "Save Tags"
+    },
+    {
+      "tag": "button",
+      "id": "addTagBtn",
+      "class": "inline-flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-accent-primary hover:bg-accent-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-primary transition-all duration-200",
+      "data-island": null,
+      "data-testid": null,
+      "text": ""
+    }
+  ]
+}

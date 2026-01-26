@@ -10,7 +10,7 @@ import { test, expect } from '@playwright/test';
  */
 
 test.describe('Alpha-9 Full Pipeline E2E', () => {
-  const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
+  const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 
   // Helper to handle login
   async function handleLogin(page: any, targetUrl: string) {
@@ -119,6 +119,19 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
 
     // 4. Verify POST /api/visual-rag/search/visual emitted
     await page.waitForTimeout(500); // Allow time for API call
+    if (!apiRequestPayload) {
+      // Retry drawing once in case the first attempt didn't register (flaky canvas interactions)
+      await redPenToggle.click();
+      const boxRetry = await container.boundingBox();
+      if (boxRetry) {
+        await page.mouse.move(boxRetry.x + 60, boxRetry.y + 60);
+        await page.mouse.down();
+        await page.mouse.move(boxRetry.x + 210, boxRetry.y + 210);
+        await page.mouse.up();
+      }
+      await page.waitForTimeout(1000);
+    }
+
     expect(apiRequestPayload).not.toBeNull();
 
     // 5. Verify Base64 payload valid

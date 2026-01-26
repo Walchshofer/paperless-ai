@@ -265,17 +265,22 @@
 
     <!-- GitHub Stars -->
     <script>
-        async function getStarsCount() {
-            try {
-                const response = await fetch('https://api.github.com/repos/clusterzx/paperless-ai');
-                if (!response.ok) throw new Error('Failed to fetch');
-                const data = await response.json();
-                document.getElementById('starCount').textContent = data.stargazers_count.toLocaleString();
-            } catch (error) {
-                console.error('Failed to fetch stars:', error);
-            }
-        }
-        document.addEventListener('DOMContentLoaded', getStarsCount);
+        document.addEventListener('DOMContentLoaded', () => {
+            // Skip external fetch in test/CI when explicitly disabled server-side or via a test-provided runtime flag
+            if (window.__DISABLE_GITHUB_FETCH__ || '<%= config.DISABLE_GITHUB_FETCH %>' === 'true') return;
+
+            (async function getStarsCount() {
+                try {
+                    const response = await fetch('https://api.github.com/repos/clusterzx/paperless-ai');
+                    if (!response.ok) throw new Error('Failed to fetch');
+                    const data = await response.json();
+                    document.getElementById('starCount').textContent = data.stargazers_count.toLocaleString();
+                } catch (error) {
+                    // Failures are non-fatal; log for debugging but do not break UI/tests
+                    console.warn('Failed to fetch stars (ignored in tests/CI):', error);
+                }
+            })();
+        });
     </script>
 
     <!-- Island Runtime -->

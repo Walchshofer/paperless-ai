@@ -5,7 +5,7 @@ const { chromium } = require('@playwright/test');
 const { queryDb } = require('../helpers/db-poll');
 const { ensureE2EFixtures } = require('../helpers/fixtures');
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 const VISUAL_RAG_URL = process.env.VISUAL_RAG_URL || 'http://127.0.0.1:8001';
 const QDRANT_URL = process.env.QDRANT_URL || 'http://127.0.0.1:6333';
 const METRICS_URL = process.env.PROMETHEUS_METRICS_URL ||
@@ -210,14 +210,32 @@ async function ensureStorageState() {
     }
 
     // Non-invasive test-only safeguard: if an initial setup form or modal is present and blocking the manual page,
-    // remove it from the DOM so E2E can proceed. This manipulates the browser-only DOM and does NOT change server state.
+    // attempt to close it gracefully (click close buttons / send Escape) before falling back to removal.
+    // This manipulates the browser-only DOM and does NOT change server state.
     try {
       const removed = await page.evaluate(() => {
         const selectors = ['#setupForm', 'form#setupForm', '.modal', '[role="dialog"]', '[data-page="setup"]'];
         let any = false;
+
+        // Attempt to click close buttons / dismiss controls first
+        const closeSelectors = ['[data-testid="close-setup"]', 'button.close', '.modal button.close', '.modal [data-dismiss="modal"]', 'button.close-setup'];
+        closeSelectors.forEach((sel) => {
+          document.querySelectorAll(sel).forEach((el) => {
+            try { (el).dispatchEvent(new MouseEvent('click', { bubbles: true })); } catch (e) { /* ignore */ }
+            any = true;
+          });
+        });
+
+        // Attempt to send an Escape keydown to close dialogs
+        try {
+          const ev = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true });
+          document.dispatchEvent(ev);
+        } catch (e) { /* ignore */ }
+
+        // If still present, remove elements as a last-resort non-invasive fallback
         selectors.forEach((sel) => {
           document.querySelectorAll(sel).forEach((el) => {
-            el.remove();
+            try { el.remove(); } catch (e) { /* ignore */ }
             any = true;
           });
         });
@@ -225,15 +243,15 @@ async function ensureStorageState() {
         // Extra: remove full-page setup scaffolding if present
         const extra = document.querySelector('body [data-island="presets-manager-island"], body #setupForm');
         if (extra && extra.parentElement) {
-          extra.parentElement.removeChild(extra);
+          try { extra.parentElement.removeChild(extra); } catch (e) { /* ignore */ }
           any = true;
         }
 
         return any;
       });
-      if (removed) console.warn('[e2e] Setup form/modal detected and removed for test run (non-invasive)');
+      if (removed) console.warn('[e2e] Setup form/modal detected and removed/closed for test run (non-invasive)');
     } catch (e) {
-      console.warn('[e2e] Failed to remove setup modal (ignored):', e && e.message ? e.message : e);
+      console.warn('[e2e] Failed to remove/close setup modal (ignored):', e && e.message ? e.message : e);
     }
 
     const storageState = await context.storageState();

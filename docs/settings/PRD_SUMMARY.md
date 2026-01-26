@@ -316,8 +316,8 @@ The validation process has ensured that:
 
 ## References
 
-- Epic Brief: spec:6e0e0983-e5b6-41d3-98e0-9cd4d0ddb783/56121be3-201f-43d2-a410-592c99bbeaa8
-- Core Flows: spec:6e0e0983-e5b6-41d3-98e0-9cd4d0ddb783/bd31ae96-5cf1-41e5-8a50-c7141a4e5775
+- Epic Brief: C:\Users\pwalc\MyApps\paperless-ai\docs\settings\EPIC_BRIEF.md
+- Core Flows: C:\Users\pwalc\MyApps\paperless-ai\docs\settings\CORE_FLOWS.md
 - Validation Workflow: workflow:271192ed-bf0b-4f43-9915-d77b9e7dbb04/prd-validation
 
 

@@ -32,15 +32,9 @@ jobs:
       - name: Start Visual RAG sidecar (for reingest test)
         run: |
           docker compose up -d visual-rag
-      - name: Wait for Visual RAG readiness
+      - name: Run CI preflight checks
         run: |
-          timeout=120
-          i=0
-          until curl -fsS http://127.0.0.1:8001/ready || [ $i -gt $timeout ]; do
-            echo "Waiting for Visual RAG readiness... ($i)"
-            i=$((i+5))
-            sleep 5
-          done
+          bash scripts/ci/preflight-checks.sh --timeout 300
       - name: Run migrations
         env:
           POSTGRES_URL: 'postgres://elfman:password@localhost:5432/paperless_test'

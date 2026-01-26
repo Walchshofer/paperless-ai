@@ -500,7 +500,9 @@ const defaultRenderers = {
     el.innerHTML = `
       <div data-testid="overlay-viewer-root" data-hydrated="true" data-original-url="${initialOriginal}">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-          <span data-testid="overlay-page-indicator">Page ${page}</span>
+          <button data-testid="overlay-prev-page" aria-label="Previous page" style="margin-right:8px;padding:4px 8px;">&lt;</button>
+          <span data-testid="overlay-page-indicator">Page ${page}${props.pageCount ? ' of ' + props.pageCount : ''}</span>
+          <button data-testid="overlay-next-page" aria-label="Next page" style="margin-left:8px;padding:4px 8px;">&gt;</button>
         </div>
         <div id="overlayContainer" data-testid="overlay-container">
           <img data-testid="document-image" alt="document" style="display:block;max-width:100%;height:auto;" />
@@ -514,6 +516,8 @@ const defaultRenderers = {
             if (!root) return;
             const pageEl = root.querySelector('[data-testid="overlay-page-indicator"]');
             const img = root.querySelector('img[data-testid="document-image"]');
+            const prev = root.querySelector('[data-testid="overlay-prev-page"]');
+            const next = root.querySelector('[data-testid="overlay-next-page"]');
 
             const buildSrc = (d) => {
               const page = d.page || 1;
@@ -523,9 +527,36 @@ const defaultRenderers = {
               return '';
             };
 
+            function dispatchOverlayChange(pageNum) {
+              const propsRaw = (document.currentScript.parentElement.getAttribute('data-props')) || '{}';
+              let props = {};
+              try { props = JSON.parse(propsRaw); } catch(e) { props = {}; }
+              const docId = props.documentId || null;
+              const original = props.originalUrl || props.original_url || '';
+              const ev = new CustomEvent('overlay:document-changed', { detail: { documentId: docId, page: pageNum, originalUrl: original } });
+              window.dispatchEvent(ev);
+            }
+
+            if (prev) prev.addEventListener('click', () => {
+              const m = (pageEl.textContent || '').match(/(\d+)/g);
+              const cur = m ? Number(m[0]) : ${page};
+              const nextPage = Math.max(1, cur - 1);
+              if (pageEl) pageEl.textContent = 'Page ' + nextPage + (props.pageCount ? ' of ' + props.pageCount : '');
+              dispatchOverlayChange(nextPage);
+            });
+
+            if (next) next.addEventListener('click', () => {
+              const m = (pageEl.textContent || '').match(/(\d+)/g);
+              const cur = m ? Number(m[0]) : ${page};
+              const nextPage = cur + 1;
+              if (props.pageCount && nextPage > props.pageCount) return;
+              if (pageEl) pageEl.textContent = 'Page ' + nextPage + (props.pageCount ? ' of ' + props.pageCount : '');
+              dispatchOverlayChange(nextPage);
+            });
+
             window.addEventListener('overlay:document-changed', (e) => {
               const d = (e && e.detail) || {};
-              if (pageEl && d.page !== undefined && d.page !== null) pageEl.textContent = 'Page ' + d.page;
+              if (pageEl && d.page !== undefined && d.page !== null) pageEl.textContent = 'Page ' + d.page + (d.pageCount ? ' of ' + d.pageCount : '');
 
               // Set root attribute for tests
               const resolvedOriginal = d.originalUrl || d.original_url || '';
@@ -930,10 +961,53 @@ function mountIslands(container = document) {
           if (root) {
             const pageEl = root.querySelector('[data-testid="overlay-page-indicator"]');
             const img = root.querySelector('img[data-testid="document-image"]');
+            const prev = root.querySelector('[data-testid="overlay-prev-page"]');
+            const next = root.querySelector('[data-testid="overlay-next-page"]');
+
+            const dispatchOverlayChange = (pageNum) => {
+              const propsRaw = el.getAttribute('data-props') || '{}';
+              let props = {};
+              try { props = JSON.parse(propsRaw); } catch(e) { props = {}; }
+              const docId = props.documentId || null;
+              const original = props.originalUrl || props.original_url || '';
+
+              // Ensure CustomEvent is constructed on the page's window (JSDOM requires window.CustomEvent instances)
+              let ev;
+              if (typeof window !== 'undefined' && typeof window.CustomEvent === 'function') {
+                ev = new window.CustomEvent('overlay:document-changed', { detail: { documentId: docId, page: pageNum, originalUrl: original } });
+              } else {
+                ev = new CustomEvent('overlay:document-changed', { detail: { documentId: docId, page: pageNum, originalUrl: original } });
+              }
+
+              window.dispatchEvent(ev);
+            };
+
+            if (prev) prev.addEventListener('click', () => {
+              const m = (pageEl.textContent || '').match(/(\d+)/g);
+              const cur = m ? Number(m[0]) : 1;
+              const nextPage = Math.max(1, cur - 1);
+              if (pageEl) pageEl.textContent = 'Page ' + nextPage;
+              dispatchOverlayChange(nextPage);
+            });
+
+            if (next) next.addEventListener('click', () => {
+              const m = (pageEl.textContent || '').match(/(\d+)/g);
+              const cur = m ? Number(m[0]) : 1;
+              const nextPage = cur + 1;
+              // If attached props contained pageCount, respect it
+              try {
+                const propsRaw = el.getAttribute('data-props') || '{}';
+                const props = JSON.parse(propsRaw);
+                if (props.pageCount && nextPage > props.pageCount) return;
+              } catch(e) { /* ignore */ }
+              if (pageEl) pageEl.textContent = 'Page ' + nextPage;
+              dispatchOverlayChange(nextPage);
+            });
+
             if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
               window.addEventListener('overlay:document-changed', (e) => {
                 const d = (e && e.detail) || {};
-                if (pageEl && d.page !== undefined && d.page !== null) pageEl.textContent = 'Page ' + d.page;
+                if (pageEl && d.page !== undefined && d.page !== null) pageEl.textContent = 'Page ' + d.page + (d.pageCount ? ' of ' + d.pageCount : '');
 
                 // Set a test-visible attribute for original url (accepts camelCase or snake_case)
                 const resolvedOriginal = d.originalUrl || d.original_url || '';

@@ -1,8 +1,13 @@
 import { test, expect } from '@playwright/test';
+const { waitForIsland } = require('../helpers/island-waits');
 
 const BASE = process.env.PAPERLESS_BASE_URL || 'http://localhost:3000';
 
 test.describe('shadcn/ui compatibility smoke', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => { window.__DISABLE_GITHUB_FETCH__ = true; });
+  });
+
   test('island mounts and components are interactive with no console errors', async ({ page }) => {
     const consoleErrors: string[] = [];
     page.on('console', (msg) => {
@@ -12,7 +17,7 @@ test.describe('shadcn/ui compatibility smoke', () => {
     await page.goto(`${BASE}/islands/shadcn-compat`, { waitUntil: 'networkidle' });
 
     // Wait for island to mount (runtime sets data-mounted on host)
-    await page.waitForSelector('[data-island="shadcn-compat"][data-mounted="true"]', { timeout: 10000 });
+    await waitForIsland(page, 'shadcn-compat', 10000);
 
     // Basic interactions: Tabs
     await page.click('text=Tab 2');

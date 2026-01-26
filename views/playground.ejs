@@ -200,20 +200,25 @@
       })();
     </script>
 
-    <!-- GitHub stars script -->
+    <!-- GitHub stars script (guarded in tests/CI) -->
     <script>
-        async function getStarsCount() {
-            try {
-                const response = await fetch('https://api.github.com/repos/clusterzx/paperless-ai');
-                if (!response.ok) throw new Error('Failed to fetch repo info');
-
-                const data = await response.json();
-                document.getElementById('starCount').textContent = data.stargazers_count.toLocaleString();
-            } catch (error) {
-                console.error('Failed to fetch stars count:', error);
-            }
-        }
         document.addEventListener('DOMContentLoaded', function() {
+            // Skip external fetch in test/CI when explicitly disabled server-side
+            if (window.__DISABLE_GITHUB_FETCH__ || '<%= config.DISABLE_GITHUB_FETCH %>' === 'true') return;
+
+            async function getStarsCount() {
+                try {
+                    const response = await fetch('https://api.github.com/repos/clusterzx/paperless-ai');
+                    if (!response.ok) throw new Error('Failed to fetch repo info');
+
+                    const data = await response.json();
+                    document.getElementById('starCount').textContent = data.stargazers_count.toLocaleString();
+                } catch (error) {
+                    // Non-fatal in CI/tests
+                    console.warn('Failed to fetch stars count (ignored in tests/CI):', error);
+                }
+            }
+
             getStarsCount();
         });
     </script>
