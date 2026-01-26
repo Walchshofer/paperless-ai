@@ -13,7 +13,7 @@ const path = require('path');
 const axios = require('axios');
 
 // Environment file path
-const ENV_FILE_PATH = path.join(__dirname, '../../data/.env');
+const ENV_FILE_PATH = path.join(__dirname, '../../data/runtime.env');
 
 /**
  * GET /api/settings/config

@@ -10,12 +10,12 @@ const path = require('path');
 const fs = require('fs');
 
 // 1. Load Environment Variables
-const envPath = path.join(__dirname, '../data/.env');
+const envPath = path.join(__dirname, '../data/runtime.env');
 if (fs.existsSync(envPath)) {
-    console.log(`[Test] Loading .env from ${envPath}`);
+    console.log(`[Test] Loading runtime.env from ${envPath}`);
     require('dotenv').config({ path: envPath });
 } else {
-    console.warn('[Test] No .env file found in ../data/.env, relying on process.env');
+    console.warn('[Test] No runtime.env file found in ../data/runtime.env, relying on process.env');
 }
 
 // 2. Load Repository

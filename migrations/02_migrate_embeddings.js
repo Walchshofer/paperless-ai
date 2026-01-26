@@ -3,7 +3,7 @@
  * Usage: node migrations/02_migrate_embeddings.js [--dry-run] [--batch-size=500]
  *
  * Behavior:
- *  - Loads env from data/.env if present
+ *  - Loads env from data/runtime.env if present
  *  - Connects using PG env variables; fallback defaults provided
  *  - Creates a timestamped backup table with id, embedding
  *  - Processes rows in batches where embedding IS NOT NULL and embedding_vector IS NULL

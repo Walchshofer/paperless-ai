@@ -58,7 +58,7 @@ function getPostgresHost() {
 }
 
 /**
- * Read an env var with fallback to the host data/.env file (helpful when dotenv wasn't applied)
+ * Read an env var with fallback to the host data/runtime.env file (helpful when dotenv wasn't applied)
  */
 function readEnvFallback(key) {
     if (process.env[key] !== undefined && process.env[key] !== '') return process.env[key];
@@ -130,7 +130,7 @@ async function initPoolWithRetry(maxRetries = 3, retryDelayMs = 1000) {
     const host = getPostgresHost();
     const port = parseInt(process.env.POSTGRES_PORT || '5432', 10);
     const database = process.env.POSTGRES_DB || 'paperless';
-    // Prefer explicit Postgres env, fall back to Paperless-specific DB env vars or host data/.env
+    // Prefer explicit Postgres env, fall back to Paperless-specific DB env vars or host data/runtime.env
     const user = requireEnvFallback('POSTGRES_USER', ['PAPERLESS_DBUSER']);
     const password = requireEnvFallback('POSTGRES_PASSWORD', ['PAPERLESS_DBPASS']);
 

@@ -78,3 +78,7 @@ If you encounter `error from registry: unauthorized` when `docker compose` pulls
 
 - For managed CI: enable the gated E2E job (set `SERENA_E2E=true` and `SERENA_BASE` secret) to validate end-to-end behavior in a controlled environment.
 - For production: ensure log files are shipped to central logging (ELK, Datadog) and set log rotation.
+
+Note: runtime environment file (data/runtime.env)
+
+- The app persists validated runtime configuration to `data/runtime.env` (previously `data/.env`). This file is intentionally separate from the repo `docker-compose.env` (the canonical deployment source). Use `npm run env:sync` (runs `scripts/sync_dotenv_from_compose_env.ps1`) to regenerate the repo `.env` and the `data/runtime.env` file for local/dev bootstrapping. Do not commit `data/runtime.env` to git. The app will automatically migrate an existing `data/.env` to `data/runtime.env` on startup if the new file is missing (non-destructive: source `.env` is copied and renamed to `.env.migrated`). To update runtime settings in production, prefer using the setup API or container env vars rather than editing `data/runtime.env` directly.

@@ -75,14 +75,14 @@ The codebase has successfully migrated to Preact Islands architecture across 3 m
 
 **Backend** (file:routes/setup.js lines 5196-5723):
 
-- POST `/settings` route updates `data/.env` file
+- POST `/settings` route updates `data/runtime.env` file
 - Validates connection to Paperless-ngx
 - Triggers restart countdown modal (5 seconds)
 - Returns `{ success, restart, message }`
 
 **Configuration** (file:config/config.js):
 
-- Loads ~85 environment variables from `data/.env`
+- Loads ~85 environment variables from `data/runtime.env`
 - Nested object structure (e.g., `config.ollama.limits.vision.contextWindow`)
 - Static loading at startup (no hot reload)
 
@@ -528,7 +528,7 @@ npm install -D @types/lodash.debounce
 
 ### Decision 6: Always Write to .env (Persistent, Single Source of Truth)
 
-**Decision**: All settings (critical and non-critical) are written to `data/.env` file, even if they hot reload.
+**Decision**: All settings (critical and non-critical) are written to `data/runtime.env` file, even if they hot reload.
 
 **Rationale**:
 
