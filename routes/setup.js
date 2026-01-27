@@ -255,7 +255,7 @@ router.use(async (req, res, next) => {
 
   // Public route check
   const isPublic = PUBLIC_ROUTES.some(route => req.path.startsWith(route));
-  console.debug('[DEBUG] setup middleware path=', req.path, 'isPublic=', isPublic);
+  console.log('[DEBUG] setup middleware path=', req.path, 'isPublic=', isPublic);
   if (isPublic) {
     return next();
   }
