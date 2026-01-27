@@ -29,8 +29,16 @@ describe('Island runtime (browser build)', function(){
       resources: 'usable',
       beforeParse(window) {
         try {
-          if (window && window.HTMLCanvasElement && !window.HTMLCanvasElement.prototype.getContext) {
-            window.HTMLCanvasElement.prototype.getContext = function() { return fakeCtx; };
+          if (window && window.HTMLCanvasElement) {
+            try {
+              window.HTMLCanvasElement.prototype.getContext = function() { return fakeCtx; };
+            } catch (assignErr) {
+              Object.defineProperty(window.HTMLCanvasElement.prototype, 'getContext', {
+                value: function() { return fakeCtx; },
+                configurable: true,
+                writable: true
+              });
+            }
           }
         } catch (e) {
           console.warn('[test] Could not set canvas.getContext in beforeParse:', e && e.message);
@@ -40,7 +48,7 @@ describe('Island runtime (browser build)', function(){
 
     // Stub canvas getContext (JSDOM does not implement canvas) to avoid test-time errors
     try {
-      if (dom.window && dom.window.HTMLCanvasElement && !dom.window.HTMLCanvasElement.prototype.getContext) {
+      if (dom.window && dom.window.HTMLCanvasElement) {
         const fakeCtx = {
           getImageData: () => ({ data: new Uint8ClampedArray(0) }),
           putImageData: () => {},
@@ -53,7 +61,15 @@ describe('Island runtime (browser build)', function(){
           fillText: () => {},
           getContextAttributes: () => ({})
         };
-        dom.window.HTMLCanvasElement.prototype.getContext = function() { return fakeCtx; };
+        try {
+          dom.window.HTMLCanvasElement.prototype.getContext = function() { return fakeCtx; };
+        } catch (assignErr) {
+          Object.defineProperty(dom.window.HTMLCanvasElement.prototype, 'getContext', {
+            value: function() { return fakeCtx; },
+            configurable: true,
+            writable: true
+          });
+        }
       }
     } catch (e) {
       console.warn('[test] Could not stub canvas.getContext:', e && e.message);

@@ -47,7 +47,7 @@ try {
             const userBeforeParse = options.beforeParse;
             options.beforeParse = function(window) {
                 try {
-                    if (window && window.HTMLCanvasElement && !window.HTMLCanvasElement.prototype.getContext) {
+                    if (window && window.HTMLCanvasElement) {
                         const fakeCtx = {
                             getImageData: () => ({ data: new Uint8ClampedArray(0) }),
                             putImageData: () => {},
@@ -60,7 +60,17 @@ try {
                             fillText: () => {},
                             getContextAttributes: () => ({})
                         };
-                        window.HTMLCanvasElement.prototype.getContext = function() { return fakeCtx; };
+                        try {
+                            // Overwrite even if JS-DOM already has a function that throws
+                            window.HTMLCanvasElement.prototype.getContext = function() { return fakeCtx; };
+                        } catch (assignErr) {
+                            // Some environments may have non-writable prototype properties — fall back to defineProperty
+                            Object.defineProperty(window.HTMLCanvasElement.prototype, 'getContext', {
+                                value: function() { return fakeCtx; },
+                                configurable: true,
+                                writable: true
+                            });
+                        }
                     }
                 } catch (e) {
                     console.warn('[test/setup-env] canvas stub failed:', e && e.message);
