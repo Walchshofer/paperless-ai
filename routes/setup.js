@@ -254,7 +254,9 @@ router.use(async (req, res, next) => {
   const apiKey = req.headers['x-api-key'];
 
   // Public route check
-  if (PUBLIC_ROUTES.some(route => req.path.startsWith(route))) {
+  const isPublic = PUBLIC_ROUTES.some(route => req.path.startsWith(route));
+  console.debug('[DEBUG] setup middleware path=', req.path, 'isPublic=', isPublic);
+  if (isPublic) {
     return next();
   }
 
