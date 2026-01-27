@@ -24,6 +24,9 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
   const [gpuState, setGpuState] = useState<GpuState>('idle');
   const [syncState, setSyncState] = useState<SyncState>('idle');
   const [syncError, setSyncError] = useState<string>('');
+  const [documentId, setDocumentId] = useState<number | null>(
+    props.documentId ?? null
+  );
 
   // Convert contract fields to component Field type (coerce values to strings)
   const normalizeFields = (contractFields: ManualEditorContract['fields']): Field[] => {
@@ -102,13 +105,22 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
 
   // Listen for metadata updates dispatched from legacy scripts so the island stays in sync with page-level actions
   useEffect(() => {
+    setDocumentId(props.documentId ?? null);
+  }, [props.documentId]);
+
+  useEffect(() => {
     const onMetadataUpdated = (e: any) => {
       const meta = e?.detail || {};
       // Test-only hook for visibility in unit tests
       try { (window as any).__manual_island_last_meta = meta; } catch (err) { /* ignore */ }
       if (meta.title !== undefined) setTitle(meta.title || '');
       if (meta.content !== undefined) setContent(meta.content || '');
-      if (meta.correspondent !== undefined) setCorrespondent(meta.correspondent || '');
+      if (meta.correspondent !== undefined) {
+        setCorrespondent(meta.correspondent || '');
+      }
+      if (meta.documentType !== undefined) {
+        setDocumentType(meta.documentType || '');
+      }
     };
 
     window.addEventListener('manual:metadata-updated', onMetadataUpdated as EventListener);
@@ -128,6 +140,18 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
 
     window.addEventListener('manual:fields-updated', onFieldsUpdated as EventListener);
     return () => window.removeEventListener('manual:fields-updated', onFieldsUpdated as EventListener);
+  }, []);
+
+  useEffect(() => {
+    const onDocumentSelected = (e: any) => {
+      const detail = e?.detail || {};
+      if (detail.documentId !== undefined) {
+        setDocumentId(detail.documentId ?? null);
+      }
+    };
+
+    window.addEventListener('document:selected', onDocumentSelected as EventListener);
+    return () => window.removeEventListener('document:selected', onDocumentSelected as EventListener);
   }, []);
 
   // Clear sync badge after 5 seconds
@@ -272,7 +296,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
     }
 
     const payload = {
-      documentId: props.documentId ?? null,
+      documentId: documentId ?? null,
       document_updates,
       feedback_events,
       transactional: true,
@@ -286,7 +310,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
 
     const eventDetail = {
       type: 'payload:ready',
-      documentId: props.documentId ?? null,
+      documentId: documentId ?? null,
       page,
       metadata,
       content,
@@ -311,7 +335,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
       if (res.ok) {
         const result = await res.json().catch(() => ({}));
         setSyncState('synced');
-        dispatchEventSafe('sync:success', { documentId: props.documentId, ...result });
+        dispatchEventSafe('sync:success', { documentId, ...result });
       } else {
         const errorData = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
         throw new Error(errorData.message || `Sync failed with status ${res.status}`);
@@ -319,9 +343,9 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
     } catch (err: any) {
       setSyncState('error');
       setSyncError(err.message || 'Sync failed');
-      dispatchEventSafe('sync:failed', { documentId: props.documentId, error: err.message });
+      dispatchEventSafe('sync:failed', { documentId, error: err.message });
     }
-  }, [props.documentId, props.page, title, correspondent, documentType, content, fields, initialValues]);
+  }, [documentId, props.page, title, correspondent, documentType, content, fields, initialValues]);
 
   // Fetch AI analysis
   const runAiAnalysis = useCallback(async () => {
@@ -336,7 +360,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content: content.substring(0, 50000),
-          id: props.documentId,
+          id: documentId,
         }),
       });
 
@@ -347,7 +371,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
     } finally {
       setAiLoading(false);
     }
-  }, [gpuState, content, props.documentId]);
+  }, [gpuState, content, documentId]);
 
   return (
     <div data-testid="manual-editor-island-root" data-hydrated="true" className="mei-root">
@@ -575,12 +599,16 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
               <button
                 type="button"
                 onClick={runAiAnalysis}
-                disabled={aiLoading}
+                disabled={aiLoading || !content || !content.trim()}
                 className="mei-btn mei-btn-primary"
                 data-testid="run-ai-analysis-btn"
               >
                 {aiLoading ? 'Analyzing...' : 'Run AI Analysis'}
               </button>
+
+              {!content || !content.trim() ? (
+                <p className="mei-gpu-hint" style={{ marginTop: '8px' }} data-testid="ai-no-content-hint">No document content available. Switch to the "Content" tab or paste text into the document content field before running analysis.</p>
+              ) : null}
 
               {aiResponse && (
                 <div className="mei-ai-response" data-testid="ai-response">

@@ -226,6 +226,8 @@ let PUBLIC_ROUTES = [
   '/dashboard',
   '/api/visual-rag',
   '/api/feedback',
+  // Allow unauthenticated access to Ollama model discovery for UI dropdowns (harmless metadata)
+  '/api/ollama/models',
   // Allow unauthenticated programmatic manual updates for test harnesses and automated integrations
   '/manual/updateDocument'
 ];
