@@ -280,9 +280,10 @@ router.use(async (req, res, next) => {
   try {
     const isConfigured = await setupService.isConfigured();
  
-    if (!isConfigured && (!process.env.PAPERLESS_AI_INITIAL_SETUP || process.env.PAPERLESS_AI_INITIAL_SETUP === 'no') && !req.path.startsWith('/setup')) {
+    // Allow certain informational API endpoints during initial setup (e.g. model discovery)
+    if (!isConfigured && (!process.env.PAPERLESS_AI_INITIAL_SETUP || process.env.PAPERLESS_AI_INITIAL_SETUP === 'no') && !req.path.startsWith('/setup') && !req.path.startsWith('/api/ollama/models')) {
       return res.redirect('/setup');
-    } else if (!isConfigured && process.env.PAPERLESS_AI_INITIAL_SETUP === 'yes' && !req.path.startsWith('/settings')) {
+    } else if (!isConfigured && process.env.PAPERLESS_AI_INITIAL_SETUP === 'yes' && !req.path.startsWith('/settings') && !req.path.startsWith('/api/ollama/models')) {
       return res.redirect('/settings');
     }
   } catch (error) {
