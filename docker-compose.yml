@@ -139,6 +139,10 @@ services:
               count: all
               capabilities: [gpu]
 
+    networks:
+      - monitoring
+      - default
+
   bias-engine:
     build:
       context: ./containers/bias-engine
