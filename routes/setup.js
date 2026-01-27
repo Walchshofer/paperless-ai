@@ -216,6 +216,54 @@ const upsertModelLimit = (limits, modelName, kind, contextWindowInput, maxRespon
  *           example: "#FF5733"
  */
 
+// Explicit public endpoint for Ollama model discovery (placed before auth/setup guard)
+router.get('/api/ollama/models', async (req, res) => {
+  try {
+    let installedModels = [];
+    try {
+      installedModels = await ollamaService.listModels();
+    } catch (e) {
+      installedModels = [];
+    }
+
+    const installedSet = new Set((installedModels || []).filter(m => typeof m === 'string' && m));
+
+    const configuredSet = new Set();
+    const addConfigured = (model) => { if (!model || typeof model !== 'string') return; const trimmed = model.trim(); if (!trimmed) return; configuredSet.add(trimmed); };
+
+    addConfigured(config.ollama?.model);
+    addConfigured(config.ollama?.visionModel);
+    addConfigured(config.ollama?.plannerModel);
+    addConfigured(config.ollama?.routerModel);
+    addConfigured(config.ollama?.orchestratorModel);
+
+    const expertConfig = config.expertModels || {};
+    const expertMedical = expertConfig.medical || {};
+    const expertFinancial = expertConfig.financial || {};
+    const expertLegal = expertConfig.legal || {};
+
+    addConfigured(expertMedical.vision);
+    addConfigured(expertMedical.analysis);
+    addConfigured(expertMedical.radiology);
+    addConfigured(expertFinancial.analysis);
+    addConfigured(expertFinancial.vision);
+    addConfigured(expertFinancial.vatExpert);
+    addConfigured(expertLegal.vision);
+    addConfigured(expertLegal.analysis);
+    addConfigured(expertLegal.orchestrator);
+
+    addConfigured(process.env.FINANCIAL_REASONING_MODEL);
+    addConfigured(process.env.LEGAL_ORCHESTRATOR_MODEL);
+
+    const placeholderModels = Array.from(configuredSet).filter(m => !installedSet.has(m));
+
+    res.json({ provider: config.aiProvider, providerMismatch: config.aiProvider !== 'ollama', defaultModel: config.ollama?.model || null, models: installedModels, placeholderModels, expertModels: [] });
+  } catch (error) {
+    console.error('[ERROR] loading Ollama models (early route):', error);
+    res.status(500).json({ error: 'Failed to load Ollama models' });
+  }
+});
+
 // Routes that don't require authentication
 let PUBLIC_ROUTES = [
   '/health',
