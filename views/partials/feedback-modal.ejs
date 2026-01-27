@@ -14,7 +14,7 @@
                     <i class="fas fa-comment-dots text-blue-500 mr-2"></i>
                     Extraction Feedback
                 </h3>
-                <button onclick="feedbackForm.hide()" class="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+                <button onclick="feedbackForm.hide()" data-testid="feedback-close-btn" class="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -27,19 +27,19 @@
                         How accurate was the extraction?
                     </label>
                     <div id="feedback-stars" class="flex gap-1">
-                        <button type="button" data-rating="1" class="feedback-star p-1 text-2xl text-gray-300 hover:text-yellow-400 transition-colors">
+                        <button type="button" data-rating="1" data-testid="feedback-star-1" class="feedback-star p-1 text-2xl text-gray-300 hover:text-yellow-400 transition-colors">
                             <i class="fas fa-star"></i>
                         </button>
-                        <button type="button" data-rating="2" class="feedback-star p-1 text-2xl text-gray-300 hover:text-yellow-400 transition-colors">
+                        <button type="button" data-rating="2" data-testid="feedback-star-2" class="feedback-star p-1 text-2xl text-gray-300 hover:text-yellow-400 transition-colors">
                             <i class="fas fa-star"></i>
                         </button>
-                        <button type="button" data-rating="3" class="feedback-star p-1 text-2xl text-gray-300 hover:text-yellow-400 transition-colors">
+                        <button type="button" data-rating="3" data-testid="feedback-star-3" class="feedback-star p-1 text-2xl text-gray-300 hover:text-yellow-400 transition-colors">
                             <i class="fas fa-star"></i>
                         </button>
-                        <button type="button" data-rating="4" class="feedback-star p-1 text-2xl text-gray-300 hover:text-yellow-400 transition-colors">
+                        <button type="button" data-rating="4" data-testid="feedback-star-4" class="feedback-star p-1 text-2xl text-gray-300 hover:text-yellow-400 transition-colors">
                             <i class="fas fa-star"></i>
                         </button>
-                        <button type="button" data-rating="5" class="feedback-star p-1 text-2xl text-gray-300 hover:text-yellow-400 transition-colors">
+                        <button type="button" data-rating="5" data-testid="feedback-star-5" class="feedback-star p-1 text-2xl text-gray-300 hover:text-yellow-400 transition-colors">
                             <i class="fas fa-star"></i>
                         </button>
                     </div>
@@ -52,22 +52,22 @@
                         Which fields had errors? <span class="text-gray-400 font-normal">(optional)</span>
                     </label>
                     <div id="feedback-corrections" class="flex flex-wrap gap-2">
-                        <button type="button" data-field="date" class="correction-chip px-3 py-1 text-sm border border-gray-300 rounded-full hover:border-red-400 hover:bg-red-50 transition-colors">
+                        <button type="button" data-field="date" data-testid="feedback-correction-date" class="correction-chip px-3 py-1 text-sm border border-gray-300 rounded-full hover:border-red-400 hover:bg-red-50 transition-colors">
                             Date
                         </button>
-                        <button type="button" data-field="amount" class="correction-chip px-3 py-1 text-sm border border-gray-300 rounded-full hover:border-red-400 hover:bg-red-50 transition-colors">
+                        <button type="button" data-field="amount" data-testid="feedback-correction-amount" class="correction-chip px-3 py-1 text-sm border border-gray-300 rounded-full hover:border-red-400 hover:bg-red-50 transition-colors">
                             Amount
                         </button>
-                        <button type="button" data-field="vendor" class="correction-chip px-3 py-1 text-sm border border-gray-300 rounded-full hover:border-red-400 hover:bg-red-50 transition-colors">
+                        <button type="button" data-field="vendor" data-testid="feedback-correction-vendor" class="correction-chip px-3 py-1 text-sm border border-gray-300 rounded-full hover:border-red-400 hover:bg-red-50 transition-colors">
                             Vendor
                         </button>
-                        <button type="button" data-field="category" class="correction-chip px-3 py-1 text-sm border border-gray-300 rounded-full hover:border-red-400 hover:bg-red-50 transition-colors">
+                        <button type="button" data-field="category" data-testid="feedback-correction-category" class="correction-chip px-3 py-1 text-sm border border-gray-300 rounded-full hover:border-red-400 hover:bg-red-50 transition-colors">
                             Category
                         </button>
-                        <button type="button" data-field="description" class="correction-chip px-3 py-1 text-sm border border-gray-300 rounded-full hover:border-red-400 hover:bg-red-50 transition-colors">
+                        <button type="button" data-field="description" data-testid="feedback-correction-description" class="correction-chip px-3 py-1 text-sm border border-gray-300 rounded-full hover:border-red-400 hover:bg-red-50 transition-colors">
                             Description
                         </button>
-                        <button type="button" data-field="other" class="correction-chip px-3 py-1 text-sm border border-gray-300 rounded-full hover:border-red-400 hover:bg-red-50 transition-colors">
+                        <button type="button" data-field="other" data-testid="feedback-correction-other" class="correction-chip px-3 py-1 text-sm border border-gray-300 rounded-full hover:border-red-400 hover:bg-red-50 transition-colors">
                             Other
                         </button>
                     </div>
@@ -95,6 +95,7 @@
             <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
                 <button
                     type="button"
+                    data-testid="feedback-cancel-btn"
                     onclick="feedbackForm.hide()"
                     class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
@@ -103,6 +104,7 @@
                 <button
                     type="button"
                     id="feedback-submit-btn"
+                    data-testid="feedback-submit-btn"
                     onclick="feedbackForm.submit()"
                     class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled
@@ -121,6 +123,7 @@
                 <p class="text-sm text-gray-600 text-center mb-4">Your feedback helps improve extraction accuracy.</p>
                 <button
                     type="button"
+                    data-testid="feedback-close-success-btn"
                     onclick="feedbackForm.hide()"
                     class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
                 >

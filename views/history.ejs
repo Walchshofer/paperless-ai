@@ -1,52 +1,27 @@
 <!-- views/history.ejs -->
 <!DOCTYPE html>
-<html lang="en" class="h-full" data-theme="light">
+<html lang="en" class="h-full" data-theme="light" data-page="history">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modified Documents - Paperless-AI</title>
     <script src="https://cdn.tailwindcss.com/3.4.16"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap">
     <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/self-guiding.css">
     <link rel="stylesheet" href="css/overlay-viewer.css">
-    <style>
-        .dataTables_wrapper .dataTables_length, 
-        .dataTables_wrapper .dataTables_filter {
-            margin-bottom: 1rem;
-        }
-        .dataTables_wrapper .dataTables_info {
-            margin-top: 1rem;
-        }
-        .dataTables_wrapper .dataTables_paginate {
-            margin-top: 1rem;
-        }
-        .highlight-row {
-            background-color: rgba(59, 130, 246, 0.1);
-        }
-        .modal {
-            transition: opacity 0.3s ease-in-out;
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        .modal.show {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        .modal.hidden {
-            display: none;
-        }
-            </style>
 </head>
-<body class="h-full">
-    <button id="themeToggle" class="theme-toggle">
+<body class="h-full" data-page="<%= vm.page || 'history' %>">
+    <% /* Ensure `vm` exists to avoid ReferenceError when rendering anchors in environments without view model */ %>
+    <% var vm = typeof vm !== 'undefined' ? vm : {}; %>
+    <% var historyProps = vm.history || {}; %>
+    <button id="themeToggle" data-testid="theme-toggle" class="theme-toggle">
         <i class="fas fa-moon dark:fas fa-sun"></i>
     </button>
 
     <div class="layout-container">
-        <button id="mobileMenuButton" class="mobile-menu-button">
+        <button id="mobileMenuButton" data-testid="mobile-menu-button" class="mobile-menu-button">
             <i class="fas fa-bars"></i>
         </button>
         <!-- Sidebar -->
@@ -54,7 +29,7 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <img src="/favicon.ico" class="no-invert" alt="Paperless AI Logo" style="height: 60px;">
-                <h1 class="brand-title">Paperless-AI<small style="display: block;"><%= version %></small></h1>
+                <h1 class="brand-title">Paperless-AI<small style="display: block;"><%= vm.version || '' %></small></h1>
             </div>
 
             <nav class="sidebar-nav">
@@ -88,94 +63,16 @@
         <main class="main-content modified-documents-page">
             <div class="content-wrapper">
                 <div class="content-header flex justify-between items-center mb-6">
-                    <h1 class="content-title">Modified Documents</h1>
-                    <div class="flex gap-4">
-                        <button id="resetSelectedBtn" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
-                            Reset Selected
-                        </button>
-                        <button id="resetAllBtn" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
-                            Reset All
-                        </button>
-                    </div>
+                    <h1 class="content-title sg-display">Modified Documents</h1>
                 </div>
 
-                <!-- Custom Filters -->
-                <div class="flex flex-wrap gap-4 mb-6">
-                    <div class="min-w-[200px]">
-                        <select id="tagFilter" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="">All Tags</option>
-                            <% filters.allTags.forEach(function(tag) { %>
-                                <option value="<%= tag.id %>"><%= tag.name %></option>
-                            <% }); %>
-                        </select>
-                    </div>
-                    
-                    <div class="min-w-[200px]">
-                        <select id="correspondentFilter" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="">All Correspondents</option>
-                            <% filters.allCorrespondents.forEach(function(corr) { %>
-                                <option value="<%= corr %>"><%= corr %></option>
-                            <% }); %>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- DataTable -->
-                <div class="material-card">
-                    <div class="overflow-x-auto">
-                        <table id="historyTable" class="w-full">
-                            <thead>
-                                <tr>
-                                    <th><input type="checkbox" id="selectAll" class="rounded"></th>
-                                    <th>ID</th>
-                                    <th>Title</th>
-                                    <th>Tags</th>
-                                    <th>Correspondent</th>
-                                    <th>Overlays</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                        </table>
-                    </div>
-                </div>
+                <div
+                    data-island="history-manager-island"
+                    data-testid="history-manager-island"
+                    data-props="<%= JSON.stringify(historyProps) %>"
+                ></div>
             </div>
         </main>
-    </div>
-
-    <!-- Confirmation Modal for Selected Documents -->
-    <div id="confirmModal" class="modal hidden">
-        <div class="modal-overlay"></div>
-        <div class="modal-container">
-            <div class="modal-header">
-                <h3 class="modal-title">Confirm Reset</h3>
-                <button class="modal-close"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="modal-content">
-                <p class="mb-4">Are you sure you want to reset the selected documents to their original values? This action cannot be undone.</p>
-                <div class="flex justify-end gap-4">
-                    <button id="cancelReset" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100">Cancel</button>
-                    <button id="confirmReset" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">Confirm Reset</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Confirmation Modal for All Documents -->
-    <div id="confirmModalAll" class="modal hidden">
-        <div class="modal-overlay"></div>
-        <div class="modal-container">
-            <div class="modal-header">
-                <h3 class="modal-title">Confirm Reset All</h3>
-                <button class="modal-close"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="modal-content">
-                <p class="mb-4">Are you sure you want to reset <b>all</b> documents to their original values? This action cannot be undone.</p>
-                <div class="flex justify-end gap-4">
-                    <button id="cancelResetAll" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100">Cancel</button>
-                    <button id="confirmResetAll" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">Confirm Reset</button>
-                </div>
-            </div>
-        </div>
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -228,7 +125,8 @@
     <script>
         // GitHub stars (guarded in tests/CI)
         document.addEventListener('DOMContentLoaded', function() {
-            if (window.__DISABLE_GITHUB_FETCH__ || '<%= config.DISABLE_GITHUB_FETCH %>' === 'true') return;
+            const disableGithubFetch = '<%= (vm.DISABLE_GITHUB_FETCH || 'no') %>' === 'true';
+            if (window.__DISABLE_GITHUB_FETCH__ || disableGithubFetch) return;
 
             async function getStarsCount() {
                 try {
@@ -246,48 +144,15 @@
         });
     </script>
 
-    <!-- Visual Viewer Modal -->
-    <div id="visualViewerModal" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-start justify-center overflow-auto py-10">
-        <div class="bg-bg-primary rounded-lg max-w-5xl w-full mx-4 p-6 relative">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-medium text-text-primary">Document Visual Preview</h3>
-                <button id="closeVisualModal" class="text-text-secondary hover:text-text-primary text-xl">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <!-- Page Navigation -->
-            <div id="historyPageNav" class="flex items-center justify-center gap-4 mb-3 hidden">
-                <button id="historyPrevPage" class="px-3 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed">
-                    <i class="fas fa-chevron-left"></i>
-                </button>
-                <span id="historyPageIndicator" class="text-sm text-text-secondary">Page 1 of 1</span>
-                <button id="historyNextPage" class="px-3 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed">
-                    <i class="fas fa-chevron-right"></i>
-                </button>
-                <span class="text-xs text-text-secondary ml-2">@ 300 DPI</span>
-            </div>
-            <div class="flex flex-col lg:flex-row gap-4">
-                <div id="historyOverlayContainer" class="flex-1 min-h-[500px] bg-bg-primary rounded border border-border-color p-4 overflow-auto">
-                    <div id="historyOverlayLoading" class="flex items-center justify-center h-[400px] text-text-secondary">
-                        <i class="fas fa-spinner fa-spin mr-2"></i> Rendering high-resolution preview...
-                    </div>
-                </div>
-                <div id="historyLegendContainer" class="lg:w-64 flex-shrink-0"></div>
-            </div>
-            <div id="historyOverlayStats" class="mt-3 text-sm text-text-secondary hidden">
-                <span id="historyOverlayCount">0</span> fields detected
-            </div>
-        </div>
-    </div>
-
     <!-- Feedback Modal -->
     <%- include('partials/feedback-modal') %>
 
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
-    <script src="js/components/OverlayViewer.js"></script>
-    <script src="js/components/OverlayLegend.js"></script>
     <script src="js/components/FeedbackForm.js"></script>
-    <script src="js/history.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script type="module">
+        import { mountIslands } from '/js/dist/island-runtime.js';
+        mountIslands(document);
+        window.__islandRuntimeMounted = true;
+    </script>
 </body>
 </html>

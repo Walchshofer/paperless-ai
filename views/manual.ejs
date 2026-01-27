@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="css/overlay-viewer.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
 </head>
-<body class="h-full">
+<body class="h-full" data-page="<%= vm.page || 'manual' %>">
     <% /* Ensure `vm` exists to avoid ReferenceError when rendering anchors in environments without view model */ %>
     <% var vm = typeof vm !== 'undefined' ? vm : {}; %>
     <% var manualVm = vm.manual || {}; %>
@@ -48,12 +48,12 @@
          originalUrl: manualProps.originalUrl || null,
          pageCount: manualVm.pageCount || null
        }; %>
-    <button id="themeToggle" class="theme-toggle">
+    <button id="themeToggle" data-testid="theme-toggle" class="theme-toggle">
         <i class="fas fa-moon dark:fas fa-sun"></i>
     </button>
 
     <div class="layout-container">
-        <button id="mobileMenuButton" class="mobile-menu-button">
+        <button id="mobileMenuButton" data-testid="mobile-menu-button" class="mobile-menu-button">
             <i class="fas fa-bars"></i>
         </button>
         <!-- Sidebar -->
@@ -144,7 +144,6 @@
                 <!-- Island anchors (auditable via data-testid) -->
                 <div data-island="visual-annotation-island" data-testid="visual-annotation-island" data-props="<%= JSON.stringify({ documentId: manualProps.documentId }) %>"></div>
                 <div data-island="feedback-controls-island" data-testid="feedback-controls-island" data-props="<%= JSON.stringify({ documentId: manualProps.documentId }) %>"></div>
-                <div data-island="manual-editor-island" data-testid="manual-editor-island" data-props="<%= JSON.stringify(manualProps) %>"></div>
         
                 <!-- Document Selection -->
                 <div class="material-card mb-6">
@@ -153,7 +152,21 @@
                         <option value="">Choose a document...</option>
                     </select>
                 </div>
-        
+
+                <div class="material-card mb-6" data-testid="manual-editor-card">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="card-title mb-0">Manual Editor</h2>
+                        <span class="text-xs text-text-muted">
+                            Edits sync to Paperless
+                        </span>
+                    </div>
+                    <div
+                        data-island="manual-editor-island"
+                        data-testid="manual-editor-island"
+                        data-props="<%= JSON.stringify(manualProps) %>"
+                    ></div>
+                </div>
+
                 <!-- Main Grid -->
                 <div class="card-grid">
                     <!-- Document Preview Card -->
@@ -280,7 +293,7 @@
     <script>
         // GitHub stars (guarded in tests/CI)
         document.addEventListener('DOMContentLoaded', function() {
-            const disableGithubFetch = '<%= (vm.config && vm.config.disableGithubFetch) || 'no' %>' === 'true';
+            const disableGithubFetch = '<%= (vm.DISABLE_GITHUB_FETCH || 'no') %>' === 'true';
             if (window.__DISABLE_GITHUB_FETCH__ || disableGithubFetch) return;
 
             async function getStarsCount() {

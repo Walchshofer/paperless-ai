@@ -9,8 +9,8 @@
     <link rel="stylesheet" href="css/dashboard.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
 </head>
-<body class="h-full">
-    <button id="themeToggle" class="theme-toggle">
+<body class="h-full" data-page="<%= vm.page || 'template' %>">
+    <button id="themeToggle" data-testid="theme-toggle" class="theme-toggle">
         <i class="fas fa-moon dark:fas fa-sun"></i>
     </button>
 

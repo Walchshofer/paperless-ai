@@ -35,13 +35,13 @@
         }
     </style>
 </head>
-<body class="h-full">
-    <button id="themeToggle" class="theme-toggle">
+<body class="h-full" data-page="<%= vm.page || 'playground' %>">
+    <button id="themeToggle" data-testid="theme-toggle" class="theme-toggle">
         <i class="fas fa-moon dark:fas fa-sun"></i>
     </button>
 
     <div class="layout-container">
-        <button id="mobileMenuButton" class="mobile-menu-button">
+        <button id="mobileMenuButton" data-testid="mobile-menu-button" class="mobile-menu-button">
             <i class="fas fa-bars"></i>
         </button>
         <!-- Sidebar -->
@@ -183,35 +183,12 @@
         });
     </script>
 
-    <!-- Dispatch overlay:document-changed from playground anchors so islands remain in sync -->
-    <script>
-      (function() {
-        try {
-          const anchor = document.querySelector('[data-island="overlay-viewer-island"]') || document.querySelector('[data-island="playground-island"]');
-          if (!anchor) return;
-          let props = {};
-          try { props = JSON.parse(anchor.getAttribute('data-props') || '{}'); } catch (e) { props = {}; }
-          const docId = props.documentId || null;
-          const originalUrl = props.originalUrl || null;
-          const page = props.page || 1;
-          window.dispatchEvent(new CustomEvent('overlay:document-changed', { detail: { documentId: docId, page, originalUrl } }));
-
-          window.addEventListener('preview:page-changed', (e) => {
-            const d = (e as CustomEvent)?.detail || {};
-            const newPage = d.page || page;
-            const newDoc = d.documentId || docId;
-            const newOriginal = d.originalUrl || originalUrl;
-            window.dispatchEvent(new CustomEvent('overlay:document-changed', { detail: { documentId: newDoc, page: newPage, originalUrl: newOriginal } }));
-          });
-        } catch (e) { /* ignore */ }
-      })();
-    </script>
 
     <!-- GitHub stars script (guarded in tests/CI) -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Skip external fetch in test/CI when explicitly disabled server-side
-            if (window.__DISABLE_GITHUB_FETCH__ || '<%= config.DISABLE_GITHUB_FETCH %>' === 'true') return;
+            if (window.__DISABLE_GITHUB_FETCH__ || '<%= vm.DISABLE_GITHUB_FETCH %>' === 'true') return;
 
             async function getStarsCount() {
                 try {

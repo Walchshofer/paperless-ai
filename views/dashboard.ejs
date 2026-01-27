@@ -9,13 +9,13 @@
     <link rel="stylesheet" href="css/dashboard.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
 </head>
-<body class="h-full">
-    <button id="themeToggle" class="theme-toggle">
+<body class="h-full" data-page="<%= vm.page || 'dashboard' %>">
+    <button id="themeToggle" data-testid="theme-toggle" class="theme-toggle">
         <i class="fas fa-moon dark:fas fa-sun"></i>
     </button>
 
     <div class="layout-container">
-        <button id="mobileMenuButton" class="mobile-menu-button">
+        <button id="mobileMenuButton" data-testid="mobile-menu-button" class="mobile-menu-button">
             <i class="fas fa-bars"></i>
         </button>
         <!-- Sidebar -->
@@ -23,7 +23,7 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                     <img src="/favicon.ico" class="no-invert" alt="Paperless AI Logo" style="height: 60px;">
-                <h1 class="brand-title">Paperless-AI<small style="display: block;"><%= version %></small></h1>
+                <h1 class="brand-title">Paperless-AI<small style="display: block;"><%= vm.version %></small></h1>
             </div>
 
             <nav class="sidebar-nav">
@@ -115,6 +115,7 @@
                         </div>
                         <button 
                             id="scanButton" 
+                            data-testid="dashboard-scan-btn"
                             class="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
                             onclick="triggerScan()"
                         >
@@ -148,7 +149,7 @@
                                                 <div class="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
                                                 <span>AI Processed</span>
                                             </div>
-                                            <span class="font-semibold"><%= paperless_data.processedDocumentCount %></span>
+                                            <span class="font-semibold"><%= vm.paperless_data.processedDocumentCount %></span>
                                         </div>
                                     </div>
                                     <div class="stat-item mt-4">
@@ -157,12 +158,12 @@
                                                 <div class="w-3 h-3 rounded-full bg-gray-200 mr-2"></div>
                                                 <span>Unprocessed</span>
                                             </div>
-                                            <span class="font-semibold"><%= paperless_data.documentCount - paperless_data.processedDocumentCount %></span>
+                                            <span class="font-semibold"><%= vm.paperless_data.documentCount - vm.paperless_data.processedDocumentCount %></span>
                                         </div>
                                     </div>
                                     <div class="total-stats mt-6 pt-4 border-t">
                                         <div class="text-sm text-gray-600">Total Documents</div>
-                                        <div class="text-2xl font-bold"><%= paperless_data.documentCount %></div>
+                                        <div class="text-2xl font-bold"><%= vm.paperless_data.documentCount %></div>
                                     </div>
                                 </div>
                             </div>
@@ -210,7 +211,7 @@
                         <div class="modal-container">
                             <div class="modal-header">
                                 <h3 class="modal-title"></h3>
-                                <button class="modal-close">
+                                <button class="modal-close" data-testid="modal-close">
                                     <i class="fas fa-times"></i>
                                 </button>
                             </div>
@@ -653,7 +654,7 @@
     <script>
         // GitHub stars (guarded in tests/CI)
         document.addEventListener('DOMContentLoaded', function() {
-            if (window.__DISABLE_GITHUB_FETCH__ || '<%= config.DISABLE_GITHUB_FETCH %>' === 'true') return;
+            if (window.__DISABLE_GITHUB_FETCH__ || '<%= vm.DISABLE_GITHUB_FETCH %>' === 'true') return;
 
             async function getStarsCount() {
                 try {
