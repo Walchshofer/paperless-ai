@@ -206,11 +206,49 @@ class SetupService {
   }
 
   async validateConfig(config) {
-    // Validate Paperless config
-    const paperlessApiUrl = config.PAPERLESS_API_URL.replace(/\/api/g, '');
+    // Helper to read values safely from either a plain config object or a proxied config with getRaw/__getOriginal
+    const readConfigValue = (cfg, key) => {
+      try {
+        if (!cfg) return undefined;
+        if (typeof key === 'string' && key.includes('.')) {
+          const parts = key.split('.');
+          // try getRaw with path
+          if (typeof cfg.getRaw === 'function') return cfg.getRaw(parts.join('.'));
+          if (typeof cfg.__getOriginal === 'function') return cfg.__getOriginal(parts.join('.'));
+          // fallback to nested property access
+          let cur = cfg;
+          for (const p of parts) {
+            if (!cur) return undefined;
+            cur = cur[p];
+          }
+          return cur;
+        }
+
+        if (typeof cfg.getRaw === 'function') {
+          const v = cfg.getRaw(key);
+          if (v !== undefined) return v;
+          const all = cfg.getRaw();
+          return all && all[key];
+        }
+        if (typeof cfg.__getOriginal === 'function') {
+          const v = cfg.__getOriginal(key);
+          if (v !== undefined) return v;
+          const all = cfg.__getOriginal();
+          return all && all[key];
+        }
+        return cfg && cfg[key];
+      } catch (e) {
+        return cfg && cfg[key];
+      }
+    };
+
+    // Validate Paperless config (support both env-style and nested config formats)
+    const rawUrl = readConfigValue(config, 'PAPERLESS_API_URL') || readConfigValue(config, 'paperless.apiUrl') || '';
+    const rawToken = readConfigValue(config, 'PAPERLESS_API_TOKEN') || readConfigValue(config, 'paperless.apiToken') || '';
+    const paperlessApiUrl = String(rawUrl).replace(/\/api/g, '');
     const paperlessValid = await this.validatePaperlessConfig(
       paperlessApiUrl,
-      config.PAPERLESS_API_TOKEN
+      rawToken
     );
     
     if (!paperlessValid) {
@@ -280,7 +318,17 @@ class SetupService {
       const dataDir = path.dirname(this.envPath);
       await fs.mkdir(dataDir, { recursive: true });
 
-      const envContent = Object.entries(config)
+      // Prefer a plain unproxied object for enumeration when available (config may be a proxied module.exports)
+      let src = config;
+      try {
+        if (config && typeof config.getRaw === 'function') src = config.getRaw();
+        else if (config && typeof config.__getOriginal === 'function') src = config.__getOriginal();
+      } catch (e) {
+        // Fall back to the provided object on any error
+        src = config;
+      }
+
+      const envContent = Object.entries(src)
         .map(([key, value]) => {
           if (key === "SYSTEM_PROMPT") {
             return `${key}=\`${value}\n\``;
@@ -291,8 +339,8 @@ class SetupService {
 
       await fs.writeFile(this.envPath, envContent);
       
-      // Reload environment variables
-      Object.entries(config).forEach(([key, value]) => {
+      // Reload environment variables from the same plain source
+      Object.entries(src).forEach(([key, value]) => {
         process.env[key] = value;
       });
     } catch (error) {
