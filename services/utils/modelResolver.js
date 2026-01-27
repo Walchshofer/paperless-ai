@@ -14,6 +14,7 @@
  */
 
 const config = require('../../config/config');
+const logger = require('../logger');
 
 /**
  * Resolves a model name through alias mapping and normalization
@@ -28,10 +29,65 @@ function resolveModelName(modelName) {
 
   // Build a lowercase alias map for case-insensitive lookup
   const aliasLowerMap = {};
+  let rawAliases = null;
   if (config.modelAliases) {
-    for (const [alias, target] of Object.entries(config.modelAliases)) {
-      aliasLowerMap[alias.toLowerCase()] = target;
+    try {
+      // Try direct enumeration first (plain objects)
+      for (const [alias, target] of Object.entries(config.modelAliases)) {
+        aliasLowerMap[alias.toLowerCase()] = target;
+      }
+    } catch (err) {
+      // Some config exports are proxied and do not support enumeration via Object.entries
+      logger.warn({ event: 'model_resolver_alias_map_error', error: err?.message || String(err), modelAliases: config.modelAliases });
     }
+
+    // If aliasLowerMap is empty, try reading the original unproxied config if available
+    try {
+      if (Object.keys(aliasLowerMap).length === 0) {
+        if (typeof config.getRaw === 'function') rawAliases = config.getRaw('modelAliases');
+        else if (typeof config.__getOriginal === 'function') rawAliases = config.__getOriginal('modelAliases');
+        if (rawAliases && typeof rawAliases === 'object') {
+          for (const [alias, target] of Object.entries(rawAliases)) {
+            aliasLowerMap[alias.toLowerCase()] = target;
+          }
+        }
+      }
+    } catch (err) {
+      // ignore
+    }
+
+    // If enumeration yielded nothing (proxied config), try direct property lookups on proxy
+    try {
+      const directKeysToTry = [input, lowerInput, input.split(':')[0], input.split(':')[0].toLowerCase()];
+      for (const k of directKeysToTry) {
+        try {
+          const val = config.modelAliases && config.modelAliases[k];
+          if (val) {
+            logger.debug({ event: 'resolveModel_direct_alias_found', modelName: input, key: k, target: val });
+            return val;
+          }
+        } catch (e) {
+          // ignore property access errors on proxy
+        }
+      }
+    } catch (err) {
+      // ignore
+    }
+
+    // Debug: Emit lightweight diagnostic for failing test scenarios
+    try {
+      logger.debug({
+        event: 'resolveModel_debug_aliases',
+        modelName: input,
+        lowerInput,
+        aliasCount: Object.keys(aliasLowerMap).length,
+        sampleAliases: (rawAliases && Object.keys(rawAliases)) || Object.keys(config.modelAliases || {}).slice(0, 20)
+      });
+    } catch (err) {
+      // Swallow logging errors to avoid breaking test runs
+    }
+  } else {
+    logger.debug({ event: 'model_resolver_no_aliases' });
   }
 
   // 1) Exact alias match (case-insensitive)
@@ -43,7 +99,9 @@ function resolveModelName(modelName) {
   const allModels = Object.values(listModelsByTier()).flat();
   const allModelsLower = new Set(allModels.map(m => m.toLowerCase()));
   if (allModelsLower.has(lowerInput)) {
-    return lowerInput;
+    // Return the canonical model name as defined in the tiers (preserve canonical spelling)
+    const original = allModels.find(m => m.toLowerCase() === lowerInput);
+    return original || lowerInput;
   }
 
   // 3) Strip suffix after ':' and retry alias lookup or known-model match
@@ -55,8 +113,9 @@ function resolveModelName(modelName) {
   }
 
   if (allModelsLower.has(lowerBase)) {
-    // Return the base model name (normalized to lowercase for consistency)
-    return lowerBase;
+    // Return the canonical base model name if present
+    const originalBase = allModels.find(m => m.toLowerCase() === lowerBase);
+    return originalBase || lowerBase;
   }
 
   // Fallback: return lowercased input
@@ -142,11 +201,21 @@ function getModelAliases(canonicalName) {
   if (!canonicalName) return [];
 
   const aliases = [];
+  // Prefer reading the raw underlying config when available for reliable enumeration
+  let raw = null;
+  if (typeof config.getRaw === 'function') raw = config.getRaw('modelAliases');
+  else if (typeof config.__getOriginal === 'function') raw = config.__getOriginal('modelAliases');
+
+  if (raw && typeof raw === 'object') {
+    for (const [alias, target] of Object.entries(raw)) {
+      if (target === canonicalName) aliases.push(alias);
+    }
+    return aliases;
+  }
+
   if (config.modelAliases) {
     for (const [alias, target] of Object.entries(config.modelAliases)) {
-      if (target === canonicalName) {
-        aliases.push(alias);
-      }
+      if (target === canonicalName) aliases.push(alias);
     }
   }
 

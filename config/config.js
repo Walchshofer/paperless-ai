@@ -719,6 +719,14 @@ function createNestedProxy(path = []) {
         };
       if (prop === 'clearRuntimeOverrides') return () => { runtimeOverrides = {}; };
       if (prop === 'getRuntimeOverrides') return () => JSON.parse(JSON.stringify(runtimeOverrides));
+      // Safe access to the original, unproxied configuration object (useful for enumerations)
+      if (prop === 'getRaw' || prop === '__getOriginal') {
+        return (pathStr) => {
+          if (!pathStr) return JSON.parse(JSON.stringify(_originalConfig));
+          const parts = String(pathStr).split('.');
+          return _getFromOriginal(parts);
+        };
+      }
 
       // Check for an override at the full path
       const fullPath = path.concat(propStr);
