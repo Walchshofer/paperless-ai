@@ -1440,6 +1440,34 @@ router.post('/manual/updateDocument', express.json(), async (req, res) => {
         await feedbackService.recordGranularFeedback(documentId, feedbackEvents, { requestId, transactional: false });
       }
 
+      // Fire-and-forget: if tags or correspondent changed, trigger a Qdrant payload sync
+      try {
+        const qdrant = require('../services/visual-rag-client/QdrantAdapter');
+        const { metricsCollector } = require('../services/metrics/PrometheusMetrics');
+
+        const origTags = (originalDoc && Array.isArray(originalDoc.tags)) ? originalDoc.tags : [];
+        const newTags = (updateDocument && Array.isArray(updateDocument.tags)) ? updateDocument.tags : [];
+        const tagsChanged = JSON.stringify(origTags.slice().sort()) !== JSON.stringify(newTags.slice().sort());
+        const origCorr = (originalDoc && originalDoc.correspondent !== undefined) ? originalDoc.correspondent : null;
+        const newCorr = (updateDocument && updateDocument.correspondent !== undefined) ? updateDocument.correspondent : null;
+
+        if (tagsChanged || origCorr !== newCorr) {
+          // Run asynchronously and do not block the response
+          setImmediate(async () => {
+            try {
+              const coll = (qdrant && qdrant.COLLECTIONS && qdrant.COLLECTIONS.document_embeddings && qdrant.COLLECTIONS.document_embeddings.name) ? qdrant.COLLECTIONS.document_embeddings.name : 'document_embeddings';
+              await qdrant.qdrantAdapter.updatePayloadForDoc(coll, documentId, { tags: newTags, correspondent: newCorr });
+              metricsCollector && metricsCollector.recordQdrantPayloadSync && metricsCollector.recordQdrantPayloadSync(coll);
+            } catch (e) {
+              logger.warn('manual.updateDocument.qdrant_sync_failed', { requestId, documentId, error: e.message });
+            }
+          });
+        }
+      } catch (e) {
+        // best-effort; swallow errors to avoid affecting the user request
+        logger.debug('manual.updateDocument.qdrant_sync_skipped', { requestId, documentId });
+      }
+
       return res.json({ success: true, message: 'Document updated successfully' });
     }
 

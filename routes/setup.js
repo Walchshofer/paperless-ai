@@ -572,11 +572,6 @@ router.get('/api/ollama/verify', async (req, res) => {
     res.status(500).json({ error: 'Failed to verify model' });
   }
 });
-  } catch (error) {
-    console.error('[ERROR] loading Ollama models:', error);
-    res.status(500).json({ error: 'Failed to load Ollama models' });
-  }
-});
 
 
 const normalizeArray = (value) => {

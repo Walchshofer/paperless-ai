@@ -277,7 +277,8 @@ class FeedbackService {
             return 'annotation';
         };
 
-        if (!this.pool) {
+        // If no pool is configured and no external client or pool was provided, bail out
+        if (!this.pool && !options.client && !options.pool) {
             logger.error('PostgreSQL not configured, granular feedback lost');
             if (process.env.PG_STRICT_MODE === 'true' || process.env.PG_STRICT_MODE === 'yes') {
                 throw new Error('No database connection (PG_STRICT_MODE)');

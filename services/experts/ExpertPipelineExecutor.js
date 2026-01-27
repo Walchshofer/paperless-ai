@@ -2562,11 +2562,15 @@ class ExpertPipelineExecutor {
     const maxRetries = typeof retryCfg.maxRetries === 'number' ? retryCfg.maxRetries : 3;
     const baseDelay = typeof retryCfg.baseDelay === 'number' ? retryCfg.baseDelay : 1000;
     const maxDelay = typeof retryCfg.maxDelay === 'number' ? retryCfg.maxDelay : 10000;
-    const enableModelCheck = retryCfg.enableModelCheck === 'yes' || retryCfg.enableModelCheck === true;
+    // By default, enableModelCheck should be on unless explicitly disabled
+    const enableModelCheck = (typeof retryCfg.enableModelCheck === 'undefined')
+      ? true
+      : (retryCfg.enableModelCheck === 'yes' || retryCfg.enableModelCheck === true);
     const modelCheckTimeout = retryCfg.modelCheckTimeout || 5000;
 
     if (enableModelCheck && MODEL_NAMES?.router) {
       try {
+        logger.debug({ event: 'router_model_precheck_start', model: MODEL_NAMES.router, timeout: modelCheckTimeout });
         const availability = await executor._checkModelAvailability(MODEL_NAMES.router, modelCheckTimeout);
         if (!availability.available) {
           logger.warn({
@@ -2575,6 +2579,8 @@ class ExpertPipelineExecutor {
             loadedModels: availability.models || [],
             reason: availability.error || 'not_loaded'
           });
+          // Record the fallback statistic and return a consistent fallback indicator
+          this.stats.routerFallbacks += 1;
           return { _meta: { fallback: true, reason: 'model_not_available' } };
         }
       } catch (err) {

@@ -23,8 +23,9 @@ describe('Manual view server rendering with images', function() {
     assert.ok(match, 'overlay-viewer-island anchor not found');
 
     const propsRaw = match[1];
-    const decoded = propsRaw.replace(/\\&quot;/g, '"');
-    // EJS JSON.stringify will produce double quotes escaped as &quot; in attribute; convert back
+    // EJS JSON.stringify will produce double quotes escaped as HTML entities in attribute; convert back
+    // Support both named (&quot;) and numeric (&#34;) quote entities that may appear in different environments.
+    const decoded = propsRaw.replace(/(&quot;|&#34;)/g, '"');
     const props = JSON.parse(decoded);
 
     assert.ok(Array.isArray(props.images), 'images not present in data-props');
