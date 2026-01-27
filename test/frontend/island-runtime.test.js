@@ -1,7 +1,6 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { pathToFileURL } = require('url');
 const { JSDOM } = require('jsdom');
 
 describe('Island runtime (browser build)', function(){
@@ -88,39 +87,26 @@ describe('Island runtime (browser build)', function(){
         assert.fail(`Runtime file missing: ${runtimePath}`);
       }
 
-      // Prefer evaluating the built runtime inside JSDOM to avoid ESM loader issues in
-      // the CJS test runner. If evaluation fails, fall back to a dynamic import.
-      let runtimeModule = null;
-      let evalError = null;
-
+      // Evaluate the built runtime in JSDOM, stripping ESM exports so it can
+      // run under the CommonJS test runner even when ts-node is registered.
+      let mountIslands = null;
       try {
-        const code = fs.readFileSync(runtimePath, 'utf8');
-        try {
-          dom.window.eval(code);
-        } catch (err) {
-          evalError = err;
-        }
-      } catch (fsErr) {
-        // If reading the file fails, attempt a dynamic import as a last resort
-        try {
-          runtimeModule = await import(pathToFileURL(runtimePath).href);
-        } catch (impErr) {
-          throw new Error(`Could not load runtime: read error: ${fsErr.message}; import error: ${impErr.message}`);
-        }
+        let code = fs.readFileSync(runtimePath, 'utf8');
+        code = code
+          .replace(/^\s*export\s+\{[^}]+\};?\s*$/gm, '')
+          .replace(/^\s*export\s+default\s+/gm, '')
+          .replace(/^\s*export\s+(const|function|class)\s+/gm, '$1 ');
+        code +=
+          '\n;window.__mountIslands = typeof mountIslands === "function" ? ' +
+          'mountIslands : window.mountIslands;';
+        dom.window.eval(code);
+        mountIslands =
+          dom.window.__mountIslands ||
+          dom.window.mountIslands ||
+          dom.window.islandRuntime?.mountIslands;
+      } catch (err) {
+        assert.fail(`Could not evaluate runtime: ${err.message}`);
       }
-
-      // If eval failed and we didn't import, try dynamic import
-      if (!runtimeModule && evalError) {
-        try {
-          runtimeModule = await import(pathToFileURL(runtimePath).href);
-        } catch (impErr) {
-          throw new Error(`Evaluation failed: ${evalError.message}; import failed: ${impErr.message}`);
-        }
-      }
-
-      const mountIslands = (runtimeModule && (runtimeModule.mountIslands)) ||
-        dom.window.mountIslands ||
-        dom.window.islandRuntime?.mountIslands;
       if (typeof mountIslands !== 'function') {
         assert.fail('mountIslands not available');
       }

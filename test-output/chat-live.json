@@ -1,0 +1,21 @@
+{
+  "url": "http://localhost:3000/chat",
+  "document": {
+    "id": "9",
+    "title": "Ihr nächster Termin"
+  },
+  "messages": [
+    {
+      "testid": "chat-message-status",
+      "text": "Chat ready for Ihr nächster Termin."
+    },
+    {
+      "testid": "chat-message-user",
+      "text": "Playwright live test: hello"
+    },
+    {
+      "testid": "chat-message-assistant",
+      "text": ""
+    }
+  ]
+}

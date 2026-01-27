@@ -264,12 +264,16 @@ router.get('/settings', async (req, res) => {
   console.log('Current config TAGS:', settingsConfig.TAGS);
   console.log('Current config PROMPT_TAGS:', settingsConfig.PROMPT_TAGS);
   const version = configFile.PAPERLESS_AI_VERSION || ' ';
-  res.render('settings', {
+  const vm = {
+    page: 'settings',
     version,
-    config: settingsConfig,
+    settings: settingsConfig,
     success: isConfigured ? 'The application is already configured. You can update the configuration below.' : undefined,
     settingsError: showErrorCheckSettings ? 'Please check your settings. Something is not working correctly.' : undefined
-  });
+  };
+
+  // Render using the view-model contract: templates must reference only `vm.*` fields
+  res.render('settings', { vm });
 });
 
 /**

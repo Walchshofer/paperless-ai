@@ -1,5 +1,5 @@
 import { h, RefObject } from 'preact';
-import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'preact/hooks';
 import type { OverlayViewerContract } from '../ui/contracts/OverlayViewer.contract';
 
 /**
@@ -24,6 +24,9 @@ interface BoundingBox {
 
 interface OverlayViewerProps extends Partial<OverlayViewerContract> {
   onRegionSelected?: (imageBase64: string, bbox: BoundingBox) => void;
+  overlayMode?: 'none' | 'document';
+  showLegend?: boolean;
+  allowSelection?: boolean;
 }
 
 // Minimum selection size (in pixels) to trigger search
@@ -32,7 +35,15 @@ const MIN_SELECTION_SIZE = 20;
 const MIN_SIZE_FRACTION = 0.01;
 
 export default function OverlayViewerIsland(props: OverlayViewerProps) {
-  const { documentId: initialDocumentId, page: initialPage = 1, originalUrl: initialOriginalUrl = null, onRegionSelected } = props;
+  const {
+    documentId: initialDocumentId,
+    page: initialPage = 1,
+    originalUrl: initialOriginalUrl = null,
+    onRegionSelected,
+    overlayMode = 'none',
+    showLegend = false,
+    allowSelection = true,
+  } = props;
 
   const containerRef = useRef(null as HTMLDivElement | null);
   const canvasRef = useRef(null as HTMLCanvasElement | null);
@@ -69,6 +80,27 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     }
   }, [initialDocumentId]);
 
+  const normalizeOverlayBox = useCallback((box: any) => {
+    if (!box) return null;
+    const x = Number(box.x ?? 0);
+    const y = Number(box.y ?? 0);
+    const width = Number(box.width ?? 0);
+    const height = Number(box.height ?? 0);
+
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
+
+    const maxVal = Math.max(x + width, y + height);
+    const scale = maxVal <= 1 ? 1 : 1000;
+
+    return {
+      left: (x / scale) * 100,
+      top: (y / scale) * 100,
+      width: (width / scale) * 100,
+      height: (height / scale) * 100,
+    };
+  }, []);
+
   const [isDrawMode, setIsDrawMode] = useState(false);
   const drawModeRef = useRef(false);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -81,6 +113,12 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const [imageError, setImageError] = useState(null as string | null);
   const [warning, setWarning] = useState(null as string | null);
   const [legend, setLegend] = useState([] as Array<{ key: string; label: string; color: string; isMandatory?: boolean }>);
+  const [overlayItems, setOverlayItems] = useState([] as Array<any>);
+  const [overlayLoading, setOverlayLoading] = useState(false);
+  const [overlayError, setOverlayError] = useState<string | null>(null);
+  const [mandatoryOnly, setMandatoryOnly] = useState(false);
+  const [overlayDomain, setOverlayDomain] = useState('general');
+  const selectionEnabled = allowSelection !== false;
 
   // Image URL for the document page — prefer `originalUrl` if provided (paperless direct link), otherwise use internal download route
   const imageUrl = docId
@@ -117,6 +155,67 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     img.src = imageUrl;
   }, [imageUrl]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadOverlays = async () => {
+      if (overlayMode !== 'document' || !docId) {
+        setOverlayItems([]);
+        setOverlayError(null);
+        setOverlayLoading(false);
+        return;
+      }
+
+      setOverlayLoading(true);
+      setOverlayError(null);
+
+      try {
+        const response = await fetch(
+          `/api/visual-rag/overlays/${docId}?page=${page}`
+        );
+        if (!response.ok) throw new Error('Failed to load overlays');
+        const data = await response.json();
+        const overlays = Array.isArray(data.overlays) ? data.overlays : [];
+        if (!cancelled) {
+          setOverlayItems(overlays);
+          const domain = overlays[0]?.domain || 'general';
+          setOverlayDomain(String(domain).toLowerCase());
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setOverlayError(err.message || 'Overlay load failed');
+          setOverlayItems([]);
+        }
+      } finally {
+        if (!cancelled) setOverlayLoading(false);
+      }
+    };
+
+    void loadOverlays();
+    return () => {
+      cancelled = true;
+    };
+  }, [overlayMode, docId, page]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadLegend = async () => {
+      if (!showLegend) return;
+      try {
+        const resp = await fetch(`/api/visual-rag/legend/${overlayDomain}`);
+        if (!resp.ok) throw new Error('Legend not available');
+        const data = await resp.json();
+        if (!cancelled) setLegend(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (!cancelled) setLegend([]);
+      }
+    };
+
+    void loadLegend();
+    return () => { cancelled = true; };
+  }, [overlayDomain, showLegend]);
+
   // Get mouse/touch position relative to container
   const getRelativePosition = useCallback(
     (e: MouseEvent | TouchEvent): { x: number; y: number } => {
@@ -146,7 +245,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   // Start drawing a new box
   const handleMouseDown = useCallback(
     (e: MouseEvent | TouchEvent) => {
-      if (!drawModeRef.current) return;
+      if (!selectionEnabled || !drawModeRef.current) return;
 
       e.preventDefault();
       const pos = getRelativePosition(e);
@@ -349,6 +448,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
   // Toggle draw mode
   const toggleDrawMode = useCallback(() => {
+    if (!selectionEnabled) return;
     const next = !drawModeRef.current;
     drawModeRef.current = next;
     setIsDrawMode(next);
@@ -398,7 +498,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
   const handlePointerDown = useCallback(
     (e: PointerEvent) => {
-      if (!drawModeRef.current) return;
+      if (!selectionEnabled || !drawModeRef.current) return;
       pointerActiveRef.current = true;
       if (containerRef.current?.setPointerCapture) {
         containerRef.current.setPointerCapture(e.pointerId);
@@ -454,6 +554,12 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     handleMouseUp(e);
   }, [handleMouseUp]);
 
+  const visibleOverlays = useMemo(() => {
+    if (!overlayItems || overlayItems.length === 0) return [];
+    if (!mandatoryOnly) return overlayItems;
+    return overlayItems.filter((o: any) => o.isMandatory);
+  }, [overlayItems, mandatoryOnly]);
+
   // Draw boxes on canvas
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -498,22 +604,6 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       );
     }
 
-    // Fetch legend for domain if needed (simple heuristic: if any box has a domain, use it; otherwise default to 'general')
-    (async () => {
-      try {
-        const domain = boxes.length > 0 ? (boxes[0].domain || 'general') : 'general';
-        const resp = await fetch(`/api/visual-rag/legend/${domain}`);
-        if (resp.ok) {
-          const data = await resp.json();
-          setLegend(Array.isArray(data) ? data : []);
-        } else {
-          setLegend([]);
-        }
-      } catch (e) {
-        setLegend([]);
-      }
-    })();
-
   }, [boxes, currentBox, isDrawing]);
 
   return (
@@ -526,22 +616,24 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       className="h-full flex flex-col"
     >
       {/* Toolbar */}
-      <div className="flex items-center gap-2 p-2 border-b border-gray-200">
-        <button
-          data-testid="red-pen-toggle"
-          onClick={toggleDrawMode}
-          aria-pressed={isDrawMode ? 'true' : 'false'}
-          className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-            isDrawMode
-              ? 'bg-red-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          <i className={`fas fa-pen mr-1.5 ${isDrawMode ? 'animate-pulse' : ''}`}></i>
-          {isDrawMode ? 'Drawing Mode' : 'Draw Mode'}
-        </button>
+      <div className="flex flex-wrap items-center gap-2 p-2 border-b border-gray-200">
+        {selectionEnabled && (
+          <button
+            data-testid="red-pen-toggle"
+            onClick={toggleDrawMode}
+            aria-pressed={isDrawMode ? 'true' : 'false'}
+            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+              isDrawMode
+                ? 'bg-red-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <i className={`fas fa-pen mr-1.5 ${isDrawMode ? 'animate-pulse' : ''}`}></i>
+            {isDrawMode ? 'Drawing Mode' : 'Draw Mode'}
+          </button>
+        )}
 
-        {boxes.length > 0 && (
+        {selectionEnabled && boxes.length > 0 && (
           <button
             data-testid="clear-boxes"
             onClick={clearAllBoxes}
@@ -552,18 +644,38 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           </button>
         )}
 
-        <div className="ml-4">
-          {legend.length > 0 && (
-            <div data-testid="overlay-legend" className="flex items-center gap-2 text-xs text-gray-600">
-              {legend.map((item: { key: string; label: string; color: string; isMandatory?: boolean }) => (
-                <div key={item.key} className="flex items-center gap-1">
-                  <span style={{ width: 12, height: 12, background: item.color, display: 'inline-block', borderRadius: 2 }} aria-hidden="true"></span>
-                  <span>{item.label}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        {overlayMode === 'document' && (
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            {overlayLoading && <span>Loading overlays...</span>}
+            {!overlayLoading && (
+              <span data-testid="overlay-count">
+                Overlays: {overlayItems.length}
+              </span>
+            )}
+            {overlayError && <span className="text-red-600">{overlayError}</span>}
+            {overlayItems.length > 0 && (
+              <label className="flex items-center gap-1 ml-2">
+                <input
+                  type="checkbox"
+                  checked={mandatoryOnly}
+                  onChange={(e: any) => setMandatoryOnly(e.target.checked)}
+                />
+                Mandatory only
+              </label>
+            )}
+          </div>
+        )}
+
+        {showLegend && legend.length > 0 && (
+          <div data-testid="overlay-legend" className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+            {legend.map((item: { key: string; label: string; color: string; isMandatory?: boolean }) => (
+              <div key={item.key} className="flex items-center gap-1">
+                <span style={{ width: 12, height: 12, background: item.color, display: 'inline-block', borderRadius: 2 }} aria-hidden="true"></span>
+                <span>{item.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           <button
@@ -673,6 +785,35 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             <p className="text-sm text-gray-500">No document selected</p>
           </div>
         )}
+
+        {/* Overlay Boxes */}
+        {overlayMode === 'document' && visibleOverlays.map((overlay: any, idx: number) => {
+          const box = normalizeOverlayBox(overlay.boundingBox);
+          if (!box) return null;
+          const color = overlay.color || '#2563eb';
+          return (
+            <div
+              key={overlay.id || `${overlay.label}-${idx}`}
+              data-testid="overlay-box"
+              className="absolute border-2 rounded-sm pointer-events-none"
+              style={{
+                left: `${box.left}%`,
+                top: `${box.top}%`,
+                width: `${box.width}%`,
+                height: `${box.height}%`,
+                borderColor: color,
+                backgroundColor: `${color}22`,
+              }}
+            >
+              <span
+                className="absolute -top-5 left-0 text-[10px] px-1 py-0.5 rounded"
+                style={{ backgroundColor: color, color: '#fff' }}
+              >
+                {overlay.label || 'Overlay'}
+              </span>
+            </div>
+          );
+        })}
 
         {/* Drawing Canvas Overlay */}
         <canvas

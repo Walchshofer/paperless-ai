@@ -1,9 +1,20 @@
+const tsNodeService = require('ts-node').register({
+  transpileOnly: true,
+  compilerOptions: { module: 'CommonJS' },
+});
 const assert = require('assert');
+const {
+  OverlayViewerSchema,
+} = require('../../src/ui/contracts/OverlayViewer.contract.ts');
+const {
+  ManualEditorSchema,
+} = require('../../src/ui/contracts/ManualEditor.contract.ts');
+const {
+  PlaygroundSchema,
+} = require('../../src/ui/contracts/Playground.contract.ts');
 
 describe('View contracts include Visual Overlays fields', function() {
   it('OverlayViewer accepts images and overlaysByImage', function() {
-    const { OverlayViewerSchema } = require('../../src/ui/contracts/OverlayViewer.contract.ts');
-
     const payload = {
       documentId: 123,
       images: [{ id: 'img-1', originalSrc: 'https://example.com/1.png', width: 800, height: 600 }],
@@ -14,8 +25,6 @@ describe('View contracts include Visual Overlays fields', function() {
   });
 
   it('ManualEditor accepts images and overlaysByImage', function() {
-    const { ManualEditorSchema } = require('../../src/ui/contracts/ManualEditor.contract.ts');
-
     const payload = {
       documentId: 55,
       images: [{ id: 'img-a', originalSrc: 'https://example.com/a.png' }],
@@ -26,8 +35,6 @@ describe('View contracts include Visual Overlays fields', function() {
   });
 
   it('Playground accepts images and overlaysByImage', function() {
-    const { PlaygroundSchema } = require('../../src/ui/contracts/Playground.contract.ts');
-
     const payload = {
       mode: 'visual-debug',
       images: [{ id: 'img-p', originalSrc: 'https://example.com/p.png' }],

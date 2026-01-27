@@ -59,7 +59,7 @@ mandated by `docs/FRONTEND_ARCHITECTURE.md`.
 
 
 <implementation>
-- **Island Registration:** Map `playground-island` in `src/islands/runtime.ts`.
+- **Island Registration:** Map `playground-island` in `src/islands/runtime.browser.tsx / src/islands/runtime.js`.
 - **Canvas Logic:** Reuse the "Red Pen" logic from `OverlayViewerIsland`.
 - **API Bridge:** Use `VisualSearchClient.js` as the sole bridge to the sidecar.
 </implementation>

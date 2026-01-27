@@ -1,5 +1,5 @@
 // Zod schema tests for VisualAnnotation
-require('ts-node').register({
+const tsNodeService = require('ts-node').register({
   transpileOnly: true,
   compilerOptions: { module: 'CommonJS' },
 });

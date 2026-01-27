@@ -53,7 +53,7 @@ MaxSim results from the Python Sidecar (:8001).
 
 
 <implementation>
-- **Hydration:** Register islands in `src/islands/runtime.ts`.
+- **Hydration:** Register islands in `src/islands/runtime.browser.tsx / src/islands/runtime.js`.
 - **Error Handling:** Gracefully handle 5-second timeouts with a "Visual 
   Search Unavailable" fallback message (Text RAG fallback).
 - **Styling:** Use Tailwind CSS for the 5-column grid (3 for Visual, 2 for Tabs).

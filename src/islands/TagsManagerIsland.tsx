@@ -16,6 +16,21 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
   const [selectedTagId, setSelectedTagId] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [documentId, setDocumentId] = useState<number | null>(props.documentId ?? null);
+
+  const resolveTags = useCallback((tags: Array<Tag | string | number>) => {
+    if (!Array.isArray(tags)) return [];
+    return tags.map((tag, idx) => {
+      if (typeof tag === 'object' && tag !== null && 'name' in tag) {
+        return tag as Tag;
+      }
+      const tagName = String(tag);
+      const match = availableTags.find(
+        t => t.name.toLowerCase() === tagName.toLowerCase()
+      );
+      return match || { id: -1 - idx, name: tagName };
+    });
+  }, [availableTags]);
 
   // Fetch available tags on mount
   useEffect(() => {
@@ -36,25 +51,26 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
     }
   }, []);
 
+  // Reconcile current/suggested tags when the available tags list changes
+  useEffect(() => {
+    if (availableTags.length === 0) return;
+    setCurrentTags(prev => resolveTags(prev as Array<Tag | string | number>));
+    setSuggestedTags(prev => resolveTags(prev as Array<Tag | string | number>));
+  }, [availableTags, resolveTags]);
+
   // Listen for AI analysis completion to receive tag suggestions
   useEffect(() => {
     const onSuggestionsReceived = (e: any) => {
       const detail = e?.detail || {};
       if (detail.suggestedTags) {
-        setSuggestedTags(detail.suggestedTags);
+        setSuggestedTags(resolveTags(detail.suggestedTags));
       }
     };
 
     const onAnalysisCompleted = (e: any) => {
       const detail = e?.detail || {};
       if (detail.result?.tags) {
-        // Convert string tags to Tag objects
-        const tagObjects = detail.result.tags.map((tagName: string, idx: number) => {
-          // Try to find existing tag by name
-          const existing = availableTags.find(t => t.name.toLowerCase() === tagName.toLowerCase());
-          return existing || { id: -1 - idx, name: tagName };
-        });
-        setSuggestedTags(tagObjects);
+        setSuggestedTags(resolveTags(detail.result.tags));
       }
     };
 
@@ -65,7 +81,29 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
       window.removeEventListener('tags:suggestions-received', onSuggestionsReceived as EventListener);
       window.removeEventListener('ai:analysis-completed', onAnalysisCompleted as EventListener);
     };
-  }, [availableTags]);
+  }, [resolveTags]);
+
+  // Listen for document selection to hydrate current tags
+  useEffect(() => {
+    const onDocumentSelected = (e: any) => {
+      const detail = e?.detail || {};
+      if (detail.documentId !== undefined) {
+        setDocumentId(detail.documentId ?? null);
+      }
+      if (detail.tags) {
+        setCurrentTags(resolveTags(detail.tags));
+      } else if (detail.documentId === null || detail.documentId === undefined) {
+        setCurrentTags([]);
+      }
+      setSuggestedTags([]);
+      setSaveStatus('idle');
+    };
+
+    window.addEventListener('document:selected', onDocumentSelected as EventListener);
+    return () => {
+      window.removeEventListener('document:selected', onDocumentSelected as EventListener);
+    };
+  }, [resolveTags]);
 
   // Test-only marker
   useEffect(() => {
@@ -88,7 +126,7 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
       
       dispatchEventSafe('tags:updated', {
         type: 'tags:updated',
-        documentId: props.documentId ?? null,
+        documentId,
         currentTags: newCurrentTags.map(t => t.id),
         action: 'accept-suggestion',
       });
@@ -108,11 +146,11 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
     
     dispatchEventSafe('tags:updated', {
       type: 'tags:updated',
-      documentId: props.documentId ?? null,
+      documentId,
       currentTags: newCurrentTags.map(t => t.id),
       action: 'remove',
     });
-  }, [currentTags, props.documentId]);
+  }, [currentTags, documentId]);
 
   const handleAddTag = useCallback(() => {
     if (!selectedTagId) return;
@@ -126,17 +164,17 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
       
       dispatchEventSafe('tags:updated', {
         type: 'tags:updated',
-        documentId: props.documentId ?? null,
+        documentId,
         currentTags: newCurrentTags.map(t => t.id),
         action: 'add',
       });
     }
     
     setSelectedTagId('');
-  }, [selectedTagId, availableTags, currentTags, props.documentId]);
+  }, [selectedTagId, availableTags, currentTags, documentId]);
 
   const handleSaveTags = useCallback(async () => {
-    if (!props.documentId) return;
+    if (!documentId) return;
     
     setIsSaving(true);
     setSaveStatus('idle');
@@ -148,7 +186,7 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          documentId: props.documentId,
+          documentId,
           tags: tagIds,
         }),
       });
@@ -157,7 +195,7 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
         setSaveStatus('success');
         dispatchEventSafe('tags:updated', {
           type: 'tags:updated',
-          documentId: props.documentId,
+          documentId,
           currentTags: tagIds,
           action: 'save',
         });
@@ -170,7 +208,7 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
     } finally {
       setIsSaving(false);
     }
-  }, [currentTags, props.documentId]);
+  }, [currentTags, documentId]);
 
   // Filter available tags to exclude current ones
   const selectableTags = availableTags.filter(
@@ -225,7 +263,7 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
             type="button"
             className="tm-save-btn"
             onClick={handleSaveTags}
-            disabled={isSaving || !props.documentId}
+            disabled={isSaving || !documentId}
             data-testid="save-tags-btn"
           >
             {isSaving ? 'Saving...' : 'Save Tags'}

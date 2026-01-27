@@ -42,7 +42,7 @@ Flag:
 - unstable or temporary identifiers
 
 ### C) Islands Correctness
-- Every `data-island="x"` in EJS must be registered in `src/islands/runtime.ts`
+- Every `data-island="x"` in EJS must be registered in `src/islands/runtime.browser.tsx / src/islands/runtime.js`
 - `data-props` must be valid JSON and compatible with island props
 - Runtime load + `mountIslands()` call must exist on pages that use islands
 

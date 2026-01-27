@@ -216,6 +216,54 @@ const upsertModelLimit = (limits, modelName, kind, contextWindowInput, maxRespon
  *           example: "#FF5733"
  */
 
+// Explicit public endpoint for Ollama model discovery (placed before auth/setup guard)
+router.get('/api/ollama/models', async (req, res) => {
+  try {
+    let installedModels = [];
+    try {
+      installedModels = await ollamaService.listModels();
+    } catch (e) {
+      installedModels = [];
+    }
+
+    const installedSet = new Set((installedModels || []).filter(m => typeof m === 'string' && m));
+
+    const configuredSet = new Set();
+    const addConfigured = (model) => { if (!model || typeof model !== 'string') return; const trimmed = model.trim(); if (!trimmed) return; configuredSet.add(trimmed); };
+
+    addConfigured(config.ollama?.model);
+    addConfigured(config.ollama?.visionModel);
+    addConfigured(config.ollama?.plannerModel);
+    addConfigured(config.ollama?.routerModel);
+    addConfigured(config.ollama?.orchestratorModel);
+
+    const expertConfig = config.expertModels || {};
+    const expertMedical = expertConfig.medical || {};
+    const expertFinancial = expertConfig.financial || {};
+    const expertLegal = expertConfig.legal || {};
+
+    addConfigured(expertMedical.vision);
+    addConfigured(expertMedical.analysis);
+    addConfigured(expertMedical.radiology);
+    addConfigured(expertFinancial.analysis);
+    addConfigured(expertFinancial.vision);
+    addConfigured(expertFinancial.vatExpert);
+    addConfigured(expertLegal.vision);
+    addConfigured(expertLegal.analysis);
+    addConfigured(expertLegal.orchestrator);
+
+    addConfigured(process.env.FINANCIAL_REASONING_MODEL);
+    addConfigured(process.env.LEGAL_ORCHESTRATOR_MODEL);
+
+    const placeholderModels = Array.from(configuredSet).filter(m => !installedSet.has(m));
+
+    res.json({ provider: config.aiProvider, providerMismatch: config.aiProvider !== 'ollama', defaultModel: config.ollama?.model || null, models: installedModels, placeholderModels, expertModels: [] });
+  } catch (error) {
+    console.error('[ERROR] loading Ollama models (early route):', error);
+    res.status(500).json({ error: 'Failed to load Ollama models' });
+  }
+});
+
 // Routes that don't require authentication
 let PUBLIC_ROUTES = [
   '/health',
@@ -226,6 +274,8 @@ let PUBLIC_ROUTES = [
   '/dashboard',
   '/api/visual-rag',
   '/api/feedback',
+  // Allow unauthenticated access to Ollama model discovery for UI dropdowns (harmless metadata)
+  '/api/ollama/models',
   // Allow unauthenticated programmatic manual updates for test harnesses and automated integrations
   '/manual/updateDocument'
 ];
@@ -252,7 +302,8 @@ router.use(async (req, res, next) => {
   const apiKey = req.headers['x-api-key'];
 
   // Public route check
-  if (PUBLIC_ROUTES.some(route => req.path.startsWith(route))) {
+  const isPublic = PUBLIC_ROUTES.some(route => req.path.startsWith(route));
+  if (isPublic) {
     return next();
   }
 
@@ -278,9 +329,10 @@ router.use(async (req, res, next) => {
   try {
     const isConfigured = await setupService.isConfigured();
  
-    if (!isConfigured && (!process.env.PAPERLESS_AI_INITIAL_SETUP || process.env.PAPERLESS_AI_INITIAL_SETUP === 'no') && !req.path.startsWith('/setup')) {
+    // Allow certain informational API endpoints during initial setup (e.g. model discovery)
+    if (!isConfigured && (!process.env.PAPERLESS_AI_INITIAL_SETUP || process.env.PAPERLESS_AI_INITIAL_SETUP === 'no') && !req.path.startsWith('/setup') && !req.path.startsWith('/api/ollama/models')) {
       return res.redirect('/setup');
-    } else if (!isConfigured && process.env.PAPERLESS_AI_INITIAL_SETUP === 'yes' && !req.path.startsWith('/settings')) {
+    } else if (!isConfigured && process.env.PAPERLESS_AI_INITIAL_SETUP === 'yes' && !req.path.startsWith('/settings') && !req.path.startsWith('/api/ollama/models')) {
       return res.redirect('/settings');
     }
   } catch (error) {
@@ -483,6 +535,43 @@ router.get('/api/ollama/models', async (req, res) => {
       placeholderModels,
       expertModels,
     });
+  } catch (error) {
+    console.error('[ERROR] loading Ollama models:', error);
+    res.status(500).json({ error: 'Failed to load Ollama models' });
+  }
+});
+
+// Verify whether a model is installed or currently loaded in Ollama
+router.get('/api/ollama/verify', async (req, res) => {
+  try {
+    const model = req.query.model;
+    if (!model) return res.status(400).json({ error: 'model query parameter required' });
+
+    let installed = [];
+    try { installed = await ollamaService.listModels(); } catch (e) { installed = []; }
+
+    let loadedModels = [];
+    try {
+      const ps = await ollamaService.checkStatus();
+      loadedModels = Array.isArray(ps.loadedModels) ? ps.loadedModels : [];
+    } catch (e) {
+      loadedModels = [];
+    }
+
+    const result = {
+      model,
+      installed: installed.includes(model),
+      loaded: loadedModels.some((m) => (m.model || m.name) === model),
+      installedList: installed,
+      loadedList: loadedModels
+    };
+
+    res.json(result);
+  } catch (err) {
+    console.error('[ERROR] verifying Ollama model:', err);
+    res.status(500).json({ error: 'Failed to verify model' });
+  }
+});
   } catch (error) {
     console.error('[ERROR] loading Ollama models:', error);
     res.status(500).json({ error: 'Failed to load Ollama models' });

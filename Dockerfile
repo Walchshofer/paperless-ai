@@ -29,8 +29,11 @@ RUN npx tailwindcss -i src/styles/tailwind-input.css -o public/css/tailwind.css 
 # Copy application source code
 COPY . .
 
-# Install production dependencies (omit dev) — try `npm ci` first, then fall back to `npm install --legacy-peer-deps` to handle registry/peer issues
-RUN npm ci --omit=dev --no-audit --no-fund || npm install --omit=dev --legacy-peer-deps --no-audit --no-fund || true
+# Install dependencies; allow dev deps when NPM_OMIT_DEV=0
+ARG NPM_OMIT_DEV=1
+RUN if [ "$NPM_OMIT_DEV" = "1" ]; then OMIT="--omit=dev"; else OMIT=""; fi && \
+    npm ci $OMIT --no-audit --no-fund || \
+    npm install $OMIT --legacy-peer-deps --no-audit --no-fund || true
 RUN npm cache clean --force
 
 # Normalize line endings and make startup script executable

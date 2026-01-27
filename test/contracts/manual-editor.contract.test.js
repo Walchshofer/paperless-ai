@@ -1,6 +1,11 @@
-require('ts-node').register({ transpileOnly: true, compilerOptions: { module: 'CommonJS' } });
+const tsNodeService = require('ts-node').register({
+  transpileOnly: true,
+  compilerOptions: { module: 'CommonJS' },
+});
 const assert = require('assert');
-const { ManualEditorSchema } = require('../../src/ui/contracts/ManualEditor.contract.ts');
+const { ManualEditorSchema } = require(
+  '../../src/ui/contracts/ManualEditor.contract.ts'
+);
 
 describe('ManualEditor Zod schema', function () {
   it('accepts minimal props', function () {

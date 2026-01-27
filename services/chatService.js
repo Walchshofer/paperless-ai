@@ -10,6 +10,14 @@ const { promisify } = require('util');
 const pipeline = promisify(stream.pipeline);
 const { OpenAI } = require('openai');
 
+// Optional DB persistence for chat history
+let chatRepository = null;
+try {
+  chatRepository = require('./repositories/chatRepository');
+} catch (e) {
+  console.warn('[ChatService] Chat repository not available:', e.message);
+}
+
 // Optional text-rag integration for semantic context retrieval
 let textRagClient = null;
 const TEXT_RAG_URL = process.env.TEXT_RAG_URL || 'http://text-rag:8004';
@@ -144,8 +152,28 @@ class ChatService {
         messages,
         documentTitle: document.title,
         model: requestedModel,
-        useTextRag: options.useTextRag !== false
+        useTextRag: options.useTextRag !== false,
+        sessionId: null
       });
+
+      // If persistence enabled (option override > global config), create or fetch a session id
+      const persistenceEnabled = (options && options.chatPersistence === 'yes') || (config.chatPersistence === 'yes');
+      if (persistenceEnabled && chatRepository) {
+        try {
+          const sid = await chatRepository.getOrCreateSession(parseInt(documentId));
+          const chatData = this.chats.get(documentId);
+          chatData.sessionId = sid;
+          this.chats.set(documentId, chatData);
+
+          // Persist the initial system message
+          const sysMsg = messages.find(m => m.role === 'system');
+          if (sysMsg) {
+            await chatRepository.appendMessage(sid, 'system', sysMsg.content, { documentTitle: document.title });
+          }
+        } catch (e) {
+          console.warn('[ChatService] Could not persist initial chat session:', e.message);
+        }
+      }
 
       return {
         documentTitle: document.title,
@@ -177,6 +205,16 @@ class ChatService {
         role: "user",
         content: userMessage
       });
+
+      // Persist user message if enabled (option override > global config)
+      const persistMessages = (options && options.chatPersistence === 'yes') || (config.chatPersistence === 'yes');
+      if (persistMessages && chatRepository && chatData.sessionId) {
+        try {
+          await chatRepository.appendMessage(chatData.sessionId, 'user', userMessage, { model: chatData.model });
+        } catch (e) {
+          console.warn('[ChatService] Failed to persist user message:', e.message);
+        }
+      }
 
       // Set headers for SSE
       res.setHeader('Content-Type', 'text/event-stream');
@@ -281,6 +319,16 @@ class ChatService {
       });
       this.chats.set(documentId, chatData);
 
+      // Persist assistant message if enabled (option override > global config)
+      const persistAssistant = (options && options.chatPersistence === 'yes') || (config.chatPersistence === 'yes');
+      if (persistAssistant && chatRepository && chatData.sessionId) {
+        try {
+          await chatRepository.appendMessage(chatData.sessionId, 'assistant', fullResponse, { model: chatData.model });
+        } catch (e) {
+          console.warn('[ChatService] Failed to persist assistant message:', e.message);
+        }
+      }
+
       // End the stream
       res.write('data: [DONE]\n\n');
       res.end();
@@ -315,4 +363,11 @@ class ChatService {
   }
 }
 
-module.exports = new ChatService();
+const chatServiceInstance = new ChatService();
+module.exports = chatServiceInstance;
+
+// Test helper: allow injecting a fake repository
+module.exports.setChatRepository = (repo) => {
+  chatRepository = repo;
+};
+module.exports._getChatRepository = () => chatRepository;

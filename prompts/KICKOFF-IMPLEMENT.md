@@ -78,7 +78,7 @@ Starting Prompt 003: Implement VisualAnnotationIsland for Red Pen annotations.
   - `src/islands/VisualAnnotationIsland.tsx`
   - `src/ui/contracts/VisualAnnotation.contract.ts`
   - `views/manual.ejs` (mount island)
-  - `src/islands/runtime.ts` (register island)
+  - `src/islands/runtime.browser.tsx / src/islands/runtime.js` (register island)
   - tests: `test/unit/contracts.spec.ts`, Playwright E2E for island mount and payloads
 
 [next]

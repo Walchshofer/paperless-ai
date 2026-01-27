@@ -46,7 +46,7 @@ Follow the standards files for any changes you make:
 - EJS templates must only reference `vm.*` fields validated by a Zod contract (`src/ui/contracts/*.contract.ts`).
 - Every page root must include `data-page="page-name"`.
 - Every interactive element must include a stable `data-testid="kebab-case"`.
-- Preact islands must mount via `data-island` anchors and a registry-based runtime (`src/islands/runtime.ts`).
+- Preact islands must mount via `data-island` anchors and a registry-based runtime (`src/islands/runtime.browser.tsx / src/islands/runtime.js`).
 
 ## UI testing expectation
 

@@ -148,10 +148,11 @@ test.describe('Manual Route Live Enumeration', () => {
 
       // Find legacy-specific elements (not inside islands)
       const legacyIds = [
-        'documentSelect', 'contentPreview', 'analyzeBtn', 'chatBtn',
-        'analyzeVisualBtn', 'saveTagsBtn', 'addTagBtn', 'viewTextBtn',
-        'viewVisualBtn', 'prevPage', 'nextPage', 'overlayContainer',
-        'pageNavigation', 'suggestedTags', 'currentTags', 'newTagSelect'
+        'documentSelect',
+        'contentPreview',
+        'overlayContainer',
+        'textPreviewSection',
+        'visualPreviewSection'
       ];
 
       legacyIds.forEach(id => {
@@ -254,11 +255,11 @@ test.describe('Manual Route Live Enumeration', () => {
         const results = {
           overlayContainerVisible: false,
           overlayViewerIsland: null as any,
-          pageNavVisible: false,
           pageIndicator: null as string | null
         };
 
-        const overlayContainer = document.getElementById('overlayContainer');
+        const overlayContainer = document.getElementById('overlayContainer') ||
+          document.querySelector('[data-testid="overlay-container"]');
         if (overlayContainer) {
           results.overlayContainerVisible = !overlayContainer.classList.contains('hidden') &&
             overlayContainer.getBoundingClientRect().width > 0;
@@ -273,12 +274,7 @@ test.describe('Manual Route Live Enumeration', () => {
           };
         }
 
-        const pageNav = document.getElementById('pageNavigation');
-        if (pageNav) {
-          results.pageNavVisible = !pageNav.classList.contains('hidden');
-        }
-
-        const pageIndicator = document.getElementById('pageIndicator');
+        const pageIndicator = document.querySelector('[data-testid="overlay-page-indicator"]');
         if (pageIndicator) {
           results.pageIndicator = pageIndicator.textContent;
         }
@@ -288,7 +284,6 @@ test.describe('Manual Route Live Enumeration', () => {
 
       console.log('  Overlay container visible:', visualEnum.overlayContainerVisible);
       console.log('  Overlay viewer island:', visualEnum.overlayViewerIsland);
-      console.log('  Page nav visible:', visualEnum.pageNavVisible);
       console.log('  Page indicator:', visualEnum.pageIndicator);
 
       // Take visual view screenshot

@@ -11,7 +11,7 @@ Implement UI wiring to fully integrate Manual, Chat, History, and Playground rou
 
 [what_to_do]
 - Wire `views/manual.ejs`, `views/history-document.ejs`, `views/playground.ejs`, and chat route to use Visual-RAG overlay search endpoints, ensuring ORIGINAL document rendering is used (not thumbnails).
-- Implement or update Preact islands for visual overlay UI; ensure islands mount via `data-island` anchors and use the island runtime (`src/islands/runtime.ts`).
+- Implement or update Preact islands for visual overlay UI; ensure islands mount via `data-island` anchors and use the island runtime (`src/islands/runtime.browser.tsx / src/islands/runtime.js`).
 - Remove legacy inline JS that duplicates island functionality; ensure islands are single source of truth.
 - Add UI tests (Playwright):
   - Reingest a Paperless doc and assert overlays rendered in viewer (`data-testid` checks).
@@ -26,7 +26,7 @@ Implement UI wiring to fully integrate Manual, Chat, History, and Playground rou
 - docs/EXPERT_PIPELINE_FLOW.md
 - prompts/summaries/018-visual-text-rag-ingestion-audit.md
 - views/manual.ejs, views/history-document.ejs, views/playground.ejs
-- src/islands/runtime.ts and island implementations
+- src/islands/runtime.browser.tsx / src/islands/runtime.js and island implementations
 - services/visual-rag-client/*
 - test/e2e/reingest-verify.spec.ts
 
@@ -46,7 +46,7 @@ Implement UI wiring to fully integrate Manual, Chat, History, and Playground rou
    - Provide a small client API on the island: `searchOverlays(query, options)` that calls `/api/visual-rag/search` via `VisualSearchClient`.
 
 2. Islands & runtime
-   - Register `VisualOverlays` island in `src/islands/runtime.ts` and ensure `mountIslands()` is called once.
+   - Register `VisualOverlays` island in `src/islands/runtime.browser.tsx / src/islands/runtime.js` and ensure `mountIslands()` is called once.
    - Islands should render overlays using semantic HTML with ARIA (e.g., `role="article" aria-label="visual overlay"`) and `data-testid` on each overlay element.
 
 3. Fallback UX

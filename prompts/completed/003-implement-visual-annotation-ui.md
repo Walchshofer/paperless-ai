@@ -28,7 +28,7 @@ Note: `VisualAnnotationIsland` is the specific implementation of the `VisualView
    - Update `views/manual.ejs` to add an island anchor:
      `<div data-island="visual-annotation-island" data-testid="visual-annotation-island" data-props='<%- JSON.stringify({ documentId: vm.documentId || null }) %>'></div>`
    - Ensure the island anchor is placed in the Visual Preview area and that `OverlayViewer` continues to be used or is delegated to the island.
-   - **Registry**: Register the new component in `src/islands/runtime.ts` to map `visual-annotation-island` to `VisualAnnotationIsland.tsx`.
+   - **Registry**: Register the new component in `src/islands/runtime.browser.tsx / src/islands/runtime.js` to map `visual-annotation-island` to `VisualAnnotationIsland.tsx`.
 
 4. **Testing & Test IDs**:
    - Add `data-testid` attributes to interactive elements inside the island (e.g., draw-toggle, save-annotation-btn).

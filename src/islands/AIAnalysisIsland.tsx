@@ -87,6 +87,17 @@ export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
     }
   }, [statusMessage]);
 
+  const toManualFields = useCallback((doc: any, fallbackDomain = 'AI') => {
+    const customFields = doc?.custom_fields;
+    if (!customFields || typeof customFields !== 'object') return [];
+    return Object.entries(customFields).map(([label, value]) => ({
+      label,
+      value: value != null ? String(value) : '',
+      domain: doc?.domain || fallbackDomain,
+      confidence: 1,
+    }));
+  }, []);
+
   const handleTextAnalysis = useCallback(async () => {
     if (!documentId) return;
     
@@ -101,12 +112,7 @@ export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
     });
 
     try {
-      // Get content from the preview
       let analysisContent = content;
-      if (!analysisContent) {
-        const contentEl = document.getElementById('contentPreview');
-        analysisContent = contentEl?.textContent || '';
-      }
 
       if (!analysisContent || analysisContent === 'No content available') {
         throw new Error('No document content available for analysis');
@@ -131,20 +137,31 @@ export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
       }
 
       const result = await res.json();
-      
-      // Extract tags from result
-      const tags = result.document?.tags || [];
-      
+
+      const doc = result?.document || result?.result?.document || result?.result || {};
+      const tags = Array.isArray(doc.tags) ? doc.tags : [];
+      const fields = toManualFields(doc);
+      const documentType = doc.document_type || null;
+
       dispatchEventSafe('ai:analysis-completed', {
         type: 'ai:analysis-completed',
         documentId,
         analysisType: 'text',
         result: {
           tags,
-          correspondent: result.document?.correspondent || null,
-          title: result.document?.title || null,
+          correspondent: doc.correspondent || null,
+          title: doc.title || null,
+          documentType,
+          fields,
         },
       });
+      if (tags && tags.length > 0) {
+        dispatchEventSafe('tags:suggestions-received', {
+          type: 'tags:suggestions-received',
+          documentId,
+          suggestedTags: tags,
+        });
+      }
 
       setStatusMessage('Analysis completed successfully');
     } catch (err: any) {
@@ -154,7 +171,7 @@ export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
       setIsAnalyzing(false);
       setAnalysisType(null);
     }
-  }, [documentId, content]);
+  }, [documentId, content, toManualFields]);
 
   const handleVisualAnalysis = useCallback(async () => {
     if (!documentId) return;
@@ -186,17 +203,38 @@ export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
         throw new Error(data.error || 'Visual analysis failed');
       }
 
+      dispatchEventSafe('visual:fallback', {
+        type: 'visual:fallback',
+        documentId,
+        fallback: data.fallback || null,
+      });
+
+      const doc = data.result || data.document || {};
+      const tags = Array.isArray(doc.tags) ? doc.tags : [];
+      const domain = doc.domain || 'general';
+      const fields = toManualFields(doc, domain);
+      const documentType = doc.document_type || null;
+
       dispatchEventSafe('ai:analysis-completed', {
         type: 'ai:analysis-completed',
         documentId,
         analysisType: 'visual',
         result: {
-          tags: data.result?.tags || [],
-          correspondent: data.result?.correspondent || null,
-          title: data.result?.title || null,
-          domain: data.result?.domain || 'general',
+          tags,
+          correspondent: doc.correspondent || null,
+          title: doc.title || null,
+          domain,
+          documentType,
+          fields,
         },
       });
+      if (tags.length > 0) {
+        dispatchEventSafe('tags:suggestions-received', {
+          type: 'tags:suggestions-received',
+          documentId,
+          suggestedTags: tags,
+        });
+      }
 
       setStatusMessage(`Visual analysis complete! Domain: ${data.result?.domain || 'general'}, Overlays: ${data.overlayCount || 0}`);
     } catch (err: any) {
@@ -206,7 +244,7 @@ export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
       setIsAnalyzing(false);
       setAnalysisType(null);
     }
-  }, [documentId, gpuState]);
+  }, [documentId, gpuState, toManualFields]);
 
   const handleChat = useCallback(() => {
     if (!documentId) return;

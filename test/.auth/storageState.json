@@ -1,16 +1,5 @@
 {
-  "cookies": [
-    {
-      "name": "jwt",
-      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJlbGZtYW4iLCJpYXQiOjE3Njk0MTE4MjMsImV4cCI6MTc2OTQ5ODIyM30.dOMzII3xkUgAH718CU6n_7_aGKu0f-Y8u5yygFJBDWk",
-      "domain": "localhost",
-      "path": "/",
-      "expires": 1769498223.499751,
-      "httpOnly": true,
-      "secure": false,
-      "sameSite": "Lax"
-    }
-  ],
+  "cookies": [],
   "origins": [
     {
       "origin": "http://localhost:3000",

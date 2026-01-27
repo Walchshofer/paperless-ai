@@ -1,11 +1,18 @@
-import { render, fireEvent, screen } from '@testing-library/preact';
 import { describe, it, expect, vi } from 'vitest';
-import { mockRadixDialog, mockRadixSwitch, mockRadixTabs } from '@test/mocks/radix';
 
 // Mock Radix primitives for unit tests (using centralized mocks)
-vi.mock('@radix-ui/react-dialog', mockRadixDialog);
-vi.mock('@radix-ui/react-switch', mockRadixSwitch);
-vi.mock('@radix-ui/react-tabs', mockRadixTabs);
+vi.mock('@radix-ui/react-dialog', async () => {
+  const { mockRadixDialog } = await import('@test/mocks/radix');
+  return mockRadixDialog();
+});
+vi.mock('@radix-ui/react-switch', async () => {
+  const { mockRadixSwitch } = await import('@test/mocks/radix');
+  return mockRadixSwitch();
+});
+vi.mock('@radix-ui/react-tabs', async () => {
+  const { mockRadixTabs } = await import('@test/mocks/radix');
+  return mockRadixTabs();
+});
 
 import ShadcnCompat from '../shadcn-compat';
 

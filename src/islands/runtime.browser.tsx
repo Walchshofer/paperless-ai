@@ -4,6 +4,7 @@ import FeedbackControlsIsland from './FeedbackControlsIsland';
 import ManualEditorIsland from './ManualEditorIsland';
 import HistoryTabsIsland from './HistoryTabsIsland';
 import OverlayViewerIsland from './OverlayViewerIsland';
+import VisualOverlaysIsland from './VisualOverlaysIsland';
 import PlaygroundIsland from './PlaygroundIsland';
 import ShadcnCompat from './shadcn-compat';
 import OverviewDashboardIsland from './OverviewDashboardIsland';
@@ -14,6 +15,12 @@ import ExpertModelsIsland from './ExpertModelsIsland';
 import RestartBannerIsland from './RestartBannerIsland';
 import DeveloperSettingsIsland from './DeveloperSettingsIsland';
 import PresetsManagerIsland from './PresetsManagerIsland';
+import ViewModeToggleIsland from './ViewModeToggleIsland';
+import TagsManagerIsland from './TagsManagerIsland';
+import AIAnalysisIsland from './AIAnalysisIsland';
+import ChatWorkspaceIsland from './ChatWorkspaceIsland';
+import HistoryManagerIsland from './HistoryManagerIsland';
+import ManualWorkspaceIsland from './ManualWorkspaceIsland';
 
 type IslandComponent = (props: any) => JSX.Element;
 
@@ -25,6 +32,7 @@ const registry: IslandRegistry = {
   'manual-editor-island': ManualEditorIsland,
   'history-tabs-island': HistoryTabsIsland,
   'overlay-viewer-island': OverlayViewerIsland,
+  'visual-overlays-island': VisualOverlaysIsland,
   'playground-island': PlaygroundIsland,
   'shadcn-compat': ShadcnCompat,
   'overview-dashboard-island': OverviewDashboardIsland,
@@ -35,6 +43,12 @@ const registry: IslandRegistry = {
   'restart-banner-island': RestartBannerIsland,
   'developer-settings-island': DeveloperSettingsIsland,
   'presets-manager-island': PresetsManagerIsland,
+  'view-mode-toggle-island': ViewModeToggleIsland,
+  'tags-manager-island': TagsManagerIsland,
+  'ai-analysis-island': AIAnalysisIsland,
+  'chat-workspace-island': ChatWorkspaceIsland,
+  'history-manager-island': HistoryManagerIsland,
+  'manual-workspace-island': ManualWorkspaceIsland,
 };
 
 function parseProps(el: Element): Record<string, any> | null {

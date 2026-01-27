@@ -19,7 +19,10 @@ export default function ViewModeToggleIsland(props: Partial<ViewModeToggleContra
       const detail = e?.detail || {};
       if (detail.documentId) {
         setVisualEnabled(true);
+        return;
       }
+      setVisualEnabled(false);
+      setMode('text');
     };
 
     window.addEventListener('document:selected', onDocumentSelected as EventListener);

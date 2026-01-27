@@ -78,7 +78,10 @@ services:
 
   # --- 3. AI STACK ---
   paperless-ai:
-    build: .
+    build:
+      context: .
+      args:
+        - NPM_OMIT_DEV=${NPM_OMIT_DEV:-1}
     container_name: paperless_ai
     restart: unless-stopped
     depends_on:
@@ -98,43 +101,47 @@ services:
       # Explicit metrics/proxy environment enforcement
       - TRUST_PROXY=${TRUST_PROXY:-true}
       - METRICS_INTERNAL_ONLY=${METRICS_INTERNAL_ONLY:-true}
-      - 'METRICS_ALLOWED_CIDRS=${METRICS_ALLOWED_CIDRS:-127.0.0.1,::1,172.18.0.0/16,10.0.0.0/8}'
+      - METRICS_ALLOWED_CIDRS=127.0.0.1,::1,172.19.0.0/16,172.18.0.0/16,10.0.0.0/8 # Explicit local dev value
     networks:
       - monitoring
       - default
 
   visual-rag:
-      build:
-        context: ./containers/visual-rag
-        dockerfile: Dockerfile
-        args:
-          - BYALDI_CHECKOUT=${BYALDI_VERSION:-main}
-      container_name: visual_rag
-      restart: unless-stopped
-      ports:
-        - "8001:8001"
-      env_file: .env
-      healthcheck:
-        test: ["CMD-SHELL", "python3 -c \"import urllib.request, sys; urllib.request.urlopen('http://localhost:8001/health', timeout=5)\""]
-        interval: 30s
-        timeout: 10s
-        retries: 5
-        start_period: 180s
-      environment:
-        - MEDIA_DIR=${MEDIA_DIR}
-        - INDEX_DIR=${INDEX_DIR}
-        - VISUAL_RAG_INDEX_DIR=${VISUAL_RAG_INDEX_DIR}
-      volumes:
-        - visual_model_cache:/root/.cache/huggingface
-        - ../paperless-ngx/data/visual_indices:/data/indices
-        - ../paperless-ngx/media:/media/paperless:ro
-      deploy:
-        resources:
-          reservations:
-            devices:
-              - driver: nvidia
-                count: all
-                capabilities: [gpu]
+    build:
+      context: ./containers/visual-rag
+      dockerfile: Dockerfile
+      args:
+        - BYALDI_CHECKOUT=${BYALDI_VERSION:-main}
+    container_name: visual_rag
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    env_file: .env
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request, sys; urllib.request.urlopen('http://localhost:8001/health', timeout=5)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    environment:
+      - MEDIA_DIR=${MEDIA_DIR}
+      - INDEX_DIR=${INDEX_DIR}
+      - VISUAL_RAG_INDEX_DIR=${VISUAL_RAG_INDEX_DIR}
+    volumes:
+      - visual_model_cache:/root/.cache/huggingface
+      - ../paperless-ngx/data/visual_indices:/data/indices
+      - ../paperless-ngx/media:/media/paperless:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    networks:
+      - monitoring
+      - default
 
   bias-engine:
     build:
