@@ -342,29 +342,46 @@ async function loadOllamaModels() {
         populateModelSelect(modelSelect, data);
     } catch (error) {
         console.error('Error loading Ollama models:', error);
-        modelSelect.innerHTML = '<option value="">Models unavailable</option>';
+        // Fallback: build placeholder list from local configuration inputs so dropdown isn't blank
+        const configured = [];
+        ['ollamaModel','ollamaVisionModel','ollamaPlannerModel','ollamaRouterModel','ollamaOrchestratorModel'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el && el.value) configured.push(el.value.trim());
+        });
+        const data = { models: [], expertModels: [], placeholderModels: Array.from(new Set(configured)).filter(Boolean), defaultModel: modelSelect.dataset.default || '' };
+        populateModelSelect(modelSelect, data);
         currentModel = getSelectedModel();
     }
 }
 
 function populateModelSelect(modelSelect, data) {
     const installedModels = Array.isArray(data.models) ? data.models : [];
-    const expertModels = Array.isArray(data.expertModels) ? data.expertModels : [];
+    const expertModels = Array.isArray(data.expertModels)
+        ? data.expertModels
+        : [];
+    const placeholderModels = Array.isArray(data.placeholderModels)
+        ? data.placeholderModels
+        : [];
     const defaultModel = data.defaultModel || modelSelect.dataset.default || '';
 
     modelSelect.innerHTML = '';
 
-    const seen = new Set();
-    const uniqueInstalled = installedModels.filter((model) => {
-        if (!model || seen.has(model)) return false;
-        seen.add(model);
-        return true;
+    const installedSet = new Set();
+    installedModels.forEach((model) => {
+        if (model) installedSet.add(model);
     });
 
-    if (uniqueInstalled.length) {
+    const expertEntries = expertModels.filter((entry) => entry && entry.model);
+    const expertSet = new Set(expertEntries.map((entry) => entry.model));
+
+    const placeholderEntries = placeholderModels.filter((model) => {
+        return model && !installedSet.has(model) && !expertSet.has(model);
+    });
+
+    if (installedSet.size) {
         const group = document.createElement('optgroup');
         group.label = 'Installed models';
-        uniqueInstalled.forEach((model) => {
+        Array.from(installedSet).forEach((model) => {
             const option = document.createElement('option');
             option.value = model;
             option.textContent = model;
@@ -373,11 +390,10 @@ function populateModelSelect(modelSelect, data) {
         modelSelect.appendChild(group);
     }
 
-    if (expertModels.length) {
+    if (expertEntries.length) {
         const group = document.createElement('optgroup');
         group.label = 'Expert models';
-        expertModels.forEach((entry) => {
-            if (!entry.model) return;
+        expertEntries.forEach((entry) => {
             const option = document.createElement('option');
             option.value = entry.model;
             option.textContent = entry.label
@@ -388,16 +404,32 @@ function populateModelSelect(modelSelect, data) {
         modelSelect.appendChild(group);
     }
 
-    if (!uniqueInstalled.length && !expertModels.length) {
+    if (placeholderEntries.length) {
+        const group = document.createElement('optgroup');
+        group.label = data.providerMismatch
+            ? 'Configured models (lazy load)'
+            : 'Configured models (not verified)';
+        placeholderEntries.forEach((model) => {
+            const option = document.createElement('option');
+            option.value = model;
+            option.textContent = `${model} (lazy load)`;
+            option.dataset.placeholder = 'true';
+            group.appendChild(option);
+        });
+        modelSelect.appendChild(group);
+    }
+
+    if (!installedSet.size && !expertEntries.length && !placeholderEntries.length) {
         const option = document.createElement('option');
         option.value = '';
         option.textContent = 'No models available';
         modelSelect.appendChild(option);
     }
 
-    const defaultExists = defaultModel
-        && (uniqueInstalled.includes(defaultModel)
-            || expertModels.some((entry) => entry.model === defaultModel));
+    const defaultExists = Boolean(defaultModel)
+        && (installedSet.has(defaultModel)
+            || expertSet.has(defaultModel)
+            || placeholderEntries.includes(defaultModel));
 
     if (defaultExists) {
         modelSelect.value = defaultModel;
@@ -584,27 +616,31 @@ async function loadChatVisualPage(documentId, page) {
     loading.classList.remove('hidden');
 
     try {
-        // Render high-res image
-        const renderRes = await fetch(`/api/document/${documentId}/render?page=${page}&dpi=300`);
-        if (!renderRes.ok) throw new Error('Failed to render page');
-
-        const renderData = await renderRes.json();
-
-        // Create image from base64
-        const img = new Image();
-        img.src = `data:image/png;base64,${renderData.image}`;
-        img.style.maxWidth = '100%';
-        img.style.height = 'auto';
-
-        await new Promise((resolve, reject) => {
-            img.onload = resolve;
-            img.onerror = () => reject(new Error('Failed to load rendered image'));
+        const loadImage = (src) => new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => resolve(image);
+            image.onerror = () => reject(new Error('Failed to load rendered image'));
+            image.src = src;
         });
 
-        // Update total pages if provided
-        if (renderData.totalPages) {
-            chatTotalPages = renderData.totalPages;
+        const normalizedUrl = `/api/visual-rag/normalized/${documentId}?page=${page}`;
+        let img;
+
+        try {
+            img = await loadImage(normalizedUrl);
+        } catch (normalizedError) {
+            // Fallback to legacy renderer when normalization fails.
+            const renderRes = await fetch(`/api/document/${documentId}/render?page=${page}&dpi=300`);
+            if (!renderRes.ok) throw new Error('Failed to render page');
+            const renderData = await renderRes.json();
+            img = await loadImage(`data:image/png;base64,${renderData.image}`);
+            if (renderData.totalPages) {
+                chatTotalPages = renderData.totalPages;
+            }
         }
+
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
 
         // Fetch overlays for this page
         const overlayRes = await fetch(`/api/visual-rag/overlays/${documentId}?page=${page}`);
