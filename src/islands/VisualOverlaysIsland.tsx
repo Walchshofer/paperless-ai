@@ -17,7 +17,16 @@ interface Props {
 
 // Simple in-memory cache with TTL (ms)
 const overlayCache: Map<string, { ts: number; data: any }> = new Map();
-const CACHE_TTL = 1000 * 60 * 5; // 5 minutes
+export const CACHE_TTL = 1000 * 60 * 5; // 5 minutes
+
+// Debounce helper
+export function debounce(fn: (...args: any[]) => void, wait = 200) {
+  let t: any = null;
+  return (...args: any[]) => {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => fn(...args), wait);
+  };
+}
 
 export function normalizeBoxToPixels(bbox: { x: number; y: number; width: number; height: number }, containerWidth: number, containerHeight: number) {
   // bbox normalized in [0..1]
@@ -29,7 +38,19 @@ export function normalizeBoxToPixels(bbox: { x: number; y: number; width: number
   };
 }
 
-export async function fetchOverlaysForImage(image: any, fetchImpl: any = (globalThis as any).fetch) {
+// Helper to extract visible image ids from IntersectionObserverEntry list (testable)
+export function getVisibleImageIds(entries: Array<any>): string[] {
+  const ids: string[] = [];
+  entries.forEach((e) => {
+    const target = e.target as HTMLElement;
+    const id = target?.dataset?.imageId || target?.getAttribute?.('data-image-id') || null;
+    if (!id) return;
+    if (e.isIntersecting || e.intersectionRatio > 0) ids.push(id);
+  });
+  return ids;
+}
+
+export async function fetchOverlaysForImage(image: any, fetchImpl: any = (globalThis as any).fetch, options: { timeoutMs?: number } = {}) {
   if (!image) return [];
   const cacheKey = image.id || image.originalSrc || image.thumbnailSrc || JSON.stringify(image);
   const now = Date.now();
@@ -48,23 +69,38 @@ export async function fetchOverlaysForImage(image: any, fetchImpl: any = (global
     return [];
   }
 
-  if (typeof fetchImpl !== 'function') throw new Error('fetch not available');
+  if (typeof fetchImpl !== 'function') throw Object.assign(new Error('fetch not available'), { code: 'no_fetch' });
 
   const controller = new AbortController();
   opts.signal = controller.signal;
 
+  // timeout handling
+  let timeoutHandle: any = null;
+  const timeoutMs = options.timeoutMs || 10000; // default 10s
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      controller.abort();
+      reject(Object.assign(new Error('Fetch timeout'), { code: 'timeout' }));
+    }, timeoutMs);
+  });
+
   try {
-    const res = await fetchImpl(url, opts);
-    if (!res || !res.ok) throw new Error('Overlay service error');
+    const res = await Promise.race([fetchImpl(url, opts), timeoutPromise]);
+    if (!res || !res.ok) {
+      const err: any = new Error('Overlay service error');
+      err.code = res && res.status === 503 ? 'service_unavailable' : 'fetch_error';
+      throw err;
+    }
     const json = await res.json();
     const overlays = Array.isArray(json.overlays) ? json.overlays : json;
     overlayCache.set(cacheKey, { ts: now, data: overlays });
     return overlays;
-  } catch (err) {
-    // Do not cache failures; caller should handle retries
+  } catch (err: any) {
+    // Do not cache failures; attach code if missing
+    if (!err.code) err.code = err.name === 'AbortError' ? 'timeout' : 'fetch_error';
     throw err;
   } finally {
-    // nothing (controller can be used by caller if needed)
+    if (timeoutHandle) clearTimeout(timeoutHandle);
   }
 }
 
@@ -75,54 +111,93 @@ export default function VisualOverlaysIsland(props: Props) {
   const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({});
   const [errorMap, setErrorMap] = useState<Record<string, string | null>>({});
   const controllersRef = useRef<Map<string, AbortController>>(new Map());
+  const imageRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const observerRef = useRef<any | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Intersection observer based viewport batching
   useEffect(() => {
-    // Fetch overlays for each image (simple strategy: fetch all, can be optimized to viewport later)
-    images.forEach((img) => {
-      const key = img.id || img.originalSrc || '';
-      if (!key) return;
-      // If overlays pre-provided, prefer them
-      if (Array.isArray(overlaysByImage && overlaysByImage[img.id])) {
-        setLocalOverlays((s) => ({ ...s, [img.id]: overlaysByImage[img.id] }));
-        return;
-      }
+    if (typeof IntersectionObserver === 'undefined') return;
 
-      // Skip if already cached
-      const cached = overlayCache.get(key);
-      if (cached && (Date.now() - cached.ts) < CACHE_TTL) {
-        setLocalOverlays((s) => ({ ...s, [img.id]: cached.data }));
-        return;
-      }
-
-      // Start fetch
-      (async () => {
-        setLoadingMap((m) => ({ ...m, [key]: true }));
-        setErrorMap((m) => ({ ...m, [key]: null }));
-        const controller = new AbortController();
-        controllersRef.current.set(key, controller);
-
-        try {
-          const overlays = await fetchOverlaysForImage(img, (globalThis as any).fetch);
-          setLocalOverlays((s) => ({ ...s, [img.id]: overlays }));
-        } catch (err: any) {
-          setErrorMap((m) => ({ ...m, [key]: err?.message || 'Failed to fetch overlays' }));
-        } finally {
-          setLoadingMap((m) => ({ ...m, [key]: false }));
-          controllersRef.current.delete(key);
+    const intersectCb = debounce((entries: any[]) => {
+      const visibleIds = getVisibleImageIds(entries);
+      // fetch overlays only for visible ids
+      visibleIds.forEach((id) => {
+        const img = images.find((i) => i.id === id || i.originalSrc === id || i.thumbnailSrc === id);
+        if (!img) return;
+        const key = img.id || img.originalSrc || '';
+        // If overlays pre-provided, set and skip
+        if (Array.isArray(overlaysByImage && overlaysByImage[img.id])) {
+          setLocalOverlays((s) => ({ ...s, [img.id]: overlaysByImage[img.id] }));
+          return;
         }
-      })();
+        const cached = overlayCache.get(key);
+        if (cached && (Date.now() - cached.ts) < CACHE_TTL) {
+          setLocalOverlays((s) => ({ ...s, [img.id]: cached.data }));
+          return;
+        }
+
+        // Start fetch for visible image
+        (async () => {
+          setLoadingMap((m) => ({ ...m, [key]: true }));
+          setErrorMap((m) => ({ ...m, [key]: null }));
+          const controller = new AbortController();
+          controllersRef.current.set(key, controller);
+
+          try {
+            const overlays = await fetchOverlaysForImage(img, (globalThis as any).fetch, { timeoutMs: 8000 });
+            setLocalOverlays((s) => ({ ...s, [img.id]: overlays }));
+          } catch (err: any) {
+            const code = err?.code || 'fetch_error';
+            setErrorMap((m) => ({ ...m, [key]: `${code}: ${err?.message || 'Failed to fetch overlays'}` }));
+          } finally {
+            setLoadingMap((m) => ({ ...m, [key]: false }));
+            controllersRef.current.delete(key);
+          }
+        })();
+      });
+    }, 150);
+
+    observerRef.current = new IntersectionObserver((entries) => {
+      intersectCb(entries);
+    }, { root: null, threshold: 0.05 });
+
+    // Observe the registered image elements
+    imageRefs.current.forEach((el) => {
+      if (el) observerRef.current.observe(el);
     });
 
     return () => {
-      // abort pending fetches when images change or component unmounts
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+        observerRef.current = null;
+      }
       controllersRef.current.forEach((c) => c.abort());
       controllersRef.current.clear();
     };
+  }, [images, overlaysByImage]);
 
+  // Helper to attach refs to images for observation
+  const attachImageRef = (id: string) => (el: HTMLElement | null) => {
+    if (!el) {
+      imageRefs.current.delete(id);
+      return;
+    }
+    el.dataset.imageId = id;
+    imageRefs.current.set(id, el);
+    if (observerRef.current) observerRef.current.observe(el);
+  };
+
+  // Fallback: If an image has pre-provided overlays, ensure they are set on mount
+  useEffect(() => {
+    images.forEach((img) => {
+      if (Array.isArray(overlaysByImage && overlaysByImage[img.id])) {
+        setLocalOverlays((s) => ({ ...s, [img.id]: overlaysByImage[img.id] }));
+      }
+    });
   }, [images, overlaysByImage]);
 
   return (
@@ -131,9 +206,11 @@ export default function VisualOverlaysIsland(props: Props) {
         {images.map((img) => (
           <div key={img.id} className="visual-image-item" data-testid={`visual-image-${img.id}`} style={{ position: 'relative' }}>
             <img
+              ref={attachImageRef(img.id)}
               src={img.originalSrc || img.thumbnailSrc || ''}
               alt={`Document ${props.documentId || ''} image ${img.id}`}
               data-testid="document-image"
+              data-image-id={img.id}
               style={{ width: '100%', height: 'auto', display: 'block' }}
               crossOrigin="anonymous"
             />

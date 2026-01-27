@@ -49,7 +49,7 @@ synchronous updates across PostgreSQL and Qdrant payloads.
 
 4. **Islands Runtime & Templates**:
    - Mount both islands in `views/manual.ejs` using `data-island` anchors.
-   - Map both components in `src/islands/runtime.ts` for hydration.
+   - Map both components in `src/islands/runtime.browser.tsx / src/islands/runtime.js` for hydration.
 
 5. **"Detox" Standards**:
    - Adhere to the 79-character line limit for all TypeScript logic.

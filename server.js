@@ -22,6 +22,7 @@ const PatternDetectionEngine = require('./services/PatternDetectionEngine');
 const { metricsCollector } = require('./services/metrics/PrometheusMetrics');
 const { validateInternalMetricsConfig } = require('./metrics/validateInternalMetricsConfig');
 const { allowInternalNetwork } = require('./routes/internal-auth');
+const { RagPageVmSchema } = require('./src/ui/contracts/RagPage.contract.js');
 
 // Add environment variables for RAG service if not already set.
 if (process.env.RAG_SERVICE_ENABLED === undefined) {
@@ -649,9 +650,15 @@ if (process.env.RAG_SERVICE_ENABLED === 'true') {
   // RAG UI route
   app.get('/rag', async (req, res) => {
     try {
-      res.render('rag', { 
-        title: 'Dokumenten-Fragen'
-      });
+      const vm = {
+        documentId: null,
+        original_url: null,
+        page_count: 1,
+        images: [],
+        overlaysByImage: {},
+      };
+      const parsedVm = RagPageVmSchema.parse(vm);
+      res.render('rag', { vm: parsedVm });
     } catch (error) {
       console.error('Error rendering RAG UI:', error);
       res.status(500).send('Error loading RAG interface');

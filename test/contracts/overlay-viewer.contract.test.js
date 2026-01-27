@@ -1,3 +1,7 @@
+const tsNodeService = require('ts-node').register({
+  transpileOnly: true,
+  compilerOptions: { module: 'CommonJS' },
+});
 const assert = require('assert');
 const { OverlayViewerSchema } = require('../../src/ui/contracts/OverlayViewer.contract');
 
@@ -14,6 +18,12 @@ describe('OverlayViewer contract', () => {
     const data = { documentId: null };
     const parsed = OverlayViewerSchema.parse(data);
     assert.strictEqual(parsed.documentId, null);
+  });
+
+  it('accepts a nullable originalUrl for late hydration', () => {
+    const data = { documentId: 1, originalUrl: null };
+    const parsed = OverlayViewerSchema.parse(data);
+    assert.strictEqual(parsed.originalUrl, null);
   });
 
   it('contract smoke: prefers snake_case original_url when provided (rendering behavior validated in integration/E2E)', (done) => {

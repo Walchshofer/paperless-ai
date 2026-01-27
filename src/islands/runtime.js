@@ -165,6 +165,23 @@ const ManualEditorSchema = z.object({
   gpuState: z.enum(['idle', 'checking', 'preparing', 'ready', 'error']).optional(),
 });
 
+const ManualDocumentSchema = z.object({
+  id: z.number().int(),
+  title: z.string().optional(),
+  original_filename: z.string().optional(),
+});
+
+const ManualWorkspaceSchema = z.object({
+  documentId: z.number().int().nullable().optional(),
+  content: z.string().optional(),
+  title: z.string().nullable().optional(),
+  correspondent: z.string().nullable().optional(),
+  tags: z.array(z.union([z.string(), z.number()])).optional().default([]),
+  originalUrl: z.string().nullable().optional(),
+  pageCount: z.number().int().nullable().optional(),
+  documents: z.array(ManualDocumentSchema).optional().default([]),
+});
+
 // Tag schema for history tabs metadata
 const TagItemSchema = z.object({
   id: z.number().int(),
@@ -190,8 +207,85 @@ const HistoryTabsSchema = z.object({
 const OverlayViewerSchema = z.object({
   documentId: z.number().int().nullable(),
   page: z.number().int().optional(),
-  originalUrl: z.string().optional(),
+  originalUrl: z.string().nullable().optional(),
   pageCount: z.number().int().optional(),
+  overlayMode: z.enum(['none', 'document']).optional().default('none'),
+  showLegend: z.boolean().optional().default(false),
+  allowSelection: z.boolean().optional().default(true),
+});
+
+const ViewModeToggleSchema = z.object({
+  documentId: z.number().int().nullable().optional(),
+  mode: z.enum(['text', 'visual']).optional().default('text'),
+  visualEnabled: z.boolean().optional().default(true),
+});
+
+const TagSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  color: z.string().optional(),
+});
+
+const TagsManagerSchema = z.object({
+  documentId: z.number().int().nullable().optional(),
+  currentTags: z.array(TagSchema).optional().default([]),
+  suggestedTags: z.array(TagSchema).optional().default([]),
+  availableTags: z.array(TagSchema).optional().default([]),
+  isSaving: z.boolean().optional().default(false),
+});
+
+const AIAnalysisSchema = z.object({
+  documentId: z.number().int().nullable().optional(),
+  content: z.string().optional(),
+  isAnalyzing: z.boolean().optional().default(false),
+  analysisType: z.enum(['text', 'visual', 'chat']).nullable().optional(),
+  gpuState: z.enum(['idle', 'checking', 'preparing', 'ready', 'error'])
+    .optional()
+    .default('idle'),
+});
+
+const ChatDocumentSchema = z.object({
+  id: z.number().int(),
+  title: z.string().optional(),
+  original_filename: z.string().optional(),
+});
+
+const ChatWorkspaceSchema = z.object({
+  openDocumentId: z.number().int().nullable().optional(),
+  documents: z.array(ChatDocumentSchema).optional().default([]),
+  aiProvider: z.string().optional(),
+  ollamaDefaultModel: z.string().nullable().optional(),
+});
+
+const HistoryTagSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+});
+
+const HistoryFiltersSchema = z.object({
+  tags: z.array(HistoryTagSchema).optional().default([]),
+  correspondents: z.array(z.string()).optional().default([]),
+});
+
+const HistorySortSchema = z.object({
+  column: z.enum(['document_id', 'title', 'created_at', 'tags', 'correspondent'])
+    .optional()
+    .default('created_at'),
+  dir: z.enum(['asc', 'desc']).optional().default('desc'),
+});
+
+const HistoryQuerySchema = z.object({
+  search: z.string().optional().default(''),
+  tag: z.string().nullable().optional().default(null),
+  correspondent: z.string().nullable().optional().default(null),
+  sort: HistorySortSchema.optional().default({ column: 'created_at', dir: 'desc' }),
+  page: z.number().int().nonnegative().optional().default(0),
+  pageSize: z.number().int().positive().optional().default(10),
+});
+
+const HistoryManagerSchema = z.object({
+  filters: HistoryFiltersSchema,
+  initialQuery: HistoryQuerySchema.optional().default({}),
 });
 
 // Playground Island schema (ticket:017.2)
@@ -216,8 +310,14 @@ const schemaMap = {
   'visual-annotation-island': VisualAnnotationSchema,
   'feedback-controls-island': FeedbackControlsSchema,
   'manual-editor-island': ManualEditorSchema,
+  'manual-workspace-island': ManualWorkspaceSchema,
   'history-tabs-island': HistoryTabsSchema,
   'overlay-viewer-island': OverlayViewerSchema,
+  'view-mode-toggle-island': ViewModeToggleSchema,
+  'tags-manager-island': TagsManagerSchema,
+  'ai-analysis-island': AIAnalysisSchema,
+  'chat-workspace-island': ChatWorkspaceSchema,
+  'history-manager-island': HistoryManagerSchema,
   'playground-island': PlaygroundSchema,
   // Base settings islands scaffolding (P1.3)
   'overview-dashboard-island': z.object({ type: z.literal('overview-dashboard').optional() }).optional(),

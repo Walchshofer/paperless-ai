@@ -972,4 +972,54 @@ router.post('/ingest/:docId', async (req, res) => {
     }
 });
 
+// Render a normalized page image for overlay viewers.
+router.get('/normalized/:docId', async (req, res) => {
+  try {
+    const docId = Number.parseInt(req.params.docId, 10);
+    const requestedPage = Number.parseInt(String(req.query.page || '1'), 10);
+
+    if (!Number.isFinite(docId) || docId <= 0) {
+      return res.status(400).json({ error: 'Invalid document id' });
+    }
+
+    const maxPages = config.visualRag?.maxVisionPages || 4;
+    const page = Math.min(Math.max(requestedPage || 1, 1), maxPages);
+
+    if (!pdfRenderer || !(await pdfRenderer.isAvailableAsync())) {
+      return res.status(503).json({
+        error: 'PDF rendering unavailable',
+      });
+    }
+
+    let pdfBuffer = await paperlessService.downloadOriginalDocument(docId);
+    if (!pdfBuffer) {
+      pdfBuffer = await paperlessService.downloadDocument(docId);
+    }
+    if (!pdfBuffer) {
+      return res.status(404).json({ error: 'Document download failed' });
+    }
+
+    const images = await pdfRenderer.renderBuffer(pdfBuffer, {
+      docId: `${docId}-normalized`,
+      dpi: config.visualRag?.visionRenderDpi,
+      maxPages: page,
+    });
+
+    const image = images[page - 1];
+    if (!image?.base64) {
+      return res.status(404).json({ error: 'Page render failed' });
+    }
+
+    const format = image.format || 'png';
+    const buffer = Buffer.from(image.base64, 'base64');
+
+    res.setHeader('Content-Type', `image/${format}`);
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    return res.send(buffer);
+  } catch (error) {
+    logger.error('[Visual-RAG API] Normalized render failed:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

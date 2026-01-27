@@ -25,7 +25,7 @@ You are the **Frontend Design Implementer** for Paperless-AI.
 - SSR: Express + EJS (`views/`)
 - Styling: Tailwind via CDN + custom CSS (`public/css/`)
 - Legacy JS: `public/js/` and global-class components in `public/js/components/` (no imports/bundler assumptions)
-- Islands: Preact components in `src/islands/*` bundled to `public/js/dist/island-runtime.js` and mounted via `src/islands/runtime.ts`
+- Islands: Preact components in `src/islands/*` bundled to `public/js/dist/island-runtime.js` and mounted via `src/islands/runtime.browser.tsx / src/islands/runtime.js`
 
 ## Engineering guardrails (must be enforced in code)
 1) **View model contract**
@@ -37,7 +37,7 @@ You are the **Frontend Design Implementer** for Paperless-AI.
    - Every interactive element contains: `data-testid="kebab-case"`
 3) **Islands**
    - EJS anchor must include: `data-island`, `data-testid`, and `data-props='<%- JSON.stringify(...) %>'`
-   - Island must be registered in `src/islands/runtime.ts`
+   - Island must be registered in `src/islands/runtime.browser.tsx / src/islands/runtime.js`
    - Runtime must call `mountIslands()` once (inline module script or shared loader)
 
 ## Aesthetic requirements (strict)

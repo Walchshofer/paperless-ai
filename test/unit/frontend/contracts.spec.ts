@@ -22,13 +22,24 @@ import { AspectRatioSchema } from '../../../src/ui/contracts/AspectRatio.contrac
 const OverlayViewerSchema = z.object({
   documentId: z.number().int().nullable(),
   page: z.number().int().nonnegative().optional(),
-  originalUrl: z.string().optional()
+  originalUrl: z.string().optional(),
+  pageCount: z.number().int().optional(),
+  overlayMode: z.enum(['none', 'document']).optional().default('none'),
+  showLegend: z.boolean().optional().default(false),
+  allowSelection: z.boolean().optional().default(true)
+});
+
+const ViewModeToggleSchema = z.object({
+  documentId: z.number().int().nullable().optional(),
+  mode: z.enum(['text', 'visual']).optional().default('text'),
+  visualEnabled: z.boolean().optional().default(true)
 });
 
 // Tag schema
 const TagSchema = z.object({
   id: z.number().int(),
-  name: z.string()
+  name: z.string(),
+  color: z.string().optional()
 });
 
 // Metadata schema
@@ -46,6 +57,88 @@ const HistoryTabsSchema = z.object({
   documentId: z.number().int().nullable(),
   content: z.string().optional(),
   metadata: MetadataSchema.optional()
+});
+
+const TagsManagerSchema = z.object({
+  documentId: z.number().int().nullable().optional(),
+  currentTags: z.array(TagSchema).optional().default([]),
+  suggestedTags: z.array(TagSchema).optional().default([]),
+  availableTags: z.array(TagSchema).optional().default([]),
+  isSaving: z.boolean().optional().default(false)
+});
+
+const AIAnalysisSchema = z.object({
+  documentId: z.number().int().nullable().optional(),
+  content: z.string().optional(),
+  isAnalyzing: z.boolean().optional().default(false),
+  analysisType: z.enum(['text', 'visual', 'chat']).nullable().optional(),
+  gpuState: z.enum(['idle', 'checking', 'preparing', 'ready', 'error'])
+    .optional()
+    .default('idle')
+});
+
+const ManualDocumentSchema = z.object({
+  id: z.number().int(),
+  title: z.string().optional(),
+  original_filename: z.string().optional()
+});
+
+const ManualWorkspaceSchema = z.object({
+  documentId: z.number().int().nullable().optional(),
+  content: z.string().optional(),
+  title: z.string().nullable().optional(),
+  correspondent: z.string().nullable().optional(),
+  tags: z.array(z.union([z.string(), z.number()])).optional().default([]),
+  originalUrl: z.string().nullable().optional(),
+  pageCount: z.number().int().nullable().optional(),
+  documents: z.array(ManualDocumentSchema).optional().default([])
+});
+
+const ChatDocumentSchema = z.object({
+  id: z.number().int(),
+  title: z.string().optional(),
+  original_filename: z.string().optional()
+});
+
+const ChatWorkspaceSchema = z.object({
+  openDocumentId: z.number().int().nullable().optional(),
+  documents: z.array(ChatDocumentSchema).optional().default([]),
+  aiProvider: z.string().optional(),
+  ollamaDefaultModel: z.string().nullable().optional()
+});
+
+const HistoryTagSchema = z.object({
+  id: z.number().int(),
+  name: z.string()
+});
+
+const HistoryFiltersSchema = z.object({
+  tags: z.array(HistoryTagSchema).optional().default([]),
+  correspondents: z.array(z.string()).optional().default([])
+});
+
+const HistorySortSchema = z.object({
+  column: z.enum(['document_id', 'title', 'created_at', 'tags', 'correspondent'])
+    .optional()
+    .default('created_at'),
+  dir: z.enum(['asc', 'desc']).optional().default('desc')
+});
+
+const HistoryQuerySchema = z.object({
+  search: z.string().optional().default(''),
+  tag: z.string().nullable().optional().default(null),
+  correspondent: z.string().nullable().optional().default(null),
+  sort: HistorySortSchema.optional().default({
+    column: 'created_at',
+    dir: 'desc'
+  }),
+  page: z.number().int().nonnegative().optional().default(0),
+  pageSize: z.number().int().positive().optional().default(10)
+});
+
+const HistoryManagerSchema = z.object({
+  filters: HistoryFiltersSchema,
+  initialQuery: HistoryQuerySchema.optional().default({})
 });
 
 // Visual Search Result Schema
@@ -124,6 +217,18 @@ describe('OverlayViewer Contract', () => {
   });
 });
 
+describe('ViewModeToggle Contract', () => {
+  it('accepts default mode and visual enabled', () => {
+    const result = ViewModeToggleSchema.safeParse({});
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts explicit visual mode', () => {
+    const result = ViewModeToggleSchema.safeParse({ mode: 'visual' });
+    expect(result.success).toBe(true);
+  });
+});
+
 describe('HistoryTabs Contract', () => {
   it('accepts valid document with content', () => {
     const valid = {
@@ -167,6 +272,94 @@ describe('HistoryTabs Contract', () => {
     };
     const result = HistoryTabsSchema.safeParse(invalid);
     expect(result.success).toBe(false);
+  });
+});
+
+describe('TagsManager Contract', () => {
+  it('accepts empty tags', () => {
+    const result = TagsManagerSchema.safeParse({ documentId: null });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts tag arrays', () => {
+    const result = TagsManagerSchema.safeParse({
+      documentId: 1,
+      currentTags: [{ id: 1, name: 'invoice' }],
+      suggestedTags: [{ id: 2, name: 'urgent' }]
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('AIAnalysis Contract', () => {
+  it('accepts defaults', () => {
+    const result = AIAnalysisSchema.safeParse({});
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts visual analysis state', () => {
+    const result = AIAnalysisSchema.safeParse({
+      documentId: 1,
+      analysisType: 'visual',
+      isAnalyzing: true,
+      gpuState: 'ready'
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('ManualWorkspace Contract', () => {
+  it('accepts empty defaults', () => {
+    const result = ManualWorkspaceSchema.safeParse({});
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts populated workspace data', () => {
+    const result = ManualWorkspaceSchema.safeParse({
+      documentId: 42,
+      content: 'Hello',
+      title: 'Invoice',
+      correspondent: 'ACME Corp',
+      tags: ['invoice'],
+      originalUrl: '/documents/42/download/original/',
+      pageCount: 3,
+      documents: [{ id: 42, title: 'Invoice' }]
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('ChatWorkspace Contract', () => {
+  it('accepts defaults', () => {
+    const result = ChatWorkspaceSchema.safeParse({});
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts document list', () => {
+    const result = ChatWorkspaceSchema.safeParse({
+      openDocumentId: 10,
+      documents: [{ id: 10, title: 'Contract' }],
+      aiProvider: 'ollama',
+      ollamaDefaultModel: 'qwen3:8b'
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('HistoryManager Contract', () => {
+  it('accepts filter defaults', () => {
+    const result = HistoryManagerSchema.safeParse({
+      filters: { tags: [], correspondents: [] }
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts query overrides', () => {
+    const result = HistoryManagerSchema.safeParse({
+      filters: { tags: [{ id: 1, name: 'invoice' }], correspondents: [] },
+      initialQuery: { search: 'acme', page: 2 }
+    });
+    expect(result.success).toBe(true);
   });
 });
 

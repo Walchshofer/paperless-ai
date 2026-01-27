@@ -3,6 +3,9 @@ const router = express.Router();
 const paperlessService = require('../services/paperlessService.js');
 const documentModel = require('../services/documentModel.js');
 const configFile = require('../config/config.js');
+const {
+  HistoryDocumentVmSchema,
+} = require('../src/ui/contracts/HistoryDocument.contract.js');
 
 /**
  * @swagger
@@ -54,13 +57,28 @@ router.get('/history', async (req, res) => {
     const allCorrespondents = [...new Set(historyDocuments.map(doc => doc.correspondent))]
       .filter(Boolean).sort();
 
-    res.render('history', {
+    const vm = {
       version: configFile.PAPERLESS_AI_VERSION,
-      filters: {
-        allTags: allTags,
-        allCorrespondents: allCorrespondents
+      config: {
+        disableGithubFetch: process.env.DISABLE_GITHUB_FETCH || 'no'
+      },
+      history: {
+        filters: {
+          tags: allTags,
+          correspondents: allCorrespondents
+        },
+        initialQuery: {
+          search: '',
+          tag: null,
+          correspondent: null,
+          sort: { column: 'created_at', dir: 'desc' },
+          page: 0,
+          pageSize: 10
+        }
       }
-    });
+    };
+
+    res.render('history', { vm });
   } catch (error) {
     console.error('[ERROR] loading history page:', error);
     res.status(500).send('Error loading history page');
@@ -199,9 +217,10 @@ router.get('/history/doc/:id', async (req, res) => {
       modified: modifiedAt || null
     };
 
-    res.render('history-document', {
+    const vm = {
       documentId: document?.id || documentId,
-      title: document?.title || fallbackHistory?.title || `Document ${documentId}`,
+      title:
+        document?.title || fallbackHistory?.title || `Document ${documentId}`,
       content: content || 'No content available for this document.',
       tags,
       tagObjects,
@@ -212,9 +231,17 @@ router.get('/history/doc/:id', async (req, res) => {
       createdAt,
       modifiedAt,
       paperlessUrl: paperlessBaseUrl,
-      original_url: paperlessBaseUrl ? `${paperlessBaseUrl}/documents/${document?.id}/download/original/` : null,
-      page_count: document?.page_count || 1
-    });
+      original_url: paperlessBaseUrl
+        ? `${paperlessBaseUrl}/documents/${document?.id}/download/original/`
+        : null,
+      page_count: document?.page_count || 1,
+      // Keep overlay props null-safe; overlays are fetched client-side.
+      images: [],
+      overlaysByImage: {},
+    };
+
+    const parsedVm = HistoryDocumentVmSchema.parse(vm);
+    res.render('history-document', { vm: parsedVm });
   } catch (error) {
     console.error('[ERROR] loading history document:', error);
     res.status(500).send('Error loading document preview');

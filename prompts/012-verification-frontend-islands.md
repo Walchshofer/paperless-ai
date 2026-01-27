@@ -42,7 +42,7 @@ visual fragments are validated before being sent to the sidecar.
      not a generic error.
 
 4. **Islands Runtime Audit**:
-   - Ensure `src/islands/runtime.ts` correctly maps all Alpha-9 islands:
+   - Ensure `src/islands/runtime.browser.tsx / src/islands/runtime.js` correctly maps all Alpha-9 islands:
      - `overlay-viewer-island`
      - `history-tabs-island`
      - `expert-filter-island` (if applicable)

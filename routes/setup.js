@@ -541,6 +541,43 @@ router.get('/api/ollama/models', async (req, res) => {
   }
 });
 
+// Verify whether a model is installed or currently loaded in Ollama
+router.get('/api/ollama/verify', async (req, res) => {
+  try {
+    const model = req.query.model;
+    if (!model) return res.status(400).json({ error: 'model query parameter required' });
+
+    let installed = [];
+    try { installed = await ollamaService.listModels(); } catch (e) { installed = []; }
+
+    let loadedModels = [];
+    try {
+      const ps = await ollamaService.checkStatus();
+      loadedModels = Array.isArray(ps.loadedModels) ? ps.loadedModels : [];
+    } catch (e) {
+      loadedModels = [];
+    }
+
+    const result = {
+      model,
+      installed: installed.includes(model),
+      loaded: loadedModels.some((m) => (m.model || m.name) === model),
+      installedList: installed,
+      loadedList: loadedModels
+    };
+
+    res.json(result);
+  } catch (err) {
+    console.error('[ERROR] verifying Ollama model:', err);
+    res.status(500).json({ error: 'Failed to verify model' });
+  }
+});
+  } catch (error) {
+    console.error('[ERROR] loading Ollama models:', error);
+    res.status(500).json({ error: 'Failed to load Ollama models' });
+  }
+});
+
 
 const normalizeArray = (value) => {
   if (!value) return [];

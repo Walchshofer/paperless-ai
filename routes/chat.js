@@ -56,13 +56,19 @@ router.get('/chat', async (req, res) => {
       // Use unfiltered documents for UI dropdown - tag filtering is only for automatic processing
       const documents = await paperlessService.getAllDocumentsUnfiltered();
       const version = configFile.PAPERLESS_AI_VERSION || ' ';
-      res.render('chat', {
-        documents,
-        open,
+      const vm = {
         version,
-        aiProvider: configFile.aiProvider,
-        ollamaModel: configFile.ollama?.model
-      });
+        config: {
+          disableGithubFetch: process.env.DISABLE_GITHUB_FETCH || 'no'
+        },
+        chat: {
+          openDocumentId: open ? Number(open) : null,
+          documents,
+          aiProvider: configFile.aiProvider,
+          ollamaDefaultModel: configFile.ollama?.model || null
+        }
+      };
+      res.render('chat', { vm });
   } catch (error) {
     console.error('[ERRO] loading documents:', error);
     res.status(500).send('Error loading documents');

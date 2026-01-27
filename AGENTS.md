@@ -29,6 +29,16 @@
   to Qdrant payloads for "Expert Filtering".
 - Provide a checklist mapping changes back to `docs/EXPERT_PIPELINE_DECISION_TABLE.md`.
 
+This codebase will outlive you. Every shortcut you take becomes
+someone else's burden. Every hack compounds into technical debt
+that slows the whole team down.
+
+You are not just writing code. You are shaping the future of this
+project. The patterns you establish will be copied. The corners
+you cut will be cut again.
+
+Fight entropy. Leave the codebase better than you found it.
+
 ## Multi-container Runtime
 - **Compose Root:** `C:\Users\pwalc\MyApps\paperless-ai\docker-compose.yml`.
 - **Core Services:** paperless-ai (Node), visual-rag sidecar (Python), 

@@ -47,6 +47,20 @@ export default function SettingsSidebarIsland(
     return stored || validated.activeCategory;
   });
 
+  const [aiProvider, setAiProvider] = useState<string>(
+    validated.aiProvider || 'ollama'
+  );
+
+  const dispatchSettingsEvent = (name: string, detail: Record<string, any>) => {
+    if (typeof document === 'undefined') return;
+    const CustomEventCtor =
+      typeof window !== 'undefined' && typeof window.CustomEvent === 'function'
+        ? window.CustomEvent
+        : null;
+    if (!CustomEventCtor) return;
+    document.dispatchEvent(new CustomEventCtor(name, { detail }));
+  };
+
   // Persist developer mode to localStorage
   useEffect(() => {
     if (typeof localStorage === 'undefined') return;
@@ -78,30 +92,61 @@ export default function SettingsSidebarIsland(
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    const win = window;
     const handleHashChange = () => {
-      const hash = window.location.hash.slice(1); // Remove #
-      if (hash && CATEGORIES.some(cat => cat.id === hash)) {
+      const hash = win.location.hash.slice(1);
+      if (hash && CATEGORIES.some((cat) => cat.id === hash)) {
         setActiveCategory(hash);
       }
     };
 
-    window.addEventListener('hashchange', handleHashChange);
+    win.addEventListener('hashchange', handleHashChange);
 
     // Check initial hash
     handleHashChange();
 
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    return () => win.removeEventListener('hashchange', handleHashChange);
   }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const handleSettingsChanged = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const nextProvider = customEvent.detail?.settings?.AI_PROVIDER;
+      if (nextProvider) {
+        setAiProvider(String(nextProvider));
+      }
+    };
+
+    document.addEventListener('settings:changed', handleSettingsChanged);
+    return () =>
+      document.removeEventListener('settings:changed', handleSettingsChanged);
+  }, []);
+
+  useEffect(() => {
+    if (aiProvider === 'ollama') return;
+    if (activeCategory !== 'expert-models') return;
+
+    const nextCategory = 'ai-provider';
+    setActiveCategory(nextCategory);
+
+    dispatchSettingsEvent('settings:category-changed', {
+      category: nextCategory,
+    });
+
+    if (typeof window !== 'undefined') {
+      window.location.hash = nextCategory;
+    }
+  }, [aiProvider, activeCategory]);
 
   const handleCategoryClick = (categoryId: string) => {
     setActiveCategory(categoryId);
 
     // Dispatch category change event
-    if (typeof document !== 'undefined') {
-      document.dispatchEvent(new CustomEvent('settings:category-changed', {
-        detail: { category: categoryId }
-      }));
-    }
+    dispatchSettingsEvent('settings:category-changed', {
+      category: categoryId,
+    });
 
     // Update URL hash
     if (typeof window !== 'undefined') {
@@ -114,11 +159,9 @@ export default function SettingsSidebarIsland(
     setDeveloperMode(newValue);
 
     // Dispatch developer mode toggle event
-    if (typeof document !== 'undefined') {
-      document.dispatchEvent(new CustomEvent('developer:toggled', {
-        detail: { enabled: newValue }
-      }));
-    }
+    dispatchSettingsEvent('developer:toggled', {
+      enabled: newValue,
+    });
 
     // If disabling developer mode and currently on developer category, switch to overview
     if (!newValue && activeCategory === 'developer') {
@@ -127,9 +170,10 @@ export default function SettingsSidebarIsland(
   };
 
   // Filter categories based on developer mode
-  const visibleCategories = CATEGORIES.filter(cat =>
-    !cat.requiresDeveloperMode || developerMode
-  );
+  const visibleCategories = CATEGORIES.filter((cat) => {
+    if (cat.id === 'expert-models' && aiProvider !== 'ollama') return false;
+    return !cat.requiresDeveloperMode || developerMode;
+  });
 
   return (
     <div className="settings-sidebar bg-gray-50 border-r border-gray-200 h-full flex flex-col" data-testid="settings-sidebar-root">

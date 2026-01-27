@@ -383,6 +383,8 @@ module.exports = {
   },
   customFields: process.env.CUSTOM_FIELDS || '',
   aiProvider: process.env.AI_PROVIDER || 'openai',
+  // Chat persistence toggle: 'yes' to persist chat sessions/messages in DB
+  chatPersistence: process.env.CHAT_PERSISTENCE || 'no',
   scanInterval: process.env.SCAN_INTERVAL || '*/30 * * * *',
   useExistingData: process.env.USE_EXISTING_DATA || 'no',
   // Visual RAG configuration

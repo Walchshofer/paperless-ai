@@ -70,6 +70,12 @@ The "shell" of the application. It typically handles:
 -   Navigation Sidebar (often included directly or via partial).
 -   `theme-toggle` logic.
 
+### Settings Page (`views/settings.ejs` + `routes/settings.js`)
+The Settings page is rendered server-side from `routes/settings.js` and must follow the **View Model Contract** rules in this document:
+- The route should call `res.render('settings', { vm })` and expose a single `vm` object.
+- The Zod contract for the settings page lives at `src/ui/contracts/Settings.contract.ts` and must be used as the parse gate before rendering.
+- Templates should reference only `vm.*` fields and include `data-page="settings"` on the root element.
+
 ### 2. Chat Interface (`views/chat.ejs` + `public/js/chat.js`)
 This is the most complex page, featuring the "Visual RAG" capabilities.
 
@@ -149,9 +155,24 @@ Instead of ad-hoc global injections, every page must render a single strict `vm`
 
 *   **Rule:** Server must render via `res.render("viewName", { vm })`.
 *   **Rule:** Templates must only access data via `vm.*`.
+    *   This includes `views/history-document.ejs`, which must not rely on
+        ad-hoc locals like `title` or `documentId`.
 *   **Implementation:**
     *   Define schemas in `src/ui/contracts/*.contract.ts` (using Zod).
     *   Validate data against the contract before rendering.
+    *   Example: the history document page validates via
+        `src/ui/contracts/HistoryDocument.contract.js` in
+        `routes/history.js`.
+    *   Example: the RAG page validates via
+        `src/ui/contracts/RagPage.contract.js` in `server.js`
+        (`/rag` route).
+    *   Example: the dashboard page validates via
+        `src/ui/contracts/Dashboard.contract.js` in `routes/setup.js`
+        (`/dashboard` route).
+    *   The RAG page must also mount islands via
+        `/js/dist/island-runtime.js` (for the overlay island anchor).
+    *   Island props may be intentionally nullable at first render
+        (for example, `originalUrl: null` in the overlay viewer).
     *   **Build-Time Check:** Scripts must verify that EJS templates only reference fields defined in the contract.
 
 ### B. Element Identity (No Stale Elements)
@@ -192,7 +213,7 @@ Instead of manual script tags, we use a central registry to auto-mount islands. 
 </div>
 ```
 
-**Island Registry (`src/islands/runtime.ts`):**
+**Island Registry (`src/islands/runtime.browser.tsx`):**
 ```typescript
 import { ThinkingAccordion } from './ThinkingAccordion.tsx'
 /* ... imports ... */
@@ -226,13 +247,80 @@ build: {
 ```
 
 ### Runtime Bundle Requirement (Alpha-9)
-The islands runtime is built from `src/islands/runtime.ts` plus the components
-in `src/islands/*`. The build output is served as
+The islands runtime is built from `src/islands/runtime.browser.tsx` plus the
+components in `src/islands/*`. The build output is served as
 `public/js/dist/island-runtime.js` (ES module, Preact-based).
 
 Pages that render `data-island` anchors must load the runtime once and call
 `mountIslands()` (inline module script or a deferred loader). The runtime should
 also auto-mount on `DOMContentLoaded` to cover full-page loads.
+
+For document-scoped overlay clipping/search, pass `originalUrl` sourced from
+`/manual/preview/:id` when available. Prefer
+`normalized_original_url` (served by `/api/visual-rag/normalized/:docId?page=`
+and rendered via `PDFRenderer`) so the visual tab uses the same page rendering
+path as visual ingestion; fall back to `original_url` when normalization is
+unavailable.
+
+The Ollama model list endpoint (`/api/ollama/models`) must always return:
+- installed models (`models`)
+- configured placeholders (`placeholderModels`)
+- configured expert aliases (`expertModels`)
+even when the active provider is not `ollama`. Frontend dropdowns should
+render placeholders with a clear "lazy load" or "not verified" affordance
+instead of showing "Models unavailable".
+
+Manual workflow contract:
+- `ai:analysis-completed` may include `fields` and `documentType`.
+- Manual workspace should dispatch both document metadata and document fields
+  so sidebar tabs populate after analysis.
+- Manual editor should mount within a dedicated "Manual Editor" card directly
+  after document selection so metadata panels stay adjacent to the active
+  document context.
+- Manual metadata should not remain empty after a successful analysis pass.
+
+Settings category gating:
+- Settings sections should declare `data-settings-category="category-id"`.
+- A single controller should listen for `settings:category-changed` and hide
+  non-active sections, using `localStorage.settings:lastCategory` as the
+  initial category fallback.
+
+Settings page VM contract (doc-first guardrail):
+- The settings route must render with a single parsed `vm` object:
+  `res.render('settings', { vm })`.
+- The root HTML element must include `data-page="settings"`.
+- Interactive controls on the settings header must include stable test IDs:
+  - API key container: `data-testid="settings-api-key"`
+  - Regenerate button: `data-testid="settings-regenerate"`
+- Settings templates must not read `config.*` directly. All template reads
+  must go through `vm.*`, with a parse gate in the route.
+- Recommended VM shape for settings:
+  - `vm.config.disableGithubFetch`
+  - `vm.settings.version`
+  - `vm.settings.messages.success`
+  - `vm.settings.messages.error`
+  - `vm.settings.apiKey`
+  - `vm.settings.aiProvider`
+  - `vm.settings.connection.paperlessApiUrl`
+  - `vm.settings.connection.paperlessUsername`
+  - `vm.settings.ollama.apiUrl`
+  - `vm.settings.ollama.model`
+- Settings islands should receive their props via `vm.settings.*`:
+  - Sidebar: `vm.settings.aiProvider`
+  - Connection: `vm.settings.connection.*`
+  - AI provider: `vm.settings.aiProvider`, `vm.settings.ollama.*`
+
+Do not add duplicate inline scripts that manually dispatch
+`overlay:document-changed` on page load; the island runtime and the overlay
+viewer emit the authoritative events.
+
+UI test policy (Docker/CI):
+- Production builds should continue to omit devDependencies.
+- UI tests require devDependencies (Vitest/Playwright). When building the
+  `paperless-ai` image for tests, set `NPM_OMIT_DEV=0` and run Vitest in
+  non-watch mode (for example, `npx vitest --run`).
+- To avoid Vite's CJS deprecation noise in Vitest runs, set
+  `VITE_CJS_IGNORE_WARNING=1` (the `test:ui` script should do this).
 
 A minimal `public/js/island-runtime.js` fallback may exist for tests or
 development scaffolding, but production pages must rely on the bundled runtime
@@ -248,7 +336,8 @@ bundle build (Vite library mode) as the authoritative path.
 *   **Actions:**
     *   Create `vite.config.ts` with library mode & named entry points.
     *   Create `src/ui/contracts/` and add Zod validation to Express controllers.
-    *   Implement `src/islands/runtime.ts` (registry).
+    *   Implement `src/islands/runtime.browser.tsx` (registry) and keep
+        `src/islands/runtime.js` in sync for Node/tests.
     *   Add `scripts/check-contracts.js` for build-time verification.
 
 ### Phase 2: Pilot Island (Weeks 3-4)

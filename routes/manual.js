@@ -12,6 +12,37 @@ try {
     console.warn('[Manual Route] Visual RAG client not available:', e.message);
 }
 
+const DOC_TYPE_CACHE_TTL_MS = 5 * 60 * 1000;
+let docTypeCache = {
+    fetchedAt: 0,
+    byId: new Map(),
+};
+
+async function getDocumentTypeName(documentTypeId) {
+    if (!documentTypeId) return '';
+
+    const now = Date.now();
+    const cacheFresh = now - docTypeCache.fetchedAt < DOC_TYPE_CACHE_TTL_MS;
+
+    if (!cacheFresh) {
+        try {
+            const docTypes = await paperlessService.listDocumentTypesNames();
+            const byId = new Map();
+            docTypes.forEach((entry) => {
+                if (entry && entry.id) {
+                    byId.set(entry.id, entry.name || String(entry.id));
+                }
+            });
+            docTypeCache = { fetchedAt: now, byId };
+        } catch (error) {
+            console.warn('Could not refresh document types:', error.message);
+            docTypeCache.fetchedAt = now;
+        }
+    }
+
+    return docTypeCache.byId.get(documentTypeId) || String(documentTypeId);
+}
+
 /**
  * @swagger
  * /manual/preview/{id}:
@@ -121,6 +152,16 @@ router.get('/manual/preview/:id', async (req, res) => {
       }
     }
 
+    let documentTypeName = '';
+    if (document.document_type) {
+      try {
+        documentTypeName = await getDocumentTypeName(document.document_type);
+      } catch (e) {
+        console.warn('Could not fetch document type name:', e.message);
+        documentTypeName = String(document.document_type);
+      }
+    }
+
     // Fetch visual-rag overlays/fields if available
     let overlays = [];
     let fields = [];
@@ -153,6 +194,7 @@ router.get('/manual/preview/:id', async (req, res) => {
     const paperlessBaseUrl = process.env.PAPERLESS_API_URL
       ? process.env.PAPERLESS_API_URL.replace(/\/api$/, '')
       : '';
+    const normalizedOriginalUrl = `/api/visual-rag/normalized/${document.id}`;
 
     res.json({
       content: document.content,
@@ -161,12 +203,17 @@ router.get('/manual/preview/:id', async (req, res) => {
       tags: document.tags,
       correspondent: correspondentName,
       correspondentId: document.correspondent,
+      documentType: documentTypeName,
+      documentTypeId: document.document_type || null,
       pageCount: document.page_count || 1,
       mimeType: document.mime_type,
       customFields: customFields,
       visualFields: fields,
       overlayCount: overlays.length,
-      original_url: paperlessBaseUrl ? `${paperlessBaseUrl}/documents/${document.id}/download/original/` : null
+      normalized_original_url: normalizedOriginalUrl,
+      original_url: paperlessBaseUrl
+        ? `${paperlessBaseUrl}/documents/${document.id}/download/original/`
+        : null,
     });
   } catch (error) {
     console.error('Content fetch error:', error);
@@ -217,18 +264,23 @@ router.get('/manual/preview/:id', async (req, res) => {
  */
 router.get('/manual', async (req, res) => {
   const version = configFile.PAPERLESS_AI_VERSION || ' ';
-  // Provide placeholders for original_url and page_count; these will be populated by client when a document is selected
-  res.render('manual', {
-    title: 'Document Review',
-    error: null,
-    success: null,
+  const vm = {
     version,
-    paperlessUrl: process.env.PAPERLESS_API_URL,
-    paperlessToken: process.env.PAPERLESS_API_TOKEN,
-    config: {},
-    original_url: null,
-    page_count: null
-  });
+    config: {
+      disableGithubFetch: process.env.DISABLE_GITHUB_FETCH || 'no',
+    },
+    manual: {
+      documentId: null,
+      metadata: {},
+      content: '',
+      fields: [],
+      originalUrl: null,
+      pageCount: null,
+      tags: [],
+    },
+  };
+
+  res.render('manual', { vm });
 });
 
 /**

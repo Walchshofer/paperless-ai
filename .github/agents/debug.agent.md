@@ -11,6 +11,10 @@ tools:
 - git
 - oraios/serena/*
 - sequential-thinking/*
+- copilot-container-tools/*
+- microsoft/playwright-mcp/*
+- context7/*
+infer: true
 ---
 ## Serena memory discipline (required)
 **Read Policy:** Follow `docs/AGENT_READ_POLICY.md` (Tier-0 first; Tier-1 only when relevant). Use Serena memory to avoid repeated doc reads.

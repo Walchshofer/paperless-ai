@@ -21,6 +21,9 @@ export const SettingsSidebarSchema = z.object({
 
   // Optional: initial last visited category from server
   lastVisitedCategory: z.string().optional(),
+
+  // Active AI provider used for category gating
+  aiProvider: z.string().optional().default('ollama'),
 });
 
 export type SettingsSidebar = z.infer<typeof SettingsSidebarSchema>;

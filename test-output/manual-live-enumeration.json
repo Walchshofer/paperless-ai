@@ -1,6 +1,6 @@
 {
   "url": "http://localhost:3000/manual",
-  "timestamp": "2026-01-26T07:32:46.496Z",
+  "timestamp": "2026-01-26T22:29:02.285Z",
   "documentsAvailable": 97,
   "selectedDocument": {
     "id": "9",
@@ -8,13 +8,25 @@
   },
   "islands": [
     {
+      "name": "manual-workspace-island",
+      "testid": "manual-workspace-island",
+      "hydrated": true,
+      "visible": true,
+      "rect": {
+        "x": 292,
+        "y": 32,
+        "w": 924,
+        "h": 143.578125
+      }
+    },
+    {
       "name": "visual-annotation-island",
       "testid": "visual-annotation-island",
       "hydrated": true,
       "visible": true,
       "rect": {
         "x": 292,
-        "y": 32,
+        "y": 191.578125,
         "w": 924,
         "h": 283.609375
       }
@@ -26,7 +38,7 @@
       "visible": true,
       "rect": {
         "x": 292,
-        "y": 327.609375,
+        "y": 487.1875,
         "w": 924,
         "h": 48
       }
@@ -38,9 +50,57 @@
       "visible": true,
       "rect": {
         "x": 292,
-        "y": 375.609375,
+        "y": 535.1875,
         "w": 924,
         "h": 394.78125
+      }
+    },
+    {
+      "name": "view-mode-toggle-island",
+      "testid": "view-mode-toggle-island",
+      "hydrated": true,
+      "visible": true,
+      "rect": {
+        "x": 563.5625,
+        "y": 1113.96875,
+        "w": 153.4375,
+        "h": 35
+      }
+    },
+    {
+      "name": "overlay-viewer-island",
+      "testid": "overlay-viewer-island",
+      "hydrated": true,
+      "visible": false,
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "name": "ai-analysis-island",
+      "testid": "ai-analysis-island",
+      "hydrated": true,
+      "visible": true,
+      "rect": {
+        "x": 791,
+        "y": 1159.96875,
+        "w": 400,
+        "h": 145
+      }
+    },
+    {
+      "name": "tags-manager-island",
+      "testid": "tags-manager-island",
+      "hydrated": true,
+      "visible": true,
+      "rect": {
+        "x": 791,
+        "y": 1424.96875,
+        "w": 400,
+        "h": 228
       }
     }
   ],
@@ -51,9 +111,9 @@
       "visible": true,
       "rect": {
         "x": 317,
-        "y": 841.390625,
+        "y": 1000.96875,
         "w": 874,
-        "h": 35
+        "h": 39
       }
     },
     {
@@ -62,108 +122,9 @@
       "visible": true,
       "rect": {
         "x": 351,
-        "y": 1124.390625,
+        "y": 1198.96875,
         "w": 332,
         "h": 600
-      }
-    },
-    {
-      "id": "analyzeBtn",
-      "tag": "button",
-      "visible": true,
-      "rect": {
-        "x": 791,
-        "y": 996.390625,
-        "w": 400,
-        "h": 38
-      }
-    },
-    {
-      "id": "chatBtn",
-      "tag": "button",
-      "visible": true,
-      "rect": {
-        "x": 791,
-        "y": 1042.390625,
-        "w": 400,
-        "h": 38
-      }
-    },
-    {
-      "id": "analyzeVisualBtn",
-      "tag": "button",
-      "visible": true,
-      "rect": {
-        "x": 791,
-        "y": 1088.390625,
-        "w": 400,
-        "h": 38
-      }
-    },
-    {
-      "id": "saveTagsBtn",
-      "tag": "button",
-      "visible": true,
-      "rect": {
-        "x": 1119.171875,
-        "y": 1290.390625,
-        "w": 71.828125,
-        "h": 24
-      }
-    },
-    {
-      "id": "addTagBtn",
-      "tag": "button",
-      "visible": true,
-      "rect": {
-        "x": 1152.75,
-        "y": 1430.390625,
-        "w": 38.25,
-        "h": 32
-      }
-    },
-    {
-      "id": "viewTextBtn",
-      "tag": "button",
-      "visible": true,
-      "rect": {
-        "x": 555.40625,
-        "y": 950.390625,
-        "w": 67.8125,
-        "h": 30
-      }
-    },
-    {
-      "id": "viewVisualBtn",
-      "tag": "button",
-      "visible": true,
-      "rect": {
-        "x": 631.21875,
-        "y": 950.390625,
-        "w": 85.78125,
-        "h": 30
-      }
-    },
-    {
-      "id": "prevPage",
-      "tag": "button",
-      "visible": false,
-      "rect": {
-        "x": 0,
-        "y": 0,
-        "w": 0,
-        "h": 0
-      }
-    },
-    {
-      "id": "nextPage",
-      "tag": "button",
-      "visible": false,
-      "rect": {
-        "x": 0,
-        "y": 0,
-        "w": 0,
-        "h": 0
       }
     },
     {
@@ -178,7 +139,18 @@
       }
     },
     {
-      "id": "pageNavigation",
+      "id": "textPreviewSection",
+      "tag": "div",
+      "visible": true,
+      "rect": {
+        "x": 317,
+        "y": 1164.96875,
+        "w": 400,
+        "h": 668
+      }
+    },
+    {
+      "id": "visualPreviewSection",
       "tag": "div",
       "visible": false,
       "rect": {
@@ -186,39 +158,6 @@
         "y": 0,
         "w": 0,
         "h": 0
-      }
-    },
-    {
-      "id": "suggestedTags",
-      "tag": "div",
-      "visible": false,
-      "rect": {
-        "x": 791,
-        "y": 1274.390625,
-        "w": 400,
-        "h": 0
-      }
-    },
-    {
-      "id": "currentTags",
-      "tag": "div",
-      "visible": true,
-      "rect": {
-        "x": 791,
-        "y": 1322.390625,
-        "w": 400,
-        "h": 64
-      }
-    },
-    {
-      "id": "newTagSelect",
-      "tag": "select",
-      "visible": true,
-      "rect": {
-        "x": 791,
-        "y": 1430.390625,
-        "w": 353.75,
-        "h": 32
       }
     }
   ],
@@ -255,6 +194,21 @@
     },
     {
       "id": null,
+      "testid": "refresh-documents",
+      "text": "Refresh documents",
+      "disabled": false,
+      "visible": true,
+      "isIsland": true,
+      "type": "ISLAND",
+      "rect": {
+        "x": 1086.75,
+        "y": 155.1875,
+        "w": 129.25,
+        "h": 20.390625
+      }
+    },
+    {
+      "id": null,
       "testid": "draw-toggle",
       "text": "Draw Mode",
       "disabled": false,
@@ -263,8 +217,8 @@
       "type": "ISLAND",
       "rect": {
         "x": 292,
-        "y": 32,
-        "w": 99.625,
+        "y": 191.578125,
+        "w": 103.265625,
         "h": 35.609375
       }
     },
@@ -277,9 +231,9 @@
       "isIsland": true,
       "type": "ISLAND",
       "rect": {
-        "x": 399.625,
-        "y": 32,
-        "w": 138.09375,
+        "x": 403.265625,
+        "y": 191.578125,
+        "w": 147.453125,
         "h": 35.609375
       }
     },
@@ -293,7 +247,7 @@
       "type": "ISLAND",
       "rect": {
         "x": 393,
-        "y": 336.609375,
+        "y": 496.1875,
         "w": 43.96875,
         "h": 30
       }
@@ -308,7 +262,7 @@
       "type": "ISLAND",
       "rect": {
         "x": 440.96875,
-        "y": 336.609375,
+        "y": 496.1875,
         "w": 43.96875,
         "h": 30
       }
@@ -323,7 +277,7 @@
       "type": "ISLAND",
       "rect": {
         "x": 623.078125,
-        "y": 336.609375,
+        "y": 496.1875,
         "w": 43.96875,
         "h": 30
       }
@@ -338,7 +292,7 @@
       "type": "ISLAND",
       "rect": {
         "x": 671.046875,
-        "y": 336.609375,
+        "y": 496.1875,
         "w": 43.96875,
         "h": 30
       }
@@ -353,7 +307,7 @@
       "type": "ISLAND",
       "rect": {
         "x": 858.234375,
-        "y": 336.609375,
+        "y": 496.1875,
         "w": 43.96875,
         "h": 30
       }
@@ -368,7 +322,7 @@
       "type": "ISLAND",
       "rect": {
         "x": 906.203125,
-        "y": 336.609375,
+        "y": 496.1875,
         "w": 43.96875,
         "h": 30
       }
@@ -383,7 +337,7 @@
       "type": "ISLAND",
       "rect": {
         "x": 292,
-        "y": 375.609375,
+        "y": 535.1875,
         "w": 92.6875,
         "h": 37.609375
       }
@@ -398,7 +352,7 @@
       "type": "ISLAND",
       "rect": {
         "x": 388.6875,
-        "y": 375.609375,
+        "y": 535.1875,
         "w": 82.953125,
         "h": 37.609375
       }
@@ -413,7 +367,7 @@
       "type": "ISLAND",
       "rect": {
         "x": 475.640625,
-        "y": 375.609375,
+        "y": 535.1875,
         "w": 68.140625,
         "h": 37.609375
       }
@@ -428,7 +382,7 @@
       "type": "ISLAND",
       "rect": {
         "x": 547.78125,
-        "y": 375.609375,
+        "y": 535.1875,
         "w": 106.796875,
         "h": 37.609375
       }
@@ -488,49 +442,49 @@
       "type": "ISLAND",
       "rect": {
         "x": 1116,
-        "y": 730.78125,
+        "y": 890.359375,
         "w": 100,
         "h": 39.609375
       }
     },
     {
-      "id": "viewTextBtn",
-      "testid": null,
+      "id": null,
+      "testid": "view-text-btn",
       "text": "Text",
       "disabled": false,
       "visible": true,
-      "isIsland": false,
-      "type": "LEGACY",
+      "isIsland": true,
+      "type": "ISLAND",
       "rect": {
-        "x": 555.40625,
-        "y": 950.390625,
-        "w": 67.8125,
-        "h": 30
+        "x": 563.5625,
+        "y": 1113.96875,
+        "w": 64.96875,
+        "h": 35
       }
     },
     {
-      "id": "viewVisualBtn",
-      "testid": null,
+      "id": null,
+      "testid": "view-visual-btn",
       "text": "Visual",
       "disabled": false,
       "visible": true,
-      "isIsland": false,
-      "type": "LEGACY",
+      "isIsland": true,
+      "type": "ISLAND",
       "rect": {
-        "x": 631.21875,
-        "y": 950.390625,
-        "w": 85.78125,
-        "h": 30
+        "x": 636.53125,
+        "y": 1113.96875,
+        "w": 80.46875,
+        "h": 35
       }
     },
     {
-      "id": "prevPage",
-      "testid": null,
-      "text": "",
+      "id": null,
+      "testid": "red-pen-toggle",
+      "text": "Draw Mode",
       "disabled": false,
       "visible": false,
-      "isIsland": false,
-      "type": "LEGACY",
+      "isIsland": true,
+      "type": "ISLAND",
       "rect": {
         "x": 0,
         "y": 0,
@@ -539,13 +493,13 @@
       }
     },
     {
-      "id": "nextPage",
-      "testid": null,
+      "id": null,
+      "testid": "overlay-prev-page",
       "text": "",
-      "disabled": false,
+      "disabled": true,
       "visible": false,
-      "isIsland": false,
-      "type": "LEGACY",
+      "isIsland": true,
+      "type": "ISLAND",
       "rect": {
         "x": 0,
         "y": 0,
@@ -554,138 +508,93 @@
       }
     },
     {
-      "id": "analyzeBtn",
-      "testid": null,
+      "id": null,
+      "testid": "overlay-next-page",
+      "text": "",
+      "disabled": false,
+      "visible": false,
+      "isIsland": true,
+      "type": "ISLAND",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "id": null,
+      "testid": "analyze-btn",
       "text": "Analyze with AI",
-      "disabled": false,
+      "disabled": true,
       "visible": true,
-      "isIsland": false,
-      "type": "LEGACY",
+      "isIsland": true,
+      "type": "ISLAND",
       "rect": {
         "x": 791,
-        "y": 996.390625,
+        "y": 1159.96875,
         "w": 400,
-        "h": 38
+        "h": 43
       }
     },
     {
-      "id": "chatBtn",
-      "testid": null,
+      "id": null,
+      "testid": "open-chat-btn",
       "text": "Chat with AI (Beta)",
-      "disabled": false,
+      "disabled": true,
       "visible": true,
-      "isIsland": false,
-      "type": "LEGACY",
+      "isIsland": true,
+      "type": "ISLAND",
       "rect": {
         "x": 791,
-        "y": 1042.390625,
+        "y": 1210.96875,
         "w": 400,
-        "h": 38
+        "h": 43
       }
     },
     {
-      "id": "analyzeVisualBtn",
-      "testid": null,
+      "id": null,
+      "testid": "analyze-visual-btn",
       "text": "Visual Analysis (Expert Pipeline)",
-      "disabled": false,
+      "disabled": true,
       "visible": true,
-      "isIsland": false,
-      "type": "LEGACY",
+      "isIsland": true,
+      "type": "ISLAND",
       "rect": {
         "x": 791,
-        "y": 1088.390625,
+        "y": 1261.96875,
         "w": 400,
-        "h": 38
+        "h": 43
       }
     },
     {
-      "id": "saveTagsBtn",
+      "id": null,
       "testid": "save-tags-btn",
       "text": "Save Tags",
-      "disabled": false,
+      "disabled": true,
       "visible": true,
-      "isIsland": false,
-      "type": "LEGACY",
+      "isIsland": true,
+      "type": "ISLAND",
       "rect": {
-        "x": 1119.171875,
-        "y": 1290.390625,
-        "w": 71.828125,
-        "h": 24
+        "x": 1124,
+        "y": 1501.96875,
+        "w": 67,
+        "h": 26
       }
     },
     {
       "id": null,
-      "testid": null,
+      "testid": "add-tag-btn",
       "text": "",
-      "disabled": false,
+      "disabled": true,
       "visible": true,
-      "isIsland": false,
-      "type": "LEGACY",
+      "isIsland": true,
+      "type": "ISLAND",
       "rect": {
-        "x": 916.71875,
-        "y": 1326.390625,
-        "w": 10.5,
-        "h": 20
-      }
-    },
-    {
-      "id": null,
-      "testid": null,
-      "text": "",
-      "disabled": false,
-      "visible": true,
-      "isIsland": false,
-      "type": "LEGACY",
-      "rect": {
-        "x": 988.109375,
-        "y": 1326.390625,
-        "w": 10.5,
-        "h": 20
-      }
-    },
-    {
-      "id": null,
-      "testid": null,
-      "text": "",
-      "disabled": false,
-      "visible": true,
-      "isIsland": false,
-      "type": "LEGACY",
-      "rect": {
-        "x": 1103.109375,
-        "y": 1326.390625,
-        "w": 10.5,
-        "h": 20
-      }
-    },
-    {
-      "id": null,
-      "testid": null,
-      "text": "",
-      "disabled": false,
-      "visible": true,
-      "isIsland": false,
-      "type": "LEGACY",
-      "rect": {
-        "x": 849.015625,
-        "y": 1362.390625,
-        "w": 10.5,
-        "h": 20
-      }
-    },
-    {
-      "id": "addTagBtn",
-      "testid": null,
-      "text": "",
-      "disabled": false,
-      "visible": true,
-      "isIsland": false,
-      "type": "LEGACY",
-      "rect": {
-        "x": 1152.75,
-        "y": 1430.390625,
-        "w": 38.25,
-        "h": 32
+        "x": 1153,
+        "y": 1612.96875,
+        "w": 38,
+        "h": 40
       }
     }
   ],
@@ -701,7 +610,7 @@
       "category": "ISLAND",
       "rect": {
         "x": 292,
-        "y": 480.828125,
+        "y": 640.40625,
         "w": 924,
         "h": 39.578125
       }
@@ -717,7 +626,7 @@
       "category": "ISLAND",
       "rect": {
         "x": 292,
-        "y": 562.015625,
+        "y": 721.59375,
         "w": 924,
         "h": 39.578125
       }
@@ -733,7 +642,7 @@
       "category": "ISLAND",
       "rect": {
         "x": 292,
-        "y": 643.203125,
+        "y": 802.78125,
         "w": 924,
         "h": 39.578125
       }
@@ -785,38 +694,6 @@
         "w": 0,
         "h": 0
       }
-    },
-    {
-      "id": "tags",
-      "testid": null,
-      "type": "hidden",
-      "value": "Allgemeinmedizin,Arzt,Erinnerung,Termin",
-      "placeholder": null,
-      "visible": false,
-      "isIsland": false,
-      "category": "LEGACY",
-      "rect": {
-        "x": 0,
-        "y": 0,
-        "w": 0,
-        "h": 0
-      }
-    },
-    {
-      "id": "hiddenId",
-      "testid": null,
-      "type": "hidden",
-      "value": "9",
-      "placeholder": null,
-      "visible": false,
-      "isIsland": false,
-      "category": "LEGACY",
-      "rect": {
-        "x": 0,
-        "y": 0,
-        "w": 0,
-        "h": 0
-      }
     }
   ],
   "selects": [
@@ -829,18 +706,18 @@
       "category": "LEGACY"
     },
     {
-      "id": "newTagSelect",
+      "id": null,
       "optionCount": 1,
       "selectedValue": "",
       "visible": true,
-      "isIsland": false,
-      "category": "LEGACY"
+      "isIsland": true,
+      "category": "ISLAND"
     }
   ],
   "stats": {
-    "totalElements": 325,
-    "islandCount": 3,
-    "buttonCount": 31,
-    "inputCount": 8
+    "totalElements": 351,
+    "islandCount": 8,
+    "buttonCount": 29,
+    "inputCount": 6
   }
 }

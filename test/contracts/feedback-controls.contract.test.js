@@ -1,6 +1,11 @@
-require('ts-node').register({ transpileOnly: true, compilerOptions: { module: 'CommonJS' } });
+const tsNodeService = require('ts-node').register({
+  transpileOnly: true,
+  compilerOptions: { module: 'CommonJS' },
+});
 const assert = require('assert');
-const { FeedbackControlsSchema } = require('../../src/ui/contracts/FeedbackControls.contract.ts');
+const { FeedbackControlsSchema } = require(
+  '../../src/ui/contracts/FeedbackControls.contract.ts'
+);
 
 describe('FeedbackControls Zod schema', function () {
   it('accepts valid props', function () {

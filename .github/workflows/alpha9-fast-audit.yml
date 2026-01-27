@@ -201,6 +201,16 @@ jobs:
             })();
           " || echo "Schema check skipped (no migrations yet)"
 
+      - name: Verify chat migration apply & rollback
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_DB: paperless_test
+          POSTGRES_USER: elfman
+          POSTGRES_PASSWORD: password
+        run: |
+          echo "Running chat migration verification..."
+          node scripts/verify-chat-migration.js
+          echo "Chat migration verification finished"
   fast-summary:
     name: Fast Audit Summary
     needs: [lint-and-format, python-lint, contract-validation, unit-tests, schema-audit]

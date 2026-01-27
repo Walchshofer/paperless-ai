@@ -50,7 +50,7 @@ normalized for the ColQwen3 model's 1,280 visual patch limit.
 
 4. **Template Integration & Registry**:
    - Mount the island in `views/manual.ejs` using the `data-island` anchor.
-   - Map `visual-annotation-island` in `src/islands/runtime.ts`.
+   - Map `visual-annotation-island` in `src/islands/runtime.browser.tsx / src/islands/runtime.js`.
 
 5. **"Detox" Standards**:
    - Adhere to the 79-character line limit for all TypeScript logic.
@@ -72,7 +72,7 @@ normalized for the ColQwen3 model's 1,280 visual patch limit.
 - `src/islands/VisualAnnotationIsland.tsx`
 - `src/ui/contracts/VisualAnnotation.contract.ts`
 - `views/manual.ejs` (Modified for Island mounting)
-- `src/islands/runtime.ts` (Updated registration)
+- `src/islands/runtime.browser.tsx / src/islands/runtime.js` (Updated registration)
 </output>
 
 <verification>
