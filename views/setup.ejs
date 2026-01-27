@@ -15,8 +15,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shepherd.js@10.0.1/dist/css/shepherd.css"/>
     <script src="https://cdn.jsdelivr.net/npm/shepherd.js@10.0.1/dist/js/shepherd.min.js"></script>
 </head>
-<body class="h-full">
-    <button id="themeToggle" class="theme-toggle material-button-2">
+<body class="h-full" data-page="<%= vm.page || 'setup' %>">
+    <button id="themeToggle" data-testid="theme-toggle" class="theme-toggle material-button-2">
         <i class="fas fa-moon dark:fas fa-sun"></i>
     </button>
 
@@ -27,7 +27,7 @@
                     <div class="flex items-center space-x-6">
                         <img src="/favicon.ico" alt="Paperless AI Logo" style="height: 60px;">
                         <div>
-                            <h1 class="text-2xl font-bold">Paperless-AI <small><%= config.PAPERLESS_AI_VERSION %></small></h1>
+                            <h1 class="text-2xl font-bold">Paperless-AI <small><%= vm.PAPERLESS_AI_VERSION %></small></h1>
                             <p class="text-sm text-secondary">Configuration Setup</p>
                         </div>
                     </div>
@@ -62,25 +62,25 @@
                         <nav class="flex flex-wrap gap-2" role="tablist">
                             <button type="button" 
                                     class="tab-button active flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2" 
-                                    data-tab="user-tab">
+                                    data-tab="user-tab" data-testid="setup-tab-user">
                                 <i class="fas fa-user"></i>
                                 User Setup
                             </button>
                             <button type="button" 
                                     class="tab-button flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2" 
-                                    data-tab="connection-tab">
+                                    data-tab="connection-tab" data-testid="setup-tab-connection">
                                 <i class="fas fa-link"></i>
                                 Connection
                             </button>
                             <button type="button" 
                                     class="tab-button flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2" 
-                                    data-tab="ai-tab">
+                                    data-tab="ai-tab" data-testid="setup-tab-ai">
                                 <i class="fas fa-robot"></i>
                                 AI Settings
                             </button>
                             <button type="button" 
                                     class="tab-button flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2" 
-                                    data-tab="advanced-tab">
+                                    data-tab="advanced-tab" data-testid="setup-tab-advanced">
                                 <i class="fas fa-cog"></i>
                                 Advanced
                             </button>
@@ -114,7 +114,7 @@
                                                    name="password"
                                                    class="modern-input"
                                                    required>
-                                            <button type="button" class="password-toggle" data-input="password">
+                                            <button type="button" class="password-toggle" data-input="password" data-testid="password-toggle-password">
                                                 <i class="fas fa-eye"></i>
                                             </button>
                                         </div>
@@ -129,7 +129,7 @@
                                                    name="confirmPassword"
                                                    class="modern-input"
                                                    required>
-                                            <button type="button" class="password-toggle" data-input="confirmPassword">
+                                            <button type="button" class="password-toggle" data-input="confirmPassword" data-testid="password-toggle-confirmPassword">
                                                 <i class="fas fa-eye"></i>
                                             </button>
                                         </div>
@@ -153,14 +153,14 @@
                                             Paperless-ngx API URL
                                             <button type="button" 
                                                     class="help-btn text-gray-400 hover:text-gray-600 focus:outline-none"
-                                                    id="urlHelp">
+                                                    id="urlHelp" data-testid="paperless-url-help-btn">
                                                 <i class="fas fa-circle-question"></i>
                                             </button>
                                         </label>
                                         <input type="text" 
                                                id="paperlessUrl" 
                                                name="paperlessUrl"
-                                               value="<%= config.PAPERLESS_API_URL %>"
+                                               value="<%= vm.PAPERLESS_API_URL %>"
                                                class="modern-input"
                                                placeholder="http://your-paperless-instance:8000"
                                                required>
@@ -172,10 +172,10 @@
                                             <input type="password" 
                                                    id="paperlessToken" 
                                                    name="paperlessToken"
-                                                   value="<%= config.PAPERLESS_API_TOKEN %>"
+                                                   value="<%= vm.PAPERLESS_API_TOKEN %>"
                                                    class="modern-input"
                                                    required>
-                                            <button type="button" class="password-toggle" data-input="paperlessToken">
+                                            <button type="button" class="password-toggle" data-input="paperlessToken" data-testid="password-toggle-paperlessToken">
                                                 <i class="fas fa-eye"></i>
                                             </button>
                                         </div>
@@ -186,7 +186,7 @@
                                         <input type="text" 
                                                id="paperlessUsername" 
                                                name="paperlessUsername"
-                                               value="<%= config.PAPERLESS_USERNAME %>"
+                                               value="<%= vm.PAPERLESS_USERNAME %>"
                                                class="modern-input"
                                                required>
                                     </div>
@@ -208,16 +208,16 @@
                                         <select id="aiProvider" 
                                                 name="aiProvider"
                                                 class="modern-input">
-                                            <option value="openai" <%= config.AI_PROVIDER === 'openai' ? 'selected' : '' %>>
+                                            <option value="openai" <%= vm.AI_PROVIDER === 'openai' ? 'selected' : '' %>>
                                                 OpenAI (ChatGPT)
                                             </option>
-                                            <option value="ollama" <%= config.AI_PROVIDER === 'ollama' ? 'selected' : '' %>>
+                                            <option value="ollama" <%= vm.AI_PROVIDER === 'ollama' ? 'selected' : '' %>>
                                                 Ollama (Local LLM)
                                             </option>
-                                            <option value="custom" <%= config.AI_PROVIDER === 'custom' ? 'selected' : '' %>>
+                                            <option value="custom" <%= vm.AI_PROVIDER === 'custom' ? 'selected' : '' %>>
                                                 Custom
                                             </option>
-                                            <option value="azure" <%= config.AI_PROVIDER === 'azure' ? 'selected' : '' %>>
+                                            <option value="azure" <%= vm.AI_PROVIDER === 'azure' ? 'selected' : '' %>>
                                                 Azure
                                             </option>
                                         </select>
@@ -231,9 +231,9 @@
                                                 <input type="password" 
                                                        id="openaiKey" 
                                                        name="openaiKey"
-                                                       value="<%= config.PAPERLESS_OPENAI_API_KEY %>"
+                                                       value="<%= vm.PAPERLESS_OPENAI_API_KEY %>"
                                                        class="modern-input">
-                                                <button type="button" class="password-toggle" data-input="openaiKey">
+                                                <button type="button" class="password-toggle" data-input="openaiKey" data-testid="password-toggle-openaiKey">
                                                     <i class="fas fa-eye"></i>
                                                 </button>
                                             </div>
@@ -244,10 +244,10 @@
                                             <select id="openaiModel" 
                                                     name="openaiModel"
                                                     class="modern-input">
-                                                <option value="gpt-3.5-turbo-0125" <%= config.PAPERLESS_OPENAI_MODEL === 'gpt-3.5-turbo-0125' ? 'selected' : '' %>>GPT-3.5 Turbo</option>
-                                                <option value="gpt-4o" <%= config.PAPERLESS_OPENAI_MODEL === 'gpt-4o' ? 'selected' : '' %>>GPT-4o</option>
-                                                <option value="o3-mini" <%= config.PAPERLESS_OPENAI_MODEL === 'o3-mini' ? 'selected' : '' %>>o3-mini</option>
-                                                <option value="gpt-4o-mini" <%= config.PAPERLESS_OPENAI_MODEL === 'gpt-4o-mini' ? 'selected' : '' %>>GPT-4o-mini (Best value)</option>
+                                                <option value="gpt-3.5-turbo-0125" <%= vm.PAPERLESS_OPENAI_MODEL === 'gpt-3.5-turbo-0125' ? 'selected' : '' %>>GPT-3.5 Turbo</option>
+                                                <option value="gpt-4o" <%= vm.PAPERLESS_OPENAI_MODEL === 'gpt-4o' ? 'selected' : '' %>>GPT-4o</option>
+                                                <option value="o3-mini" <%= vm.PAPERLESS_OPENAI_MODEL === 'o3-mini' ? 'selected' : '' %>>o3-mini</option>
+                                                <option value="gpt-4o-mini" <%= vm.PAPERLESS_OPENAI_MODEL === 'gpt-4o-mini' ? 'selected' : '' %>>GPT-4o-mini (Best value)</option>
                                             </select>
                                         </div>
                                     </div>
@@ -259,7 +259,7 @@
                                             <input type="text" 
                                                    id="ollamaUrl" 
                                                    name="ollamaUrl"
-                                                   value="<%= config.OLLAMA_API_URL %>"
+                                                   value="<%= vm.OLLAMA_API_URL %>"
                                                    class="modern-input">
                                         </div>
                                         
@@ -268,7 +268,7 @@
                                             <input type="text" 
                                                    id="ollamaModel" 
                                                    name="ollamaModel"
-                                                   value="<%= config.OLLAMA_MODEL %>"
+                                                   value="<%= vm.OLLAMA_MODEL %>"
                                                    class="modern-input">
                                         </div>
 
@@ -277,7 +277,7 @@
                                             <input type="number"
                                                    id="ollamaContextWindow"
                                                    name="ollamaContextWindow"
-                                                   value="<%= config.OLLAMA_CONTEXT_WINDOW %>"
+                                                   value="<%= vm.OLLAMA_CONTEXT_WINDOW %>"
                                                    class="modern-input"
                                                    placeholder="8192">
                                         </div>
@@ -287,7 +287,7 @@
                                             <input type="number"
                                                    id="ollamaMaxResponseTokens"
                                                    name="ollamaMaxResponseTokens"
-                                                   value="<%= config.OLLAMA_MAX_RESPONSE_TOKENS %>"
+                                                   value="<%= vm.OLLAMA_MAX_RESPONSE_TOKENS %>"
                                                    class="modern-input"
                                                    placeholder="2048">
                                         </div>
@@ -297,7 +297,7 @@
                                             <input type="number"
                                                    id="ollamaVisionContextWindow"
                                                    name="ollamaVisionContextWindow"
-                                                   value="<%= config.OLLAMA_VISION_CONTEXT_WINDOW %>"
+                                                   value="<%= vm.OLLAMA_VISION_CONTEXT_WINDOW %>"
                                                    class="modern-input"
                                                    placeholder="16384">
                                         </div>
@@ -307,7 +307,7 @@
                                             <input type="number"
                                                    id="ollamaVisionMaxResponseTokens"
                                                    name="ollamaVisionMaxResponseTokens"
-                                                   value="<%= config.OLLAMA_VISION_MAX_RESPONSE_TOKENS %>"
+                                                   value="<%= vm.OLLAMA_VISION_MAX_RESPONSE_TOKENS %>"
                                                    class="modern-input"
                                                    placeholder="2048">
                                         </div>
@@ -317,7 +317,7 @@
                                             <input type="number"
                                                    id="ollamaExpertContextWindow"
                                                    name="ollamaExpertContextWindow"
-                                                   value="<%= config.OLLAMA_EXPERT_CONTEXT_WINDOW %>"
+                                                   value="<%= vm.OLLAMA_EXPERT_CONTEXT_WINDOW %>"
                                                    class="modern-input"
                                                    placeholder="8192">
                                         </div>
@@ -327,7 +327,7 @@
                                             <input type="number"
                                                    id="ollamaExpertMaxResponseTokens"
                                                    name="ollamaExpertMaxResponseTokens"
-                                                   value="<%= config.OLLAMA_EXPERT_MAX_RESPONSE_TOKENS %>"
+                                                   value="<%= vm.OLLAMA_EXPERT_MAX_RESPONSE_TOKENS %>"
                                                    class="modern-input"
                                                    placeholder="2048">
                                         </div>
@@ -337,7 +337,7 @@
                                             <input type="number"
                                                    id="translationContextWindow"
                                                    name="translationContextWindow"
-                                                   value="<%= config.TRANSLATION_CONTEXT_WINDOW %>"
+                                                   value="<%= vm.TRANSLATION_CONTEXT_WINDOW %>"
                                                    class="modern-input"
                                                    placeholder="8192">
                                         </div>
@@ -347,7 +347,7 @@
                                             <input type="number"
                                                    id="translationMaxTokens"
                                                    name="translationMaxTokens"
-                                                   value="<%= config.TRANSLATION_MAX_TOKENS %>"
+                                                   value="<%= vm.TRANSLATION_MAX_TOKENS %>"
                                                    class="modern-input"
                                                    placeholder="512">
                                         </div>
@@ -360,7 +360,7 @@
                                             <input type="text" 
                                                    id="customBaseUrl" 
                                                    name="customBaseUrl"
-                                                   value="<%= config.CUSTOM_BASE_URL %>"
+                                                   value="<%= vm.CUSTOM_BASE_URL %>"
                                                    class="modern-input"
                                                    placeholder="https://api.example.com">
                                         </div>
@@ -371,9 +371,9 @@
                                                 <input type="password" 
                                                        id="customApiKey" 
                                                        name="customApiKey"
-                                                       value="<%= config.CUSTOM_API_KEY %>"
+                                                       value="<%= vm.CUSTOM_API_KEY %>"
                                                        class="modern-input">
-                                                <button type="button" class="password-toggle" data-input="customApiKey">
+                                                <button type="button" class="password-toggle" data-input="customApiKey" data-testid="password-toggle-customApiKey">
                                                     <i class="fas fa-eye"></i>
                                                 </button>
                                             </div>
@@ -384,7 +384,7 @@
                                             <input type="text" 
                                                    id="customModel" 
                                                    name="customModel"
-                                                   value="<%= config.CUSTOM_MODEL %>"
+                                                   value="<%= vm.CUSTOM_MODEL %>"
                                                    class="modern-input"
                                                    placeholder="Enter model name">
                                         </div>
@@ -398,7 +398,7 @@
                                             <input type="text" 
                                                    id="azureEndpoint" 
                                                    name="azureEndpoint"
-                                                   value="<%= config.AZURE_ENDPOINT %>"
+                                                   value="<%= vm.AZURE_ENDPOINT %>"
                                                    class="modern-input"
                                                    placeholder="https://api.example.com">
                                         </div>
@@ -409,9 +409,9 @@
                                                 <input type="password" 
                                                        id="azureApiKey" 
                                                        name="azureApiKey"
-                                                       value="<%= config.AZURE_API_KEY %>"
+                                                       value="<%= vm.AZURE_API_KEY %>"
                                                        class="modern-input">
-                                                <button type="button" class="password-toggle" data-input="azureApiKey">
+                                                <button type="button" class="password-toggle" data-input="azureApiKey" data-testid="password-toggle-azureApiKey">
                                                     <i class="fas fa-eye"></i>
                                                 </button>
                                             </div>
@@ -422,7 +422,7 @@
                                             <input type="text" 
                                                    id="azureDeploymentName" 
                                                    name="azureDeploymentName"
-                                                   value="<%= config.AZURE_DEPLOYMENT_NAME %>"
+                                                   value="<%= vm.AZURE_DEPLOYMENT_NAME %>"
                                                    class="modern-input"
                                                    placeholder="Enter deployment name">
                                         </div>
@@ -432,7 +432,7 @@
                                             <input type="text" 
                                                    id="azureApiVersion" 
                                                    name="azureApiVersion"
-                                                   value="<%= config.AZURE_API_VERSION %>"
+                                                   value="<%= vm.AZURE_API_VERSION %>"
                                                    class="modern-input"
                                                    placeholder="Enter API version">
                                         </div>
@@ -443,7 +443,7 @@
                                         <input type="number" 
                                                id="tokenLimit" 
                                                name="tokenLimit"
-                                               value="<%= config.TOKEN_LIMIT %>"
+                                               value="<%= vm.TOKEN_LIMIT %>"
                                                class="modern-input"
                                                placeholder="Enter token limit of model">
                                     </div>
@@ -453,7 +453,7 @@
                                         <input type="number" 
                                                id="responseTokens" 
                                                name="responseTokens"
-                                               value="<%= config.RESPONSE_TOKENS %>"
+                                               value="<%= vm.RESPONSE_TOKENS %>"
                                                class="modern-input"
                                                placeholder="Enter approximate token amount for the response">
                                     </div>
@@ -475,8 +475,8 @@
                                             <select id="useExistingData"
                                                     name="useExistingData"
                                                     class="modern-input">
-                                                <option value="no" <%= config.USE_EXISTING_DATA === 'no' ? 'selected' : '' %>>No</option>
-                                                <option value="yes" <%= config.USE_EXISTING_DATA === 'yes' ? 'selected' : '' %>>Yes</option>
+                                                <option value="no" <%= vm.USE_EXISTING_DATA === 'no' ? 'selected' : '' %>>No</option>
+                                                <option value="yes" <%= vm.USE_EXISTING_DATA === 'yes' ? 'selected' : '' %>>Yes</option>
                                             </select>
                                         </div>
 
@@ -488,7 +488,7 @@
                                                         id="pipelineTagReplace"
                                                         name="pipelineTagReplace"
                                                         class="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                                                        <%= config.PIPELINE_TAG_REPLACE === 'yes' ? 'checked' : '' %>>
+                                                        <%= vm.PIPELINE_TAG_REPLACE === 'yes' ? 'checked' : '' %>>
                                                     <div class="ml-3">
                                                         <div class="flex items-center font-medium">
                                                             <i class="fas fa-eraser text-blue-500 mr-2"></i>
@@ -505,7 +505,7 @@
                                             <input type="text"
                                                    id="scanInterval"
                                                    name="scanInterval"
-                                                   value="<%= config.SCAN_INTERVAL %>"
+                                                   value="<%= vm.SCAN_INTERVAL %>"
                                                    class="modern-input"
                                                    required>
                                             <p class="help-text">Default: every 30 minutes</p>
@@ -516,13 +516,13 @@
                                             <select id="showTags" 
                                                     name="showTags" 
                                                     class="modern-input">
-                                                <option value="no" <%= config.PROCESS_PREDEFINED_DOCUMENTS === 'no' ? 'selected' : '' %>>No</option>
-                                                <option value="yes" <%= config.PROCESS_PREDEFINED_DOCUMENTS === 'yes' ? 'selected' : '' %>>Yes</option>
+                                                <option value="no" <%= vm.PROCESS_PREDEFINED_DOCUMENTS === 'no' ? 'selected' : '' %>>No</option>
+                                                <option value="yes" <%= vm.PROCESS_PREDEFINED_DOCUMENTS === 'yes' ? 'selected' : '' %>>Yes</option>
                                             </select>
                                         </div>
     
                                         <!-- Tags Input -->
-                                        <div id="tagsInputSection" class="<%= config.PROCESS_PREDEFINED_DOCUMENTS === 'yes' ? '' : 'hidden' %>">
+                                        <div id="tagsInputSection" class="<%= vm.PROCESS_PREDEFINED_DOCUMENTS === 'yes' ? '' : 'hidden' %>">
                                             <div class="form-group">
                                                 <label for="tagInput">Tags</label>
                                                 <div class="tag-input-container">
@@ -531,22 +531,23 @@
                                                         class="modern-input"
                                                         placeholder="Enter a tag and press Enter">
                                                     <button type="button" 
-                                                            class="material-button add-tag-btn">
+                                                            class="material-button add-tag-btn"
+                                                            data-testid="add-tag-btn">
                                                         <i class="fas fa-plus"></i>
                                                         Add
                                                     </button>
                                                 </div>
                                                 <div id="tagsContainer" class="tags-container">
-                                                    <% if (config.TAGS && Array.isArray(config.TAGS) && config.TAGS.length > 0) { %>
-                                                        <% config.TAGS.forEach(tag => { %>
+                                                    <% if (vm.TAGS && Array.isArray(vm.TAGS) && vm.TAGS.length > 0) { %>
+                                                        <% vm.TAGS.forEach(tag => { %>
                                                             <div class="modern-tag fade-in">
                                                                 <span><%= tag %></span>
-                                                                <button type="button"><i class="fas fa-times"></i></button>
+                                                                <button type="button" data-testid="tags-remove-btn"><i class="fas fa-times"></i></button>
                                                             </div>
                                                         <% }); %>
                                                     <% } %>
                                                 </div>
-                                                <input type="hidden" id="tags" name="tags" value="<%= Array.isArray(config.TAGS) ? config.TAGS.join(',') : '' %>">
+                                                <input type="hidden" id="tags" name="tags" value="<%= Array.isArray(vm.TAGS) ? vm.TAGS.join(',') : '' %>">
                                             </div>
                                         </div>
                                         
@@ -557,18 +558,18 @@
                                             <select id="aiProcessedTag" 
                                                     name="aiProcessedTag" 
                                                     class="modern-input">
-                                                <option value="no" <%= config.ADD_AI_PROCESSED_TAG === 'no' ? 'selected' : '' %>>No</option>
-                                                <option value="yes" <%= config.ADD_AI_PROCESSED_TAG === 'yes' ? 'selected' : '' %>>Yes</option>
+                                                <option value="no" <%= vm.ADD_AI_PROCESSED_TAG === 'no' ? 'selected' : '' %>>No</option>
+                                                <option value="yes" <%= vm.ADD_AI_PROCESSED_TAG === 'yes' ? 'selected' : '' %>>Yes</option>
                                             </select>
                                         </div>
     
-                                        <div id="aiTagNameSection" class="<%= config.ADD_AI_PROCESSED_TAG === 'yes' ? '' : 'hidden' %>">
+                                        <div id="aiTagNameSection" class="<%= vm.ADD_AI_PROCESSED_TAG === 'yes' ? '' : 'hidden' %>">
                                             <div class="form-group">
                                                 <label for="aiTagName">AI-processed Tag Name</label>
                                                 <input type="text" 
                                                     id="aiTagName" 
                                                     name="aiTagName"
-                                                    value="<%= config.AI_PROCESSED_TAG_NAME || 'ai-processed' %>"
+                                                    value="<%= vm.AI_PROCESSED_TAG_NAME || 'ai-processed' %>"
                                                     class="modern-input"
                                                     placeholder="ai-processed">
                                                 <p class="help-text">This tag will be added to documents after AI processing</p>
@@ -581,12 +582,12 @@
                                             <select id="usePromptTags" 
                                                     name="usePromptTags" 
                                                     class="modern-input">
-                                                <option value="no" <%= config.USE_PROMPT_TAGS === 'no' ? 'selected' : '' %>>No</option>
-                                                <option value="yes" <%= config.USE_PROMPT_TAGS === 'yes' ? 'selected' : '' %>>Yes</option>
+                                                <option value="no" <%= vm.USE_PROMPT_TAGS === 'no' ? 'selected' : '' %>>No</option>
+                                                <option value="yes" <%= vm.USE_PROMPT_TAGS === 'yes' ? 'selected' : '' %>>Yes</option>
                                             </select>
                                         </div>
     
-                                        <div id="promptTagsSection" class="<%= config.USE_PROMPT_TAGS === 'yes' ? '' : 'hidden' %>">
+                                        <div id="promptTagsSection" class="<%= vm.USE_PROMPT_TAGS === 'yes' ? '' : 'hidden' %>">
                                             <div class="form-group">
                                                 <label for="promptTagInput">Prompt Tags</label>
                                                 <div class="tag-input-container">
@@ -595,22 +596,23 @@
                                                         class="modern-input"
                                                         placeholder="Enter a tag and press Enter">
                                                     <button type="button" 
-                                                            class="material-button add-prompt-tag-btn">
+                                                            class="material-button add-prompt-tag-btn"
+                                                            data-testid="add-prompt-tag-btn">
                                                         <i class="fas fa-plus"></i>
                                                         Add
                                                     </button>
                                                 </div>
                                                 <div id="promptTagsContainer" class="tags-container">
-                                                    <% if (config.PROMPT_TAGS && Array.isArray(config.PROMPT_TAGS) && config.PROMPT_TAGS.length > 0) { %>
-                                                        <% config.PROMPT_TAGS.forEach(tag => { %>
+                                                    <% if (vm.PROMPT_TAGS && Array.isArray(vm.PROMPT_TAGS) && vm.PROMPT_TAGS.length > 0) { %>
+                                                        <% vm.PROMPT_TAGS.forEach(tag => { %>
                                                             <div class="modern-tag fade-in">
                                                                 <span><%= tag %></span>
-                                                                <button type="button"><i class="fas fa-times"></i></button>
+                                                                <button type="button" data-testid="prompt-tags-remove-btn"><i class="fas fa-times"></i></button>
                                                             </div>
                                                         <% }); %>
                                                     <% } %>
                                                 </div>
-                                                <input type="hidden" id="promptTags" name="promptTags" value="<%= Array.isArray(config.PROMPT_TAGS) ? config.PROMPT_TAGS.join(',') : '' %>">
+                                                <input type="hidden" id="promptTags" name="promptTags" value="<%= Array.isArray(vm.PROMPT_TAGS) ? vm.PROMPT_TAGS.join(',') : '' %>">
                                                 <p class="help-text">These tags will be exclusively used in the AI prompt</p>
                                             </div>
                                         </div>
@@ -623,7 +625,7 @@
                                                         id="disableAutomaticProcessing" 
                                                         name="disableAutomaticProcessing" 
                                                         class="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                                                        <%= config.DISABLE_AUTOMATIC_PROCESSING === 'yes' ? 'checked' : '' %>>
+                                                        <%= vm.DISABLE_AUTOMATIC_PROCESSING === 'yes' ? 'checked' : '' %>>
                                                     <div class="ml-3">
                                                         <div class="flex items-center font-medium">
                                                             <i class="fas fa-tags text-blue-500 mr-2"></i>
@@ -650,7 +652,7 @@
                                                             id="activateTagging" 
                                                             name="activateTagging" 
                                                             class="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                                                            <%= config.ACTIVATE_TAGGING === 'yes' ? 'checked' : '' %>>
+                                                            <%= vm.ACTIVATE_TAGGING === 'yes' ? 'checked' : '' %>>
                                                         <div class="ml-3">
                                                             <div class="flex items-center font-medium">
                                                                 <i class="fas fa-tags text-blue-500 mr-2"></i>
@@ -667,7 +669,7 @@
                                                             id="activateCorrespondents" 
                                                             name="activateCorrespondents" 
                                                             class="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                                                            <%= config.ACTIVATE_CORRESPONDENTS === 'yes' ? 'checked' : '' %>>
+                                                            <%= vm.ACTIVATE_CORRESPONDENTS === 'yes' ? 'checked' : '' %>>
                                                         <div class="ml-3">
                                                             <div class="flex items-center font-medium">
                                                                 <i class="fas fa-user text-blue-500 mr-2"></i>
@@ -684,7 +686,7 @@
                                                             id="activateDocumentType" 
                                                             name="activateDocumentType" 
                                                             class="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                                                            <%= config.ACTIVATE_DOCUMENT_TYPE === 'yes' ? 'checked' : '' %>>
+                                                            <%= vm.ACTIVATE_DOCUMENT_TYPE === 'yes' ? 'checked' : '' %>>
                                                         <div class="ml-3">
                                                             <div class="flex items-center font-medium">
                                                                 <i class="fas fa-file-alt text-blue-500 mr-2"></i>
@@ -701,7 +703,7 @@
                                                             id="activateTitle" 
                                                             name="activateTitle" 
                                                             class="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                                                            <%= config.ACTIVATE_TITLE === 'yes' ? 'checked' : '' %>>
+                                                            <%= vm.ACTIVATE_TITLE === 'yes' ? 'checked' : '' %>>
                                                         <div class="ml-3">
                                                             <div class="flex items-center font-medium">
                                                                 <i class="fas fa-heading text-blue-500 mr-2"></i>
@@ -718,7 +720,7 @@
                                                             id="activateCustomFields" 
                                                             name="activateCustomFields" 
                                                             class="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                                                            <%= config.ACTIVATE_CUSTOM_FIELDS === 'yes' ? 'checked' : '' %>>
+                                                            <%= vm.ACTIVATE_CUSTOM_FIELDS === 'yes' ? 'checked' : '' %>>
                                                         <div class="ml-3">
                                                             <div class="flex items-center font-medium">
                                                                 <i class="fas fa-filter text-blue-500 mr-2"></i>
@@ -743,8 +745,8 @@
                                                 
                                                 <!-- Fields Container -->
                                                 <div id="customFieldsList" class="space-y-2">
-                                                    <% if (config.CUSTOM_FIELDS && Array.isArray(JSON.parse(config.CUSTOM_FIELDS).custom_fields)) { %>
-                                                        <% JSON.parse(config.CUSTOM_FIELDS).custom_fields.forEach((field, index) => { %>
+                                                    <% if (vm.CUSTOM_FIELDS && Array.isArray(JSON.parse(vm.CUSTOM_FIELDS).custom_fields)) { %>
+                                                        <% JSON.parse(vm.CUSTOM_FIELDS).custom_fields.forEach((field, index) => { %>
                                                             <div class="custom-field-item flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-blue-200 transition-colors">
                                                                 <div class="cursor-move text-gray-400">
                                                                     <i class="fas fa-grip-vertical"></i>
@@ -763,6 +765,7 @@
                                                             </div>
                                                             <button type="button" 
                                                                     onclick="removeCustomField(this)" 
+                                                                    data-testid="remove-custom-field-btn"
                                                                     class="text-gray-400 hover:text-red-500 transition-colors">
                                                                 <i class="fas fa-trash"></i>
                                                             </button>
@@ -807,6 +810,7 @@
                                                 <div class="col-span-2">
                                                     <button type="button" 
                                                             onclick="addCustomField()" 
+                                                            data-testid="add-custom-field-btn"
                                                             class="material-button w-full flex items-center justify-center gap-2"
                                                             id="addFieldBtn">
                                                         <i class="fas fa-plus"></i>
@@ -819,7 +823,7 @@
                                             <input type="hidden" 
                                                 id="customFieldsJson" 
                                                 name="customFields" 
-                                                value="<%= config.CUSTOM_FIELDS || '{"custom_fields":[]}' %>">
+                                                value="<%= vm.CUSTOM_FIELDS || '{"custom_fields":[]}' %>">
                                         </div>
                                     </section>
 
@@ -832,8 +836,8 @@
                                                      name="systemPrompt"
                                                      rows="8"
                                                      class="modern-input"
-                                                     placeholder="Describe how the AI should analyze your documents..."><%= config.SYSTEM_PROMPT %></textarea>
-                                            <button id="systemPromptBtn" type="button" 
+                                                     placeholder="Describe how the AI should analyze your documents..."><%= vm.SYSTEM_PROMPT %></textarea>
+                                            <button id="systemPromptBtn" type="button" data-testid="system-prompt-btn" 
                                                     class="material-button example-btn">
                                                 <i class="fas fa-lightbulb"></i>
                                                 Example
@@ -846,15 +850,15 @@
 
                         <!-- Navigation Buttons -->
                         <div class="flex justify-between pt-6">
-                            <button type="button" id="prevBtn" class="material-button" style="display: none;">
+                            <button type="button" id="prevBtn" data-testid="setup-prev-btn" class="material-button" style="display: none;">
                                 <i class="fas fa-arrow-left"></i>
                                 Previous
                             </button>
-                            <button type="button" id="nextBtn" class="material-button">
+                            <button type="button" id="nextBtn" data-testid="setup-next-btn" class="material-button">
                                 Next
                                 <i class="fas fa-arrow-right"></i>
                             </button>
-                            <button type="submit" id="submitBtn" class="material-button submit-btn" style="display: none;">
+                            <button type="submit" id="submitBtn" data-testid="setup-submit-btn" class="material-button submit-btn" style="display: none;">
                                 <i class="fas fa-save"></i>
                                 Save Configuration
                             </button>

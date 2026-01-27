@@ -56,13 +56,13 @@
         }
     </style>
 </head>
-<body class="h-full">
-    <button id="themeToggle" class="theme-toggle">
+<body class="h-full" data-page="<%= vm.page %>">
+    <button id="themeToggle" data-testid="theme-toggle" class="theme-toggle">
         <i class="fas fa-moon dark:fas fa-sun"></i>
     </button>
 
     <div class="layout-container">
-        <button id="mobileMenuButton" class="mobile-menu-button">
+        <button id="mobileMenuButton" data-testid="mobile-menu-button" class="mobile-menu-button">
             <i class="fas fa-bars"></i>
         </button>
 
@@ -73,7 +73,7 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <img src="/favicon.ico" class="no-invert" alt="Paperless AI Logo" style="height: 60px;">
-                <h1 class="brand-title">Paperless-AI<small style="display: block;"><%= version %></small></h1>
+                <h1 class="brand-title">Paperless-AI<small style="display: block;"><%= vm.version %></small></h1>
             </div>
 
             <nav class="sidebar-nav">
@@ -112,11 +112,13 @@
                         <span class="text-sm text-gray-600 dark:text-gray-300">API-KEY:</span>
                         <div id="apiKeyContainer"
                              class="relative w-48 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded cursor-pointer select-none filter blur-sm hover:blur-none transition-all duration-200 truncate"
-                             data-api-key="<%= config.API_KEY %>"
+                             data-api-key="<%= vm.settings.API_KEY %>"
+                             data-testid="settings-api-key"
                              title="Click to copy">
-                            <%= config.API_KEY %>
+                            <%= vm.settings.API_KEY %>
                         </div>
                         <button id="regenerateBtn"
+                                data-testid="settings-regenerate-btn"
                                 class="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center space-x-2">
                             <i class="fas fa-sync-alt" id="regenerateIcon"></i>
                             <span>Regenerate</span>
@@ -137,36 +139,101 @@
                 <!-- Settings Islands Container -->
                 <div class="settings-container">
                     <!-- Sidebar Navigation Island -->
-                    <div data-island="settings-sidebar-island" data-testid="settings-sidebar-island" data-props='{}'></div>
+                    <div
+                        data-island="settings-sidebar-island"
+                        data-testid="settings-sidebar-island"
+                        data-props='<%- JSON.stringify({
+                            activeCategory: "overview",
+                            aiProvider: vm.settings.AI_PROVIDER || "ollama"
+                        }) %>'
+                    ></div>
 
                     <!-- Main Settings Content -->
                     <div class="space-y-6">
                         <!-- Overview Dashboard Island -->
-                        <div data-island="overview-dashboard-island" data-testid="overview-dashboard-island" data-props='{}'></div>
+                        <div
+                            class="settings-section"
+                            data-settings-category="overview"
+                            data-testid="settings-section-overview"
+                        >
+                            <div
+                                data-island="overview-dashboard-island"
+                                data-testid="overview-dashboard-island"
+                                data-props='{}'
+                            ></div>
+                        </div>
 
                         <!-- Connection Settings Island -->
-                        <div data-island="connection-settings-island" data-testid="connection-settings-island"
-                             data-props='<%- JSON.stringify({
-                                 paperlessApiUrl: config.PAPERLESS_API_URL || "",
-                                 paperlessUsername: config.PAPERLESS_USERNAME || ""
-                             }) %>'></div>
+                        <div
+                            class="settings-section"
+                            data-settings-category="connection"
+                            data-testid="settings-section-connection"
+                        >
+                            <div
+                                data-island="connection-settings-island"
+                                data-testid="connection-settings-island"
+                                data-props='<%- JSON.stringify({
+                                    paperlessApiUrl: vm.settings.PAPERLESS_API_URL || "",
+                                    paperlessUsername: vm.settings.PAPERLESS_USERNAME || ""
+                                }) %>'
+                            ></div>
+                        </div>
 
                         <!-- AI Provider Island -->
-                        <div data-island="ai-provider-island" data-testid="ai-provider-island"
-                             data-props='<%- JSON.stringify({
-                                 provider: config.AI_PROVIDER || "ollama",
-                                 ollamaUrl: config.OLLAMA_API_URL || "",
-                                 ollamaModel: config.OLLAMA_MODEL || ""
-                             }) %>'></div>
+                        <div
+                            class="settings-section"
+                            data-settings-category="ai-provider"
+                            data-testid="settings-section-ai-provider"
+                        >
+                            <div
+                                data-island="ai-provider-island"
+                                data-testid="ai-provider-island"
+                                data-props='<%- JSON.stringify({
+                                    provider: vm.settings.AI_PROVIDER || "ollama",
+                                    ollamaUrl: vm.settings.OLLAMA_API_URL || "",
+                                    ollamaModel: vm.settings.OLLAMA_MODEL || ""
+                                }) %>'
+                            ></div>
+                        </div>
 
                         <!-- Expert Models Island -->
-                        <div data-island="expert-models-island" data-testid="expert-models-island" data-props='{}'></div>
+                        <div
+                            class="settings-section"
+                            data-settings-category="expert-models"
+                            data-testid="settings-section-expert-models"
+                        >
+                            <div
+                                data-island="expert-models-island"
+                                data-testid="expert-models-island"
+                                data-props='{}'
+                            ></div>
+                        </div>
 
                         <!-- Developer Settings Island -->
-                        <div data-island="developer-settings-island" data-testid="developer-settings-island" data-props='{}'></div>
+                        <div
+                            class="settings-section"
+                            data-settings-category="developer"
+                            data-testid="settings-section-developer"
+                        >
+                            <div
+                                data-island="developer-settings-island"
+                                data-testid="developer-settings-island"
+                                data-props='{}'
+                            ></div>
+                        </div>
 
                         <!-- Presets Manager Island -->
-                        <div data-island="presets-manager-island" data-testid="presets-manager-island" data-props='{}'></div>
+                        <div
+                            class="settings-section"
+                            data-settings-category="advanced"
+                            data-testid="settings-section-advanced"
+                        >
+                            <div
+                                data-island="presets-manager-island"
+                                data-testid="presets-manager-island"
+                                data-props='{}'
+                            ></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -267,7 +334,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // Skip external fetch in test/CI when explicitly disabled server-side or via a test-provided runtime flag
-            if (window.__DISABLE_GITHUB_FETCH__ || '<%= config.DISABLE_GITHUB_FETCH %>' === 'true') return;
+            if (window.__DISABLE_GITHUB_FETCH__ || '<%= vm.settings.DISABLE_GITHUB_FETCH %>' === 'true') return;
 
             (async function getStarsCount() {
                 try {
@@ -280,6 +347,97 @@
                     console.warn('Failed to fetch stars (ignored in tests/CI):', error);
                 }
             })();
+        });
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const sections = Array.from(document.querySelectorAll('[data-settings-category]'));
+            if (!sections.length) return;
+
+            const storageKey = 'settings:lastCategory';
+            let provider = '<%= vm.settings.AI_PROVIDER || "ollama" %>';
+            let activeCategory = (function getInitialCategory() {
+                const hash = window.location.hash.slice(1);
+                if (hash) return hash;
+                try {
+                    return localStorage.getItem(storageKey) || 'overview';
+                } catch (err) {
+                    return 'overview';
+                }
+            })();
+
+            function expertAvailable() {
+                return provider === 'ollama';
+            }
+
+            function normalizeCategory(category) {
+                if (!category) return 'overview';
+                const exists = sections.some(function (section) {
+                    return section.getAttribute('data-settings-category') === category;
+                });
+                if (!exists) return 'overview';
+                if (category === 'expert-models' && !expertAvailable()) {
+                    return 'ai-provider';
+                }
+                return category;
+            }
+
+            function applyCategory() {
+                activeCategory = normalizeCategory(activeCategory);
+
+                sections.forEach(function (section) {
+                    const category = section.getAttribute('data-settings-category');
+                    const isActive = category === activeCategory;
+                    const expertBlocked = category === 'expert-models' && !expertAvailable();
+                    section.classList.toggle('hidden', expertBlocked || !isActive);
+                });
+
+                try {
+                    localStorage.setItem(storageKey, activeCategory);
+                } catch (err) {
+                    // Ignore storage failures in restricted environments.
+                }
+            }
+
+            function syncCategoryEvent() {
+                document.dispatchEvent(new CustomEvent('settings:category-changed', {
+                    detail: { category: activeCategory }
+                }));
+            }
+
+            applyCategory();
+            syncCategoryEvent();
+
+            document.addEventListener('settings:category-changed', function (e) {
+                const nextCategory = e?.detail?.category;
+                if (nextCategory) {
+                    activeCategory = nextCategory;
+                    applyCategory();
+                }
+            });
+
+            document.addEventListener('settings:changed', function (e) {
+                const nextProvider = e?.detail?.settings?.AI_PROVIDER;
+                if (!nextProvider) return;
+
+                provider = String(nextProvider);
+                const normalized = normalizeCategory(activeCategory);
+                const categoryChanged = normalized !== activeCategory;
+                activeCategory = normalized;
+                applyCategory();
+                if (categoryChanged) {
+                    syncCategoryEvent();
+                }
+            });
+
+            window.addEventListener('hashchange', function () {
+                const hash = window.location.hash.slice(1);
+                if (hash) {
+                    activeCategory = hash;
+                    applyCategory();
+                }
+            });
         });
     </script>
 

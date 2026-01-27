@@ -8,8 +8,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="css/dashboard.css">
 </head>
-<body class="h-full bg-secondary">
-    <button id="themeToggle" class="theme-toggle">
+<body class="h-full bg-secondary" data-page="<%= vm.page || 'login' %>">
+    <button id="themeToggle" data-testid="theme-toggle" class="theme-toggle">
         <i class="fas fa-moon"></i>
     </button>
 
@@ -51,7 +51,7 @@
                 <% } %>
 
                 <div>
-                    <button type="submit" 
+                    <button type="submit" data-testid="login-submit-btn" 
                             class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200">
                         Sign in
                     </button>

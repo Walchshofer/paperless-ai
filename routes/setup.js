@@ -25,6 +25,7 @@ const { DocumentProcessor } = require('../services/integration/DocumentProcessor
 const { qdrantAdapter } = require('../services/visual-rag-client/QdrantAdapter');
 const axios = require('axios');
 const config = require('../config/config.js');
+const { DashboardVmSchema } = require('../src/ui/contracts/Dashboard.contract');
 // Load runtime env persisted by setup (renamed to data/runtime.env)
 require('dotenv').config({ path: '../data/runtime.env' });
 
@@ -354,7 +355,11 @@ router.get('/playground', protectApiRoute, async (req, res) => {
   // Simplified: Island architecture - no document data needed (ticket:017.4)
   try {
     res.render('playground', {
-      version: configFile.PAPERLESS_AI_VERSION || ' '
+      vm: {
+        version: configFile.PAPERLESS_AI_VERSION || ' ',
+        DISABLE_GITHUB_FETCH: config.DISABLE_GITHUB_FETCH || 'no',
+        page: 'playground'
+      }
     });
   } catch (error) {
     console.error('[ERRO] loading playground view:', error);
@@ -380,47 +385,90 @@ router.get('/api/ollama/models', async (req, res) => {
     const provider = config.aiProvider;
     const defaultModel = config.ollama?.model || null;
 
-    if (provider !== 'ollama') {
-      return res.json({
-        provider,
-        defaultModel,
-        models: [],
-        expertModels: []
-      });
+    // Always attempt to list models; Ollama can be used for experts even when
+    // another provider is selected.
+    let installedModels = [];
+    try {
+      installedModels = await ollamaService.listModels();
+    } catch (error) {
+      installedModels = [];
     }
 
-    const models = await ollamaService.listModels();
+    const installedSet = new Set(
+      (installedModels || []).filter((m) => typeof m === 'string' && m)
+    );
+
+    // Build a placeholder list from configured models so the dropdown is
+    // populated even when Ollama is lazy-loading or offline.
+    const configuredSet = new Set();
+    const addConfigured = (model) => {
+      if (!model || typeof model !== 'string') return;
+      const trimmed = model.trim();
+      if (!trimmed) return;
+      configuredSet.add(trimmed);
+    };
+
+    addConfigured(config.ollama?.model);
+    addConfigured(config.ollama?.visionModel);
+    addConfigured(config.ollama?.plannerModel);
+    addConfigured(config.ollama?.routerModel);
+    addConfigured(config.ollama?.orchestratorModel);
+
+    const expertConfig = config.expertModels || {};
+    const expertMedical = expertConfig.medical || {};
+    const expertFinancial = expertConfig.financial || {};
+    const expertLegal = expertConfig.legal || {};
+
+    addConfigured(expertMedical.vision);
+    addConfigured(expertMedical.analysis);
+    addConfigured(expertMedical.radiology);
+    addConfigured(expertFinancial.analysis);
+    addConfigured(expertFinancial.vision);
+    addConfigured(expertFinancial.vatExpert);
+    addConfigured(expertLegal.vision);
+    addConfigured(expertLegal.analysis);
+    addConfigured(expertLegal.orchestrator);
+
+    // Optional expert overrides that are not surfaced in config.expertModels
+    addConfigured(process.env.FINANCIAL_REASONING_MODEL);
+    addConfigured(process.env.LEGAL_ORCHESTRATOR_MODEL);
+
+    const placeholderModels = Array.from(configuredSet).filter(
+      (model) => !installedSet.has(model)
+    );
 
     // Build expert models list from canonical registry (pipeline-centric)
     let expertModels = null;
     const now = Date.now();
 
-    if (_expertModelsCache.models && (now - _expertModelsCache.ts) < EXPERT_MODELS_CACHE_TTL_MS) {
+    if (
+      _expertModelsCache.models &&
+      now - _expertModelsCache.ts < EXPERT_MODELS_CACHE_TTL_MS
+    ) {
       expertModels = _expertModelsCache.models;
     } else {
       const activePipelines = expertRegistry.list();
 
       // Create entries per (pipeline, model)
-      const entries = activePipelines.flatMap(pipeline => {
+      const entries = activePipelines.flatMap((pipeline) => {
         const requiredModels = expertRegistry.getRequiredModels(pipeline.id);
-        return requiredModels.map(model => ({
+        return requiredModels.map((model) => ({
           model,
           label: `${pipeline.domain} extraction`,
           domain: pipeline.domain,
           stage: 'extraction',
           pipelineId: pipeline.id,
-          pipelineName: pipeline.name
+          pipelineName: pipeline.name,
         }));
       });
 
       // Deduplicate by model string while preserving first-seen order
       const seen = new Set();
       expertModels = [];
-      for (const e of entries) {
-        if (!seen.has(e.model)) {
-          seen.add(e.model);
-          expertModels.push(e);
-        }
+      for (const entry of entries) {
+        if (!entry?.model || seen.has(entry.model)) continue;
+        seen.add(entry.model);
+        expertModels.push(entry);
       }
 
       _expertModelsCache.models = expertModels;
@@ -429,9 +477,11 @@ router.get('/api/ollama/models', async (req, res) => {
 
     res.json({
       provider,
+      providerMismatch: provider !== 'ollama',
       defaultModel,
-      models,
-      expertModels
+      models: installedModels,
+      placeholderModels,
+      expertModels,
     });
   } catch (error) {
     console.error('[ERROR] loading Ollama models:', error);
@@ -578,7 +628,7 @@ router.get('/setup', async (req, res) => {
 
     // Render setup page with config and appropriate message
     res.render('setup', {
-      config,
+      vm: Object.assign({}, config || {}, { page: 'setup' }),
       success: successMessage
     });
   } catch (error) {
@@ -769,22 +819,25 @@ router.get('/dashboard', async (req, res) => {
   const version = configFile.PAPERLESS_AI_VERSION || ' ';
   
   res.render('dashboard', { 
-    paperless_data: { 
-      tagCount, 
-      correspondentCount, 
-      documentCount, 
-      processedDocumentCount,
-      processingTimeStats,
-      tokenDistribution,
-      documentTypes
-    }, 
-    openai_data: { 
-      averagePromptTokens, 
-      averageCompletionTokens, 
-      averageTotalTokens, 
-      tokensOverall 
-    }, 
-    version 
+    vm: {
+      paperless_data: { 
+        tagCount, 
+        correspondentCount, 
+        documentCount, 
+        processedDocumentCount,
+        processingTimeStats,
+        tokenDistribution,
+        documentTypes
+      }, 
+      openai_data: { 
+        averagePromptTokens, 
+        averageCompletionTokens, 
+        averageTotalTokens, 
+        tokensOverall 
+      }, 
+      version,
+      page: 'dashboard'
+    }
   });
 });
 

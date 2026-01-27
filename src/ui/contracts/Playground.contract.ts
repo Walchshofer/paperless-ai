@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ImagesSchema, OverlaysByImageSchema } from './VisualOverlays.contract';
 
 /**
  * Playground Contract
@@ -96,6 +97,10 @@ export const PlaygroundSchema = z.object({
 
   // Document ID for filtering
   documentId: z.number().int().nullable().optional(),
+
+  // Visual overlays payloads (optional)
+  images: ImagesSchema.optional(),
+  overlaysByImage: OverlaysByImageSchema.optional(),
 });
 
 // Search request schema

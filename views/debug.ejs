@@ -53,7 +53,7 @@
         }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen" x-data="{ selectedEndpoint: '' }">
+<body class="bg-gray-100 min-h-screen" x-data="{ selectedEndpoint: '' }" data-page="<%= vm.page || 'debug' %>">
     <div class="container mx-auto px-4 py-8">
         <div class="max-w-3xl mx-auto">
             <h1 class="text-3xl font-bold mb-8 text-gray-800">Debug Interface</h1>
@@ -75,6 +75,7 @@
                     <button 
                         @click="fetchData(selectedEndpoint)"
                         :disabled="!selectedEndpoint"
+                        data-testid="debug-execute-btn"
                         class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
                         Execute
                     </button>

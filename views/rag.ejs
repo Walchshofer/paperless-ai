@@ -616,7 +616,7 @@
         }
     </style>
 </head>
-<body>
+<body data-page="<%= vm.page || 'rag' %>">
 <header>
         <div class="back-button">
             <a href="/dashboard" title="Back to Dashboard">
@@ -636,7 +636,7 @@
                 <div class="status-dot offline" id="status-indicator"></div>
                 <span id="status-text">Connecting...</span>
             </div>
-            <button class="theme-toggle" id="theme-toggle">
+            <button class="theme-toggle" id="theme-toggle" data-testid="theme-toggle">
                 <i class="fas fa-moon"></i>
             </button>
         </div>
@@ -669,11 +669,11 @@
                 </div>
 
                 <div class="action-buttons">
-                    <button class="btn btn-outline" id="check-updates-btn">
+                    <button class="btn btn-outline" id="check-updates-btn" data-testid="rag-check-updates-btn">
                         <i class="fas fa-sync-alt"></i>
                         Check for Updates
                     </button>
-                    <button class="btn btn-primary" id="start-indexing-btn">
+                    <button class="btn btn-primary" id="start-indexing-btn" data-testid="rag-start-indexing-btn">
                         <i class="fas fa-database"></i>
                         Start Indexing
                     </button>
@@ -793,11 +793,12 @@
             <textarea 
                 class="message-input" 
                 id="message-input" 
+                data-testid="rag-message-input"
                 placeholder="Ask a question about your documents..." 
                 rows="1"
                 aria-label="Enter message"></textarea>
             <div class="input-controls">
-                <button class="ai-toggle active" style="visibility: hidden;" id="ai-toggle" aria-label="Toggle AI" title="Enable/disable AI response">
+                <button class="ai-toggle active" style="visibility: hidden;" id="ai-toggle" data-testid="rag-ai-toggle" aria-label="Toggle AI" title="Enable/disable AI response">
                     <i class="fas fa-robot"></i>
                 </button>
                 <button class="send-button" id="send-button" data-testid="rag-send-button" aria-label="Send message">
@@ -1255,7 +1256,7 @@
                 html += `<div class="sources-container">
                             <div class="sources-title">
                                 <span>Sources (${sources.length})</span>
-                                <button class="sources-toggle" data-expanded="false">
+                                <button class="sources-toggle" data-expanded="false" data-testid="sources-toggle">
                                     Show all <i class="fas fa-chevron-down"></i>
                                 </button>
                             </div>
@@ -1326,6 +1327,13 @@
         function scrollToBottom() {
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
+    </script>
+    <script type="module">
+      import { mountIslands } from '/js/dist/island-runtime.js';
+      if (!window.__islandRuntimeMounted) {
+        mountIslands(document);
+        window.__islandRuntimeMounted = true;
+      }
     </script>
 </body>
 </html>

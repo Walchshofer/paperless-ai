@@ -8,26 +8,22 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="/css/dashboard.css">
 </head>
-<body class="bg-gray-50 text-gray-900">
+<body class="bg-gray-50 text-gray-900" data-page="<%= vm.page || 'history-document' %>">
     <main class="max-w-5xl mx-auto p-6">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
                 <p class="text-sm text-gray-500">History Document Preview</p>
-                <h1 class="text-2xl font-bold"><%= title %></h1>
+                <h1 class="text-2xl font-bold"><%= vm.title %></h1>
             </div>
             <div class="flex flex-wrap gap-2">
-                <button
-                    onclick="feedbackForm.show({ documentId: '<%= documentId %>' })"
-                    class="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 text-gray-700"
-                    title="Provide feedback on extraction accuracy"
-                >
+                <button data-testid="history-feedback-button" onclick="feedbackForm.show({ documentId: '<%= vm.documentId %>' })" class="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 text-gray-700" title="Provide feedback on extraction accuracy">
                     <i class="fas fa-thumbs-up mr-1"></i> Feedback
                 </button>
-                <a href="/history" class="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100">
+                <a href="/history" data-testid="history-back-link" class="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100">
                     <i class="fas fa-arrow-left mr-1"></i> Back to History
                 </a>
-                <% if (paperlessUrl) { %>
-                    <a href="<%= paperlessUrl %>/documents/<%= documentId %>/" target="_blank" rel="noopener" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <% if (vm.paperlessUrl) { %>
+                    <a href="<%= vm.paperlessUrl %>/documents/<%= vm.documentId %>/" target="_blank" rel="noopener" data-testid="history-open-paperless-link" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                         <i class="fas fa-external-link-alt mr-1"></i> Open in Paperless
                     </a>
                 <% } %>
@@ -35,10 +31,10 @@
         </div>
 
         <div class="mt-4 grid gap-3 sm:grid-cols-2 text-sm text-gray-600">
-            <div><span class="font-medium text-gray-800">Document ID:</span> <%= documentId %></div>
-            <div><span class="font-medium text-gray-800">Correspondent:</span> <%= correspondent %></div>
-            <div><span class="font-medium text-gray-800">Created:</span> <%= createdAt || 'Unknown' %></div>
-            <div><span class="font-medium text-gray-800">Tags:</span> <%= tags.length ? tags.join(', ') : 'None' %></div>
+            <div><span class="font-medium text-gray-800">Document ID:</span> <%= vm.documentId %></div>
+            <div><span class="font-medium text-gray-800">Correspondent:</span> <%= vm.correspondent %></div>
+            <div><span class="font-medium text-gray-800">Created:</span> <%= vm.createdAt || 'Unknown' %></div>
+            <div><span class="font-medium text-gray-800">Tags:</span> <%= vm.tags.length ? vm.tags.join(', ') : 'None' %></div>
         </div>
         <div id="historyFallbackBanner" class="mt-4 hidden rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             Visual analysis is unavailable. Showing text-only results. Visual evidence required for full validation.
@@ -46,8 +42,9 @@
 
         <div class="mt-6 bg-white border border-gray-200 rounded-lg p-4">
             <div class="grid gap-4 md:grid-cols-5 min-h-96">
-                <div class="md:col-span-3" data-island="overlay-viewer-island" data-testid="overlay-viewer-island" data-props="<%= JSON.stringify({ documentId: documentId, page: 1, originalUrl: vm.original_url || null }) %>"></div>
-                <div class="md:col-span-2" data-island="history-tabs-island" data-testid="history-tabs" data-props="<%= JSON.stringify({ documentId: documentId, content, metadata }) %>"></div>
+                <div class="md:col-span-3" data-island="overlay-viewer-island" data-testid="overlay-viewer-island" data-props="<%= JSON.stringify({ documentId: vm.documentId, page: 1, originalUrl: vm.original_url || null, images: vm.images || [], overlaysByImage: vm.overlaysByImage || {}, pageCount: vm.page_count || 1, overlayMode: 'document', showLegend: true, allowSelection: true }) %>"></div>
+                <div data-island="visual-overlays-island" data-testid="visual-overlays-island" data-props="<%= JSON.stringify({ documentId: vm.documentId, images: vm.images || [], overlaysByImage: vm.overlaysByImage || {} }) %>"></div>
+                <div class="md:col-span-2" data-island="history-tabs-island" data-testid="history-tabs" data-props="<%= JSON.stringify({ documentId: vm.documentId, content: vm.content, metadata: vm.metadata }) %>"></div>
             </div>
         </div>
     </main>
@@ -87,29 +84,6 @@
         }
       }
 
-      // Ensure the page dispatches `overlay:document-changed` so islands update in-place
-      (function() {
-        try {
-          const anchor = document.querySelector('[data-island="overlay-viewer-island"]');
-          if (!anchor) return;
-          let props = {};
-          try { props = JSON.parse(anchor.getAttribute('data-props') || '{}'); } catch (e) { props = {}; }
-          const docId = props.documentId || <%= documentId %>;
-          const originalUrl = props.originalUrl || null;
-          const page = props.page || 1;
-
-          window.dispatchEvent(new CustomEvent('overlay:document-changed', { detail: { documentId: docId, page, originalUrl } }));
-
-          // Re-dispatch preview page changes coming from other components
-          window.addEventListener('preview:page-changed', (e) => {
-            const d = (e as CustomEvent)?.detail || {};
-            const newPage = d.page || page;
-            const newDoc = d.documentId || docId;
-            const newOriginal = d.originalUrl || originalUrl;
-            window.dispatchEvent(new CustomEvent('overlay:document-changed', { detail: { documentId: newDoc, page: newPage, originalUrl: newOriginal } }));
-          });
-        } catch (e) { /* ignore */ }
-      })();
     </script>
 </body>
 </html>
