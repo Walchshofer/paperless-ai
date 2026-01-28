@@ -276,6 +276,11 @@
   background-color: #fef2f2;
 }
 
+/* Pointer cursors for pan mode */
+.cursor-grab, .grab { cursor: grab; }
+.cursor-grabbing, .grabbing { cursor: grabbing; }
+
+
 .dark .overlay-legend.error,
 [data-theme="dark"] .overlay-legend.error {
   border-color: #7f1d1d;

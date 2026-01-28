@@ -80,6 +80,11 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     }
   }, [initialDocumentId]);
 
+  // Public helper: compute unscaled coords given raw point, translate and scale
+  // Use the shared overlay-utils helper (commonjs) for math so unit tests can require it in Node tests
+  const overlayUtils = (typeof require !== 'undefined') ? require('./overlay-utils') : null; // gracefully fallback for bundlers
+  export const computeUnscaledFromRaw = overlayUtils ? overlayUtils.computeUnscaledFromRaw : (rawX: number, rawY: number, tx: number, ty: number, s: number) => ({ x: (rawX - tx) / s, y: (rawY - ty) / s });
+
   const normalizeOverlayBox = useCallback((box: any) => {
     if (!box) return null;
     const x = Number(box.x ?? 0);
@@ -119,6 +124,103 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const [mandatoryOnly, setMandatoryOnly] = useState(false);
   const [overlayDomain, setOverlayDomain] = useState('general');
   const selectionEnabled = allowSelection !== false;
+
+  // Zoom & Pan state (Enhancement: zoom/pan controls)
+  const viewportRef = useRef(null as HTMLDivElement | null);
+  const [scale, setScale] = useState(1);
+  const scaleRef = useRef(1);
+  const [translateX, setTranslateX] = useState(0);
+  const [translateY, setTranslateY] = useState(0);
+  const translateRef = useRef({ x: 0, y: 0 });
+  const [panMode, setPanMode] = useState(false);
+  const panActiveRef = useRef(false);
+  const lastPanPointRef = useRef<{ x: number; y: number } | null>(null);
+
+  const MIN_SCALE = 0.5;
+  const MAX_SCALE = 3;
+  const SCALE_STEP = 0.1;
+
+  // Helper to set scale with clamping
+  const applyScale = useCallback((next: number) => {
+    const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next));
+    scaleRef.current = clamped;
+    setScale(clamped);
+  }, []);
+
+  // Helper to set translation and keep refs in sync
+  const clampTranslate = useCallback((tx: number, ty: number, s: number) => {
+    const container = containerRef.current;
+    if (!container) return { x: tx, y: ty };
+
+    // Content size at current scale
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+
+    // When scaled, the content size = cw * s. Allow translation so content covers container.
+    const minX = Math.min(0, cw - cw * s);
+    const maxX = 0;
+    const minY = Math.min(0, ch - ch * s);
+    const maxY = 0;
+
+    const cx = Math.min(maxX, Math.max(minX, tx));
+    const cy = Math.min(maxY, Math.max(minY, ty));
+
+    return { x: cx, y: cy };
+  }, []);
+
+  const applyTranslate = useCallback((x: number, y: number) => {
+    const clamped = clampTranslate(x, y, scaleRef.current || 1);
+    translateRef.current = { x: clamped.x, y: clamped.y };
+    setTranslateX(clamped.x);
+    setTranslateY(clamped.y);
+  }, [clampTranslate]);
+
+  const resetView = useCallback(() => {
+    applyScale(1);
+    applyTranslate(0, 0);
+  }, [applyScale, applyTranslate]);
+
+  const zoomIn = useCallback(() => applyScale(scaleRef.current + SCALE_STEP), [applyScale]);
+  const zoomOut = useCallback(() => applyScale(scaleRef.current - SCALE_STEP), [applyScale]);
+
+  // Wheel-to-zoom handler — zooms towards the pointer location and supports Ctrl/Cmd for fine control
+  const handleWheel = useCallback((e: WheelEvent) => {
+    if (!viewportRef.current || !containerRef.current) return;
+
+    // Prefer pinch/trackpad gestures: normalize deltaY
+    const delta = -e.deltaY;
+    const factor = e.ctrlKey || e.metaKey ? 0.0015 : 0.0025; // fine vs coarse
+    const s = scaleRef.current || 1;
+    const nextS = Math.min(MAX_SCALE, Math.max(MIN_SCALE, s * (1 + delta * factor)));
+    if (Math.abs(nextS - s) < 1e-5) return;
+
+    // Compute raw pointer location relative to container
+    const rect = containerRef.current.getBoundingClientRect();
+    const rawX = e.clientX - rect.left;
+    const rawY = e.clientY - rect.top;
+
+    // Compute new translate so the point under cursor stays fixed
+    const sx = nextS / s;
+    const currentTx = translateRef.current.x || 0;
+    const currentTy = translateRef.current.y || 0;
+    const nextTx = currentTx * sx + rawX * (1 - sx);
+    const nextTy = currentTy * sx + rawY * (1 - sx);
+
+    applyScale(nextS);
+    applyTranslate(nextTx, nextTy);
+
+    e.preventDefault();
+  }, [applyScale, applyTranslate]);
+
+  const togglePanMode = useCallback(() => {
+    const next = !panMode;
+    setPanMode(next);
+    // disable draw mode when entering pan mode
+    if (next) {
+      drawModeRef.current = false;
+      setIsDrawMode(false);
+    }
+  }, [panMode]);
 
   // Image URL for the document page — prefer `originalUrl` if provided (paperless direct link), otherwise use internal download route
   const imageUrl = docId
@@ -192,10 +294,14 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     };
 
     void loadOverlays();
+
+    // Ensure view reset on page/document change (so pan/zoom does not leak across document pages)
+    resetView();
+
     return () => {
       cancelled = true;
     };
-  }, [overlayMode, docId, page]);
+  }, [overlayMode, docId, page, resetView]);
 
   useEffect(() => {
     let cancelled = false;
@@ -216,7 +322,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     return () => { cancelled = true; };
   }, [overlayDomain, showLegend]);
 
-  // Get mouse/touch position relative to container
+  // Get mouse/touch position relative to container (accounting for zoom & pan)
   const getRelativePosition = useCallback(
     (e: MouseEvent | TouchEvent): { x: number; y: number } => {
       const container = containerRef.current;
@@ -230,13 +336,24 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         clientX = touch.clientX;
         clientY = touch.clientY;
       } else {
-        clientX = e.clientX;
-        clientY = e.clientY;
+        clientX = (e as MouseEvent).clientX;
+        clientY = (e as MouseEvent).clientY;
       }
 
+      // Account for translation and scale applied to the inner viewport
+      const tx = translateRef.current.x || 0;
+      const ty = translateRef.current.y || 0;
+      const s = scaleRef.current || 1;
+
+      const rawX = clientX - rect.left;
+      const rawY = clientY - rect.top;
+
+      const unscaledX = (rawX - tx) / s;
+      const unscaledY = (rawY - ty) / s;
+
       return {
-        x: clientX - rect.left,
-        y: clientY - rect.top
+        x: unscaledX,
+        y: unscaledY
       };
     },
     []
@@ -496,8 +613,60 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     };
   }, [handleMouseUp]);
 
+  // Attach wheel listener for zooming
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+    node.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      node.removeEventListener('wheel', handleWheel as any);
+    };
+  }, [handleWheel]);
+
+  // Keyboard shortcuts for zoom/pan and reset
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target && (e.target as HTMLElement).tagName === 'INPUT') return;
+
+      if (e.key === '+' || e.key === '=') {
+        zoomIn();
+        e.preventDefault();
+      } else if (e.key === '-') {
+        zoomOut();
+        e.preventDefault();
+      } else if (e.key === '0' || e.key.toLowerCase() === 'r') {
+        resetView();
+        e.preventDefault();
+      } else if (e.code === 'Space') {
+        togglePanMode();
+        e.preventDefault();
+      } else if (e.key.startsWith('Arrow') && panMode) {
+        const step = 20; // pixel nudge
+        if (e.key === 'ArrowLeft') applyTranslate(translateRef.current.x + step, translateRef.current.y);
+        if (e.key === 'ArrowRight') applyTranslate(translateRef.current.x - step, translateRef.current.y);
+        if (e.key === 'ArrowUp') applyTranslate(translateRef.current.x, translateRef.current.y + step);
+        if (e.key === 'ArrowDown') applyTranslate(translateRef.current.x, translateRef.current.y - step);
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [zoomIn, zoomOut, resetView, togglePanMode, panMode, applyTranslate]);
+
   const handlePointerDown = useCallback(
     (e: PointerEvent) => {
+      if (panMode) {
+        // Start panning
+        panActiveRef.current = true;
+        lastPanPointRef.current = { x: e.clientX, y: e.clientY };
+        if (containerRef.current?.setPointerCapture) {
+          containerRef.current.setPointerCapture(e.pointerId);
+        }
+        e.preventDefault();
+        return;
+      }
+
       if (!selectionEnabled || !drawModeRef.current) return;
       pointerActiveRef.current = true;
       if (containerRef.current?.setPointerCapture) {
@@ -505,18 +674,39 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       }
       handleMouseDown(e as any);
     },
-    [handleMouseDown]
+    [handleMouseDown, panMode]
   );
 
   const handlePointerMove = useCallback(
     (e: PointerEvent) => {
+      if (panActiveRef.current && lastPanPointRef.current) {
+        const last = lastPanPointRef.current;
+        const dx = e.clientX - last.x;
+        const dy = e.clientY - last.y;
+        const nextX = (translateRef.current.x || 0) + dx;
+        const nextY = (translateRef.current.y || 0) + dy;
+        applyTranslate(nextX, nextY);
+        lastPanPointRef.current = { x: e.clientX, y: e.clientY };
+        e.preventDefault();
+        return;
+      }
       handleMouseMove(e as any);
     },
-    [handleMouseMove]
+    [handleMouseMove, applyTranslate]
   );
 
   const handlePointerUp = useCallback(
     (e: PointerEvent) => {
+      if (panActiveRef.current) {
+        panActiveRef.current = false;
+        lastPanPointRef.current = null;
+        if (containerRef.current?.releasePointerCapture) {
+          containerRef.current.releasePointerCapture(e.pointerId);
+        }
+        e.preventDefault();
+        return;
+      }
+
       handleMouseUp(e as any);
       pointerActiveRef.current = false;
       if (containerRef.current?.releasePointerCapture) {
@@ -528,6 +718,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
   const handlePointerCancel = useCallback((e: PointerEvent) => {
     pointerActiveRef.current = false;
+    panActiveRef.current = false;
+    lastPanPointRef.current = null;
     if (containerRef.current?.releasePointerCapture) {
       containerRef.current.releasePointerCapture(e.pointerId);
     }
@@ -677,6 +869,15 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           </div>
         )}
 
+        {/* Zoom & Pan Controls */}
+        <div className="flex items-center gap-2 px-2">
+          <button data-testid="overlay-zoom-out" onClick={zoomOut} className="px-2 py-1 bg-bg-secondary rounded">-</button>
+          <span data-testid="overlay-zoom-percentage" className="text-xs text-gray-500">{Math.round(scale * 100)}%</span>
+          <button data-testid="overlay-zoom-in" onClick={zoomIn} className="px-2 py-1 bg-bg-secondary rounded">+</button>
+          <button data-testid="overlay-zoom-reset" onClick={resetView} className="px-2 py-1 bg-bg-secondary rounded">Reset</button>
+          <button data-testid="overlay-pan-toggle" onClick={togglePanMode} aria-pressed={panMode ? 'true' : 'false'} className={`px-2 py-1 rounded ${panMode ? 'bg-gray-200' : 'bg-bg-secondary'}`}>Pan</button>
+        </div>
+
         <div className="ml-auto flex items-center gap-2">
           <button
             data-testid="overlay-prev-page"
@@ -721,7 +922,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         data-testid="overlay-container"
         className="relative flex-1 overflow-hidden bg-gray-100"
         style={{
-          cursor: isDrawMode ? 'crosshair' : 'default',
+          cursor: panMode ? (panActiveRef.current ? 'grabbing' : 'grab') : (isDrawMode ? 'crosshair' : 'default'),
           touchAction: isDrawMode ? 'none' : 'auto'
         }}
         onPointerDown={handlePointerDown as any}
@@ -742,6 +943,18 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         onTouchMove={handleMouseMoveFallback as any}
         onTouchEnd={handleMouseUpFallback as any}
       >
+        {/* Viewport wrapper that receives CSS transform for pan/zoom */}
+        <div
+          ref={viewportRef}
+          data-testid="overlay-viewport"
+          style={{
+            transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
+            transformOrigin: '0 0',
+            width: '100%',
+            height: '100%',
+            position: 'relative'
+          }}
+        >
         {/* Document Image */}
         {imageUrl && !imageError ? (
           <img
@@ -822,6 +1035,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           data-testid="annotation-canvas"
         />
 
+        </div>
         {/* Box Labels */}
         {boxes.map((box: BoundingBox, idx: number) => (
           <div

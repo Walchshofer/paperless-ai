@@ -603,6 +603,15 @@ const defaultRenderers = {
           <button data-testid="overlay-prev-page" aria-label="Previous page" style="margin-right:8px;padding:4px 8px;">&lt;</button>
           <span data-testid="overlay-page-indicator">Page ${page}${props.pageCount ? ' of ' + props.pageCount : ''}</span>
           <button data-testid="overlay-next-page" aria-label="Next page" style="margin-left:8px;padding:4px 8px;">&gt;</button>
+
+          <!-- Zoom & Pan (simple runtime fallback for non-hydrated environments/tests) -->
+          <div style="display:flex;gap:6px;align-items:center;margin-left:12px">
+            <button data-testid="overlay-zoom-out" style="padding:4px 6px" onclick="(function(){ const root = this.closest('[data-testid=\'overlay-viewer-root\']'); const pct = root && root.querySelector('[data-testid=\'overlay-zoom-percentage\']'); if (!pct) return; let s = Number(pct.textContent.replace('%',''))/100; s = Math.max(0.5, s - 0.1); pct.textContent = Math.round(s*100) + '%'; }).call(this);">-</button>
+            <span data-testid="overlay-zoom-percentage">100%</span>
+            <button data-testid="overlay-zoom-in" style="padding:4px 6px" onclick="(function(){ const root = this.closest('[data-testid=\'overlay-viewer-root\']'); const pct = root && root.querySelector('[data-testid=\'overlay-zoom-percentage\']'); if (!pct) return; let s = Number(pct.textContent.replace('%',''))/100; s = Math.min(3, s + 0.1); pct.textContent = Math.round(s*100) + '%'; }).call(this);">+</button>
+            <button data-testid="overlay-zoom-reset" style="padding:4px 6px" onclick="(function(){ const root = this.closest('[data-testid=\'overlay-viewer-root\']'); const pct = root && root.querySelector('[data-testid=\'overlay-zoom-percentage\']'); if (!pct) return; pct.textContent = '100%'; }).call(this);">Reset</button>
+            <button data-testid="overlay-pan-toggle" aria-pressed="false" style="padding:4px 6px" onclick="(function(){ const p = this.getAttribute('aria-pressed') === 'true'; this.setAttribute('aria-pressed', (!p).toString()); }).call(this);">Pan</button>
+          </div>
         </div>
         <div id="overlayContainer" data-testid="overlay-container">
           <img data-testid="document-image" alt="document" style="display:block;max-width:100%;height:auto;" />
@@ -653,6 +662,25 @@ const defaultRenderers = {
               if (pageEl) pageEl.textContent = 'Page ' + nextPage + (props.pageCount ? ' of ' + props.pageCount : '');
               dispatchOverlayChange(nextPage);
             });
+
+            // Zoom & Pan fallback wiring
+            (function(){
+              const zoomIn = root.querySelector('[data-testid="overlay-zoom-in"]');
+              const zoomOut = root.querySelector('[data-testid="overlay-zoom-out"]');
+              const zoomPct = root.querySelector('[data-testid="overlay-zoom-percentage"]');
+              const zoomReset = root.querySelector('[data-testid="overlay-zoom-reset"]');
+              const panToggle = root.querySelector('[data-testid="overlay-pan-toggle"]');
+              let scale = 1;
+
+              function setPct() {
+                if (zoomPct) zoomPct.textContent = Math.round(scale * 100) + '%';
+              }
+
+              if (zoomIn) zoomIn.addEventListener('click', () => { scale = Math.min(3, scale + 0.1); setPct(); });
+              if (zoomOut) zoomOut.addEventListener('click', () => { scale = Math.max(0.5, scale - 0.1); setPct(); });
+              if (zoomReset) zoomReset.addEventListener('click', () => { scale = 1; setPct(); });
+              if (panToggle) panToggle.addEventListener('click', function(){ const p = this.getAttribute('aria-pressed') === 'true'; this.setAttribute('aria-pressed', (!p).toString()); });
+            })();
 
             window.addEventListener('overlay:document-changed', (e) => {
               const d = (e && e.detail) || {};
