@@ -152,20 +152,32 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     const container = containerRef.current;
     if (!container) return { x: tx, y: ty };
 
-    // Content size at current scale
     const cw = container.clientWidth;
     const ch = container.clientHeight;
 
-    // When scaled, the content size = cw * s. Allow translation so content covers container.
-    const minX = Math.min(0, cw - cw * s);
-    const maxX = 0;
-    const minY = Math.min(0, ch - ch * s);
-    const maxY = 0;
+    // natural image size (may be undefined initially)
+    const img = imageRef.current;
+    const natW = img && img.naturalWidth ? img.naturalWidth : null;
+    const natH = img && img.naturalHeight ? img.naturalHeight : null;
 
-    const cx = Math.min(maxX, Math.max(minX, tx));
-    const cy = Math.min(maxY, Math.max(minY, ty));
+    // Use shared helper to clamp with awareness of object-fit scaling (we use contain)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const utils = require('./overlay-utils');
+      const clamped = utils.clampTranslate(tx, ty, s, cw, ch, natW, natH, 'contain');
+      return { x: clamped.x, y: clamped.y };
+    } catch (e) {
+      // Fallback to simple behavior if helper not available
+      const minX = Math.min(0, cw - cw * s);
+      const maxX = 0;
+      const minY = Math.min(0, ch - ch * s);
+      const maxY = 0;
 
-    return { x: cx, y: cy };
+      const cx = Math.min(maxX, Math.max(minX, tx));
+      const cy = Math.min(maxY, Math.max(minY, ty));
+
+      return { x: cx, y: cy };
+    }
   }, []);
 
   const applyTranslate = useCallback((x: number, y: number) => {
