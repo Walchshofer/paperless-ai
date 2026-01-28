@@ -35,7 +35,51 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
   const [errorMessage, setErrorMessage] = useState('');
   // Retry nonce: incrementing this triggers the handshake effect to re-run
   const [retryNonce, setRetryNonce] = useState(0);
+  // Initialize from props.annotations (when server provides saved annotations)
+  useEffect(() => {
+    if (props.annotations && Array.isArray(props.annotations)) {
+      try {
+        const mapped = (props.annotations as any[]).map((a) => ({
+          id: a.id,
+          label: a.label || '',
+          note: a.note || '',
+          x: Number(a.bbox?.x ?? a.x ?? 0),
+          y: Number(a.bbox?.y ?? a.y ?? 0),
+          width: Number(a.bbox?.width ?? a.width ?? 0),
+          height: Number(a.bbox?.height ?? a.height ?? 0),
+          confirmed: true,
+          context: a.context || undefined
+        }));
+        // debug log to help tests - removed once tests stable
+        // eslint-disable-next-line no-console
+        console.debug && console.debug('VisualAnnotationIsland init annotations', mapped);
+        setAnnotations(mapped as Annotation[]);
+      } catch (e) { /* ignore */ }
+    }
+  }, [props.annotations]);
 
+  // Listen for annotations loaded events from other islands (OverlayViewerIsland)
+  useEffect(() => {
+    const handler = (e: any) => {
+      const anns = e?.detail?.annotations;
+      if (!Array.isArray(anns)) return;
+      const mapped = anns.map((a: any) => ({
+        id: a.id,
+        label: a.label || '',
+        note: a.note || '',
+        x: Number(a.bbox?.x ?? a.x ?? 0),
+        y: Number(a.bbox?.y ?? a.y ?? 0),
+        width: Number(a.bbox?.width ?? a.width ?? 0),
+        height: Number(a.bbox?.height ?? a.height ?? 0),
+        confirmed: true,
+        context: a.context || undefined
+      }));
+      setAnnotations(mapped as Annotation[]);
+    };
+
+    document.addEventListener('annotations:loaded', handler as EventListener);
+    return () => document.removeEventListener('annotations:loaded', handler as EventListener);
+  }, []);
   const canvasRef = useRef(null as HTMLDivElement | null);
   const startRef = useRef(null as {x: number, y: number} | null);
   const mountedRef = useRef(true);
@@ -374,10 +418,23 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
               data-testid={`annotation-label-${i}`}
               placeholder="Label"
               value={ann.label}
-              onInput={(e: any) => {
+              onInput={async (e: any) => {
                 const newAnns = [...annotations];
-                newAnns[i].label = (e.target as HTMLInputElement).value;
+                const val = (e.target as HTMLInputElement).value;
+                newAnns[i].label = val;
                 setAnnotations(newAnns);
+                // If this is a persisted annotation, update server
+                try {
+                  if (newAnns[i].id) {
+                    await fetch(`/manual/annotations/${newAnns[i].id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ label: val })
+                    });
+                  }
+                } catch (err) {
+                  console.error('Failed to update annotation label', err);
+                }
               }}
               className="vai-input"
               aria-label={`Label for annotation ${i + 1}`}
@@ -403,7 +460,22 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
               {ann.confirmed ? '✓ Confirmed' : 'Confirm Match'}
             </button>
             <button
-              onClick={() => setAnnotations(annotations.filter((_: Annotation, idx: number) => idx !== i))}
+              onClick={async () => {
+                const annToRemove = annotations[i];
+                if (annToRemove && annToRemove.id) {
+                  try {
+                    const resp = await fetch(`/manual/annotations/${annToRemove.id}`, { method: 'DELETE' });
+                    if (!resp.ok) throw new Error('delete failed');
+                    setAnnotations(annotations.filter((_: Annotation, idx: number) => idx !== i));
+                  } catch (err) {
+                    console.error('Failed to delete annotation', err);
+                    // fallback: still remove locally to preserve UX, but keep console error
+                    setAnnotations(annotations.filter((_: Annotation, idx: number) => idx !== i));
+                  }
+                } else {
+                  setAnnotations(annotations.filter((_: Annotation, idx: number) => idx !== i));
+                }
+              }}
               className="vai-btn vai-btn-danger"
               data-testid={`remove-btn-${i}`}
               aria-label={`Remove annotation ${i + 1}`}

@@ -104,7 +104,7 @@ These components are located in `public/js/components/`. They must be included v
 | **`ExpertMessage`** | Renders a rich chat bubble. Handles Markdown parsing (via `marked`), syntax highlighting (via `highlight.js`), and citation rendering. | `new ExpertMessage(data).render()` |
 | **`ThinkingAccordion`** | A collapsible detail view for "Chain of Thought" or debug logs provided by the AI model. | `new ThinkingAccordion(container).addStep(...)` |
 | **`DocumentOverlay`** | Low-level class for drawing bounding boxes (`x,y,w,h`) on a container. Handles coordinate normalization (0-1000 scale to %). | `new DocumentOverlay(el).render(boxes)` |
-| **`OverlayViewer`** | Higher-level controller for the "Visual" tab. Manages the image loading and delegates drawing to `DocumentOverlay`. | `const viewer = new OverlayViewer(...)` |
+| **`OverlayViewer`** | Higher-level controller for the "Visual" tab. Manages the image loading and delegates drawing to `DocumentOverlay`. Adds built-in zoom & pan controls to assist precise selection and navigation. | `const viewer = new OverlayViewer(...)` |
 | **`OrchestratorStatus`** | Displays a stepper or status indicator for the backend RAG pipeline stages. | `new OrchestratorStatus(el)` |
 | **`FeedbackForm`** | (If implemented) Handles user thumbs up/down and text feedback for AI responses. | `new FeedbackForm(...)` |
 

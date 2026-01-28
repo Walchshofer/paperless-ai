@@ -315,6 +315,63 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     };
   }, [overlayMode, docId, page, resetView]);
 
+  // Load per-user persisted annotations for this document/page and wire cross-island save handlers
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadUserAnnotations = async () => {
+      if (!docId) return;
+      try {
+        const resp = await fetch(`/manual/annotations/${docId}?page=${page}`);
+        if (!resp.ok) return; // ignore silently - UI remains functional without persistence
+        const data = await resp.json();
+        if (cancelled) return;
+        const anns = Array.isArray(data.annotations) ? data.annotations : [];
+        // Dispatch a cross-island event for VisualAnnotationIsland to consume
+        document.dispatchEvent(new CustomEvent('annotations:loaded', { detail: { annotations: anns } }));
+      } catch (err) {
+        // Fail gracefully - per guardrails don't silently hide save failures, but for load we keep UI usable
+        console.warn('Failed to load user annotations', err && err.message ? err.message : err);
+      }
+    };
+
+    void loadUserAnnotations();
+
+    // Listen for payload:ready events (emitted by VisualAnnotationIsland) to persist annotations
+    const saveListener = async (e: any) => {
+      const payload = e?.detail;
+      if (!payload || !payload.documentId || !Array.isArray(payload.annotations)) return;
+      try {
+        const resp = await fetch('/manual/annotations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!resp.ok) {
+          const txt = await resp.text();
+          console.error('Failed to persist annotations', txt);
+          // Surface an alert for users (simple UX fallback)
+          // You could also dispatch an event to the islands to show inline messages
+          return;
+        }
+        const result = await resp.json();
+        if (cancelled) return;
+        // After save, dispatch loaded annotations to refresh UI (server returns created records)
+        const created = Array.isArray(result.created) ? result.created : [];
+        document.dispatchEvent(new CustomEvent('annotations:loaded', { detail: { annotations: created } }));
+      } catch (err) {
+        console.error('Annotation save failed', err && err.message ? err.message : err);
+      }
+    };
+
+    document.addEventListener('payload:ready', saveListener as EventListener);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener('payload:ready', saveListener as EventListener);
+    };
+  }, [docId, page]);
+
   useEffect(() => {
     let cancelled = false;
 

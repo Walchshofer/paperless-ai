@@ -103,8 +103,22 @@ if (process.env.RAG_SERVICE_ENABLED === 'true') {
  * 2. Create direct pg connection as fallback
  */
 (async function ensureTestDbSchema() {
+    // Allow skipping DB init for fast unit-only runs via TEST_SKIP_DB_INIT
+    if (process.env.TEST_SKIP_DB_INIT === 'true' || process.env.TEST_SKIP_DB_INIT === '1' || process.env.TEST_SKIP_DB_INIT === 'yes') {
+        process.env.PG_AVAILABLE = 'false';
+        console.log('[test/setup-env] TEST_SKIP_DB_INIT is set; skipping database schema initialization');
+        return;
+    }
+
     // Retry helper with exponential backoff
-    const wait = (ms) => new Promise((res) => setTimeout(res, ms));
+    // Use an unref'd timer for the wait so pending backoff timers don't keep the
+    // Node process alive when running focused unit tests that don't need or have
+    // an active database. This allows Mocha to exit cleanly even if retries
+    // would otherwise continue in the background.
+    const wait = (ms) => new Promise((res) => {
+        const t = setTimeout(res, ms);
+        if (t && typeof t.unref === 'function') t.unref();
+    });
     async function retry(fn, { attempts = 8, initialDelay = 1000 } = {}) {
         let delay = initialDelay;
         for (let i = 0; i < attempts; ++i) {

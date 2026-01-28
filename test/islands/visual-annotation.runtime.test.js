@@ -236,4 +236,34 @@ describe('island runtime - Visual Annotation', function () {
       confirmBtn.click();
     }, 0);
   });
+
+  it('responds to annotations:loaded events and populates saved annotations', (done) => {
+    const saved = [{ id: 'uuid-saved', document_id: 42, page: 1, x: 0.1, y: 0.1, width: 0.2, height: 0.2, label: 'Saved', note: 'note' }];
+
+    const anchor = document.createElement('div');
+    anchor.setAttribute('data-island', 'visual-annotation-island');
+    anchor.setAttribute('data-testid', 'visual-annotation-island');
+    anchor.setAttribute('data-props', JSON.stringify({ documentId: 'doc-42', page: 1, annotations: saved }));
+
+    document.body.appendChild(anchor);
+    mountIslands(document);
+
+    const root = anchor.querySelector('[data-testid="visual-annotation-island-root"]');
+    assert.ok(root, 'Expected root to be present');
+
+    setTimeout(() => {
+      try {
+        const item = root.querySelector('[data-testid="annotation-item"]');
+        // debug: uncomment to inspect
+        // console.log('ROOT HTML:\n', root.innerHTML);
+        assert.ok(item, 'Expected an annotation item to be rendered');
+        const label = root.querySelector('[data-testid="annotation-label-0"]');
+        assert.strictEqual(label.value, 'Saved');
+        // Confirmed boxes should be rendered with confirmed class
+        const box = root.querySelector('[data-testid="annotation-box-0"]');
+        assert.ok(box.className.includes('vai-box-confirmed'));
+        done();
+      } catch (err) { done(err); }
+    }, 50);
+  });
 });

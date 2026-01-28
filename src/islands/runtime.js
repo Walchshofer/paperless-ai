@@ -482,6 +482,57 @@ const defaultRenderers = {
           note.addEventListener('input', (e)=>{ annotations[idx].note = e.target.value; });
         }
 
+        // Apply annotations loaded from server or other islands
+        function applyLoadedAnnotations(loaded) {
+          if (!Array.isArray(loaded)) return;
+          const rect = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : { width: canvas.clientWidth, height: canvas.clientHeight };
+          for (const a of loaded) {
+            // normalize shape: allow {bbox:{x,y,width,height}} or x/y/width/height
+            const x = Number(a.bbox?.x ?? a.x ?? 0);
+            const y = Number(a.bbox?.y ?? a.y ?? 0);
+            const width = Number(a.bbox?.width ?? a.width ?? 0);
+            const height = Number(a.bbox?.height ?? a.height ?? 0);
+            const norm = { label: a.label || '', note: a.note || '', x, y, width, height };
+            addAnnotation(norm);
+            // Render a confirmed static box in the overlay
+            try {
+              const left = x * rect.width;
+              const top = y * rect.height;
+              const wpx = Math.max(2, width * rect.width);
+              const hpx = Math.max(2, height * rect.height);
+              const staticBox = document.createElement('div');
+              staticBox.setAttribute('data-testid', `annotation-box-${annotations.length - 1}`);
+              renderRect(staticBox, left, top, wpx, hpx);
+              staticBox.style.borderColor = 'rgba(59,130,246,0.9)'; // blue for saved
+              staticBox.classList.add('vai-box-confirmed');
+              overlay.appendChild(staticBox);
+
+              // mark the last added confirm button as disabled/confirmed
+              const lastIdx = annotations.length - 1;
+              const listItem = list.querySelectorAll('[data-testid="annotation-item"]')[lastIdx];
+              if (listItem) {
+                const btn = listItem.querySelector('button');
+                if (btn) {
+                  btn.disabled = true;
+                  btn.textContent = 'Confirmed';
+                }
+              }
+            } catch (e) { /* ignore render errors */ }
+          }
+        }
+
+        // Listen for cross-island loaded annotations
+        document.addEventListener('annotations:loaded', (ev) => { try { applyLoadedAnnotations(ev?.detail?.annotations || []); } catch(e){} });
+
+        // If initial props include annotations, apply them (runtime/data-props payload)
+        try {
+          const propsRaw = (root.closest('[data-props]') && root.closest('[data-props]').getAttribute('data-props')) || '{}';
+          let props = {};
+          try { props = JSON.parse(propsRaw); } catch{};
+          if (Array.isArray(props.annotations)) applyLoadedAnnotations(props.annotations);
+        } catch (e) { /* ignore */ }
+
+
         drawToggle.addEventListener('click', ()=>{
           drawing = !drawing;
           drawToggle.setAttribute('aria-pressed', drawing ? 'true' : 'false');

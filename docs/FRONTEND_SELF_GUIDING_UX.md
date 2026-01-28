@@ -32,7 +32,7 @@ A persistent “Guided Rail” that narrates the next best action (select docume
   - ViewModeToggleIsland: toggles preview panes
   - AIAnalysisIsland: triggers analysis, emits tags suggestions
   - TagsManagerIsland: edits tags + save
-  - OverlayViewerIsland: visual navigation + selection
+  - OverlayViewerIsland: visual navigation + selection (now includes zoom & pan controls for precise navigation and selection)
 - Chat:
   - ChatWorkspaceIsland: document selection, chat streaming, document preview, visual preview
 - History:

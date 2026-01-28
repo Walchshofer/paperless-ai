@@ -7,11 +7,14 @@ class ModelResolutionService {
     this._ollamaCacheExpiresAt = 0;
     this._ollamaTtl = options.ollamaTtlMs || 5 * 60 * 1000; // 5 minutes
     this._fetchOllamaModels = options.fetchOllamaModels || this._defaultFetchOllamaModels.bind(this);
+    // Allow injecting a config object for testing or advanced usecases; fall back to the singleton config
+    this._config = options.config || config;
   }
 
   async _defaultFetchOllamaModels() {
     // Best-effort: try HTTP /models endpoint, otherwise fall back to configured models
-    const url = config.ollama && config.ollama.apiUrl ? `${config.ollama.apiUrl.replace(/\/$/, '')}/models` : null;
+    const cfg = this._config;
+    const url = cfg.ollama && cfg.ollama.apiUrl ? `${cfg.ollama.apiUrl.replace(/\/$/, '')}/models` : null;
     if (url) {
       try {
         const res = await axios.get(url, { timeout: 2000 });
@@ -25,15 +28,16 @@ class ModelResolutionService {
 
     // Fallback to configured keys
     const models = new Set();
-    if (config.ollama && config.ollama.model) models.add(config.ollama.model);
-    if (config.ollama && config.ollama.visionModel) models.add(config.ollama.visionModel);
-    if (config.ollama && config.ollama.plannerModel) models.add(config.ollama.plannerModel);
-    if (config.ollama && config.ollama.routerModel) models.add(config.ollama.routerModel);
+    if (cfg.ollama && cfg.ollama.model) models.add(cfg.ollama.model);
+    if (cfg.ollama && cfg.ollama.visionModel) models.add(cfg.ollama.visionModel);
+    if (cfg.ollama && cfg.ollama.plannerModel) models.add(cfg.ollama.plannerModel);
+    if (cfg.ollama && cfg.ollama.routerModel) models.add(cfg.ollama.routerModel);
 
     return Array.from(models).filter(Boolean);
   }
 
   async getModelsForProvider(provider) {
+    const cfg = this._config;
     const p = (provider || '').toLowerCase();
     if (p === 'ollama') {
       const now = Date.now();
@@ -52,12 +56,12 @@ class ModelResolutionService {
     }
 
     if (p === 'azure') {
-      const m = config.azure && config.azure.deploymentName ? config.azure.deploymentName : process.env.AZURE_DEPLOYMENT_NAME;
+      const m = cfg.azure && cfg.azure.deploymentName ? cfg.azure.deploymentName : process.env.AZURE_DEPLOYMENT_NAME;
       return m ? [m] : [];
     }
 
     if (p === 'custom') {
-      const m = config.custom && config.custom.model ? config.custom.model : process.env.CUSTOM_MODEL;
+      const m = cfg.custom && cfg.custom.model ? cfg.custom.model : process.env.CUSTOM_MODEL;
       return m ? [m] : [];
     }
 
@@ -100,8 +104,33 @@ class ModelResolutionService {
 
   getExpertModels() {
     // Normalize the expert models config (map/object) to a consistent array shape
-    const raw = config.expertModels || {};
+    // Prefer raw config accessors when available (to support proxied/config-wrappers)
+    const cfg = this._config;
+    let raw = null;
+
+    try {
+      if (typeof cfg.getRaw === 'function') {
+        raw = cfg.getRaw('expertModels');
+      }
+    } catch (e) {
+      /* ignore */
+    }
+
+    try {
+      if ((raw === null || raw === undefined) && typeof cfg.__getOriginal === 'function') {
+        raw = cfg.__getOriginal('expertModels');
+      }
+    } catch (e) {
+      /* ignore */
+    }
+
+    if (raw === null || raw === undefined) {
+      raw = cfg.expertModels || {};
+    }
+
     const out = [];
+    if (!raw || typeof raw !== 'object') return out;
+
     for (const [category, entries] of Object.entries(raw)) {
       if (entries && typeof entries === 'object') {
         for (const [role, model] of Object.entries(entries)) {

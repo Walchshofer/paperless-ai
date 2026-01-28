@@ -18,6 +18,24 @@ let docTypeCache = {
     byId: new Map(),
 };
 
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
+function getUserIdFromReq(req) {
+  if (req.user && req.user.id) return req.user.id;
+  try {
+    const auth = req.headers.authorization;
+    if (!auth) return null;
+    const parts = auth.split(' ');
+    if (parts.length !== 2) return null;
+    if (parts[0] !== 'Bearer') return null;
+    const decoded = jwt.verify(parts[1], JWT_SECRET);
+    return decoded && decoded.id ? decoded.id : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function getDocumentTypeName(documentTypeId) {
     if (!documentTypeId) return '';
 
@@ -373,6 +391,78 @@ router.get('/manual/documents', async (req, res) => {
   // Use unfiltered documents for UI dropdown - tag filtering is only for automatic processing
   const getDocuments = await paperlessService.getAllDocumentsUnfiltered();
   res.json(getDocuments);
+});
+
+// Annotation endpoints (Per-user persistence)
+const annotationService = require('../services/AnnotationService');
+
+// POST /manual/annotations - save annotations payload { documentId, page, annotations: [{ bbox, label, note }] }
+router.post('/manual/annotations', async (req, res) => {
+  try {
+    const userId = getUserIdFromReq(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+    const { documentId, page, annotations } = req.body || {};
+    if (!documentId || !Array.isArray(annotations)) return res.status(400).json({ error: 'Invalid payload' });
+
+    const created = [];
+    for (const ann of annotations) {
+      // allow either normalized bbox object or array
+      const bbox = ann.bbox || { x: ann.x, y: ann.y, width: ann.width, height: ann.height };
+      const saved = await annotationService.saveAnnotation(userId, documentId, page || 0, bbox, ann.label || null, ann.note || null);
+      created.push(saved);
+    }
+
+    res.json({ success: true, created });
+  } catch (err) {
+    console.error('Failed to save annotations:', err && err.message);
+    res.status(500).json({ error: err.message || 'Failed to save annotations' });
+  }
+});
+
+// GET /manual/annotations/:documentId?page=x
+router.get('/manual/annotations/:documentId', async (req, res) => {
+  try {
+    const userId = getUserIdFromReq(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+    const { documentId } = req.params;
+    const page = req.query.page !== undefined ? Number(req.query.page) : null;
+    const anns = await annotationService.loadAnnotations(userId, Number(documentId), page);
+    res.json({ annotations: anns });
+  } catch (err) {
+    console.error('Failed to load annotations:', err && err.message);
+    res.status(500).json({ error: err.message || 'Failed to load annotations' });
+  }
+});
+
+// DELETE /manual/annotations/:id
+router.delete('/manual/annotations/:id', async (req, res) => {
+  try {
+    const userId = getUserIdFromReq(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+    const { id } = req.params;
+    const result = await annotationService.deleteAnnotation(userId, id);
+    if (!result) return res.status(404).json({ error: 'Not found' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to delete annotation:', err && err.message);
+    res.status(500).json({ error: err.message || 'Failed to delete annotation' });
+  }
+});
+
+// PUT /manual/annotations/:id - update label/note/bbox
+router.put('/manual/annotations/:id', async (req, res) => {
+  try {
+    const userId = getUserIdFromReq(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+    const { id } = req.params;
+    const updates = req.body || {};
+    const updated = await annotationService.updateAnnotation(userId, id, updates);
+    if (!updated) return res.status(404).json({ error: 'Not found' });
+    res.json({ success: true, annotation: updated });
+  } catch (err) {
+    console.error('Failed to update annotation:', err && err.message);
+    res.status(500).json({ error: err.message || 'Failed to update annotation' });
+  }
 });
 
 module.exports = router;
