@@ -11,3 +11,9 @@
 - Fix: `ChatRepository.appendMessage` now computes `message_index` using nullish coalescing to avoid reusing index 0 when prior max index is 0 (fixes off-by-one/falsy check). (`services/repositories/chatRepository.js`)
 - Fix: `ChatService` now hydrates persisted chat history on initialization when `chatPersistence` is enabled and returns `history` in the initialize response; added documentation in `docs/CHAT_HISTORY_PERSISTENCE.md` and unit tests to verify rehydration. (`services/chatService.js`)
 - Docs: Added `docs/MODEL_RESOLUTION.md` to document model alias resolution API and usage.
+- Feat(Settings): Integrate `ModelResolutionService` with the Settings route
+  - GET `/settings` now exposes `availableModels` and a normalized `expertModels` array on the view-model to make provider model choices available to the UI.
+  - Model validation is permissive when provider discovery returns an empty or unreachable model list to avoid blocking initial setup; explicit rejections only occur when the provider list indicates the model is unavailable.
+  - Added `ModelResolutionService.clearCache()` and call it after successful settings save so model discovery reflects new configuration immediately.
+  - Normalized `expertModels` shape to `{ category, role, model }` and updated contracts/tests accordingly.
+  - Added unit tests covering permissive validation and cache clearing.
