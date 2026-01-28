@@ -606,11 +606,11 @@ const defaultRenderers = {
 
           <!-- Zoom & Pan (simple runtime fallback for non-hydrated environments/tests) -->
           <div style="display:flex;gap:6px;align-items:center;margin-left:12px">
-            <button data-testid="overlay-zoom-out" style="padding:4px 6px" onclick="(function(){ const root = this.closest('[data-testid=\'overlay-viewer-root\']'); const pct = root && root.querySelector('[data-testid=\'overlay-zoom-percentage\']'); if (!pct) return; let s = Number(pct.textContent.replace('%',''))/100; s = Math.max(0.5, s - 0.1); pct.textContent = Math.round(s*100) + '%'; }).call(this);">-</button>
+            <button data-testid="overlay-zoom-out" style="padding:4px 6px">-</button>
             <span data-testid="overlay-zoom-percentage">100%</span>
-            <button data-testid="overlay-zoom-in" style="padding:4px 6px" onclick="(function(){ const root = this.closest('[data-testid=\'overlay-viewer-root\']'); const pct = root && root.querySelector('[data-testid=\'overlay-zoom-percentage\']'); if (!pct) return; let s = Number(pct.textContent.replace('%',''))/100; s = Math.min(3, s + 0.1); pct.textContent = Math.round(s*100) + '%'; }).call(this);">+</button>
-            <button data-testid="overlay-zoom-reset" style="padding:4px 6px" onclick="(function(){ const root = this.closest('[data-testid=\'overlay-viewer-root\']'); const pct = root && root.querySelector('[data-testid=\'overlay-zoom-percentage\']'); if (!pct) return; pct.textContent = '100%'; }).call(this);">Reset</button>
-            <button data-testid="overlay-pan-toggle" aria-pressed="false" style="padding:4px 6px" onclick="(function(){ const p = this.getAttribute('aria-pressed') === 'true'; this.setAttribute('aria-pressed', (!p).toString()); }).call(this);">Pan</button>
+            <button data-testid="overlay-zoom-in" style="padding:4px 6px">+</button>
+            <button data-testid="overlay-zoom-reset" style="padding:4px 6px">Reset</button>
+            <button data-testid="overlay-pan-toggle" aria-pressed="false" style="padding:4px 6px">Pan</button>
           </div>
         </div>
         <div id="overlayContainer" data-testid="overlay-container">
@@ -663,7 +663,7 @@ const defaultRenderers = {
               dispatchOverlayChange(nextPage);
             });
 
-            // Zoom & Pan fallback wiring
+            // Zoom & Pan fallback wiring (attach listeners instead of inline onclicks)
             (function(){
               const zoomIn = root.querySelector('[data-testid="overlay-zoom-in"]');
               const zoomOut = root.querySelector('[data-testid="overlay-zoom-out"]');
@@ -676,10 +676,22 @@ const defaultRenderers = {
                 if (zoomPct) zoomPct.textContent = Math.round(scale * 100) + '%';
               }
 
-              if (zoomIn) zoomIn.addEventListener('click', () => { scale = Math.min(3, scale + 0.1); setPct(); });
-              if (zoomOut) zoomOut.addEventListener('click', () => { scale = Math.max(0.5, scale - 0.1); setPct(); });
-              if (zoomReset) zoomReset.addEventListener('click', () => { scale = 1; setPct(); });
-              if (panToggle) panToggle.addEventListener('click', function(){ const p = this.getAttribute('aria-pressed') === 'true'; this.setAttribute('aria-pressed', (!p).toString()); });
+              if (zoomIn && !zoomIn._hasFallbackZoomHandler) {
+                zoomIn.addEventListener('click', () => { scale = Math.min(3, scale + 0.1); setPct(); });
+                zoomIn._hasFallbackZoomHandler = true;
+              }
+              if (zoomOut && !zoomOut._hasFallbackZoomHandler) {
+                zoomOut.addEventListener('click', () => { scale = Math.max(0.5, scale - 0.1); setPct(); });
+                zoomOut._hasFallbackZoomHandler = true;
+              }
+              if (zoomReset && !zoomReset._hasFallbackZoomHandler) {
+                zoomReset.addEventListener('click', () => { scale = 1; setPct(); });
+                zoomReset._hasFallbackZoomHandler = true;
+              }
+              if (panToggle && !panToggle._hasFallbackPanHandler) {
+                panToggle.addEventListener('click', function(){ const p = this.getAttribute('aria-pressed') === 'true'; this.setAttribute('aria-pressed', (!p).toString()); });
+                panToggle._hasFallbackPanHandler = true;
+              }
             })();
 
             window.addEventListener('overlay:document-changed', (e) => {

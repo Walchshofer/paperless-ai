@@ -626,7 +626,12 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   // Keyboard shortcuts for zoom/pan and reset
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.target && (e.target as HTMLElement).tagName === 'INPUT') return;
+      // Ignore when typing into form controls (INPUT, TEXTAREA, SELECT) or contenteditable regions
+      if (e.target) {
+        const t = (e.target as HTMLElement);
+        const tag = (t.tagName || '').toUpperCase();
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) return;
+      }
 
       if (e.key === '+' || e.key === '=') {
         zoomIn();
@@ -871,10 +876,10 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
         {/* Zoom & Pan Controls */}
         <div className="flex items-center gap-2 px-2">
-          <button data-testid="overlay-zoom-out" onClick={zoomOut} className="px-2 py-1 bg-bg-secondary rounded">-</button>
+          <button aria-label="Zoom out" data-testid="overlay-zoom-out" onClick={zoomOut} className="px-2 py-1 bg-bg-secondary rounded">-</button>
           <span data-testid="overlay-zoom-percentage" className="text-xs text-gray-500">{Math.round(scale * 100)}%</span>
-          <button data-testid="overlay-zoom-in" onClick={zoomIn} className="px-2 py-1 bg-bg-secondary rounded">+</button>
-          <button data-testid="overlay-zoom-reset" onClick={resetView} className="px-2 py-1 bg-bg-secondary rounded">Reset</button>
+          <button aria-label="Zoom in" data-testid="overlay-zoom-in" onClick={zoomIn} className="px-2 py-1 bg-bg-secondary rounded">+</button>
+          <button aria-label="Reset zoom" data-testid="overlay-zoom-reset" onClick={resetView} className="px-2 py-1 bg-bg-secondary rounded">Reset</button>
           <button data-testid="overlay-pan-toggle" onClick={togglePanMode} aria-pressed={panMode ? 'true' : 'false'} className={`px-2 py-1 rounded ${panMode ? 'bg-gray-200' : 'bg-bg-secondary'}`}>Pan</button>
         </div>
 
