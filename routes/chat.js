@@ -56,6 +56,21 @@ router.get('/chat', async (req, res) => {
       // Use unfiltered documents for UI dropdown - tag filtering is only for automatic processing
       const documents = await paperlessService.getAllDocumentsUnfiltered();
       const version = configFile.PAPERLESS_AI_VERSION || ' ';
+
+      // Provide model discovery information to the UI so it can render provider-aware model lists
+      const ModelResolutionService = require('../services/ModelResolutionService');
+      const modelProviders = await ModelResolutionService.getAllModels();
+      const expertModels = ModelResolutionService.getExpertModels();
+      const modelConfig = {
+        providers: modelProviders,
+        expertModels,
+        currentProvider: configFile.aiProvider || process.env.AI_PROVIDER || 'ollama'
+      };
+
+      // Text-RAG circuit breaker status from ChatService
+      const chatService = require('../services/chatService.js');
+      const textRagStatus = chatService.getTextRagStatus ? chatService.getTextRagStatus() : { available: false, circuitBreakerState: 'UNKNOWN' };
+
       const vm = {
         version,
         config: {
@@ -65,7 +80,9 @@ router.get('/chat', async (req, res) => {
           openDocumentId: open ? Number(open) : null,
           documents,
           aiProvider: configFile.aiProvider,
-          ollamaDefaultModel: configFile.ollama?.model || null
+          ollamaDefaultModel: configFile.ollama?.model || null,
+          modelConfig,
+          textRagStatus
         }
       };
       res.render('chat', { vm });
@@ -162,9 +179,28 @@ router.get('/chat', async (req, res) => {
  */
 router.get('/chat/init', async (req, res) => {
   const documentId = req.query.documentId;
-  const model = req.query.model;
-  const result = await ChatService.initializeChat(documentId, { model });
-  res.json(result);
+  const model = req.query.model ? String(req.query.model).trim() : null;
+
+  if (!documentId) {
+    return res.status(400).json({ error: 'documentId query parameter is required' });
+  }
+
+  try {
+    const provider = configFile.aiProvider || process.env.AI_PROVIDER || 'ollama';
+    if (model) {
+      const ModelResolutionService = require('../services/ModelResolutionService');
+      const ok = await ModelResolutionService.validateModel(provider, model);
+      if (!ok) {
+        return res.status(400).json({ error: `Model \"${model}\" is not available for provider \"${provider}\"` });
+      }
+    }
+
+    const result = await ChatService.initializeChat(documentId, { model });
+    res.json(result);
+  } catch (error) {
+    console.error('[ERRO] initializing chat:', error);
+    res.status(500).json({ error: 'Failed to initialize chat' });
+  }
 });
 
 /**
@@ -350,7 +386,18 @@ router.get('/chat/init/:documentId', async (req, res) => {
       if (!documentId) {
           return res.status(400).json({ error: 'Document ID is required' });
       }
-      const model = req.query.model;
+
+      const model = req.query.model ? String(req.query.model).trim() : null;
+
+      const provider = configFile.aiProvider || process.env.AI_PROVIDER || 'ollama';
+      if (model) {
+        const ModelResolutionService = require('../services/ModelResolutionService');
+        const ok = await ModelResolutionService.validateModel(provider, model);
+        if (!ok) {
+          return res.status(400).json({ error: `Model \"${model}\" is not available for provider \"${provider}\"` });
+        }
+      }
+
       const result = await ChatService.initializeChat(documentId, { model });
       res.json(result);
   } catch (error) {
