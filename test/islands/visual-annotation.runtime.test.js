@@ -266,4 +266,158 @@ describe('island runtime - Visual Annotation', function () {
       } catch (err) { done(err); }
     }, 50);
   });
+
+  it('loads saved annotations from server on mount when no props.annotations provided', (done) => {
+    const saved = [{ id: 'uuid-server', document_id: 'doc-42', page: 1, bbox: { x: 0.15, y: 0.15, width: 0.2, height: 0.2 }, label: 'Server', note: '' }];
+
+    const origFetch = global.fetch;
+    global.fetch = async (url, opts = {}) => {
+      // health check
+      if (url.endsWith('/health')) return { ok: true, status: 200, json: async () => ({}) };
+      if (url.includes('/manual/annotations/') && (!opts.method || opts.method === 'GET')) {
+        return { ok: true, status: 200, json: async () => ({ annotations: saved }) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    };
+
+    const anchor = document.createElement('div');
+    anchor.setAttribute('data-island', 'visual-annotation-island');
+    anchor.setAttribute('data-testid', 'visual-annotation-island');
+    anchor.setAttribute('data-props', JSON.stringify({ documentId: 'doc-42', page: 1 }));
+
+    document.body.appendChild(anchor);
+    mountIslands(document);
+
+    const root = anchor.querySelector('[data-testid="visual-annotation-island-root"]');
+    assert.ok(root, 'Expected root to be present');
+
+    setTimeout(() => {
+      try {
+        const item = root.querySelector('[data-testid="annotation-item"]');
+        assert.ok(item, 'Expected an annotation item to be rendered from server');
+        const label = root.querySelector('[data-testid="annotation-label-0"]');
+        assert.strictEqual(label.value, 'Server');
+        global.fetch = origFetch;
+        done();
+      } catch (err) { global.fetch = origFetch; done(err); }
+    }, 50);
+  });
+
+  it('shows login UX when save returns 401 and dispatches auth:required on login click', (done) => {
+    const origFetch = global.fetch;
+    global.fetch = async (url, opts = {}) => {
+      if (url.endsWith('/health')) return { ok: true, status: 200, json: async () => ({}) };
+      if (url.endsWith('/manual/annotations') && opts.method === 'POST') return { ok: false, status: 401, json: async () => ({ error: 'Unauthorized' }) };
+      return { ok: true, status: 200, json: async () => ({}) };
+    };
+
+    const anchor = document.createElement('div');
+    anchor.setAttribute('data-island', 'visual-annotation-island');
+    anchor.setAttribute('data-testid', 'visual-annotation-island');
+    anchor.setAttribute('data-props', JSON.stringify({ documentId: 'doc-42', page: 1 }));
+
+    document.body.appendChild(anchor);
+    mountIslands(document);
+
+    const root = anchor.querySelector('[data-testid="visual-annotation-island-root"]');
+    const canvas = root.querySelector('[data-testid="annotation-canvas"]');
+
+    // make room for a box
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 400, height: 200 });
+
+    const drawToggle = root.querySelector('[data-testid="draw-toggle"]');
+    drawToggle.click();
+
+    canvas.dispatchEvent(new window.MouseEvent('mousedown', { clientX: 40, clientY: 20, bubbles: true }));
+    canvas.dispatchEvent(new window.MouseEvent('mousemove', { clientX: 140, clientY: 120, bubbles: true }));
+    canvas.dispatchEvent(new window.MouseEvent('mouseup', { clientX: 140, clientY: 120, bubbles: true }));
+
+    const saveBtn = root.querySelector('[data-testid="save-annotations"]');
+    saveBtn.click();
+
+    // Wait for save to complete and error to be shown
+    setTimeout(() => {
+      try {
+        const errEl = root.querySelector('[data-testid="annotation-save-error"]');
+        assert.ok(errEl, 'Expected error element to be present');
+        assert.ok(String(errEl.textContent).includes('Authentication required'));
+
+        // Listen for auth event
+        function onAuth(e) {
+          document.removeEventListener('auth:required', onAuth);
+          global.fetch = origFetch;
+          done();
+        }
+        document.addEventListener('auth:required', onAuth);
+
+        const loginBtn = root.querySelector('[data-testid="annotation-login-btn"]');
+        assert.ok(loginBtn, 'Expected login button to be present');
+        loginBtn.click();
+      } catch (err) { global.fetch = origFetch; done(err); }
+    }, 50);
+  });
+
+  it('saving annotations posts to /manual/annotations and assigns ids (then allows PUT on update)', (done) => {
+    const calls = [];
+    const origFetch = global.fetch;
+    global.fetch = async (url, opts = {}) => {
+      calls.push({ url, opts });
+      if (url.endsWith('/health')) return { ok: true, status: 200, json: async () => ({}) };
+
+      if (url.endsWith('/manual/annotations') && opts.method === 'POST') {
+        // Return created annotation with an id
+        return { ok: true, status: 200, json: async () => ({ success: true, created: [{ id: 'uuid-1', document_id: 'doc-42', page: 1, bbox: { x: 0.1, y: 0.1, width: 0.25, height: 0.5 }, label: '', note: '' }] }) };
+      }
+
+      if (url.endsWith('/manual/annotations/uuid-1') && opts.method === 'PUT') {
+        return { ok: true, status: 200, json: async () => ({ success: true, annotation: { id: 'uuid-1' } }) };
+      }
+
+      return { ok: true, status: 200, json: async () => ({}) };
+    };
+
+    const anchor = document.createElement('div');
+    anchor.setAttribute('data-island', 'visual-annotation-island');
+    anchor.setAttribute('data-testid', 'visual-annotation-island');
+    anchor.setAttribute('data-props', JSON.stringify({ documentId: 'doc-42', page: 1 }));
+
+    document.body.appendChild(anchor);
+    mountIslands(document);
+
+    const root = anchor.querySelector('[data-testid="visual-annotation-island-root"]');
+    const canvas = root.querySelector('[data-testid="annotation-canvas"]');
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 400, height: 200 });
+
+    // Enable drawing
+    const drawToggle = root.querySelector('[data-testid="draw-toggle"]');
+    drawToggle.click();
+
+    // Draw one box
+    canvas.dispatchEvent(new window.MouseEvent('mousedown', { clientX: 40, clientY: 20, bubbles: true }));
+    canvas.dispatchEvent(new window.MouseEvent('mousemove', { clientX: 140, clientY: 120, bubbles: true }));
+    canvas.dispatchEvent(new window.MouseEvent('mouseup', { clientX: 140, clientY: 120, bubbles: true }));
+
+    // Click save
+    const saveBtn = root.querySelector('[data-testid="save-annotations"]');
+    saveBtn.click();
+
+    // Wait then attempt to change label and assert a PUT occurs to the new id
+    setTimeout(() => {
+      try {
+        const label = root.querySelector('[data-testid="annotation-label-0"]');
+        label.value = 'Updated';
+        label.dispatchEvent(new window.Event('input', { bubbles: true }));
+
+        // allow some time for the PUT to happen
+        setTimeout(() => {
+          try {
+            const putCall = calls.find(c => c.url && c.url.endsWith('/manual/annotations/uuid-1') && c.opts.method === 'PUT');
+            assert.ok(putCall, 'Expected a PUT to /manual/annotations/uuid-1 after label update');
+            global.fetch = origFetch;
+            done();
+          } catch (err) { global.fetch = origFetch; done(err); }
+        }, 30);
+      } catch (err) { global.fetch = origFetch; done(err); }
+    }, 50);
+  });
 });

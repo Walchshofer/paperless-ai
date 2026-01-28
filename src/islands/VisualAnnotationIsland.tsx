@@ -58,6 +58,44 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
     }
   }, [props.annotations]);
 
+  // If the server provides persistence, load saved annotations for the current document/page
+  useEffect(() => {
+    let aborted = false;
+    async function loadSaved() {
+      if (!props.documentId) return;
+      try {
+        const pageQuery = (props.page !== undefined && props.page !== null) ? `?page=${props.page}` : '';
+        const resp = await fetch(`/manual/annotations/${props.documentId}${pageQuery}`, { headers: { 'X-Request-Id': `load-annotations-${Date.now()}` } });
+        if (aborted) return;
+        if (resp.status === 401) {
+          // not authenticated - nothing to load for this user
+          console.warn('Annotations: authentication required to load annotations');
+          return;
+        }
+        if (!resp.ok) throw new Error(`Failed to load annotations: ${resp.status}`);
+        const json = await resp.json();
+        const anns = Array.isArray(json.annotations) ? json.annotations : [];
+        const mapped = anns.map((a: any) => ({
+          id: a.id,
+          label: a.label || '',
+          note: a.note || '',
+          x: Number(a.bbox?.x ?? a.x ?? 0),
+          y: Number(a.bbox?.y ?? a.y ?? 0),
+          width: Number(a.bbox?.width ?? a.width ?? 0),
+          height: Number(a.bbox?.height ?? a.height ?? 0),
+          confirmed: true,
+          context: a.context || undefined
+        }));
+        setAnnotations(mapped as Annotation[]);
+      } catch (e: any) {
+        console.error('Failed to load annotations:', e && e.message);
+      }
+    }
+
+    loadSaved();
+    return () => { aborted = true; };
+  }, [props.documentId, props.page]);
+
   // Listen for annotations loaded events from other islands (OverlayViewerIsland)
   useEffect(() => {
     const handler = (e: any) => {
@@ -266,13 +304,76 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
     }
   };
 
-  const handleSave = () => {
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [needsAuth, setNeedsAuth] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveError('');
     const payload = {
       documentId: props.documentId || null,
       page: props.page || null,
-      annotations
+      annotations: annotations.map((a) => ({ bbox: { x: a.x, y: a.y, width: a.width, height: a.height }, label: a.label, note: a.note }))
     };
-    document.dispatchEvent(new CustomEvent('payload:ready', { detail: payload }));
+
+    try {
+      const resp = await fetch('/manual/annotations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Request-Id': `save-annotations-${Date.now()}` },
+        body: JSON.stringify(payload)
+      });
+
+      if (resp.status === 401) {
+        setSaveError('Authentication required to save annotations');
+        setNeedsAuth(true);
+        setIsSaving(false);
+        return;
+      }
+
+      if (!resp.ok) throw new Error(`Save failed (${resp.status})`);
+
+      const json = await resp.json();
+      const created = Array.isArray(json.created) ? json.created : [];
+
+      // Merge returned created annotations (with ids) into local annotations by matching bbox
+      const findMatch = (local: Annotation, c: any) => {
+        const cb = c.bbox || c;
+        const cx = Number(cb.x ?? (Array.isArray(cb) ? cb[1] : 0));
+        const cy = Number(cb.y ?? (Array.isArray(cb) ? cb[0] : 0));
+        const cwidth = Number(cb.width ?? (Array.isArray(cb) ? (cb[3] - cb[1]) : 0));
+        const cheight = Number(cb.height ?? (Array.isArray(cb) ? (cb[2] - cb[0]) : 0));
+        return Math.abs(local.x - cx) < 0.001 && Math.abs(local.y - cy) < 0.001 && Math.abs(local.width - cwidth) < 0.001 && Math.abs(local.height - cheight) < 0.001;
+      };
+
+      const newAnns = annotations.map((local) => {
+        const found = created.find((c) => findMatch(local, c));
+        if (found) {
+          return {
+            id: found.id,
+            label: local.label,
+            note: local.note,
+            x: Number(found.bbox?.x ?? local.x),
+            y: Number(found.bbox?.y ?? local.y),
+            width: Number(found.bbox?.width ?? local.width),
+            height: Number(found.bbox?.height ?? local.height),
+            confirmed: true,
+            context: found.context || local.context
+          } as Annotation;
+        }
+        return local;
+      });
+
+      setAnnotations(newAnns);
+
+      // keep legacy event for other islands
+      document.dispatchEvent(new CustomEvent('payload:ready', { detail: payload }));
+    } catch (e: any) {
+      console.error('Failed to save annotations:', e && e.message);
+      setSaveError(e && e.message ? e.message : 'Failed to save annotations');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Retry handler for error state - increments nonce to trigger useEffect re-run
@@ -354,10 +455,33 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
           data-testid="save-annotations"
           onClick={handleSave}
           className="vai-btn vai-btn-primary"
-          disabled={status !== 'ready' || annotations.length === 0}
+          disabled={status !== 'ready' || annotations.length === 0 || isSaving}
         >
-          Save Annotations
+          {isSaving ? 'Saving...' : 'Save Annotations'}
         </button>
+        {saveError && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: '8px' }}>
+            <div data-testid="annotation-save-error" className="vai-save-error" role="alert" style={{ color: '#e74c3c' }}>
+              {saveError}
+            </div>
+            {needsAuth && (
+              <button
+                data-testid="annotation-login-btn"
+                className="vai-btn"
+                onClick={() => {
+                  try {
+                    document.dispatchEvent(new CustomEvent('auth:required', { detail: { redirect: window && window.location && window.location.pathname ? window.location.pathname : null } }));
+                  } catch (e) {
+                    // fallback: navigate directly if environment allows
+                    try { if (window && window.location) window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`; } catch (e) {}
+                  }
+                }}
+              >
+                Login to Save
+              </button>
+            )}
+          </div>
+        )}
         <div data-testid="annotation-status" className="vai-status" aria-live="polite">
           {annotations.length} annotation{annotations.length !== 1 ? 's' : ''}
         </div>

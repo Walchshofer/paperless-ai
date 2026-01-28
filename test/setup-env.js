@@ -321,6 +321,26 @@ process.env.GENERAL_MODEL = process.env.GENERAL_MODEL || 'sauerkraut-llama3.1:8b
  */
 // process.env.OLLAMA_EMBEDDING_MODEL = ... (intentionally not set)
 
+// Register ts-node to transpile TypeScript/TSX during tests (ensures server imports that reference .ts/.tsx succeed)
+try {
+    require('ts-node').register({
+        transpileOnly: true,
+        skipProject: true,
+        compilerOptions: {
+            module: 'CommonJS',
+            jsx: 'react-jsx',
+            jsxImportSource: 'preact',
+            esModuleInterop: true,
+            moduleResolution: 'node',
+            allowSyntheticDefaultImports: true
+        },
+        ignore: []
+    });
+    console.log('[test/setup-env] ts-node registered for TS/TSX transpilation');
+} catch (e) {
+    console.warn('[test/setup-env] ts-node registration failed:', e && e.message);
+}
+
 console.log('[test] Environment configuration complete');
 
 console.log({

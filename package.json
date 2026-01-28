@@ -4,7 +4,7 @@
   "description": "AI based Tag, correspondent and meta data generation",
   "main": "server.js",
   "scripts": {
-    "test": "mocha --require test/setup-env.js test/**/*.{test,spec}.js --timeout 30000 --reporter spec --exit",
+"test": "cross-env TS_NODE_COMPILER_OPTIONS=\"{\\\"module\\\":\\\"CommonJS\\\",\\\"jsx\\\":\\\"react-jsx\\\",\\\"jsxImportSource\\\":\\\"preact\\\",\\\"moduleResolution\\\":\\\"node\\\",\\\"allowSyntheticDefaultImports\\\":true,\\\"esModuleInterop\\\":true}\" mocha --require test/ts-node-register.js --require test/setup-env.js test/**/*.{test,spec}.js --timeout 30000 --reporter spec --exit",
     "test:integration": "cross-env GUIDANCE_ENABLED=true GUIDANCE_SERVICE_ENABLED=yes RAG_SERVICE_ENABLED=true mocha --require test/setup-env.js test/**/*.{test,spec}.js --timeout 60000 --reporter spec",
     "test:performance": "mocha --require test/setup-env.js \"test/performance/**/*.{test,spec}.js\" --timeout 60000 --reporter spec --exit",
     "test:coverage": "c8 --reporter=text --reporter=lcov npm test",

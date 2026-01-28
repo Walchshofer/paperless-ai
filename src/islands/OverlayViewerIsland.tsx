@@ -83,7 +83,9 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   // Public helper: compute unscaled coords given raw point, translate and scale
   // Use the shared overlay-utils helper (commonjs) for math so unit tests can require it in Node tests
   const overlayUtils = (typeof require !== 'undefined') ? require('./overlay-utils') : null; // gracefully fallback for bundlers
-  export const computeUnscaledFromRaw = overlayUtils ? overlayUtils.computeUnscaledFromRaw : (rawX: number, rawY: number, tx: number, ty: number, s: number) => ({ x: (rawX - tx) / s, y: (rawY - ty) / s });
+  // For Node testability, expose computeUnscaledFromRaw via module.exports when running in CommonJS test env
+  const computeUnscaledFromRaw = overlayUtils ? overlayUtils.computeUnscaledFromRaw : (rawX: number, rawY: number, tx: number, ty: number, s: number) => ({ x: (rawX - tx) / s, y: (rawY - ty) / s });
+  try { if (typeof module !== 'undefined' && module && (module as any).exports) { (module as any).exports.computeUnscaledFromRaw = computeUnscaledFromRaw; } } catch (e) { /* ignore */ }
 
   const normalizeOverlayBox = useCallback((box: any) => {
     if (!box) return null;
