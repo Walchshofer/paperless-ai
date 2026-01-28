@@ -103,11 +103,44 @@ export default function ChatWorkspaceIsland(
     }
   }, [props.openDocumentId]);
 
+  // Prefer server-provided modelConfig when available; otherwise fall back to Ollama-only discovery
   useEffect(() => {
-    if (aiProvider === 'ollama') {
-      void loadOllamaModels();
+    if (props.modelConfig && props.modelConfig.providers) {
+      // Build groups from providers
+      const providers = props.modelConfig.providers || {};
+      const groups: OllamaModelGroup[] = Object.keys(providers).flatMap((provider) => {
+        const models = Array.isArray(providers[provider]) ? providers[provider] : [];
+        if (!models.length) return [];
+        return [{
+          label: `${provider} models`,
+          models: models.map((m: string) => ({ label: m, model: m }))
+        }];
+      });
+
+      // Expert models (if provided as array of entries)
+      const expertRaw = props.modelConfig.expertModels;
+      if (Array.isArray(expertRaw) && expertRaw.length) {
+        groups.push({
+          label: 'Expert models',
+          models: expertRaw.map((entry: any) => ({ label: entry.label ? `${entry.label} (${entry.model})` : entry.model, model: entry.model }))
+        });
+      }
+
+      setModelOptions(groups);
+
+      // Default selection: prefer modelConfig.currentProvider default if present
+      const defaultModel = props.ollamaDefaultModel || (props.modelConfig && props.modelConfig.currentProvider && (providers[props.modelConfig.currentProvider] || [])[0]);
+      if (defaultModel) {
+        setSelectedModel(defaultModel);
+      } else if (groups.length && groups[0].models.length) {
+        setSelectedModel(groups[0].models[0].model);
+      }
+    } else {
+      if (aiProvider === 'ollama') {
+        void loadOllamaModels();
+      }
     }
-  }, [aiProvider]);
+  }, [aiProvider, props.modelConfig, props.ollamaDefaultModel]);
 
   // Verify a single model via backend (returns installed/loaded info)
   const verifyModel = async (model: string) => {
@@ -260,6 +293,8 @@ export default function ChatWorkspaceIsland(
     }
   }, []);
 
+  const [localTextRagStatus, setLocalTextRagStatus] = useState<any>(null);
+
   const initializeChat = useCallback(async (documentId: number) => {
     try {
       setStreamError(null);
@@ -271,13 +306,24 @@ export default function ChatWorkspaceIsland(
       if (!response.ok) throw new Error('Failed to initialize chat');
       const data = await response.json();
       setSelectedDocumentTitle(data.documentTitle || `Document ${documentId}`);
-      setChatMessages([
-        {
-          id: makeId(),
-          role: 'status',
-          content: `Chat ready for ${data.documentTitle || `Document ${documentId}`}.`
-        }
-      ]);
+
+      // Hydrate persisted chat history when available
+      if (Array.isArray(data.history) && data.history.length > 0) {
+        setChatMessages(
+          data.history.map((m: any) => ({ id: makeId(), role: m.role, content: m.content }))
+        );
+      } else {
+        setChatMessages([
+          {
+            id: makeId(),
+            role: 'status',
+            content: `Chat ready for ${data.documentTitle || `Document ${documentId}`}.`
+          }
+        ]);
+      }
+
+      if (data.textRagStatus) setLocalTextRagStatus(data.textRagStatus);
+
       await loadDocumentPreview(documentId);
     } catch (error: any) {
       setStreamError(error.message || 'Failed to initialize chat');
@@ -433,30 +479,30 @@ export default function ChatWorkspaceIsland(
             </select>
           </div>
 
-          {aiProvider === 'ollama' && (
-            <div className="flex-1 min-w-[220px]">
-              <label className="sg-label" htmlFor="chat-model-select">
-                Ollama Model
-              </label>
+          <div className="flex-1 min-w-[220px]">
+            <label className="sg-label" htmlFor="chat-model-select">
+              Model
+            </label>
 
-              {isModelLoading ? (
-                <div data-testid="chat-model-loading" className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                  <div className="text-sm text-gray-600">Loading models...</div>
-                </div>
-              ) : modelLoadError ? (
-                <div className="text-sm text-red-600">
-                  <div data-testid="chat-model-error">{modelLoadError}</div>
-                  <button
-                    className="mt-2 sg-link"
-                    onClick={() => void loadOllamaModels()}
-                    data-testid="chat-model-retry"
-                  >
-                    Retry
-                  </button>
-                </div>
-              ) : (
-                <>
+            {isModelLoading ? (
+              <div data-testid="chat-model-loading" className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <div className="text-sm text-gray-600">Loading models...</div>
+              </div>
+            ) : modelLoadError ? (
+              <div className="text-sm text-red-600">
+                <div data-testid="chat-model-error">{modelLoadError}</div>
+                <button
+                  className="mt-2 sg-link"
+                  onClick={() => void loadOllamaModels()}
+                  data-testid="chat-model-retry"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-3">
                   <select
                     id="chat-model-select"
                     data-testid="chat-model-select"
@@ -467,15 +513,15 @@ export default function ChatWorkspaceIsland(
                       const value = e.target.value || null;
                       setSelectedModel(value);
 
-                      // Verify selected model availability asynchronously and log result
-                      if (value) {
+                      // For Ollama we still have a verification endpoint; for other providers we skip verification
+                      const cfgProvider = (props.modelConfig && props.modelConfig.currentProvider) || aiProvider;
+                      if (value && cfgProvider === 'ollama') {
                         const result = await verifyModel(value);
                         if (!result.ok) {
                           console.warn('[Model Verify] verify failed:', result);
                         } else if (result.data) {
                           console.info('[Model Verify] verify result:', result.data);
                           if (!result.data.installed && !result.data.loaded) {
-                            // Not installed or loaded, show a non-blocking info message
                             setModelLoadError(`Model ${value} not installed/loaded on Ollama.`);
                           } else {
                             setModelLoadError(null);
@@ -497,13 +543,19 @@ export default function ChatWorkspaceIsland(
                       </optgroup>
                     ))}
                   </select>
-                  <p className="sg-helper">
-                    Installed, expert, and configured placeholders are listed. Select to use.
-                  </p>
-                </>
-              )}
-            </div>
-          )}
+
+                  {/* Text-RAG status indicator */}
+                  {((props.textRagStatus && props.textRagStatus.available === false) || (localTextRagStatus && localTextRagStatus.available === false)) && (
+                    <div data-testid="chat-text-rag-status" className="text-sm text-red-600">Text-RAG unavailable</div>
+                  )}
+                </div>
+
+                <p className="sg-helper">
+                  Installed, expert, and configured placeholders are listed. Select to use.
+                </p>
+              </>
+            )}
+          </div>
         </div>
       </div>
 

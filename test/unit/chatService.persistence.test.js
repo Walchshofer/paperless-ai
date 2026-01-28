@@ -37,4 +37,38 @@ describe('ChatService persistence integration (unit)', function() {
     // cleanup
     config.chatPersistence = 'no';
   });
+
+  it('hydrates persisted messages when session already has history', async function() {
+    config.chatPersistence = 'yes';
+
+    const doc = { id: 42, title: 'Test Doc', original_filename: 'test.txt', mime_type: 'text/plain' };
+    PaperlessService.getDocument = async (id) => doc;
+    PaperlessService.getDocumentContent = async (id) => 'Document contents here';
+
+    let gotSessionArg = null;
+    let appended = [];
+    // Simulate existing history present in DB
+    chatRepository.getOrCreateSession = async (documentId) => { gotSessionArg = documentId; return 'sess-456'; };
+    chatRepository.getMessages = async (sessionId) => {
+      return [
+        { id: 'm1', role: 'system', content: 'persisted system', metadata: null, message_index: 0, created_at: new Date().toISOString() },
+        { id: 'm2', role: 'user', content: 'persisted user', metadata: null, message_index: 1, created_at: new Date().toISOString() }
+      ];
+    };
+    chatRepository.appendMessage = async (sessionId, role, content, metadata) => { appended.push({ sessionId, role, content, metadata }); return { id: 'm3' }; };
+
+    chatService.setChatRepository(chatRepository);
+
+    const res = await chatService.initializeChat('42', { chatPersistence: 'yes' });
+    const chatData = chatService.chats.get('42');
+
+    // Ensure messages were hydrated and not re-appended
+    assert.strictEqual(gotSessionArg, 42);
+    assert.strictEqual(chatData.messages.length, 2);
+    assert.strictEqual(chatData.messages[0].content, 'persisted system');
+    assert.strictEqual(res.history && res.history.length, 2);
+    assert.strictEqual(appended.length, 0, 'Should not append system message when history is present');
+
+    config.chatPersistence = 'no';
+  });
 });

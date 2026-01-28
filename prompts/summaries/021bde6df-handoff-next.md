@@ -20,3 +20,16 @@ acceptance_criteria:
 - Tests (unit + integration/E2E) pass locally
 - Documentation updated in `docs/` or `prompts/summaries/`
 - Serena `run-active` updated and a completion summary written to `prompts/summaries/`
+
+completion_summary:
+- Implemented safe model resolution usage and documented the `ModelResolutionService` API in `docs/MODEL_RESOLUTION.md`.
+- Fixed chat persistence behavior: `ChatService.initializeChat` now hydrates persisted messages via `chatRepository.getMessages(sessionId)` and seeds in-memory history; the initialize response includes `history` (ordered messages).
+- Fixed `ChatRepository.appendMessage` to compute `nextIndex` using nullish coalescing so `max_idx === 0` correctly yields `message_index === 1` (source: `services/repositories/chatRepository.js`).
+- Added `docs/CHAT_HISTORY_PERSISTENCE.md` describing DB schema and persistence behavior.
+- Added unit tests covering the `appendMessage` indexing edge case and chat initialization hydration (updated files in `test/unit`).
+- Updated `CHANGELOG.md` with the fixes and docs notes.
+- PR: created branch `fix/setupservice-proxied-validate` (preceding PRs exist for related work); new branch will be used to submit these changes for review.
+
+notes_for_next_agent:
+- Consider adding pagination endpoints for chat history if histories grow large.
+- Add an E2E that restarts the service and verifies chat history is visible in the UI after rehydration.

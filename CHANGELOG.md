@@ -8,3 +8,6 @@
   initialization on first request for observability.
 - Bridge: stop persistent logging to default file (`bridge_debug.log`). Logs now go to stderr by default; set `CODEX_BRIDGE_LOG_FILE` to enable file logging.
 - Fix: `SetupService.validateConfig` now reads values from proxied config objects using `getRaw` / `__getOriginal` where available (e.g., `PAPERLESS_API_URL` / `paperless.apiUrl`), preventing validation errors when consumers pass the proxied `config` module. Added unit tests for `saveConfig` to stub network validators and cover proxied config paths.
+- Fix: `ChatRepository.appendMessage` now computes `message_index` using nullish coalescing to avoid reusing index 0 when prior max index is 0 (fixes off-by-one/falsy check). (`services/repositories/chatRepository.js`)
+- Fix: `ChatService` now hydrates persisted chat history on initialization when `chatPersistence` is enabled and returns `history` in the initialize response; added documentation in `docs/CHAT_HISTORY_PERSISTENCE.md` and unit tests to verify rehydration. (`services/chatService.js`)
+- Docs: Added `docs/MODEL_RESOLUTION.md` to document model alias resolution API and usage.

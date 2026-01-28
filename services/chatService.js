@@ -31,6 +31,13 @@ try {
   console.warn('[ChatService] Text-RAG client not available:', e.message);
 }
 
+// Circuit breaker for text-rag calls - guardrail to avoid cascading failures
+const TextRagCircuitBreaker = require('./textRagCircuitBreaker');
+const _textRagBreaker = new TextRagCircuitBreaker({
+  failureThreshold: (config && config.textRag && config.textRag.failureThreshold) || 3,
+  resetTimeoutMs: (config && config.textRag && config.textRag.resetTimeoutMs) || 60000
+});
+
 class ChatService {
   constructor() {
     this.chats = new Map(); // Stores chat histories: documentId -> messages[]
@@ -84,13 +91,18 @@ class ChatService {
     if (!textRagClient) return [];
 
     try {
-      const response = await textRagClient.post('/search', {
+      // Use circuit breaker to guard text-rag requests
+      const response = await _textRagBreaker.execute(() => textRagClient.post('/search', {
         query,
         top_k: topK
-      });
+      }));
       return response.data || [];
     } catch (error) {
-      console.warn('[ChatService] Text-RAG search failed:', error.message);
+      if (error && error.message && error.message.includes('Circuit')) {
+        console.warn('[ChatService] Text-RAG circuit open, skipping search');
+      } else {
+        console.warn('[ChatService] Text-RAG search failed:', error.message);
+      }
       return [];
     }
   }
@@ -160,26 +172,50 @@ class ChatService {
       const persistenceEnabled = (options && options.chatPersistence === 'yes') || (config.chatPersistence === 'yes');
       if (persistenceEnabled && chatRepository) {
         try {
-          const sid = await chatRepository.getOrCreateSession(parseInt(documentId));
+          const sid = await this.getOrCreateSession(parseInt(documentId));
           const chatData = this.chats.get(documentId);
+
+          // Attempt to hydrate persisted messages for this session
+          try {
+            const persisted = await this.getMessages(sid, 1000, 0);
+            if (persisted && persisted.length > 0) {
+              // Map persisted rows to the in-memory message shape
+              chatData.messages = persisted.map(m => ({ role: m.role, content: m.content, metadata: m.metadata, message_index: m.message_index, created_at: m.created_at }));
+            } else {
+              // No persisted history; persist the initial system message
+              const sysMsg = messages.find(m => m.role === 'system');
+              if (sysMsg) {
+                await this.appendMessage(sid, 'system', sysMsg.content, { documentTitle: document.title });
+              }
+            }
+          } catch (e) {
+            console.warn('[ChatService] Could not fetch persisted messages:', e.message);
+            // If we could not read persisted messages (e.g., table missing), persist the initial system message
+            try {
+              const sysMsg = messages.find(m => m.role === 'system');
+              if (sysMsg) {
+                await this.appendMessage(sid, 'system', sysMsg.content, { documentTitle: document.title });
+              }
+            } catch (err) {
+              console.warn('[ChatService] Failed to persist initial system message after fetch error:', err.message);
+            }
+          }
+
           chatData.sessionId = sid;
           this.chats.set(documentId, chatData);
-
-          // Persist the initial system message
-          const sysMsg = messages.find(m => m.role === 'system');
-          if (sysMsg) {
-            await chatRepository.appendMessage(sid, 'system', sysMsg.content, { documentTitle: document.title });
-          }
         } catch (e) {
           console.warn('[ChatService] Could not persist initial chat session:', e.message);
         }
       }
 
+      const chatDataOut = this.chats.get(documentId);
       return {
         documentTitle: document.title,
         initialized: true,
         model: requestedModel,
-        hasRagContext: semanticContext.length > 0
+        hasRagContext: semanticContext.length > 0,
+        history: chatDataOut ? chatDataOut.messages : [],
+        textRagStatus: this.getTextRagStatus()
       };
     } catch (error) {
       console.error(`Error initializing chat for document ${documentId}:`, error);
@@ -210,7 +246,7 @@ class ChatService {
       const persistMessages = (options && options.chatPersistence === 'yes') || (config.chatPersistence === 'yes');
       if (persistMessages && chatRepository && chatData.sessionId) {
         try {
-          await chatRepository.appendMessage(chatData.sessionId, 'user', userMessage, { model: chatData.model });
+          await this.appendMessage(chatData.sessionId, 'user', userMessage, { model: chatData.model });
         } catch (e) {
           console.warn('[ChatService] Failed to persist user message:', e.message);
         }
@@ -323,7 +359,7 @@ class ChatService {
       const persistAssistant = (options && options.chatPersistence === 'yes') || (config.chatPersistence === 'yes');
       if (persistAssistant && chatRepository && chatData.sessionId) {
         try {
-          await chatRepository.appendMessage(chatData.sessionId, 'assistant', fullResponse, { model: chatData.model });
+          await this.appendMessage(chatData.sessionId, 'assistant', fullResponse, { model: chatData.model });
         } catch (e) {
           console.warn('[ChatService] Failed to persist assistant message:', e.message);
         }
@@ -349,6 +385,30 @@ class ChatService {
     return this.chats.has(documentId);
   }
 
+  // Persistence helper methods (delegate to chatRepository when available)
+  async getOrCreateSession(documentId) {
+    if (!chatRepository) throw new Error('Chat repository not available');
+    return chatRepository.getOrCreateSession(documentId);
+  }
+
+  async appendMessage(sessionId, role, content, metadata = {}) {
+    if (!chatRepository) throw new Error('Chat repository not available');
+    return chatRepository.appendMessage(sessionId, role, content, metadata);
+  }
+
+  async getMessages(sessionId, limit = 100, offset = 0) {
+    if (!chatRepository) return [];
+    return chatRepository.getMessages(sessionId, limit, offset);
+  }
+
+  // Expose text-rag availability status for UI/monitoring
+  getTextRagStatus() {
+    return {
+      available: !!textRagClient && _textRagBreaker.getState() !== 'OPEN',
+      circuitBreakerState: _textRagBreaker.getState()
+    };
+  }
+
   async cleanup() {
     try {
       for (const documentId of this.chats.keys()) {
@@ -371,3 +431,25 @@ module.exports.setChatRepository = (repo) => {
   chatRepository = repo;
 };
 module.exports._getChatRepository = () => chatRepository;
+
+// Persistence helper exports (call underlying repository directly to avoid circular references)
+module.exports.getOrCreateSession = async (documentId) => {
+  if (!chatRepository) throw new Error('Chat repository not available');
+  return chatRepository.getOrCreateSession(documentId);
+};
+module.exports.appendMessage = async (sessionId, role, content, metadata = {}) => {
+  if (!chatRepository) throw new Error('Chat repository not available');
+  return chatRepository.appendMessage(sessionId, role, content, metadata);
+};
+module.exports.getMessages = async (sessionId, limit = 100, offset = 0) => {
+  if (!chatRepository) return [];
+  return chatRepository.getMessages(sessionId, limit, offset);
+};
+
+// Expose text-rag status
+module.exports.getTextRagStatus = () => {
+  return {
+    available: !!textRagClient && _textRagBreaker.getState() !== 'OPEN',
+    circuitBreakerState: _textRagBreaker.getState()
+  };
+};
