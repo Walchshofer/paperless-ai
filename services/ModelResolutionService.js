@@ -75,12 +75,41 @@ class ModelResolutionService {
 
   async validateModel(provider, modelId) {
     const list = await this.getModelsForProvider(provider);
-    if (!list || !modelId) return false;
-    return list.includes(modelId);
+    if (!modelId) return false;
+
+    // If we couldn't discover any models for the provider, be permissive so
+    // initial setup or unreachable providers don't hard-fail valid submissions.
+    // Only reject if the provider list is non-empty and explicitly does not include the model.
+    if (!list || (Array.isArray(list) && list.length === 0)) {
+      return true;
+    }
+
+    try {
+      return Array.isArray(list) ? list.includes(modelId) : false;
+    } catch (e) {
+      // On any unexpected error, be permissive rather than blocking admin setup
+      return true;
+    }
+  }
+
+  // Clear any internal caches (useful after config changes)
+  clearCache() {
+    this._ollamaCache = null;
+    this._ollamaCacheExpiresAt = 0;
   }
 
   getExpertModels() {
-    return config.expertModels || {};
+    // Normalize the expert models config (map/object) to a consistent array shape
+    const raw = config.expertModels || {};
+    const out = [];
+    for (const [category, entries] of Object.entries(raw)) {
+      if (entries && typeof entries === 'object') {
+        for (const [role, model] of Object.entries(entries)) {
+          if (model) out.push({ category, role, model });
+        }
+      }
+    }
+    return out;
   }
 }
 

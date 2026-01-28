@@ -23,6 +23,10 @@ export const SettingsPageVmSchema = z.object({
   settings: SettingsSchema,
   success: z.string().optional(),
   settingsError: z.string().optional(),
+  // Optional fields provided by the server to help the UI render model choices
+  availableModels: z.record(z.array(z.string())).optional(),
+  // expertModels is a normalized array of entries: { category, role, model }
+  expertModels: z.array(z.object({ category: z.string(), role: z.string(), model: z.string() })).optional()
 });
 
 export type Settings = z.infer<typeof SettingsSchema>;

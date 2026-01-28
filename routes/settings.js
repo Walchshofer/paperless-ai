@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const setupService = require('../services/setupService.js');
 const paperlessService = require('../services/paperlessService.js');
+const ModelResolutionService = require('../services/ModelResolutionService');
 const configFile = require('../config/config.js');
 const config = require('../config/config.js');
 const logger = require('../services/logger');
@@ -264,10 +265,23 @@ router.get('/settings', async (req, res) => {
   console.log('Current config TAGS:', settingsConfig.TAGS);
   console.log('Current config PROMPT_TAGS:', settingsConfig.PROMPT_TAGS);
   const version = configFile.PAPERLESS_AI_VERSION || ' ';
+
+  // Fetch available models and expert models for the UI
+  let availableModels = {};
+  let expertModels = [];
+  try {
+    availableModels = await ModelResolutionService.getAllModels();
+    expertModels = ModelResolutionService.getExpertModels();
+  } catch (e) {
+    logger.warn('[SETTINGS] Failed to fetch available models', { error: e && e.message ? e.message : String(e) });
+  }
+
   const vm = {
     page: 'settings',
     version,
     settings: settingsConfig,
+    availableModels,
+    expertModels,
     success: isConfigured ? 'The application is already configured. You can update the configuration below.' : undefined,
     settingsError: showErrorCheckSettings ? 'Please check your settings. Something is not working correctly.' : undefined
   };
@@ -697,7 +711,12 @@ router.post('/settings', express.json(), async (req, res) => {
           });
         }
         updatedConfig.PAPERLESS_OPENAI_API_KEY = openaiKey;
-        if (openaiModel) updatedConfig.PAPERLESS_OPENAI_MODEL = openaiModel;
+        if (openaiModel) {
+          // Validate model exists for provider
+          const ok = await ModelResolutionService.validateModel('openai', openaiModel);
+          if (!ok) return res.status(400).json({ error: 'Selected OpenAI model is not available.' });
+          updatedConfig.PAPERLESS_OPENAI_MODEL = openaiModel;
+        }
       }
       else if (aiProvider === 'ollama' && (ollamaUrl || ollamaModel)) {
         const isOllamaValid = await setupService.validateOllamaConfig(
@@ -710,7 +729,11 @@ router.post('/settings', express.json(), async (req, res) => {
           });
         }
         if (ollamaUrl) updatedConfig.OLLAMA_API_URL = ollamaUrl;
-        if (ollamaModel) updatedConfig.OLLAMA_MODEL = ollamaModel;
+        if (ollamaModel) {
+          const ok = await ModelResolutionService.validateModel('ollama', ollamaModel);
+          if (!ok) return res.status(400).json({ error: 'Selected Ollama model is not available.' });
+          updatedConfig.OLLAMA_MODEL = ollamaModel;
+        }
       } else if (aiProvider === 'azure') {
         const isAzureValid = await setupService.validateAzureConfig(azureApiKey, azureEndpoint, azureDeploymentName, azureApiVersion);
         if (!isAzureValid) {
@@ -720,8 +743,19 @@ router.post('/settings', express.json(), async (req, res) => {
         }
         if(azureEndpoint) updatedConfig.AZURE_ENDPOINT = azureEndpoint;
         if(azureApiKey) updatedConfig.AZURE_API_KEY = azureApiKey;
-        if(azureDeploymentName) updatedConfig.AZURE_DEPLOYMENT_NAME = azureDeploymentName;
+        if(azureDeploymentName) {
+          const ok = await ModelResolutionService.validateModel('azure', azureDeploymentName);
+          if (!ok) return res.status(400).json({ error: 'Selected Azure deployment is not available.' });
+          updatedConfig.AZURE_DEPLOYMENT_NAME = azureDeploymentName;
+        }
         if(azureApiVersion) updatedConfig.AZURE_API_VERSION = azureApiVersion;
+      } else if (aiProvider === 'custom') {
+        // Validate custom model if provided
+        if (customModel) {
+          const ok = await ModelResolutionService.validateModel('custom', customModel);
+          if (!ok) return res.status(400).json({ error: 'Selected custom model is not available.' });
+          updatedConfig.CUSTOM_MODEL = customModel;
+        }
       }
     }
 
@@ -842,6 +876,16 @@ router.post('/settings', express.json(), async (req, res) => {
     };
 
     await setupService.saveConfig(mergedConfig);
+
+    // Clear model resolution caches so subsequent requests reflect new config
+    try {
+      if (ModelResolutionService && typeof ModelResolutionService.clearCache === 'function') {
+        ModelResolutionService.clearCache();
+      }
+    } catch (err) {
+      logger.warn('[SETTINGS] Failed to clear ModelResolutionService cache', { error: err && err.message ? err.message : String(err) });
+    }
+
     try {
       for (const field of processedCustomFields) {
         await paperlessService.createCustomFieldSafely(field.value, field.data_type, field.currency);
