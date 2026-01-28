@@ -162,24 +162,47 @@ class ChatService {
         try {
           const sid = await chatRepository.getOrCreateSession(parseInt(documentId));
           const chatData = this.chats.get(documentId);
+
+          // Attempt to hydrate persisted messages for this session
+          try {
+            const persisted = await chatRepository.getMessages(sid, 1000, 0);
+            if (persisted && persisted.length > 0) {
+              // Map persisted rows to the in-memory message shape
+              chatData.messages = persisted.map(m => ({ role: m.role, content: m.content, metadata: m.metadata, message_index: m.message_index, created_at: m.created_at }));
+            } else {
+              // No persisted history; persist the initial system message
+              const sysMsg = messages.find(m => m.role === 'system');
+              if (sysMsg) {
+                await chatRepository.appendMessage(sid, 'system', sysMsg.content, { documentTitle: document.title });
+              }
+            }
+          } catch (e) {
+            console.warn('[ChatService] Could not fetch persisted messages:', e.message);
+            // If we could not read persisted messages (e.g., table missing), persist the initial system message
+            try {
+              const sysMsg = messages.find(m => m.role === 'system');
+              if (sysMsg) {
+                await chatRepository.appendMessage(sid, 'system', sysMsg.content, { documentTitle: document.title });
+              }
+            } catch (err) {
+              console.warn('[ChatService] Failed to persist initial system message after fetch error:', err.message);
+            }
+          }
+
           chatData.sessionId = sid;
           this.chats.set(documentId, chatData);
-
-          // Persist the initial system message
-          const sysMsg = messages.find(m => m.role === 'system');
-          if (sysMsg) {
-            await chatRepository.appendMessage(sid, 'system', sysMsg.content, { documentTitle: document.title });
-          }
         } catch (e) {
           console.warn('[ChatService] Could not persist initial chat session:', e.message);
         }
       }
 
+      const chatDataOut = this.chats.get(documentId);
       return {
         documentTitle: document.title,
         initialized: true,
         model: requestedModel,
-        hasRagContext: semanticContext.length > 0
+        hasRagContext: semanticContext.length > 0,
+        history: chatDataOut ? chatDataOut.messages : []
       };
     } catch (error) {
       console.error(`Error initializing chat for document ${documentId}:`, error);

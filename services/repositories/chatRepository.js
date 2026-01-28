@@ -76,7 +76,9 @@ class ChatRepository {
     try {
       // compute message_index
       const idxRes = await client.query('SELECT COALESCE(MAX(message_index), -1) as max_idx FROM chat_messages WHERE session_id = $1', [sessionId]);
-      const nextIndex = (idxRes.rows[0].max_idx || -1) + 1;
+      // Use nullish coalescing so that max_idx === 0 yields nextIndex = 1 (avoid falsy 0 -> -1) 
+      const current = idxRes.rows[0].max_idx;
+      const nextIndex = (current ?? -1) + 1;
       const res = await client.query('INSERT INTO chat_messages(session_id, role, content, metadata, message_index) VALUES($1,$2,$3,$4,$5) RETURNING id, created_at', [sessionId, role, content, metadata, nextIndex]);
       return { id: res.rows[0].id, created_at: res.rows[0].created_at, message_index: nextIndex };
     } finally {
