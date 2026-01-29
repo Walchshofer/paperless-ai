@@ -11963,13 +11963,13 @@ function SettingsSidebarIsland(props) {
     if (cat.id === "expert-models" && aiProvider !== "ollama") return false;
     return !cat.requiresDeveloperMode || developerMode;
   });
-  return /* @__PURE__ */ u3("div", { className: "settings-sidebar bg-gray-50 border-r border-gray-200 h-full flex flex-col", "data-testid": "settings-sidebar-root", children: [
-    /* @__PURE__ */ u3("div", { className: "p-4 border-b border-gray-200", children: /* @__PURE__ */ u3("h2", { className: "text-lg font-bold text-gray-800", children: "Settings" }) }),
+  return /* @__PURE__ */ u3("div", { className: "settings-sidebar", "data-testid": "settings-sidebar-root", children: [
+    /* @__PURE__ */ u3("div", { className: "settings-sidebar-header", children: /* @__PURE__ */ u3("h2", { className: "settings-sidebar-title", children: "Settings" }) }),
     /* @__PURE__ */ u3("nav", { className: "flex-1 overflow-y-auto p-2", children: /* @__PURE__ */ u3("ul", { className: "space-y-1", children: visibleCategories.map((category) => /* @__PURE__ */ u3("li", { children: /* @__PURE__ */ u3(
       "button",
       {
         onClick: () => handleCategoryClick(category.id),
-        className: `w-full text-left px-4 py-2 rounded-lg transition-colors ${activeCategory === category.id ? "bg-blue-100 text-blue-700 font-medium" : "text-gray-700 hover:bg-gray-100"}`,
+        className: `settings-category-btn ${activeCategory === category.id ? "active" : ""}`,
         "data-testid": `category-${category.id}`,
         children: [
           /* @__PURE__ */ u3("span", { className: "mr-2", children: category.icon }),
@@ -11977,9 +11977,9 @@ function SettingsSidebarIsland(props) {
         ]
       }
     ) }, category.id)) }) }),
-    /* @__PURE__ */ u3("div", { className: "p-4 border-t border-gray-200", children: [
+    /* @__PURE__ */ u3("div", { className: "settings-sidebar-footer", children: [
       /* @__PURE__ */ u3("div", { className: "flex items-center justify-between", children: [
-        /* @__PURE__ */ u3("label", { htmlFor: "developer-toggle", className: "text-sm text-gray-700 cursor-pointer", children: "Developer Mode" }),
+        /* @__PURE__ */ u3("label", { htmlFor: "developer-toggle", className: "text-sm text-gray-700 cursor-pointer dark:text-gray-300", children: "Developer Mode" }),
         /* @__PURE__ */ u3(
           "button",
           {

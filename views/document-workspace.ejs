@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full" data-theme="light" data-page="document-workspace">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified Document Workspace | Paperless-AI</title>
+    <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.0/css/all.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="/css/dashboard.css">
+    <link rel="stylesheet" href="/css/self-guiding.css">
+    <link rel="stylesheet" href="/css/overlay-viewer.css">
+    <style>
+        :root {
+            --header-height: 64px;
+            --sidebar-width: 400px;
+        }
+        .workspace-layout {
+            display: grid;
+            grid-template-rows: var(--header-height) 1fr;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .workspace-body {
+            display: grid;
+            grid-template-columns: 1fr var(--sidebar-width);
+            overflow: hidden;
+        }
+        @media (max-width: 1024px) {
+            .workspace-body {
+                grid-template-columns: 1fr;
+            }
+            .workspace-sidebar {
+                display: none; /* Mobile behavior: sidebar as overlay or separate tab */
+            }
+        }
+        /* Archivist Atelier copper accents */
+        .accent-copper { color: #b87333; }
+        .bg-copper { background-color: #b87333; }
+        .border-copper { border-color: #b87333; }
+    </style>
+</head>
+<body class="h-full bg-[#fdfaf6] text-[#2c2c2c]" data-page="document-workspace">
+    <% var vm = typeof vm !== 'undefined' ? vm : {}; %>
+    
+    <div class="workspace-layout">
+        <!-- Header -->
+        <header class="h-[64px] border-b border-[#e5e0d8] bg-white flex items-center justify-between px-6 z-20">
+            <div class="flex items-center gap-4">
+                <a href="/dashboard" class="flex items-center gap-2">
+                    <img src="/favicon.ico" class="h-8 w-8 no-invert" alt="Logo">
+                    <span class="font-['Fraunces'] font-bold text-xl hidden sm:inline">Paperless-AI</span>
+                </a>
+                <div class="h-6 w-[1px] bg-[#e5e0d8] mx-2 hidden sm:block"></div>
+                <!-- Document Title Island Anchor -->
+                <div 
+                    data-island="document-context-bar-island" 
+                    data-testid="document-context-bar"
+                    data-props="<%= JSON.stringify({ 
+                        documentId: vm.document?.id, 
+                        title: vm.document?.title,
+                        availableDocuments: vm.availableDocuments,
+                        status: vm.document?.status || 'saved'
+                    }) %>"
+                >
+                    <h2 class="font-['Space_Grotesk'] font-medium truncate max-w-[300px]">
+                        <%= vm.document?.title || 'Select a document...' %>
+                    </h2>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <button id="themeToggle" data-testid="theme-toggle" class="p-2 rounded-full hover:bg-[#f5f0e8] transition-colors">
+                    <i class="fas fa-moon dark:fas fa-sun text-[#555]"></i>
+                </button>
+                <div class="h-6 w-[1px] bg-[#e5e0d8] mx-2"></div>
+                <div class="flex items-center gap-2 text-sm text-[#555]">
+                    <span class="bg-[#f5f0e8] px-2 py-1 rounded font-mono text-xs"><%= vm.version %></span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Body -->
+        <div class="workspace-body">
+            <!-- Viewer Area (1fr) -->
+            <main class="relative bg-[#f5f0e8] overflow-hidden flex flex-col">
+                <!-- Workspace Island Root (Mount point for the whole internal interaction) -->
+                <div 
+                    data-island="unified-workspace-island"
+                    data-testid="unified-workspace-root"
+                    class="h-full w-full"
+                    data-props="<%= JSON.stringify(vm) %>"
+                >
+                    <!-- Fallback/Loading Shell -->
+                    <div class="flex items-center justify-center h-full">
+                        <div class="text-center">
+                            <i class="fas fa-circle-notch fa-spin text-3xl text-copper mb-4"></i>
+                            <p class="font-['Space_Grotesk'] text-[#555]">Initializing Workspace...</p>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Sidebar (400px) -->
+            <aside class="workspace-sidebar border-l border-[#e5e0d8] bg-white flex flex-col overflow-hidden z-10">
+                <div 
+                    data-island="context-sidebar-island"
+                    data-testid="context-sidebar"
+                    class="h-full flex flex-col"
+                    data-props="<%= JSON.stringify({ 
+                        activeTab: vm.ui?.activeTab || 'metadata',
+                        document: vm.document,
+                        chat: vm.chat,
+                        visual: vm.visual
+                    }) %>"
+                >
+                    <!-- Fallback Sidebar Tabs (SSr rendered for SEO/Fast paint) -->
+                    <div class="flex border-b border-[#e5e0d8] bg-[#fdfaf6]">
+                        <button class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium border-b-2 border-copper text-copper">Metadata</button>
+                        <button class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium text-[#888]">Chat</button>
+                        <button class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium text-[#888]">OCR</button>
+                    </div>
+                    <div class="p-6">
+                        <div class="animate-pulse space-y-4">
+                            <div class="h-4 bg-[#f5f0e8] rounded w-3/4"></div>
+                            <div class="h-10 bg-[#f5f0e8] rounded"></div>
+                            <div class="h-4 bg-[#f5f0e8] rounded w-1/2"></div>
+                            <div class="h-32 bg-[#f5f0e8] rounded"></div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- Mobile Menu Button (Floating) -->
+    <button id="mobileMenuButton" data-testid="mobile-menu-button" class="lg:hidden fixed bottom-6 right-6 h-14 w-14 bg-copper text-white rounded-full shadow-lg flex items-center justify-center z-50">
+        <i class="fas fa-bars text-xl"></i>
+    </button>
+
+    <!-- Navigation Sidebar Overlay (Reusing existing sidebar logic) -->
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <aside class="sidebar hidden">
+        <!-- Existing nav sidebar content for consistency -->
+        <%- include('partials/sidebar-nav', { active: 'document' }) %>
+    </aside>
+
+    <script src="/js/shared-utilities.js"></script>
+    <%- include('partials/island-loader', { 
+        bundles: [
+            '/js/dist/unified-workspace.island.js',
+            '/js/dist/document-context-bar.island.js',
+            '/js/dist/context-sidebar.island.js',
+            '/js/dist/overlay-viewer.island.js',
+            '/js/dist/document-content.island.js',
+            '/js/dist/manual-editor.island.js',
+            '/js/dist/chat-workspace.island.js'
+        ]
+    }) %>
+</body>
+</html>

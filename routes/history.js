@@ -50,10 +50,11 @@ const {
  */
 router.get('/history', async (req, res) => {
   try {
+    const username = req.user.username;
     const allTags = await paperlessService.getTags();
 
     // Get all correspondents for filter dropdown
-    const historyDocuments = await documentModel.getAllHistory();
+    const historyDocuments = await documentModel.getAllHistory(username);
     const allCorrespondents = [...new Set(historyDocuments.map(doc => doc.correspondent))]
       .filter(Boolean).sort();
 
@@ -171,7 +172,7 @@ router.get('/history/doc/:id', async (req, res) => {
     };
 
     const fallbackHistory = !document
-      ? await documentModel.getHistory(documentId)
+      ? await documentModel.getHistory(documentId, req.user?.username || 'elfman')
       : null;
 
     const tagIds = parseTagIds(document?.tags || fallbackHistory?.tags);
@@ -402,6 +403,7 @@ router.get('/history/doc/:id', async (req, res) => {
  */
 router.get('/api/history', async (req, res) => {
   try {
+    const username = req.user.username;
     const draw = parseInt(req.query.draw);
     const start = parseInt(req.query.start) || 0;
     const length = parseInt(req.query.length) || 10;
@@ -410,7 +412,7 @@ router.get('/api/history', async (req, res) => {
     const correspondentFilter = req.query.correspondent || '';
 
     // Get all documents
-    const allDocs = await documentModel.getAllHistory();
+    const allDocs = await documentModel.getAllHistory(username);
     const allTags = await paperlessService.getTags();
     const tagMap = new Map(allTags.map(tag => [tag.id, tag]));
 

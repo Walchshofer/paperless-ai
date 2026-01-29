@@ -105,6 +105,7 @@ Displays system overview, recent documents, and stats.
 | **`OverlayViewerIsland`** | Document viewer with Red Pen selection, Zoom/Pan, and Visual Search. | `<div data-island="overlay-viewer-island" ...>` |
 | **`ChatWorkspaceIsland`** | Main chat interface with multi-provider model selection and document context. | `<div data-island="chat-workspace-island" ...>` |
 | **`ManualWorkspaceIsland`** | Orchestrates the manual review page, handling document selection and events. | `<div data-island="manual-workspace-island" ...>` |
+| **`SettingsSidebarIsland`** | Semantic sidebar navigation for the Settings page. | `<div data-island="settings-sidebar-island" ...>` |
 | **`DocumentContentIsland`** | Interactive document text viewer with search, highlighting, and export. | `<div data-island="document-content-island" ...>` |
 | **`ExportPanelIsland`** | Modal-based export utility for regions, text excerpts, and annotations. | `<div data-island="export-panel-island" ...>` |
 | **`VisualAnnotationIsland`** | Legacy or specific annotation tool for drawing regions with labels. | `<div data-island="visual-annotation-island" ...>` |
@@ -121,11 +122,13 @@ Integrated into `OverlayViewerIsland`, this feature allows users to draw a regio
 ### 3. In-Document Search & Highlighting
 The `DocumentContentIsland` provides a robust search bar for text-heavy documents, featuring regex support, case-sensitivity toggles, and "scroll-to-match" navigation.
 
-### 4. Advanced Export
-The `ExportPanelIsland` allows exporting document data in various formats:
-*   **Regions:** PNG or PDF.
-*   **Text Excerpts:** TXT or PDF.
-*   **Annotations:** JSON (for data portability).
+$1
+
+### 5. Shared Utilities (`public/js/shared-utilities.js`)
+To reduce duplication across EJS templates (like `manual.ejs`, `settings.ejs`), common UI logic has been consolidated into a single lightweight utility script:
+-   **Theme Toggling**: Handles `localStorage` persistence and DOM updates for dark mode.
+-   **Mobile Menu**: Manages the sidebar toggle and overlay interactions on small screens.
+-   **GitHub Stars**: Fetches repository stats (guarded by `DISABLE_GITHUB_FETCH`).
 
 ## Styling Strategy
 

@@ -248,76 +248,21 @@
             </div>
         </main>
     </div>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const mobileMenuButton = document.getElementById('mobileMenuButton');
-            const sidebar = document.querySelector('.sidebar');
-            const sidebarOverlay = document.getElementById('sidebarOverlay');
-            
-            function toggleSidebar(event) {
-                event.stopPropagation(); // Prevent event bubbling
-                sidebar.classList.toggle('active');
-                sidebarOverlay.classList.toggle('active');
-                
-                // Toggle menu icon
-                const icon = mobileMenuButton.querySelector('i');
-                if (sidebar.classList.contains('active')) {
-                    icon.classList.remove('fa-bars');
-                    icon.classList.add('fa-times');
-                } else {
-                    icon.classList.remove('fa-times');
-                    icon.classList.add('fa-bars');
-                }
-            }
-
-            // Toggle sidebar when clicking the menu button
-            mobileMenuButton.addEventListener('click', toggleSidebar);
-
-            // Close sidebar when clicking the overlay
-            sidebarOverlay.addEventListener('click', function(event) {
-                event.stopPropagation(); // Prevent event bubbling
-                if (sidebar.classList.contains('active')) {
-                    toggleSidebar(event);
-                }
-            });
-
-            // Prevent sidebar from closing when clicking inside it
-            sidebar.addEventListener('click', function(event) {
-                event.stopPropagation();
-            });
-
-            // Handle links in sidebar
-            const sidebarLinks = document.querySelectorAll('.sidebar-link');
-            sidebarLinks.forEach(link => {
-                link.addEventListener('click', function(event) {
-                    // Don't prevent default here to allow navigation
-                    event.stopPropagation();
-                });
-            });
-        });
-    </script>
-    <script>
-        // GitHub stars (guarded in tests/CI)
-        document.addEventListener('DOMContentLoaded', function() {
-            const disableGithubFetch = '<%= (vm.DISABLE_GITHUB_FETCH || 'no') %>' === 'true';
-            if (window.__DISABLE_GITHUB_FETCH__ || disableGithubFetch) return;
-
-            async function getStarsCount() {
-                try {
-                    const response = await fetch('https://api.github.com/repos/clusterzx/paperless-ai');
-                    if (!response.ok) throw new Error('Failed to fetch repo info');
-
-                    const data = await response.json();
-                    document.getElementById('starCount').textContent = data.stargazers_count.toLocaleString();
-                } catch (error) {
-                    console.warn('Failed to fetch stars count (ignored in tests/CI):', error);
-                }
-            }
-
-            getStarsCount();
-        });
-    </script>
-    <script src="js/dashboard.js"></script>
-    <%- include('partials/island-loader') %>
+    <script src="/js/shared-utilities.js"></script>
+    <%- include('partials/island-loader', { 
+        bundles: [
+            '/js/dist/manual-workspace.island.js',
+            '/js/dist/manual-editor.island.js',
+            '/js/dist/view-mode-toggle.island.js',
+            '/js/dist/document-content.island.js',
+            '/js/dist/overlay-viewer.island.js',
+            '/js/dist/visual-overlays.island.js',
+            '/js/dist/tags-manager.island.js',
+            '/js/dist/ai-analysis.island.js',
+            '/js/dist/visual-annotation.island.js',
+            '/js/dist/feedback-controls.island.js',
+            '/js/dist/export-panel.island.js'
+        ]
+    }) %>
 </body>
 </html>

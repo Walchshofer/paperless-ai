@@ -176,10 +176,10 @@ export default function SettingsSidebarIsland(
   });
 
   return (
-    <div className="settings-sidebar bg-gray-50 border-r border-gray-200 h-full flex flex-col" data-testid="settings-sidebar-root">
+    <div className="settings-sidebar" data-testid="settings-sidebar-root">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
-        <h2 className="text-lg font-bold text-gray-800">Settings</h2>
+      <div className="settings-sidebar-header">
+        <h2 className="settings-sidebar-title">Settings</h2>
       </div>
 
       {/* Category Navigation */}
@@ -189,10 +189,10 @@ export default function SettingsSidebarIsland(
             <li key={category.id}>
               <button
                 onClick={() => handleCategoryClick(category.id)}
-                className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
+                className={`settings-category-btn ${
                   activeCategory === category.id
-                    ? 'bg-blue-100 text-blue-700 font-medium'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    ? 'active'
+                    : ''
                 }`}
                 data-testid={`category-${category.id}`}
               >
@@ -205,9 +205,9 @@ export default function SettingsSidebarIsland(
       </nav>
 
       {/* Footer: Developer Mode Toggle */}
-      <div className="p-4 border-t border-gray-200">
+      <div className="settings-sidebar-footer">
         <div className="flex items-center justify-between">
-          <label htmlFor="developer-toggle" className="text-sm text-gray-700 cursor-pointer">
+          <label htmlFor="developer-toggle" className="text-sm text-gray-700 cursor-pointer dark:text-gray-300">
             Developer Mode
           </label>
           <button

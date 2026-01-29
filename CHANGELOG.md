@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+$1
+### Feat: Strict User Isolation & Manual Route Modernization (2026-01-29)
+- **Security**: Enforced strict user-based filtering for document history. Removed `OR username IS NULL` from queries to prevent data leakage.
+- **Attribution**: Updated all processing pipelines (webhooks, manual scans) to explicitly attribute history records to the triggering user or `system`.
+- **Migration**: Added startup logic to assign legacy unassigned history records to the admin user.
+- **Frontend**: Fully migrated the `manual` route to Island Architecture (`ManualWorkspaceIsland`, `ManualEditorIsland`).
+- **Refactor**: Created `public/js/shared-utilities.js` to deduplicate theme/menu logic across pages.
+- **Fix**: Refactored Settings sidebar CSS to use semantic classes and fixed responsive layout issues on desktop.
 
 ### Feat: Frontend Refactoring & Manual Route Enhancements (Epic 4c9b7999)
 - **Visual Search Panel**: Integrated a split-view panel into `OverlayViewerIsland` to display visually similar regions using Visual RAG MaxSim retrieval.

@@ -283,7 +283,30 @@ router.get('/settings', async (req, res) => {
     availableModels,
     expertModels,
     success: isConfigured ? 'The application is already configured. You can update the configuration below.' : undefined,
-    settingsError: showErrorCheckSettings ? 'Please check your settings. Something is not working correctly.' : undefined
+    settingsError: showErrorCheckSettings ? 'Please check your settings. Something is not working correctly.' : undefined,
+    developer: {
+      featureFlags: {
+        expertPipelineEnabled: settingsConfig.EXPERT_PIPELINE_ENABLED === 'yes',
+        visualRagEnabled: process.env.ENABLE_VISUAL_RAG === 'yes',
+        visualRagSidecarEnabled: process.env.ENABLE_VISUAL_RAG_SIDECAR === 'yes',
+        forceVisualRag: process.env.FORCE_VISUAL_RAG === 'yes',
+        guidanceServiceEnabled: process.env.GUIDANCE_SERVICE_ENABLED === 'yes',
+        metricsEnabled: process.env.ENABLE_MODEL_METRICS === 'yes',
+        duplicateDetectionEnabled: process.env.DUPLICATE_DETECTION_ENABLED === 'yes',
+        ocrCheckpointEnabled: process.env.OCR_CHECKPOINT_ENABLED === 'yes',
+        summaryFallbackEnabled: process.env.SUMMARY_FALLBACK_ENABLED === 'yes'
+      },
+      environmentVariables: {
+        disableAutomaticProcessing: settingsConfig.DISABLE_AUTOMATIC_PROCESSING,
+        scanInterval: settingsConfig.SCAN_INTERVAL,
+        tokenLimit: Number(settingsConfig.TOKEN_LIMIT),
+        responseTokens: Number(settingsConfig.RESPONSE_TOKENS),
+        textQualityThreshold: Number(process.env.TEXT_QUALITY_THRESHOLD || 60),
+        maxVisionPages: Number(process.env.MAX_VISION_PAGES || 4),
+        guidanceTimeout: Number(process.env.GUIDANCE_TIMEOUT || 90000),
+        visualRagTimeout: Number(process.env.VISUAL_RAG_TIMEOUT || 30000)
+      }
+    }
   };
 
   // Render using the view-model contract: templates must reference only `vm.*` fields

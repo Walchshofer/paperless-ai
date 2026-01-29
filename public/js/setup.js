@@ -1,45 +1,3 @@
-class ThemeManager {
-    constructor() {
-        this.themeToggle = document.getElementById('themeToggle');
-        this.initialize();
-    }
-
-    initialize() {
-        // Load saved theme or default to light
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        this.setTheme(savedTheme);
-        
-        // Add event listener for theme toggle
-        this.themeToggle.addEventListener('click', () => this.toggleTheme());
-    }
-
-    setTheme(theme) {
-        document.documentElement.setAttribute('data-theme', theme);
-        localStorage.setItem('theme', theme);
-        
-        // Update toggle button icon
-        const icon = this.themeToggle.querySelector('i');
-        icon.className = theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
-        
-        // Update any active Shepherd tour
-        this.updateShepherdTheme(theme);
-    }
-
-    updateShepherdTheme(theme) {
-        const activeTooltips = document.querySelectorAll('.shepherd-element');
-        activeTooltips.forEach(tooltip => {
-            tooltip.style.background = getComputedStyle(document.documentElement)
-                .getPropertyValue('--shepherd-bg');
-        });
-    }
-
-    toggleTheme() {
-        const currentTheme = document.documentElement.getAttribute('data-theme');
-        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-        this.setTheme(newTheme);
-    }
-}
-
 class FormManager {
     constructor() {
         this.form = document.getElementById('setupForm');
@@ -717,7 +675,9 @@ class PasswordManager {
 document.addEventListener('DOMContentLoaded', () => {
     /* eslint-disable no-unused-vars */
     const tabManager = new TabManager();
-    const themeManager = new ThemeManager();
+    // ThemeManager is now handled by shared-utilities.js (if included)
+    // But setup.ejs does not include shared-utilities.js yet.
+    // Wait, I planned to add it.
     const formManager = new FormManager();
     const tagsManager = new TagsManager();
     const promptTagsManager = new PromptTagsManager();

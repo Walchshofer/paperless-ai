@@ -22,7 +22,10 @@ import ChatWorkspaceIsland from './ChatWorkspaceIsland';
 import HistoryManagerIsland from './HistoryManagerIsland';
 import ManualWorkspaceIsland from './ManualWorkspaceIsland';
 import DocumentContentIsland from './DocumentContentIsland';
-import ExportPanelIsland from './ExportPanelIsland';
+$1
+import UnifiedWorkspaceIsland from './UnifiedWorkspaceIsland';
+import DocumentContextBarIsland from './DocumentContextBarIsland';
+import ContextSidebarIsland from './ContextSidebarIsland';
 
 type IslandComponent = (props: any) => JSX.Element;
 
@@ -52,7 +55,10 @@ const registry: IslandRegistry = {
   'history-manager-island': HistoryManagerIsland,
   'manual-workspace-island': ManualWorkspaceIsland,
   'document-content-island': DocumentContentIsland,
-  'export-panel-island': ExportPanelIsland,
+  $1
+  'unified-workspace-island': UnifiedWorkspaceIsland,
+  'document-context-bar-island': DocumentContextBarIsland,
+  'context-sidebar-island': ContextSidebarIsland,
 };
 
 function parseProps(el: Element): Record<string, any> | null {

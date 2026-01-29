@@ -1,33 +1,3 @@
-// Theme Management
-class ThemeManager {
-    constructor() {
-        this.themeToggle = document.getElementById('themeToggle');
-        this.initialize();
-    }
-
-    initialize() {
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        this.setTheme(savedTheme);
-        console.log('Theme initialized');
-        this.themeToggle.addEventListener('click', () => this.toggleTheme());
-    }
-
-    setTheme(theme) {
-        document.documentElement.setAttribute('data-theme', theme);
-        localStorage.setItem('theme', theme);
-        
-        const icon = this.themeToggle.querySelector('i');
-        icon.className = theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
-    }
-
-    toggleTheme() {
-        const currentTheme = document.documentElement.getAttribute('data-theme');
-        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-        this.setTheme(newTheme);
-        console.log('Theme toggled to: ' + newTheme);
-    }
-}
-
 // Chart Initialization
 class ChartManager {
     constructor() {
@@ -35,10 +5,14 @@ class ChartManager {
     }
 
     initializeDocumentChart() {
+        if (!window.dashboardData) return;
+        
         const { documentCount, processedCount } = window.dashboardData;
         const unprocessedCount = Math.max(0, documentCount - processedCount);
+        const canvas = document.getElementById('documentChart');
+        if (!canvas) return;
 
-        const ctx = document.getElementById('documentChart').getContext('2d');
+        const ctx = canvas.getContext('2d');
         new Chart(ctx, {
             type: 'doughnut',
             data: {
@@ -81,6 +55,8 @@ class ChartManager {
 class ModalManager {
     constructor() {
         this.modal = document.getElementById('detailsModal');
+        if (!this.modal) return;
+        
         this.modalTitle = this.modal.querySelector('.modal-title');
         this.modalContent = this.modal.querySelector('.modal-data');
         this.modalLoader = this.modal.querySelector('.modal-loader');
@@ -89,10 +65,12 @@ class ModalManager {
 
     initializeEventListeners() {
         // Close button click
-        this.modal.querySelector('.modal-close').addEventListener('click', () => this.hideModal());
+        const closeBtn = this.modal.querySelector('.modal-close');
+        if (closeBtn) closeBtn.addEventListener('click', () => this.hideModal());
         
         // Overlay click
-        this.modal.querySelector('.modal-overlay').addEventListener('click', () => this.hideModal());
+        const overlay = this.modal.querySelector('.modal-overlay');
+        if (overlay) overlay.addEventListener('click', () => this.hideModal());
         
         // Escape key press
         document.addEventListener('keydown', (e) => {
@@ -105,14 +83,14 @@ class ModalManager {
     showModal(title) {
         this.modalTitle.textContent = title;
         this.modalContent.innerHTML = '';
-        this.modal.classList.remove('hidden'); // Fix: Remove 'hidden' class
+        this.modal.classList.remove('hidden');
         this.modal.classList.add('show');
         document.body.style.overflow = 'hidden';
     }
 
     hideModal() {
         this.modal.classList.remove('show');
-        this.modal.classList.add('hidden'); // Fix: Add 'hidden' class back
+        this.modal.classList.add('hidden');
         document.body.style.overflow = '';
     }
 
@@ -133,6 +111,8 @@ class ModalManager {
 
 // Make showTagDetails and showCorrespondentDetails globally available
 window.showTagDetails = async function() {
+    if (!window.modalManager) return;
+    
     window.modalManager.showModal('Tag Overview');
     window.modalManager.showLoader();
 
@@ -161,6 +141,8 @@ window.showTagDetails = async function() {
 }
 
 window.showCorrespondentDetails = async function() {
+    if (!window.modalManager) return;
+
     window.modalManager.showModal('Correspondent Overview');
     window.modalManager.showLoader();
 
@@ -188,94 +170,9 @@ window.showCorrespondentDetails = async function() {
     }
 }
 
-// Navigation Management
-class NavigationManager {
-    constructor() {
-        this.sidebarLinks = document.querySelectorAll('.sidebar-link');
-        this.initialize();
-    }
-
-    initialize() {
-        this.sidebarLinks.forEach(link => {
-            link.addEventListener('click', (e) => {
-                // Nur für Links ohne echtes Ziel preventDefault aufrufen
-                if (link.getAttribute('href') === '#') {
-                    e.preventDefault();
-                }
-                this.setActiveLink(link);
-            });
-        });
-    }
-
-    setActiveLink(activeLink) {
-        this.sidebarLinks.forEach(link => {
-            link.classList.remove('active');
-        });
-        activeLink.classList.add('active');
-    }
-}
-
-// API Functions
-async function showTagDetails() {
-    modalManager.showModal('Tag Overview');
-    modalManager.showLoader();
-
-    try {
-        const response = await fetch('/api/tags');
-        const tags = await response.json();
-
-        let content = '<div class="detail-list">';
-        tags.forEach(tag => {
-            content += `
-                <div class="detail-item">
-                    <span class="detail-item-name">${tag.name}</span>
-                    <span class="detail-item-info">${tag.document_count || 0} documents</span>
-                </div>
-            `;
-        });
-        content += '</div>';
-
-        modalManager.setContent(content);
-    } catch (error) {
-        console.error('Error loading tags:', error);
-        modalManager.setContent('<div class="text-red-500 p-4">Error loading tags. Please try again later.</div>');
-    } finally {
-        modalManager.hideLoader();
-    }
-}
-
-async function showCorrespondentDetails() {
-    modalManager.showModal('Correspondent Overview');
-    modalManager.showLoader();
-
-    try {
-        const response = await fetch('/api/correspondents');
-        const correspondents = await response.json();
-
-        let content = '<div class="detail-list">';
-        correspondents.forEach(correspondent => {
-            content += `
-                <div class="detail-item">
-                    <span class="detail-item-name">${correspondent.name}</span>
-                    <span class="detail-item-info">${correspondent.document_count || 0} documents</span>
-                </div>
-            `;
-        });
-        content += '</div>';
-
-        modalManager.setContent(content);
-    } catch (error) {
-        console.error('Error loading correspondents:', error);
-        modalManager.setContent('<div class="text-red-500 p-4">Error loading correspondents. Please try again later.</div>');
-    } finally {
-        modalManager.hideLoader();
-    }
-}
-
 // Initialize everything when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    window.themeManager = new ThemeManager();
-    window.navigationManager = new NavigationManager();
+    // Theme and Navigation are now handled by shared-utilities.js
     window.chartManager = new ChartManager();
     window.modalManager = new ModalManager();
 });

@@ -265,11 +265,11 @@ try {
             if (!result) continue;
 
             if (result.updateData) {
-              await savePipelineChanges(doc.id, result.updateData, result.analysis, result.originalData);
+              await savePipelineChanges(doc.id, result.updateData, result.analysis, result.originalData, req.user?.username || 'elfman');
             } else {
               const { analysis, originalData } = result;
               const updateData = await buildUpdateData(analysis, doc);
-              await saveDocumentChanges(doc.id, updateData, analysis, originalData);
+              await saveDocumentChanges(doc.id, updateData, analysis, originalData, req.user?.username || 'elfman');
             }
           } catch (error) {
             console.error(`[ERROR] processing document ${doc.id}:`, error);
@@ -495,7 +495,7 @@ async function buildUpdateData(analysis, doc) {
   return updateData;
 }
 
-async function saveDocumentChanges(docId, updateData, analysis, originalData) {
+async function saveDocumentChanges(docId, updateData, analysis, originalData, username = 'elfman') {
   const { tags: originalTags, correspondent: originalCorrespondent, title: originalTitle } = originalData;
 
   await Promise.all([
@@ -508,7 +508,7 @@ async function saveDocumentChanges(docId, updateData, analysis, originalData) {
       analysis.metrics.completionTokens,
       analysis.metrics.totalTokens
     ),
-    documentModel.addToHistory(docId, updateData.tags, updateData.title, analysis.document.correspondent)
+    documentModel.addToHistory(docId, updateData.tags, updateData.title, analysis.document.correspondent, username)
   ]);
 }
 
@@ -618,7 +618,7 @@ async function applyPipelineTagGovernance(docId, updateData, analysis, originalT
   return { tags, updateData };
 }
 
-async function savePipelineChanges(docId, updateData, analysis, originalData) {
+async function savePipelineChanges(docId, updateData, analysis, originalData, username = 'elfman') {
   const original = originalData || {};
   const { tags: originalTags, correspondent: originalCorrespondent, title: originalTitle } = original;
   const title = updateData?.title || originalTitle || '';
@@ -634,7 +634,7 @@ async function savePipelineChanges(docId, updateData, analysis, originalData) {
     documentModel.saveOriginalData(docId, originalTags, originalCorrespondent, originalTitle),
     paperlessService.updateDocument(docId, updateData),
     documentModel.addProcessedDocument(docId, title),
-    documentModel.addToHistory(docId, tags, title, correspondent)
+    documentModel.addToHistory(docId, tags, title, correspondent, username)
   ];
   const metrics = analysis?.metrics;
   if (metrics &&
@@ -765,18 +765,20 @@ async function processQueue(customPrompt) {
     const existingDocumentTypesList = existingDocumentTypes.map(docType => docType.name);
 
     while (documentQueue.length > 0) {
-      const doc = documentQueue.shift();
+      const item = documentQueue.shift();
+      const doc = item.doc || item; // Handle both {doc, username} and legacy doc objects
+      const username = item.username || 'system';
 
       try {
         const result = await processDocument(doc, existingTags, existingCorrespondentList, existingDocumentTypesList, ownUserId, customPrompt);
         if (!result) continue;
 
         if (result.updateData) {
-          await savePipelineChanges(doc.id, result.updateData, result.analysis, result.originalData);
+          await savePipelineChanges(doc.id, result.updateData, result.analysis, result.originalData, username);
         } else {
           const { analysis, originalData } = result;
           const updateData = await buildUpdateData(analysis, doc);
-          await saveDocumentChanges(doc.id, updateData, analysis, originalData);
+          await saveDocumentChanges(doc.id, updateData, analysis, originalData, username);
         }
       } catch (error) {
         console.error(`[ERROR] Failed to process document ${doc.id}:`, error);
@@ -900,7 +902,7 @@ router.post('/api/webhook/document', async (req, res) => {
         return res.status(404).send(`Document with ID ${documentId} not found`);
       }
 
-      documentQueue.push(document);
+      documentQueue.push({ doc: document, username: 'system' });
       if (prompt) {
         usePrompt = true;
         logger.debug('Using custom prompt: %s', prompt);

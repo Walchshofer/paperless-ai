@@ -169,11 +169,15 @@ Failures are isolated per service and never cascade.
 - Guidance as optional optimization
 - Visual RAG as enrichment only
 
-### Storage Pattern (Dual-DB)
+$1
 
-- **PostgreSQL**: Source-of-truth (SOT) for relational metadata and RLHF / `feedback_events` (ACID guarantees)
-- **Qdrant**: SOT for vector retrieval (text & visual) — high-performance nearest-neighbor search and vector storage
-- **Payload Mirroring**: Mirror `doc_id`, `correspondent_id`, and `tag_ids` into Qdrant payloads for expert filtering (see `containers/text-rag/qdrant_adapter.py`).
+### User Isolation & Security
+
+The system enforces strict user isolation for document history and processing metadata.
+
+- **History Isolation**: Users can only view history records they own (`username = ?`). The legacy behavior of showing unassigned (`NULL`) records to everyone has been removed.
+- **Attribution**: All document processing actions (scans, webhooks, re-analysis) must be explicitly attributed to a user or the `system` account.
+- **Legacy Data**: A startup migration automatically assigns legacy unassigned records to the configured admin user ('elfman') to ensure data retention without compromising isolation.
 
 ---
 

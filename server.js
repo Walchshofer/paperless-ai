@@ -16,6 +16,7 @@ const processingRoutes = require('./routes/processing');
 const systemRoutes = require('./routes/system');
 const settingsRoutes = require('./routes/settings');
 const manualRoutes = require('./routes/manual');
+const documentRoutes = require('./routes/document');
 const duplicateDetector = require('./services/DuplicateDetector');
 const healthMetricsService = require('./services/HealthMetricsService');
 const PatternDetectionEngine = require('./services/PatternDetectionEngine');
@@ -517,7 +518,7 @@ async function buildUpdateData(analysis, doc) {
   return updateData;
 }
 
-async function saveDocumentChanges(docId, updateData, analysis, originalData) {
+async function saveDocumentChanges(docId, updateData, analysis, originalData, username = process.env.PAPERLESS_USERNAME || 'elfman') {
   const { tags: originalTags, correspondent: originalCorrespondent, title: originalTitle } = originalData;
   
   await Promise.all([
@@ -530,7 +531,7 @@ async function saveDocumentChanges(docId, updateData, analysis, originalData) {
       analysis.metrics.completionTokens,
       analysis.metrics.totalTokens
     ),
-    documentModel.addToHistory(docId, updateData.tags, updateData.title, analysis.document.correspondent)
+    documentModel.addToHistory(docId, updateData.tags, updateData.title, analysis.document.correspondent, username)
   ]);
 }
 
@@ -628,6 +629,7 @@ app.use('/', processingRoutes);
 app.use('/', systemRoutes);
 app.use('/', settingsRoutes);
 app.use('/', manualRoutes);
+app.use('/', documentRoutes);
 app.use('/', setupRoutes);
 const ragRoutes = require('./routes/rag');
 const visualRagRoutes = require('./routes/api/visual-rag');

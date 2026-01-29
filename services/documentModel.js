@@ -47,10 +47,29 @@ const createTableHistory = db.prepare(`
     tags TEXT,
     title TEXT,
     correspondent TEXT,
+    username TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
 createTableHistory.run();
+
+// Migration: Add username column if it doesn't exist
+try {
+  db.prepare("ALTER TABLE history_documents ADD COLUMN username TEXT").run();
+  console.log("[MIGRATION] Added username column to history_documents");
+} catch (e) {
+  // Column might already exist
+}
+
+// Migration: Fix NULL usernames
+try {
+  const result = db.prepare("UPDATE history_documents SET username = 'elfman' WHERE username IS NULL").run();
+  if (result.changes > 0) {
+    console.log(`[MIGRATION] Updated ${result.changes} history rows with NULL username to 'elfman'`);
+  }
+} catch (e) {
+  console.error("[MIGRATION] Failed to update NULL usernames:", e);
+}
 
 const createOriginalDocuments = db.prepare(`
   CREATE TABLE IF NOT EXISTS original_documents (
@@ -125,8 +144,8 @@ const insertOriginal = db.prepare(`
 `);
 
 const insertHistory = db.prepare(`
-  INSERT INTO history_documents (document_id, tags, title, correspondent)
-  VALUES (?, ?, ?, ?)
+  INSERT INTO history_documents (document_id, tags, title, correspondent, username)
+  VALUES (?, ?, ?, ?, ?)
 `);
 
 const insertUser = db.prepare(`
@@ -136,13 +155,18 @@ const insertUser = db.prepare(`
 
 // Add these prepared statements with your other ones at the top
 const getHistoryDocumentsCount = db.prepare(`
-  SELECT COUNT(*) as count FROM history_documents
+  SELECT COUNT(*) as count FROM history_documents WHERE username = ?
 `);
 
 const getPaginatedHistoryDocuments = db.prepare(`
   SELECT * FROM history_documents 
+  WHERE username = ?
   ORDER BY created_at DESC
   LIMIT ? OFFSET ?
+`);
+
+const getAllHistoryByUser = db.prepare(`
+  SELECT * FROM history_documents WHERE username = ? ORDER BY created_at DESC
 `);
 
 const createProcessingStatus = db.prepare(`
@@ -261,12 +285,16 @@ module.exports = {
     }
   },
 
-  async addToHistory(documentId, tagIds, title, correspondent) {
+  async addToHistory(documentId, tagIds, title, correspondent, username) {
+    if (!username) {
+      console.error('[ERROR] adding to history: username is required');
+      return false;
+    }
     try {
       const tagIdsString = JSON.stringify(tagIds); // Konvertiere Array zu String
-      const result = insertHistory.run(documentId, tagIdsString, title, correspondent);
+      const result = insertHistory.run(documentId, tagIdsString, title, correspondent, username);
       if (result.changes > 0) {
-        console.log(`[DEBUG] Document ${title} added to history`);
+        console.log(`[DEBUG] Document ${title} added to history by ${username}`);
         return true;
       }
       return false;
@@ -276,18 +304,25 @@ module.exports = {
     }
   },
 
-  async getHistory(id) {
+  async getHistory(id, username = null) {
     //check if id is provided else get all history
     if (id) {
       try {
-        //only one document with id exists
-        return db.prepare('SELECT * FROM history_documents WHERE document_id = ?').get(id);
+        if (username) {
+          return db.prepare('SELECT * FROM history_documents WHERE document_id = ? AND username = ?').get(id, username);
+        } else {
+          //only one document with id exists
+          return db.prepare('SELECT * FROM history_documents WHERE document_id = ?').get(id);
+        }
       } catch (error) {
         console.error('[ERROR] getting history for id:', id, error);
         return [];
       }
     } else {
       try {
+        if (username) {
+          return db.prepare('SELECT * FROM history_documents WHERE username = ?').all(username);
+        }
         return db.prepare('SELECT * FROM history_documents').all();
       } catch (error) {
         console.error('[ERROR] getting history for id:', id, error);
@@ -325,18 +360,18 @@ module.exports = {
     }
   },
 
-  async getAllHistory() {
+  async getAllHistory(username = 'elfman') {
     try {
-      return db.prepare('SELECT * FROM history_documents').all();
+      return getAllHistoryByUser.all(username);
     } catch (error) {
-      console.error('[ERROR] getting history:', error);
+      console.error('[ERROR] getting all history:', error);
       return [];
     }
   },
 
-  async getHistoryDocumentsCount() {
+  async getHistoryDocumentsCount(username = 'elfman') {
     try {
-      const result = getHistoryDocumentsCount.get();
+      const result = getHistoryDocumentsCount.get(username);
       return result.count;
     } catch (error) {
       console.error('[ERROR] getting history documents count:', error);
@@ -344,9 +379,9 @@ module.exports = {
     }
   },
   
-  async getPaginatedHistory(limit, offset) {
+  async getPaginatedHistory(limit, offset, username = 'elfman') {
     try {
-      return getPaginatedHistoryDocuments.all(limit, offset);
+      return getPaginatedHistoryDocuments.all(username, limit, offset);
     } catch (error) {
       console.error('[ERROR] getting paginated history:', error);
       return [];

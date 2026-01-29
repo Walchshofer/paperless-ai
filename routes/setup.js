@@ -1006,7 +1006,7 @@ router.get('/dashboard', async (req, res) => {
 
     let recentActivity = [];
     try {
-      recentActivity = await documentModel.getPaginatedHistory(5, 0);
+      recentActivity = await documentModel.getPaginatedHistory(5, 0, user.username);
     } catch (err) {
       console.error('[ERROR] getPaginatedHistory failed:', err.message);
       errors.push('recentActivity');
