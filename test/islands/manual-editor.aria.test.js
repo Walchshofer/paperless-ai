@@ -62,4 +62,30 @@ describe('island runtime - Manual Editor ARIA and focus', function () {
     // Now the second tab should be active
     assert.strictEqual(tabs[1].getAttribute('aria-selected'), 'true');
   });
+
+  it('all tabs expose aria-selected as string and toggle correctly', () => {
+    const anchor = document.createElement('div');
+    anchor.setAttribute('data-island', 'manual-editor-island');
+    anchor.setAttribute('data-testid', 'manual-editor-island');
+    anchor.setAttribute('data-props', JSON.stringify({ documentId: 123 }));
+    document.body.appendChild(anchor);
+
+    mountIslands(document);
+
+    const metaBtn = anchor.querySelector('[data-testid="tab-metadata"]');
+    const contentBtn = anchor.querySelector('[data-testid="tab-content"]');
+    const fieldsBtn = anchor.querySelector('[data-testid="tab-fields"]');
+    const aiBtn = anchor.querySelector('[data-testid="tab-ai-debug"]');
+
+    assert.ok(metaBtn && contentBtn && fieldsBtn && aiBtn, 'expected 4 tab buttons');
+
+    // Initially metadata active
+    assert.strictEqual(metaBtn.getAttribute('aria-selected'), 'true');
+    assert.strictEqual(typeof metaBtn.getAttribute('aria-selected'), 'string');
+
+    // Click fields tab
+    fieldsBtn.click();
+    assert.strictEqual(fieldsBtn.getAttribute('aria-selected'), 'true');
+    assert.strictEqual(metaBtn.getAttribute('aria-selected'), 'false');
+  });
 });

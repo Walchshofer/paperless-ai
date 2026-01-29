@@ -448,7 +448,7 @@ export default function PresetsManagerIsland(props: Partial<PresetsManagerSettin
           type="file"
           accept=".env"
           onChange={handleFileSelect}
-          style={{ display: 'none' }}
+          className="hidden"
           data-testid="file-input"
         />
       </div>

@@ -10,14 +10,10 @@ from prometheus_client import start_http_server, Summary, Counter
 sys.path.insert(0, os.getcwd())
 
 # Generated imports
-bias_service_pb2 = None
-bias_service_pb2_grpc = None
 try:
     from guidance.ipc.proto import bias_service_pb2, bias_service_pb2_grpc
 except ImportError as e:
-    logging.error(
-        f"Proto files not generated. Run setup_grpc.sh first. Error: {e}"
-    )
+    logging.critical(f"Failed to import proto files: {e}. Ensure setup_grpc.sh was run during build.")
     sys.exit(1)
 
 from guidance.engines.logit_bias_engine import LogitBiasEngine

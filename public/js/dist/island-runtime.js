@@ -1,6 +1,12 @@
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __commonJS = (cb, mod) => function __require() {
+var __require = /* @__PURE__ */ ((x4) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x4, {
+  get: (a3, b3) => (typeof require !== "undefined" ? require : a3)[b3]
+}) : x4)(function(x4) {
+  if (typeof require !== "undefined") return require.apply(this, arguments);
+  throw Error('Dynamic require of "' + x4 + '" is not supported');
+});
+var __commonJS = (cb, mod) => function __require2() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
 var __export = (target, all) => {
@@ -10,12 +16,78 @@ var __export = (target, all) => {
 
 // src/islands/FeedbackControlsIsland.module.css
 var require_FeedbackControlsIsland = __commonJS({
-  "src/islands/FeedbackControlsIsland.module.css"(exports, module) {
-    module.exports = {
+  "src/islands/FeedbackControlsIsland.module.css"(exports, module2) {
+    module2.exports = {
       root: "FeedbackControlsIsland_root",
       button: "FeedbackControlsIsland_button",
       buttonPressed: "FeedbackControlsIsland_buttonPressed"
     };
+  }
+});
+
+// src/islands/OverlayViewerIsland.module.css
+var require_OverlayViewerIsland = __commonJS({
+  "src/islands/OverlayViewerIsland.module.css"(exports, module2) {
+    module2.exports = {
+      legendDot: "OverlayViewerIsland_legendDot",
+      documentPane: "OverlayViewerIsland_documentPane",
+      viewport: "OverlayViewerIsland_viewport",
+      overlayBox: "OverlayViewerIsland_overlayBox",
+      overlayLabel: "OverlayViewerIsland_overlayLabel",
+      highlightRegion: "OverlayViewerIsland_highlightRegion",
+      selectionBoxContainer: "OverlayViewerIsland_selectionBoxContainer",
+      resultsPanel: "OverlayViewerIsland_resultsPanel"
+    };
+  }
+});
+
+// src/islands/overlay-utils.js
+var require_overlay_utils = __commonJS({
+  "src/islands/overlay-utils.js"(exports, module2) {
+    "use strict";
+    function computeUnscaledFromRaw(rawX, rawY, tx, ty, s3) {
+      return {
+        x: (rawX - tx) / s3,
+        y: (rawY - ty) / s3
+      };
+    }
+    function clampTranslate(tx, ty, s3, containerW, containerH, imageNatW, imageNatH, objectFit = "contain") {
+      let contentW = containerW;
+      let contentH = containerH;
+      if (imageNatW && imageNatH) {
+        if (objectFit === "contain") {
+          const scaleBase = Math.min(containerW / imageNatW, containerH / imageNatH) || 1;
+          contentW = imageNatW * scaleBase * s3;
+          contentH = imageNatH * scaleBase * s3;
+        } else if (objectFit === "cover") {
+          const scaleBase = Math.max(containerW / imageNatW, containerH / imageNatH) || 1;
+          contentW = imageNatW * scaleBase * s3;
+          contentH = imageNatH * scaleBase * s3;
+        }
+      } else {
+        contentW = containerW * s3;
+        contentH = containerH * s3;
+      }
+      let minX, maxX, minY, maxY;
+      if (contentW <= containerW) {
+        const centerX = (containerW - contentW) / 2;
+        minX = maxX = centerX;
+      } else {
+        minX = containerW - contentW;
+        maxX = 0;
+      }
+      if (contentH <= containerH) {
+        const centerY = (containerH - contentH) / 2;
+        minY = maxY = centerY;
+      } else {
+        minY = containerH - contentH;
+        maxY = 0;
+      }
+      const cx = Math.min(maxX, Math.max(minX, tx));
+      const cy = Math.min(maxY, Math.max(minY, ty));
+      return { x: cx, y: cy, contentW, contentH };
+    }
+    module2.exports = { computeUnscaledFromRaw, clampTranslate };
   }
 });
 
@@ -526,6 +598,82 @@ function VisualAnnotationIsland(props) {
   const [retryCount, setRetryCount] = d2(0);
   const [errorMessage, setErrorMessage] = d2("");
   const [retryNonce, setRetryNonce] = d2(0);
+  y2(() => {
+    if (props.annotations && Array.isArray(props.annotations)) {
+      try {
+        const mapped = props.annotations.map((a3) => ({
+          id: a3.id,
+          label: a3.label || "",
+          note: a3.note || "",
+          x: Number(a3.bbox?.x ?? a3.x ?? 0),
+          y: Number(a3.bbox?.y ?? a3.y ?? 0),
+          width: Number(a3.bbox?.width ?? a3.width ?? 0),
+          height: Number(a3.bbox?.height ?? a3.height ?? 0),
+          confirmed: true,
+          context: a3.context || void 0
+        }));
+        console.debug && console.debug("VisualAnnotationIsland init annotations", mapped);
+        setAnnotations(mapped);
+      } catch (e3) {
+      }
+    }
+  }, [props.annotations]);
+  y2(() => {
+    let aborted = false;
+    async function loadSaved() {
+      if (!props.documentId) return;
+      try {
+        const pageQuery = props.page !== void 0 && props.page !== null ? `?page=${props.page}` : "";
+        const resp = await fetch(`/manual/annotations/${props.documentId}${pageQuery}`, { headers: { "X-Request-Id": `load-annotations-${Date.now()}` } });
+        if (aborted) return;
+        if (resp.status === 401) {
+          console.warn("Annotations: authentication required to load annotations");
+          return;
+        }
+        if (!resp.ok) throw new Error(`Failed to load annotations: ${resp.status}`);
+        const json = await resp.json();
+        const anns = Array.isArray(json.annotations) ? json.annotations : [];
+        const mapped = anns.map((a3) => ({
+          id: a3.id,
+          label: a3.label || "",
+          note: a3.note || "",
+          x: Number(a3.bbox?.x ?? a3.x ?? 0),
+          y: Number(a3.bbox?.y ?? a3.y ?? 0),
+          width: Number(a3.bbox?.width ?? a3.width ?? 0),
+          height: Number(a3.bbox?.height ?? a3.height ?? 0),
+          confirmed: true,
+          context: a3.context || void 0
+        }));
+        setAnnotations(mapped);
+      } catch (e3) {
+        console.error("Failed to load annotations:", e3 && e3.message);
+      }
+    }
+    loadSaved();
+    return () => {
+      aborted = true;
+    };
+  }, [props.documentId, props.page]);
+  y2(() => {
+    const handler = (e3) => {
+      const anns = e3?.detail?.annotations;
+      if (!Array.isArray(anns)) return;
+      const mapped = anns.map((a3) => ({
+        id: a3.id,
+        label: a3.label || "",
+        note: a3.note || "",
+        x: Number(a3.bbox?.x ?? a3.x ?? 0),
+        y: Number(a3.bbox?.y ?? a3.y ?? 0),
+        width: Number(a3.bbox?.width ?? a3.width ?? 0),
+        height: Number(a3.bbox?.height ?? a3.height ?? 0),
+        confirmed: true,
+        context: a3.context || void 0
+      }));
+      setAnnotations(mapped);
+    };
+    document.addEventListener("annotations:loaded", handler);
+    return () => document.removeEventListener("annotations:loaded", handler);
+  }, []);
   const canvasRef = A2(null);
   const startRef = A2(null);
   const mountedRef = A2(true);
@@ -680,13 +828,65 @@ function VisualAnnotationIsland(props) {
       console.error("Failed to confirm match", e3);
     }
   };
-  const handleSave = () => {
+  const [isSaving, setIsSaving] = d2(false);
+  const [saveError, setSaveError] = d2("");
+  const [needsAuth, setNeedsAuth] = d2(false);
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveError("");
     const payload = {
       documentId: props.documentId || null,
       page: props.page || null,
-      annotations
+      annotations: annotations.map((a3) => ({ bbox: { x: a3.x, y: a3.y, width: a3.width, height: a3.height }, label: a3.label, note: a3.note }))
     };
-    document.dispatchEvent(new CustomEvent("payload:ready", { detail: payload }));
+    try {
+      const resp = await fetch("/manual/annotations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Request-Id": `save-annotations-${Date.now()}` },
+        body: JSON.stringify(payload)
+      });
+      if (resp.status === 401) {
+        setSaveError("Authentication required to save annotations");
+        setNeedsAuth(true);
+        setIsSaving(false);
+        return;
+      }
+      if (!resp.ok) throw new Error(`Save failed (${resp.status})`);
+      const json = await resp.json();
+      const created = Array.isArray(json.created) ? json.created : [];
+      const findMatch = (local, c3) => {
+        const cb = c3.bbox || c3;
+        const cx = Number(cb.x ?? (Array.isArray(cb) ? cb[1] : 0));
+        const cy = Number(cb.y ?? (Array.isArray(cb) ? cb[0] : 0));
+        const cwidth = Number(cb.width ?? (Array.isArray(cb) ? cb[3] - cb[1] : 0));
+        const cheight = Number(cb.height ?? (Array.isArray(cb) ? cb[2] - cb[0] : 0));
+        return Math.abs(local.x - cx) < 1e-3 && Math.abs(local.y - cy) < 1e-3 && Math.abs(local.width - cwidth) < 1e-3 && Math.abs(local.height - cheight) < 1e-3;
+      };
+      const newAnns = annotations.map((local) => {
+        const found = created.find((c3) => findMatch(local, c3));
+        if (found) {
+          return {
+            id: found.id,
+            label: local.label,
+            note: local.note,
+            x: Number(found.bbox?.x ?? local.x),
+            y: Number(found.bbox?.y ?? local.y),
+            width: Number(found.bbox?.width ?? local.width),
+            height: Number(found.bbox?.height ?? local.height),
+            confirmed: true,
+            context: found.context || local.context
+          };
+        }
+        return local;
+      });
+      setAnnotations(newAnns);
+      document.dispatchEvent(new CustomEvent("payload:ready", { detail: payload }));
+    } catch (e3) {
+      console.error("Failed to save annotations:", e3 && e3.message);
+      setSaveError(e3 && e3.message ? e3.message : "Failed to save annotations");
+    } finally {
+      setIsSaving(false);
+    }
   };
   const handleRetry = q2(() => {
     setStatus("idle");
@@ -746,7 +946,7 @@ function VisualAnnotationIsland(props) {
         {
           "data-testid": "draw-toggle",
           onClick: () => setIsDrawing(!isDrawing),
-          "aria-pressed": isDrawing ? "true" : "false",
+          "aria-pressed": String(isDrawing),
           disabled: status !== "ready",
           className: `vai-btn ${isDrawing ? "vai-btn-active" : ""}`,
           children: isDrawing ? "Drawing: ON" : "Draw Mode"
@@ -758,10 +958,31 @@ function VisualAnnotationIsland(props) {
           "data-testid": "save-annotations",
           onClick: handleSave,
           className: "vai-btn vai-btn-primary",
-          disabled: status !== "ready" || annotations.length === 0,
-          children: "Save Annotations"
+          disabled: status !== "ready" || annotations.length === 0 || isSaving,
+          children: isSaving ? "Saving..." : "Save Annotations"
         }
       ),
+      saveError && /* @__PURE__ */ u3("div", { className: "flex items-center gap-2 ml-2", children: [
+        /* @__PURE__ */ u3("div", { "data-testid": "annotation-save-error", className: "vai-save-error text-red-600", role: "alert", children: saveError }),
+        needsAuth && /* @__PURE__ */ u3(
+          "button",
+          {
+            "data-testid": "annotation-login-btn",
+            className: "vai-btn",
+            onClick: () => {
+              try {
+                document.dispatchEvent(new CustomEvent("auth:required", { detail: { redirect: window && window.location && window.location.pathname ? window.location.pathname : null } }));
+              } catch (e3) {
+                try {
+                  if (window && window.location) window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
+                } catch (e4) {
+                }
+              }
+            },
+            children: "Login to Save"
+          }
+        )
+      ] }),
       /* @__PURE__ */ u3("div", { "data-testid": "annotation-status", className: "vai-status", "aria-live": "polite", children: [
         annotations.length,
         " annotation",
@@ -824,10 +1045,22 @@ function VisualAnnotationIsland(props) {
               "data-testid": `annotation-label-${i4}`,
               placeholder: "Label",
               value: ann.label,
-              onInput: (e3) => {
+              onInput: async (e3) => {
                 const newAnns = [...annotations];
-                newAnns[i4].label = e3.target.value;
+                const val = e3.target.value;
+                newAnns[i4].label = val;
                 setAnnotations(newAnns);
+                try {
+                  if (newAnns[i4].id) {
+                    await fetch(`/manual/annotations/${newAnns[i4].id}`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ label: val })
+                    });
+                  }
+                } catch (err) {
+                  console.error("Failed to update annotation label", err);
+                }
               },
               className: "vai-input",
               "aria-label": `Label for annotation ${i4 + 1}`
@@ -861,7 +1094,21 @@ function VisualAnnotationIsland(props) {
           /* @__PURE__ */ u3(
             "button",
             {
-              onClick: () => setAnnotations(annotations.filter((_3, idx) => idx !== i4)),
+              onClick: async () => {
+                const annToRemove = annotations[i4];
+                if (annToRemove && annToRemove.id) {
+                  try {
+                    const resp = await fetch(`/manual/annotations/${annToRemove.id}`, { method: "DELETE" });
+                    if (!resp.ok) throw new Error("delete failed");
+                    setAnnotations(annotations.filter((_3, idx) => idx !== i4));
+                  } catch (err) {
+                    console.error("Failed to delete annotation", err);
+                    setAnnotations(annotations.filter((_3, idx) => idx !== i4));
+                  }
+                } else {
+                  setAnnotations(annotations.filter((_3, idx) => idx !== i4));
+                }
+              },
               className: "vai-btn vai-btn-danger",
               "data-testid": `remove-btn-${i4}`,
               "aria-label": `Remove annotation ${i4 + 1}`,
@@ -1205,7 +1452,7 @@ function FeedbackControlsIsland(props) {
               {
                 type: "button",
                 "data-testid": `thumbs-up-${c3}`,
-                "aria-pressed": stateMap[c3] === "up",
+                "aria-pressed": String(stateMap[c3] === "up"),
                 ref: (el) => {
                   refs.current[c3] = Object.assign(refs.current[c3] || {}, { up: el });
                 },
@@ -1220,7 +1467,7 @@ function FeedbackControlsIsland(props) {
               {
                 type: "button",
                 "data-testid": `thumbs-down-${c3}`,
-                "aria-pressed": stateMap[c3] === "down",
+                "aria-pressed": String(stateMap[c3] === "down"),
                 ref: (el) => {
                   refs.current[c3] = Object.assign(refs.current[c3] || {}, { down: el });
                 },
@@ -1318,9 +1565,7 @@ function ManualEditorIsland(props) {
   const [gpuState, setGpuState] = d2("idle");
   const [syncState, setSyncState] = d2("idle");
   const [syncError, setSyncError] = d2("");
-  const [documentId, setDocumentId] = d2(
-    props.documentId ?? null
-  );
+  const [documentId, setDocumentId] = d2(props.documentId || null);
   const normalizeFields = (contractFields) => {
     if (!contractFields || contractFields.length === 0) {
       return [{ name: "", value: "" }];
@@ -1334,7 +1579,7 @@ function ManualEditorIsland(props) {
   const [correspondent, setCorrespondent] = d2(props.metadata?.correspondent || "");
   const [documentType, setDocumentType] = d2(props.metadata?.documentType || "");
   const [content, setContent] = d2(props.content || "");
-  const [fields, setFields] = d2(() => normalizeFields(props.fields));
+  const [fields, setFields] = d2(normalizeFields(props.fields));
   const [initialValues] = d2({
     title: props.metadata?.title || "",
     correspondent: props.metadata?.correspondent || "",
@@ -1345,18 +1590,8 @@ function ManualEditorIsland(props) {
   const [aiResponse, setAiResponse] = d2(null);
   const [aiLoading, setAiLoading] = d2(false);
   const tabsRef = A2(null);
+  const tabRefs = A2({});
   const syncBadgeTimeoutRef = A2(null);
-  y2(() => {
-    const tabRoot = tabsRef.current;
-    if (!tabRoot) return;
-    const buttons = tabRoot.querySelectorAll('[role="tab"]');
-    const tabOrder = ["metadata", "content", "fields", "ai-debug"];
-    buttons.forEach((btn, i4) => {
-      const isSelected = tabOrder[i4] === active;
-      btn.setAttribute("aria-selected", isSelected ? "true" : "false");
-      btn.setAttribute("tabindex", isSelected ? "0" : "-1");
-    });
-  }, [active]);
   y2(() => {
     let mounted = true;
     const checkGpu = async () => {
@@ -1392,7 +1627,12 @@ function ManualEditorIsland(props) {
       }
       if (meta.title !== void 0) setTitle(meta.title || "");
       if (meta.content !== void 0) setContent(meta.content || "");
-      if (meta.correspondent !== void 0) setCorrespondent(meta.correspondent || "");
+      if (meta.correspondent !== void 0) {
+        setCorrespondent(meta.correspondent || "");
+      }
+      if (meta.documentType !== void 0) {
+        setDocumentType(meta.documentType || "");
+      }
     };
     window.addEventListener("manual:metadata-updated", onMetadataUpdated);
     return () => window.removeEventListener("manual:metadata-updated", onMetadataUpdated);
@@ -1405,7 +1645,7 @@ function ManualEditorIsland(props) {
       } catch (err) {
       }
       const normalized = f4 && f4.length > 0 ? f4.map((it) => ({ name: it.label || it.name || "", value: it.value != null ? String(it.value) : "" })) : [];
-      setFields(normalizeFields(normalized));
+      setFields(normalized);
     };
     window.addEventListener("manual:fields-updated", onFieldsUpdated);
     return () => window.removeEventListener("manual:fields-updated", onFieldsUpdated);
@@ -1438,6 +1678,14 @@ function ManualEditorIsland(props) {
     } catch (e3) {
     }
   }, []);
+  y2(() => {
+    ["metadata", "content", "fields", "ai-debug"].forEach((tab) => {
+      const ref = tabRefs.current[tab];
+      if (ref) {
+        ref.setAttribute("aria-selected", active === tab ? "true" : "false");
+      }
+    });
+  }, [active]);
   const onKeyDown = q2((e3) => {
     const order = ["metadata", "content", "fields", "ai-debug"];
     const idx = order.indexOf(active);
@@ -1524,8 +1772,8 @@ function ManualEditorIsland(props) {
         feedback_events.push({
           event_type: "correction",
           field_name: `custom_field:${field.name}`,
-          original_value: originalValue,
-          corrected_value: field.value,
+          original_value: String(originalValue || ""),
+          corrected_value: String(field.value),
           context: { page, request_id: requestId }
         });
       }
@@ -1625,10 +1873,12 @@ function ManualEditorIsland(props) {
               id: "tab-metadata-btn",
               type: "button",
               role: "tab",
-              "aria-selected": active === "metadata",
               tabIndex: active === "metadata" ? 0 : -1,
               "aria-controls": "panel-metadata",
               "data-testid": "tab-metadata",
+              ref: (el) => {
+                tabRefs.current["metadata"] = el;
+              },
               onClick: () => setActive("metadata"),
               className: `mei-tab ${active === "metadata" ? "mei-tab-active" : ""}`,
               children: "Metadata"
@@ -1640,10 +1890,12 @@ function ManualEditorIsland(props) {
               id: "tab-content-btn",
               type: "button",
               role: "tab",
-              "aria-selected": active === "content",
               tabIndex: active === "content" ? 0 : -1,
               "aria-controls": "panel-content",
               "data-testid": "tab-content",
+              ref: (el) => {
+                tabRefs.current["content"] = el;
+              },
               onClick: () => setActive("content"),
               className: `mei-tab ${active === "content" ? "mei-tab-active" : ""}`,
               children: "Content"
@@ -1655,10 +1907,12 @@ function ManualEditorIsland(props) {
               id: "tab-fields-btn",
               type: "button",
               role: "tab",
-              "aria-selected": active === "fields",
               tabIndex: active === "fields" ? 0 : -1,
               "aria-controls": "panel-fields",
               "data-testid": "tab-fields",
+              ref: (el) => {
+                tabRefs.current["fields"] = el;
+              },
               onClick: () => setActive("fields"),
               className: `mei-tab ${active === "fields" ? "mei-tab-active" : ""}`,
               children: "Fields"
@@ -1670,10 +1924,12 @@ function ManualEditorIsland(props) {
               id: "tab-ai-debug-btn",
               type: "button",
               role: "tab",
-              "aria-selected": active === "ai-debug",
               tabIndex: active === "ai-debug" ? 0 : -1,
               "aria-controls": "panel-ai-debug",
               "data-testid": "tab-ai-debug",
+              ref: (el) => {
+                tabRefs.current["ai-debug"] = el;
+              },
               onClick: () => setActive("ai-debug"),
               className: `mei-tab ${active === "ai-debug" ? "mei-tab-active" : ""}`,
               children: [
@@ -1852,12 +2108,13 @@ function ManualEditorIsland(props) {
                 {
                   type: "button",
                   onClick: runAiAnalysis,
-                  disabled: aiLoading,
+                  disabled: aiLoading || !content || !content.trim(),
                   className: "mei-btn mei-btn-primary",
                   "data-testid": "run-ai-analysis-btn",
                   children: aiLoading ? "Analyzing..." : "Run AI Analysis"
                 }
               ),
+              !content || !content.trim() ? /* @__PURE__ */ u3("p", { className: "mei-gpu-hint", "data-testid": "ai-no-content-hint", children: 'No document content available. Switch to the "Content" tab or paste text into the document content field before running analysis.' }) : null,
               aiResponse && /* @__PURE__ */ u3("div", { className: "mei-ai-response", "data-testid": "ai-response", children: [
                 /* @__PURE__ */ u3("h4", { children: "AI Response" }),
                 /* @__PURE__ */ u3("pre", { className: "mei-ai-json", children: JSON.stringify(aiResponse, null, 2) })
@@ -2480,6 +2737,11 @@ function HistoryTabsIsland(props) {
 }
 
 // src/islands/OverlayViewerIsland.tsx
+var styles2 = {};
+try {
+  styles2 = require_OverlayViewerIsland();
+} catch (e3) {
+}
 var MIN_SELECTION_SIZE = 20;
 var MIN_SIZE_FRACTION = 0.01;
 function OverlayViewerIsland(props) {
@@ -2518,6 +2780,14 @@ function OverlayViewerIsland(props) {
       setDocId(initialDocumentId);
     }
   }, [initialDocumentId]);
+  const overlayUtils = typeof __require !== "undefined" ? require_overlay_utils() : null;
+  const computeUnscaledFromRaw = overlayUtils ? overlayUtils.computeUnscaledFromRaw : (rawX, rawY, tx, ty, s3) => ({ x: (rawX - tx) / s3, y: (rawY - ty) / s3 });
+  try {
+    if (typeof module !== "undefined" && module && module.exports) {
+      module.exports.computeUnscaledFromRaw = computeUnscaledFromRaw;
+    }
+  } catch (e3) {
+  }
   const normalizeOverlayBox = q2((box) => {
     if (!box) return null;
     const x4 = Number(box.x ?? 0);
@@ -2527,12 +2797,12 @@ function OverlayViewerIsland(props) {
     if (!Number.isFinite(x4) || !Number.isFinite(y3)) return null;
     if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
     const maxVal = Math.max(x4 + width, y3 + height);
-    const scale = maxVal <= 1 ? 1 : 1e3;
+    const scale2 = maxVal <= 1 ? 1 : 1e3;
     return {
-      left: x4 / scale * 100,
-      top: y3 / scale * 100,
-      width: width / scale * 100,
-      height: height / scale * 100
+      left: x4 / scale2 * 100,
+      top: y3 / scale2 * 100,
+      width: width / scale2 * 100,
+      height: height / scale2 * 100
     };
   }, []);
   const [isDrawMode, setIsDrawMode] = d2(false);
@@ -2553,6 +2823,105 @@ function OverlayViewerIsland(props) {
   const [mandatoryOnly, setMandatoryOnly] = d2(false);
   const [overlayDomain, setOverlayDomain] = d2("general");
   const selectionEnabled = allowSelection !== false;
+  const viewportRef = A2(null);
+  const [scale, setScale] = d2(1);
+  const scaleRef = A2(1);
+  const [translateX, setTranslateX] = d2(0);
+  const [translateY, setTranslateY] = d2(0);
+  const translateRef = A2({ x: 0, y: 0 });
+  const [panMode, setPanMode] = d2(false);
+  const panActiveRef = A2(false);
+  const lastPanPointRef = A2(null);
+  const drawModeButtonRef = A2(null);
+  const panModeButtonRef = A2(null);
+  const [showResults, setShowResults] = d2(false);
+  const [results, setResults] = d2([]);
+  const [resultsLoading, setResultsLoading] = d2(false);
+  const [resultsError, setResultsError] = d2(null);
+  const [splitPos, setSplitPos] = d2(60);
+  const [isResizing, setIsResizing] = d2(false);
+  const [highlightedRegion, setHighlightedRegion] = d2(null);
+  y2(() => {
+    const handler = (e3) => {
+      const { bbox, page: targetPage } = e3.detail || {};
+      if (targetPage && targetPage !== page) setPage(targetPage);
+      if (bbox) {
+        setHighlightedRegion({ ...bbox, id: "highlight" });
+        setTimeout(() => setHighlightedRegion(null), 5e3);
+      }
+    };
+    window.addEventListener("overlay:highlight-region", handler);
+    return () => window.removeEventListener("overlay:highlight-region", handler);
+  }, [page]);
+  const MIN_SCALE = 0.5;
+  const MAX_SCALE = 3;
+  const SCALE_STEP = 0.1;
+  const applyScale = q2((next) => {
+    const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next));
+    scaleRef.current = clamped;
+    setScale(clamped);
+  }, []);
+  const clampTranslate = q2((tx, ty, s3) => {
+    const container = containerRef.current;
+    if (!container) return { x: tx, y: ty };
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+    const img = imageRef.current;
+    const natW = img && img.naturalWidth ? img.naturalWidth : null;
+    const natH = img && img.naturalHeight ? img.naturalHeight : null;
+    try {
+      const utils = require_overlay_utils();
+      const clamped = utils.clampTranslate(tx, ty, s3, cw, ch, natW, natH, "contain");
+      return { x: clamped.x, y: clamped.y };
+    } catch (e3) {
+      const minX = Math.min(0, cw - cw * s3);
+      const maxX = 0;
+      const minY = Math.min(0, ch - ch * s3);
+      const maxY = 0;
+      const cx = Math.min(maxX, Math.max(minX, tx));
+      const cy = Math.min(maxY, Math.max(minY, ty));
+      return { x: cx, y: cy };
+    }
+  }, []);
+  const applyTranslate = q2((x4, y3) => {
+    const clamped = clampTranslate(x4, y3, scaleRef.current || 1);
+    translateRef.current = { x: clamped.x, y: clamped.y };
+    setTranslateX(clamped.x);
+    setTranslateY(clamped.y);
+  }, [clampTranslate]);
+  const resetView = q2(() => {
+    applyScale(1);
+    applyTranslate(0, 0);
+  }, [applyScale, applyTranslate]);
+  const zoomIn = q2(() => applyScale(scaleRef.current + SCALE_STEP), [applyScale]);
+  const zoomOut = q2(() => applyScale(scaleRef.current - SCALE_STEP), [applyScale]);
+  const handleWheel = q2((e3) => {
+    if (!viewportRef.current || !containerRef.current) return;
+    const delta = -e3.deltaY;
+    const factor = e3.ctrlKey || e3.metaKey ? 15e-4 : 25e-4;
+    const s3 = scaleRef.current || 1;
+    const nextS = Math.min(MAX_SCALE, Math.max(MIN_SCALE, s3 * (1 + delta * factor)));
+    if (Math.abs(nextS - s3) < 1e-5) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const rawX = e3.clientX - rect.left;
+    const rawY = e3.clientY - rect.top;
+    const sx = nextS / s3;
+    const currentTx = translateRef.current.x || 0;
+    const currentTy = translateRef.current.y || 0;
+    const nextTx = currentTx * sx + rawX * (1 - sx);
+    const nextTy = currentTy * sx + rawY * (1 - sx);
+    applyScale(nextS);
+    applyTranslate(nextTx, nextTy);
+    e3.preventDefault();
+  }, [applyScale, applyTranslate]);
+  const togglePanMode = q2(() => {
+    const next = !panMode;
+    setPanMode(next);
+    if (next) {
+      drawModeRef.current = false;
+      setIsDrawMode(false);
+    }
+  }, [panMode]);
   const imageUrl = docId ? originalUrl ? `${originalUrl}${originalUrl.includes("?") ? "&" : "?"}page=${page}` : `/documents/${docId}/download/original/?page=${page}` : null;
   y2(() => {
     if (!imageUrl) return;
@@ -2573,9 +2942,7 @@ function OverlayViewerIsland(props) {
       }
       setImageLoaded(true);
     };
-    img.onerror = () => {
-      setImageError("Failed to load document image");
-    };
+    img.onerror = () => setImageError("Failed to load document image");
     img.src = imageUrl;
   }, [imageUrl]);
   y2(() => {
@@ -2590,9 +2957,7 @@ function OverlayViewerIsland(props) {
       setOverlayLoading(true);
       setOverlayError(null);
       try {
-        const response = await fetch(
-          `/api/visual-rag/overlays/${docId}?page=${page}`
-        );
+        const response = await fetch(`/api/visual-rag/overlays/${docId}?page=${page}`);
         if (!response.ok) throw new Error("Failed to load overlays");
         const data = await response.json();
         const overlays = Array.isArray(data.overlays) ? data.overlays : [];
@@ -2611,10 +2976,55 @@ function OverlayViewerIsland(props) {
       }
     };
     void loadOverlays();
+    resetView();
     return () => {
       cancelled = true;
     };
-  }, [overlayMode, docId, page]);
+  }, [overlayMode, docId, page, resetView]);
+  y2(() => {
+    let cancelled = false;
+    const loadUserAnnotations = async () => {
+      if (!docId) return;
+      try {
+        const resp = await fetch(`/manual/annotations/${docId}?page=${page}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (cancelled) return;
+        const anns = Array.isArray(data.annotations) ? data.annotations : [];
+        document.dispatchEvent(new CustomEvent("annotations:loaded", { detail: { annotations: anns } }));
+      } catch (err) {
+        console.warn("Failed to load user annotations", err && err.message ? err.message : err);
+      }
+    };
+    void loadUserAnnotations();
+    const saveListener = async (e3) => {
+      const payload = e3?.detail;
+      if (!payload || !payload.documentId || !Array.isArray(payload.annotations)) return;
+      try {
+        const resp = await fetch("/manual/annotations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (!resp.ok) {
+          const txt = await resp.text();
+          console.error("Failed to persist annotations", txt);
+          return;
+        }
+        const result = await resp.json();
+        if (cancelled) return;
+        const created = Array.isArray(result.created) ? result.created : [];
+        document.dispatchEvent(new CustomEvent("annotations:loaded", { detail: { annotations: created } }));
+      } catch (err) {
+        console.error("Annotation save failed", err && err.message ? err.message : err);
+      }
+    };
+    document.addEventListener("payload:ready", saveListener);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("payload:ready", saveListener);
+    };
+  }, [docId, page]);
   y2(() => {
     let cancelled = false;
     const loadLegend = async () => {
@@ -2633,6 +3043,35 @@ function OverlayViewerIsland(props) {
       cancelled = true;
     };
   }, [overlayDomain, showLegend]);
+  y2(() => {
+    const handler = async (e3) => {
+      const customEvent = e3;
+      const { imageBase64, collection } = customEvent.detail;
+      setResultsLoading(true);
+      setResultsError(null);
+      setShowResults(true);
+      setResults([]);
+      try {
+        const response = await fetch("/api/visual-rag/search/visual", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: imageBase64, collection, k: 10 })
+        });
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`Search failed: ${response.status} ${text}`);
+        }
+        const data = await response.json();
+        setResults(Array.isArray(data.results) ? data.results : []);
+      } catch (err) {
+        setResultsError(err.message || "Visual search failed");
+      } finally {
+        setResultsLoading(false);
+      }
+    };
+    window.addEventListener("visual-search-requested", handler);
+    return () => window.removeEventListener("visual-search-requested", handler);
+  }, []);
   const getRelativePosition = q2(
     (e3) => {
       const container = containerRef.current;
@@ -2647,10 +3086,12 @@ function OverlayViewerIsland(props) {
         clientX = e3.clientX;
         clientY = e3.clientY;
       }
-      return {
-        x: clientX - rect.left,
-        y: clientY - rect.top
-      };
+      const tx = translateRef.current.x || 0;
+      const ty = translateRef.current.y || 0;
+      const s3 = scaleRef.current || 1;
+      const rawX = clientX - rect.left;
+      const rawY = clientY - rect.top;
+      return { x: (rawX - tx) / s3, y: (rawY - ty) / s3 };
     },
     []
   );
@@ -2659,13 +3100,7 @@ function OverlayViewerIsland(props) {
       if (!selectionEnabled || !drawModeRef.current) return;
       e3.preventDefault();
       const pos = getRelativePosition(e3);
-      const nextBox = {
-        id: `box-${Date.now()}`,
-        x: pos.x,
-        y: pos.y,
-        width: 0,
-        height: 0
-      };
+      const nextBox = { id: `box-${Date.now()}`, x: pos.x, y: pos.y, width: 0, height: 0 };
       isDrawingRef.current = true;
       currentBoxRef.current = nextBox;
       setIsDrawing(true);
@@ -2689,8 +3124,8 @@ function OverlayViewerIsland(props) {
     },
     [getRelativePosition]
   );
-  const captureAndDispatch = q2(
-    async (box) => {
+  const captureRegion = q2(
+    async (box, eventName) => {
       const container = containerRef.current;
       const img = imageRef.current;
       if (!container || !img) return;
@@ -2710,24 +3145,14 @@ function OverlayViewerIsland(props) {
         canvas.width = srcWidth;
         canvas.height = srcHeight;
         if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-          ctx.drawImage(
-            img,
-            srcX,
-            srcY,
-            srcWidth,
-            srcHeight,
-            0,
-            0,
-            srcWidth,
-            srcHeight
-          );
+          ctx.drawImage(img, srcX, srcY, srcWidth, srcHeight, 0, 0, srcWidth, srcHeight);
         } else {
           ctx.fillStyle = "#ffffff";
           ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
         const dataUrl = canvas.toDataURL("image/png");
         const base64 = dataUrl.split(",")[1];
-        const event = new CustomEvent("visual-search-requested", {
+        const event = new CustomEvent(eventName, {
           detail: {
             imageBase64: base64,
             collection: "visual_pages",
@@ -2744,7 +3169,7 @@ function OverlayViewerIsland(props) {
         if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
           window.dispatchEvent(event);
         }
-        if (onRegionSelected) {
+        if (eventName === "visual-search-requested" && onRegionSelected) {
           onRegionSelected(base64, box);
         }
       } catch (err) {
@@ -2796,8 +3221,8 @@ function OverlayViewerIsland(props) {
     setBoxes((prev) => [...prev, normalizedBox]);
     currentBoxRef.current = null;
     setCurrentBox(null);
-    captureAndDispatch(normalizedBox);
-  }, [captureAndDispatch, getRelativePosition]);
+    captureRegion(normalizedBox, "visual-search-requested");
+  }, [captureRegion, getRelativePosition]);
   const removeBox = q2((boxId) => {
     setBoxes((prev) => prev.filter((b3) => b3.id !== boxId));
   }, []);
@@ -2820,6 +3245,14 @@ function OverlayViewerIsland(props) {
   y2(() => {
     drawModeRef.current = isDrawMode;
   }, [isDrawMode]);
+  y2(() => {
+    if (drawModeButtonRef.current) {
+      drawModeButtonRef.current.setAttribute("aria-pressed", isDrawMode ? "true" : "false");
+    }
+    if (panModeButtonRef.current) {
+      panModeButtonRef.current.setAttribute("aria-pressed", panMode ? "true" : "false");
+    }
+  }, [isDrawMode, panMode]);
   const changePage = q2((delta) => {
     const next = Math.max(1, page + delta);
     if (pageCount && next > pageCount) return;
@@ -2833,69 +3266,120 @@ function OverlayViewerIsland(props) {
   }, [page, pageCount, docId, originalUrl]);
   y2(() => {
     const handleGlobalUp = (event) => {
-      if (isDrawingRef.current) {
-        handleMouseUp(event);
+      if (isDrawingRef.current) handleMouseUp(event);
+      if (isResizing) setIsResizing(false);
+    };
+    const handleGlobalMove = (e3) => {
+      if (isResizing) {
+        const container = containerRef.current?.parentElement?.parentElement;
+        if (container) {
+          const rect = container.getBoundingClientRect();
+          const percent = (e3.clientX - rect.left) / rect.width * 100;
+          setSplitPos(Math.min(80, Math.max(20, percent)));
+        }
       }
     };
     window.addEventListener("pointerup", handleGlobalUp);
     window.addEventListener("mouseup", handleGlobalUp);
     window.addEventListener("touchend", handleGlobalUp);
+    window.addEventListener("mousemove", handleGlobalMove);
     return () => {
       window.removeEventListener("pointerup", handleGlobalUp);
       window.removeEventListener("mouseup", handleGlobalUp);
       window.removeEventListener("touchend", handleGlobalUp);
+      window.removeEventListener("mousemove", handleGlobalMove);
     };
+  }, [handleMouseUp, isResizing]);
+  y2(() => {
+    const node = containerRef.current;
+    if (!node) return;
+    node.addEventListener("wheel", handleWheel, { passive: false });
+    return () => node.removeEventListener("wheel", handleWheel);
+  }, [handleWheel]);
+  y2(() => {
+    const handler = (e3) => {
+      if (e3.target) {
+        const t3 = e3.target;
+        const tag = (t3.tagName || "").toUpperCase();
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t3.isContentEditable) return;
+      }
+      if (e3.key === "+" || e3.key === "=") {
+        zoomIn();
+        e3.preventDefault();
+      } else if (e3.key === "-") {
+        zoomOut();
+        e3.preventDefault();
+      } else if (e3.key === "0" || e3.key.toLowerCase() === "r") {
+        resetView();
+        e3.preventDefault();
+      } else if (e3.code === "Space") {
+        togglePanMode();
+        e3.preventDefault();
+      } else if (e3.key.startsWith("Arrow") && panMode) {
+        const step = 20;
+        if (e3.key === "ArrowLeft") applyTranslate(translateRef.current.x + step, translateRef.current.y);
+        if (e3.key === "ArrowRight") applyTranslate(translateRef.current.x - step, translateRef.current.y);
+        if (e3.key === "ArrowUp") applyTranslate(translateRef.current.x, translateRef.current.y + step);
+        if (e3.key === "ArrowDown") applyTranslate(translateRef.current.x, translateRef.current.y - step);
+        e3.preventDefault();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [zoomIn, zoomOut, resetView, togglePanMode, panMode, applyTranslate]);
+  const handlePointerDown = q2((e3) => {
+    if (panMode) {
+      panActiveRef.current = true;
+      lastPanPointRef.current = { x: e3.clientX, y: e3.clientY };
+      if (containerRef.current?.setPointerCapture) containerRef.current.setPointerCapture(e3.pointerId);
+      e3.preventDefault();
+      return;
+    }
+    if (!selectionEnabled || !drawModeRef.current) return;
+    pointerActiveRef.current = true;
+    if (containerRef.current?.setPointerCapture) containerRef.current.setPointerCapture(e3.pointerId);
+    handleMouseDown(e3);
+  }, [handleMouseDown, panMode]);
+  const handlePointerMove = q2((e3) => {
+    if (panActiveRef.current && lastPanPointRef.current) {
+      const last = lastPanPointRef.current;
+      const dx = e3.clientX - last.x;
+      const dy = e3.clientY - last.y;
+      const nextX = (translateRef.current.x || 0) + dx;
+      const nextY = (translateRef.current.y || 0) + dy;
+      applyTranslate(nextX, nextY);
+      lastPanPointRef.current = { x: e3.clientX, y: e3.clientY };
+      e3.preventDefault();
+      return;
+    }
+    handleMouseMove(e3);
+  }, [handleMouseMove, applyTranslate]);
+  const handlePointerUp = q2((e3) => {
+    if (panActiveRef.current) {
+      panActiveRef.current = false;
+      lastPanPointRef.current = null;
+      if (containerRef.current?.releasePointerCapture) containerRef.current.releasePointerCapture(e3.pointerId);
+      e3.preventDefault();
+      return;
+    }
+    handleMouseUp(e3);
+    pointerActiveRef.current = false;
+    if (containerRef.current?.releasePointerCapture) containerRef.current.releasePointerCapture(e3.pointerId);
   }, [handleMouseUp]);
-  const handlePointerDown = q2(
-    (e3) => {
-      if (!selectionEnabled || !drawModeRef.current) return;
-      pointerActiveRef.current = true;
-      if (containerRef.current?.setPointerCapture) {
-        containerRef.current.setPointerCapture(e3.pointerId);
-      }
-      handleMouseDown(e3);
-    },
-    [handleMouseDown]
-  );
-  const handlePointerMove = q2(
-    (e3) => {
-      handleMouseMove(e3);
-    },
-    [handleMouseMove]
-  );
-  const handlePointerUp = q2(
-    (e3) => {
-      handleMouseUp(e3);
-      pointerActiveRef.current = false;
-      if (containerRef.current?.releasePointerCapture) {
-        containerRef.current.releasePointerCapture(e3.pointerId);
-      }
-    },
-    [handleMouseUp]
-  );
   const handlePointerCancel = q2((e3) => {
     pointerActiveRef.current = false;
-    if (containerRef.current?.releasePointerCapture) {
-      containerRef.current.releasePointerCapture(e3.pointerId);
-    }
+    panActiveRef.current = false;
+    lastPanPointRef.current = null;
+    if (containerRef.current?.releasePointerCapture) containerRef.current.releasePointerCapture(e3.pointerId);
   }, []);
-  const handleMouseDownFallback = q2(
-    (e3) => {
-      if (pointerActiveRef.current) return;
-      handleMouseDown(e3);
-    },
-    [handleMouseDown]
-  );
-  const handleMouseMoveFallback = q2(
-    (e3) => {
-      if (pointerActiveRef.current) return;
-      handleMouseMove(e3);
-    },
-    [handleMouseMove]
-  );
+  const handleMouseDownFallback = q2((e3) => {
+    if (!pointerActiveRef.current) handleMouseDown(e3);
+  }, [handleMouseDown]);
+  const handleMouseMoveFallback = q2((e3) => {
+    if (!pointerActiveRef.current) handleMouseMove(e3);
+  }, [handleMouseMove]);
   const handleMouseUpFallback = q2((e3) => {
-    if (pointerActiveRef.current) return;
-    handleMouseUp(e3);
+    if (!pointerActiveRef.current) handleMouseUp(e3);
   }, [handleMouseUp]);
   const visibleOverlays = T2(() => {
     if (!overlayItems || overlayItems.length === 0) return [];
@@ -2921,18 +3405,8 @@ function OverlayViewerIsland(props) {
     if (currentBox && isDrawing) {
       ctx.strokeStyle = "rgba(255, 140, 0, 0.9)";
       ctx.fillStyle = "rgba(255, 140, 0, 0.2)";
-      ctx.strokeRect(
-        currentBox.x,
-        currentBox.y,
-        currentBox.width,
-        currentBox.height
-      );
-      ctx.fillRect(
-        currentBox.x,
-        currentBox.y,
-        currentBox.width,
-        currentBox.height
-      );
+      ctx.strokeRect(currentBox.x, currentBox.y, currentBox.width, currentBox.height);
+      ctx.fillRect(currentBox.x, currentBox.y, currentBox.width, currentBox.height);
     }
   }, [boxes, currentBox, isDrawing]);
   return /* @__PURE__ */ u3(
@@ -2943,15 +3417,15 @@ function OverlayViewerIsland(props) {
       "data-has-boxes": boxes.length,
       "data-has-warning": warning ? "true" : "false",
       "data-original-url": originalUrl || "",
-      className: "h-full flex flex-col",
+      className: "h-full flex flex-col overflow-hidden",
       children: [
-        /* @__PURE__ */ u3("div", { className: "flex flex-wrap items-center gap-2 p-2 border-b border-gray-200", children: [
+        /* @__PURE__ */ u3("div", { className: "flex flex-wrap items-center gap-2 p-2 border-b border-gray-200 bg-white z-10", children: [
           selectionEnabled && /* @__PURE__ */ u3(
             "button",
             {
               "data-testid": "red-pen-toggle",
               onClick: toggleDrawMode,
-              "aria-pressed": isDrawMode ? "true" : "false",
+              ref: drawModeButtonRef,
               className: `px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${isDrawMode ? "bg-red-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`,
               children: [
                 /* @__PURE__ */ u3("i", { className: `fas fa-pen mr-1.5 ${isDrawMode ? "animate-pulse" : ""}` }),
@@ -2993,9 +3467,27 @@ function OverlayViewerIsland(props) {
             ] })
           ] }),
           showLegend && legend.length > 0 && /* @__PURE__ */ u3("div", { "data-testid": "overlay-legend", className: "flex flex-wrap items-center gap-2 text-xs text-gray-600", children: legend.map((item) => /* @__PURE__ */ u3("div", { className: "flex items-center gap-1", children: [
-            /* @__PURE__ */ u3("span", { style: { width: 12, height: 12, background: item.color, display: "inline-block", borderRadius: 2 }, "aria-hidden": "true" }),
+            /* @__PURE__ */ u3("span", { className: `${styles2.legendDot} [--dot-color:${item.color}]`, "aria-hidden": "true" }),
             /* @__PURE__ */ u3("span", { children: item.label })
           ] }, item.key)) }),
+          /* @__PURE__ */ u3("div", { className: "flex items-center gap-2 px-2", children: [
+            /* @__PURE__ */ u3("button", { "aria-label": "Zoom out", "data-testid": "overlay-zoom-out", onClick: zoomOut, className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "-" }),
+            /* @__PURE__ */ u3("span", { "data-testid": "overlay-zoom-percentage", className: "text-xs text-gray-500 w-8 text-center", children: [
+              Math.round(scale * 100),
+              "%"
+            ] }),
+            /* @__PURE__ */ u3("button", { "aria-label": "Zoom in", "data-testid": "overlay-zoom-in", onClick: zoomIn, className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "+" }),
+            /* @__PURE__ */ u3("button", { "aria-label": "Reset zoom", "data-testid": "overlay-zoom-reset", onClick: resetView, className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "Reset" }),
+            /* @__PURE__ */ u3("button", { "data-testid": "overlay-pan-toggle", onClick: togglePanMode, ref: panModeButtonRef, className: `px-2 py-1 rounded hover:bg-gray-200 ${panMode ? "bg-gray-300" : "bg-gray-100"}`, children: "Pan" })
+          ] }),
+          showResults && /* @__PURE__ */ u3("button", { onClick: () => setShowResults(false), className: "px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs ml-2 hover:bg-blue-200", children: [
+            /* @__PURE__ */ u3("i", { className: "fas fa-columns mr-1" }),
+            " Hide Results"
+          ] }),
+          !showResults && results.length > 0 && /* @__PURE__ */ u3("button", { onClick: () => setShowResults(true), className: "px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs ml-2 hover:bg-blue-200", children: [
+            /* @__PURE__ */ u3("i", { className: "fas fa-columns mr-1" }),
+            " Show Results"
+          ] }),
           /* @__PURE__ */ u3("div", { className: "ml-auto flex items-center gap-2", children: [
             /* @__PURE__ */ u3(
               "button",
@@ -3004,11 +3496,11 @@ function OverlayViewerIsland(props) {
                 onClick: () => changePage(-1),
                 "aria-label": "Previous page",
                 disabled: page <= 1,
-                className: "px-2 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed",
+                className: "px-2 py-1 bg-gray-100 text-gray-700 rounded border border-gray-300 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed",
                 children: /* @__PURE__ */ u3("i", { className: "fas fa-chevron-left" })
               }
             ),
-            /* @__PURE__ */ u3("span", { "data-testid": "overlay-page-indicator", className: "text-xs text-gray-400", children: [
+            /* @__PURE__ */ u3("span", { "data-testid": "overlay-page-indicator", className: "text-xs text-gray-500", children: [
               "Page ",
               page,
               pageCount ? ` of ${pageCount}` : ""
@@ -3020,7 +3512,7 @@ function OverlayViewerIsland(props) {
                 onClick: () => changePage(1),
                 "aria-label": "Next page",
                 disabled: pageCount ? page >= pageCount : false,
-                className: "px-2 py-1 bg-bg-secondary text-text-primary rounded border border-border-color hover:bg-hover-bg disabled:opacity-50 disabled:cursor-not-allowed",
+                className: "px-2 py-1 bg-gray-100 text-gray-700 rounded border border-gray-300 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed",
                 children: /* @__PURE__ */ u3("i", { className: "fas fa-chevron-right" })
               }
             )
@@ -3037,148 +3529,398 @@ function OverlayViewerIsland(props) {
             ]
           }
         ),
-        /* @__PURE__ */ u3(
-          "div",
-          {
-            ref: containerRef,
-            "data-testid": "overlay-container",
-            className: "relative flex-1 overflow-hidden bg-gray-100",
-            style: {
-              cursor: isDrawMode ? "crosshair" : "default",
-              touchAction: isDrawMode ? "none" : "auto"
-            },
-            onPointerDown: handlePointerDown,
-            onPointerMove: handlePointerMove,
-            onPointerUp: handlePointerUp,
-            onPointerCancel: handlePointerCancel,
-            onPointerLeave: () => {
-              if (isDrawingRef.current) handleMouseUp();
-            },
-            onMouseDown: handleMouseDownFallback,
-            onMouseMove: handleMouseMoveFallback,
-            onMouseUp: handleMouseUpFallback,
-            onMouseLeave: () => {
-              if (pointerActiveRef.current) return;
-              if (isDrawingRef.current) handleMouseUp();
-            },
-            onTouchStart: handleMouseDownFallback,
-            onTouchMove: handleMouseMoveFallback,
-            onTouchEnd: handleMouseUpFallback,
-            children: [
-              imageUrl && !imageError ? /* @__PURE__ */ u3(
-                "img",
-                {
-                  ref: imageRef,
-                  alt: `Document ${docId} page ${page}`,
-                  className: "w-full h-full object-contain pointer-events-none select-none",
-                  "data-testid": "document-image",
-                  draggable: false,
-                  crossOrigin: "anonymous",
-                  onDragStart: (e3) => e3.preventDefault(),
-                  style: { display: imageLoaded ? "block" : "none" }
-                }
-              ) : null,
-              imageUrl && !imageLoaded && !imageError && /* @__PURE__ */ u3(
+        /* @__PURE__ */ u3("div", { className: "flex-1 flex overflow-hidden", children: [
+          /* @__PURE__ */ u3(
+            "div",
+            {
+              className: `${styles2.documentPane} ${showResults ? `[--pane-width:${splitPos}%]` : `[--pane-width:100%]`}`,
+              children: /* @__PURE__ */ u3(
                 "div",
                 {
-                  className: "absolute inset-0 flex items-center justify-center",
-                  "data-testid": "overlay-loading",
-                  children: /* @__PURE__ */ u3("div", { className: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" })
-                }
-              ),
-              imageError && /* @__PURE__ */ u3(
-                "div",
-                {
-                  className: "absolute inset-0 flex items-center justify-center",
-                  "data-testid": "image-error",
-                  children: /* @__PURE__ */ u3("div", { className: "text-center text-gray-500", children: [
-                    /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-circle text-3xl mb-2" }),
-                    /* @__PURE__ */ u3("p", { className: "text-sm", children: imageError })
-                  ] })
-                }
-              ),
-              !imageUrl && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center", children: /* @__PURE__ */ u3("p", { className: "text-sm text-gray-500", children: "No document selected" }) }),
-              overlayMode === "document" && visibleOverlays.map((overlay, idx) => {
-                const box = normalizeOverlayBox(overlay.boundingBox);
-                if (!box) return null;
-                const color = overlay.color || "#2563eb";
-                return /* @__PURE__ */ u3(
-                  "div",
-                  {
-                    "data-testid": "overlay-box",
-                    className: "absolute border-2 rounded-sm pointer-events-none",
-                    style: {
-                      left: `${box.left}%`,
-                      top: `${box.top}%`,
-                      width: `${box.width}%`,
-                      height: `${box.height}%`,
-                      borderColor: color,
-                      backgroundColor: `${color}22`
-                    },
-                    children: /* @__PURE__ */ u3(
-                      "span",
-                      {
-                        className: "absolute -top-5 left-0 text-[10px] px-1 py-0.5 rounded",
-                        style: { backgroundColor: color, color: "#fff" },
-                        children: overlay.label || "Overlay"
-                      }
-                    )
+                  ref: containerRef,
+                  "data-testid": "overlay-container",
+                  className: `relative flex-1 overflow-hidden ${panMode ? panActiveRef.current ? "cursor-grabbing" : "cursor-grab" : isDrawMode ? "cursor-crosshair" : "cursor-default"} ${isDrawMode ? "touch-none" : "touch-auto"}`,
+                  onPointerDown: handlePointerDown,
+                  onPointerMove: handlePointerMove,
+                  onPointerUp: handlePointerUp,
+                  onPointerCancel: handlePointerCancel,
+                  onPointerLeave: () => {
+                    if (isDrawingRef.current) handleMouseUp();
                   },
-                  overlay.id || `${overlay.label}-${idx}`
-                );
-              }),
-              /* @__PURE__ */ u3(
-                "canvas",
-                {
-                  ref: canvasRef,
-                  className: "absolute inset-0 pointer-events-none",
-                  "data-testid": "annotation-canvas"
-                }
-              ),
-              boxes.map((box, idx) => /* @__PURE__ */ u3(
-                "div",
-                {
-                  className: "absolute flex items-center gap-1",
-                  style: {
-                    left: box.x,
-                    top: box.y - 24,
-                    zIndex: 10
+                  onMouseDown: handleMouseDownFallback,
+                  onMouseMove: handleMouseMoveFallback,
+                  onMouseUp: handleMouseUpFallback,
+                  onMouseLeave: () => {
+                    if (pointerActiveRef.current) return;
+                    if (isDrawingRef.current) handleMouseUp();
                   },
+                  onTouchStart: handleMouseDownFallback,
+                  onTouchMove: handleMouseMoveFallback,
+                  onTouchEnd: handleMouseUpFallback,
                   children: [
-                    /* @__PURE__ */ u3("span", { className: "px-1.5 py-0.5 bg-red-600 text-white text-xs rounded", children: [
-                      "Region ",
-                      idx + 1
-                    ] }),
                     /* @__PURE__ */ u3(
-                      "button",
+                      "div",
                       {
-                        onClick: () => removeBox(box.id),
-                        className: "w-5 h-5 bg-white border border-gray-300 rounded text-xs text-gray-600 hover:text-red-600 hover:border-red-300",
-                        title: "Remove this selection",
-                        children: /* @__PURE__ */ u3("i", { className: "fas fa-times" })
+                        ref: viewportRef,
+                        "data-testid": "overlay-viewport",
+                        className: `${styles2.viewport} [--viewport-transform:translate(${translateX}px, ${translateY}px) scale(${scale})]`,
+                        children: [
+                          imageUrl && !imageError ? /* @__PURE__ */ u3(
+                            "img",
+                            {
+                              ref: imageRef,
+                              alt: `Document ${docId} page ${page}`,
+                              className: `w-full h-full object-contain pointer-events-none select-none ${imageLoaded ? "block" : "hidden"}`,
+                              "data-testid": "document-image",
+                              draggable: false,
+                              crossOrigin: "anonymous",
+                              onDragStart: (e3) => e3.preventDefault()
+                            }
+                          ) : null,
+                          imageUrl && !imageLoaded && !imageError && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center", "data-testid": "overlay-loading", children: /* @__PURE__ */ u3("div", { className: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" }) }),
+                          imageError && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center", "data-testid": "image-error", children: /* @__PURE__ */ u3("div", { className: "text-center text-gray-500", children: [
+                            /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-circle text-3xl mb-2" }),
+                            /* @__PURE__ */ u3("p", { className: "text-sm", children: imageError })
+                          ] }) }),
+                          !imageUrl && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center", children: /* @__PURE__ */ u3("p", { className: "text-sm text-gray-500", children: "No document selected" }) }),
+                          overlayMode === "document" && visibleOverlays.map((overlay, idx) => {
+                            const box = normalizeOverlayBox(overlay.boundingBox);
+                            if (!box) return null;
+                            const color = overlay.color || "#2563eb";
+                            return /* @__PURE__ */ u3(
+                              "div",
+                              {
+                                "data-testid": "overlay-box",
+                                className: `${styles2.overlayBox} [--box-left:${box.left}%] [--box-top:${box.top}%] [--box-width:${box.width}%] [--box-height:${box.height}%] [--box-color:${color}] [--box-bg:${color}22]`,
+                                children: /* @__PURE__ */ u3("span", { className: `${styles2.overlayLabel} [--box-color:${color}]`, children: overlay.label || "Overlay" })
+                              },
+                              overlay.id || `${overlay.label}-${idx}`
+                            );
+                          }),
+                          /* @__PURE__ */ u3("canvas", { ref: canvasRef, className: "absolute inset-0 pointer-events-none", "data-testid": "annotation-canvas" }),
+                          highlightedRegion && /* @__PURE__ */ u3(
+                            "div",
+                            {
+                              className: `${styles2.highlightRegion} animate-pulse [--region-left:${highlightedRegion.x * 100}%] [--region-top:${highlightedRegion.y * 100}%] [--region-width:${highlightedRegion.width * 100}%] [--region-height:${highlightedRegion.height * 100}%]`
+                            }
+                          )
+                        ]
+                      }
+                    ),
+                    boxes.map((box, idx) => /* @__PURE__ */ u3("div", { className: `${styles2.selectionBoxContainer} [--sel-left:${box.x}px] [--sel-top:${box.y - 24}px]`, children: [
+                      /* @__PURE__ */ u3("span", { className: "px-1.5 py-0.5 bg-red-600 text-white text-xs rounded", children: [
+                        "Region ",
+                        idx + 1
+                      ] }),
+                      /* @__PURE__ */ u3(
+                        "button",
+                        {
+                          onClick: () => removeBox(box.id),
+                          className: "w-5 h-5 bg-white border border-gray-300 rounded-l-none border-l-0 text-xs text-gray-600 hover:text-red-600 hover:border-red-300",
+                          title: "Remove this selection",
+                          children: /* @__PURE__ */ u3("i", { className: "fas fa-times" })
+                        }
+                      ),
+                      /* @__PURE__ */ u3(
+                        "button",
+                        {
+                          onClick: () => captureRegion(box, "export:region-requested"),
+                          className: "w-5 h-5 bg-white border border-gray-300 rounded text-xs text-gray-600 hover:text-blue-600 hover:border-blue-300 ml-1",
+                          title: "Export this region",
+                          children: /* @__PURE__ */ u3("i", { className: "fas fa-download" })
+                        }
+                      ),
+                      /* @__PURE__ */ u3(
+                        "button",
+                        {
+                          onClick: () => {
+                            captureRegion(box, "manual:send-to-chat");
+                            const onSend = (e3) => {
+                              const { imageBase64, bbox, page: page2, documentId } = e3.detail;
+                              const context = { type: "visual", data: { imageBase64, bbox, page: page2 }, documentId };
+                              window.location.href = `/chat?context=${encodeURIComponent(JSON.stringify(context))}`;
+                            };
+                            window.addEventListener("manual:send-to-chat", onSend, { once: true });
+                          },
+                          className: "w-5 h-5 bg-white border border-gray-300 rounded-r border-l-0 text-xs text-gray-600 hover:text-green-600 hover:border-green-300",
+                          title: "Send to Chat",
+                          children: /* @__PURE__ */ u3("i", { className: "fas fa-comment-dots" })
+                        }
+                      )
+                    ] }, box.id)),
+                    isDrawMode && boxes.length === 0 && /* @__PURE__ */ u3(
+                      "div",
+                      {
+                        className: "absolute bottom-2 left-2 right-2 p-2 text-center text-xs text-gray-500 bg-blue-50 rounded pointer-events-none",
+                        "data-testid": "selection-instructions",
+                        children: [
+                          /* @__PURE__ */ u3("i", { className: "fas fa-info-circle mr-1" }),
+                          "Click and drag to select a region for visual search"
+                        ]
                       }
                     )
-                  ]
-                },
-                box.id
-              )),
-              isDrawMode && boxes.length === 0 && /* @__PURE__ */ u3(
-                "div",
-                {
-                  className: "absolute bottom-2 left-2 right-2 p-2 text-center text-xs text-gray-500 bg-blue-50 rounded pointer-events-none",
-                  "data-testid": "selection-instructions",
-                  children: [
-                    /* @__PURE__ */ u3("i", { className: "fas fa-info-circle mr-1" }),
-                    "Click and drag to select a region for visual search"
                   ]
                 }
               )
-            ]
-          }
-        )
+            }
+          ),
+          showResults && /* @__PURE__ */ u3(
+            "div",
+            {
+              className: "w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize flex items-center justify-center z-20",
+              onMouseDown: () => setIsResizing(true),
+              children: /* @__PURE__ */ u3("div", { className: "h-8 w-1 bg-gray-400 rounded-full" })
+            }
+          ),
+          showResults && /* @__PURE__ */ u3(
+            "div",
+            {
+              className: `${styles2.resultsPanel} [--panel-width:${100 - splitPos}%]`,
+              "data-testid": "visual-search-results-panel",
+              children: [
+                /* @__PURE__ */ u3("div", { className: "p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50", children: [
+                  /* @__PURE__ */ u3("h3", { className: "text-sm font-semibold text-gray-700", children: "Visual Search Results" }),
+                  /* @__PURE__ */ u3("button", { onClick: () => setShowResults(false), className: "text-gray-400 hover:text-gray-600", "aria-label": "Close results", children: /* @__PURE__ */ u3("i", { className: "fas fa-times" }) })
+                ] }),
+                /* @__PURE__ */ u3("div", { className: "flex-1 overflow-y-auto p-3 space-y-3", children: [
+                  resultsLoading && /* @__PURE__ */ u3("div", { className: "flex flex-col items-center justify-center py-8 text-gray-500", children: [
+                    /* @__PURE__ */ u3("div", { className: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2" }),
+                    /* @__PURE__ */ u3("p", { className: "text-xs", children: "Searching visual index..." })
+                  ] }),
+                  resultsError && /* @__PURE__ */ u3("div", { className: "p-3 bg-red-50 text-red-700 rounded text-sm border border-red-100", children: [
+                    /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-circle mr-2" }),
+                    resultsError
+                  ] }),
+                  !resultsLoading && !resultsError && results.length === 0 && /* @__PURE__ */ u3("div", { className: "text-center py-8 text-gray-400 text-sm", children: [
+                    /* @__PURE__ */ u3("i", { className: "fas fa-search mb-2 text-2xl opacity-20" }),
+                    /* @__PURE__ */ u3("p", { children: "No visually similar pages found." }),
+                    /* @__PURE__ */ u3("p", { className: "text-xs mt-1", children: "Try selecting a distinct region." })
+                  ] }),
+                  results.map((result, idx) => /* @__PURE__ */ u3(
+                    "div",
+                    {
+                      className: "group border border-gray-200 rounded-lg overflow-hidden hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer bg-white",
+                      onClick: () => {
+                        if (String(result.document_id) === String(docId)) {
+                          setPage(Number(result.page));
+                          const ev = new CustomEvent("overlay:document-changed", {
+                            detail: { documentId: docId, page: Number(result.page), originalUrl, pageCount }
+                          });
+                          window.dispatchEvent(ev);
+                        } else {
+                          window.open(`/manual?open=${result.document_id}&page=${result.page}`, "_blank");
+                        }
+                      },
+                      children: [
+                        /* @__PURE__ */ u3("div", { className: "relative aspect-[3/4] bg-gray-100 overflow-hidden border-b border-gray-100", children: [
+                          result.thumbnail ? /* @__PURE__ */ u3("img", { src: `data:image/jpeg;base64,${result.thumbnail}`, alt: "Result", className: "w-full h-full object-cover" }) : /* @__PURE__ */ u3("div", { className: "w-full h-full flex items-center justify-center text-gray-300", children: /* @__PURE__ */ u3("i", { className: "fas fa-file-image text-3xl" }) }),
+                          /* @__PURE__ */ u3("div", { className: "absolute top-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm", children: [
+                            "Score: ",
+                            (result.score * 100).toFixed(1),
+                            "%"
+                          ] })
+                        ] }),
+                        /* @__PURE__ */ u3("div", { className: "p-2", children: [
+                          /* @__PURE__ */ u3("div", { className: "font-medium text-xs text-gray-800 truncate", title: result.title || `Document ${result.document_id}`, children: result.title || `Document ${result.document_id}` }),
+                          /* @__PURE__ */ u3("div", { className: "flex justify-between items-center mt-1", children: [
+                            /* @__PURE__ */ u3("span", { className: "text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded", children: [
+                              "Page ",
+                              result.page
+                            ] }),
+                            String(result.document_id) !== String(docId) && /* @__PURE__ */ u3("i", { className: "fas fa-external-link-alt text-[10px] text-gray-400" })
+                          ] })
+                        ] })
+                      ]
+                    },
+                    idx
+                  ))
+                ] })
+              ]
+            }
+          )
+        ] })
       ]
     }
   );
+}
+
+// src/islands/VisualOverlaysIsland.tsx
+var overlayCache = /* @__PURE__ */ new Map();
+var CACHE_TTL = 1e3 * 60 * 5;
+function debounce(fn2, wait = 200) {
+  let t3 = null;
+  return (...args) => {
+    if (t3) clearTimeout(t3);
+    t3 = setTimeout(() => fn2(...args), wait);
+  };
+}
+function normalizeBoxToPixels(bbox, containerWidth, containerHeight) {
+  return {
+    left: Math.round(bbox.x * containerWidth),
+    top: Math.round(bbox.y * containerHeight),
+    width: Math.round(bbox.width * containerWidth),
+    height: Math.round(bbox.height * containerHeight)
+  };
+}
+function getVisibleImageIds(entries) {
+  const ids = [];
+  entries.forEach((e3) => {
+    const target = e3.target;
+    const id = target?.dataset?.imageId || target?.getAttribute?.("data-image-id") || null;
+    if (!id) return;
+    if (e3.isIntersecting || e3.intersectionRatio > 0) ids.push(id);
+  });
+  return ids;
+}
+async function fetchOverlaysForImage(image, fetchImpl = globalThis.fetch, options = {}) {
+  if (!image) return [];
+  const cacheKey = image.id || image.originalSrc || image.thumbnailSrc || JSON.stringify(image);
+  const now = Date.now();
+  const cached = overlayCache.get(cacheKey);
+  if (cached && now - cached.ts < CACHE_TTL) return cached.data;
+  let url = "";
+  let opts = { method: "GET" };
+  if (image.id) {
+    url = `/api/visual-rag/overlays?imageId=${encodeURIComponent(image.id)}`;
+  } else if (image.originalSrc) {
+    url = `/api/visual-rag/overlays/search`;
+    opts = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageUrl: image.originalSrc }) };
+  } else {
+    return [];
+  }
+  if (typeof fetchImpl !== "function") throw Object.assign(new Error("fetch not available"), { code: "no_fetch" });
+  const controller = new AbortController();
+  opts.signal = controller.signal;
+  let timeoutHandle = null;
+  const timeoutMs = options.timeoutMs || 1e4;
+  const timeoutPromise = new Promise((_3, reject) => {
+    timeoutHandle = setTimeout(() => {
+      controller.abort();
+      reject(Object.assign(new Error("Fetch timeout"), { code: "timeout" }));
+    }, timeoutMs);
+  });
+  try {
+    const res = await Promise.race([fetchImpl(url, opts), timeoutPromise]);
+    if (!res || !res.ok) {
+      const err = new Error("Overlay service error");
+      err.code = res && res.status === 503 ? "service_unavailable" : "fetch_error";
+      throw err;
+    }
+    const json = await res.json();
+    const overlays = Array.isArray(json.overlays) ? json.overlays : json;
+    overlayCache.set(cacheKey, { ts: now, data: overlays });
+    return overlays;
+  } catch (err) {
+    if (!err.code) err.code = err.name === "AbortError" ? "timeout" : "fetch_error";
+    throw err;
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
+}
+function VisualOverlaysIsland(props) {
+  const { images = [], overlaysByImage = {} } = props;
+  const [mounted, setMounted] = d2(false);
+  const [localOverlays, setLocalOverlays] = d2(overlaysByImage || {});
+  const [loadingMap, setLoadingMap] = d2({});
+  const [errorMap2, setErrorMap2] = d2({});
+  const controllersRef = A2(/* @__PURE__ */ new Map());
+  const imageRefs = A2(/* @__PURE__ */ new Map());
+  const observerRef = A2(null);
+  y2(() => {
+    setMounted(true);
+  }, []);
+  y2(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const intersectCb = debounce((entries) => {
+      const visibleIds = getVisibleImageIds(entries);
+      visibleIds.forEach((id) => {
+        const img = images.find((i4) => i4.id === id || i4.originalSrc === id || i4.thumbnailSrc === id);
+        if (!img) return;
+        const key = img.id || img.originalSrc || "";
+        if (Array.isArray(overlaysByImage && overlaysByImage[img.id])) {
+          setLocalOverlays((s3) => ({ ...s3, [img.id]: overlaysByImage[img.id] }));
+          return;
+        }
+        const cached = overlayCache.get(key);
+        if (cached && Date.now() - cached.ts < CACHE_TTL) {
+          setLocalOverlays((s3) => ({ ...s3, [img.id]: cached.data }));
+          return;
+        }
+        (async () => {
+          setLoadingMap((m3) => ({ ...m3, [key]: true }));
+          setErrorMap2((m3) => ({ ...m3, [key]: null }));
+          const controller = new AbortController();
+          controllersRef.current.set(key, controller);
+          try {
+            const overlays = await fetchOverlaysForImage(img, globalThis.fetch, { timeoutMs: 8e3 });
+            setLocalOverlays((s3) => ({ ...s3, [img.id]: overlays }));
+          } catch (err) {
+            const code = err?.code || "fetch_error";
+            setErrorMap2((m3) => ({ ...m3, [key]: `${code}: ${err?.message || "Failed to fetch overlays"}` }));
+          } finally {
+            setLoadingMap((m3) => ({ ...m3, [key]: false }));
+            controllersRef.current.delete(key);
+          }
+        })();
+      });
+    }, 150);
+    observerRef.current = new IntersectionObserver((entries) => {
+      intersectCb(entries);
+    }, { root: null, threshold: 0.05 });
+    imageRefs.current.forEach((el) => {
+      if (el) observerRef.current.observe(el);
+    });
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+        observerRef.current = null;
+      }
+      controllersRef.current.forEach((c3) => c3.abort());
+      controllersRef.current.clear();
+    };
+  }, [images, overlaysByImage]);
+  const attachImageRef = (id) => (el) => {
+    if (!el) {
+      imageRefs.current.delete(id);
+      return;
+    }
+    el.dataset.imageId = id;
+    imageRefs.current.set(id, el);
+    if (observerRef.current) observerRef.current.observe(el);
+  };
+  y2(() => {
+    images.forEach((img) => {
+      if (Array.isArray(overlaysByImage && overlaysByImage[img.id])) {
+        setLocalOverlays((s3) => ({ ...s3, [img.id]: overlaysByImage[img.id] }));
+      }
+    });
+  }, [images, overlaysByImage]);
+  return /* @__PURE__ */ u3("div", { "data-testid": "visual-overlays-island-root", "data-hydrated": mounted ? "true" : "false", children: /* @__PURE__ */ u3("div", { className: "visual-overlays-list space-y-6", children: images.map((img) => /* @__PURE__ */ u3("div", { className: "visual-image-item relative", "data-testid": `visual-image-${img.id}`, children: [
+    /* @__PURE__ */ u3(
+      "img",
+      {
+        ref: attachImageRef(img.id),
+        src: img.originalSrc || img.thumbnailSrc || "",
+        alt: `Document ${props.documentId || ""} image ${img.id}`,
+        "data-testid": "document-image",
+        "data-image-id": img.id,
+        className: "w-full h-auto block",
+        crossOrigin: "anonymous"
+      }
+    ),
+    /* @__PURE__ */ u3("div", { "data-testid": `overlay-container-${img.id}`, className: "absolute inset-0 pointer-events-none", children: [
+      /* @__PURE__ */ u3("svg", { "data-testid": `overlay-svg-${img.id}`, width: "100%", height: "100%", preserveAspectRatio: "none", className: "block", children: (localOverlays[img.id] || []).map((ov) => {
+        const bbox = normalizeBoxToPixels(ov.bbox || { x: 0, y: 0, width: 0, height: 0 }, 1e3, 1e3);
+        const x4 = (ov.bbox?.x || 0) * 100;
+        const y3 = (ov.bbox?.y || 0) * 100;
+        const w4 = (ov.bbox?.width || 0) * 100;
+        const h3 = (ov.bbox?.height || 0) * 100;
+        return /* @__PURE__ */ u3("rect", { "data-testid": `overlay-marker-${ov.id}`, x: `${x4}%`, y: `${y3}%`, width: `${w4}%`, height: `${h3}%`, fill: "none", stroke: "rgba(34,197,94,0.9)", "stroke-width": "2" }, ov.id);
+      }) }),
+      loadingMap[img.id] ? /* @__PURE__ */ u3("div", { "data-testid": `overlay-loading-${img.id}`, "aria-hidden": "true", children: "Loading overlays..." }) : null,
+      errorMap2[img.id] ? /* @__PURE__ */ u3("div", { "data-testid": `overlay-error-${img.id}`, "aria-hidden": "true", children: errorMap2[img.id] }) : null
+    ] })
+  ] }, img.id)) }) });
 }
 
 // src/islands/PlaygroundIsland.tsx
@@ -4797,15 +5539,15 @@ function usePresence(present) {
     prevAnimationNameRef.current = state === "mounted" ? currentAnimationName : "none";
   }, [state]);
   useLayoutEffect2(() => {
-    const styles2 = stylesRef.current;
+    const styles3 = stylesRef.current;
     const wasPresent = prevPresentRef.current;
     const hasPresentChanged = wasPresent !== present;
     if (hasPresentChanged) {
       const prevAnimationName = prevAnimationNameRef.current;
-      const currentAnimationName = getAnimationName(styles2);
+      const currentAnimationName = getAnimationName(styles3);
       if (present) {
         send("MOUNT");
-      } else if (currentAnimationName === "none" || styles2?.display === "none") {
+      } else if (currentAnimationName === "none" || styles3?.display === "none") {
         send("UNMOUNT");
       } else {
         const isAnimating = prevAnimationName !== currentAnimationName;
@@ -4864,8 +5606,8 @@ function usePresence(present) {
     }, [])
   };
 }
-function getAnimationName(styles2) {
-  return styles2?.animationName || "none";
+function getAnimationName(styles3) {
+  return styles3?.animationName || "none";
 }
 function getElementRef2(element) {
   let getter = Object.getOwnPropertyDescriptor(element.props, "ref")?.get;
@@ -5821,13 +6563,13 @@ var stylesheetSingleton = function() {
 // node_modules/react-style-singleton/dist/es2015/hook.js
 var styleHookSingleton = function() {
   var sheet = stylesheetSingleton();
-  return function(styles2, isDynamic) {
+  return function(styles3, isDynamic) {
     y2(function() {
-      sheet.add(styles2);
+      sheet.add(styles3);
       return function() {
         sheet.remove();
       };
-    }, [styles2 && isDynamic]);
+    }, [styles3 && isDynamic]);
   };
 };
 
@@ -5835,8 +6577,8 @@ var styleHookSingleton = function() {
 var styleSingleton = function() {
   var useStyle = styleHookSingleton();
   var Sheet = function(_a) {
-    var styles2 = _a.styles, dynamic = _a.dynamic;
-    useStyle(styles2, dynamic);
+    var styles3 = _a.styles, dynamic = _a.dynamic;
+    useStyle(styles3, dynamic);
     return null;
   };
   return Sheet;
@@ -5944,11 +6686,11 @@ var elementCanBeScrolled = function(node, overflow) {
   if (!(node instanceof Element)) {
     return false;
   }
-  var styles2 = window.getComputedStyle(node);
+  var styles3 = window.getComputedStyle(node);
   return (
     // not-not-scrollable
-    styles2[overflow] !== "hidden" && // contains scroll inside self
-    !(styles2.overflowY === styles2.overflowX && !alwaysContainsScroll(node) && styles2[overflow] === "visible")
+    styles3[overflow] !== "hidden" && // contains scroll inside self
+    !(styles3.overflowY === styles3.overflowX && !alwaysContainsScroll(node) && styles3[overflow] === "visible")
   );
 };
 var elementCouldBeVScrolled = function(node) {
@@ -11105,7 +11847,9 @@ var SettingsSidebarSchema = external_exports.object({
   // Developer mode initial state (can be overridden by localStorage)
   developerModeEnabled: external_exports.boolean().optional().default(false),
   // Optional: initial last visited category from server
-  lastVisitedCategory: external_exports.string().optional()
+  lastVisitedCategory: external_exports.string().optional(),
+  // Active AI provider used for category gating
+  aiProvider: external_exports.string().optional().default("ollama")
 });
 
 // src/islands/SettingsSidebarIsland.tsx
@@ -11131,6 +11875,15 @@ function SettingsSidebarIsland(props) {
     const stored = localStorage.getItem(STORAGE_KEY_LAST_CATEGORY);
     return stored || validated.activeCategory;
   });
+  const [aiProvider, setAiProvider] = d2(
+    validated.aiProvider || "ollama"
+  );
+  const dispatchSettingsEvent = (name, detail) => {
+    if (typeof document === "undefined") return;
+    const CustomEventCtor = typeof window !== "undefined" && typeof window.CustomEvent === "function" ? window.CustomEvent : null;
+    if (!CustomEventCtor) return;
+    document.dispatchEvent(new CustomEventCtor(name, { detail }));
+  };
   y2(() => {
     if (typeof localStorage === "undefined") return;
     localStorage.setItem(STORAGE_KEY_DEVELOPER_MODE, String(developerMode));
@@ -11152,23 +11905,46 @@ function SettingsSidebarIsland(props) {
   }, []);
   y2(() => {
     if (typeof window === "undefined") return;
+    const win = window;
     const handleHashChange = () => {
-      const hash = window.location.hash.slice(1);
+      const hash = win.location.hash.slice(1);
       if (hash && CATEGORIES.some((cat) => cat.id === hash)) {
         setActiveCategory(hash);
       }
     };
-    window.addEventListener("hashchange", handleHashChange);
+    win.addEventListener("hashchange", handleHashChange);
     handleHashChange();
-    return () => window.removeEventListener("hashchange", handleHashChange);
+    return () => win.removeEventListener("hashchange", handleHashChange);
   }, []);
+  y2(() => {
+    if (typeof document === "undefined") return;
+    const handleSettingsChanged = (e3) => {
+      const customEvent = e3;
+      const nextProvider = customEvent.detail?.settings?.AI_PROVIDER;
+      if (nextProvider) {
+        setAiProvider(String(nextProvider));
+      }
+    };
+    document.addEventListener("settings:changed", handleSettingsChanged);
+    return () => document.removeEventListener("settings:changed", handleSettingsChanged);
+  }, []);
+  y2(() => {
+    if (aiProvider === "ollama") return;
+    if (activeCategory !== "expert-models") return;
+    const nextCategory = "ai-provider";
+    setActiveCategory(nextCategory);
+    dispatchSettingsEvent("settings:category-changed", {
+      category: nextCategory
+    });
+    if (typeof window !== "undefined") {
+      window.location.hash = nextCategory;
+    }
+  }, [aiProvider, activeCategory]);
   const handleCategoryClick = (categoryId) => {
     setActiveCategory(categoryId);
-    if (typeof document !== "undefined") {
-      document.dispatchEvent(new CustomEvent("settings:category-changed", {
-        detail: { category: categoryId }
-      }));
-    }
+    dispatchSettingsEvent("settings:category-changed", {
+      category: categoryId
+    });
     if (typeof window !== "undefined") {
       window.location.hash = categoryId;
     }
@@ -11176,18 +11952,17 @@ function SettingsSidebarIsland(props) {
   const handleDeveloperToggle = () => {
     const newValue = !developerMode;
     setDeveloperMode(newValue);
-    if (typeof document !== "undefined") {
-      document.dispatchEvent(new CustomEvent("developer:toggled", {
-        detail: { enabled: newValue }
-      }));
-    }
+    dispatchSettingsEvent("developer:toggled", {
+      enabled: newValue
+    });
     if (!newValue && activeCategory === "developer") {
       handleCategoryClick("overview");
     }
   };
-  const visibleCategories = CATEGORIES.filter(
-    (cat) => !cat.requiresDeveloperMode || developerMode
-  );
+  const visibleCategories = CATEGORIES.filter((cat) => {
+    if (cat.id === "expert-models" && aiProvider !== "ollama") return false;
+    return !cat.requiresDeveloperMode || developerMode;
+  });
   return /* @__PURE__ */ u3("div", { className: "settings-sidebar bg-gray-50 border-r border-gray-200 h-full flex flex-col", "data-testid": "settings-sidebar-root", children: [
     /* @__PURE__ */ u3("div", { className: "p-4 border-b border-gray-200", children: /* @__PURE__ */ u3("h2", { className: "text-lg font-bold text-gray-800", children: "Settings" }) }),
     /* @__PURE__ */ u3("nav", { className: "flex-1 overflow-y-auto p-2", children: /* @__PURE__ */ u3("ul", { className: "space-y-1", children: visibleCategories.map((category) => /* @__PURE__ */ u3("li", { children: /* @__PURE__ */ u3(
@@ -13826,7 +14601,7 @@ ${errorData.details.join("\n")}`);
         type: "file",
         accept: ".env",
         onChange: handleFileSelect,
-        style: { display: "none" },
+        className: "hidden",
         "data-testid": "file-input"
       }
     )
@@ -14435,6 +15210,16 @@ function AIAnalysisIsland(props) {
       return () => clearTimeout(timer);
     }
   }, [statusMessage]);
+  const toManualFields = q2((doc, fallbackDomain = "AI") => {
+    const customFields = doc?.custom_fields;
+    if (!customFields || typeof customFields !== "object") return [];
+    return Object.entries(customFields).map(([label, value]) => ({
+      label,
+      value: value != null ? String(value) : "",
+      domain: doc?.domain || fallbackDomain,
+      confidence: 1
+    }));
+  }, []);
   const handleTextAnalysis = q2(async () => {
     if (!documentId) return;
     setIsAnalyzing(true);
@@ -14466,15 +15251,20 @@ function AIAnalysisIsland(props) {
         throw new Error(errorData.error || "Analysis failed");
       }
       const result = await res.json();
-      const tags = result.document?.tags || [];
+      const doc = result?.document || result?.result?.document || result?.result || {};
+      const tags = Array.isArray(doc.tags) ? doc.tags : [];
+      const fields = toManualFields(doc);
+      const documentType = doc.document_type || null;
       dispatchEventSafe5("ai:analysis-completed", {
         type: "ai:analysis-completed",
         documentId,
         analysisType: "text",
         result: {
           tags,
-          correspondent: result.document?.correspondent || null,
-          title: result.document?.title || null
+          correspondent: doc.correspondent || null,
+          title: doc.title || null,
+          documentType,
+          fields
         }
       });
       if (tags && tags.length > 0) {
@@ -14492,7 +15282,7 @@ function AIAnalysisIsland(props) {
       setIsAnalyzing(false);
       setAnalysisType(null);
     }
-  }, [documentId, content]);
+  }, [documentId, content, toManualFields]);
   const handleVisualAnalysis = q2(async () => {
     if (!documentId) return;
     if (gpuState !== "ready") {
@@ -14522,22 +15312,29 @@ function AIAnalysisIsland(props) {
         documentId,
         fallback: data.fallback || null
       });
+      const doc = data.result || data.document || {};
+      const tags = Array.isArray(doc.tags) ? doc.tags : [];
+      const domain = doc.domain || "general";
+      const fields = toManualFields(doc, domain);
+      const documentType = doc.document_type || null;
       dispatchEventSafe5("ai:analysis-completed", {
         type: "ai:analysis-completed",
         documentId,
         analysisType: "visual",
         result: {
-          tags: data.result?.tags || [],
-          correspondent: data.result?.correspondent || null,
-          title: data.result?.title || null,
-          domain: data.result?.domain || "general"
+          tags,
+          correspondent: doc.correspondent || null,
+          title: doc.title || null,
+          domain,
+          documentType,
+          fields
         }
       });
-      if (data.result?.tags && data.result.tags.length > 0) {
+      if (tags.length > 0) {
         dispatchEventSafe5("tags:suggestions-received", {
           type: "tags:suggestions-received",
           documentId,
-          suggestedTags: data.result.tags
+          suggestedTags: tags
         });
       }
       setStatusMessage(`Visual analysis complete! Domain: ${data.result?.domain || "general"}, Overlays: ${data.overlayCount || 0}`);
@@ -14548,7 +15345,7 @@ function AIAnalysisIsland(props) {
       setIsAnalyzing(false);
       setAnalysisType(null);
     }
-  }, [documentId, gpuState]);
+  }, [documentId, gpuState, toManualFields]);
   const handleChat = q2(() => {
     if (!documentId) return;
     dispatchEventSafe5("ai:analysis-started", {
@@ -14758,22 +15555,89 @@ function ChatWorkspaceIsland(props) {
   const [selectedModel, setSelectedModel] = d2(
     props.ollamaDefaultModel ?? null
   );
+  const [isModelLoading, setIsModelLoading] = d2(false);
+  const [modelLoadError, setModelLoadError] = d2(null);
   const [guidedStep, setGuidedStep] = d2("Select a document to begin.");
   const [statusMessage, setStatusMessage] = d2(null);
+  const [chatContext, setChatContext] = d2([]);
   const chatEndRef = A2(null);
   const chatHistoryRef = A2(null);
   const streamMessageIdRef = A2(null);
   const aiProvider = props.aiProvider || "ollama";
+  y2(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const ctxParam = params.get("context");
+      if (ctxParam) {
+        try {
+          const parsed = JSON.parse(decodeURIComponent(ctxParam));
+          const ctxArray = Array.isArray(parsed) ? parsed : [parsed];
+          setChatContext(ctxArray);
+          if (ctxArray.some((c3) => c3.type === "visual")) {
+            setMessageInput("Analyze this visual region.");
+          } else if (ctxArray.some((c3) => c3.type === "text")) {
+            setMessageInput("Analyze this text.");
+          }
+          if (ctxArray[0] && ctxArray[0].documentId) {
+            setSelectedDocumentId(Number(ctxArray[0].documentId));
+          }
+          const newUrl = window.location.pathname + window.location.search.replace(/([&?]context=[^&]*)/, "");
+          window.history.replaceState({}, "", newUrl);
+        } catch (e3) {
+          console.error("Failed to parse context", e3);
+        }
+      }
+    }
+  }, []);
   y2(() => {
     if (props.openDocumentId && !selectedDocumentId) {
       setSelectedDocumentId(props.openDocumentId);
     }
   }, [props.openDocumentId]);
   y2(() => {
-    if (aiProvider === "ollama") {
-      void loadOllamaModels();
+    if (props.modelConfig && props.modelConfig.providers) {
+      const providers = props.modelConfig.providers || {};
+      const groups = Object.keys(providers).flatMap((provider) => {
+        const models = Array.isArray(providers[provider]) ? providers[provider] : [];
+        if (!models.length) return [];
+        return [{
+          label: `${provider} models`,
+          models: models.map((m3) => ({ label: m3, model: m3 }))
+        }];
+      });
+      const expertRaw = props.modelConfig.expertModels;
+      if (Array.isArray(expertRaw) && expertRaw.length) {
+        groups.push({
+          label: "Expert models",
+          models: expertRaw.map((entry) => ({ label: entry.label ? `${entry.label} (${entry.model})` : entry.model, model: entry.model }))
+        });
+      }
+      setModelOptions(groups);
+      const defaultModel = props.ollamaDefaultModel || props.modelConfig && props.modelConfig.currentProvider && (providers[props.modelConfig.currentProvider] || [])[0];
+      if (defaultModel) {
+        setSelectedModel(defaultModel);
+      } else if (groups.length && groups[0].models.length) {
+        setSelectedModel(groups[0].models[0].model);
+      }
+    } else {
+      if (aiProvider === "ollama") {
+        void loadOllamaModels();
+      }
     }
-  }, [aiProvider]);
+  }, [aiProvider, props.modelConfig, props.ollamaDefaultModel]);
+  const verifyModel = async (model) => {
+    try {
+      const resp = await fetch(`/api/ollama/verify?model=${encodeURIComponent(model)}`);
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => "");
+        return { ok: false, text };
+      }
+      const data = await resp.json();
+      return { ok: true, data };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  };
   y2(() => {
     if (!selectedDocumentId) {
       setGuidedStep("Select a document to begin.");
@@ -14795,41 +15659,72 @@ function ChatWorkspaceIsland(props) {
     }
   }, [chatMessages, isStreaming]);
   const loadOllamaModels = async () => {
+    setIsModelLoading(true);
+    setModelLoadError(null);
     try {
       const response = await fetch("/api/ollama/models");
-      if (!response.ok) throw new Error("Failed to load models");
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(`Failed to load models: ${response.status} ${text}`);
+      }
       const data = await response.json();
       const installed = Array.isArray(data.models) ? data.models : [];
-      const expert = Array.isArray(data.expertModels) ? data.expertModels : [];
+      const expertRaw = Array.isArray(data.expertModels) ? data.expertModels : [];
+      const placeholders = Array.isArray(data.placeholderModels) ? data.placeholderModels : [];
+      const installedSet = new Set(installed.filter(Boolean));
+      const expertEntries = expertRaw.filter((entry) => entry?.model);
+      const expertSet = new Set(
+        expertEntries.map((entry) => entry.model)
+      );
+      const placeholderEntries = placeholders.filter((model) => {
+        return model && !installedSet.has(model) && !expertSet.has(model);
+      });
       const groups = [];
-      if (installed.length) {
+      if (installedSet.size) {
         groups.push({
           label: "Installed models",
-          models: installed.map((model) => ({
+          models: Array.from(installedSet).map((model) => ({
             label: model,
             model
           }))
         });
       }
-      if (expert.length) {
+      if (expertEntries.length) {
         groups.push({
           label: "Expert models",
-          models: expert.map((entry) => ({
+          models: expertEntries.map((entry) => ({
             label: entry.label ? `${entry.label} (${entry.model})` : entry.model,
             model: entry.model
           }))
         });
       }
+      if (placeholderEntries.length) {
+        const placeholderLabel = data.providerMismatch ? "Configured models (lazy load)" : "Configured models (not verified)";
+        groups.push({
+          label: placeholderLabel,
+          models: placeholderEntries.map((model) => ({
+            label: `${model} (lazy load)`,
+            model,
+            placeholder: true
+          }))
+        });
+      }
       setModelOptions(groups);
       const defaultModel = data.defaultModel || props.ollamaDefaultModel;
-      if (defaultModel) {
+      const defaultExists = Boolean(defaultModel) && groups.some(
+        (group) => group.models.some((model) => model.model === defaultModel)
+      );
+      if (defaultExists) {
         setSelectedModel(defaultModel);
       } else if (groups.length && groups[0].models.length) {
         setSelectedModel(groups[0].models[0].model);
       }
     } catch (error) {
+      setModelLoadError(error.message || String(error));
       setModelOptions([]);
       setSelectedModel(props.ollamaDefaultModel ?? null);
+    } finally {
+      setIsModelLoading(false);
     }
   };
   const loadDocumentPreview = q2(async (documentId) => {
@@ -14841,7 +15736,7 @@ function ChatWorkspaceIsland(props) {
         title: data.title || `Document ${documentId}`,
         content: data.content || "No content available",
         tags: Array.isArray(data.tags) ? data.tags : [],
-        originalUrl: data.original_url || null,
+        originalUrl: data.normalized_original_url || data.original_url || null,
         pageCount: data.pageCount || 1
       });
     } catch (error) {
@@ -14854,6 +15749,7 @@ function ChatWorkspaceIsland(props) {
       });
     }
   }, []);
+  const [localTextRagStatus, setLocalTextRagStatus] = d2(null);
   const initializeChat = q2(async (documentId) => {
     try {
       setStreamError(null);
@@ -14863,13 +15759,20 @@ function ChatWorkspaceIsland(props) {
       if (!response.ok) throw new Error("Failed to initialize chat");
       const data = await response.json();
       setSelectedDocumentTitle(data.documentTitle || `Document ${documentId}`);
-      setChatMessages([
-        {
-          id: makeId(),
-          role: "status",
-          content: `Chat ready for ${data.documentTitle || `Document ${documentId}`}.`
-        }
-      ]);
+      if (Array.isArray(data.history) && data.history.length > 0) {
+        setChatMessages(
+          data.history.map((m3) => ({ id: makeId(), role: m3.role, content: m3.content }))
+        );
+      } else {
+        setChatMessages([
+          {
+            id: makeId(),
+            role: "status",
+            content: `Chat ready for ${data.documentTitle || `Document ${documentId}`}.`
+          }
+        ]);
+      }
+      if (data.textRagStatus) setLocalTextRagStatus(data.textRagStatus);
       await loadDocumentPreview(documentId);
     } catch (error) {
       setStreamError(error.message || "Failed to initialize chat");
@@ -14921,9 +15824,16 @@ function ChatWorkspaceIsland(props) {
         body: JSON.stringify({
           documentId: selectedDocumentId,
           message: userMessage,
-          model: selectedModel
+          model: selectedModel,
+          context: chatContext.length > 0 ? chatContext.map((c3) => ({
+            type: c3.type,
+            page: c3.data?.page,
+            excerpt: c3.data?.text,
+            imageBase64: c3.data?.imageBase64
+          })) : void 0
         })
       });
+      if (chatContext.length > 0) setChatContext([]);
       if (!response.ok || !response.body) {
         throw new Error("Failed to send message");
       }
@@ -14997,23 +15907,62 @@ function ChatWorkspaceIsland(props) {
           }
         )
       ] }),
-      aiProvider === "ollama" && /* @__PURE__ */ u3("div", { className: "flex-1 min-w-[220px]", children: [
-        /* @__PURE__ */ u3("label", { className: "sg-label", htmlFor: "chat-model-select", children: "Ollama Model" }),
-        /* @__PURE__ */ u3(
-          "select",
-          {
-            id: "chat-model-select",
-            "data-testid": "chat-model-select",
-            className: "sg-select",
-            value: selectedModel ?? "",
-            onChange: (e3) => setSelectedModel(e3.target.value || null),
-            children: [
-              modelOptions.length === 0 && /* @__PURE__ */ u3("option", { value: "", children: "Models unavailable" }),
-              modelOptions.map((group) => /* @__PURE__ */ u3("optgroup", { label: group.label, children: group.models.map((model) => /* @__PURE__ */ u3("option", { value: model.model, children: model.label }, model.model)) }, group.label))
-            ]
-          }
-        ),
-        /* @__PURE__ */ u3("p", { className: "sg-helper", children: "Expert models appear when configured." })
+      /* @__PURE__ */ u3("div", { className: "flex-1 min-w-[220px]", children: [
+        /* @__PURE__ */ u3("label", { className: "sg-label", htmlFor: "chat-model-select", children: "Model" }),
+        isModelLoading ? /* @__PURE__ */ u3("div", { "data-testid": "chat-model-loading", className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ u3("div", { className: "animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600" }),
+          /* @__PURE__ */ u3("div", { className: "text-sm text-gray-600", children: "Loading models..." })
+        ] }) : modelLoadError ? /* @__PURE__ */ u3("div", { className: "text-sm text-red-600", children: [
+          /* @__PURE__ */ u3("div", { "data-testid": "chat-model-error", children: modelLoadError }),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              className: "mt-2 sg-link",
+              onClick: () => void loadOllamaModels(),
+              "data-testid": "chat-model-retry",
+              children: "Retry"
+            }
+          )
+        ] }) : /* @__PURE__ */ u3(k, { children: [
+          /* @__PURE__ */ u3("div", { className: "flex items-center gap-3", children: [
+            /* @__PURE__ */ u3(
+              "select",
+              {
+                id: "chat-model-select",
+                "data-testid": "chat-model-select",
+                className: "sg-select",
+                value: selectedModel ?? "",
+                onFocus: () => {
+                  if (!modelOptions.length) void loadOllamaModels();
+                },
+                onChange: async (e3) => {
+                  const value = e3.target.value || null;
+                  setSelectedModel(value);
+                  const cfgProvider = props.modelConfig && props.modelConfig.currentProvider || aiProvider;
+                  if (value && cfgProvider === "ollama") {
+                    const result = await verifyModel(value);
+                    if (!result.ok) {
+                      console.warn("[Model Verify] verify failed:", result);
+                    } else if (result.data) {
+                      console.info("[Model Verify] verify result:", result.data);
+                      if (!result.data.installed && !result.data.loaded) {
+                        setModelLoadError(`Model ${value} not installed/loaded on Ollama.`);
+                      } else {
+                        setModelLoadError(null);
+                      }
+                    }
+                  }
+                },
+                children: [
+                  modelOptions.length === 0 && /* @__PURE__ */ u3("option", { value: "", children: "No models returned" }),
+                  modelOptions.map((group) => /* @__PURE__ */ u3("optgroup", { label: group.label, children: group.models.map((model) => /* @__PURE__ */ u3("option", { value: model.model, children: model.label }, model.model)) }, group.label))
+                ]
+              }
+            ),
+            (props.textRagStatus && props.textRagStatus.available === false || localTextRagStatus && localTextRagStatus.available === false) && /* @__PURE__ */ u3("div", { "data-testid": "chat-text-rag-status", className: "text-sm text-red-600", children: "Text-RAG unavailable" })
+          ] }),
+          /* @__PURE__ */ u3("p", { className: "sg-helper", children: "Installed, expert, and configured placeholders are listed. Select to use." })
+        ] })
       ] })
     ] }) }),
     /* @__PURE__ */ u3("div", { className: "material-card sg-card sg-card--workspace", children: [
@@ -15049,7 +15998,9 @@ function ChatWorkspaceIsland(props) {
                       }
                     },
                     dangerouslySetInnerHTML: {
-                      __html: msg.role === "assistant" ? safeMarkdown(msg.content) : msg.content
+                      __html: msg.role === "assistant" ? safeMarkdown(msg.content).replace(/\[visual:(\d+)\/(\d+)\/(.*?)\]/g, (match, docId, pg, bbox) => {
+                        return `<a href="/manual?open=${docId}&page=${pg}&highlight=${encodeURIComponent(bbox)}" class="text-blue-600 hover:underline inline-flex items-center gap-1" title="View in Manual Mode"><i class="fas fa-search"></i> Visual Reference (Page ${pg})</a>`;
+                      }) : msg.content
                     }
                   },
                   msg.id
@@ -15302,6 +16253,32 @@ function HistoryManagerIsland(props) {
     setVisualDocId(docId);
     setVisualOriginalUrl(null);
     setVisualPageCount(1);
+    try {
+      const preview = await fetch(`/manual/preview/${docId}`);
+      if (preview.ok) {
+        const data = await preview.json();
+        const nextOriginalUrl = data.normalized_original_url || data.original_url || null;
+        const nextPageCount = Number.isFinite(Number(data.pageCount)) ? Number(data.pageCount) || 1 : 1;
+        setVisualOriginalUrl(nextOriginalUrl);
+        setVisualPageCount(nextPageCount);
+        if (typeof window !== "undefined" && window.dispatchEvent) {
+          setTimeout(() => {
+            const EvCtor = typeof window.CustomEvent === "function" ? window.CustomEvent : CustomEvent;
+            const ev = new EvCtor("overlay:document-changed", {
+              detail: {
+                documentId: docId,
+                page: 1,
+                originalUrl: nextOriginalUrl,
+                pageCount: nextPageCount
+              }
+            });
+            window.dispatchEvent(ev);
+          }, 0);
+        }
+        return;
+      }
+    } catch (err) {
+    }
     try {
       const info = await fetch(`/api/document/${docId}/page-count`);
       if (info.ok) {
@@ -15635,6 +16612,7 @@ function ManualWorkspaceIsland(props) {
   const [content, setContent] = d2(props.content || "");
   const [title, setTitle] = d2(props.title || "");
   const [correspondent, setCorrespondent] = d2(props.correspondent || "");
+  const [documentType, setDocumentType] = d2("");
   const [tags, setTags] = d2(props.tags || []);
   const [originalUrl, setOriginalUrl] = d2(props.originalUrl ?? null);
   const [pageCount, setPageCount] = d2(
@@ -15645,7 +16623,32 @@ function ManualWorkspaceIsland(props) {
   const [status, setStatus] = d2(null);
   const [showFallback, setShowFallback] = d2(false);
   const selectRef = A2(null);
-  const contentRef = A2(null);
+  y2(() => {
+    if (typeof window !== "undefined" && documentId) {
+      const params = new URLSearchParams(window.location.search);
+      const highlight = params.get("highlight");
+      const pageParam = params.get("page");
+      if (pageParam || highlight) {
+        const targetPage = pageParam ? Number(pageParam) : props.page || 1;
+        if (highlight) {
+          setViewMode("visual");
+        }
+        setTimeout(() => {
+          if (highlight) {
+            try {
+              const bbox = JSON.parse(decodeURIComponent(highlight));
+              dispatchEventSafe6("overlay:highlight-region", { bbox, page: targetPage });
+            } catch (e3) {
+              console.error("Failed to parse highlight", e3);
+            }
+          }
+          if (targetPage > 1) {
+            dispatchEventSafe6("overlay:document-changed", { documentId, page: targetPage });
+          }
+        }, 500);
+      }
+    }
+  }, [documentId]);
   const correspondentInfoRef = A2(null);
   const correspondentNameRef = A2(null);
   const titleInfoRef = A2(null);
@@ -15654,7 +16657,6 @@ function ManualWorkspaceIsland(props) {
   const visualSectionRef = A2(null);
   y2(() => {
     selectRef.current = document.getElementById("documentSelect");
-    contentRef.current = document.getElementById("contentPreview");
     correspondentInfoRef.current = document.getElementById("correspondentInfo");
     correspondentNameRef.current = document.getElementById("correspondentName");
     titleInfoRef.current = document.getElementById("titleInfo");
@@ -15676,11 +16678,6 @@ function ManualWorkspaceIsland(props) {
       select.value = String(documentId);
     }
   }, [documents, documentId]);
-  y2(() => {
-    if (!contentRef.current) return;
-    const previewText = documentId ? content || "No content available" : "";
-    contentRef.current.textContent = previewText;
-  }, [content, documentId]);
   const updateCorrespondentDisplay = q2((value) => {
     if (!correspondentInfoRef.current || !correspondentNameRef.current) return;
     if (value) {
@@ -15737,13 +16734,19 @@ function ManualWorkspaceIsland(props) {
     setContent("");
     setTitle("");
     setCorrespondent("");
+    setDocumentType("");
     setTags([]);
     setOriginalUrl(null);
     setPageCount(null);
     setShowFallback(false);
     setViewMode("text");
     dispatchDocumentFields([], null);
-    dispatchDocumentMetadata({ title: "", content: "", correspondent: "" });
+    dispatchDocumentMetadata({
+      title: "",
+      content: "",
+      correspondent: "",
+      documentType: ""
+    });
     dispatchDocumentSelected({ documentId: null, tags: [], content: "" });
     dispatchOverlayDocumentChanged({ documentId: null, page: 1, originalUrl: null });
   }, [
@@ -15775,6 +16778,7 @@ function ManualWorkspaceIsland(props) {
       return;
     }
     setDocumentId(docId);
+    setDocumentType("");
     setIsLoading(true);
     try {
       const response = await fetchWithTimeout(`/manual/preview/${docId}`);
@@ -15785,12 +16789,14 @@ function ManualWorkspaceIsland(props) {
       const nextContent = data.content || "";
       const nextTitle = data.title || "";
       const nextCorrespondent = data.correspondent || "";
+      const nextDocumentType = data.documentType || "";
       const nextTags = Array.isArray(data.tags) ? data.tags : [];
-      const nextOriginalUrl = data.original_url || null;
+      const nextOriginalUrl = data.normalized_original_url || data.original_url || null;
       const nextPageCount = data.pageCount || 1;
       setContent(nextContent);
       setTitle(nextTitle);
       setCorrespondent(nextCorrespondent);
+      setDocumentType(nextDocumentType);
       setTags(nextTags);
       setOriginalUrl(nextOriginalUrl);
       setPageCount(nextPageCount);
@@ -15808,9 +16814,10 @@ function ManualWorkspaceIsland(props) {
         dispatchDocumentFields([], data.id);
       }
       dispatchDocumentMetadata({
-        title: data.title,
-        content: data.content,
-        correspondent: data.correspondent,
+        title: nextTitle,
+        content: nextContent,
+        correspondent: nextCorrespondent,
+        documentType: nextDocumentType,
         pageCount: nextPageCount
       });
       dispatchDocumentSelected({
@@ -15892,14 +16899,24 @@ function ManualWorkspaceIsland(props) {
     const onAnalysisCompleted = (e3) => {
       const detail = e3?.detail || {};
       const result = detail.result || {};
+      const nextTitle = result.title || title;
+      const nextCorrespondent = result.correspondent || correspondent;
+      const nextDocumentType = result.documentType || documentType;
+      const nextPageCount = pageCount || 1;
+      const nextDocId = detail.documentId ?? documentId;
       if (result.correspondent) setCorrespondent(result.correspondent);
       if (result.title) setTitle(result.title);
-      if (result.title || result.correspondent) {
-        dispatchDocumentMetadata({
-          title: result.title || title,
-          correspondent: result.correspondent || correspondent
-        });
+      if (result.documentType) setDocumentType(result.documentType);
+      if (Array.isArray(result.fields) && result.fields.length > 0) {
+        dispatchDocumentFields(result.fields, nextDocId ?? null);
       }
+      dispatchDocumentMetadata({
+        title: nextTitle,
+        correspondent: nextCorrespondent,
+        documentType: nextDocumentType,
+        content,
+        pageCount: nextPageCount
+      });
     };
     const onFallback = (e3) => {
       const detail = e3?.detail || {};
@@ -15926,7 +16943,16 @@ function ManualWorkspaceIsland(props) {
       window.removeEventListener("visual:fallback", onFallback);
       window.removeEventListener("tags:updated", onTagsUpdated);
     };
-  }, [correspondent, dispatchDocumentMetadata, title]);
+  }, [
+    content,
+    correspondent,
+    dispatchDocumentFields,
+    dispatchDocumentMetadata,
+    documentId,
+    documentType,
+    pageCount,
+    title
+  ]);
   const railText = T2(() => {
     if (!documentId) {
       return "Select a document to begin a guided review.";
@@ -15985,6 +17011,408 @@ function ManualWorkspaceIsland(props) {
   ] });
 }
 
+// src/islands/DocumentContentIsland.tsx
+function DocumentContentIsland(props) {
+  const [documentId, setDocumentId] = d2(props.documentId ?? null);
+  const [content, setContent] = d2(props.content || "");
+  const [searchQuery, setSearchQuery] = d2(props.initialQuery || "");
+  const [caseSensitive, setCaseSensitive] = d2(false);
+  const [useRegex, setUseRegex] = d2(false);
+  const [matches, setMatches] = d2([]);
+  const [currentMatchIndex, setCurrentMatchIndex] = d2(-1);
+  const [regexError, setRegexError] = d2(null);
+  const contentRef = A2(null);
+  y2(() => {
+    const handler = (e3) => {
+      const detail = e3.detail || {};
+      if (detail.documentId !== void 0) setDocumentId(detail.documentId);
+      if (detail.content !== void 0) {
+        setContent(detail.content);
+        setSearchQuery("");
+        setMatches([]);
+        setCurrentMatchIndex(-1);
+      }
+    };
+    window.addEventListener("document:selected", handler);
+    return () => window.removeEventListener("document:selected", handler);
+  }, []);
+  y2(() => {
+    const timer = setTimeout(() => {
+      if (!searchQuery) {
+        setMatches([]);
+        setCurrentMatchIndex(-1);
+        setRegexError(null);
+        return;
+      }
+      try {
+        const flags = caseSensitive ? "g" : "gi";
+        let regex;
+        if (useRegex) {
+          regex = new RegExp(searchQuery, flags);
+        } else {
+          const escaped = searchQuery.replace(/[.*+?^${}()|[\\]/g, "\\$&");
+          regex = new RegExp(escaped, flags);
+        }
+        const newMatches = [];
+        let match;
+        let count3 = 0;
+        const maxMatches = 1e3;
+        while ((match = regex.exec(content)) !== null && count3 < maxMatches) {
+          newMatches.push({
+            index: count3,
+            start: match.index,
+            end: match.index + match[0].length
+          });
+          count3++;
+        }
+        setMatches(newMatches);
+        setRegexError(null);
+        if (newMatches.length > 0) {
+          setCurrentMatchIndex(0);
+        } else {
+          setCurrentMatchIndex(-1);
+        }
+      } catch (e3) {
+        setRegexError(e3.message);
+        setMatches([]);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [content, searchQuery, caseSensitive, useRegex]);
+  y2(() => {
+    if (currentMatchIndex >= 0 && matches[currentMatchIndex]) {
+      const matchId = `match-${currentMatchIndex}`;
+      const el = document.getElementById(matchId);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }, [currentMatchIndex, matches]);
+  const navigate = (dir) => {
+    if (matches.length === 0) return;
+    setCurrentMatchIndex((prev) => {
+      const next = prev + dir;
+      if (next >= matches.length) return 0;
+      if (next < 0) return matches.length - 1;
+      return next;
+    });
+  };
+  const renderedContent = T2(() => {
+    if (!content) return /* @__PURE__ */ u3("div", { className: "text-gray-400 italic p-4", children: "No content available." });
+    if (matches.length === 0) return /* @__PURE__ */ u3("div", { className: "font-mono text-sm whitespace-pre-wrap", children: content });
+    const parts = [];
+    let lastIndex = 0;
+    matches.forEach((m3, i4) => {
+      if (m3.start > lastIndex) {
+        parts.push(content.substring(lastIndex, m3.start));
+      }
+      const isCurrent = i4 === currentMatchIndex;
+      parts.push(
+        /* @__PURE__ */ u3(
+          "mark",
+          {
+            id: `match-${i4}`,
+            className: `${isCurrent ? "bg-yellow-400 ring-2 ring-yellow-600" : "bg-yellow-200"}`,
+            children: content.substring(m3.start, m3.end)
+          },
+          `match-${i4}`
+        )
+      );
+      lastIndex = m3.end;
+    });
+    if (lastIndex < content.length) {
+      parts.push(content.substring(lastIndex));
+    }
+    return /* @__PURE__ */ u3("div", { className: "font-mono text-sm whitespace-pre-wrap", children: parts });
+  }, [content, matches, currentMatchIndex]);
+  return /* @__PURE__ */ u3("div", { "data-testid": "document-content-island-root", className: "h-full flex flex-col", children: [
+    /* @__PURE__ */ u3("div", { className: "bg-gray-50 border-b border-gray-200 p-2 flex flex-wrap gap-2 items-center text-sm sticky top-0 z-10", children: [
+      /* @__PURE__ */ u3("div", { className: "relative flex-1 min-w-[200px]", children: [
+        /* @__PURE__ */ u3(
+          "input",
+          {
+            type: "text",
+            "data-testid": "search-input",
+            value: searchQuery,
+            onInput: (e3) => setSearchQuery(e3.target.value),
+            placeholder: "Search in document...",
+            className: `w-full pl-8 pr-4 py-1.5 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${regexError ? "border-red-500 bg-red-50" : "border-gray-300"}`
+          }
+        ),
+        /* @__PURE__ */ u3("i", { className: "fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" })
+      ] }),
+      /* @__PURE__ */ u3("div", { className: "flex items-center gap-1 bg-white border border-gray-300 rounded-md p-0.5", children: [
+        /* @__PURE__ */ u3(
+          "button",
+          {
+            onClick: () => navigate(-1),
+            disabled: matches.length === 0,
+            className: "p-1 px-2 hover:bg-gray-100 rounded disabled:opacity-50",
+            title: "Previous match",
+            "data-testid": "search-prev",
+            children: /* @__PURE__ */ u3("i", { className: "fas fa-chevron-up" })
+          }
+        ),
+        /* @__PURE__ */ u3("span", { className: "text-xs text-gray-500 min-w-[60px] text-center", "data-testid": "search-count", children: matches.length > 0 ? `${currentMatchIndex + 1}/${matches.length}` : "0/0" }),
+        /* @__PURE__ */ u3(
+          "button",
+          {
+            onClick: () => navigate(1),
+            disabled: matches.length === 0,
+            className: "p-1 px-2 hover:bg-gray-100 rounded disabled:opacity-50",
+            title: "Next match",
+            "data-testid": "search-next",
+            children: /* @__PURE__ */ u3("i", { className: "fas fa-chevron-down" })
+          }
+        )
+      ] }),
+      /* @__PURE__ */ u3("div", { className: "flex items-center gap-2", children: [
+        /* @__PURE__ */ u3(
+          "button",
+          {
+            onClick: () => setCaseSensitive(!caseSensitive),
+            className: `px-2 py-1 border rounded text-xs ${caseSensitive ? "bg-blue-100 border-blue-300 text-blue-700" : "bg-white border-gray-300 text-gray-600"}`,
+            title: "Match Case",
+            "data-testid": "search-case-sensitive",
+            children: "Aa"
+          }
+        ),
+        /* @__PURE__ */ u3(
+          "button",
+          {
+            onClick: () => setUseRegex(!useRegex),
+            className: `px-2 py-1 border rounded text-xs ${useRegex ? "bg-blue-100 border-blue-300 text-blue-700" : "bg-white border-gray-300 text-gray-600"}`,
+            title: "Use Regular Expression",
+            "data-testid": "search-regex",
+            children: ".*"
+          }
+        ),
+        /* @__PURE__ */ u3(
+          "button",
+          {
+            onClick: () => {
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("export:text-requested", { detail: { text: content } }));
+              }
+            },
+            className: "px-2 py-1 border rounded text-xs bg-white border-gray-300 text-gray-600 hover:bg-gray-50",
+            title: "Export Document Text",
+            "data-testid": "export-text",
+            children: /* @__PURE__ */ u3("i", { className: "fas fa-download" })
+          }
+        ),
+        /* @__PURE__ */ u3(
+          "button",
+          {
+            onClick: () => {
+              const context = { type: "text", data: { text: content.substring(0, 5e3) }, documentId };
+              window.location.href = `/chat?context=${encodeURIComponent(JSON.stringify(context))}`;
+            },
+            className: "px-2 py-1 border rounded text-xs bg-white border-gray-300 text-gray-600 hover:bg-gray-50 text-green-600",
+            title: "Send to Chat",
+            "data-testid": "send-to-chat",
+            children: /* @__PURE__ */ u3("i", { className: "fas fa-comment-dots" })
+          }
+        )
+      ] })
+    ] }),
+    regexError && /* @__PURE__ */ u3("div", { className: "bg-red-50 text-red-700 text-xs px-3 py-1 border-b border-red-100", children: [
+      "Invalid Regex: ",
+      regexError
+    ] }),
+    /* @__PURE__ */ u3(
+      "div",
+      {
+        ref: contentRef,
+        "data-testid": "document-content-area",
+        className: "flex-1 overflow-auto p-4 bg-white",
+        children: renderedContent
+      }
+    )
+  ] });
+}
+
+// src/islands/ExportPanelIsland.tsx
+function ExportPanelIsland(props) {
+  const [showModal, setShowModal] = d2(false);
+  const [exportType, setExportType] = d2("text");
+  const [data, setData] = d2(null);
+  const [format, setFormat] = d2("png");
+  const [loading, setLoading] = d2(false);
+  y2(() => {
+    const onRegion = (e3) => {
+      setData(e3.detail?.imageBase64);
+      setExportType("region");
+      setFormat("png");
+      setShowModal(true);
+    };
+    const onText = (e3) => {
+      setData(e3.detail?.text);
+      setExportType("text");
+      setFormat("txt");
+      setShowModal(true);
+    };
+    const onAnnotations = (e3) => {
+      setData(e3.detail?.annotations);
+      setExportType("annotations");
+      setFormat("json");
+      setShowModal(true);
+    };
+    window.addEventListener("export:region-requested", onRegion);
+    window.addEventListener("export:text-requested", onText);
+    window.addEventListener("export:annotations-requested", onAnnotations);
+    return () => {
+      window.removeEventListener("export:region-requested", onRegion);
+      window.removeEventListener("export:text-requested", onText);
+      window.removeEventListener("export:annotations-requested", onAnnotations);
+    };
+  }, []);
+  const handleExport = async () => {
+    setLoading(true);
+    try {
+      let endpoint = "";
+      let body = {};
+      if (exportType === "region") {
+        endpoint = "/manual/export/region";
+        body = { imageBase64: data, format };
+      } else if (exportType === "text") {
+        endpoint = "/manual/export/text";
+        body = { text: data, format };
+      } else if (exportType === "annotations") {
+        endpoint = "/manual/export/annotations";
+        body = { annotations: data, documentId: props.documentId };
+      }
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (!response.ok) throw new Error("Export failed");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a3 = document.createElement("a");
+      a3.href = url;
+      const disposition = response.headers.get("Content-Disposition");
+      let filename = `export.${format}`;
+      if (disposition && disposition.indexOf("filename=") !== -1) {
+        const matches = /filename="([^"]*)"/.exec(disposition);
+        if (matches != null && matches[1]) {
+          filename = matches[1];
+        }
+      }
+      a3.download = filename;
+      document.body.appendChild(a3);
+      a3.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a3);
+      setShowModal(false);
+    } catch (e3) {
+      console.error("Export error", e3);
+      alert("Export failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const handleCopy = async () => {
+    try {
+      if (exportType === "text") {
+        await navigator.clipboard.writeText(data);
+        alert("Copied to clipboard!");
+      } else if (exportType === "annotations") {
+        await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+        alert("Copied to clipboard!");
+      } else if (exportType === "region") {
+        alert("Image copy not supported yet. Please download.");
+      }
+    } catch (e3) {
+      console.error("Copy failed", e3);
+    }
+  };
+  if (!showModal) return null;
+  return /* @__PURE__ */ u3("div", { className: "fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm", children: /* @__PURE__ */ u3("div", { className: "bg-white rounded-lg shadow-xl p-6 w-full max-w-md", children: [
+    /* @__PURE__ */ u3("h2", { className: "text-xl font-bold mb-4 capitalize", children: [
+      "Export ",
+      exportType
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "mb-4", children: [
+      /* @__PURE__ */ u3("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "Format" }),
+      /* @__PURE__ */ u3("div", { className: "flex gap-2", children: [
+        exportType === "region" && /* @__PURE__ */ u3(k, { children: [
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              onClick: () => setFormat("png"),
+              className: `px-3 py-2 border rounded ${format === "png" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
+              children: "PNG"
+            }
+          ),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              onClick: () => setFormat("pdf"),
+              className: `px-3 py-2 border rounded ${format === "pdf" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
+              children: "PDF"
+            }
+          )
+        ] }),
+        exportType === "text" && /* @__PURE__ */ u3(k, { children: [
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              onClick: () => setFormat("txt"),
+              className: `px-3 py-2 border rounded ${format === "txt" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
+              children: "TXT"
+            }
+          ),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              onClick: () => setFormat("pdf"),
+              className: `px-3 py-2 border rounded ${format === "pdf" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
+              children: "PDF"
+            }
+          )
+        ] }),
+        exportType === "annotations" && /* @__PURE__ */ u3(
+          "button",
+          {
+            onClick: () => setFormat("json"),
+            className: `px-3 py-2 border rounded ${format === "json" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
+            children: "JSON"
+          }
+        )
+      ] })
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "flex justify-end gap-3 mt-6", children: [
+      /* @__PURE__ */ u3(
+        "button",
+        {
+          onClick: () => setShowModal(false),
+          className: "px-4 py-2 text-gray-600 hover:bg-gray-100 rounded",
+          children: "Cancel"
+        }
+      ),
+      /* @__PURE__ */ u3(
+        "button",
+        {
+          onClick: handleCopy,
+          className: "px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50",
+          children: "Copy"
+        }
+      ),
+      /* @__PURE__ */ u3(
+        "button",
+        {
+          onClick: handleExport,
+          disabled: loading,
+          className: "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50",
+          children: loading ? "Exporting..." : "Download"
+        }
+      )
+    ] })
+  ] }) });
+}
+
 // src/islands/runtime.browser.tsx
 var registry = {
   "visual-annotation-island": VisualAnnotationIsland,
@@ -15992,6 +17420,7 @@ var registry = {
   "manual-editor-island": ManualEditorIsland,
   "history-tabs-island": HistoryTabsIsland,
   "overlay-viewer-island": OverlayViewerIsland,
+  "visual-overlays-island": VisualOverlaysIsland,
   "playground-island": PlaygroundIsland,
   "shadcn-compat": ShadcnCompat,
   "overview-dashboard-island": OverviewDashboardIsland,
@@ -16007,7 +17436,9 @@ var registry = {
   "ai-analysis-island": AIAnalysisIsland,
   "chat-workspace-island": ChatWorkspaceIsland,
   "history-manager-island": HistoryManagerIsland,
-  "manual-workspace-island": ManualWorkspaceIsland
+  "manual-workspace-island": ManualWorkspaceIsland,
+  "document-content-island": DocumentContentIsland,
+  "export-panel-island": ExportPanelIsland
 };
 function parseProps(el) {
   const raw = el.getAttribute("data-props") || "{}";

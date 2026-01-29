@@ -629,6 +629,27 @@ async getCurrentProcessingStatus() {
   }
 },
 
+  /**
+   * Checks the health of the SQLite database by performing a simple count query.
+   * @returns {Promise<{healthy: boolean, documentCount?: number, error?: string, timestamp: string}>}
+   */
+  async checkDatabaseHealth() {
+    try {
+      const count = db.prepare('SELECT COUNT(*) as count FROM processed_documents').get();
+      return { 
+        healthy: true, 
+        documentCount: count.count, 
+        timestamp: new Date().toISOString() 
+      };
+    } catch (error) {
+      return { 
+        healthy: false, 
+        error: error.message,
+        timestamp: new Date().toISOString()
+      };
+    }
+  },
+
 
   // Utility method to close the database connection
   closeDatabase() {

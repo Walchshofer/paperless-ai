@@ -145,7 +145,7 @@ export default function FeedbackControlsIsland(
               <button
                 type="button"
                 data-testid={`thumbs-up-${c}`}
-                aria-pressed={stateMap[c] === 'up'}
+                aria-pressed={String(stateMap[c] === 'up')}
                 ref={(el) => {
                   refs.current[c] = Object.assign(refs.current[c] || {}, { up: el });
                 }}
@@ -159,7 +159,7 @@ export default function FeedbackControlsIsland(
               <button
                 type="button"
                 data-testid={`thumbs-down-${c}`}
-                aria-pressed={stateMap[c] === 'down'}
+                aria-pressed={String(stateMap[c] === 'down')}
                 ref={(el) => {
                   refs.current[c] = Object.assign(refs.current[c] || {}, { down: el });
                 }}

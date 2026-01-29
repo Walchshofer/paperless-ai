@@ -14,6 +14,7 @@ export const ManualWorkspaceSchema = z.object({
   tags: z.array(z.union([z.string(), z.number()])).optional().default([]),
   originalUrl: z.string().nullable().optional(),
   pageCount: z.number().int().nullable().optional(),
+  page: z.number().int().optional(),
   documents: z.array(ManualDocumentSchema).optional().default([]),
 });
 

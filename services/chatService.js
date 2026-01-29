@@ -237,9 +237,37 @@ class ChatService {
         chatData.model = requestedModel;
       }
 
+      let finalMessage = userMessage;
+      if (options.context && Array.isArray(options.context)) {
+        const contextStr = options.context.map(c => {
+          if (c.type === 'visual') {
+             // For visual context, we might want to use a multimodal model feature if available,
+             // but for now we'll just indicate it in text or maybe pass the base64 if the model supports it.
+             // The ticket assumes text-based analysis of the context or that the LLM can "see" it if we pass it right.
+             // If the model is text-only, we can't really pass the image unless we use an OCR/Vision service first.
+             // However, the "context" might just be metadata. 
+             // "Analyze this visual region" implies we should pass the image.
+             // Paperless-AI seems to have vision models.
+             // If we are using Ollama Vision, we can pass `images` array in the message.
+             return `[Visual Context: Region on page ${c.page}]`; 
+          }
+          if (c.type === 'text') {
+            return `[Context: ${c.excerpt}]`;
+          }
+          return '';
+        }).join('\n');
+        
+        if (contextStr) {
+           finalMessage = `${contextStr}\n\n${userMessage}`;
+        }
+      }
+
       chatData.messages.push({
         role: "user",
-        content: userMessage
+        content: finalMessage,
+        ...(options.context && options.context.some(c => c.type === 'visual' && c.imageBase64) ? {
+           images: options.context.filter(c => c.type === 'visual' && c.imageBase64).map(c => c.imageBase64)
+        } : {})
       });
 
       // Persist user message if enabled (option override > global config)

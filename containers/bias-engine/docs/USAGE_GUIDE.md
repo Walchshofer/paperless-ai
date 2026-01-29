@@ -53,7 +53,20 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | Select-String "
 docker logs guidance-bias-engine-bias-engine-1 --tail 20
 ```
 
-### 3. Test with grpcurl
+### 3. Verify Proto Generation
+
+The LogitBiasEngine requires pre-generated gRPC bindings. You can verify they exist in the running container:
+
+```bash
+docker exec -it <container_name> ls -la /app/guidance/ipc/proto/
+```
+
+Expected files:
+- `bias_service_pb2.py`
+- `bias_service_pb2_grpc.py`
+- `__init__.py`
+
+### 4. Test with grpcurl
 
 ```bash
 # Health check

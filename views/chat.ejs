@@ -155,10 +155,6 @@
         });
     </script>
     <script src="js/dashboard.js"></script>
-    <script type="module">
-        import { mountIslands } from '/js/dist/island-runtime.js';
-        mountIslands(document);
-        window.__islandRuntimeMounted = true;
-    </script>
+    <%- include('partials/island-loader') %>
 </body>
 </html>

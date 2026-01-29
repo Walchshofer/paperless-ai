@@ -29,11 +29,16 @@ RUN npx tailwindcss -i src/styles/tailwind-input.css -o public/css/tailwind.css 
 # Copy application source code
 COPY . .
 
-# Install dependencies; allow dev deps when NPM_OMIT_DEV=0
+# Install dependencies (include dev deps for bundling)
 ARG NPM_OMIT_DEV=1
-RUN if [ "$NPM_OMIT_DEV" = "1" ]; then OMIT="--omit=dev"; else OMIT=""; fi && \
-    npm ci $OMIT --no-audit --no-fund || \
-    npm install $OMIT --legacy-peer-deps --no-audit --no-fund || true
+RUN npm install --no-audit --no-fund || \
+    npm install --legacy-peer-deps --no-audit --no-fund || true
+
+# Build Islands
+RUN npm run build:islands
+
+# Clean up dev dependencies if requested
+RUN if [ "$NPM_OMIT_DEV" = "1" ]; then npm prune --production; fi
 RUN npm cache clean --force
 
 # Normalize line endings and make startup script executable

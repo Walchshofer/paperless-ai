@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy Code
 COPY guidance/ ./guidance/
 COPY setup_grpc.sh .
+RUN sed -i 's/\r$//' setup_grpc.sh
 
 # Setup Proto
 RUN chmod +x setup_grpc.sh && ./setup_grpc.sh

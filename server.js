@@ -947,10 +947,66 @@ app.get('/api/health/patterns', (req, res) => {
   }
 });
 
-// Error handler
+// 404 handler - forward to error handler
+app.use((req, res, next) => {
+  const err = new Error('Not Found');
+  err.status = 404;
+  next(err);
+});
+
+// Enhanced Error handler
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).send('Something broke!');
+  const status = err.status || err.statusCode || 500;
+  const env = process.env.NODE_ENV || 'development';
+  const exposeDetails = env === 'development';
+
+  // Build user/context info if available
+  const userInfo = req && req.user ? (req.user.username || req.user.id || req.user) : null;
+  const context = {
+    method: req && req.method,
+    url: req && req.originalUrl,
+    user: userInfo,
+    status,
+    message: err && err.message
+  };
+
+  // Log structured error (include stack)
+  try {
+    if (typeof logger !== 'undefined' && logger.error) {
+      logger.error({ event: 'http_error', ...context, stack: err && err.stack });
+    } else {
+      console.error('[ERROR] http_error', context, err && err.stack);
+    }
+  } catch (logErr) {
+    console.error('[ERROR] failed to log error', logErr);
+  }
+
+  // If this looks like an API request, return JSON
+  if (req && req.originalUrl && req.originalUrl.startsWith('/api')) {
+    const payload = {
+      error: status === 404 ? 'not_found' : 'internal_error',
+      message: status === 404 ? 'Resource not found' : 'Internal server error'
+    };
+    if (exposeDetails) payload.details = err && err.message;
+    return res.status(status).json(payload);
+  }
+
+  // Render an error page for human users
+  const friendlyMessage = status === 404 ? 'Page not found' : 'An unexpected error occurred';
+  const details = exposeDetails ? (err && err.stack) : null;
+
+  try {
+    return res.status(status).render('error', {
+      vm: { page: 'error' },
+      status,
+      message: exposeDetails ? (err && err.message) : friendlyMessage,
+      details
+    });
+  } catch (renderErr) {
+    // Rendering failed - fallback to plain text response
+    const fallback = exposeDetails ? `${err && err.message}\n\n${err && err.stack}` : friendlyMessage;
+    return res.status(status).send(fallback);
+  }
 });
 
 // Start scanning
@@ -1045,6 +1101,31 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Start server
+async function validateCriticalAssets() {
+  console.log('[STARTUP] Validating critical assets...');
+  const assets = [
+    'public/js/dist/island-runtime.js',
+    'public/css/tailwind.css',
+    'public/js/island-runtime.js'
+  ];
+
+  const missing = [];
+  for (const asset of assets) {
+    try {
+      await fs.access(path.join(process.cwd(), asset));
+    } catch {
+      missing.push(asset);
+    }
+  }
+
+  if (missing.length > 0) {
+    console.warn(`[STARTUP] ⚠️  Warning: Missing critical frontend assets: ${missing.join(', ')}`);
+    console.warn('[STARTUP] Frontend islands may not function correctly. Ensure "npm run build:islands" and "npm run build:css" have been run.');
+  } else {
+    console.log('[STARTUP] ✓ Critical assets validated');
+  }
+}
+
 async function validateDatabaseConnection() {
   const cfg = require('./config/config');
 
@@ -1110,6 +1191,9 @@ async function startServer() {
   try {
     await initializeDataDirectory();
     await saveOpenApiSpec(); // Save OpenAPI specification on startup
+
+    // Validate critical assets
+    await validateCriticalAssets();
 
     // Validate database connection before starting server
     await validateDatabaseConnection();

@@ -282,13 +282,13 @@ router.get('/chat/init', async (req, res) => {
  */
 router.post('/chat/message', async (req, res) => {
   try {
-    const { documentId, message, model } = req.body;
+    const { documentId, message, model, context } = req.body;
     if (!documentId || !message) {
       return res.status(400).json({ error: 'Document ID and message are required' });
     }
 
     // Use the new streaming method
-    await ChatService.sendMessageStream(documentId, message, res, { model });
+    await ChatService.sendMessageStream(documentId, message, res, { model, context });
   } catch (error) {
     console.error('Chat message error:', error);
     res.status(500).json({ error: error.message });

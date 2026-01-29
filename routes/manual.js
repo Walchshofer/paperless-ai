@@ -281,6 +281,7 @@ router.get('/manual/preview/:id', async (req, res) => {
  *               $ref: '#/components/schemas/Error'
  */
 router.get('/manual', async (req, res) => {
+  const { open, page } = req.query;
   const version = configFile.PAPERLESS_AI_VERSION || ' ';
   const vm = {
     version,
@@ -288,7 +289,8 @@ router.get('/manual', async (req, res) => {
       disableGithubFetch: process.env.DISABLE_GITHUB_FETCH || 'no',
     },
     manual: {
-      documentId: null,
+      documentId: open ? Number(open) : null,
+      page: page ? Number(page) : 1,
       metadata: {},
       content: '',
       fields: [],
@@ -462,6 +464,83 @@ router.put('/manual/annotations/:id', async (req, res) => {
   } catch (err) {
     console.error('Failed to update annotation:', err && err.message);
     res.status(500).json({ error: err.message || 'Failed to update annotation' });
+  }
+});
+
+// Export endpoints
+router.post('/manual/export/region', async (req, res) => {
+  try {
+    const { imageBase64, format } = req.body;
+    if (!imageBase64) return res.status(400).json({ error: 'Image data required' });
+
+    if (format === 'pdf') {
+      const { PDFDocument } = require('pdf-lib');
+      const pdfDoc = await PDFDocument.create();
+      const page = pdfDoc.addPage();
+      const pngImage = await pdfDoc.embedPng(imageBase64);
+      const { width, height } = pngImage.scale(1);
+      page.setSize(width + 40, height + 40);
+      page.drawImage(pngImage, { x: 20, y: 20, width, height });
+      const pdfBytes = await pdfDoc.save();
+      const buffer = Buffer.from(pdfBytes);
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="region-export.pdf"');
+      return res.send(buffer);
+    } 
+    
+    // Default PNG
+    const buffer = Buffer.from(imageBase64, 'base64');
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Disposition', 'attachment; filename="region-export.png"');
+    res.send(buffer);
+  } catch (err) {
+    console.error('Export region failed:', err);
+    res.status(500).json({ error: 'Export failed' });
+  }
+});
+
+router.post('/manual/export/text', async (req, res) => {
+  try {
+    const { text, format } = req.body;
+    if (!text) return res.status(400).json({ error: 'Text content required' });
+
+    if (format === 'pdf') {
+      const { PDFDocument, StandardFonts } = require('pdf-lib');
+      const pdfDoc = await PDFDocument.create();
+      const page = pdfDoc.addPage();
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      page.drawText(text, { x: 50, y: page.getHeight() - 50, size: 12, font });
+      const pdfBytes = await pdfDoc.save();
+      const buffer = Buffer.from(pdfBytes);
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="text-export.pdf"');
+      return res.send(buffer);
+    }
+
+    // Default TXT
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Disposition', 'attachment; filename="text-export.txt"');
+    res.send(text);
+  } catch (err) {
+    console.error('Export text failed:', err);
+    res.status(500).json({ error: 'Export failed' });
+  }
+});
+
+router.post('/manual/export/annotations', async (req, res) => {
+  try {
+    const { annotations, documentId } = req.body;
+    if (!annotations) return res.status(400).json({ error: 'Annotations required' });
+
+    const json = JSON.stringify(annotations, null, 2);
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="annotations-${documentId || 'export'}.json"`);
+    res.send(json);
+  } catch (err) {
+    console.error('Export annotations failed:', err);
+    res.status(500).json({ error: 'Export failed' });
   }
 });
 

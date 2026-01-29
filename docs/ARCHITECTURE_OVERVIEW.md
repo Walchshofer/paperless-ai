@@ -27,6 +27,7 @@ Responsibilities:
 - Interact with Visual RAG for enrichment
 - Patch final results back to Paperless-ngx
 - Emit logs, telemetry, and request tracing
+- **Monitor system health** (Paperless-ngx API, SQLite, AI Providers)
 
 Owns:
 - Pipeline correctness
@@ -129,6 +130,17 @@ Does NOT:
 - Process images or visual content (use visual-rag for that)
 - Perform constrained generation (use guidance-service)
 - Replace visual retrieval (complementary service)
+
+---
+
+## Health & Monitoring
+
+The system implements real-time health monitoring for critical dependencies, exposed via the Dashboard and specialized API endpoints.
+
+- **Paperless-ngx**: Verified via active API ping (`/api/documents/`) and document count validation.
+- **Local Database**: Verified via SQLite `SELECT` query on the `processed_documents` table.
+- **AI Services**: Verified via configuration state and provider-specific connectivity checks.
+- **Observability**: Metrics are aggregated across services and visualized in the dashboard with automated empty-state handling for stale data.
 
 ---
 

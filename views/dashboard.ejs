@@ -113,6 +113,14 @@
                                 <i class="fas fa-chevron-right text-gray-400 group-hover:text-gray-600 group-hover:transform group-hover:translate-x-1 transition-all duration-300"></i>
                             </a>
                         </div>
+                        <div class="flex gap-2 mr-2">
+                            <div class="flex items-center px-2 py-1 rounded-full text-[10px] font-semibold <%= vm.health.paperless === 'online' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' %>">
+                                <i class="fas fa-circle mr-1 text-[8px]"></i> Paperless-ngx: <%= vm.health.paperless.toUpperCase() %>
+                            </div>
+                            <div class="flex items-center px-2 py-1 rounded-full text-[10px] font-semibold <%= vm.health.local_db === 'online' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' %>">
+                                <i class="fas fa-circle mr-1 text-[8px]"></i> Local DB: <%= vm.health.local_db.toUpperCase() %>
+                            </div>
+                        </div>
                         <button 
                             id="scanButton" 
                             data-testid="dashboard-scan-btn"
@@ -134,6 +142,51 @@
 
                 <!-- Top Cards -->
                 <div class="card-grid">
+                    <!-- User & System Status Card -->
+                    <div class="material-card">
+                        <h3 class="card-title">User & System</h3>
+                        <div class="space-y-4">
+                            <div class="flex items-center p-3 bg-gray-50 rounded-lg">
+                                <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                                    <i class="fas fa-user text-blue-500"></i>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-bold text-gray-800"><%= vm.user.username || 'Guest' %></div>
+                                    <div class="flex items-center">
+                                        <% if (vm.user.isAdmin) { %>
+                                            <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500 text-white font-bold mr-2">ADMIN</span>
+                                        <% } %>
+                                        <span class="text-[10px] text-gray-500">Active</span>
+                                        <% if (vm.user.id) { %>
+                                            <span class="text-[10px] text-gray-400 ml-2">ID: <%= vm.user.id %></span>
+                                        <% } %>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="text-gray-600">Paperless-ngx</span>
+                                    <span class="flex items-center <%= vm.health.paperless === 'online' ? 'text-green-600' : 'text-red-600' %>">
+                                        <i class="fas fa-circle text-[8px] mr-1"></i> <%= vm.health.paperless.toUpperCase() %>
+                                    </span>
+                                </div>
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="text-gray-600">Local Database</span>
+                                    <span class="flex items-center <%= vm.health.local_db === 'online' ? 'text-green-600' : 'text-red-600' %>">
+                                        <i class="fas fa-circle text-[8px] mr-1"></i> <%= vm.health.local_db.toUpperCase() %>
+                                    </span>
+                                </div>
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="text-gray-600">AI Service</span>
+                                    <span class="flex items-center <%= vm.health.ai_service === 'online' ? 'text-green-600' : 'text-red-600' %>">
+                                        <i class="fas fa-circle text-[8px] mr-1"></i> <%= vm.health.ai_service.toUpperCase() %>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Document Chart -->
                     <div class="material-card col-span-2">
                         <h3 class="card-title">Document Processing Status</h3>
@@ -147,7 +200,7 @@
                                         <div class="flex items-center justify-between">
                                             <div class="flex items-center">
                                                 <div class="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
-                                                <span>AI Processed</span>
+                                                <span>Local Processed</span>
                                             </div>
                                             <span class="font-semibold"><%= vm.paperless_data.processedDocumentCount %></span>
                                         </div>
@@ -156,50 +209,79 @@
                                         <div class="flex items-center justify-between">
                                             <div class="flex items-center">
                                                 <div class="w-3 h-3 rounded-full bg-gray-200 mr-2"></div>
-                                                <span>Unprocessed</span>
+                                                <span>Pending Processing</span>
                                             </div>
-                                            <span class="font-semibold"><%= vm.paperless_data.documentCount - vm.paperless_data.processedDocumentCount %></span>
+                                            <span class="font-semibold"><%= Math.max(0, vm.paperless_data.documentCount - vm.paperless_data.processedDocumentCount) %></span>
                                         </div>
                                     </div>
-                                    <div class="total-stats mt-6 pt-4 border-t">
-                                        <div class="text-sm text-gray-600">Total Documents</div>
-                                        <div class="text-2xl font-bold"><%= vm.paperless_data.documentCount %></div>
+                                    <div class="total-stats mt-6 pt-4 border-t flex items-center justify-between">
+                                        <div>
+                                            <div class="text-sm text-gray-600">Paperless-ngx Total</div>
+                                            <div class="text-2xl font-bold"><%= vm.paperless_data.documentCount %></div>
+                                        </div>
+                                        <div class="text-right">
+                                            <div class="text-[10px] text-gray-500 uppercase font-bold mb-1">Queue Status</div>
+                                            <div class="flex items-center justify-end">
+                                                <span class="w-2 h-2 rounded-full <%= vm.processingStatus.isProcessing ? 'bg-blue-500 animate-pulse' : 'bg-gray-300' %> mr-2"></span>
+                                                <span class="text-xs font-medium"><%= vm.processingStatus.isProcessing ? 'Processing' : 'Idle' %></span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     
-                    <!-- Statistics Card -->
+                    <!-- Statistics & Activity Card -->
                     <div class="material-card">
-                        <h3 class="card-title">System Statistics</h3>
-                        <div class="space-y-6">
-                            <div class="stat-box cursor-pointer hover:shadow-lg transition-all" onclick="showTagDetails()">
+                        <div class="flex border-b border-gray-100 mb-4">
+                            <button data-testid="dashboard-stats-tab" class="flex-1 pb-2 text-sm font-bold border-b-2 border-blue-500">Stats</button>
+                            <button data-testid="dashboard-activity-tab" class="flex-1 pb-2 text-sm font-medium text-gray-400">Activity</button>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="stat-box cursor-pointer hover:bg-gray-50 transition-all p-2 rounded-lg" onclick="showTagDetails()">
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center">
-                                        <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center mr-3">
-                                            <i class="fas fa-tags text-blue-500"></i>
+                                        <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center mr-3">
+                                            <i class="fas fa-tags text-blue-500 text-xs"></i>
                                         </div>
                                         <div>
-                                            <div class="text-sm text-gray-600">Total Tags</div>
-                                            <div class="text-xl font-bold"><%= paperless_data.tagCount %></div>
+                                            <div class="text-[10px] text-gray-500 uppercase tracking-wider">Total Tags</div>
+                                            <div class="text-lg font-bold"><%= paperless_data.tagCount %></div>
                                         </div>
                                     </div>
-                                    <i class="fas fa-chevron-right text-gray-400"></i>
+                                    <i class="fas fa-chevron-right text-[10px] text-gray-300"></i>
                                 </div>
                             </div>
-                            <div class="stat-box cursor-pointer hover:shadow-lg transition-all" onclick="showCorrespondentDetails()">
+                            <div class="stat-box cursor-pointer hover:bg-gray-50 transition-all p-2 rounded-lg" onclick="showCorrespondentDetails()">
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center">
-                                        <div class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center mr-3">
-                                            <i class="fas fa-building text-purple-500"></i>
+                                        <div class="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center mr-3">
+                                            <i class="fas fa-building text-purple-500 text-xs"></i>
                                         </div>
                                         <div>
-                                            <div class="text-sm text-gray-600">Correspondents</div>
-                                            <div class="text-xl font-bold"><%= paperless_data.correspondentCount %></div>
+                                            <div class="text-[10px] text-gray-500 uppercase tracking-wider">Correspondents</div>
+                                            <div class="text-lg font-bold"><%= paperless_data.correspondentCount %></div>
                                         </div>
                                     </div>
-                                    <i class="fas fa-chevron-right text-gray-400"></i>
+                                    <i class="fas fa-chevron-right text-[10px] text-gray-300"></i>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 pt-4 border-t border-gray-50">
+                                <h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Recent Activity</h4>
+                                <div class="space-y-2">
+                                    <% if (vm.recentActivity && vm.recentActivity.length > 0) { %>
+                                        <% vm.recentActivity.forEach(item => { %>
+                                            <div class="flex items-center text-[11px] py-1">
+                                                <div class="w-1.5 h-1.5 rounded-full bg-green-400 mr-2"></div>
+                                                <div class="flex-1 truncate text-gray-700 font-medium"><%= item.title %></div>
+                                                <div class="text-gray-400 ml-2"><%= new Date(item.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) %></div>
+                                            </div>
+                                        <% }); %>
+                                    <% } else { %>
+                                        <div class="text-[11px] text-gray-400 italic">No recent activity</div>
+                                    <% } %>
                                 </div>
                             </div>
                         </div>
@@ -327,16 +409,22 @@
                     <!-- Token Distribution Chart -->
                     <div class="material-card">
                         <h3 class="card-title">Token Usage Distribution</h3>
-                        <div class="chart-container">
+                        <div class="chart-container relative" style="position: relative;">
                             <canvas id="tokenDistribution"></canvas>
+                            <div id="tokenDistributionEmpty" class="hidden absolute inset-0 flex items-center justify-center bg-gray-50/50 rounded-lg" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: none; align-items: center; justify-center: center;">
+                                <span class="text-sm text-gray-500">No token data yet - process documents to see metrics</span>
+                            </div>
                         </div>
                     </div>
                 
                     <!-- Document Types Chart -->
                     <div class="material-card">
                         <h3 class="card-title">Document Type Distribution</h3>
-                        <div class="chart-container">
+                        <div class="chart-container relative" style="position: relative;">
                             <canvas id="documentTypes"></canvas>
+                            <div id="documentTypesEmpty" class="hidden absolute inset-0 flex items-center justify-center bg-gray-50/50 rounded-lg" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: none; align-items: center; justify-center: center;">
+                                <span class="text-sm text-gray-500">No document types yet - process documents to see distribution</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -390,78 +478,135 @@
             });
         });
 
+        let tokenChart = null;
+        let docTypeChart = null;
+
+        function getCurrentTheme() {
+            return localStorage.getItem('theme') || 'light';
+        }
+
+        function getAxisTextColor() {
+            return getCurrentTheme() === 'dark' ? '#ffffff' : '#000000';
+        }
+
+        async function refreshDashboardMetrics() {
+            try {
+                const response = await fetch('/api/dashboard/metrics', { cache: 'no-store' });
+                if (!response.ok) throw new Error('Failed to fetch metrics');
+                const data = await response.json();
+                const metrics = data.metrics;
+
+                // Update window data for other scripts
+                window.dashboardData = {
+                    documentCount: metrics.documentCount,
+                    processedCount: metrics.processedDocumentCount
+                };
+
+                // Update charts
+                updateTokenChart(metrics.tokenDistribution);
+                updateDocTypeChart(metrics.documentTypes);
+
+                console.log('[DASHBOARD] Metrics refreshed:', new Date().toLocaleTimeString());
+            } catch (error) {
+                console.error('[DASHBOARD] Refresh failed:', error);
+            }
+        }
+
+        function updateTokenChart(tokenDistData) {
+            if (!tokenChart) return;
+            const hasTokenData = tokenDistData.length > 0 && tokenDistData[0].range !== 'No data';
+            
+            const emptyEl = document.getElementById('tokenDistributionEmpty');
+            if (emptyEl) emptyEl.style.display = hasTokenData ? 'none' : 'flex';
+
+            tokenChart.data.labels = tokenDistData.map(dist => dist.range);
+            tokenChart.data.datasets[0].data = tokenDistData.map(dist => dist.count);
+            tokenChart.data.datasets[0].backgroundColor = hasTokenData ? '#60a5fa' : '#e5e7eb';
+            tokenChart.options.plugins.tooltip.enabled = hasTokenData;
+            tokenChart.update();
+        }
+
+        function updateDocTypeChart(docTypeData) {
+            if (!docTypeChart) return;
+            const hasDocTypeData = docTypeData.length > 0 && docTypeData[0].type !== 'No data';
+
+            const emptyEl = document.getElementById('documentTypesEmpty');
+            if (emptyEl) emptyEl.style.display = hasDocTypeData ? 'none' : 'flex';
+
+            docTypeChart.data.labels = docTypeData.map(type => type.type);
+            docTypeChart.data.datasets[0].data = docTypeData.map(type => type.count);
+            docTypeChart.data.datasets[0].backgroundColor = hasDocTypeData ? ['#3b82f6', '#60a5fa', '#93c5fd'] : ['#e5e7eb'];
+            docTypeChart.options.plugins.tooltip.enabled = hasDocTypeData;
+            docTypeChart.update();
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
-            // Current Workload
-            // Function to get the current theme
-            function getCurrentTheme() {
-                //return current theme (light or dark)
-                return localStorage.getItem('theme') || 'light';
-            }
-
-            // Function to get the axis text color based on the current theme
-            function getAxisTextColor() {
-                return getCurrentTheme() === 'dark' ? '#ffffff' : '#000000';
-            }
-
             // Token Distribution Chart
-            new Chart(document.getElementById('tokenDistribution'), {
+            const tokenDistData = <%- JSON.stringify(paperless_data.tokenDistribution) %>;
+            const hasTokenData = tokenDistData.length > 0 && tokenDistData[0].range !== 'No data';
+            
+            if (!hasTokenData) {
+                const emptyEl = document.getElementById('tokenDistributionEmpty');
+                if (emptyEl) emptyEl.style.display = 'flex';
+            }
+
+            tokenChart = new Chart(document.getElementById('tokenDistribution'), {
                 type: 'bar',
                 data: {
-                    labels: <%- JSON.stringify(paperless_data.tokenDistribution.map(dist => dist.range)) %>,
+                    labels: tokenDistData.map(dist => dist.range),
                     datasets: [{
                         label: 'Number of Documents',
-                        data: <%- JSON.stringify(paperless_data.tokenDistribution.map(dist => dist.count)) %>,
-                        backgroundColor: '#60a5fa'
+                        data: tokenDistData.map(dist => dist.count),
+                        backgroundColor: hasTokenData ? '#60a5fa' : '#e5e7eb'
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: true,
                     scales: {
-                        x: {
-                            ticks: {
-                                color: getAxisTextColor() // Set X-axis text color based on theme
-                            }
-                        },
+                        x: { ticks: { color: getAxisTextColor() } },
                         y: {
-                            ticks: {
-                                color: getAxisTextColor() // Set Y-axis text color based on theme
-                            }
+                            beginAtZero: true,
+                            ticks: { stepSize: 1, color: getAxisTextColor() }
                         }
                     },
                     plugins: {
-                        legend: {
-                            labels: {
-                                color: getAxisTextColor() // Set legend text color based on theme
-                            }
-                        }
+                        legend: { labels: { color: getAxisTextColor() } },
+                        tooltip: { enabled: hasTokenData }
                     }
                 }
             });
 
             // Document Types Chart
-            new Chart(document.getElementById('documentTypes'), {
+            const docTypeData = <%- JSON.stringify(paperless_data.documentTypes) %>;
+            const hasDocTypeData = docTypeData.length > 0 && docTypeData[0].type !== 'No data';
+
+            if (!hasDocTypeData) {
+                const emptyEl = document.getElementById('documentTypesEmpty');
+                if (emptyEl) emptyEl.style.display = 'flex';
+            }
+
+            docTypeChart = new Chart(document.getElementById('documentTypes'), {
                 type: 'doughnut',
                 data: {
-                    labels: <%- JSON.stringify(paperless_data.documentTypes.map(type => type.type)) %>, // still need labels for tooltips
+                    labels: docTypeData.map(type => type.type),
                     datasets: [{
-                        data: <%- JSON.stringify(paperless_data.documentTypes.map(type => type.count)) %>,
-                        backgroundColor: ['#3b82f6', '#60a5fa', '#93c5fd']
+                        data: docTypeData.map(type => type.count),
+                        backgroundColor: hasDocTypeData ? ['#3b82f6', '#60a5fa', '#93c5fd'] : ['#e5e7eb']
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: true,
                     plugins: {
-                        legend: {
-                            display: false // This hides the labels/legend
-                        },
-                        tooltip: {
-                            enabled: true // This ensures tooltips show on hover
-                        }
+                        legend: { display: false },
+                        tooltip: { enabled: hasDocTypeData }
                     }
                 }
             });
+
+            // Set refresh interval (15 seconds)
+            setInterval(refreshDashboardMetrics, 15000);
         });
         async function checkForUpdates() {
             try {

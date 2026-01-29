@@ -44,9 +44,44 @@ export default function ManualWorkspaceIsland(
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<StatusMessage | null>(null);
   const [showFallback, setShowFallback] = useState(false);
-
   const selectRef = useRef<HTMLSelectElement | null>(null);
-  const contentRef = useRef<HTMLElement | null>(null);
+
+  // Handle initial highlight and page
+  useEffect(() => {
+    if (typeof window !== 'undefined' && documentId) {
+      const params = new URLSearchParams(window.location.search);
+      const highlight = params.get('highlight');
+      const pageParam = params.get('page');
+      
+      if (pageParam || highlight) {
+        const targetPage = pageParam ? Number(pageParam) : (props.page || 1);
+        
+        // Switch to visual mode if highlighting
+        if (highlight) {
+          setViewMode('visual');
+        }
+
+        // Dispatch update to sync OverlayViewer
+        // We delay slightly to ensure OverlayViewer is listening
+        setTimeout(() => {
+          if (highlight) {
+            try {
+              const bbox = JSON.parse(decodeURIComponent(highlight));
+              dispatchEventSafe('overlay:highlight-region', { bbox, page: targetPage });
+            } catch (e) {
+              console.error('Failed to parse highlight', e);
+            }
+          }
+          
+          // Ensure correct page is shown
+          if (targetPage > 1) {
+             dispatchEventSafe('overlay:document-changed', { documentId, page: targetPage });
+          }
+        }, 500);
+      }
+    }
+  }, [documentId]);
+  // contentRef removed - handled by DocumentContentIsland
   const correspondentInfoRef = useRef<HTMLElement | null>(null);
   const correspondentNameRef = useRef<HTMLElement | null>(null);
   const titleInfoRef = useRef<HTMLElement | null>(null);
@@ -56,7 +91,7 @@ export default function ManualWorkspaceIsland(
 
   useEffect(() => {
     selectRef.current = document.getElementById('documentSelect') as HTMLSelectElement | null;
-    contentRef.current = document.getElementById('contentPreview');
+    // contentRef removed
     correspondentInfoRef.current = document.getElementById('correspondentInfo');
     correspondentNameRef.current = document.getElementById('correspondentName');
     titleInfoRef.current = document.getElementById('titleInfo');
@@ -80,11 +115,7 @@ export default function ManualWorkspaceIsland(
     }
   }, [documents, documentId]);
 
-  useEffect(() => {
-    if (!contentRef.current) return;
-    const previewText = documentId ? (content || 'No content available') : '';
-    contentRef.current.textContent = previewText;
-  }, [content, documentId]);
+  // Content update effect removed - handled by event dispatch to DocumentContentIsland
 
   const updateCorrespondentDisplay = useCallback((value: any) => {
     if (!correspondentInfoRef.current || !correspondentNameRef.current) return;
@@ -251,6 +282,7 @@ export default function ManualWorkspaceIsland(
         pageCount: nextPageCount,
       });
 
+      // Dispatch content so DocumentContentIsland can pick it up
       dispatchDocumentSelected({
         documentId: data.id,
         tags: nextTags,

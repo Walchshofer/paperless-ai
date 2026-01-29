@@ -20,20 +20,18 @@ function dispatchEventSafe(name: string, detail: any) {
 }
 
 export default function ManualEditorIsland(props: Partial<ManualEditorContract>) {
-  const [active, setActive] = useState<TabKeys>('metadata');
-  const [gpuState, setGpuState] = useState<GpuState>('idle');
-  const [syncState, setSyncState] = useState<SyncState>('idle');
-  const [syncError, setSyncError] = useState<string>('');
-  const [documentId, setDocumentId] = useState<number | null>(
-    props.documentId ?? null
-  );
+  const [active, setActive] = useState('metadata' as TabKeys);
+  const [gpuState, setGpuState] = useState('idle' as GpuState);
+  const [syncState, setSyncState] = useState('idle' as SyncState);
+  const [syncError, setSyncError] = useState('');
+  const [documentId, setDocumentId] = useState(props.documentId || null);
 
   // Convert contract fields to component Field type (coerce values to strings)
   const normalizeFields = (contractFields: ManualEditorContract['fields']): Field[] => {
     if (!contractFields || contractFields.length === 0) {
       return [{ name: '', value: '' }];
     }
-    return contractFields.map(f => ({
+    return contractFields.map((f: any) => ({
       name: f.name || '',
       value: f.value != null ? String(f.value) : '',
     }));
@@ -44,7 +42,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
   const [correspondent, setCorrespondent] = useState(props.metadata?.correspondent || '');
   const [documentType, setDocumentType] = useState(props.metadata?.documentType || '');
   const [content, setContent] = useState(props.content || '');
-  const [fields, setFields] = useState<Field[]>(() => normalizeFields(props.fields));
+  const [fields, setFields] = useState(normalizeFields(props.fields));
 
   // Track initial values for diff-based feedback events
   const [initialValues] = useState({
@@ -53,29 +51,19 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
     documentType: props.metadata?.documentType || '',
     content: props.content || '',
     fields: normalizeFields(props.fields),
-  });
+  } as { title: string; correspondent: string; documentType: string; content: string; fields: Field[] });
 
   // AI Debug state
-  const [aiResponse, setAiResponse] = useState<any>(null);
+  const [aiResponse, setAiResponse] = useState(null as any);
   const [aiLoading, setAiLoading] = useState(false);
 
-  const tabsRef = useRef<HTMLDivElement | null>(null);
+  
+
+  const tabsRef = useRef(null as HTMLDivElement | null);
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const syncBadgeTimeoutRef = useRef<number | null>(null);
 
-  // Sync ARIA states directly on the DOM nodes
-  useEffect(() => {
-    const tabRoot = tabsRef.current;
-    if (!tabRoot) return;
-
-    const buttons = tabRoot.querySelectorAll('[role="tab"]') as NodeListOf<HTMLElement>;
-    const tabOrder: TabKeys[] = ['metadata', 'content', 'fields', 'ai-debug'];
-
-    buttons.forEach((btn, i) => {
-      const isSelected = tabOrder[i] === active;
-      btn.setAttribute('aria-selected', isSelected ? 'true' : 'false');
-      btn.setAttribute('tabindex', isSelected ? '0' : '-1');
-    });
-  }, [active]);
+  
 
   // Check GPU state on mount for AI Debug tab
   useEffect(() => {
@@ -131,11 +119,12 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
   useEffect(() => {
     const onFieldsUpdated = (e: any) => {
       const f = e?.detail?.fields || [];
-      // Test-only hook for visibility in unit tests
       try { (window as any).__manual_island_last_fields = f; } catch (err) { /* ignore */ }
-      // Normalize incoming fields into island Field type
       const normalized = (f && f.length > 0) ? f.map((it: any) => ({ name: it.label || it.name || '', value: it.value != null ? String(it.value) : '' })) : [];
-      setFields(normalizeFields(normalized as any));
+      // Cast normalized to any to satisfy normalizeFields signature in this context or just set directly
+      // Since normalizeFields expects ManualEditorContract['fields'] which is likely optional array
+      // We can just use the normalized array as Field[] directly if we trust it
+      setFields(normalized as Field[]);
     };
 
     window.addEventListener('manual:fields-updated', onFieldsUpdated as EventListener);
@@ -173,6 +162,16 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
     try { (window as any).__manual_island_mounted = true; } catch (e) { /* ignore */ }
   }, []);
 
+  // Reflect tab selection as literal strings for axe accessibility
+  useEffect(() => {
+    ['metadata', 'content', 'fields', 'ai-debug'].forEach((tab) => {
+      const ref = tabRefs.current[tab];
+      if (ref) {
+        ref.setAttribute('aria-selected', active === tab ? 'true' : 'false');
+      }
+    });
+  }, [active]);
+
   const onKeyDown = useCallback((e: KeyboardEvent) => {
     const order: TabKeys[] = ['metadata', 'content', 'fields', 'ai-debug'];
     const idx = order.indexOf(active);
@@ -193,17 +192,17 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
 
   // Add a new field row
   const addField = useCallback(() => {
-    setFields(prev => [...prev, { name: '', value: '' }]);
+    setFields((prev: Field[]) => [...prev, { name: '', value: '' }]);
   }, []);
 
   // Remove a field row
   const removeField = useCallback((index: number) => {
-    setFields(prev => prev.filter((_, i) => i !== index));
+    setFields((prev: Field[]) => prev.filter((_: Field, i: number) => i !== index));
   }, []);
 
   // Update a field
   const updateField = useCallback((index: number, key: 'name' | 'value', val: string) => {
-    setFields(prev => {
+    setFields((prev: Field[]) => {
       const newFields = [...prev];
       newFields[index] = { ...newFields[index], [key]: val };
       return newFields;
@@ -220,8 +219,8 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
 
     // Build document_updates for Hybrid SOT
     const custom_fields = fields
-      .filter(f => f.name.trim() !== '')
-      .map(f => ({ name: f.name.trim(), value: f.value }));
+      .filter((f: Field) => f.name.trim() !== '')
+      .map((f: Field) => ({ name: f.name.trim(), value: f.value }));
 
     const document_updates = {
       title,
@@ -281,15 +280,15 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
     }
 
     // Check custom fields for changes
-    const initialFieldMap = new Map<string, string>(initialValues.fields.map(f => [f.name, f.value] as [string, string]));
+    const initialFieldMap = new Map(initialValues.fields.map((f: Field) => [f.name, f.value] as [string, string]));
     for (const field of custom_fields) {
       const originalValue = initialFieldMap.get(field.name) || '';
       if (field.value !== originalValue) {
         feedback_events.push({
           event_type: 'correction',
           field_name: `custom_field:${field.name}`,
-          original_value: originalValue,
-          corrected_value: field.value,
+          original_value: String(originalValue || ''),
+          corrected_value: String(field.value),
           context: { page, request_id: requestId },
         });
       }
@@ -401,10 +400,10 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
           id="tab-metadata-btn"
           type="button"
           role="tab"
-          aria-selected={active === 'metadata'}
           tabIndex={active === 'metadata' ? 0 : -1}
           aria-controls="panel-metadata"
           data-testid="tab-metadata"
+          ref={(el) => { tabRefs.current['metadata'] = el; }}
           onClick={() => setActive('metadata')}
           className={`mei-tab ${active === 'metadata' ? 'mei-tab-active' : ''}`}
         >
@@ -414,10 +413,10 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
           id="tab-content-btn"
           type="button"
           role="tab"
-          aria-selected={active === 'content'}
           tabIndex={active === 'content' ? 0 : -1}
           aria-controls="panel-content"
           data-testid="tab-content"
+          ref={(el) => { tabRefs.current['content'] = el; }}
           onClick={() => setActive('content')}
           className={`mei-tab ${active === 'content' ? 'mei-tab-active' : ''}`}
         >
@@ -427,10 +426,10 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
           id="tab-fields-btn"
           type="button"
           role="tab"
-          aria-selected={active === 'fields'}
           tabIndex={active === 'fields' ? 0 : -1}
           aria-controls="panel-fields"
           data-testid="tab-fields"
+          ref={(el) => { tabRefs.current['fields'] = el; }}
           onClick={() => setActive('fields')}
           className={`mei-tab ${active === 'fields' ? 'mei-tab-active' : ''}`}
         >
@@ -440,10 +439,10 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
           id="tab-ai-debug-btn"
           type="button"
           role="tab"
-          aria-selected={active === 'ai-debug'}
           tabIndex={active === 'ai-debug' ? 0 : -1}
           aria-controls="panel-ai-debug"
           data-testid="tab-ai-debug"
+          ref={(el) => { tabRefs.current['ai-debug'] = el; }}
           onClick={() => setActive('ai-debug')}
           className={`mei-tab ${active === 'ai-debug' ? 'mei-tab-active' : ''}`}
         >
@@ -540,7 +539,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
               + Add Field
             </button>
           </div>
-          {fields.map((field, i) => (
+          {fields.map((field: Field, i: number) => (
             <div key={i} className="mei-field-row">
               <input
                 data-testid={`field-name-${i}`}
@@ -607,7 +606,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
               </button>
 
               {!content || !content.trim() ? (
-                <p className="mei-gpu-hint" style={{ marginTop: '8px' }} data-testid="ai-no-content-hint">No document content available. Switch to the "Content" tab or paste text into the document content field before running analysis.</p>
+                <p className="mei-gpu-hint" data-testid="ai-no-content-hint">No document content available. Switch to the "Content" tab or paste text into the document content field before running analysis.</p>
               ) : null}
 
               {aiResponse && (

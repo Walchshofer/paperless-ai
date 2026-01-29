@@ -5,6 +5,14 @@
 
   const registry = {};
 
+  // Self-check: warn if not loaded from expected path (helps debug deployment issues)
+  if (typeof document !== 'undefined' && document.currentScript) {
+    const src = document.currentScript.src;
+    if (src && !src.includes('/js/island-runtime.js') && !src.includes('/js/dist/island-runtime.js')) {
+      console.warn('island-runtime: detected loading from unexpected path:', src);
+    }
+  }
+
   function registerIsland(name, renderer){
     registry[name] = renderer;
   }

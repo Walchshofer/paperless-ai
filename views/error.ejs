@@ -1,0 +1,11 @@
+<div class="error-page">
+  <h1>Error <%= status %></h1>
+  <p><strong><%= message %></strong></p>
+
+  <% if (details) { %>
+    <h3>Details</h3>
+    <pre style="white-space: pre-wrap; background:#f8f9fa; padding:12px; border-radius:6px; border:1px solid #e9ecef;"><%= details %></pre>
+  <% } %>
+
+  <p><a href="/">Return to dashboard</a></p>
+</div>

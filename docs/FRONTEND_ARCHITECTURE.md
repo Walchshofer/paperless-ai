@@ -95,18 +95,37 @@ This is the most complex page, featuring the "Visual RAG" capabilities.
 ### 3. Dashboard (`views/dashboard.ejs` + `public/js/dashboard.js`)
 Displays system overview, recent documents, and stats.
 
-## Component Reference (Vanilla JS)
-
-These components are located in `public/js/components/`. They must be included via `<script>` tags in the EJS view *before* the main page script runs.
+## Component Reference (Vanilla JS & Preact Islands)
 
 | Component | Description | Usage |
 | :--- | :--- | :--- |
 | **`ExpertMessage`** | Renders a rich chat bubble. Handles Markdown parsing (via `marked`), syntax highlighting (via `highlight.js`), and citation rendering. | `new ExpertMessage(data).render()` |
 | **`ThinkingAccordion`** | A collapsible detail view for "Chain of Thought" or debug logs provided by the AI model. | `new ThinkingAccordion(container).addStep(...)` |
 | **`DocumentOverlay`** | Low-level class for drawing bounding boxes (`x,y,w,h`) on a container. Handles coordinate normalization (0-1000 scale to %). | `new DocumentOverlay(el).render(boxes)` |
-| **`OverlayViewer`** | Higher-level controller for the "Visual" tab. Manages the image loading and delegates drawing to `DocumentOverlay`. Adds built-in zoom & pan controls to assist precise selection and navigation. | `const viewer = new OverlayViewer(...)` |
-| **`OrchestratorStatus`** | Displays a stepper or status indicator for the backend RAG pipeline stages. | `new OrchestratorStatus(el)` |
-| **`FeedbackForm`** | (If implemented) Handles user thumbs up/down and text feedback for AI responses. | `new FeedbackForm(...)` |
+| **`OverlayViewerIsland`** | Document viewer with Red Pen selection, Zoom/Pan, and Visual Search. | `<div data-island="overlay-viewer-island" ...>` |
+| **`ChatWorkspaceIsland`** | Main chat interface with multi-provider model selection and document context. | `<div data-island="chat-workspace-island" ...>` |
+| **`ManualWorkspaceIsland`** | Orchestrates the manual review page, handling document selection and events. | `<div data-island="manual-workspace-island" ...>` |
+| **`DocumentContentIsland`** | Interactive document text viewer with search, highlighting, and export. | `<div data-island="document-content-island" ...>` |
+| **`ExportPanelIsland`** | Modal-based export utility for regions, text excerpts, and annotations. | `<div data-island="export-panel-island" ...>` |
+| **`VisualAnnotationIsland`** | Legacy or specific annotation tool for drawing regions with labels. | `<div data-island="visual-annotation-island" ...>` |
+
+## New Features (Epic 4c9b7999)
+
+### 1. Visual Search Panel
+Integrated into `OverlayViewerIsland`, this feature allows users to draw a region on a document and instantly search for visually similar pages across the archive. Results are displayed in a split-view panel with thumbnails and MaxSim similarity scores.
+
+### 2. Bi-directional Chat Integration
+*   **Manual → Chat:** Users can send visual regions or text excerpts from the Manual route to Chat. This prepopulates the chat with relevant context for deeper AI analysis.
+*   **Chat → Manual:** AI responses can include "Visual References" (e.g., `[visual:doc/page/bbox]`). These are rendered as clickable links that return the user to the Manual route and highlight the specific region on the document.
+
+### 3. In-Document Search & Highlighting
+The `DocumentContentIsland` provides a robust search bar for text-heavy documents, featuring regex support, case-sensitivity toggles, and "scroll-to-match" navigation.
+
+### 4. Advanced Export
+The `ExportPanelIsland` allows exporting document data in various formats:
+*   **Regions:** PNG or PDF.
+*   **Text Excerpts:** TXT or PDF.
+*   **Annotations:** JSON (for data portability).
 
 ## Styling Strategy
 

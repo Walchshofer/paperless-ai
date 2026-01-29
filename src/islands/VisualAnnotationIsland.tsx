@@ -445,7 +445,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
         <button
           data-testid="draw-toggle"
           onClick={() => setIsDrawing(!isDrawing)}
-          aria-pressed={isDrawing ? 'true' : 'false'}
+          aria-pressed={String(isDrawing)}
           disabled={status !== 'ready'}
           className={`vai-btn ${isDrawing ? 'vai-btn-active' : ''}`}
         >
@@ -460,8 +460,8 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
           {isSaving ? 'Saving...' : 'Save Annotations'}
         </button>
         {saveError && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: '8px' }}>
-            <div data-testid="annotation-save-error" className="vai-save-error" role="alert" style={{ color: '#e74c3c' }}>
+          <div className="flex items-center gap-2 ml-2">
+            <div data-testid="annotation-save-error" className="vai-save-error text-red-600" role="alert">
               {saveError}
             </div>
             {needsAuth && (

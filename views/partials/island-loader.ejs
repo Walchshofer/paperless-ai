@@ -1,0 +1,67 @@
+<% /* 
+  island-loader.ejs 
+  Safely initializes the island runtime with an error boundary.
+  Usage: <%- include('partials/island-loader', { bundles: ['/js/dist/extra.js'] }) %>
+*/ %>
+<% var bundles = typeof bundles !== 'undefined' ? bundles : []; %>
+<script type="module">
+    async function initIslands() {
+        const bundles = <%- JSON.stringify(bundles) %>;
+        try {
+            // 1. Load main runtime
+            // We use dynamic import to catch loading failures (e.g. 404)
+            const { mountIslands } = await import('/js/dist/island-runtime.js');
+            
+            // 2. Load requested extra bundles (if any)
+            if (bundles && bundles.length > 0) {
+                await Promise.all(bundles.map(b => import(b)));
+            }
+
+            // 3. Mount islands
+            mountIslands(document);
+            window.__islandRuntimeMounted = true;
+        } catch (err) {
+            console.error('Failed to load island runtime or bundles:', err);
+            
+            // Graceful degradation: show a user-friendly error box
+            const container = document.querySelector('main') || document.body;
+            const errorBox = document.createElement('div');
+            errorBox.className = 'p-6 bg-red-50 border border-red-200 rounded-lg text-red-800 m-4 shadow-sm';
+            errorBox.style.cssText = 'z-index: 1000; position: relative;';
+            errorBox.innerHTML = `
+                <div class="flex items-center gap-3 mb-3">
+                    <i class="fas fa-exclamation-triangle text-2xl text-red-500"></i>
+                    <h2 class="font-bold text-lg">Interactive Components Failed to Load</h2>
+                </div>
+                <p class="text-sm">We're having trouble loading some interactive parts of this page. This usually happens if the application build is incomplete or files are missing.</p>
+                <div class="mt-3 p-2 bg-white/50 rounded font-mono text-xs overflow-auto max-h-24 opacity-80 border border-red-100">
+                    ${err.message}
+                </div>
+                <div class="mt-5 flex flex-wrap gap-3">
+                    <button data-testid="island-loader-retry-btn" onclick="location.reload()" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+                        <i class="fas fa-sync-alt mr-2"></i>Retry Loading
+                    </button>
+                    <a href="/api-docs" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors text-sm font-medium">
+                        View API Docs
+                    </a>
+                </div>
+            `;
+            
+            // Insert at the top of the main content
+            if (container.firstChild) {
+                container.insertBefore(errorBox, container.firstChild);
+            } else {
+                container.appendChild(errorBox);
+            }
+        }
+    }
+
+    // Add a global guard for direct script errors
+    window.addEventListener('error', function(e) {
+        if (e.target && (e.target.src || '').includes('island-runtime.js')) {
+            console.error('Island runtime script error detected via global listener');
+        }
+    }, true);
+
+    initIslands();
+</script>

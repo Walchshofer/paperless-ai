@@ -661,6 +661,7 @@ const defaultRenderers = {
             <span data-testid="overlay-zoom-percentage">100%</span>
             <button data-testid="overlay-zoom-in" style="padding:4px 6px">+</button>
             <button data-testid="overlay-zoom-reset" style="padding:4px 6px">Reset</button>
+            <button data-testid="red-pen-toggle" aria-pressed="false" style="padding:4px 6px">Draw Mode</button>
             <button data-testid="overlay-pan-toggle" aria-pressed="false" style="padding:4px 6px">Pan</button>
           </div>
         </div>
@@ -720,6 +721,7 @@ const defaultRenderers = {
               const zoomOut = root.querySelector('[data-testid="overlay-zoom-out"]');
               const zoomPct = root.querySelector('[data-testid="overlay-zoom-percentage"]');
               const zoomReset = root.querySelector('[data-testid="overlay-zoom-reset"]');
+              const drawToggle = root.querySelector('[data-testid="red-pen-toggle"]');
               const panToggle = root.querySelector('[data-testid="overlay-pan-toggle"]');
               let scale = 1;
 
@@ -739,6 +741,12 @@ const defaultRenderers = {
                 zoomReset.addEventListener('click', () => { scale = 1; setPct(); });
                 zoomReset._hasFallbackZoomHandler = true;
               }
+
+              if (drawToggle && !drawToggle._hasFallbackDrawHandler) {
+                drawToggle.addEventListener('click', function(){ const d = this.getAttribute('aria-pressed') === 'true'; this.setAttribute('aria-pressed', (!d).toString()); this.textContent = (!d) ? 'Drawing: ON' : 'Draw Mode'; });
+                drawToggle._hasFallbackDrawHandler = true;
+              }
+
               if (panToggle && !panToggle._hasFallbackPanHandler) {
                 panToggle.addEventListener('click', function(){ const p = this.getAttribute('aria-pressed') === 'true'; this.setAttribute('aria-pressed', (!p).toString()); });
                 panToggle._hasFallbackPanHandler = true;
@@ -1046,6 +1054,23 @@ function mountIslands(container = document) {
                   const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(createCustomEvent('sync:failed', { documentId: props.documentId, error: err.message || 'Sync failed' }));
               }
             });
+          }
+        }
+        if (name === 'overlay-viewer-island') {
+          const root = el.querySelector('[data-testid="overlay-viewer-root"]');
+          if (root) {
+            const draw = root.querySelector('[data-testid="red-pen-toggle"]');
+            const pan = root.querySelector('[data-testid="overlay-pan-toggle"]');
+
+            if (draw && !draw._hasFallbackDrawHandler) {
+              draw.addEventListener('click', function(){ const d = this.getAttribute('aria-pressed') === 'true'; this.setAttribute('aria-pressed', (!d).toString()); this.textContent = (!d) ? 'Drawing: ON' : 'Draw Mode'; });
+              draw._hasFallbackDrawHandler = true;
+            }
+
+            if (pan && !pan._hasFallbackPanHandler) {
+              pan.addEventListener('click', function(){ const p = this.getAttribute('aria-pressed') === 'true'; this.setAttribute('aria-pressed', (!p).toString()); });
+              pan._hasFallbackPanHandler = true;
+            }
           }
         }
         if (name === 'history-tabs-island') {

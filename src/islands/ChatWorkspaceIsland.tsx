@@ -10,6 +10,7 @@ type ChatMessage = {
   role: ChatMessageRole;
   content: string;
   meta?: Record<string, any>;
+  images?: string[];
 };
 
 type ChatDoc = {
@@ -90,12 +91,43 @@ export default function ChatWorkspaceIsland(
 
   const [guidedStep, setGuidedStep] = useState('Select a document to begin.');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-
+  const [chatContext, setChatContext] = useState<any[]>([]);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const chatHistoryRef = useRef<HTMLDivElement | null>(null);
   const streamMessageIdRef = useRef<string | null>(null);
 
   const aiProvider = props.aiProvider || 'ollama';
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const ctxParam = params.get('context');
+      if (ctxParam) {
+        try {
+          const parsed = JSON.parse(decodeURIComponent(ctxParam));
+          const ctxArray = Array.isArray(parsed) ? parsed : [parsed];
+          setChatContext(ctxArray);
+          
+          if (ctxArray.some((c: any) => c.type === 'visual')) {
+             setMessageInput('Analyze this visual region.');
+          } else if (ctxArray.some((c: any) => c.type === 'text')) {
+             setMessageInput('Analyze this text.');
+          }
+          
+          // Select document if passed in context
+          if (ctxArray[0] && ctxArray[0].documentId) {
+            setSelectedDocumentId(Number(ctxArray[0].documentId));
+          }
+
+          // Clean URL
+          const newUrl = window.location.pathname + window.location.search.replace(/([&?]context=[^&]*)/, '');
+          window.history.replaceState({}, '', newUrl);
+        } catch (e) {
+          console.error('Failed to parse context', e);
+        }
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (props.openDocumentId && !selectedDocumentId) {
@@ -382,9 +414,17 @@ export default function ChatWorkspaceIsland(
         body: JSON.stringify({
           documentId: selectedDocumentId,
           message: userMessage,
-          model: selectedModel
+          model: selectedModel,
+          context: chatContext.length > 0 ? chatContext.map(c => ({
+             type: c.type,
+             page: c.data?.page,
+             excerpt: c.data?.text,
+             imageBase64: c.data?.imageBase64
+          })) : undefined
         })
       });
+      
+      if (chatContext.length > 0) setChatContext([]); // Clear context after sending
 
       if (!response.ok || !response.body) {
         throw new Error('Failed to send message');
@@ -601,7 +641,9 @@ export default function ChatWorkspaceIsland(
                       }}
                       dangerouslySetInnerHTML={{
                         __html: msg.role === 'assistant'
-                          ? safeMarkdown(msg.content)
+                          ? safeMarkdown(msg.content).replace(/\[visual:(\d+)\/(\d+)\/(.*?)\]/g, (match, docId, pg, bbox) => {
+                              return `<a href="/manual?open=${docId}&page=${pg}&highlight=${encodeURIComponent(bbox)}" class="text-blue-600 hover:underline inline-flex items-center gap-1" title="View in Manual Mode"><i class="fas fa-search"></i> Visual Reference (Page ${pg})</a>`;
+                            })
                           : msg.content
                       }}
                     />

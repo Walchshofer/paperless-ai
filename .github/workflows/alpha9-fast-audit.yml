@@ -10,10 +10,10 @@ on:
 # Target execution time: < 5 minutes
 
 env:
-  POSTGRES_USER: ""
-  POSTGRES_PASSWORD: ""
-  POSTGRES_DB: ""
-  POSTGRES_HOST: ""
+  POSTGRES_USER: "elfman"
+  POSTGRES_PASSWORD: "password"
+  POSTGRES_DB: "paperless_test"
+  POSTGRES_HOST: "localhost"
   METRICS_INTERNAL_ONLY: 'false'
 
 jobs:
@@ -117,17 +117,24 @@ jobs:
           SECRET_DB: ${{ secrets.POSTGRES_DB }}
           SECRET_HOST: ${{ secrets.POSTGRES_HOST }}
         run: |
-          if [ -n "$SECRET_USER" ]; then
-            USER="$SECRET_USER"
-            PASS="$SECRET_PASS"
-            DBNAME="$SECRET_DB"
-            HOST="$SECRET_HOST"
-          else
+          # Context: GitHub Actions secrets for POSTGRES_* are optional.
+          # The workflow uses fallback logic (lines 121-132) to default to
+          # test credentials when secrets are not configured. This is intentional
+          # for public forks and local testing environments.
+          # Validate and guard secret usage with fallback to defaults
+          if [ -z "$SECRET_USER" ] || [ -z "$SECRET_PASS" ] || [ -z "$SECRET_DB" ] || [ -z "$SECRET_HOST" ]; then
+            echo "::warning title=CI Secrets Missing::One or more POSTGRES_* secrets are not defined. Falling back to default testing credentials."
             USER="elfman"
             PASS="password"
             DBNAME="paperless_test"
             HOST="localhost"
+          else
+            USER="$SECRET_USER"
+            PASS="$SECRET_PASS"
+            DBNAME="$SECRET_DB"
+            HOST="$SECRET_HOST"
           fi
+          
           echo "POSTGRES_USER=$USER" >> $GITHUB_ENV
           echo "POSTGRES_PASSWORD=$PASS" >> $GITHUB_ENV
           echo "POSTGRES_DB=$DBNAME" >> $GITHUB_ENV

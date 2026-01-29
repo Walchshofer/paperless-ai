@@ -30,4 +30,21 @@ test.describe('OverlayViewer interactions', () => {
     await page.waitForTimeout(100);
     await expect(zoomPct).toHaveText('100%');
   });
+
+  test('accessibility: ARIA attributes are valid strings', async ({ page }) => {
+    await page.goto('/manual');
+    await page.waitForSelector('[data-island="overlay-viewer-island"]', { timeout: 5000 });
+    
+    const panToggle = page.locator('[data-testid="overlay-pan-toggle"]');
+    // Default state: false
+    await expect(panToggle).toHaveAttribute('aria-pressed', 'false');
+    
+    // Toggle: true
+    await panToggle.click();
+    await expect(panToggle).toHaveAttribute('aria-pressed', 'true');
+    
+    // Toggle back: false
+    await panToggle.click();
+    await expect(panToggle).toHaveAttribute('aria-pressed', 'false');
+  });
 });

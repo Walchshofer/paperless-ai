@@ -36,13 +36,13 @@ class ChartManager {
 
     initializeDocumentChart() {
         const { documentCount, processedCount } = window.dashboardData;
-        const unprocessedCount = documentCount - processedCount;
+        const unprocessedCount = Math.max(0, documentCount - processedCount);
 
         const ctx = document.getElementById('documentChart').getContext('2d');
         new Chart(ctx, {
             type: 'doughnut',
             data: {
-                labels: ['AI Processed', 'Unprocessed'],
+                labels: ['Local Processed', 'Pending'],
                 datasets: [{
                     data: [processedCount, unprocessedCount],
                     backgroundColor: [

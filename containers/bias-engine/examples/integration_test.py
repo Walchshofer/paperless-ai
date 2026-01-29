@@ -26,10 +26,52 @@ GUIDANCE_SERVICE_URL = "http://localhost:8002"
 # PART 1: Direct BiasEngine Test (gRPC)
 # ============================================================================
 
+def test_bias_engine_python_client():
+    """Test the BiasEngine using the Python gRPC client."""
+    print("\n" + "="*60)
+    print("TEST 1a: BiasEngine Python gRPC Client")
+    print("="*60)
+
+    try:
+        import grpc
+        # Add parent directory to path to find guidance package if running from examples/
+        sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+        from guidance.ipc.proto import bias_service_pb2, bias_service_pb2_grpc
+        
+        print(f"📡 Connecting to {BIAS_ENGINE_URL}...")
+        channel = grpc.insecure_channel(BIAS_ENGINE_URL)
+        stub = bias_service_pb2_grpc.LogitBiasServiceStub(channel)
+        
+        # Health check
+        response = stub.HealthCheck(bias_service_pb2.HealthCheckRequest())
+        if response.status == bias_service_pb2.HealthCheckResponse.SERVING:
+            print("   ✅ HealthCheck: SERVING")
+        else:
+            print(f"   ❌ HealthCheck: {response.status}")
+            return False
+            
+        # Compute biases
+        print("   🔢 Requesting biases for [0-9]{3}...")
+        request = bias_service_pb2.BiasRequest(
+            regex_pattern="[0-9]{3}",
+            generated_text="12",
+            vocab_size=50257
+        )
+        resp = stub.ComputeBiases(request)
+        print(f"   ✅ Received {len(resp.token_biases)} biases in {resp.computation_time_ms}ms")
+        
+        return True
+    except ImportError as e:
+        print(f"   ⚠️ Skipping Python client test: {e}")
+        return True # Non-critical failure for this script
+    except Exception as e:
+        print(f"   ❌ Python client error: {e}")
+        return False
+
 def test_bias_engine_grpcurl():
     """Test the BiasEngine gRPC service using grpcurl."""
     print("\n" + "="*60)
-    print("TEST 1: BiasEngine gRPC Direct Test")
+    print("TEST 1b: BiasEngine gRPC Direct Test (grpcurl)")
     print("="*60)
 
     print(f"\n📡 Testing BiasEngine at {BIAS_ENGINE_URL}...")
@@ -444,7 +486,8 @@ def main():
     results = {}
 
     # Run tests
-    results['BiasEngine gRPC'] = test_bias_engine_grpcurl()
+    results['BiasEngine Python Client'] = test_bias_engine_python_client()
+    results['BiasEngine gRPC (grpcurl)'] = test_bias_engine_grpcurl()
     results['Guidance Service'] = test_guidance_service()
     results['Ollama'] = test_ollama()
     results['Metrics'] = test_metrics()

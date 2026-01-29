@@ -1973,6 +1973,29 @@ async getOrCreateDocumentType(name) {
       return false;
     }
   }
+
+  /**
+   * Checks the health of the Paperless-ngx API connection.
+   * @returns {Promise<{healthy: boolean, documentCount?: number, responseTime?: number, error?: string}>}
+   */
+  async checkHealth() {
+    this.initialize();
+    if (!this.client) {
+      return { healthy: false, error: 'Client not initialized' };
+    }
+    try {
+      const start = Date.now();
+      const response = await this.client.get('/documents/?page_size=1');
+      const responseTime = Date.now() - start;
+      return {
+        healthy: true,
+        documentCount: response.data.count,
+        responseTime
+      };
+    } catch (error) {
+      return { healthy: false, error: error.message };
+    }
+  }
 }
 
 

@@ -33,7 +33,7 @@ router.get('/login', (req, res) => {
     if(users.length === 0) {
       res.redirect('setup');
     } else {
-      res.render('login', { error: null });
+      res.render('login', { vm: { page: 'login' }, error: null });
     }
   });
 });
@@ -126,7 +126,7 @@ router.post('/login', async (req, res) => {
     // Check if user was found and has required fields
     if (!user || !user.password) {
       console.log('[FAILED LOGIN] User not found or invalid data:', username);
-      return res.render('login', { error: 'Invalid credentials' });
+      return res.render('login', { vm: { page: 'login' }, error: 'Invalid credentials' });
     }
 
     // Compare passwords
@@ -152,11 +152,11 @@ router.post('/login', async (req, res) => {
 
       return res.redirect('/dashboard');
     }else{
-      return res.render('login', { error: 'Invalid credentials' });
+      return res.render('login', { vm: { page: 'login' }, error: 'Invalid credentials' });
     }
   } catch (error) {
     console.error('Login error:', error);
-    res.render('login', { error: 'An error occurred during login' });
+    res.render('login', { vm: { page: 'login' }, error: 'An error occurred during login' });
   }
 });
 

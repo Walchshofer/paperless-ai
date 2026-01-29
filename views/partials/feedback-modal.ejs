@@ -115,20 +115,22 @@
             </div>
 
             <!-- Success State (hidden by default) -->
-            <div id="feedback-success" class="hidden absolute inset-0 bg-white flex flex-col items-center justify-center p-6">
-                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                    <i class="fas fa-check text-green-600 text-2xl"></i>
+            <div id="feedback-success" class="hidden absolute inset-0 bg-white">
+                <div class="h-full w-full flex flex-col items-center justify-center p-6">
+                    <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                        <i class="fas fa-check text-green-600 text-2xl"></i>
+                    </div>
+                    <h4 class="text-lg font-semibold text-gray-900 mb-2">Thank You!</h4>
+                    <p class="text-sm text-gray-600 text-center mb-4">Your feedback helps improve extraction accuracy.</p>
+                    <button
+                        type="button"
+                        data-testid="feedback-close-success-btn"
+                        onclick="feedbackForm.hide()"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                    >
+                        Close
+                    </button>
                 </div>
-                <h4 class="text-lg font-semibold text-gray-900 mb-2">Thank You!</h4>
-                <p class="text-sm text-gray-600 text-center mb-4">Your feedback helps improve extraction accuracy.</p>
-                <button
-                    type="button"
-                    data-testid="feedback-close-success-btn"
-                    onclick="feedbackForm.hide()"
-                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-                >
-                    Close
-                </button>
             </div>
         </div>
     </div>

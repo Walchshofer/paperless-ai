@@ -1370,11 +1370,14 @@
     </script>
 
     <!-- Islands Runtime and Bundles -->
-    <script type="module" src="/js/dist/island-runtime.js"></script>
-    <script type="module" src="/js/dist/overview-dashboard.island.js"></script>
-    <script type="module" src="/js/dist/settings-sidebar.island.js"></script>
-    <script type="module" src="/js/dist/restart-banner.island.js"></script>
-    <script type="module" src="/js/dist/developer-settings.island.js"></script>
-    <script type="module" src="/js/dist/presets-manager.island.js"></script>
+    <%- include('partials/island-loader', {
+        bundles: [
+            '/js/dist/overview-dashboard.island.js',
+            '/js/dist/settings-sidebar.island.js',
+            '/js/dist/restart-banner.island.js',
+            '/js/dist/developer-settings.island.js',
+            '/js/dist/presets-manager.island.js'
+        ]
+    }) %>
 </body>
 </html>

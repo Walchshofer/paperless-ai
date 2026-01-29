@@ -29,6 +29,19 @@ jobs:
           # Capture verbose unit test output to a file so CI artifacts contain failure logs
           python -m pytest test/unit -q -r a | tee unit_tests_output.txt; exit ${PIPESTATUS[0]}
 
+      - name: Install Bias-Engine dependencies
+        run: |
+          pip install -r containers/bias-engine/requirements.txt
+
+      - name: Run Bias-Engine unit tests
+        run: |
+          # Generate protos first so tests can import them
+          chmod +x setup_grpc.sh
+          ./setup_grpc.sh
+          # Run tests
+          export PYTHONPATH=$PYTHONPATH:.
+          python -m pytest containers/bias-engine/guidance/tests -q
+
       - name: Upload unit test logs
         if: always()
         uses: actions/upload-artifact@v4

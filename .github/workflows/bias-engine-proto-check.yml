@@ -1,0 +1,77 @@
+name: Bias-Engine Proto Validation
+
+on:
+  pull_request:
+    paths:
+      - 'containers/bias-engine/**'
+      - 'Dockerfile.bias-engine'
+      - 'setup_grpc.sh'
+    types: [opened, reopened, synchronize]
+
+jobs:
+  root-proto-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install gRPC Tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install grpcio-tools==1.50.0 protobuf==4.21.0
+
+      - name: Run Proto Generation (Root)
+        run: |
+          chmod +x setup_grpc.sh
+          ./setup_grpc.sh
+
+      - name: Validate Generated Files (Root)
+        run: |
+          ls -la guidance/ipc/proto/
+          test -f guidance/ipc/proto/bias_service_pb2.py
+          test -f guidance/ipc/proto/bias_service_pb2_grpc.py
+
+      - name: Validate Python Imports (Root)
+        run: |
+          export PYTHONPATH=$PYTHONPATH:.
+          python -c "from guidance.ipc.proto import bias_service_pb2, bias_service_pb2_grpc; print('Imports successful')"
+
+  container-proto-check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: containers/bias-engine
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install gRPC Tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install grpcio-tools==1.50.0 protobuf==4.21.0
+
+      - name: Run Proto Generation (Container)
+        run: |
+          chmod +x setup_grpc.sh
+          ./setup_grpc.sh
+
+      - name: Validate Generated Files (Container)
+        run: |
+          ls -la guidance/ipc/proto/
+          test -f guidance/ipc/proto/bias_service_pb2.py
+          test -f guidance/ipc/proto/bias_service_pb2_grpc.py
+
+      - name: Validate Python Imports (Container)
+        run: |
+          export PYTHONPATH=$PYTHONPATH:.
+          python -c "from guidance.ipc.proto import bias_service_pb2, bias_service_pb2_grpc; print('Imports successful')"

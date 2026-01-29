@@ -144,6 +144,7 @@
                 <!-- Island anchors (auditable via data-testid) -->
                 <div data-island="visual-annotation-island" data-testid="visual-annotation-island" data-props="<%= JSON.stringify({ documentId: manualProps.documentId }) %>"></div>
                 <div data-island="feedback-controls-island" data-testid="feedback-controls-island" data-props="<%= JSON.stringify({ documentId: manualProps.documentId }) %>"></div>
+                <div data-island="export-panel-island" data-testid="export-panel-island" data-props="<%= JSON.stringify({ documentId: manualProps.documentId }) %>"></div>
         
                 <!-- Document Selection -->
                 <div class="material-card mb-6">
@@ -191,9 +192,14 @@
 
                         <!-- Text Preview (default) -->
                         <div id="textPreviewSection" class="stat-box">
-                            <div id="documentPreview" class="min-h-[600px] bg-bg-primary rounded border border-border-color p-4">
-                                <div id="contentPreview" data-testid="manual-content-preview" class="h-[600px] overflow-y-auto font-mono text-sm whitespace-pre-wrap"></div>
+                            <div class="min-h-[600px] h-[600px] bg-bg-primary rounded border border-border-color overflow-hidden">
+                                <div
+                                    data-island="document-content-island"
+                                    data-testid="document-content-island"
+                                    data-props="<%= JSON.stringify({ documentId: manualProps.documentId, content: manualProps.content }) %>"
+                                ></div>
                             </div>
+                        </div>
                         </div>
 
                         <!-- Visual Preview with Overlays (hidden by default) -->
@@ -312,10 +318,6 @@
         });
     </script>
     <script src="js/dashboard.js"></script>
-    <script type="module">
-        import { mountIslands } from '/js/dist/island-runtime.js';
-        mountIslands(document);
-        window.__islandRuntimeMounted = true;
-    </script>
+    <%- include('partials/island-loader') %>
 </body>
 </html>

@@ -1328,12 +1328,6 @@
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
     </script>
-    <script type="module">
-      import { mountIslands } from '/js/dist/island-runtime.js';
-      if (!window.__islandRuntimeMounted) {
-        mountIslands(document);
-        window.__islandRuntimeMounted = true;
-      }
-    </script>
+    <%- include('partials/island-loader') %>
 </body>
 </html>

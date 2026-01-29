@@ -204,20 +204,20 @@ export default function VisualOverlaysIsland(props: Props) {
     <div data-testid="visual-overlays-island-root" data-hydrated={mounted ? 'true' : 'false'}>
       <div className="visual-overlays-list space-y-6">
         {images.map((img) => (
-          <div key={img.id} className="visual-image-item" data-testid={`visual-image-${img.id}`} style={{ position: 'relative' }}>
+          <div key={img.id} className="visual-image-item relative" data-testid={`visual-image-${img.id}`}>
             <img
               ref={attachImageRef(img.id)}
               src={img.originalSrc || img.thumbnailSrc || ''}
               alt={`Document ${props.documentId || ''} image ${img.id}`}
               data-testid="document-image"
               data-image-id={img.id}
-              style={{ width: '100%', height: 'auto', display: 'block' }}
+              className="w-full h-auto block"
               crossOrigin="anonymous"
             />
 
             {/* SVG overlay that scales with the image container */}
-            <div data-testid={`overlay-container-${img.id}`} style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, pointerEvents: 'none' }}>
-              <svg data-testid={`overlay-svg-${img.id}`} width="100%" height="100%" preserveAspectRatio="none" style={{ display: 'block' }}>
+            <div data-testid={`overlay-container-${img.id}`} className="absolute inset-0 pointer-events-none">
+              <svg data-testid={`overlay-svg-${img.id}`} width="100%" height="100%" preserveAspectRatio="none" className="block">
                 {(localOverlays[img.id] || []).map((ov: any) => {
                   const bbox = normalizeBoxToPixels(ov.bbox || { x: 0, y: 0, width: 0, height: 0 }, 1000, 1000);
                   // Using percent viewBox mapping so that scaling works; we will render rect in percentage coordinates
