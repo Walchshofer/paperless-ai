@@ -3,7 +3,6 @@ const router = express.Router();
 const paperlessService = require('../services/paperlessService.js');
 const documentModel = require('../services/documentModel.js');
 const configFile = require('../config/config.js');
-$1
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 

@@ -22,6 +22,12 @@ export const UnifiedWorkspaceSchema = z.object({
     originalUrl: z.string().nullable(),
     normalizedUrl: z.string().nullable(),
   }).nullable(),
+
+  // User context (for permissioned UI like Debug tab)
+  user: z.object({
+    username: z.string().nullable().optional(),
+    isAdmin: z.boolean().optional(),
+  }).optional(),
   
   // Workspace specific data
   availableDocuments: z.array(ManualDocumentSchema).default([]),
@@ -50,7 +56,7 @@ export const UnifiedWorkspaceSchema = z.object({
 
   // UI State
   ui: z.object({
-    activeTab: z.enum(['metadata', 'chat', 'ocr']).default('metadata'),
+    activeTab: z.enum(['metadata', 'content', 'chat', 'debug']).default('metadata'),
     sidebarCollapsed: z.boolean().default(false),
   }).default({}),
 });

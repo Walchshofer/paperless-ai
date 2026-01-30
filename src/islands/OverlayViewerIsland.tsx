@@ -980,6 +980,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
               
               {highlightedRegion && (
                 <div
+                  data-testid="overlay-highlight-region"
                   className={`${styles.highlightRegion} animate-pulse [--region-left:${highlightedRegion.x * 100}%] [--region-top:${highlightedRegion.y * 100}%] [--region-width:${highlightedRegion.width * 100}%] [--region-height:${highlightedRegion.height * 100}%]`}
                 />
               )}

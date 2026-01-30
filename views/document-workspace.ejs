@@ -111,14 +111,18 @@
                         activeTab: vm.ui?.activeTab || 'metadata',
                         document: vm.document,
                         chat: vm.chat,
-                        visual: vm.visual
+                        visual: vm.visual,
+                        isAdmin: !!(vm.user && vm.user.isAdmin)
                     }) %>"
                 >
                     <!-- Fallback Sidebar Tabs (SSr rendered for SEO/Fast paint) -->
                     <div class="flex border-b border-[#e5e0d8] bg-[#fdfaf6]">
-                        <button class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium border-b-2 border-copper text-copper">Metadata</button>
-                        <button class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium text-[#888]">Chat</button>
-                        <button class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium text-[#888]">OCR</button>
+                        <button data-testid="tab-metadata" class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium border-b-2 border-copper text-copper">Metadata</button>
+                        <button data-testid="tab-chat" class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium text-[#888]">Chat</button>
+                        <button data-testid="tab-content" class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium text-[#888]">OCR</button>
+                        <% if (vm.user && vm.user.isAdmin) { %>
+                          <button data-testid="tab-debug" class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium text-[#888]">Debug</button>
+                        <% } %>
                     </div>
                     <div class="p-6">
                         <div class="animate-pulse space-y-4">

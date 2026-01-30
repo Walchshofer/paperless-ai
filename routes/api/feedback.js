@@ -221,4 +221,42 @@ router.get('/analytics', async (req, res) => {
     }
 });
 
+/**
+ * POST /api/feedback/field-vote
+ * Body: { documentId: number, fieldId: string, vote: 'up'|'down' }
+ * Requires authenticated user (req.user.username)
+ */
+router.post('/field-vote', async (req, res) => {
+    try {
+        const { documentId, fieldId, vote } = req.body;
+
+        if (!req.user || !req.user.username) {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+
+        if (!documentId || !fieldId || !['up', 'down'].includes(vote)) {
+            return res.status(400).json({ success: false, error: 'documentId, fieldId and vote (up|down) are required' });
+        }
+
+        const feedbackPayload = {
+            document_id: documentId,
+            user_id: req.user?.id || null,
+            event_type: 'field_vote',
+            field_name: fieldId,
+            original_value: null,
+            corrected_value: vote,
+            context: { username: req.user.username, vote }
+        };
+
+        const inserted = await require('../../services/documentModel').insertFeedback(feedbackPayload);
+
+        logger.info({ event: 'field_vote', documentId, fieldId, username: req.user.username, vote });
+
+        res.json({ success: true, inserted });
+    } catch (error) {
+        logger.error({ event: 'field_vote_error', error: error.message });
+        res.status(500).json({ success: false, error: 'Failed to record field vote' });
+    }
+});
+
 module.exports = router;

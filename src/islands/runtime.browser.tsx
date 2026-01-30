@@ -22,7 +22,6 @@ import ChatWorkspaceIsland from './ChatWorkspaceIsland';
 import HistoryManagerIsland from './HistoryManagerIsland';
 import ManualWorkspaceIsland from './ManualWorkspaceIsland';
 import DocumentContentIsland from './DocumentContentIsland';
-$1
 import UnifiedWorkspaceIsland from './UnifiedWorkspaceIsland';
 import DocumentContextBarIsland from './DocumentContextBarIsland';
 import ContextSidebarIsland from './ContextSidebarIsland';

@@ -318,7 +318,6 @@ const schemaMap = {
   'ai-analysis-island': AIAnalysisSchema,
   'chat-workspace-island': ChatWorkspaceSchema,
   'history-manager-island': HistoryManagerSchema,
-$1
   'unified-workspace-island': z.any(),
   'document-context-bar-island': z.any(),
   'context-sidebar-island': z.any(),
@@ -812,8 +811,6 @@ const defaultRenderers = {
       </div>
     `;
   },
-
-$1,
   'unified-workspace-island': (el) => {
     el.innerHTML = '<div data-testid="unified-workspace-root" data-hydrated="true">Unified Workspace Placeholder</div>';
   },
@@ -822,7 +819,8 @@ $1,
   },
   'context-sidebar-island': (el) => {
     el.innerHTML = '<div data-testid="context-sidebar-root" data-hydrated="true">Context Sidebar Placeholder</div>';
-  }
+  },
+};
 
 const registry = Object.assign({}, defaultRenderers);
 
