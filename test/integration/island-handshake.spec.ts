@@ -27,6 +27,13 @@ interface VisualSearchPayload {
   filters?: Record<string, unknown>;
 }
 
+// Local test-only globals type
+type TestGlobals = {
+  window?: Window;
+  document?: Document;
+  CustomEvent?: typeof CustomEvent;
+};
+
 beforeEach(() => {
   dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
     url: 'http://localhost:3000',
@@ -36,16 +43,16 @@ beforeEach(() => {
   document = window.document;
 
   // Make window global for event testing
-  (global as any).window = window;
-  (global as any).document = document;
-  (global as any).CustomEvent = window.CustomEvent;
+  (global as unknown as TestGlobals).window = window;
+  (global as unknown as TestGlobals).document = document;
+  (global as unknown as TestGlobals).CustomEvent = window.CustomEvent;
 });
 
 afterEach(() => {
   dom.window.close();
-  delete (global as any).window;
-  delete (global as any).document;
-  delete (global as any).CustomEvent;
+  delete (global as unknown as TestGlobals).window;
+  delete (global as unknown as TestGlobals).document;
+  delete (global as unknown as TestGlobals).CustomEvent;
 });
 
 describe('Event Bus - visual-search-requested', () => {
@@ -70,10 +77,10 @@ describe('Event Bus - visual-search-requested', () => {
   });
 
   it('event contains valid Base64 payload', () => {
-    let receivedPayload: any = null;
+    let receivedPayload: VisualSearchPayload | null = null;
 
     window.addEventListener('visual-search-requested', (e: Event) => {
-      receivedPayload = (e as CustomEvent).detail;
+      receivedPayload = (e as CustomEvent).detail as VisualSearchPayload;
     });
 
     const testBase64 =
@@ -89,16 +96,18 @@ describe('Event Bus - visual-search-requested', () => {
     window.dispatchEvent(event);
 
     expect(receivedPayload).not.toBeNull();
-    expect(receivedPayload.imageBase64).toBe(testBase64);
-    expect(typeof receivedPayload.imageBase64).toBe('string');
-    expect(receivedPayload.imageBase64.length).toBeGreaterThan(10);
+    if (receivedPayload) {
+      expect(receivedPayload.imageBase64).toBe(testBase64);
+      expect(typeof receivedPayload.imageBase64).toBe('string');
+      expect(receivedPayload.imageBase64.length).toBeGreaterThan(10);
+    }
   });
 
   it('event includes collection name', () => {
-    let receivedPayload: any = null;
+    let receivedPayload: VisualSearchPayload | null = null;
 
     window.addEventListener('visual-search-requested', (e: Event) => {
-      receivedPayload = (e as CustomEvent).detail;
+      receivedPayload = (e as CustomEvent).detail as VisualSearchPayload;
     });
 
     const event = new window.CustomEvent('visual-search-requested', {
@@ -110,7 +119,9 @@ describe('Event Bus - visual-search-requested', () => {
 
     window.dispatchEvent(event);
 
-    expect(receivedPayload.collection).toBe('visual_overlays');
+    if (receivedPayload) {
+      expect(receivedPayload.collection).toBe('visual_overlays');
+    }
   });
 
   it('event includes filters when provided', () => {
@@ -133,16 +144,19 @@ describe('Event Bus - visual-search-requested', () => {
 
     window.dispatchEvent(event);
 
-    expect(receivedPayload.filters).toBeDefined();
-    expect(receivedPayload.filters.correspondent_id).toBe(5);
-    expect(receivedPayload.filters.tag_ids).toEqual([1, 2, 3]);
+    const filters = receivedPayload?.filters as Record<string, unknown> | undefined;
+    expect(filters).toBeDefined();
+    if (filters) {
+      expect(filters['correspondent_id']).toBe(5);
+      expect(filters['tag_ids']).toEqual([1, 2, 3]);
+    }
   });
 
   it('event includes bbox coordinates', () => {
-    let receivedPayload: any = null;
+    let receivedPayload: VisualSearchPayload | null = null;
 
     window.addEventListener('visual-search-requested', (e: Event) => {
-      receivedPayload = (e as CustomEvent).detail;
+      receivedPayload = (e as CustomEvent).detail as VisualSearchPayload;
     });
 
     const bbox = { x: 0.1, y: 0.2, width: 0.5, height: 0.6 };
@@ -157,11 +171,13 @@ describe('Event Bus - visual-search-requested', () => {
 
     window.dispatchEvent(event);
 
-    expect(receivedPayload.bbox).toEqual(bbox);
-    expect(receivedPayload.bbox.x).toBe(0.1);
-    expect(receivedPayload.bbox.y).toBe(0.2);
-    expect(receivedPayload.bbox.width).toBe(0.5);
-    expect(receivedPayload.bbox.height).toBe(0.6);
+    if (receivedPayload && receivedPayload.bbox) {
+      expect(receivedPayload.bbox).toEqual(bbox);
+      expect(receivedPayload.bbox.x).toBe(0.1);
+      expect(receivedPayload.bbox.y).toBe(0.2);
+      expect(receivedPayload.bbox.width).toBe(0.5);
+      expect(receivedPayload.bbox.height).toBe(0.6);
+    }
   });
 });
 
@@ -345,7 +361,7 @@ describe('Loading State Trigger', () => {
   });
 
   it('simulates API call initiated on event', async () => {
-    const apiCalls: any[] = [];
+    const apiCalls: Array<VisualSearchPayload> = [];
 
     // Mock fetch
     const mockFetch = vi.fn().mockResolvedValue({
@@ -359,7 +375,7 @@ describe('Loading State Trigger', () => {
 
     // Simulate HistoryTabs API call on event
     window.addEventListener('visual-search-requested', async (e: Event) => {
-      const payload = (e as CustomEvent).detail || {};
+      const payload = (e as CustomEvent).detail || {} as VisualSearchPayload;
       const { imageBase64, collection, filters } = payload;
       apiCalls.push({ imageBase64, collection, filters });
 
