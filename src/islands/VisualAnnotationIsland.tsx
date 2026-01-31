@@ -51,7 +51,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
           context: a.context || undefined
         }));
         // debug log to help tests - removed once tests stable
-        // eslint-disable-next-line no-console
+         
         console.debug && console.debug('VisualAnnotationIsland init annotations', mapped);
         setAnnotations(mapped as Annotation[]);
       } catch (err: unknown) { /* ignore */ }

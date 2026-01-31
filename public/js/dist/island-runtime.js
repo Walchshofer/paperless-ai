@@ -7383,7 +7383,7 @@ function OverlayViewerIsland(props) {
         }
       } catch (err) {
         if (!cancelled) {
-          setOverlayError(err.message || "Overlay load failed");
+          setOverlayError((err instanceof Error ? err.message : String(err)) || "Overlay load failed");
           setOverlayItems([]);
         }
       } finally {

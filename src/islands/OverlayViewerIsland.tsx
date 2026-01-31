@@ -95,10 +95,10 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const imageRef = useRef(null as HTMLImageElement | null);
 
   // Allow dynamic updates from page-level events
-  const [docId, setDocId] = useState<number | null>(initialDocumentId || null);
+  const [docId, setDocId] = useState(initialDocumentId || null as number | null);
   const [page, setPage] = useState(initialPage);
-  const [originalUrl, setOriginalUrl] = useState<string | null>(initialOriginalUrl || null);
-  const [pageCount, setPageCount] = useState<number | null>(props?.pageCount ?? null);
+  const [originalUrl, setOriginalUrl] = useState(initialOriginalUrl || null as string | null);
+  const [pageCount, setPageCount] = useState((props?.pageCount ?? null) as number | null);
 
   // Listen for page/document change events from the page and update in-place
   useEffect(() => {
@@ -150,22 +150,22 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const [isDrawing, setIsDrawing] = useState(false);
   const isDrawingRef = useRef(false);
   const pointerActiveRef = useRef(false);
-  const [boxes, setBoxes] = useState<BoundingBox[]>([]);
-  const [currentBox, setCurrentBox] = useState<BoundingBox | null>(null);
-  const currentBoxRef = useRef<BoundingBox | null>(null);
+  const [boxes, setBoxes] = useState([] as BoundingBox[]);
+  const [currentBox, setCurrentBox] = useState(null as BoundingBox | null);
+  const currentBoxRef = useRef(null as BoundingBox | null);
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageError, setImageError] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
-  const [legend, setLegend] = useState<LegendItem[]>([]);
-  const [overlayItems, setOverlayItems] = useState<OverlayItem[]>([]);
+  const [imageError, setImageError] = useState(null as string | null);
+  const [warning, setWarning] = useState(null as string | null);
+  const [legend, setLegend] = useState([] as LegendItem[]);
+  const [overlayItems, setOverlayItems] = useState([] as OverlayItem[]);
   const [overlayLoading, setOverlayLoading] = useState(false);
-  const [overlayError, setOverlayError] = useState<string | null>(null);
+  const [overlayError, setOverlayError] = useState(null as string | null);
   const [mandatoryOnly, setMandatoryOnly] = useState(false);
   const [overlayDomain, setOverlayDomain] = useState('general');
   const selectionEnabled = allowSelection !== false;
 
   // Zoom & Pan state
-  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef = useRef(null as HTMLDivElement | null);
   const [scale, setScale] = useState(1);
   const scaleRef = useRef(1);
   const [translateX, setTranslateX] = useState(0);
@@ -173,20 +173,20 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const translateRef = useRef({ x: 0, y: 0 });
   const [panMode, setPanMode] = useState(false);
   const panActiveRef = useRef(false);
-  const lastPanPointRef = useRef<{ x: number; y: number } | null>(null);
+  const lastPanPointRef = useRef(null as { x: number; y: number } | null);
 
   // Imperative refs for ARIA attributes to satisfy axe static analysis
-  const drawModeButtonRef = useRef<HTMLButtonElement | null>(null);
-  const panModeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const drawModeButtonRef = useRef(null as HTMLButtonElement | null);
+  const panModeButtonRef = useRef(null as HTMLButtonElement | null);
 
   // Visual Search / Split View state
   const [showResults, setShowResults] = useState(false);
-  const [results, setResults] = useState<VisualSearchResult[]>([]);
+  const [results, setResults] = useState([] as VisualSearchResult[]);
   const [resultsLoading, setResultsLoading] = useState(false);
-  const [resultsError, setResultsError] = useState<string | null>(null);
+  const [resultsError, setResultsError] = useState(null as string | null);
   const [splitPos, setSplitPos] = useState(60); // Percentage width of document viewer
   const [isResizing, setIsResizing] = useState(false);
-  const [highlightedRegion, setHighlightedRegion] = useState<BoundingBox | null>(null);
+  const [highlightedRegion, setHighlightedRegion] = useState(null as BoundingBox | null);
   
   const MIN_SCALE = 0.5;
   const MAX_SCALE = 3;
@@ -366,7 +366,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         }
       } catch (err: unknown) {
         if (!cancelled) {
-          setOverlayError(err.message || 'Overlay load failed');
+          setOverlayError((err instanceof Error ? err.message : String(err)) || 'Overlay load failed');
           setOverlayItems([]);
         }
       } finally {

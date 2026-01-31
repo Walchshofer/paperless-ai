@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "jsx": "react-jsx",
     "jsxImportSource": "preact",
     "allowJs": true,
@@ -14,7 +14,11 @@
     "strict": true,
     "noEmit": true,
     "baseUrl": ".",
-    "paths": { "@test/*": ["test/*"] },
+    "paths": {
+      "@test/*": ["test/*"],
+      "preact": ["node_modules/preact/src/index.d.ts"],
+      "preact/hooks": ["node_modules/preact/hooks/src/index.d.ts"]
+    },
     "typeRoots": ["src/types", "node_modules/@types"],
     "types": ["node", "mocha"],
     "allowSyntheticDefaultImports": true,

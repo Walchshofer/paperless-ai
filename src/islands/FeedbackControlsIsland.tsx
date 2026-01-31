@@ -6,7 +6,7 @@ type FeedbackState = 'up' | 'down' | null;
 
 let styles: Record<string, string> = {};
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+   
   styles = require('./FeedbackControlsIsland.module.css');
 } catch (e) {
   // Server/test: CSS module may not be available at runtime

@@ -136,12 +136,12 @@ export async function fetchOverlaysForImage(
 export default function VisualOverlaysIsland(props: Props) {
   const { images = [], overlaysByImage = {} } = props;
   const [mounted, setMounted] = useState(false);
-  const [localOverlays, setLocalOverlays] = useState<Record<string, Overlay[]>>(overlaysByImage || {});
-  const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({});
-  const [errorMap, setErrorMap] = useState<Record<string, string | null>>({});
+  const [localOverlays, setLocalOverlays] = useState((overlaysByImage || {}) as Record<string, Overlay[]>);
+  const [loadingMap, setLoadingMap] = useState({} as Record<string, boolean>);
+  const [errorMap, setErrorMap] = useState({} as Record<string, string | null>);
   const controllersRef = useRef(new Map<string, AbortController>());
   const imageRefs = useRef(new Map<string, HTMLElement>());
-  const observerRef = useRef<IntersectionObserver | null>(null);
+  const observerRef = useRef(null as IntersectionObserver | null);
 
   useEffect(() => {
     setMounted(true);
