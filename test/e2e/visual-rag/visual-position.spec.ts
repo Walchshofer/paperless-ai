@@ -53,8 +53,8 @@ test.describe('Visual overlay position verification', () => {
         };
 
         anchor.setAttribute('data-props', JSON.stringify(props));
-        if (typeof (window as any).mountIslands === 'function') {
-          (window as any).mountIslands(document);
+        if (typeof (window as unknown as { mountIslands?: (d: Document) => void }).mountIslands === 'function') {
+          (window as unknown as { mountIslands?: (d: Document) => void }).mountIslands?.(document);
         }
       },
       { overlayId, bbox }
