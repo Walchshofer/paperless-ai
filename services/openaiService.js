@@ -11,7 +11,7 @@ const paperlessService = require('./paperlessService');
 const fs = require('fs').promises;
 const { normalizeCustomFieldValue } = require('./customFieldUtils');
 const path = require('path');
-const { model } = require('./ollamaService');
+const { model: _ollamaModel } = require('./ollamaService');
 const RestrictionPromptService = require('./restrictionPromptService');
 const logger = require('./logger');
 

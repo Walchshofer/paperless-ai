@@ -161,7 +161,7 @@ const LABEL_ALIASES = Object.freeze({
  */
 function normalizeLabel(label) {
     if (!label) return '';
-    const normalized = label.toLowerCase().trim().replace(/[\s\/]+/g, '_');
+    const normalized = label.toLowerCase().trim().replace(/[\s/]+/g, '_');
 
     // Check aliases first
     if (LABEL_ALIASES[label.toLowerCase().trim()]) {
@@ -190,7 +190,7 @@ function getFieldSpec(label, domain) {
 
     // Match on label text
     for (const [key, field] of Object.entries(spec.fields)) {
-        if (field.label.toLowerCase().replace(/[\s\/]+/g, '_') === normalized) {
+        if (field.label.toLowerCase().replace(/[\s/]+/g, '_') === normalized) {
             return { key, ...field };
         }
     }

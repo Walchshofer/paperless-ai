@@ -39,7 +39,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
   const [summaryFallback, setSummaryFallback] = useState(validated.featureFlags?.summaryFallbackEnabled ?? true);
 
   // Environment variables state
-  const [disableAutoProcessing, setDisableAutoProcessing] = useState(validated.environmentVariables?.disableAutomaticProcessing || 'no');
+  const [disableAutoProcessing] = useState(validated.environmentVariables?.disableAutomaticProcessing || 'no');
   const [scanInterval, setScanInterval] = useState(validated.environmentVariables?.scanInterval || '*/30 * * * *');
   const [tokenLimit, setTokenLimit] = useState(validated.environmentVariables?.tokenLimit || 128000);
   const [responseTokens, setResponseTokens] = useState(validated.environmentVariables?.responseTokens || 4096);
@@ -52,8 +52,38 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null as string | null);
 
+  // Runtime state interface
+  interface RuntimeStateData {
+    circuitBreaker?: {
+      state: string;
+      failures?: number;
+      successes?: number;
+    };
+    vram?: {
+      used?: string;
+      total?: string;
+      utilization?: number;
+    };
+    qdrant?: {
+      connected?: boolean;
+      collections?: number;
+      documents?: number;
+    };
+    sidecars?: {
+      visualRag?: boolean;
+      guidance?: boolean;
+      biasEngine?: boolean;
+    };
+    backgroundSync?: {
+      lastSync?: string;
+      nextSync?: string;
+      running?: boolean;
+      documentsProcessed?: number;
+    };
+  }
+
   // Runtime state
-  const [runtimeState, setRuntimeState] = useState(null as any);
+  const [runtimeState, setRuntimeState] = useState(null as RuntimeStateData | null);
   const [isLoadingRuntimeState, setIsLoadingRuntimeState] = useState(false);
   const [runtimeStateError, setRuntimeStateError] = useState(null as string | null);
 

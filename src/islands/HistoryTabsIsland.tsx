@@ -42,7 +42,7 @@ interface HistoryTabsProps extends Partial<HistoryTabsContract> {
 }
 
 export default function HistoryTabsIsland(props: HistoryTabsProps) {
-  const validated = HistoryTabsSchema.parse(props as any);
+  const validated = HistoryTabsSchema.parse(props as HistoryTabsContract);
   const { documentId, content, metadata } = validated;
 
   const [activeTab, setActiveTab] = useState('text' as TabId);
@@ -72,25 +72,7 @@ export default function HistoryTabsIsland(props: HistoryTabsProps) {
     }
   }, [activeTab]);
 
-  // Sync ARIA attributes to literal string tokens so static analyzers see valid values
-  useEffect(() => {
-    const tabs: TabId[] = ['text', 'metadata', 'similar'];
-    tabs.forEach((t) => {
-      const tabEl = document.getElementById(`tab-${t}`);
-      const panelEl = document.getElementById(`panel-${t}`);
-      if (tabEl) {
-        tabEl.setAttribute('aria-selected', activeTab === t ? 'true' : 'false');
-      }
-      if (panelEl) {
-        // aria-hidden="false" is redundant on visible elements and can confuse screen readers
-        if (activeTab === t) {
-          panelEl.removeAttribute('aria-hidden');
-        } else {
-          panelEl.setAttribute('aria-hidden', 'true');
-        }
-      }
-    });
-  }, [activeTab]);
+
 
   // Listen for visual search events
   useEffect(() => {
@@ -211,7 +193,7 @@ export default function HistoryTabsIsland(props: HistoryTabsProps) {
   const removeFilter = (type: 'correspondent' | 'tag', id?: number) => {
     if (type === 'correspondent') {
       setActiveFilters((prev: ActiveFilters) => {
-        const { correspondentId, ...rest } = prev;
+        const { correspondentId: _correspondentId, ...rest } = prev;
         return rest;
       });
     } else if (type === 'tag' && id !== undefined) {
@@ -264,7 +246,7 @@ export default function HistoryTabsIsland(props: HistoryTabsProps) {
           type="button"
           id={`tab-text`}
           role="tab"
-          aria-selected="true"
+          aria-selected={activeTab === 'text' ? 'true' : 'false'}
           aria-controls={`panel-text`}
           tabIndex={activeTab === 'text' ? 0 : -1}
           data-testid={`tab-text`}
@@ -284,7 +266,7 @@ export default function HistoryTabsIsland(props: HistoryTabsProps) {
           type="button"
           id={`tab-metadata`}
           role="tab"
-          aria-selected="false"
+          aria-selected={activeTab === 'metadata' ? 'true' : 'false'}
           aria-controls={`panel-metadata`}
           tabIndex={activeTab === 'metadata' ? 0 : -1}
           data-testid={`tab-metadata`}
@@ -304,7 +286,7 @@ export default function HistoryTabsIsland(props: HistoryTabsProps) {
           type="button"
           id={`tab-similar`}
           role="tab"
-          aria-selected="false"
+          aria-selected={activeTab === 'similar' ? 'true' : 'false'}
           aria-controls={`panel-similar`}
           tabIndex={activeTab === 'similar' ? 0 : -1}
           data-testid={`tab-similar`}
@@ -360,7 +342,7 @@ export default function HistoryTabsIsland(props: HistoryTabsProps) {
           id="panel-text"
           aria-labelledby="tab-text"
           data-testid="panel-text"
-          aria-hidden="false"
+          aria-hidden={activeTab !== 'text'}
           tabIndex={activeTab === 'text' ? 0 : -1}
           className={activeTab === 'text' ? '' : 'hidden'}
         >
@@ -383,7 +365,7 @@ export default function HistoryTabsIsland(props: HistoryTabsProps) {
           id="panel-metadata"
           aria-labelledby="tab-metadata"
           data-testid="panel-metadata"
-          aria-hidden="true"
+          aria-hidden={activeTab !== 'metadata'}
           tabIndex={activeTab === 'metadata' ? 0 : -1}
           className={activeTab === 'metadata' ? '' : 'hidden'}
         >
@@ -470,7 +452,7 @@ export default function HistoryTabsIsland(props: HistoryTabsProps) {
           id="panel-similar"
           aria-labelledby="tab-similar"
           data-testid="panel-similar"
-          aria-hidden="true"
+          aria-hidden={activeTab !== 'similar'}
           tabIndex={activeTab === 'similar' ? 0 : -1}
           className={activeTab === 'similar' ? '' : 'hidden'}
         >

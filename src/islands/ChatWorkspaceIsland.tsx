@@ -9,7 +9,7 @@ type ChatMessage = {
   id: string;
   role: ChatMessageRole;
   content: string;
-  meta?: Record<string, any>;
+  meta?: Record<string, unknown>;
   images?: string[];
 };
 
@@ -28,8 +28,16 @@ type OllamaModelGroup = {
   }>;
 };
 
+interface MarkedLib {
+  parse: (text: string) => string;
+}
+
+interface WindowWithMarked extends Window {
+  marked?: MarkedLib;
+}
+
 const safeMarkdown = (text: string) => {
-  const marked = (window as any).marked;
+  const marked = (window as unknown as WindowWithMarked).marked;
   if (marked && typeof marked.parse === 'function') {
     return marked.parse(text);
   }
@@ -42,8 +50,16 @@ const safeMarkdown = (text: string) => {
     .replace(/\n/g, '<br/>');
 };
 
+interface HljsLib {
+  highlightBlock: (block: HTMLElement) => void;
+}
+
+interface WindowWithHljs extends Window {
+  hljs?: HljsLib;
+}
+
 const highlightBlocks = (container: HTMLElement | null) => {
-  const hljs = (window as any).hljs;
+  const hljs = (window as unknown as WindowWithHljs).hljs;
   if (!container || !hljs) return;
   const blocks = container.querySelectorAll('pre code');
   blocks.forEach((block) => {
@@ -89,7 +105,18 @@ export default function ChatWorkspaceIsland(
 
   const [guidedStep, setGuidedStep] = useState('Select a document to begin.');
   const [statusMessage, setStatusMessage] = useState(null as string | null);
-  const [chatContext, setChatContext] = useState([] as any[]);
+
+  type ChatContextItem = {
+    type: string;
+    documentId?: number;
+    data?: {
+      page?: number;
+      text?: string;
+      imageBase64?: string;
+    };
+  };
+
+  const [chatContext, setChatContext] = useState([] as ChatContextItem[]);
   const chatEndRef = useRef(null as HTMLDivElement | null);
   const chatHistoryRef = useRef(null as HTMLDivElement | null);
   const streamMessageIdRef = useRef(null as string | null);
@@ -103,12 +130,12 @@ export default function ChatWorkspaceIsland(
       if (ctxParam) {
         try {
           const parsed = JSON.parse(decodeURIComponent(ctxParam));
-          const ctxArray = Array.isArray(parsed) ? parsed : [parsed];
+          const ctxArray: ChatContextItem[] = Array.isArray(parsed) ? parsed : [parsed];
           setChatContext(ctxArray);
-          
-          if (ctxArray.some((c: any) => c.type === 'visual')) {
+
+          if (ctxArray.some((c: ChatContextItem) => c.type === 'visual')) {
              setMessageInput('Analyze this visual region.');
-          } else if (ctxArray.some((c: any) => c.type === 'text')) {
+          } else if (ctxArray.some((c: ChatContextItem) => c.type === 'text')) {
              setMessageInput('Analyze this text.');
           }
           
@@ -148,11 +175,12 @@ export default function ChatWorkspaceIsland(
       });
 
       // Expert models (if provided as array of entries)
+      type ExpertModelEntry = { label?: string; model: string };
       const expertRaw = props.modelConfig.expertModels;
       if (Array.isArray(expertRaw) && expertRaw.length) {
         groups.push({
           label: 'Expert models',
-          models: expertRaw.map((entry: any) => ({ label: entry.label ? `${entry.label} (${entry.model})` : entry.model, model: entry.model }))
+          models: (expertRaw as ExpertModelEntry[]).map((entry: ExpertModelEntry) => ({ label: entry.label ? `${entry.label} (${entry.model})` : entry.model, model: entry.model }))
         });
       }
 
@@ -182,8 +210,9 @@ export default function ChatWorkspaceIsland(
       }
       const data = await resp.json();
       return { ok: true, data };
-    } catch (err: any) {
-      return { ok: false, error: err?.message || String(err) };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: message };
     }
   };
 
@@ -224,18 +253,19 @@ export default function ChatWorkspaceIsland(
       }
       const data = await response.json();
 
+      type ExpertModelEntry = { label?: string; model: string };
       const installed = Array.isArray(data.models) ? (data.models as string[]) : [];
       const expertRaw = Array.isArray(data.expertModels)
-        ? (data.expertModels as any[])
+        ? (data.expertModels as ExpertModelEntry[])
         : [];
       const placeholders = Array.isArray(data.placeholderModels)
         ? (data.placeholderModels as string[])
         : [];
 
       const installedSet = new Set(installed.filter(Boolean));
-      const expertEntries = expertRaw.filter((entry: any) => entry?.model);
+      const expertEntries = expertRaw.filter((entry: ExpertModelEntry) => entry?.model);
       const expertSet = new Set(
-        expertEntries.map((entry: any) => entry.model)
+        expertEntries.map((entry: ExpertModelEntry) => entry.model)
       );
 
       const placeholderEntries = placeholders.filter((model: string) => {
@@ -256,7 +286,7 @@ export default function ChatWorkspaceIsland(
       if (expertEntries.length) {
         groups.push({
           label: 'Expert models',
-          models: expertEntries.map((entry: any) => ({
+          models: expertEntries.map((entry: ExpertModelEntry) => ({
             label: entry.label
               ? `${entry.label} (${entry.model})`
               : entry.model,
@@ -291,8 +321,9 @@ export default function ChatWorkspaceIsland(
       } else if (groups.length && groups[0].models.length) {
         setSelectedModel(groups[0].models[0].model);
       }
-    } catch (error: any) {
-      setModelLoadError(error.message || String(error));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      setModelLoadError(message);
       setModelOptions([]);
       setSelectedModel(props.ollamaDefaultModel ?? null);
     } finally {
@@ -323,7 +354,8 @@ export default function ChatWorkspaceIsland(
     }
   }, []);
 
-  const [localTextRagStatus, setLocalTextRagStatus] = useState(null as any);
+  type TextRagStatus = { available: boolean };
+  const [localTextRagStatus, setLocalTextRagStatus] = useState(null as TextRagStatus | null);
 
   const initializeChat = useCallback(async (documentId: number) => {
     try {
@@ -338,9 +370,10 @@ export default function ChatWorkspaceIsland(
       setSelectedDocumentTitle(data.documentTitle || `Document ${documentId}`);
 
       // Hydrate persisted chat history when available
+      type HistoryMessage = { role: ChatMessageRole; content: string };
       if (Array.isArray(data.history) && data.history.length > 0) {
         setChatMessages(
-          data.history.map((m: any) => ({ id: makeId(), role: m.role, content: m.content }))
+          (data.history as HistoryMessage[]).map((m: HistoryMessage) => ({ id: makeId(), role: m.role, content: m.content }))
         );
       } else {
         setChatMessages([
@@ -355,8 +388,9 @@ export default function ChatWorkspaceIsland(
       if (data.textRagStatus) setLocalTextRagStatus(data.textRagStatus);
 
       await loadDocumentPreview(documentId);
-    } catch (error: any) {
-      setStreamError(error.message || 'Failed to initialize chat');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStreamError(message || 'Failed to initialize chat');
     } finally {
       setStatusMessage(null);
     }
@@ -413,7 +447,7 @@ export default function ChatWorkspaceIsland(
           documentId: selectedDocumentId,
           message: userMessage,
           model: selectedModel,
-          context: chatContext.length > 0 ? chatContext.map((c: any) => ({
+          context: chatContext.length > 0 ? chatContext.map((c: ChatContextItem) => ({
              type: c.type,
              page: c.data?.page,
              excerpt: c.data?.text,
@@ -444,9 +478,13 @@ export default function ChatWorkspaceIsland(
           const payload = line.slice(6).trim();
           if (!payload || payload === '[DONE]') continue;
 
-          let parsed: any = null;
+          interface StreamPayload {
+            content?: string;
+            error?: string;
+          }
+          let parsed: StreamPayload = { content: undefined };
           try {
-            parsed = JSON.parse(payload);
+            parsed = JSON.parse(payload) as StreamPayload;
           } catch (err) {
             parsed = { content: payload };
           }
@@ -467,8 +505,9 @@ export default function ChatWorkspaceIsland(
           }
         }
       }
-    } catch (error: any) {
-      setStreamError(error.message || 'Failed to stream response');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStreamError(message || 'Failed to stream response');
     } finally {
       setIsStreaming(false);
     }

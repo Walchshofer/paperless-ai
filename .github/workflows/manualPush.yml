@@ -46,7 +46,7 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/paperless-ai
           tags: |
             type=raw,value=${{ inputs.tag }}
-            type=sha,prefix={{branch}}-
+            type=raw,value={{branch}}-{{sha}}
             
       - name: Build and push
         uses: docker/build-push-action@v4

@@ -9,12 +9,19 @@ function dispatchEventSafe(name: string, detail?: unknown) {
   if (typeof document === 'undefined') return;
   if (typeof document.dispatchEvent !== 'function') return;
   const EventConstructor = (typeof window !== 'undefined' && window.CustomEvent) ? window.CustomEvent : CustomEvent;
-  document.dispatchEvent(new EventConstructor(name, { detail } as CustomEventInit<any>));
+  document.dispatchEvent(new EventConstructor(name, { detail } as CustomEventInit<unknown>));
+}
+
+// Declare window augmentation for test-only marker
+declare global {
+  interface Window {
+    __ai_analysis_island_mounted?: boolean;
+  }
 }
 
 export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
   // Runtime contract validation: enforce the island props shape early
-  const validated = AIAnalysisSchema.parse(props);
+  AIAnalysisSchema.parse(props); // validates props but we use props directly below
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisType, setAnalysisType] = useState(null as AnalysisType);
@@ -79,7 +86,7 @@ export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
 
   // Test-only marker
   useEffect(() => {
-    try { (window as any).__ai_analysis_island_mounted = true; } catch (e) { /* ignore */ }
+    try { window.__ai_analysis_island_mounted = true; } catch (_e) { /* ignore */ }
   }, []);
 
   // Clear status after delay
@@ -92,12 +99,13 @@ export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
 
   const toManualFields = useCallback((doc: unknown, fallbackDomain = 'AI') => {
     if (!doc || typeof doc !== 'object') return [] as Array<{ label: string; value: string; domain: string; confidence: number }>;
-    const customFields = (doc as any)?.custom_fields;
+    const docRecord = doc as Record<string, unknown>;
+    const customFields = docRecord.custom_fields;
     if (!customFields || typeof customFields !== 'object') return [] as Array<{ label: string; value: string; domain: string; confidence: number }>;
-    return Object.entries(customFields).map(([label, value]) => ({
+    return Object.entries(customFields as Record<string, unknown>).map(([label, value]) => ({
       label,
       value: value != null ? String(value) : '',
-      domain: (doc as any)?.domain || fallbackDomain,
+      domain: typeof docRecord.domain === 'string' ? docRecord.domain : fallbackDomain,
       confidence: 1,
     }));
   }, []);
@@ -168,9 +176,9 @@ export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
       }
 
       setStatusMessage('Analysis completed successfully');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Analysis error:', err);
-      setStatusMessage(`Error: ${err.message}`);
+      setStatusMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsAnalyzing(false);
       setAnalysisType(null);
@@ -241,9 +249,9 @@ export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
       }
 
       setStatusMessage(`Visual analysis complete! Domain: ${data.result?.domain || 'general'}, Overlays: ${data.overlayCount || 0}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Visual analysis error:', err);
-      setStatusMessage(`Error: ${err.message}`);
+      setStatusMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsAnalyzing(false);
       setAnalysisType(null);

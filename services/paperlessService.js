@@ -1,8 +1,6 @@
 // services/paperlessService.js
 const axios = require('axios');
 const config = require('../config/config');
-const fs = require('fs');
-const path = require('path');
 const { parse, isValid, parseISO, format } = require('date-fns');
 const FieldMatcher = require('./FieldMatcher');
 const logger = require('./logger');
@@ -1011,7 +1009,7 @@ class PaperlessService {
         // Füge Tag-Filter hinzu, wenn Tags definiert sind
         if (shouldFilterByTags && tagIds.length > 0) {
           // Füge jeden Tag-ID als separaten Parameter hinzu
-          tagIds.forEach(id => {
+          tagIds.forEach(_id => {
             // Verwende tags__id__in für multiple Tag-Filterung
             params.tags__id__in = tagIds.join(',');
           });

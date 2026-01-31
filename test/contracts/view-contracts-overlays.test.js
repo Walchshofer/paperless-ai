@@ -1,8 +1,8 @@
-const tsNodeService = require('ts-node').register({
+const _tsNodeService = require('ts-node').register({
   transpileOnly: true,
   compilerOptions: { module: 'CommonJS' },
 });
-const assert = require('assert');
+const _assert = require('assert');
 const {
   OverlayViewerSchema,
 } = require('../../src/ui/contracts/OverlayViewer.contract.ts');

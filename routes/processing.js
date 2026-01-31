@@ -19,7 +19,7 @@ const axios = require('axios');
 let runningTask = false;
 let documentQueue = [];
 let isProcessing = false;
-let usePrompt = false;
+let _usePrompt = false;
 
 /**
  * @swagger
@@ -904,7 +904,7 @@ router.post('/api/webhook/document', async (req, res) => {
 
       documentQueue.push({ doc: document, username: 'system' });
       if (prompt) {
-        usePrompt = true;
+        _usePrompt = true;
         logger.debug('Using custom prompt: %s', prompt);
         await processQueue(prompt);
       } else {

@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'preact/hooks';
 import type { VisualAnnotationContract } from '../ui/contracts/VisualAnnotation.contract';
 
 type Annotation = {
+  id?: number;
   label: string;
   note: string;
   x: number;
@@ -14,9 +15,52 @@ type Annotation = {
     correspondentId?: number | null;
     tagIds?: number[];
     page?: number;
-    metadata?: Record<string, any>;
+    documentTypeId?: number | null;
+    metadata?: Record<string, unknown>;
   };
 };
+
+/** Shape of annotation data from API or props */
+interface AnnotationInput {
+  id?: number;
+  label?: string;
+  note?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  bbox?: {
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+  };
+  context?: {
+    correspondentId?: number | null;
+    tagIds?: number[];
+    page?: number;
+    documentTypeId?: number | null;
+  };
+}
+
+/** Shape of created annotation from save API */
+interface CreatedAnnotation {
+  id?: number;
+  label?: string;
+  note?: string;
+  bbox?: {
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+  } | number[];
+  context?: {
+    correspondentId?: number | null;
+    tagIds?: number[];
+    page?: number;
+    documentTypeId?: number | null;
+  };
+}
 
 type GpuState = 'idle' | 'checking' | 'preparing' | 'ready' | 'error';
 
@@ -39,7 +83,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
   useEffect(() => {
     if (props.annotations && Array.isArray(props.annotations)) {
       try {
-        const mapped = (props.annotations as any[]).map((a: any) => ({
+        const mapped = (props.annotations as AnnotationInput[]).map((a: AnnotationInput) => ({
           id: a.id,
           label: a.label || '',
           note: a.note || '',
@@ -51,10 +95,10 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
           context: a.context || undefined
         }));
         // debug log to help tests - removed once tests stable
-         
+
         console.debug && console.debug('VisualAnnotationIsland init annotations', mapped);
         setAnnotations(mapped as Annotation[]);
-      } catch (err: unknown) { /* ignore */ }
+      } catch (_err: unknown) { /* ignore */ }
     }
   }, [props.annotations]);
 
@@ -74,8 +118,8 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
         }
         if (!resp.ok) throw new Error(`Failed to load annotations: ${resp.status}`);
         const json = await resp.json();
-        const anns = Array.isArray(json.annotations) ? json.annotations : [];
-        const mapped = anns.map((a: any) => ({
+        const anns: AnnotationInput[] = Array.isArray(json.annotations) ? json.annotations : [];
+        const mapped = anns.map((a: AnnotationInput) => ({
           id: a.id,
           label: a.label || '',
           note: a.note || '',
@@ -88,7 +132,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
         }));
         setAnnotations(mapped as Annotation[]);
       } catch (err: unknown) {
-        const msg = err && typeof err === 'object' && 'message' in err ? (err as any).message : String(err);
+        const msg = err && typeof err === 'object' && 'message' in err ? (err as Error).message : String(err);
         console.error('Failed to load annotations:', msg);
       }
     }
@@ -102,7 +146,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
     const handler = (e: Event) => {
       const anns = (e as CustomEvent)?.detail?.annotations;
       if (!Array.isArray(anns)) return;
-      const mapped = anns.map((a: any) => ({
+      const mapped = (anns as AnnotationInput[]).map((a: AnnotationInput) => ({
         id: a.id,
         label: a.label || '',
         note: a.note || '',
@@ -185,8 +229,8 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
         setTimeout(() => mountedRef.current && checkSidecar(retryAttemptRef), delay);
       } else {
         setStatus('error');
-        const name = (err && typeof err === 'object' && 'name' in err) ? (err as any).name : undefined;
-        const message = (err && typeof err === 'object' && 'message' in err) ? (err as any).message : String(err);
+        const name = (err && typeof err === 'object' && 'name' in err) ? (err as Error).name : undefined;
+        const message = (err && typeof err === 'object' && 'message' in err) ? (err as Error).message : String(err);
         setErrorMessage(name === 'AbortError' ? 'Connection timeout' : message);
       }
     }
@@ -359,26 +403,43 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
       const created = Array.isArray(json.created) ? json.created : [];
 
       // Merge returned created annotations (with ids) into local annotations by matching bbox
-      const findMatch = (local: Annotation, c: any) => {
-        const cb = c.bbox || c;
-        const cx = Number(cb.x ?? (Array.isArray(cb) ? cb[1] : 0));
-        const cy = Number(cb.y ?? (Array.isArray(cb) ? cb[0] : 0));
-        const cwidth = Number(cb.width ?? (Array.isArray(cb) ? (cb[3] - cb[1]) : 0));
-        const cheight = Number(cb.height ?? (Array.isArray(cb) ? (cb[2] - cb[0]) : 0));
+      const findMatch = (local: Annotation, c: CreatedAnnotation) => {
+        const cb = c.bbox || { x: 0, y: 0, width: 0, height: 0 };
+        let cx: number, cy: number, cwidth: number, cheight: number;
+        if (Array.isArray(cb)) {
+          // bbox is [y1, x1, y2, x2] format
+          cx = Number(cb[1] ?? 0);
+          cy = Number(cb[0] ?? 0);
+          cwidth = Number((cb[3] ?? 0) - (cb[1] ?? 0));
+          cheight = Number((cb[2] ?? 0) - (cb[0] ?? 0));
+        } else {
+          cx = Number(cb.x ?? 0);
+          cy = Number(cb.y ?? 0);
+          cwidth = Number(cb.width ?? 0);
+          cheight = Number(cb.height ?? 0);
+        }
         return Math.abs(local.x - cx) < 0.001 && Math.abs(local.y - cy) < 0.001 && Math.abs(local.width - cwidth) < 0.001 && Math.abs(local.height - cheight) < 0.001;
       };
 
       const newAnns = annotations.map((local: Annotation) => {
-        const found = created.find((c: any) => findMatch(local, c));
+        const found = (created as CreatedAnnotation[]).find((c: CreatedAnnotation) => findMatch(local, c));
         if (found) {
+          const foundBbox = found.bbox;
+          let bboxX: number | undefined, bboxY: number | undefined, bboxWidth: number | undefined, bboxHeight: number | undefined;
+          if (foundBbox && !Array.isArray(foundBbox)) {
+            bboxX = foundBbox.x;
+            bboxY = foundBbox.y;
+            bboxWidth = foundBbox.width;
+            bboxHeight = foundBbox.height;
+          }
           return {
             id: found.id,
             label: local.label,
             note: local.note,
-            x: Number(found.bbox?.x ?? local.x),
-            y: Number(found.bbox?.y ?? local.y),
-            width: Number(found.bbox?.width ?? local.width),
-            height: Number(found.bbox?.height ?? local.height),
+            x: Number(bboxX ?? local.x),
+            y: Number(bboxY ?? local.y),
+            width: Number(bboxWidth ?? local.width),
+            height: Number(bboxHeight ?? local.height),
             confirmed: true,
             context: found.context || local.context
           } as Annotation;
@@ -391,7 +452,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
       // keep legacy event for other islands
       document.dispatchEvent(new CustomEvent('payload:ready', { detail: payload }));
     } catch (err: unknown) {
-      const msg = (err && typeof err === 'object' && 'message' in err) ? (err as any).message : String(err);
+      const msg = (err && typeof err === 'object' && 'message' in err) ? (err as Error).message : String(err);
       console.error('Failed to save annotations:', msg);
       setSaveError(msg || 'Failed to save annotations');
     } finally {
@@ -518,9 +579,9 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
         ref={canvasRef}
         data-testid="annotation-canvas"
         className={`vai-canvas ${isDrawing ? 'vai-cursor-draw' : 'vai-cursor-default'} ${status !== 'ready' ? 'vai-canvas-disabled' : ''}`}
-        onMouseDown={handleMouseDown as any}
-        onMouseMove={handleMouseMove as any}
-        onMouseUp={handleMouseUp as any}
+        onMouseDown={handleMouseDown as (e: MouseEvent) => void}
+        onMouseMove={handleMouseMove as (e: MouseEvent) => void}
+        onMouseUp={handleMouseUp as (e: MouseEvent) => void}
         aria-label="Annotation canvas"
         role="application"
       >

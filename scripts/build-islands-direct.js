@@ -39,12 +39,18 @@ function cleanDist() {
 
 const entries = {
   'island-runtime': 'src/islands/runtime.browser.tsx',
+  'unified-workspace': 'src/islands/UnifiedWorkspaceIsland.tsx',
+  'document-context-bar': 'src/islands/DocumentContextBarIsland.tsx',
+  'context-sidebar': 'src/islands/ContextSidebarIsland.tsx',
   'manual-editor': 'src/islands/ManualEditorIsland.tsx',
+  'smart-metadata': 'src/islands/SmartMetadataIsland.tsx',
   'feedback-controls': 'src/islands/FeedbackControlsIsland.tsx',
   'history-tabs': 'src/islands/HistoryTabsIsland.tsx',
+  'history-manager': 'src/islands/HistoryManagerIsland.tsx',
   'overlay-viewer': 'src/islands/OverlayViewerIsland.tsx',
   'playground': 'src/islands/PlaygroundIsland.tsx',
   'visual-annotation': 'src/islands/VisualAnnotationIsland.tsx',
+  'chat-workspace': 'src/islands/ChatWorkspaceIsland.tsx',
   'overview-dashboard': 'src/islands/OverviewDashboardIsland.tsx',
   'settings-sidebar': 'src/islands/SettingsSidebarIsland.tsx',
   'connection-settings': 'src/islands/ConnectionSettingsIsland.tsx',
@@ -53,6 +59,13 @@ const entries = {
   'restart-banner': 'src/islands/RestartBannerIsland.tsx',
   'developer-settings': 'src/islands/DeveloperSettingsIsland.tsx',
   'presets-manager': 'src/islands/PresetsManagerIsland.tsx',
+  'manual-workspace': 'src/islands/ManualWorkspaceIsland.tsx',
+  'view-mode-toggle': 'src/islands/ViewModeToggleIsland.tsx',
+  'document-content': 'src/islands/DocumentContentIsland.tsx',
+  'visual-overlays': 'src/islands/VisualOverlaysIsland.tsx',
+  'tags-manager': 'src/islands/TagsManagerIsland.tsx',
+  'ai-analysis': 'src/islands/AIAnalysisIsland.tsx',
+  'export-panel': 'src/islands/ExportPanelIsland.tsx'
 };
 
 const commonArgs = [

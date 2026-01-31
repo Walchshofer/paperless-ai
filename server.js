@@ -36,18 +36,18 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const Logger = require('./services/loggerService');
 const logger = require('./services/logger');
-const { max } = require('date-fns');
+const { max: _max } = require('date-fns');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
 
-const htmlLogger = new Logger({
+const _htmlLogger = new Logger({
   logFile: 'logs.html',
   format: 'html',
   timestamp: true,
   maxFileSize: 1024 * 1024 * 10
 });
 
-const txtLogger = new Logger({
+const _txtLogger = new Logger({
   logFile: 'logs.txt',
   format: 'txt',
   timestamp: true,
@@ -338,7 +338,7 @@ async function preprocessForDuplicates(documentId) {
   }
 }
 
-async function processDocument(doc, existingTags, existingCorrespondentList, existingDocumentTypesList, ownUserId) {
+async function processDocument(doc, existingTags, existingCorrespondentList, existingDocumentTypesList, _ownUserId) {
   const isProcessed = await documentModel.isDocumentProcessed(doc.id);
   if (isProcessed) return null;
   await documentModel.setProcessingStatus(doc.id, doc.title, 'processing');
@@ -957,7 +957,7 @@ app.use((req, res, next) => {
 });
 
 // Enhanced Error handler
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   const status = err.status || err.statusCode || 500;
   const env = process.env.NODE_ENV || 'development';
   const exposeDetails = env === 'development';

@@ -15,7 +15,7 @@ try {
 function dispatchEventSafe(name: string, detail?: unknown) {
   if (typeof document === 'undefined') return;
   if (typeof document.dispatchEvent !== 'function') return;
-  document.dispatchEvent(new CustomEvent(name, { detail } as CustomEventInit<any>));
+  document.dispatchEvent(new CustomEvent(name, { detail } as CustomEventInit<unknown>));
 }
 
 export default function FeedbackControlsIsland(
@@ -55,7 +55,7 @@ export default function FeedbackControlsIsland(
     component: string,
     feedback_type: 'thumbs_up' | 'thumbs_down'
   ) => {
-    const detail: any = { component, feedback_type };
+    const detail: { component: string; feedback_type: string; documentId?: number } = { component, feedback_type };
     if (props.documentId != null) detail.documentId = props.documentId;
 
     // Dispatch updated event (legacy/consumer)

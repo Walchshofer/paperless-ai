@@ -19,7 +19,6 @@
  */
 
 const logger = require('../logger');
-const config = require('../../config/config');
 const { visualSearchClient } = require('./VisualSearchClient');
 const { overlayExtractor } = require('./OverlayExtractor');
 const { visualOverlayRepository } = require('./VisualOverlayRepository');
@@ -464,7 +463,7 @@ class IngestionManager {
 
         // Set primary domain weight based on confidence
         const confidence = expertMetadata.confidence || 0.5;
-        if (weights.hasOwnProperty(domain)) {
+        if (Object.hasOwn(weights, domain)) {
             weights[domain] = confidence;
         }
 

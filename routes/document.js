@@ -79,7 +79,7 @@ router.get('/document/:id', async (req, res) => {
     // Check if the document has history for this user or if it's a new document
     // If strict isolation is enabled, we should verify the user has access.
     // For now, we follow the mandate: "Database queries for document history/processing MUST filter by username"
-    const history = await documentModel.getHistory(documentId, username);
+    const _history = await documentModel.getHistory(documentId, username);
     
     // Note: If history is null, it might be a document that hasn't been processed by AI yet.
     // In a strict multi-tenant system, we'd check Paperless-ngx permissions here.

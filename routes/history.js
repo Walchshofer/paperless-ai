@@ -496,7 +496,7 @@ router.post('/api/history/reanalyze/:id', async (req, res) => {
 
   // Document queue for legacy mode
   let documentQueue = [];
-  let isProcessing = false;
+  let _isProcessing = false;
 
   /**
    * Prepare a Paperless document for the Expert Pipeline by:
@@ -605,12 +605,12 @@ router.post('/api/history/reanalyze/:id', async (req, res) => {
     return preparedDoc;
   }
 
-  async function applyPipelineTagGovernance(documentId, updateData, analysis, originalTags) {
+  async function applyPipelineTagGovernance(documentId, updateData, _analysis, _originalTags) {
     // This is a placeholder - implement actual tag governance logic
     return { updateData };
   }
 
-  async function processQueue(customPrompt) {
+  async function processQueue(_customPrompt) {
     // This is a placeholder for legacy queue processing
     logger.info('[Reanalyze] Legacy queue processing not implemented in history module');
   }

@@ -258,7 +258,7 @@ module.exports = {
         }
     },
 
-    async _callOllamaAPI(prompt, systemPrompt, numCtx, numPredict, schema) {
+    async _callOllamaAPI(prompt, systemPrompt, numCtx, numPredict, _schema) {
         try {
             // DEBUG: Log request details
             logger.debug('[DEBUG] Ollama API request - system prompt length:', systemPrompt.length);

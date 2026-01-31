@@ -503,7 +503,7 @@ class PrometheusMetrics {
         }, 'ocr_tesseract_latency');
     }
 
-    recordRetry({ pipelineId, stageName, reason, severity }) {
+    recordRetry({ pipelineId, stageName: _stageName, reason: _reason, severity: _severity }) {
         if (!this.enabled) return;
         const pipelineKey = pipelineId || 'unknown';
         if (!this._retryTotals[pipelineKey]) {
@@ -516,7 +516,7 @@ class PrometheusMetrics {
         }, 'retry_rate');
     }
 
-    recordFallback({ pipelineId, from, to, reason }) {
+    recordFallback({ pipelineId, from: _from, to: _to, reason: _reason }) {
         if (!this.enabled) return;
         const pipelineKey = pipelineId || 'unknown';
         if (!this._fallbackTotals[pipelineKey]) {

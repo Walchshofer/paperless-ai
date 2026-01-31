@@ -55,7 +55,7 @@ export default function SettingsSidebarIsland(
     if (toggleRef.current) toggleRef.current.setAttribute('aria-checked', String(developerMode));
   }, [developerMode]);
 
-  const dispatchSettingsEvent = (name: string, detail: Record<string, any>) => {
+  const dispatchSettingsEvent = (name: string, detail: Record<string, unknown>) => {
     if (typeof document === 'undefined') return;
     const CustomEventCtor =
       typeof window !== 'undefined' && typeof window.CustomEvent === 'function'
@@ -151,7 +151,7 @@ export default function SettingsSidebarIsland(
     setActiveCategory(targetCategory);
 
     // Dispatch category change event - include focus when expert models requested
-    const detail: Record<string, any> = { category: targetCategory };
+    const detail: Record<string, string> = { category: targetCategory };
     if (categoryId === 'expert-models') detail.focus = 'expert-models';
 
     dispatchSettingsEvent('settings:category-changed', detail);

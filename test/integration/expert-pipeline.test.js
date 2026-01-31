@@ -69,7 +69,7 @@ class MockOllamaService {
         return this.defaultResponse;
     }
 
-    async analyzeDocument(content, existingTags = [], existingCorrespondentList = [], existingDocumentTypesList = [], id, customPrompt = null, options = {}) {
+    async analyzeDocument(content, existingTags = [], _existingCorrespondentList = [], existingDocumentTypesList = [], id, _customPrompt = null, options = {}) {
         this.calls.push({ method: 'analyzeDocument', content, id, options });
 
         if (this.shouldFail) {
@@ -245,7 +245,7 @@ describe('LocalTranslator', function() {
             // Custom mock to throw a 'Model not available' on first call then succeed
             class TempMock {
                 constructor() { this.calls = 0; }
-                async chat(req) {
+                async chat(_req) {
                     this.calls += 1;
                     if (this.calls === 1) throw new Error('Model not available');
                     return { message: { content: JSON.stringify({ primary_domain: 'Legal', document_type: 'contract', confidence: 0.8 }) } };
@@ -296,7 +296,7 @@ describe('LocalTranslator', function() {
             const executor = new ExpertPipelineExecutor(mock, {});
 
             let attempts = 0;
-            executor._delay = async (ms) => { attempts += 1; return Promise.resolve(); };
+            executor._delay = async (_ms) => { attempts += 1; return Promise.resolve(); };
 
             const routerMessages = promptRegistry.buildMessages('SYS_ROUTER_V1', { source_system: 'test', filename: 'f.pdf' });
             await assert.rejects(async () => {
@@ -1488,7 +1488,7 @@ describe('Expert Pipeline', function() {
 describe('OCR checkpoint handling (integration)', function () {
     const ocrMetadata = require('../../services/experts/utils/ocrMetadata');
     const paperlessServiceModule = require('../../services/paperlessService');
-    const { DocumentProcessor } = require('../../services/integration/DocumentProcessor');
+    const { DocumentProcessor: _DocumentProcessor } = require('../../services/integration/DocumentProcessor');
 
     afterEach(function () {
         if (paperlessServiceModule._original_createCustomFieldSafely) {

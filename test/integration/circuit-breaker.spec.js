@@ -1,4 +1,4 @@
-const assert = require('assert');
+const _assert = require('assert');
 
 describe('Circuit breaker integration (skeleton)', function() {
   it('should be able to query circuit_breaker_state metric', function() {

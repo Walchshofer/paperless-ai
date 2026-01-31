@@ -53,7 +53,7 @@ resolveEnvAlias('ENABLE_VISUAL_RAG', ['VISUAL_RAG_ENABLED']);
 resolveEnvAlias('PAPERLESS_OCR_LANGUAGES', ['PAPERLESS_OCR_LANGUAGE']);
 const resolvedOllamaModel = resolveEnvAlias('OLLAMA_MODEL', ['AI_MODEL']);
 
-const requireEnv = (key, fallbackKeys = []) => {
+const _requireEnv = (key, fallbackKeys = []) => {
   const value = process.env[key];
   if (value && value !== '') return value;
   
@@ -120,7 +120,7 @@ const medicalAnalysisModel = process.env.MEDICAL_ANALYSIS_MODEL || 'medtext-llam
 const medicalRadiologyModel = process.env.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.6';
 const financialAnalysisModel = process.env.FINANCIAL_ANALYSIS_MODEL || 'fino1-8b';
 // New: FINANCIAL_REASONING_MODEL prefers specialized text-reasoning models; fall back to the old var for compatibility
-const financialReasoningModel = process.env.FINANCIAL_REASONING_MODEL || process.env.FINANCIAL_ANALYSIS_MODEL || 'llm-pro-finance-8b';
+const _financialReasoningModel = process.env.FINANCIAL_REASONING_MODEL || process.env.FINANCIAL_ANALYSIS_MODEL || 'llm-pro-finance-8b';
 const financialVisionModel = process.env.FINANCIAL_VISION_MODEL || 'llm-pro-finance-8b';
 const financialVatExpertModel = process.env.FINANCIAL_VAT_EXPERT || 'llm-pro-finance-8b';
 const legalVisionModel = process.env.LEGAL_VISION_MODEL || ollamaVisionModel;

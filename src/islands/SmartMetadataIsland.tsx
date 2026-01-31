@@ -18,14 +18,14 @@ interface MetadataLocateDetail { fieldId: string | number }
 function dispatchEventSafe(name: string, detail?: unknown): void {
   try {
     if (typeof document !== 'undefined' && typeof document.dispatchEvent === 'function') {
-      document.dispatchEvent(new CustomEvent(name, { detail } as CustomEventInit<any>));
+      document.dispatchEvent(new CustomEvent(name, { detail } as CustomEventInit<unknown>));
     }
   } catch (e) {
     // ignore
   }
   try {
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
-      window.dispatchEvent(new CustomEvent(name, { detail } as CustomEventInit<any>));
+      window.dispatchEvent(new CustomEvent(name, { detail } as CustomEventInit<unknown>));
     }
   } catch (e) {
     // ignore

@@ -144,7 +144,7 @@ class HybridSearchService {
             k = 10,
             maxResults = 20,
             alpha = this.alpha,
-            includeOverlays = false
+            includeOverlays: _includeOverlays = false
         } = options;
 
         if (!query || typeof query !== 'string') {

@@ -16,7 +16,7 @@ type SyncState = 'idle' | 'syncing' | 'synced' | 'error';
 function dispatchEventSafe(name: string, detail?: unknown) {
   if (typeof document === 'undefined') return;
   if (typeof document.dispatchEvent !== 'function') return;
-  document.dispatchEvent(new CustomEvent(name, { detail } as CustomEventInit<any>));
+  document.dispatchEvent(new CustomEvent(name, { detail } as CustomEventInit<unknown>));
 }
 
 export default function ManualEditorIsland(props: Partial<ManualEditorContract>) {
@@ -34,7 +34,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
     if (!contractFields || contractFields.length === 0) {
       return [{ name: '', value: '' }];
     }
-    return contractFields.map((f: any) => ({
+    return contractFields.map((f: { name?: string; value?: string | number | boolean | null }) => ({
       name: f.name || '',
       value: f.value != null ? String(f.value) : '',
     }));
@@ -56,8 +56,14 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
     fields: normalizeFields(props.fields),
   } as { title: string; correspondent: string; documentType: string; content: string; fields: Field[] });
 
-  // AI Debug state
-  const [aiResponse, setAiResponse] = useState(null as any);
+  // AI Debug state - API response shape varies based on analysis type
+  interface AiAnalysisResponse {
+    error?: string;
+    fields?: Array<{ name: string; value: string }>;
+    confidence?: number;
+    [key: string]: unknown;
+  }
+  const [aiResponse, setAiResponse] = useState(null as AiAnalysisResponse | null);
   const [aiLoading, setAiLoading] = useState(false);
 
   
@@ -103,7 +109,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
     const onMetadataUpdated = (e: Event) => {
       const meta = (e as CustomEvent)?.detail || {};
       // Test-only hook for visibility in unit tests
-      try { (window as any).__manual_island_last_meta = meta; } catch (err) { /* ignore */ }
+      try { (window as unknown as Record<string, unknown>).__manual_island_last_meta = meta; } catch (err) { /* ignore */ }
       if (meta.title !== undefined) setTitle(meta.title || '');
       if (meta.content !== undefined) setContent(meta.content || '');
       if (meta.correspondent !== undefined) {
@@ -122,8 +128,8 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
   useEffect(() => {
     const onFieldsUpdated = (e: Event) => {
       const f = (e as CustomEvent)?.detail?.fields || [];
-      try { (window as any).__manual_island_last_fields = f; } catch (err) { /* ignore */ }
-      const normalized = (f && f.length > 0) ? f.map((it: any) => ({ name: it.label || it.name || '', value: it.value != null ? String(it.value) : '' })) : [];
+      try { (window as unknown as Record<string, unknown>).__manual_island_last_fields = f; } catch (err) { /* ignore */ }
+      const normalized = (f && f.length > 0) ? f.map((it: { label?: string; name?: string; value?: string | number | boolean | null }) => ({ name: it.label || it.name || '', value: it.value != null ? String(it.value) : '' })) : [];
       setFields(normalized as Field[]);
     };
 
@@ -159,7 +165,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
 
   // Test-only marker to indicate the island mounted
   useEffect(() => {
-    try { (window as any).__manual_island_mounted = true; } catch (e) { /* ignore */ }
+    try { (window as unknown as Record<string, unknown>).__manual_island_mounted = true; } catch (e) { /* ignore */ }
   }, []);
 
   // Reflect tab selection as literal strings for axe accessibility
@@ -339,10 +345,11 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
         const errorData = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
         throw new Error(errorData.message || `Sync failed with status ${res.status}`);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setSyncState('error');
-      setSyncError(err.message || 'Sync failed');
-      dispatchEventSafe('sync:failed', { documentId, error: err.message });
+      const errorMessage = err instanceof Error ? err.message : 'Sync failed';
+      setSyncError(errorMessage);
+      dispatchEventSafe('sync:failed', { documentId, error: errorMessage });
     }
   }, [documentId, props.page, title, correspondent, documentType, content, fields, initialValues]);
 
@@ -365,8 +372,9 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
 
       const data = await res.json();
       setAiResponse(data);
-    } catch (err: any) {
-      setAiResponse({ error: err.message });
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Analysis failed';
+      setAiResponse({ error: errorMessage });
     } finally {
       setAiLoading(false);
     }
@@ -392,7 +400,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
       <div
         role="tablist"
         aria-label="Manual Editor Tabs"
-        onKeyDown={onKeyDown as any}
+        onKeyDown={onKeyDown as (e: KeyboardEvent) => void}
         ref={tabsRef}
         className="mei-tablist"
       >

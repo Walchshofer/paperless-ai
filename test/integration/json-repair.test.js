@@ -21,7 +21,7 @@ describe('JsonRepairService integration', function () {
     const svc = new JsonRepairService(null);
     const input = 'prefix <reasoning>internal debug</reasoning> middle <thinking>more</thinking> {"a":1} suffix';
     const cleaned = svc.sanitizeForRepair(input);
-    assert.ok(!/\<(reasoning|thinking|think)/i.test(cleaned));
+    assert.ok(!/<(reasoning|thinking|think)/i.test(cleaned));
     assert.ok(cleaned.includes('{"a":1}'));
   });
 

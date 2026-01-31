@@ -13,7 +13,7 @@ const paperlessService = require('../../paperlessService');
 const { pdfRenderer } = require('../../visual-rag-client/PDFRenderer');
 const { guidanceClient } = require('../../guidance/GuidanceClient');
 const { ingestionManager } = require('../../visual-rag-client/IngestionManager');
-const { normalizeImagesAI } = require('./tools');
+const { createNormalizationTools: _createNormalizationTools } = require('./tools');
 
 /**
  * Default options for normalization analysis

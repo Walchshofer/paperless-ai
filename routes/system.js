@@ -211,7 +211,7 @@ router.get('/api/runtime/state', async (req, res) => {
 
     // Check Bias Engine status
     try {
-      const biasEngineUrl = process.env.BIAS_ENGINE_URL || 'bias-engine:50051';
+      const _biasEngineUrl = process.env.BIAS_ENGINE_URL || 'bias-engine:50051';
       // For gRPC service, we'll just check if the env var is set
       runtimeState.sidecars.biasEngine = !!process.env.BIAS_ENGINE_URL;
     } catch (biasEngineError) {

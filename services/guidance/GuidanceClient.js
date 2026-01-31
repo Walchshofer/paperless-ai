@@ -385,7 +385,7 @@ class GuidanceClient {
      * @param {string} name
      * @returns {Promise<boolean>}
      */
-    async registerTemplate(name, template) {
+    async registerTemplate(name, _template) {
         const available = await this.listTemplates();
         if (!available.includes(name)) {
             logger.warn({ event: 'guidance_template_missing', template: name });

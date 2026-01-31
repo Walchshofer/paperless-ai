@@ -41,7 +41,7 @@ const COLLECTIONS = [
 const MIN_BOX_SIZE = 20;
 
 export default function PlaygroundIsland(props: PlaygroundProps) {
-  const validated = PlaygroundSchema.parse(props as any);
+  const validated = PlaygroundSchema.parse(props);
 
   const {
     mode,
@@ -358,13 +358,16 @@ export default function PlaygroundIsland(props: PlaygroundProps) {
       setLatency(elapsed);
 
       // Extract payloads from results
-      const extractedPayloads = (data.results || []).map((r: SearchResult) => ({
-        doc_id: r.docId,
-        correspondent_id: (r.metadata as Record<string, any> | undefined)?.correspondent_id,
-        tag_ids: (r.metadata as Record<string, any> | undefined)?.tag_ids,
-        created_date: (r.metadata as Record<string, any> | undefined)?.created_date,
-        page_num: r.pageNum
-      } as QdrantPayload));
+      const extractedPayloads = (data.results || []).map((r: SearchResult) => {
+        const meta = r.metadata as { correspondent_id?: number; tag_ids?: number[]; created_date?: string } | undefined;
+        return {
+          doc_id: r.docId,
+          correspondent_id: meta?.correspondent_id,
+          tag_ids: meta?.tag_ids,
+          created_date: meta?.created_date,
+          page_num: r.pageNum
+        } as QdrantPayload;
+      });
       setPayloads(extractedPayloads);
 
       // Dispatch event
@@ -583,12 +586,12 @@ export default function PlaygroundIsland(props: PlaygroundProps) {
           <div
             ref={containerRef}
             className={`relative flex-1 bg-gray-200 overflow-hidden ${isDrawMode ? 'cursor-crosshair touch-none' : 'cursor-default'}`}
-            onMouseDown={handleMouseDown as any}
-            onMouseMove={handleMouseMove as any}
+            onMouseDown={handleMouseDown as (e: MouseEvent) => void}
+            onMouseMove={handleMouseMove as (e: MouseEvent) => void}
             onMouseUp={handleMouseUp}
             onMouseLeave={() => isDrawing && handleMouseUp()}
-            onTouchStart={handleMouseDown as any}
-            onTouchMove={handleMouseMove as any}
+            onTouchStart={handleMouseDown as unknown as (e: TouchEvent) => void}
+            onTouchMove={handleMouseMove as unknown as (e: TouchEvent) => void}
             onTouchEnd={handleMouseUp}
           >
             {imageData ? (

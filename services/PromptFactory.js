@@ -358,7 +358,7 @@ IMPORTANT:
 - Preserve German medical terminology as-is`;
     }
 
-    buildMedicalAnalysisPrompt(input, context) {
+    buildMedicalAnalysisPrompt(input, _context) {
         const ocrOutput = input?.previousStageOutput?.raw || input?.previousStageOutput || '';
 
         return `You are a medical laboratory data analyst.

@@ -95,8 +95,8 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
           setCurrentMatchIndex(-1);
         }
       } catch (err: unknown) {
-        const msg = (err && typeof err === 'object' && 'message' in err) ? (err as any).message : String(err);
-        setRegexError(msg);
+        const msg = (err && typeof err === 'object' && 'message' in err) ? (err as { message: unknown }).message : String(err);
+        setRegexError(typeof msg === 'string' ? msg : String(msg));
         setMatches([]);
       }
     }, 300);

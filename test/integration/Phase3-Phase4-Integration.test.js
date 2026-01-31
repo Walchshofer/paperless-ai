@@ -16,7 +16,7 @@ describe('Phase 3 → Phase 4 Integration', () => {
     beforeEach(() => {
         // Mock Visual Search Client
         mockVisualSearchClient = {
-            search: async (params) => {
+            search: async (_params) => {
                 // Mock response with bounding boxes
                 return {
                     bounding_boxes: [

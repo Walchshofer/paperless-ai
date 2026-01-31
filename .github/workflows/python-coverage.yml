@@ -52,9 +52,10 @@ jobs:
           pip install pytest pytest-asyncio
 
       - name: Verify Serena endpoint
+        env:
+          SECRET_SERENA_BASE: ${{ secrets.SERENA_BASE }}
         run: |
           # Pull secret into a shell variable to avoid step-level env interpolation
-          SECRET_SERENA_BASE="${{ secrets.SERENA_BASE }}"
           SERENA_BASE="${SECRET_SERENA_BASE:-}"
 
           if [ -z "$SERENA_BASE" ]; then echo "SERENA_BASE secret not set" >&2; exit 1; fi
@@ -71,9 +72,10 @@ jobs:
           exit 1
 
       - name: Run Serena E2E tests
+        env:
+          SECRET_SERENA_BASE: ${{ secrets.SERENA_BASE }}
         run: |
           # Pull secret into a shell variable and export required envs
-          SECRET_SERENA_BASE="${{ secrets.SERENA_BASE }}"
           if [ -z "$SECRET_SERENA_BASE" ]; then echo "SERENA_BASE secret not set; failing Serena E2E" >&2; exit 1; fi
           export SERENA_E2E='1'
           export SERENA_BASE="$SECRET_SERENA_BASE"

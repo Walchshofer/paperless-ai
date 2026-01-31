@@ -11,7 +11,6 @@
  */
 
 const logger = require('../logger');
-const { guidanceClient } = require('../guidance');
 
 /**
  * Query element types for visual analysis
@@ -321,7 +320,7 @@ class VisualQueryGenerator {
      * Create a single visual query for a field
      * @private
      */
-    _createQuery(field, ocrResults, documentMetadata) {
+    _createQuery(field, _ocrResults, _documentMetadata) {
         // Determine element type based on field type
         let elementType = QueryElementType.FIELD_EXTRACTION;
         if (field.type === 'low_confidence') {
@@ -368,7 +367,7 @@ class VisualQueryGenerator {
      * Build logit bias configuration for structured output
      * @private
      */
-    _buildLogitBias(fieldName, elementType) {
+    _buildLogitBias(fieldName, _elementType) {
         // JSON structure tokens (using GPT2 tokenizer)
         const structureTokens = [
             '{', '}', '[', ']', ':', '"', ',', 'null', 'true', 'false'

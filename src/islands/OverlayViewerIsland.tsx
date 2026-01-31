@@ -1,8 +1,15 @@
 import { h, Fragment } from 'preact';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'preact/hooks';
 import type { OverlayViewerContract, OverlayItem } from '../ui/contracts/OverlayViewer.contract';
-import styles from './OverlayViewerIsland.module.css';
-import { computeUnscaledFromRaw, clampTranslate as utilsClampTranslate } from './overlay-utils';
+import { clampTranslate as utilsClampTranslate } from './overlay-utils';
+
+let styles: Record<string, string> = {};
+try {
+
+  styles = require('./OverlayViewerIsland.module.css') as Record<string, string>;
+} catch (_e: unknown) {
+  // Fallback for SSR/tests
+}
 
 // Types for document change events
 interface DocumentChangeDetail {
@@ -36,6 +43,8 @@ interface LegendItem {
 interface BoxInput {
   x?: number;
   y?: number;
+
+
   width?: number;
   height?: number;
 }
@@ -95,20 +104,20 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const imageRef = useRef(null as HTMLImageElement | null);
 
   // Allow dynamic updates from page-level events
-  const [docId, setDocId] = useState(initialDocumentId || null as number | null);
+  const [docId, setDocId] = useState(initialDocumentId ?? null);
   const [page, setPage] = useState(initialPage);
-  const [originalUrl, setOriginalUrl] = useState(initialOriginalUrl || null as string | null);
-  const [pageCount, setPageCount] = useState((props?.pageCount ?? null) as number | null);
+  const [originalUrl, setOriginalUrl] = useState(initialOriginalUrl ?? null);
+  const [pageCount, setPageCount] = useState(props?.pageCount ?? null);
 
   // Listen for page/document change events from the page and update in-place
   useEffect(() => {
     const handler = (e: Event) => {
-      const d = (e as CustomEvent<DocumentChangeDetail>)?.detail || {};
+      const d: DocumentChangeDetail = (e as CustomEvent<DocumentChangeDetail>)?.detail || {};
       if (d.documentId !== undefined && d.documentId !== null) setDocId(d.documentId);
       if (d.page !== undefined && d.page !== null) setPage(Number(d.page));
       // Accept either camelCase `originalUrl` or snake_case `original_url` from different emitters
-      if (Object.prototype.hasOwnProperty.call(d, 'originalUrl')) setOriginalUrl(d.originalUrl || null);
-      else if (Object.prototype.hasOwnProperty.call(d, 'original_url')) setOriginalUrl(d.original_url || null);
+      if (Object.prototype.hasOwnProperty.call(d, 'originalUrl')) setOriginalUrl(d.originalUrl ?? null);
+      else if (Object.prototype.hasOwnProperty.call(d, 'original_url')) setOriginalUrl(d.original_url ?? null);
       if (Object.prototype.hasOwnProperty.call(d, 'pageCount')) setPageCount(d.pageCount === null ? null : Number(d.pageCount));
     };
 
@@ -123,6 +132,10 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       setDocId(initialDocumentId);
     }
   }, [initialDocumentId]);
+
+
+
+
 
   const normalizeOverlayBox = useCallback((box: BoxInput | null | undefined) => {
     if (!box) return null;
@@ -211,10 +224,9 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     const natH = img && img.naturalHeight ? img.naturalHeight : null;
 
     try {
-      const clamped = utilsClampTranslate(tx, ty, s, cw, ch, natW, natH, 'contain');
+            const clamped = utilsClampTranslate(tx, ty, s, cw, ch, natW, natH, 'contain');
       return { x: clamped.x, y: clamped.y };
     } catch (_e: unknown) {
-      // Fallback logic if utils fail (though unlikely with import)
       const minX = Math.min(0, cw - cw * s);
       const maxX = 0;
       const minY = Math.min(0, ch - ch * s);
@@ -366,7 +378,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         }
       } catch (err: unknown) {
         if (!cancelled) {
-          setOverlayError((err instanceof Error ? err.message : String(err)) || 'Overlay load failed');
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          setOverlayError(errorMessage || 'Overlay load failed');
           setOverlayItems([]);
         }
       } finally {
@@ -589,7 +602,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           onRegionSelected(base64, box);
         }
       } catch (err: unknown) {
-        console.error('Failed to capture region:', err);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        console.error('Failed to capture region:', errorMessage);
         setWarning('Failed to capture selection. Please try again.');
       }
     },
@@ -727,7 +741,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     const node = containerRef.current;
     if (!node) return;
     node.addEventListener('wheel', handleWheel, { passive: false });
-    return () => node.removeEventListener('wheel', handleWheel as any);
+    return () => node.removeEventListener('wheel', handleWheel as EventListener);
   }, [handleWheel]);
 
   useEffect(() => {
@@ -765,7 +779,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     if (!selectionEnabled || !drawModeRef.current) return;
     pointerActiveRef.current = true;
     if (containerRef.current?.setPointerCapture) containerRef.current.setPointerCapture(e.pointerId);
-    handleMouseDown(e as any);
+    handleMouseDown(e as PointerEvent);
   }, [handleMouseDown, panMode]);
 
   const handlePointerMove = useCallback((e: PointerEvent) => {
@@ -780,7 +794,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       e.preventDefault();
       return;
     }
-    handleMouseMove(e as any);
+    handleMouseMove(e as PointerEvent);
   }, [handleMouseMove, applyTranslate]);
 
   const handlePointerUp = useCallback((e: PointerEvent) => {
@@ -791,7 +805,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       e.preventDefault();
       return;
     }
-    handleMouseUp(e as any);
+    handleMouseUp(e as PointerEvent);
     pointerActiveRef.current = false;
     if (containerRef.current?.releasePointerCapture) containerRef.current.releasePointerCapture(e.pointerId);
   }, [handleMouseUp]);
@@ -974,18 +988,18 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             ref={containerRef}
             data-testid="overlay-container"
             className={`relative flex-1 overflow-hidden ${panMode ? (panActiveRef.current ? 'cursor-grabbing' : 'cursor-grab') : (isDrawMode ? 'cursor-crosshair' : 'cursor-default')} ${isDrawMode ? 'touch-none' : 'touch-auto'}`}
-            onPointerDown={handlePointerDown as any}
-            onPointerMove={handlePointerMove as any}
-            onPointerUp={handlePointerUp as any}
-            onPointerCancel={handlePointerCancel as any}
+            onPointerDown={handlePointerDown as unknown as ((e: PointerEvent) => void)}
+            onPointerMove={handlePointerMove as unknown as ((e: PointerEvent) => void)}
+            onPointerUp={handlePointerUp as unknown as ((e: PointerEvent) => void)}
+            onPointerCancel={handlePointerCancel as unknown as ((e: PointerEvent) => void)}
             onPointerLeave={() => { if (isDrawingRef.current) handleMouseUp(); }}
-            onMouseDown={handleMouseDownFallback as any}
-            onMouseMove={handleMouseMoveFallback as any}
-            onMouseUp={handleMouseUpFallback as any}
+            onMouseDown={handleMouseDownFallback as unknown as ((e: MouseEvent | TouchEvent) => void)}
+            onMouseMove={handleMouseMoveFallback as unknown as ((e: MouseEvent | TouchEvent) => void)}
+            onMouseUp={handleMouseUpFallback as unknown as ((e: MouseEvent | TouchEvent) => void)}
             onMouseLeave={() => { if (pointerActiveRef.current) return; if (isDrawingRef.current) handleMouseUp(); }}
-            onTouchStart={handleMouseDownFallback as any}
-            onTouchMove={handleMouseMoveFallback as any}
-            onTouchEnd={handleMouseUpFallback as any}
+            onTouchStart={handleMouseDownFallback as unknown as ((e: TouchEvent) => void)}
+            onTouchMove={handleMouseMoveFallback as unknown as ((e: TouchEvent) => void)}
+            onTouchEnd={handleMouseUpFallback as unknown as ((e: TouchEvent) => void)}
           >
             <div
               ref={viewportRef}

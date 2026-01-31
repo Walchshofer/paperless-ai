@@ -464,7 +464,7 @@ class ParallelOcrExecutor {
      * Track 3: Execute Visual Element Detection via Visual RAG sidecar
      * @private
      */
-    async _executeVisualElementsTrack(document, metadata) {
+    async _executeVisualElementsTrack(document, _metadata) {
         logger.debug({
             event: 'visual_elements_track_start',
             documentId: document.id || document.filename

@@ -626,7 +626,7 @@ class VisualQueryExecutor {
      * Merge visual results with extraction results using confidence fusion
      * @private
      */
-    _mergeResults(extractionResults, visualResults, queries) {
+    _mergeResults(extractionResults, visualResults, _queries) {
         const fields = [];
         const extractedFieldsMap = new Map();
 
@@ -682,7 +682,7 @@ class VisualQueryExecutor {
         }
 
         // Add remaining extracted fields (no visual confirmation)
-        for (const [fieldName, field] of extractedFieldsMap) {
+        for (const [_fieldName, field] of extractedFieldsMap) {
             fields.push({
                 ...field,
                 visual_confirmation: false

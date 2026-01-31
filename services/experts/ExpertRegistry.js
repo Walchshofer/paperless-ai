@@ -39,7 +39,7 @@ const { DomainType } = require('../prompts/PromptRegistry');
 const { SemanticRouter } = require('./routing');
 
 // Import pipeline definitions and constants from submodules
-const { StageType, ExecutionMode, MODEL_NAMES } = require('./pipelines/constants');
+const { StageType, ExecutionMode } = require('./pipelines/constants');
 const { MedicalPipeline } = require('./pipelines/MedicalPipeline');
 const { FinancialPipeline } = require('./pipelines/FinancialPipeline');
 const { LegalPipeline } = require('./pipelines/LegalPipeline');

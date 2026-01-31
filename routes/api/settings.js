@@ -146,7 +146,7 @@ router.post('/save', express.json(), async (req, res) => {
             if (match) {
                 const key = match[1];
                 existingKeys.add(key);
-                if (updates.hasOwnProperty(key)) {
+                if (Object.hasOwn(updates, key)) {
                     return `${key}=${updates[key]}`;
                 }
             }

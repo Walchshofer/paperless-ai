@@ -14,7 +14,11 @@ import { AIProviderSettingsSchema } from '../ui/contracts/Settings.AIProvider.co
  */
 import ExpertModelsIsland from './ExpertModelsIsland';
 
-export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
+interface AIProviderProps extends Partial<AIProviderSettings> {
+  expertModels?: Record<string, unknown>;
+}
+
+export default function AIProviderIsland(props: AIProviderProps) {
   const validated = AIProviderSettingsSchema.parse(props);
 
   type ProviderTab = 'general' | 'openai' | 'ollama' | 'custom' | 'azure';
@@ -126,7 +130,7 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
     }, validated.autoSaveDebounceMs || 1000) as unknown as number;
   };
 
-  const handleSave = async () => {
+    const handleSave = async (e: Event) => {
     setIsSaving(true);
     setSaveMessage(null);
 
@@ -137,7 +141,7 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
         flushAutoSave();
       }
 
-      const settings: Record<string, any> = {
+      const settings: Record<string, unknown> = {
         AI_PROVIDER: provider,
       };
 
@@ -516,7 +520,7 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
               {provider === 'ollama' ? (
                 <div data-testid="expert-models-area">
                   <h4 className="text-md font-medium">Expert Models (Ollama)</h4>
-                  <ExpertModelsIsland {...((props as any).expertModels || {})} />
+                  <ExpertModelsIsland {...(props.expertModels || {})} />
                 </div>
               ) : (
                 <div data-testid="expert-models-locked" role="region" aria-labelledby="expert-locked-label" aria-disabled="true" className="p-3 bg-yellow-50 border border-yellow-200 rounded">

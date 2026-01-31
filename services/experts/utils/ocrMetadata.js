@@ -280,7 +280,7 @@ async function ensureOcrCustomFields(options = {}) {
     }
 
     const failFast = options.failFast === true ? true : (process.env.OCR_CHECKPOINT_FAIL_FAST === 'yes' || false);
-    const continueOnPartial = options.continueOnPartialSuccess === undefined
+    const _continueOnPartial = options.continueOnPartialSuccess === undefined
         ? true
         : !!options.continueOnPartialSuccess;
 

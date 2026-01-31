@@ -18,7 +18,7 @@ function readAllEjs(dir) {
 
 function extractIslandNamesFromRuntime(runtimePath) {
   const src = fs.readFileSync(runtimePath, 'utf8');
-  const regs = [...src.matchAll(/\'([a-z0-9-]+)\'\s*:/gi)];
+  const regs = [...src.matchAll(/'([a-z0-9-]+)'\s*:/gi)];
   return regs.map(m => m[1]);
 }
 
@@ -49,8 +49,8 @@ describe('Templates audit (T21)', function() {
     const failures = [];
     for (const f of allViews) {
       const src = fs.readFileSync(f, 'utf8');
-      if (/\<body/gi.test(src)) {
-        if (!/\<body[^>]*data-page=/i.test(src)) {
+      if (/<body/gi.test(src)) {
+        if (!/<body[^>]*data-page=/i.test(src)) {
           failures.push(f);
         }
       }

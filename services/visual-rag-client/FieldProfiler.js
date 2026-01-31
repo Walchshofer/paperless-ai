@@ -70,7 +70,7 @@ class FieldProfiler {
      * @returns {string} Profile ID
      */
     selectProfile(classification) {
-        const { category, confidence, keywords } = classification || {};
+        const { category, confidence: _confidence, keywords } = classification || {};
         const normalizedCategory = (category || '').toLowerCase();
 
         // Primary mapping from configuration

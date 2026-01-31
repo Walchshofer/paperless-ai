@@ -83,8 +83,6 @@ async function pollForRow({ sql, params = [], timeoutMs = 5000, intervalMs = 500
             await new Promise(resolve => setTimeout(resolve, intervalMs));
         }
         throw new Error(`Timed out after ${timeoutMs}ms waiting for DB row for query: ${sql} params=${JSON.stringify(params)}`);
-    } catch (err) {
-        throw err;
     } finally {
         await pool.end();
     }

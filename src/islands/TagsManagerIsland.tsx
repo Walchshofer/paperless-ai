@@ -6,7 +6,7 @@ function dispatchEventSafe(name: string, detail?: unknown) {
   if (typeof document === 'undefined') return;
   if (typeof document.dispatchEvent !== 'function') return;
   const EventConstructor = (typeof window !== 'undefined' && window.CustomEvent) ? window.CustomEvent : CustomEvent;
-  document.dispatchEvent(new EventConstructor(name, { detail } as CustomEventInit<any>));
+  document.dispatchEvent(new EventConstructor(name, { detail } as CustomEventInit<unknown>));
 }
 
 export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
@@ -109,7 +109,7 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
 
   // Test-only marker
   useEffect(() => {
-    try { (window as any).__tags_manager_island_mounted = true; } catch (e) { /* ignore */ }
+    try { (window as unknown as Record<string, boolean>).__tags_manager_island_mounted = true; } catch (e) { /* ignore */ }
   }, []);
 
   // Clear save status after delay

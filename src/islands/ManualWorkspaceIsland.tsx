@@ -17,7 +17,7 @@ function dispatchEventSafe(name: string, detail?: unknown) {
     (typeof window !== 'undefined' && window.CustomEvent)
       ? window.CustomEvent
       : CustomEvent;
-  document.dispatchEvent(new EventConstructor(name, { detail } as CustomEventInit<any>));
+  document.dispatchEvent(new EventConstructor(name, { detail } as CustomEventInit<unknown>));
 }
 
 function formatDocumentLabel(doc: { id: number; title?: string; original_filename?: string }) {
@@ -113,20 +113,20 @@ export default function ManualWorkspaceIsland(
 
   // Content update effect removed - handled by event dispatch to DocumentContentIsland
 
-  const updateCorrespondentDisplay = useCallback((value: any) => {
+  const updateCorrespondentDisplay = useCallback((value: string | { name?: string } | null) => {
     if (!correspondentInfoRef.current || !correspondentNameRef.current) return;
     if (value) {
-      correspondentNameRef.current.textContent = value.name || value;
+      correspondentNameRef.current.textContent = typeof value === 'object' ? (value.name || '') : value;
       correspondentInfoRef.current.classList.remove('hidden');
     } else {
       correspondentInfoRef.current.classList.add('hidden');
     }
   }, []);
 
-  const updateTitleDisplay = useCallback((value: any) => {
+  const updateTitleDisplay = useCallback((value: string | { name?: string } | null) => {
     if (!titleInfoRef.current || !titleNameRef.current) return;
     if (value) {
-      titleNameRef.current.textContent = value.name || value;
+      titleNameRef.current.textContent = typeof value === 'object' ? (value.name || '') : value;
       titleInfoRef.current.classList.remove('hidden');
     } else {
       titleInfoRef.current.classList.add('hidden');
@@ -158,19 +158,51 @@ export default function ManualWorkspaceIsland(
     return () => clearTimeout(timer);
   }, [status]);
 
-  const dispatchDocumentFields = useCallback((fields: any[], docId: number | null) => {
+  interface VisualField {
+    label?: string;
+    value: string;
+    domain?: string;
+    confidence?: number;
+  }
+
+  interface DocumentMetadata {
+    title?: string;
+    content?: string;
+    correspondent?: string;
+    documentType?: string;
+    pageCount?: number;
+  }
+
+  interface DocumentSelectedDetail {
+    documentId: number | null;
+    tags?: Array<string | number>;
+    content?: string;
+    correspondent?: string | null;
+    title?: string | null;
+    originalUrl?: string | null;
+    pageCount?: number;
+  }
+
+  interface OverlayDocumentChangedDetail {
+    documentId: number | null;
+    page: number;
+    originalUrl?: string | null;
+    pageCount?: number;
+  }
+
+  const dispatchDocumentFields = useCallback((fields: VisualField[], docId: number | null) => {
     dispatchEventSafe('manual:fields-updated', { fields, documentId: docId });
   }, []);
 
-  const dispatchDocumentMetadata = useCallback((metadata: any) => {
+  const dispatchDocumentMetadata = useCallback((metadata: DocumentMetadata) => {
     dispatchEventSafe('manual:metadata-updated', metadata);
   }, []);
 
-  const dispatchDocumentSelected = useCallback((detail: any) => {
+  const dispatchDocumentSelected = useCallback((detail: DocumentSelectedDetail) => {
     dispatchEventSafe('document:selected', detail);
   }, []);
 
-  const dispatchOverlayDocumentChanged = useCallback((detail: any) => {
+  const dispatchOverlayDocumentChanged = useCallback((detail: OverlayDocumentChangedDetail) => {
     dispatchEventSafe('overlay:document-changed', detail);
   }, []);
 
@@ -259,8 +291,12 @@ export default function ManualWorkspaceIsland(
       if (data.visualFields && data.visualFields.length > 0) {
         dispatchDocumentFields(data.visualFields, data.id);
       } else if (data.customFields && data.customFields.length > 0) {
-        const fields = data.customFields.map((cf: any) => ({
-          label: cf.field?.name || `Field ${cf.field}`,
+        interface CustomFieldData {
+          field?: { name?: string } | number | string;
+          value?: string;
+        }
+        const fields = data.customFields.map((cf: CustomFieldData) => ({
+          label: (cf.field && typeof cf.field === 'object' && cf.field.name) ? cf.field.name : `Field ${cf.field}`,
           value: cf.value || '',
           domain: 'PAPERLESS',
           confidence: 1.0,
@@ -297,10 +333,11 @@ export default function ManualWorkspaceIsland(
       });
 
       setStatus({ tone: 'success', text: 'Document preview loaded.' });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setStatus({
         tone: 'error',
-        text: `Error loading document: ${error.message || 'Unknown error'}`,
+        text: `Error loading document: ${errorMessage}`,
       });
     } finally {
       setIsLoading(false);
@@ -321,10 +358,11 @@ export default function ManualWorkspaceIsland(
       if (!response.ok) throw new Error('Failed to fetch documents');
       const docs = await response.json();
       setDocuments(Array.isArray(docs) ? docs : []);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setStatus({
         tone: 'error',
-        text: `Error loading documents: ${error.message || 'Unknown error'}`,
+        text: `Error loading documents: ${errorMessage}`,
       });
     }
   }, [fetchWithTimeout]);

@@ -4,7 +4,6 @@ const axios = require('axios');
 const { OpenAI } = require('openai');
 const config = require('../config/config');
 const AzureOpenAI = require('openai').AzureOpenAI;
-const logger = require('./logger');
 
 class SetupService {
   constructor() {
@@ -303,9 +302,9 @@ class SetupService {
       // Validate the new configuration before saving
       await this.validateConfig(config);
 
-      const JSON_STANDARD_PROMPT = `
+      const _JSON_STANDARD_PROMPT = `
         Return the result EXCLUSIVELY as a JSON object. The Tags and Title MUST be in the language that is used in the document.:
-        
+
         {
           "title": "xxxxx",
           "correspondent": "xxxxxxxx",

@@ -51,7 +51,7 @@ class MockOllamaService {
         return this.defaultResponse;
     }
 
-    async analyzeDocument(content, existingTags = [], existingCorrespondentList = [], existingDocumentTypesList = [], id, customPrompt = null, options = {}) {
+    async analyzeDocument(content, existingTags = [], _existingCorrespondentList = [], existingDocumentTypesList = [], id, _customPrompt = null, options = {}) {
         this.calls.push({ method: 'analyzeDocument', content, id, options });
 
         if (this.shouldFail) {

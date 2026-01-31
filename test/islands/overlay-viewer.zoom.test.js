@@ -49,7 +49,7 @@ describe('OverlayViewer zoom & pan controls', function () {
 
     // If there are render errors they will be captured here and can help debug
     if (errors.length) {
-      // eslint-disable-next-line no-console
+       
       console.log('[mount errors]', errors.slice(0,3));
     }
 
@@ -57,7 +57,7 @@ describe('OverlayViewer zoom & pan controls', function () {
     setTimeout(() => {
       try {
         // debug dump
-        // eslint-disable-next-line no-console
+         
         console.log('[debug overlay root] ', root ? root.innerHTML : '<no root>');
         const zoomIn = root.querySelector('[data-testid="overlay-zoom-in"]');
         const zoomOut = root.querySelector('[data-testid="overlay-zoom-out"]');

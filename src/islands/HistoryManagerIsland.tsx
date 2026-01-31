@@ -46,13 +46,12 @@ const getDomainColor = (domain: string) =>
 export default function HistoryManagerIsland(
   props: Partial<HistoryManagerContract>
 ) {
-  const validated = HistoryManagerSchema.parse(props as any);
+  const validated = HistoryManagerSchema.parse(props as Partial<HistoryManagerContract>);
   const filters = validated.filters;
   const initialQuery = validated.initialQuery; // fully validated/defaulted by Zod
 
   const [query, setQuery] = useState(initialQuery);
   const [rows, setRows] = useState([] as HistoryDoc[]);
-  const [total, setTotal] = useState(0);
   const [filteredTotal, setFilteredTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null as string | null);
@@ -94,7 +93,6 @@ export default function HistoryManagerIsland(
       const data = await response.json();
 
       setRows(Array.isArray(data.data) ? data.data : []);
-      setTotal(data.recordsTotal || 0);
       setFilteredTotal(data.recordsFiltered || 0);
       setSelected(new Set());
     } catch (err: unknown) {
@@ -186,8 +184,8 @@ export default function HistoryManagerIsland(
       if (!response.ok) throw new Error('Reset failed');
       setConfirmMode(null);
       await loadHistory();
-    } catch (err: any) {
-      setError(err.message || 'Reset failed');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Reset failed');
     }
   };
 
@@ -197,8 +195,8 @@ export default function HistoryManagerIsland(
       if (!response.ok) throw new Error('Reset failed');
       setConfirmMode(null);
       await loadHistory();
-    } catch (err: any) {
-      setError(err.message || 'Reset failed');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Reset failed');
     }
   };
 
@@ -208,8 +206,8 @@ export default function HistoryManagerIsland(
         method: 'POST'
       });
       if (!response.ok) throw new Error('Re-analysis failed');
-    } catch (err: any) {
-      setError(err.message || 'Re-analysis failed');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Re-analysis failed');
     }
   };
 
@@ -525,8 +523,9 @@ export default function HistoryManagerIsland(
                         type="button"
                         className="sg-link"
                         onClick={() => {
-                          if ((window as any).feedbackForm) {
-                            (window as any).feedbackForm.show({
+                          const win = window as Window & { feedbackForm?: { show: (opts: { documentId: number }) => void } };
+                          if (win.feedbackForm) {
+                            win.feedbackForm.show({
                               documentId: row.document_id
                             });
                           }

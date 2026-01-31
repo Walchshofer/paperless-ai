@@ -7,7 +7,7 @@ type ExportType = 'region' | 'text' | 'annotations';
 export default function ExportPanelIsland(props: ExportPanelContract) {
   const [showModal, setShowModal] = useState(false);
   const [exportType, setExportType] = useState('text' as ExportType);
-  const [data, setData] = useState(null as any);
+  const [data, setData] = useState(null as string | Record<string, unknown>[] | null);
   const [format, setFormat] = useState('png'); // png, pdf, txt, json
   const [loading, setLoading] = useState(false);
 
@@ -46,7 +46,7 @@ export default function ExportPanelIsland(props: ExportPanelContract) {
     setLoading(true);
     try {
       let endpoint = '';
-      let body: any = {};
+      let body: Record<string, unknown> = {};
 
       if (exportType === 'region') {
         endpoint = '/manual/export/region';

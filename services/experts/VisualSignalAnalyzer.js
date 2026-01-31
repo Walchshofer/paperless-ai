@@ -9,7 +9,6 @@
  */
 
 const logger = require('../logger');
-const config = require('../../config/config');
 const { promptRegistry, MODEL_NAMES } = require('../prompts/PromptRegistry');
 const { createPipelineExecutor } = require('./ExpertPipelineExecutor');
 

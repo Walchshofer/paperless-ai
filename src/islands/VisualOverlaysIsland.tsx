@@ -43,6 +43,27 @@ interface FetchError extends Error {
 const overlayCache: Map<string, { ts: number; data: Overlay[] }> = new Map();
 export const CACHE_TTL = 1000 * 60 * 5; // 5 minutes
 
+/**
+ * ms - Simple millisecond parser/formatter fallback
+ * In case the 'ms' library is missing from the bundle runtime
+ */
+export function ms(val: string | number): number {
+  if (typeof val === 'number') return val;
+  const match = /^((?:\d+)?\.?\d+) *(ms|s|m|h|d|y)?$/i.exec(val);
+  if (!match) return 0;
+  const n = parseFloat(match[1]);
+  const type = (match[2] || 'ms').toLowerCase();
+  switch (type) {
+    case 'ms': return n;
+    case 's':  return n * 1000;
+    case 'm':  return n * 60000;
+    case 'h':  return n * 3600000;
+    case 'd':  return n * 86400000;
+    case 'y':  return n * 31557600000;
+    default:   return n;
+  }
+}
+
 // Debounce helper
 export function debounce<T extends unknown[]>(fn: (...args: T) => void, wait = 200): (...args: T) => void {
   let t: ReturnType<typeof setTimeout> | null = null;

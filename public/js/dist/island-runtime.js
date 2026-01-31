@@ -13246,21 +13246,21 @@ function AIProviderIsland(props) {
   const [ollamaApiUrl, setOllamaApiUrl] = d2(validated.ollama?.apiUrl || "http://localhost:11434");
   const [ollamaModel, setOllamaModel] = d2(validated.ollama?.model || "sauerkraut-llama3.1:8b");
   const [ollamaVisionModel, setOllamaVisionModel] = d2(validated.ollama?.visionModel || "qwen3-vl:8b");
-  const [ollamaPlannerModel, setOllamaPlannerModel] = d2(validated.ollama?.plannerModel || "");
-  const [ollamaRouterModel, setOllamaRouterModel] = d2(validated.ollama?.routerModel || "");
-  const [ollamaOrchestratorModel, setOllamaOrchestratorModel] = d2(validated.ollama?.orchestratorModel || "");
-  const [ollamaVisionKeepAlive, setOllamaVisionKeepAlive] = d2(validated.ollama?.visionKeepAlive || "5m");
-  const [ollamaTextKeepAlive, setOllamaTextKeepAlive] = d2(validated.ollama?.textKeepAlive || "2m");
-  const [ollamaRouterKeepAlive, setOllamaRouterKeepAlive] = d2(validated.ollama?.routerKeepAlive || "5m");
+  const [ollamaPlannerModel] = d2("");
+  const [ollamaRouterModel] = d2(validated.ollama?.routerModel || "");
+  const [ollamaOrchestratorModel] = d2(validated.ollama?.orchestratorModel || "");
+  const [ollamaVisionKeepAlive] = d2(validated.ollama?.visionKeepAlive || "5m");
+  const [ollamaTextKeepAlive] = d2(validated.ollama?.textKeepAlive || "2m");
+  const [ollamaRouterKeepAlive] = d2(validated.ollama?.routerKeepAlive || "5m");
   const [ollamaTextContextWindow, setOllamaTextContextWindow] = d2(validated.ollama?.limits?.text?.contextWindow || 128e3);
   const [ollamaTextMaxTokens, setOllamaTextMaxTokens] = d2(validated.ollama?.limits?.text?.maxResponseTokens || 4096);
-  const [ollamaVisionContextWindow, setOllamaVisionContextWindow] = d2(validated.ollama?.limits?.vision?.contextWindow || 128e3);
-  const [ollamaVisionMaxTokens, setOllamaVisionMaxTokens] = d2(validated.ollama?.limits?.vision?.maxResponseTokens || 2048);
-  const [ollamaPlannerContextWindow, setOllamaPlannerContextWindow] = d2(validated.ollama?.limits?.planner?.contextWindow || 128e3);
-  const [ollamaPlannerMaxTokens, setOllamaPlannerMaxTokens] = d2(validated.ollama?.limits?.planner?.maxResponseTokens || 700);
-  const [ollamaExpertContextWindow, setOllamaExpertContextWindow] = d2(validated.ollama?.limits?.expert?.contextWindow || 128e3);
-  const [ollamaExpertMaxTokens, setOllamaExpertMaxTokens] = d2(validated.ollama?.limits?.expert?.maxResponseTokens || 4096);
-  const [ollamaImageTokenOverhead, setOllamaImageTokenOverhead] = d2(validated.ollama?.limits?.imageTokenOverhead || 1024);
+  const [ollamaVisionContextWindow] = d2(validated.ollama?.limits?.vision?.contextWindow || 128e3);
+  const [ollamaVisionMaxTokens] = d2(validated.ollama?.limits?.vision?.maxResponseTokens || 2048);
+  const [ollamaPlannerContextWindow] = d2(validated.ollama?.limits?.planner?.contextWindow || 128e3);
+  const [ollamaPlannerMaxTokens] = d2(validated.ollama?.limits?.planner?.maxResponseTokens || 700);
+  const [ollamaExpertContextWindow] = d2(validated.ollama?.limits?.expert?.contextWindow || 128e3);
+  const [ollamaExpertMaxTokens] = d2(validated.ollama?.limits?.expert?.maxResponseTokens || 4096);
+  const [ollamaImageTokenOverhead] = d2(validated.ollama?.limits?.imageTokenOverhead || 1024);
   const [customApiUrl, setCustomApiUrl] = d2(validated.custom?.apiUrl || "");
   const [customApiKey, setCustomApiKey] = d2(validated.custom?.apiKey || "");
   const [customModel, setCustomModel] = d2(validated.custom?.model || "");
@@ -13320,7 +13320,7 @@ function AIProviderIsland(props) {
       flushAutoSave();
     }, validated.autoSaveDebounceMs || 1e3);
   };
-  const handleSave = async () => {
+  const handleSave = async (e3) => {
     setIsSaving(true);
     setSaveMessage(null);
     try {
@@ -18464,7 +18464,10 @@ function ContextSidebarIsland(props) {
   y2(() => {
     tabs.forEach((t3) => {
       const el = tabRefs.current[t3.key];
-      if (el) el.setAttribute("aria-pressed", String(activeTab === t3.key));
+      if (el) {
+        el.setAttribute("aria-selected", String(activeTab === t3.key));
+        el.setAttribute("tabindex", activeTab === t3.key ? "0" : "-1");
+      }
     });
   }, [activeTab]);
   const isAdmin = Boolean(props.isAdmin || typeof window !== "undefined" && window.__TEST_IS_ADMIN === true);
@@ -18503,13 +18506,28 @@ function ContextSidebarIsland(props) {
     /* @__PURE__ */ u3("div", { role: "tablist", "aria-label": "Context Sidebar Tabs", className: "flex border-b border-[#e5e0d8] bg-[#fdfaf6]", children: tabs.map((t3) => /* @__PURE__ */ u3(
       "button",
       {
+        id: `tab-${t3.key}`,
         role: "tab",
+        "aria-controls": `panel-${t3.key}`,
         "data-testid": t3.testid,
         ref: (el) => {
           tabRefs.current[t3.key] = el;
         },
         className: `flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium ${activeTab === t3.key ? "border-b-2 border-copper text-copper" : "text-[#888]"}`,
         onClick: () => setActiveTab(t3.key),
+        onKeyDown: (e3) => {
+          if (e3.key === "ArrowRight") {
+            const idx = tabs.findIndex((x4) => x4.key === t3.key);
+            const next = tabs[(idx + 1) % tabs.length];
+            setActiveTab(next.key);
+            tabRefs.current[next.key]?.focus();
+          } else if (e3.key === "ArrowLeft") {
+            const idx = tabs.findIndex((x4) => x4.key === t3.key);
+            const prev = tabs[(idx - 1 + tabs.length) % tabs.length];
+            setActiveTab(prev.key);
+            tabRefs.current[prev.key]?.focus();
+          }
+        },
         children: [
           /* @__PURE__ */ u3("i", { className: `fas ${t3.icon} mr-2` }),
           /* @__PURE__ */ u3("span", { className: "hidden sm:inline", children: t3.label })
@@ -18518,7 +18536,7 @@ function ContextSidebarIsland(props) {
       t3.key
     )) }),
     /* @__PURE__ */ u3("div", { className: "p-4 overflow-auto flex-1", children: [
-      activeTab === "metadata" && /* @__PURE__ */ u3("div", { "data-testid": "tab-panel-metadata", children: /* @__PURE__ */ u3(
+      activeTab === "metadata" && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-metadata", "aria-labelledby": "tab-metadata", "data-testid": "tab-panel-metadata", children: /* @__PURE__ */ u3(
         SmartMetadataIsland,
         {
           documentId: props.document?.id,
@@ -18526,9 +18544,9 @@ function ContextSidebarIsland(props) {
           customFields: props.document?.customFields || props.visual?.fields
         }
       ) }),
-      activeTab === "content" && /* @__PURE__ */ u3("div", { "data-testid": "tab-panel-content", children: /* @__PURE__ */ u3(DocumentContentIsland, { documentId: props.document?.id, content: props.document?.content || "" }) }),
-      activeTab === "chat" && /* @__PURE__ */ u3("div", { "data-testid": "tab-panel-chat", children: /* @__PURE__ */ u3(ChatWorkspaceIsland, { documents: props.availableDocuments || [], openDocumentId: props.document?.id, ...props.chat }) }),
-      activeTab === "debug" && isAdmin && /* @__PURE__ */ u3("div", { "data-testid": "tab-panel-debug", children: /* @__PURE__ */ u3("pre", { className: "text-xs whitespace-pre-wrap text-gray-700", "data-testid": "debug-content", children: JSON.stringify({ document: props.document, chat: props.chat, visual: props.visual }, null, 2) }) })
+      activeTab === "content" && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-content", "aria-labelledby": "tab-content", "data-testid": "tab-panel-content", children: /* @__PURE__ */ u3(DocumentContentIsland, { documentId: props.document?.id, content: props.document?.content || "" }) }),
+      activeTab === "chat" && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-chat", "aria-labelledby": "tab-chat", "data-testid": "tab-panel-chat", children: /* @__PURE__ */ u3(ChatWorkspaceIsland, { documents: props.availableDocuments || [], openDocumentId: props.document?.id, ...props.chat }) }),
+      activeTab === "debug" && isAdmin && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-debug", "aria-labelledby": "tab-debug", "data-testid": "tab-panel-debug", children: /* @__PURE__ */ u3("pre", { className: "text-xs whitespace-pre-wrap text-gray-700", "data-testid": "debug-content", children: JSON.stringify({ document: props.document, chat: props.chat, visual: props.visual }, null, 2) }) })
     ] })
   ] });
 }

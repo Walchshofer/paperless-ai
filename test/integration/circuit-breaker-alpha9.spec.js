@@ -327,7 +327,7 @@ describe('Circuit Breaker State Transitions - Alpha-9', function () {
                 }
 
                 // Check for transition log
-                const hasTransitionLog = logs.some(log =>
+                const _hasTransitionLog = logs.some(log =>
                     log.includes('OPEN') || log.includes('circuit')
                 );
 

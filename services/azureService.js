@@ -5,8 +5,7 @@ const {
   writePromptToFile,
   appendFilenameFormat
 } = require('./serviceUtils');
-const OpenAI = require('openai');
-const AzureOpenAI = require('openai').AzureOpenAI;
+const { AzureOpenAI } = require('openai');
 const config = require('../config/config');
 const paperlessService = require('./paperlessService');
 const logger = require('./logger');

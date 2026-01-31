@@ -295,7 +295,7 @@ describe('Concurrent Search Test', function () {
     });
 
     it('tracks concurrent request count', async function () {
-        const simulateSearch = async (id) => {
+        const simulateSearch = async (_id) => {
             metricsCollector.incrementConcurrentRequests();
             await new Promise(r => setTimeout(r, 50));
             metricsCollector.decrementConcurrentRequests();
