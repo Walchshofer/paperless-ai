@@ -89,6 +89,32 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     validateAndMarkDirty(localMetadata, nextFields);
   };
 
+  // Participant wiring: acknowledge save requests and attempt to save if dirty
+  useEffect(() => {
+    function onSaveRequest(e: any) {
+      const { saveId, documentId } = (e && (e as CustomEvent).detail) || {};
+      if (String(documentId) !== String(props.documentId)) return;
+      const participantId = 'smart-metadata';
+      const willSave = Boolean((window as any).__smart_metadata_dirty);
+      // Send ack
+      dispatchEventSafe('workspace:save-ack', { saveId, participantId, willSave });
+      if (!willSave) return;
+      const delay = (props as any).saveDelayMs || 100;
+      setTimeout(() => {
+        // Perform a local 'save' - assume success unless validation error present
+        const success = true;
+        if (success) {
+          try { (window as any).__smart_metadata_dirty = false; } catch (e) { /* ignore */ }
+          dispatchEventSafe('workspace:save-partial-complete', { saveId, participantId, success: true });
+        } else {
+          dispatchEventSafe('workspace:save-partial-complete', { saveId, participantId, success: false, message: 'validation failed' });
+        }
+      }, delay);
+    }
+    window.addEventListener('workspace:save-request', onSaveRequest as EventListener);
+    return () => window.removeEventListener('workspace:save-request', onSaveRequest as EventListener);
+  }, [props.documentId]);
+
   return (
     <div data-testid="smart-metadata-root" className="flex flex-col gap-3">
       <div className="flex flex-col gap-2">

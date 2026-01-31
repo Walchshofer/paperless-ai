@@ -200,9 +200,32 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
       setIsDirty(Boolean(initDirty));
     } catch (err) { /* ignore */ }
 
+    // Warn on browser unload when dirty
+    const beforeUnloadHandler = (e: BeforeUnloadEvent) => {
+      try {
+        const docKey = props.documentId ? String(props.documentId) : '';
+        const wnd = window as unknown as { __workspaceState?: Record<string, { isDirty?: boolean }> };
+        const state = wnd.__workspaceState || {};
+        const dirty = docKey ? state[docKey]?.isDirty : false;
+        if (dirty) {
+          // Standard way to trigger a browser prompt
+          e.preventDefault();
+          // Some browsers require returnValue to be set
+          (e as BeforeUnloadEvent).returnValue = '';
+          return '';
+        }
+      } catch (err) {
+        // ignore
+      }
+      return undefined;
+    };
+
+    window.addEventListener('beforeunload', beforeUnloadHandler as EventListener);
+
     return () => {
       window.removeEventListener('workspace:dirty', onDirty as EventListener);
       window.removeEventListener('sync:success', onSaved as EventListener);
+      window.removeEventListener('beforeunload', beforeUnloadHandler as EventListener);
     };
   }, [props.documentId]);
 
