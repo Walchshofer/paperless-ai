@@ -24,12 +24,12 @@ describe('Manual Orchestration Route /manual/updateDocument', function() {
     const qdrant = require('../services/visual-rag-client/QdrantAdapter');
     const origUpdatePayload = qdrant.qdrantAdapter.updatePayloadForDoc;
     let qCalled = false;
-    qdrant.qdrantAdapter.updatePayloadForDoc = async (collectionName, id, payload) => { qCalled = true; return { status: 'ok', updated: 1 }; };
+    qdrant.qdrantAdapter.updatePayloadForDoc = async (_collectionName, _id, _payload) => { qCalled = true; return { status: 'ok', updated: 1 }; };
 
     const { metricsCollector } = require('../services/metrics/PrometheusMetrics');
     const origRecord = metricsCollector.recordQdrantPayloadSync;
     let metricCalled = false;
-    metricsCollector.recordQdrantPayloadSync = (c) => { metricCalled = true; };
+    metricsCollector.recordQdrantPayloadSync = (_c) => { metricCalled = true; };
 
     const res = await request(app)
       .post('/manual/updateDocument')
@@ -99,7 +99,7 @@ describe('Manual Orchestration Route /manual/updateDocument', function() {
     const { metricsCollector } = require('../services/metrics/PrometheusMetrics');
     const origRecord = metricsCollector.recordQdrantPayloadSync;
     let metricCalled = false;
-    metricsCollector.recordQdrantPayloadSync = (c) => { metricCalled = true; };
+    metricsCollector.recordQdrantPayloadSync = (_c) => { metricCalled = true; };
 
     const res = await request(app)
       .post('/manual/updateDocument')

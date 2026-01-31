@@ -2,7 +2,7 @@ const assert = require('assert');
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
-const SetupService = require('../../services/setupService');
+const _SetupService = require('../../services/setupService');
 const proxyConfig = require('../../config/config');
 
 describe('SetupService.saveConfig', () => {

@@ -13,7 +13,7 @@
 const assert = require('assert');
 const { ParallelOcrExecutor, DocumentType } = require('../../services/experts/ParallelOcrExecutor');
 const { CircuitState } = require('../../services/experts/CircuitBreaker');
-const paperlessService = require('../../services/paperlessService');
+const _paperlessService = require('../../services/paperlessService');
 
 describe('ParallelOcrExecutor', function() {
     let executor;

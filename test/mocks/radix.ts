@@ -18,7 +18,7 @@ import type { ComponentChildren } from 'preact';
 
 /** Common props type for Radix mock components */
 interface MockRadixProps extends Record<string, unknown> {
-  children?: any; // Fallback to any to resolve TS2709 namespace error in specific build environments
+  children?: ComponentChildren; // prefer concrete ComponentChildren type for Preact
   checked?: boolean;
   'aria-selected'?: boolean;
   'aria-expanded'?: boolean;

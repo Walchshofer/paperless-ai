@@ -480,7 +480,7 @@ describe('Base64 Validation', () => {
 
   it('rejects malformed Base64', () => {
     // Base64 with invalid padding
-    const invalid = 'aGVsbG8gd29ybGQ';
+    const _invalid = 'aGVsbG8gd29ybGQ';
     // Note: This might actually be valid depending on implementation
     // The key test is that truly malformed strings fail
   });

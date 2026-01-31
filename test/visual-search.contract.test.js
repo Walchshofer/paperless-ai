@@ -23,7 +23,7 @@ describe('Visual Search API Contract', () => {
     beforeEach(() => {
         // Default mocks
         visualSearchClient.isAvailable = async () => true;
-        visualSearchClient.searchImageAlpha9 = async (image, collection, filters, k) => {
+        visualSearchClient.searchImageAlpha9 = async (image, collection, _filters, _k) => {
             return {
                 collectionUsed: collection,
                 scoreType: 'maxsim',

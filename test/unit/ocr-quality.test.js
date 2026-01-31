@@ -15,8 +15,7 @@ const assert = require('assert');
 const {
     scoreOcrQuality,
     mergeOcrResults,
-    calculateDetailedMetrics,
-    QUALITY_THRESHOLDS
+    calculateDetailedMetrics
 } = require('../../services/experts/utils/ocrQuality');
 
 describe('OCR Quality Scoring', function() {

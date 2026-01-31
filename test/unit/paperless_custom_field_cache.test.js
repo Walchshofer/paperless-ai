@@ -5,7 +5,7 @@ describe('PaperlessService.customFieldCache', function () {
   it('refreshCustomFieldCache maps names to field objects', async function () {
     const origClient = paperlessService.client;
     paperlessService.client = {
-      get: async (url) => ({ data: { results: [ { id: 1, name: 'invoice_number' }, { id: 2, name: 'invoice_amount' } ], next: null } })
+      get: async (_url) => ({ data: { results: [ { id: 1, name: 'invoice_number' }, { id: 2, name: 'invoice_amount' } ], next: null } })
     };
 
     await paperlessService.refreshCustomFieldCache();

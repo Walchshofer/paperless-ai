@@ -13,21 +13,21 @@ describe('env sync', function () {
     const src = path.resolve(path.join(root, 'docker-compose.env'));
 
     // Run the sync script (POSIX preferred, fallback to PowerShell on Windows)
-    let ran = false;
+    let _ran = false;
     // Debug: ensure we are targeting the expected destination (should be repo root /.env)
     // This log is temporary to diagnose CI shell differences
     process.stderr.write('[env-sync test] root=' + root + ' src=' + src + ' dst=' + dst + ' src_exists=' + fs.existsSync(src) + ' dst_exists_before=' + fs.existsSync(dst) + "\n");
     try {
       execSync(`bash ${syncScript}`, { cwd: root, stdio: 'pipe' });
-      ran = true;
+      _ran = true;
     } catch (err) {
       try {
         execSync(`sh ${syncScript}`, { cwd: root, stdio: 'pipe' });
-        ran = true;
+        _ran = true;
       } catch (err1) {
         try {
           execSync(`pwsh -NoProfile -File ${psScript}`, { cwd: root, stdio: 'pipe' });
-          ran = true;
+          _ran = true;
         } catch (err2) {
           // If all script invocations fail, we will create a deterministic fallback .env to make the test deterministic
         }

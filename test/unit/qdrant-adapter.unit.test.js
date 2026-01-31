@@ -31,7 +31,7 @@ describe('QdrantAdapter Unit Tests', function () {
     it('should search visual overlays and return mapped results', async function () {
         const adapter = new QdrantAdapter({ host: HOST, port: PORT });
         adapter.client = {
-            search: async (collectionName, { vector, limit }) => [
+            search: async (_collectionName, { vector: _vector, limit: _limit }) => [
                 { id: 'p1', score: 0.98, payload: { doc_id: 1, semantic_label: 'test' } }
             ]
         };
@@ -46,7 +46,7 @@ describe('QdrantAdapter Unit Tests', function () {
         const adapter = new QdrantAdapter({ host: HOST, port: PORT });
         let deleteCalled = false;
         adapter.client = {
-            delete: async (collectionName, body) => { deleteCalled = true; return; }
+            delete: async (_collectionName, _body) => { deleteCalled = true; return; }
         };
 
         const res = await adapter.deleteVisualOverlaysByDocId(42);
@@ -80,7 +80,7 @@ describe('QdrantAdapter Unit Tests', function () {
         const adapter = new QdrantAdapter({ host: HOST, port: PORT });
         let called = false;
         adapter.client = {
-            upsert: async (collectionName, { points }) => { called = true; return; }
+            upsert: async (_collectionName, { points: _points }) => { called = true; return; }
         };
 
         const docs = [{ id: 'doc_1', embedding: new Array(384).fill(0.01), payload: { doc_id: 1 } }];

@@ -27,8 +27,8 @@ describe('UnifiedWorkspaceIsland - workspace dirty-state orchestration', functio
     render(h(UnifiedWorkspaceIsland, { documentId: 123, visual: {} }), root);
     await new Promise((r) => setTimeout(r, 100));
 
-    let seen = null;
-    window.addEventListener('workspace:state-change', (e) => { seen = e.detail; });
+    let _seen = null;
+    window.addEventListener('workspace:state-change', (e) => { _seen = e.detail; });
 
     window.dispatchEvent(new window.CustomEvent('workspace:dirty', { detail: { documentId: 123 } }));
     await new Promise((r) => setTimeout(r, 50));
@@ -55,8 +55,8 @@ describe('UnifiedWorkspaceIsland - workspace dirty-state orchestration', functio
     await new Promise((r) => setTimeout(r, 50));
 
     // now simulate successful save
-    let seen = null;
-    window.addEventListener('workspace:state-change', (e) => { seen = e.detail; });
+    let _seen = null;
+    window.addEventListener('workspace:state-change', (e) => { _seen = e.detail; });
 
     window.dispatchEvent(new window.CustomEvent('sync:success', { detail: { documentId: 456 } }));
     await new Promise((r) => setTimeout(r, 50));

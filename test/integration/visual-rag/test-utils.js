@@ -2,7 +2,7 @@
  * Test utilities for VisualOverlayRepository integration tests
  */
 
-const { visualOverlayRepository, VisualOverlayRepository } = require('../../../services/visual-rag-client');
+const { visualOverlayRepository } = require('../../../services/visual-rag-client');
 const { TEST_DOC_ID, TEST_DOC_ID_ALT } = require('./fixtures');
 
 /**

@@ -1,5 +1,5 @@
-const assert = require('assert');
-const { mountIslands } = require('../../src/islands/runtime');
+const _assert = require('assert');
+const { mountIslands: _mountIslands } = require('../../src/islands/runtime');
 
 describe('island runtime - OverlayViewer Red Pen Enhancements', function () {
   let dom;

@@ -49,7 +49,7 @@ describe('OverlayViewer keyboard shortcuts', function () {
 
         assert.ok(zoomPct && panBtn, 'Expected zoom percentage and pan toggle present');
 
-        const initialPct = Number((zoomPct.textContent || '100%').replace('%', ''));
+        const _initialPct = Number((zoomPct.textContent || '100%').replace('%', ''));
         // Use click handlers (fallback runtime provides button wiring) as keyboard/mouse bindings are not present in fallback
         const zoomInBtn = root.querySelector('[data-testid="overlay-zoom-in"]');
         const zoomOutBtn = root.querySelector('[data-testid="overlay-zoom-out"]');
@@ -58,7 +58,7 @@ describe('OverlayViewer keyboard shortcuts', function () {
         assert.ok(zoomInBtn && zoomOutBtn && zoomResetBtn, 'Expected zoom control buttons');
 
         // Click zoom in/out/reset to ensure buttons are wired or at least clickable in the fallback
-        const initialPctVal = Number((zoomPct.textContent || '100%').replace('%', ''));
+        const _initialPctVal = Number((zoomPct.textContent || '100%').replace('%', ''));
 
         // Click zoom in - we primarily assert that the button exists and is clickable; the real zoom behavior is validated in E2E tests
         zoomInBtn.click();

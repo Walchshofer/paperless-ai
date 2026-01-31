@@ -6,7 +6,7 @@
  */
 
 const assert = require('assert');
-const { VisualQueryExecutor, BASE_K_VALUES, DEFAULT_CONFIG } = require('../../services/experts/VisualQueryExecutor');
+const { VisualQueryExecutor } = require('../../services/experts/VisualQueryExecutor');
 
 describe('VisualQueryExecutor', () => {
     let executor;

@@ -23,7 +23,7 @@ describe('SaveCoordinatorIsland integration', () => {
   });
 
   it('renders overlay when saving begins', (done) => {
-    const { getByTestId, container } = render(h(SaveCoordinatorIsland, { documentId: 200 }));
+    const { container } = render(h(SaveCoordinatorIsland, { documentId: 200 }));
 
     window.addEventListener('workspace:save-begin', function onBegin(e) {
       // when begin happens the island should show overlay

@@ -20,13 +20,13 @@ describe('VisualAnnotationIsland - participant save wiring', function () {
     global.window = window;
 
     // stub fetch to simulate backend
-    global.fetch = async (url, opts) => {
+    global.fetch = async (_url, _opts) => {
       return {
         ok: true,
         status: 200,
         json: async () => ({ created: [{ id: 1, bbox: { x: 0, y: 0, width: 0.1, height: 0.1 } }] })
       };
-    };
+    }; 
   });
 
   afterEach(() => {

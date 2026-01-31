@@ -151,7 +151,7 @@ describe('ChatWorkspaceIsland - model placeholders', function () {
 
     // After init, chatMessages should include persisted messages
     const chatContainer = root.querySelector('[data-testid="chat-workspace-root"]');
-    const messages = chatContainer.querySelectorAll('.chat-message, .system-message, .assistant-message, .user-message');
+    const _messages = chatContainer.querySelectorAll('.chat-message, .system-message, .assistant-message, .user-message');
 
     // Basic assertion: the persisted contents are present somewhere in the document
     const html = root.innerHTML;

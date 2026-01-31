@@ -8,7 +8,7 @@ describe('PaperlessService.custom_fields normalization', function () {
     // Stub client.patch to capture payload
     const origClient = paperlessService.client;
     paperlessService.client = {
-      patch: async (path, payload, opts) => {
+      patch: async (path, payload, _opts) => {
         // return the payload in response shape similar to Paperless
         capturedPayload = payload;
         return { data: { id: docId } };
@@ -40,7 +40,7 @@ describe('PaperlessService.custom_fields normalization', function () {
     // Stub client.patch to capture payload
     const origClient = paperlessService.client;
     paperlessService.client = {
-      patch: async (path, payload, opts) => {
+      patch: async (path, payload, _opts) => {
         capturedPayload = payload;
         return { data: { id: docId } };
       },
@@ -67,7 +67,7 @@ describe('PaperlessService.custom_fields normalization', function () {
 
     const origClient = paperlessService.client;
     paperlessService.client = {
-      patch: async (path, payload, opts) => {
+      patch: async (path, payload, _opts) => {
         capturedPayload = payload;
         return { data: { id: docId } };
       },

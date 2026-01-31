@@ -1,6 +1,6 @@
 try {
   // Mock CSS modules for tests
-  require.extensions['.css'] = function(module, filename) {
+  require.extensions['.css'] = function(module, _filename) {
     module.exports = new Proxy({}, {
       get: (target, prop) => prop
     });
