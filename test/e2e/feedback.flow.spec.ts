@@ -42,7 +42,7 @@ test.describe('Feedback Flow E2E', () => {
     expect(resp.status(), 'manual/updateDocument should succeed').toBeLessThan(400);
 
     // Poll Postgres for the feedback row (max 5s)
-    const row: any = await pollForFeedbackEvent(docId, 'correction', 5000);
+    const row = await pollForFeedbackEvent(docId, 'correction', 5000) as Record<string, unknown> | null;
 
     // Field assertions
     expect(row).toBeTruthy();

@@ -93,14 +93,15 @@ test('OverlayViewer updates page when manual preview page changes (smoke)', asyn
         if (islandAnchor) islandAnchor.appendChild(root);
 
         // Attach a simple event listener to respond to overlay:document-changed events
-        window.addEventListener('overlay:document-changed', (e) => {
-          const d = ((e as any) && (e as any).detail) || {};
-          const resolvedOriginal = d.originalUrl || d.original_url || ''; 
+        window.addEventListener('overlay:document-changed', (e: Event) => {
+          const evt = e as unknown as { detail?: Record<string, unknown> };
+          const d = evt.detail ?? {};
+          const resolvedOriginal = (d.originalUrl as string) || (d.original_url as string) || '';
           const curRoot = document.querySelector('[data-testid="overlay-viewer-root"]');
           if (!curRoot) return;
           curRoot.setAttribute('data-original-url', resolvedOriginal || '');
           const pageEl = curRoot.querySelector('[data-testid="overlay-page-indicator"]') || curRoot.querySelector('span');
-          if (pageEl && d.page !== undefined && d.page !== null) pageEl.textContent = 'Page ' + d.page;
+          if (pageEl && typeof d.page === 'number') pageEl.textContent = 'Page ' + d.page;
           let img = curRoot.querySelector('img[data-testid="document-image"]');
           if (!img) {
             const container = curRoot.querySelector('[data-testid="overlay-container"]') || curRoot;
@@ -141,38 +142,49 @@ test('OverlayViewer updates page when manual preview page changes (smoke)', asyn
 
   // Instrument overlay event delivery for debugging (collect all overlay:document-changed detail payloads)
   await page.evaluate(() => {
-    (window as any).__overlay_events = [];
+    const w = window as unknown as { __overlay_events?: unknown[] };
+    w.__overlay_events = w.__overlay_events || [];
     window.addEventListener('overlay:document-changed', (e) => {
-      (window as any).__overlay_events.push((e as any) && (e as any).detail ? (e as any).detail : null);
+      const evt = e as unknown as { detail?: unknown };
+      const payload = evt.detail ?? null;
+      const w2 = window as unknown as { __overlay_events?: unknown[] };
+      w2.__overlay_events = w2.__overlay_events || [];
+      w2.__overlay_events.push(payload);
     });
 
     // Test-only helper: if the overlay island does not render an image in the real app (integration gap),
     // attach a lightweight DOM handler to show a preview image and set a data attr so E2E can assert behavior.
     const root = document.querySelector('[data-testid="overlay-viewer-root"]');
-    if (root && !(root as any).__e2e_overlay_helper_attached) {
-      window.addEventListener('overlay:document-changed', (e) => {
-        const d = ((e as any) && (e as any).detail) || {};
-        const resolvedOriginal = d.originalUrl || d.original_url || '';
-        root.setAttribute('data-original-url', resolvedOriginal || '');
+    if (root) {
+      const rootAny = root as unknown as Record<string, unknown>;
+      if (!rootAny.__e2e_overlay_helper_attached) {
+        window.addEventListener('overlay:document-changed', (e) => {
+          const evt = e as unknown as { detail?: Record<string, unknown> };
+          const d = evt.detail ?? {};
+          const dTyped = d as Record<string, unknown>;
+          const resolvedOriginal = (dTyped.originalUrl as string) || (dTyped.original_url as string) || '';
+          root.setAttribute('data-original-url', resolvedOriginal || '');
 
-        // Update page indicator if present (test-only) so E2E can verify nav updates
-        const pageEl = root.querySelector('[data-testid="overlay-page-indicator"]') || root.querySelector('span');
-        if (pageEl && d.page !== undefined && d.page !== null) pageEl.textContent = 'Page ' + d.page;
+          // Update page indicator if present (test-only) so E2E can verify nav updates
+          const pageEl = root.querySelector('[data-testid="overlay-page-indicator"]') || root.querySelector('span');
+          if (pageEl && typeof dTyped.page === 'number') pageEl.textContent = 'Page ' + dTyped.page;
 
-        let img = root.querySelector('img[data-testid="document-image"]');
-        if (!img) {
-          const container = root.querySelector('[data-testid="overlay-container"]') || root;
-          img = document.createElement('img');
-          img.setAttribute('data-testid','document-image');
-          img.setAttribute('draggable','false');
-          img.setAttribute('crossorigin','anonymous');
-          (img as HTMLImageElement).style.maxWidth = '100%';
-          container.appendChild(img);
-        }
-if (resolvedOriginal) (img as HTMLImageElement).src = resolvedOriginal + (resolvedOriginal.includes('?') ? '&' : '?') + 'page=' + (d.page || 1);
-          else if (d.documentId) (img as HTMLImageElement).src = '/documents/' + d.documentId + '/download/original/?page=' + (d.page || 1);
-      });
-      (root as any).__e2e_overlay_helper_attached = true;
+          let img = root.querySelector('img[data-testid="document-image"]');
+          if (!img) {
+            const container = root.querySelector('[data-testid="overlay-container"]') || root;
+            img = document.createElement('img');
+            img.setAttribute('data-testid','document-image');
+            img.setAttribute('draggable','false');
+            img.setAttribute('crossorigin','anonymous');
+            (img as HTMLImageElement).style.maxWidth = '100%';
+            container.appendChild(img);
+          }
+          const pageNum = typeof dTyped.page === 'number' ? dTyped.page : 1;
+          if (resolvedOriginal) (img as HTMLImageElement).src = resolvedOriginal + (resolvedOriginal.includes('?') ? '&' : '?') + 'page=' + pageNum;
+          else if (typeof dTyped.documentId !== 'undefined') (img as HTMLImageElement).src = '/documents/' + String(dTyped.documentId) + '/download/original/?page=' + pageNum;
+        });
+        rootAny.__e2e_overlay_helper_attached = true;
+      }
     }
   });
   await page.evaluate(() => {
@@ -266,7 +278,7 @@ if (resolvedOriginal) (img as HTMLImageElement).src = resolvedOriginal + (resolv
     try {
       await nextBtn.click();
     } catch (e) {
-      await page.evaluate(() => { const el = document.querySelector('[data-testid="overlay-next-page"]'); if (el && typeof (el as any).click === 'function') (el as any).click(); });
+      await page.evaluate(() => { const el = document.querySelector('[data-testid="overlay-next-page"]'); if (el && typeof (el as HTMLElement).click === 'function') (el as HTMLElement).click(); });
     }
 
     const pageInd = page.locator('[data-testid="overlay-page-indicator"]');
@@ -283,7 +295,7 @@ if (resolvedOriginal) (img as HTMLImageElement).src = resolvedOriginal + (resolv
     try {
       await prevBtn.click();
     } catch (e) {
-      await page.evaluate(() => { const el = document.querySelector('[data-testid="overlay-prev-page"]'); if (el && typeof (el as any).click === 'function') (el as any).click(); });
+      await page.evaluate(() => { const el = document.querySelector('[data-testid="overlay-prev-page"]'); if (el && typeof (el as HTMLElement).click === 'function') (el as HTMLElement).click(); });
     }
 
     if ((await pageInd.count()) > 0) {

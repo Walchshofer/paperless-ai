@@ -10,7 +10,7 @@ test.describe('ContextSidebarIsland E2E', () => {
     await page.addInitScript(() => {
       window.__DISABLE_GITHUB_FETCH__ = true;
       try { localStorage.removeItem('paperless:context-sidebar.activeTab'); } catch (e) {}
-      try { delete (window as any).__TEST_IS_ADMIN; } catch (e) {}
+      try { const w = window as unknown as Record<string, unknown>; delete w.__TEST_IS_ADMIN; } catch (e) {}
     });
   });
 
@@ -69,7 +69,7 @@ test.describe('ContextSidebarIsland E2E', () => {
     await expect(page.locator('[data-testid="tab-debug"]')).toHaveCount(0);
 
     // Admin override via test hook: set global before navigation
-    await page.addInitScript(() => { (window as any).__TEST_IS_ADMIN = true; });
+    await page.addInitScript(() => { const w = window as unknown as Record<string, unknown>; (w as unknown as Record<string, unknown>).__TEST_IS_ADMIN = true; });
     await page.goto(`${BASE}/document/${docId}`, { waitUntil: 'networkidle' });
     await waitForIsland(page, 'context-sidebar-island', 10000);
 

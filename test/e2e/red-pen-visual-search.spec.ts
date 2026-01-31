@@ -127,10 +127,11 @@ test.describe('Red Pen Visual Search Flow', () => {
     const eventDetail = await eventPromise;
 
     // Verify event was dispatched with correct structure
-    if (eventDetail) {
-      expect((eventDetail as any).imageBase64).toBeTruthy();
-      expect((eventDetail as any).collection).toBe('visual_pages');
-      expect((eventDetail as any).bbox).toBeDefined();
+    if (eventDetail && typeof eventDetail === 'object') {
+      const ed = eventDetail as Record<string, unknown>;
+      expect(ed.imageBase64).toBeTruthy();
+      expect(ed.collection).toBe('visual_pages');
+      expect(ed.bbox).toBeDefined();
     }
   });
 

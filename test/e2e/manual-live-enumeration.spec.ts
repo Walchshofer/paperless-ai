@@ -55,18 +55,18 @@ test.describe('Manual Route Live Enumeration', () => {
 
     // Wait for island runtime to mount
     await page.waitForFunction(
-      () => (window as any).__islandRuntimeMounted === true,
+      () => (window as unknown as { __islandRuntimeMounted?: boolean }).__islandRuntimeMounted === true,
       { timeout: 10000 }
     ).catch(() => console.log('[LIVE] Island runtime not yet mounted'));
 
     // === ENUMERATE ALL ELEMENTS ===
     const enumeration = await page.evaluate(() => {
       const results = {
-        islands: [] as any[],
-        legacyElements: [] as any[],
-        buttons: [] as any[],
-        inputs: [] as any[],
-        selects: [] as any[],
+        islands: [] as unknown[],
+        legacyElements: [] as unknown[],
+        buttons: [] as unknown[],
+        inputs: [] as unknown[],
+        selects: [] as unknown[],
         stats: {
           totalElements: 0,
           islandCount: 0,
@@ -254,7 +254,7 @@ test.describe('Manual Route Live Enumeration', () => {
       const visualEnum = await page.evaluate(() => {
         const results = {
           overlayContainerVisible: false,
-          overlayViewerIsland: null as any,
+          overlayViewerIsland: null as unknown | null,
           pageIndicator: null as string | null
         };
 

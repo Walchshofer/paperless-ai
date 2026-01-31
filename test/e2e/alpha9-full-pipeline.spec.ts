@@ -181,8 +181,8 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
       return;
     }
 
-    let requestPayload: any = null;
-    let responseData: any = null;
+    let requestPayload: Record<string, unknown> | null = null;
+    let responseData: Record<string, unknown> | null = null;
 
     await page.route('**/api/visual-rag/search/visual', async (route) => {
       requestPayload = JSON.parse(route.request().postData() || '{}');
@@ -248,10 +248,10 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
       return;
     }
 
-    let requestPayload: any = null;
+    let requestPayload: unknown = null;
 
     await page.route('**/api/visual-rag/search/visual', async (route) => {
-      requestPayload = JSON.parse(route.request().postData() || '{}');
+      requestPayload = JSON.parse(route.request().postData() || '{}') as unknown;
 
       await route.fulfill({
         status: 200,

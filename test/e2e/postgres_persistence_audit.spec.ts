@@ -66,9 +66,9 @@ test.describe('PostgreSQL Persistence Audit', () => {
     expect(resp.status()).toBeLessThan(500);
 
     // Poll for the feedback row
-    let row;
+    let row: Record<string, unknown> | null = null;
     try {
-      row = await pollForFeedbackEvent(TEST_DOC_ID, 'correction', 10000);
+      row = await pollForFeedbackEvent(TEST_DOC_ID, 'correction', 10000) as Record<string, unknown> | null;
     } catch (err) {
       // Might not have the table yet
       test.skip(true, 'feedback_events table not available or no row found');
@@ -76,30 +76,30 @@ test.describe('PostgreSQL Persistence Audit', () => {
     }
 
     // Track for cleanup
-    if ((row as any)?.id) createdEventIds.push(String((row as any).id));
+    if (row && typeof row['id'] !== 'undefined') createdEventIds.push(String(row['id']));
 
     // Verify required fields
     expect(row).toBeTruthy();
-    expect((row as any).doc_id).toBe(TEST_DOC_ID);
-    expect((row as any).event_type).toBe('correction');
-    expect((row as any).field_name).toBe('correspondent');
+    expect(row && row['doc_id']).toBe(TEST_DOC_ID);
+    expect(row && row['event_type']).toBe('correction');
+    expect(row && row['field_name']).toBe('correspondent');
 
     // Verify JSONB fields
-    expect((row as any).corrected_value).toBeTruthy();
-    const corrected = typeof (row as any).corrected_value === 'string'
-      ? JSON.parse((row as any).corrected_value)
-      : (row as any).corrected_value;
-    expect(corrected.name).toBe('E2E Test Correspondent');
+    expect(row && row['corrected_value']).toBeTruthy();
+    const corrected = typeof (row && row['corrected_value']) === 'string'
+      ? JSON.parse(String(row && row['corrected_value']))
+      : (row && row['corrected_value']);
+    expect((corrected as Record<string, unknown>).name).toBe('E2E Test Correspondent');
 
     // Verify context contains request_id
-    const context = (row as any).context || {};
-    expect(context.request_id || context.requestId).toBe(testRequestId);
+    const context = (row && row['context']) || {} as Record<string, unknown>;
+    expect((context as Record<string, unknown>).request_id || (context as Record<string, unknown>).requestId).toBe(testRequestId);
 
     // Verify tagIds in context
-    expect(context.tagIds).toEqual([1, 2, 3]);
+    expect((context as Record<string, unknown>).tagIds).toEqual([1, 2, 3]);
 
     // Verify timestamp is within test window
-    const createdAt = new Date((row as any).created_at).getTime();
+    const createdAt = new Date(String(row && row['created_at'])).getTime();
     expect(createdAt).toBeGreaterThanOrEqual(beforeTs - 2000);
     expect(createdAt).toBeLessThanOrEqual(Date.now() + 2000);
   });
@@ -161,19 +161,19 @@ test.describe('PostgreSQL Persistence Audit', () => {
     }
 
     // Track for cleanup
-    rows.forEach((r: any) => {
-      if (r.id) createdEventIds.push(String(r.id));
+    rows.forEach((r: Record<string, unknown>) => {
+      if (r['id']) createdEventIds.push(String(r['id']));
     });
 
     // Should have all 3 events
     expect(rows.length).toBe(3);
 
     // Verify each event type
-    const eventTypes = rows.map((r: any) => r.event_type);
+    const eventTypes = rows.map((r: Record<string, unknown>) => r['event_type']);
     expect(eventTypes).toContain('verification');
     expect(eventTypes).toContain('correction');
 
-    const fieldNames = rows.map((r: any) => r.field_name);
+    const fieldNames = rows.map((r: Record<string, unknown>) => r['field_name']);
     expect(fieldNames).toContain('tags');
     expect(fieldNames).toContain('document_type');
     expect(fieldNames).toContain('title');

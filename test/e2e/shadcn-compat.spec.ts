@@ -30,7 +30,7 @@ test.describe('shadcn/ui compatibility smoke', () => {
     await expect(page.locator('text=Dialog Title')).not.toBeVisible();
 
     // Switch: toggle
-    const status = page.locator('text=On').first();
+    const _status = page.locator('text=On').first();
     // toggle switch element by clicking its thumb
     await page.click('role=button:has-text("Off") >> nth=0').catch(() => {});
     // allow UI to update

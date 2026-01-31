@@ -56,7 +56,7 @@ test.describe('Manual - Annotation persistence & per-user isolation', () => {
 
     // open manual and select a document
     await page.goto(`${base}/manual`, { waitUntil: 'load' });
-    const docId = await selectFirstDocument(page);
+    const _docId = await selectFirstDocument(page);
 
     // ensure annotation island is mounted
     await page.waitForSelector('[data-testid="visual-annotation-island-root"]', { timeout: 10000 });
@@ -124,7 +124,7 @@ test.describe('Manual - Annotation persistence & per-user isolation', () => {
     // Save as user A (id=500)
     await ensureLoggedInAs(page, context, base, 500, 'userA');
     await page.goto(`${base}/manual`, { waitUntil: 'load' });
-    const docId = await selectFirstDocument(page);
+    const _docId = await selectFirstDocument(page);
 
     await page.waitForSelector('[data-testid="visual-annotation-island-root"]', { timeout: 10000 });
     await page.locator('[data-testid="draw-toggle"]').click();

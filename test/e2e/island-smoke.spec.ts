@@ -1,11 +1,11 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import { getHistoryDocId } from '../helpers/fixtures';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 const MANUAL_URL = `${BASE_URL}/manual`;
 const HISTORY_URL = `${BASE_URL}/history/${getHistoryDocId()}`;
 
-async function gotoPage(page: any, url: string) {
+async function gotoPage(page: Page, url: string) {
   const response = await page.goto(url, {
     waitUntil: 'domcontentloaded',
     timeout: 15000

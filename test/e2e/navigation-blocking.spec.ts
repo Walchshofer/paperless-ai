@@ -13,8 +13,9 @@ test('navigation is blocked when workspace is dirty (confirm modal)', async ({ p
 
   // Mark current document as dirty via page script
   await page.evaluate((d) => {
-    (window as any).__workspaceState = (window as any).__workspaceState || {};
-    (window as any).__workspaceState[String(d)] = { isDirty: true };
+    const w = window as unknown as { __workspaceState?: Record<string, { isDirty?: boolean }> };
+    w.__workspaceState = w.__workspaceState || {};
+    w.__workspaceState[String(d)] = { isDirty: true };
   }, docId);
 
   const nextBtn = page.locator('[data-testid="nav-next-btn"]');

@@ -30,7 +30,7 @@ if (typeof HTMLCanvasElement !== 'undefined') {
       fillText: vi.fn(),
       getContextAttributes: vi.fn(() => ({})),
       strokeRect: vi.fn(),
-    } as any;
+    } as unknown as CanvasRenderingContext2D;
   });
 
   HTMLCanvasElement.prototype.toDataURL = vi.fn(() => "");
