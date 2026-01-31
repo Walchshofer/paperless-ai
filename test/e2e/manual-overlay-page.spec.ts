@@ -180,7 +180,7 @@ if (resolvedOriginal) (img as HTMLImageElement).src = resolvedOriginal + (resolv
   });
 
   // Debug: see whether events were observed by any listener (should be at least 1)
-  const observedEvents = await page.evaluate(() => (window as any).__overlay_events || []);
+  const observedEvents = await page.evaluate(() => (window as unknown as { __overlay_events?: unknown[] }).__overlay_events || []);
   console.log('[e2e-debug] observed overlay events:', observedEvents);
 
   // Debug: capture island root HTML and attributes for troubleshooting (pre-assertion)
@@ -232,7 +232,7 @@ if (resolvedOriginal) (img as HTMLImageElement).src = resolvedOriginal + (resolv
   });
 
   // Debugging: capture events and overlay root immediately after dispatch
-  const postEvents = await page.evaluate(() => (window as any).__overlay_events || []);
+  const postEvents = await page.evaluate(() => (window as unknown as { __overlay_events?: unknown[] }).__overlay_events || []);
   console.log('[e2e-debug] events after page 2 dispatch:', postEvents);
   const postRoot = await page.evaluate(() => {
     const r = document.querySelector('[data-testid="overlay-viewer-root"]');

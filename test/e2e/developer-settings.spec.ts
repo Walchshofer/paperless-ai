@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 const { waitForIsland } = require('../helpers/island-waits');
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL || process.env.PAPERLESS_BASE_URL || 'http://localhost:3000';
@@ -250,10 +250,10 @@ test.describe('DeveloperSettingsIsland E2E Tests', () => {
 
     await page.evaluate(() => {
       document.addEventListener('settings:restart-required', () => {
-        (window as any).logEvent('settings:restart-required');
+        (window as unknown as { logEvent?: (s: string) => void }).logEvent?.('settings:restart-required');
       });
       document.addEventListener('settings:saved', () => {
-        (window as any).logEvent('settings:saved');
+        (window as unknown as { logEvent?: (s: string) => void }).logEvent?.('settings:saved');
       });
     });
 
