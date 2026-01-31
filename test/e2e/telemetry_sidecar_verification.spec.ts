@@ -159,7 +159,7 @@ test.describe('Telemetry Metrics Verification', () => {
     expect([200, 503]).toContain(resp.status());
   });
 
-  test('circuit breaker state is observable', async ({ page }) => {
+  test('circuit breaker state is observable', async () => {
     let metricsText;
     try {
       metricsText = await snapshotMetrics(METRICS_URL);

@@ -48,8 +48,8 @@ test.describe('Visual-RAG overlay success', () => {
       };
 
       anchor.setAttribute('data-props', JSON.stringify(props));
-      if (typeof (window as unknown as { mountIslands?: (d: Document) => void }).mountIslands === 'function') {
-        (window as unknown as { mountIslands?: (d: Document) => void }).mountIslands?.(document);
+      if (typeof (window as unknown as { mountIslands?: (_: Document) => void }).mountIslands === 'function') {
+        (window as unknown as { mountIslands?: (_: Document) => void }).mountIslands?.(document);
       }
     }, { overlayId });
 
