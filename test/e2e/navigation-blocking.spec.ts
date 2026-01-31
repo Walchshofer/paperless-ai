@@ -50,7 +50,7 @@ test('navigation is blocked when workspace is dirty (confirm modal)', async ({ p
     await page.click('[data-testid="nav-confirm-save"]');
 
     // Wait for coordinator-driven navigation (up to 5s)
-    await page.waitForURL(url => !url.includes(`/document/${docId}`), { timeout: 5000 });
+    await page.waitForURL((url: URL) => !url.toString().includes(`/document/${docId}`), { timeout: 5000 });
     expect(page.url()).not.toContain(`/document/${docId}`);
   } else {
     test.skip(true, 'Next button not present for test document');
