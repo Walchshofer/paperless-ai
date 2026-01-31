@@ -8,10 +8,10 @@ describe('rag page island mount + guardrails', function () {
     const source = fs.readFileSync(filePath, 'utf8');
 
     const requiredTokens = [
-      "data-testid=\"overlay-viewer-island\"",
-      "data-testid=\"rag-message-input\"",
-      "data-testid=\"rag-ai-toggle\"",
-      "data-testid=\"rag-send-button\"",
+      'data-testid="overlay-viewer-island"',
+      'data-testid="rag-message-input"',
+      'data-testid="rag-ai-toggle"',
+      'data-testid="rag-send-button"',
       "import { mountIslands } from '/js/dist/island-runtime.js';",
       'mountIslands(document);',
     ];

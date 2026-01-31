@@ -5,19 +5,22 @@ import { AIAnalysisSchema, type AIAnalysisContract } from '../ui/contracts/AIAna
 type GpuState = 'idle' | 'checking' | 'preparing' | 'ready' | 'error';
 type AnalysisType = 'text' | 'visual' | 'chat' | null;
 
-function dispatchEventSafe(name: string, detail: any) {
+function dispatchEventSafe(name: string, detail?: unknown) {
   if (typeof document === 'undefined') return;
   if (typeof document.dispatchEvent !== 'function') return;
   const EventConstructor = (typeof window !== 'undefined' && window.CustomEvent) ? window.CustomEvent : CustomEvent;
-  document.dispatchEvent(new EventConstructor(name, { detail }));
+  document.dispatchEvent(new EventConstructor(name, { detail } as CustomEventInit<any>));
 }
 
 export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
+  // Runtime contract validation: enforce the island props shape early
+  const validated = AIAnalysisSchema.parse(props);
+
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisType, setAnalysisType] = useState<AnalysisType>(null);
-  const [gpuState, setGpuState] = useState<GpuState>(props.gpuState || 'idle');
+  const [analysisType, setAnalysisType] = useState(null as AnalysisType);
+  const [gpuState, setGpuState] = useState((props.gpuState || 'idle') as GpuState);
   const [statusMessage, setStatusMessage] = useState('');
-  const [documentId, setDocumentId] = useState<number | null>(props.documentId ?? null);
+  const [documentId, setDocumentId] = useState(props.documentId ?? null as number | null);
   const [content, setContent] = useState(props.content || '');
 
   // Check GPU state on mount
@@ -48,8 +51,8 @@ export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
 
   // Listen for document selection
   useEffect(() => {
-    const onDocumentSelected = (e: any) => {
-      const detail = e?.detail || {};
+    const onDocumentSelected = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
       if (detail.documentId !== undefined) {
         setDocumentId(detail.documentId);
       }
@@ -58,8 +61,8 @@ export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
       }
     };
 
-    const onMetadataUpdated = (e: any) => {
-      const detail = e?.detail || {};
+    const onMetadataUpdated = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
       if (detail.content !== undefined) {
         setContent(detail.content);
       }
@@ -87,13 +90,14 @@ export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
     }
   }, [statusMessage]);
 
-  const toManualFields = useCallback((doc: any, fallbackDomain = 'AI') => {
-    const customFields = doc?.custom_fields;
-    if (!customFields || typeof customFields !== 'object') return [];
+  const toManualFields = useCallback((doc: unknown, fallbackDomain = 'AI') => {
+    if (!doc || typeof doc !== 'object') return [] as Array<{ label: string; value: string; domain: string; confidence: number }>;
+    const customFields = (doc as any)?.custom_fields;
+    if (!customFields || typeof customFields !== 'object') return [] as Array<{ label: string; value: string; domain: string; confidence: number }>;
     return Object.entries(customFields).map(([label, value]) => ({
       label,
       value: value != null ? String(value) : '',
-      domain: doc?.domain || fallbackDomain,
+      domain: (doc as any)?.domain || fallbackDomain,
       confidence: 1,
     }));
   }, []);

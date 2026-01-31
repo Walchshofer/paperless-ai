@@ -62,8 +62,8 @@ describe('Event Bus - visual-search-requested', () => {
   it('event contains valid Base64 payload', () => {
     let receivedPayload: any = null;
 
-    window.addEventListener('visual-search-requested', (e: any) => {
-      receivedPayload = e.detail;
+    window.addEventListener('visual-search-requested', (e: Event) => {
+      receivedPayload = (e as CustomEvent).detail;
     });
 
     const testBase64 =
@@ -87,8 +87,8 @@ describe('Event Bus - visual-search-requested', () => {
   it('event includes collection name', () => {
     let receivedPayload: any = null;
 
-    window.addEventListener('visual-search-requested', (e: any) => {
-      receivedPayload = e.detail;
+    window.addEventListener('visual-search-requested', (e: Event) => {
+      receivedPayload = (e as CustomEvent).detail;
     });
 
     const event = new window.CustomEvent('visual-search-requested', {
@@ -106,8 +106,8 @@ describe('Event Bus - visual-search-requested', () => {
   it('event includes filters when provided', () => {
     let receivedPayload: any = null;
 
-    window.addEventListener('visual-search-requested', (e: any) => {
-      receivedPayload = e.detail;
+    window.addEventListener('visual-search-requested', (e: Event) => {
+      receivedPayload = (e as CustomEvent).detail;
     });
 
     const event = new window.CustomEvent('visual-search-requested', {
@@ -131,8 +131,8 @@ describe('Event Bus - visual-search-requested', () => {
   it('event includes bbox coordinates', () => {
     let receivedPayload: any = null;
 
-    window.addEventListener('visual-search-requested', (e: any) => {
-      receivedPayload = e.detail;
+    window.addEventListener('visual-search-requested', (e: Event) => {
+      receivedPayload = (e as CustomEvent).detail;
     });
 
     const bbox = { x: 0.1, y: 0.2, width: 0.5, height: 0.6 };
@@ -175,8 +175,9 @@ describe('Event Handler - HistoryTabs Simulation', () => {
     let parsedData: any = null;
 
     // Simulate HistoryTabs listener with parsing
-    window.addEventListener('visual-search-requested', (e: any) => {
-      const { imageBase64, collection, bbox, filters } = e.detail;
+    window.addEventListener('visual-search-requested', (e: Event) => {
+      const payload = (e as CustomEvent).detail || {};
+      const { imageBase64, collection, bbox, filters } = payload;
       parsedData = { imageBase64, collection, bbox, filters };
     });
 
@@ -230,8 +231,9 @@ describe('Payload Schema Validation', () => {
   it('validates required fields present', () => {
     let payloadValid = false;
 
-    window.addEventListener('visual-search-requested', (e: any) => {
-      const { imageBase64, collection } = e.detail;
+    window.addEventListener('visual-search-requested', (e: Event) => {
+      const payload = (e as CustomEvent).detail || {};
+      const { imageBase64, collection } = payload;
       payloadValid =
         typeof imageBase64 === 'string' &&
         imageBase64.length > 0 &&
@@ -253,8 +255,9 @@ describe('Payload Schema Validation', () => {
   it('detects missing imageBase64', () => {
     let payloadValid = true;
 
-    window.addEventListener('visual-search-requested', (e: any) => {
-      const { imageBase64 } = e.detail;
+    window.addEventListener('visual-search-requested', (e: Event) => {
+      const payload = (e as CustomEvent).detail || {};
+      const { imageBase64 } = payload;
       payloadValid = typeof imageBase64 === 'string' && imageBase64.length > 0;
     });
 
@@ -272,8 +275,9 @@ describe('Payload Schema Validation', () => {
   it('detects invalid collection name', () => {
     let collectionValid = true;
 
-    window.addEventListener('visual-search-requested', (e: any) => {
-      const { collection } = e.detail;
+    window.addEventListener('visual-search-requested', (e: Event) => {
+      const payload = (e as CustomEvent).detail || {};
+      const { collection } = payload;
       collectionValid = ['visual_pages', 'visual_overlays'].includes(collection);
     });
 
@@ -344,8 +348,9 @@ describe('Loading State Trigger', () => {
     });
 
     // Simulate HistoryTabs API call on event
-    window.addEventListener('visual-search-requested', async (e: any) => {
-      const { imageBase64, collection, filters } = e.detail;
+    window.addEventListener('visual-search-requested', async (e: Event) => {
+      const payload = (e as CustomEvent).detail || {};
+      const { imageBase64, collection, filters } = payload;
       apiCalls.push({ imageBase64, collection, filters });
 
       await mockFetch('/api/visual-rag/search/visual', {

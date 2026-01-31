@@ -6,26 +6,26 @@ type ExportType = 'region' | 'text' | 'annotations';
 
 export default function ExportPanelIsland(props: ExportPanelContract) {
   const [showModal, setShowModal] = useState(false);
-  const [exportType, setExportType] = useState<ExportType>('text');
-  const [data, setData] = useState<any>(null);
+  const [exportType, setExportType] = useState('text' as ExportType);
+  const [data, setData] = useState(null as any);
   const [format, setFormat] = useState('png'); // png, pdf, txt, json
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const onRegion = (e: any) => {
-      setData(e.detail?.imageBase64);
+    const onRegion = (e: Event) => {
+      setData((e as CustomEvent).detail?.imageBase64);
       setExportType('region');
       setFormat('png');
       setShowModal(true);
     };
-    const onText = (e: any) => {
-      setData(e.detail?.text);
+    const onText = (e: Event) => {
+      setData((e as CustomEvent).detail?.text);
       setExportType('text');
       setFormat('txt');
       setShowModal(true);
     };
-    const onAnnotations = (e: any) => {
-      setData(e.detail?.annotations);
+    const onAnnotations = (e: Event) => {
+      setData((e as CustomEvent).detail?.annotations);
       setExportType('annotations');
       setFormat('json');
       setShowModal(true);

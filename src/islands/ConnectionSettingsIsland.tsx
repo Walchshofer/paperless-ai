@@ -26,8 +26,8 @@ export default function ConnectionSettingsIsland(
 
   const [isTesting, setIsTesting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [testResult, setTestResult] = useState<TestConnectionResult | null>(null);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState(null as TestConnectionResult | null);
+  const [saveMessage, setSaveMessage] = useState(null as string | null);
 
   // Auto-clear test result after 5 seconds
   useEffect(() => {
@@ -169,7 +169,7 @@ export default function ConnectionSettingsIsland(
             id="api-url"
             type="url"
             value={apiUrl}
-            onChange={(e) => setApiUrl((e.target as HTMLInputElement).value)}
+            onChange={(e: Event) => setApiUrl((e.target as HTMLInputElement).value)}
             placeholder="http://localhost:8000"
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             data-testid="api-url-input"
@@ -188,7 +188,7 @@ export default function ConnectionSettingsIsland(
             id="api-token"
             type="password"
             value={apiToken}
-            onChange={(e) => setApiToken((e.target as HTMLInputElement).value)}
+            onChange={(e: Event) => setApiToken((e.target as HTMLInputElement).value)}
             placeholder="Enter API token"
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             data-testid="api-token-input"
@@ -207,7 +207,7 @@ export default function ConnectionSettingsIsland(
             id="username"
             type="text"
             value={username}
-            onChange={(e) => setUsername((e.target as HTMLInputElement).value)}
+            onChange={(e: Event) => setUsername((e.target as HTMLInputElement).value)}
             placeholder="Enter username"
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             data-testid="username-input"

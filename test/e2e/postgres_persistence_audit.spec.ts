@@ -76,30 +76,30 @@ test.describe('PostgreSQL Persistence Audit', () => {
     }
 
     // Track for cleanup
-    if (row?.id) createdEventIds.push(String(row.id));
+    if ((row as any)?.id) createdEventIds.push(String((row as any).id));
 
     // Verify required fields
     expect(row).toBeTruthy();
-    expect(row.doc_id).toBe(TEST_DOC_ID);
-    expect(row.event_type).toBe('correction');
-    expect(row.field_name).toBe('correspondent');
+    expect((row as any).doc_id).toBe(TEST_DOC_ID);
+    expect((row as any).event_type).toBe('correction');
+    expect((row as any).field_name).toBe('correspondent');
 
     // Verify JSONB fields
-    expect(row.corrected_value).toBeTruthy();
-    const corrected = typeof row.corrected_value === 'string'
-      ? JSON.parse(row.corrected_value)
-      : row.corrected_value;
+    expect((row as any).corrected_value).toBeTruthy();
+    const corrected = typeof (row as any).corrected_value === 'string'
+      ? JSON.parse((row as any).corrected_value)
+      : (row as any).corrected_value;
     expect(corrected.name).toBe('E2E Test Correspondent');
 
     // Verify context contains request_id
-    const context = row.context || {};
+    const context = (row as any).context || {};
     expect(context.request_id || context.requestId).toBe(testRequestId);
 
     // Verify tagIds in context
     expect(context.tagIds).toEqual([1, 2, 3]);
 
     // Verify timestamp is within test window
-    const createdAt = new Date(row.created_at).getTime();
+    const createdAt = new Date((row as any).created_at).getTime();
     expect(createdAt).toBeGreaterThanOrEqual(beforeTs - 2000);
     expect(createdAt).toBeLessThanOrEqual(Date.now() + 2000);
   });

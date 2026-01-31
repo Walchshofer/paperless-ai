@@ -558,7 +558,7 @@ export default function HistoryTabsIsland(props: HistoryTabsProps) {
                               {(() => {
                                 const pct = Math.round(result.score * 100);
                                 return (
-                                  <div className={`h-full bg-green-500 rounded-full w-[${pct}%]`}></div>
+                                  <div className="h-full bg-green-500 rounded-full" style={{ width: `${pct}%` }}></div>
                                 );
                               })()}
                             </div>

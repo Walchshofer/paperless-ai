@@ -10,14 +10,14 @@ type StatusMessage = {
   text: string;
 };
 
-function dispatchEventSafe(name: string, detail: any) {
+function dispatchEventSafe(name: string, detail?: unknown) {
   if (typeof document === 'undefined') return;
   if (typeof document.dispatchEvent !== 'function') return;
   const EventConstructor =
     (typeof window !== 'undefined' && window.CustomEvent)
       ? window.CustomEvent
       : CustomEvent;
-  document.dispatchEvent(new EventConstructor(name, { detail }));
+  document.dispatchEvent(new EventConstructor(name, { detail } as CustomEventInit<any>));
 }
 
 function formatDocumentLabel(doc: { id: number; title?: string; original_filename?: string }) {
@@ -27,24 +27,20 @@ function formatDocumentLabel(doc: { id: number; title?: string; original_filenam
 export default function ManualWorkspaceIsland(
   props: Partial<ManualWorkspaceContract>
 ) {
-  const [documents, setDocuments] = useState(props.documents || []);
-  const [documentId, setDocumentId] = useState<number | null>(
-    props.documentId ?? null
-  );
+  const [documents, setDocuments] = useState(props.documents || [] as Array<{ id: number; title?: string; original_filename?: string }>);
+  const [documentId, setDocumentId] = useState(props.documentId ?? null as number | null);
   const [content, setContent] = useState(props.content || '');
   const [title, setTitle] = useState(props.title || '');
   const [correspondent, setCorrespondent] = useState(props.correspondent || '');
   const [documentType, setDocumentType] = useState('');
-  const [tags, setTags] = useState<Array<string | number>>(props.tags || []);
-  const [originalUrl, setOriginalUrl] = useState(props.originalUrl ?? null);
-  const [pageCount, setPageCount] = useState<number | null>(
-    props.pageCount ?? null
-  );
-  const [viewMode, setViewMode] = useState<ViewMode>('text');
+  const [tags, setTags] = useState(props.tags || [] as Array<string | number>);
+  const [originalUrl, setOriginalUrl] = useState(props.originalUrl ?? null as string | null);
+  const [pageCount, setPageCount] = useState(props.pageCount ?? null as number | null);
+  const [viewMode, setViewMode] = useState('text' as ViewMode);
   const [isLoading, setIsLoading] = useState(false);
-  const [status, setStatus] = useState<StatusMessage | null>(null);
+  const [status, setStatus] = useState(null as StatusMessage | null);
   const [showFallback, setShowFallback] = useState(false);
-  const selectRef = useRef<HTMLSelectElement | null>(null);
+  const selectRef = useRef(null as HTMLSelectElement | null);
 
   // Handle initial highlight and page
   useEffect(() => {
@@ -82,12 +78,12 @@ export default function ManualWorkspaceIsland(
     }
   }, [documentId]);
   // contentRef removed - handled by DocumentContentIsland
-  const correspondentInfoRef = useRef<HTMLElement | null>(null);
-  const correspondentNameRef = useRef<HTMLElement | null>(null);
-  const titleInfoRef = useRef<HTMLElement | null>(null);
-  const titleNameRef = useRef<HTMLElement | null>(null);
-  const textSectionRef = useRef<HTMLElement | null>(null);
-  const visualSectionRef = useRef<HTMLElement | null>(null);
+  const correspondentInfoRef = useRef(null as HTMLElement | null);
+  const correspondentNameRef = useRef(null as HTMLElement | null);
+  const titleInfoRef = useRef(null as HTMLElement | null);
+  const titleNameRef = useRef(null as HTMLElement | null);
+  const textSectionRef = useRef(null as HTMLElement | null);
+  const visualSectionRef = useRef(null as HTMLElement | null);
 
   useEffect(() => {
     selectRef.current = document.getElementById('documentSelect') as HTMLSelectElement | null;
@@ -104,7 +100,7 @@ export default function ManualWorkspaceIsland(
     if (!selectRef.current) return;
     const select = selectRef.current;
     select.innerHTML = '<option value="">Choose a document...</option>';
-    documents.forEach(doc => {
+    documents.forEach((doc: { id: number; title?: string; original_filename?: string }) => {
       const option = document.createElement('option');
       option.value = String(doc.id);
       option.textContent = formatDocumentLabel(doc);
@@ -355,13 +351,13 @@ export default function ManualWorkspaceIsland(
   }, [handleDocumentSelection]);
 
   useEffect(() => {
-    const onViewMode = (e: any) => {
-      const detail = e?.detail || {};
+    const onViewMode = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
       setViewMode(detail.mode === 'visual' ? 'visual' : 'text');
     };
 
-    const onAnalysisStarted = (e: any) => {
-      const detail = e?.detail || {};
+    const onAnalysisStarted = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
       const analysisType = detail.analysisType || 'ai';
       setStatus({
         tone: 'info',
@@ -369,8 +365,8 @@ export default function ManualWorkspaceIsland(
       });
     };
 
-    const onAnalysisCompleted = (e: any) => {
-      const detail = e?.detail || {};
+    const onAnalysisCompleted = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
       const result = detail.result || {};
 
       const nextTitle = result.title || title;
@@ -396,16 +392,16 @@ export default function ManualWorkspaceIsland(
       });
     };
 
-    const onFallback = (e: any) => {
-      const detail = e?.detail || {};
+    const onFallback = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
       const fallbackActive = Boolean(
         detail.fallback && detail.fallback.evidence_source === 'text'
       );
       setShowFallback(fallbackActive);
     };
 
-    const onTagsUpdated = (e: any) => {
-      const detail = e?.detail || {};
+    const onTagsUpdated = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
       if (Array.isArray(detail.currentTags)) {
         setTags(detail.currentTags);
       }

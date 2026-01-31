@@ -1,6 +1,7 @@
 import { h, Fragment } from 'preact';
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 import type { HistoryManagerContract } from '../ui/contracts/HistoryManager.contract';
+import { HistoryManagerSchema } from '../ui/contracts/HistoryManager.contract';
 import OverlayViewerIsland from './OverlayViewerIsland';
 
 type HistoryDoc = {
@@ -17,6 +18,9 @@ type OverlaySummary = {
   mandatory: number;
   domains: Record<string, number>;
 };
+
+// Narrowly typed alias for query state derived from the contract
+type QueryState = NonNullable<HistoryManagerContract['initialQuery']>; 
 
 const columns = [
   'document_id',
@@ -42,28 +46,22 @@ const getDomainColor = (domain: string) =>
 export default function HistoryManagerIsland(
   props: Partial<HistoryManagerContract>
 ) {
-  const filters = props.filters || { tags: [], correspondents: [] };
-  const initialQuery = props.initialQuery || {
-    search: '',
-    tag: null,
-    correspondent: null,
-    sort: { column: 'created_at', dir: 'desc' },
-    page: 0,
-    pageSize: 10
-  };
+  const validated = HistoryManagerSchema.parse(props as any);
+  const filters = validated.filters;
+  const initialQuery = validated.initialQuery; // fully validated/defaulted by Zod
 
   const [query, setQuery] = useState(initialQuery);
-  const [rows, setRows] = useState<HistoryDoc[]>([]);
+  const [rows, setRows] = useState([] as HistoryDoc[]);
   const [total, setTotal] = useState(0);
   const [filteredTotal, setFilteredTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [confirmMode, setConfirmMode] = useState<'selected' | 'all' | null>(null);
-  const [overlaySummaries, setOverlaySummaries] = useState<Record<number, OverlaySummary>>({});
-  const [visualDocId, setVisualDocId] = useState<number | null>(null);
+  const [error, setError] = useState(null as string | null);
+  const [selected, setSelected] = useState(new Set<number>());
+  const [confirmMode, setConfirmMode] = useState(null as 'selected' | 'all' | null);
+  const [overlaySummaries, setOverlaySummaries] = useState({} as Record<number, OverlaySummary>);
+  const [visualDocId, setVisualDocId] = useState(null as number | null);
   const [visualPageCount, setVisualPageCount] = useState(1);
-  const [visualOriginalUrl, setVisualOriginalUrl] = useState<string | null>(null);
+  const [visualOriginalUrl, setVisualOriginalUrl] = useState(null as string | null);
 
   const pageCount = Math.max(1, Math.ceil(filteredTotal / query.pageSize));
 
@@ -99,8 +97,9 @@ export default function HistoryManagerIsland(
       setTotal(data.recordsTotal || 0);
       setFilteredTotal(data.recordsFiltered || 0);
       setSelected(new Set());
-    } catch (err: any) {
-      setError(err.message || 'Failed to load history');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message || 'Failed to load history');
     } finally {
       setLoading(false);
     }
@@ -118,7 +117,7 @@ export default function HistoryManagerIsland(
 
     const loadSummaries = async () => {
       await Promise.all(
-        rows.map(async (row) => {
+        rows.map(async (row: HistoryDoc) => {
           try {
             const response = await fetch(`/api/visual-rag/overlays/${row.document_id}`,
               { signal: controller.signal }
@@ -129,7 +128,7 @@ export default function HistoryManagerIsland(
             const domains: Record<string, number> = {};
             let mandatory = 0;
 
-            overlays.forEach((overlay: any) => {
+            overlays.forEach((overlay: { domain?: string; isMandatory?: boolean }) => {
               const domain = (overlay.domain || 'GENERAL').toUpperCase();
               domains[domain] = (domains[domain] || 0) + 1;
               if (overlay.isMandatory) mandatory += 1;
@@ -140,14 +139,14 @@ export default function HistoryManagerIsland(
               mandatory,
               domains
             };
-          } catch (err) {
+          } catch (err: unknown) {
             // ignore overlay fetch failures
           }
         })
       );
 
       if (!controller.signal.aborted) {
-        setOverlaySummaries((prev) => ({ ...prev, ...summaries }));
+        setOverlaySummaries((prev: Record<number, OverlaySummary>) => ({ ...prev, ...summaries }));
       }
     };
 
@@ -157,14 +156,14 @@ export default function HistoryManagerIsland(
 
   const toggleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelected(new Set(rows.map((row) => row.document_id)));
+      setSelected(new Set(rows.map((row: HistoryDoc) => row.document_id)));
     } else {
       setSelected(new Set());
     }
   };
 
   const toggleSelectOne = (id: number) => {
-    setSelected((prev) => {
+    setSelected((prev: Set<number>) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
@@ -313,17 +312,19 @@ export default function HistoryManagerIsland(
           data-testid="history-search"
           className="sg-input"
           placeholder="Search title, correspondent, tags..."
+          aria-label="Search history"
           value={query.search || ''}
-          onInput={(e: any) =>
-            setQuery((prev: any) => ({ ...prev, search: e.target.value, page: 0 }))
+          onInput={(e: Event) =>
+            setQuery((prev: QueryState) => ({ ...prev, search: (e.target as HTMLInputElement).value, page: 0 }))
           }
         />
         <select
           data-testid="history-tag-filter"
           className="sg-select"
+          aria-label="Filter by tag"
           value={query.tag || ''}
-          onChange={(e: any) =>
-            setQuery((prev: any) => ({ ...prev, tag: e.target.value || null, page: 0 }))
+          onChange={(e: Event) =>
+            setQuery((prev: QueryState) => ({ ...prev, tag: (e.target as HTMLSelectElement).value || null, page: 0 }))
           }
         >
           <option value="">All Tags</option>
@@ -336,11 +337,12 @@ export default function HistoryManagerIsland(
         <select
           data-testid="history-correspondent-filter"
           className="sg-select"
+          aria-label="Filter by correspondent"
           value={query.correspondent || ''}
-          onChange={(e: any) =>
-            setQuery((prev: any) => ({
+          onChange={(e: Event) =>
+            setQuery((prev: QueryState) => ({
               ...prev,
-              correspondent: e.target.value || null,
+              correspondent: (e.target as HTMLSelectElement).value || null,
               page: 0
             }))
           }
@@ -363,8 +365,9 @@ export default function HistoryManagerIsland(
                 <input
                   type="checkbox"
                   data-testid="history-select-all"
+                  aria-label="Select all history rows"
                   checked={rows.length > 0 && selected.size === rows.length}
-                  onChange={(e: any) => toggleSelectAll(e.target.checked)}
+                  onChange={(e: Event) => toggleSelectAll((e.target as HTMLInputElement).checked)}
                 />
               </th>
               <th>ID</th>
@@ -373,7 +376,7 @@ export default function HistoryManagerIsland(
                   type="button"
                   className="sg-sort"
                   onClick={() =>
-                    setQuery((prev: any) => ({
+                    setQuery((prev: QueryState) => ({
                       ...prev,
                       sort: {
                         column: 'title',
@@ -392,7 +395,7 @@ export default function HistoryManagerIsland(
                   type="button"
                   className="sg-sort"
                   onClick={() =>
-                    setQuery((prev: any) => ({
+                    setQuery((prev: QueryState) => ({
                       ...prev,
                       sort: {
                         column: 'created_at',
@@ -423,7 +426,7 @@ export default function HistoryManagerIsland(
                 </td>
               </tr>
             )}
-            {!loading && rows.map((row) => {
+            {!loading && rows.map((row: HistoryDoc) => {
               const summary = overlaySummaries[row.document_id];
               return (
                 <tr key={row.document_id}>
@@ -431,6 +434,7 @@ export default function HistoryManagerIsland(
                     <input
                       type="checkbox"
                       data-testid={`history-select-${row.document_id}`}
+                      aria-label={`Select history row ${row.document_id}`}
                       checked={selected.has(row.document_id)}
                       onChange={() => toggleSelectOne(row.document_id)}
                     />
@@ -445,7 +449,7 @@ export default function HistoryManagerIsland(
                   <td>
                     {row.tags?.length ? (
                       <div className="sg-tags">
-                        {row.tags.map((tag) => (
+                        {row.tags.map((tag: { id: number; name: string; color?: string }) => (
                           <span key={tag.id} className="sg-tag">
                             {tag.name}
                           </span>
@@ -466,7 +470,13 @@ export default function HistoryManagerIsland(
                           <span
                             key={domain}
                             className="sg-badge"
-                            style={{ color: getDomainColor(domain), borderColor: `${getDomainColor(domain)}55` }}
+                            ref={(el: HTMLSpanElement | null) => {
+                              if (el) {
+                                const color = getDomainColor(domain);
+                                el.style.setProperty('color', color);
+                                el.style.setProperty('border-color', `${color}55`);
+                              }
+                            }}
                           >
                             {domain.slice(0, 1)} {count}
                           </span>
@@ -538,7 +548,7 @@ export default function HistoryManagerIsland(
             className="sg-link"
             disabled={query.page <= 0}
             onClick={() =>
-              setQuery((prev: any) => ({ ...prev, page: Math.max(0, prev.page - 1) }))
+              setQuery((prev: QueryState) => ({ ...prev, page: Math.max(0, prev.page - 1) }))
             }
           >
             Previous
@@ -551,7 +561,7 @@ export default function HistoryManagerIsland(
             className="sg-link"
             disabled={query.page + 1 >= pageCount}
             onClick={() =>
-              setQuery((prev: any) => ({
+              setQuery((prev: QueryState) => ({
                 ...prev,
                 page: Math.min(pageCount - 1, prev.page + 1)
               }))

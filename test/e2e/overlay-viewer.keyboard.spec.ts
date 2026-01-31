@@ -5,7 +5,7 @@ test.describe('OverlayViewer keyboard shortcuts (E2E)', () => {
     try {
       await page.goto('/manual');
     } catch (e) {
-      test.skip(true, 'Backend not reachable for E2E run: ' + (e && e.message));
+      test.skip(true, 'Backend not reachable for E2E run: ' + ((e as any) && (e as any).message));
       return;
     }
 

@@ -88,7 +88,7 @@ test('Manual page: enumerate elements and verify Manual Editor fields populated'
   await page.evaluate(() => {
     (window as any).__manual_metadata_events = [];
     window.addEventListener('manual:metadata-updated', (e) => {
-      (window as any).__manual_metadata_events.push(e && e.detail ? e.detail : null);
+      (window as any).__manual_metadata_events.push((e as any) && (e as any).detail ? (e as any).detail : null);
     });
   });
 
@@ -105,12 +105,12 @@ test('Manual page: enumerate elements and verify Manual Editor fields populated'
 
   // Dump some debug info from the page to help diagnose why the preview isn't populating
   const debugState = await page.evaluate(() => ({
-    selectOuter: document.getElementById('documentSelect') ? document.getElementById('documentSelect').outerHTML : null,
-    selectValue: document.getElementById('documentSelect') ? document.getElementById('documentSelect').value : null,
-    previewText: document.getElementById('contentPreview') ? document.getElementById('contentPreview').textContent : null,
+    selectOuter: document.getElementById('documentSelect') ? (document.getElementById('documentSelect') as HTMLElement).outerHTML : null,
+    selectValue: document.getElementById('documentSelect') ? (document.getElementById('documentSelect') as HTMLSelectElement).value : null,
+    previewText: document.getElementById('contentPreview') ? document.getElementById('contentPreview')?.textContent : null,
     islandRuntimeMounted: (window as any).__islandRuntimeMounted || false,
     manualMetadataEvents: (window as any).__manual_metadata_events || [],
-    manualEditorHydrated: document.querySelector('[data-testid="manual-editor-island-root"]') ? document.querySelector('[data-testid="manual-editor-island-root"]').getAttribute('data-hydrated') : null
+    manualEditorHydrated: document.querySelector('[data-testid="manual-editor-island-root"]') ? document.querySelector('[data-testid="manual-editor-island-root"]')?.getAttribute('data-hydrated') : null
   }));
   console.log('[e2e-debug] post-select debug', debugState);
 
@@ -122,7 +122,10 @@ test('Manual page: enumerate elements and verify Manual Editor fields populated'
   console.log('[e2e-debug] manual_metadata_events after injected event:', injectedEvents);
 
   // Wait up to a short time for the content preview to populate
-  await page.waitForFunction(() => document.getElementById('contentPreview') && document.getElementById('contentPreview').textContent && document.getElementById('contentPreview').textContent.length > 0, { timeout: 2000 }).catch(() => null);
+  await page.waitForFunction(() => {
+    const el = document.getElementById('contentPreview');
+    return el && el.textContent && el.textContent.length > 0;
+  }, { timeout: 2000 }).catch(() => null);
 
   // Wait for content preview to be populated from preview route
   await expect(page.locator('#contentPreview')).toHaveText('Page 1 content');
@@ -172,7 +175,7 @@ test('Manual page: enumerate elements and verify Manual Editor fields populated'
     await page.screenshot({ path: screenshotPath, fullPage: true });
 
     const enumeration = await page.evaluate(() => {
-      const elements = [];
+      const elements: any[] = [];
       document.querySelectorAll('*').forEach(el => {
         const node = {
           tag: el.tagName.toLowerCase(),
@@ -191,7 +194,7 @@ test('Manual page: enumerate elements and verify Manual Editor fields populated'
     fs.writeFileSync(jsonPath, JSON.stringify({ url: page.url(), timestamp: new Date().toISOString(), enumeration }, null, 2));
     console.log('[e2e-artifact] screenshot saved:', screenshotPath, 'json saved:', jsonPath);
   } catch (e) {
-    console.warn('[e2e-artifact] could not write artifacts:', e && e.message);
+    console.warn('[e2e-artifact] could not write artifacts:', (e as any) && (e as any).message);
   }
 
   // Assert expectations and surface findings clearly

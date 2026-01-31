@@ -29,6 +29,7 @@ if (typeof HTMLCanvasElement !== 'undefined') {
       clip: vi.fn(),
       fillText: vi.fn(),
       getContextAttributes: vi.fn(() => ({})),
+      strokeRect: vi.fn(),
     } as any;
   });
 

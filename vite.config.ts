@@ -23,12 +23,13 @@ export default defineConfig({
     outDir: path.resolve(__dirname, 'public/js/dist'),
     emptyOutDir: true,
     lib: {
-      $1
+      entry: {
         'unified-workspace': path.resolve(__dirname, 'src/islands/UnifiedWorkspaceIsland.tsx'),
         'document-context-bar': path.resolve(__dirname, 'src/islands/DocumentContextBarIsland.tsx'),
         'context-sidebar': path.resolve(__dirname, 'src/islands/ContextSidebarIsland.tsx'),
         'island-runtime': path.resolve(__dirname, 'src/islands/runtime.browser.tsx'),
         'manual-editor': path.resolve(__dirname, 'src/islands/ManualEditorIsland.tsx'),
+        'smart-metadata': path.resolve(__dirname, 'src/islands/SmartMetadataIsland.tsx'),
         'feedback-controls': path.resolve(__dirname, 'src/islands/FeedbackControlsIsland.tsx'),
         'history-tabs': path.resolve(__dirname, 'src/islands/HistoryTabsIsland.tsx'),
         'history-manager': path.resolve(__dirname, 'src/islands/HistoryManagerIsland.tsx'),
@@ -40,7 +41,6 @@ export default defineConfig({
         'settings-sidebar': path.resolve(__dirname, 'src/islands/SettingsSidebarIsland.tsx'),
         'connection-settings': path.resolve(__dirname, 'src/islands/ConnectionSettingsIsland.tsx'),
         'ai-provider': path.resolve(__dirname, 'src/islands/AIProviderIsland.tsx'),
-        'expert-models': path.resolve(__dirname, 'src/islands/ExpertModelsIsland.tsx'),
         'restart-banner': path.resolve(__dirname, 'src/islands/RestartBannerIsland.tsx'),
         'developer-settings': path.resolve(__dirname, 'src/islands/DeveloperSettingsIsland.tsx'),
         'presets-manager': path.resolve(__dirname, 'src/islands/PresetsManagerIsland.tsx'),

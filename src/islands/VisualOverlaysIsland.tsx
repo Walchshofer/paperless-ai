@@ -1,6 +1,6 @@
 import { h } from 'preact';
 import { useEffect, useState, useRef } from 'preact/hooks';
-import type { Images, OverlaysByImage } from '../ui/contracts/VisualOverlays.contract';
+import type { Images, OverlaysByImage, Image, Overlay } from '../ui/contracts/VisualOverlays.contract';
 
 /**
  * VisualOverlaysIsland
@@ -15,14 +15,38 @@ interface Props {
   overlaysByImage?: OverlaysByImage;
 }
 
+// Types for fetch options and responses
+interface FetchOptions {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
+  signal?: AbortSignal;
+}
+
+interface FetchResponse {
+  ok: boolean;
+  status: number;
+  json(): Promise<unknown>;
+}
+
+type FetchFunction = (url: string, options?: FetchOptions) => Promise<FetchResponse>;
+
+interface FetchOverlaysOptions {
+  timeoutMs?: number;
+}
+
+interface FetchError extends Error {
+  code?: string;
+}
+
 // Simple in-memory cache with TTL (ms)
-const overlayCache: Map<string, { ts: number; data: any }> = new Map();
+const overlayCache: Map<string, { ts: number; data: Overlay[] }> = new Map();
 export const CACHE_TTL = 1000 * 60 * 5; // 5 minutes
 
 // Debounce helper
-export function debounce(fn: (...args: any[]) => void, wait = 200) {
-  let t: any = null;
-  return (...args: any[]) => {
+export function debounce<T extends unknown[]>(fn: (...args: T) => void, wait = 200): (...args: T) => void {
+  let t: ReturnType<typeof setTimeout> | null = null;
+  return (...args: T) => {
     if (t) clearTimeout(t);
     t = setTimeout(() => fn(...args), wait);
   };
@@ -39,18 +63,22 @@ export function normalizeBoxToPixels(bbox: { x: number; y: number; width: number
 }
 
 // Helper to extract visible image ids from IntersectionObserverEntry list (testable)
-export function getVisibleImageIds(entries: Array<any>): string[] {
+export function getVisibleImageIds(entries: Array<IntersectionObserverEntry>): string[] {
   const ids: string[] = [];
-  entries.forEach((e) => {
+  entries.forEach((e: IntersectionObserverEntry) => {
     const target = e.target as HTMLElement;
     const id = target?.dataset?.imageId || target?.getAttribute?.('data-image-id') || null;
     if (!id) return;
-    if (e.isIntersecting || e.intersectionRatio > 0) ids.push(id);
+    if ((e as IntersectionObserverEntry).isIntersecting || (e as IntersectionObserverEntry).intersectionRatio > 0) ids.push(id);
   });
   return ids;
 }
 
-export async function fetchOverlaysForImage(image: any, fetchImpl: any = (globalThis as any).fetch, options: { timeoutMs?: number } = {}) {
+export async function fetchOverlaysForImage(
+  image: Image | null | undefined,
+  fetchImpl: FetchFunction = (globalThis as { fetch?: FetchFunction }).fetch as FetchFunction,
+  options: FetchOverlaysOptions = {}
+): Promise<Overlay[]> {
   if (!image) return [];
   const cacheKey = image.id || image.originalSrc || image.thumbnailSrc || JSON.stringify(image);
   const now = Date.now();
@@ -59,7 +87,7 @@ export async function fetchOverlaysForImage(image: any, fetchImpl: any = (global
 
   // Determine endpoint
   let url = '';
-  let opts: any = { method: 'GET' };
+  let opts: FetchOptions = { method: 'GET' };
   if (image.id) {
     url = `/api/visual-rag/overlays?imageId=${encodeURIComponent(image.id)}`;
   } else if (image.originalSrc) {
@@ -75,9 +103,9 @@ export async function fetchOverlaysForImage(image: any, fetchImpl: any = (global
   opts.signal = controller.signal;
 
   // timeout handling
-  let timeoutHandle: any = null;
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
   const timeoutMs = options.timeoutMs || 10000; // default 10s
-  const timeoutPromise = new Promise((_, reject) => {
+  const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutHandle = setTimeout(() => {
       controller.abort();
       reject(Object.assign(new Error('Fetch timeout'), { code: 'timeout' }));
@@ -87,18 +115,19 @@ export async function fetchOverlaysForImage(image: any, fetchImpl: any = (global
   try {
     const res = await Promise.race([fetchImpl(url, opts), timeoutPromise]);
     if (!res || !res.ok) {
-      const err: any = new Error('Overlay service error');
+      const err: FetchError = new Error('Overlay service error');
       err.code = res && res.status === 503 ? 'service_unavailable' : 'fetch_error';
       throw err;
     }
-    const json = await res.json();
-    const overlays = Array.isArray(json.overlays) ? json.overlays : json;
+    const json = await res.json() as { overlays?: Overlay[] } | Overlay[];
+    const overlays = Array.isArray(json) ? json : (Array.isArray((json as { overlays?: Overlay[] }).overlays) ? (json as { overlays: Overlay[] }).overlays : []);
     overlayCache.set(cacheKey, { ts: now, data: overlays });
     return overlays;
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Do not cache failures; attach code if missing
-    if (!err.code) err.code = err.name === 'AbortError' ? 'timeout' : 'fetch_error';
-    throw err;
+    const fetchErr = err as FetchError;
+    if (!fetchErr.code) fetchErr.code = fetchErr.name === 'AbortError' ? 'timeout' : 'fetch_error';
+    throw fetchErr;
   } finally {
     if (timeoutHandle) clearTimeout(timeoutHandle);
   }
@@ -107,12 +136,12 @@ export async function fetchOverlaysForImage(image: any, fetchImpl: any = (global
 export default function VisualOverlaysIsland(props: Props) {
   const { images = [], overlaysByImage = {} } = props;
   const [mounted, setMounted] = useState(false);
-  const [localOverlays, setLocalOverlays] = useState<Record<string, any[]>>(overlaysByImage || {});
+  const [localOverlays, setLocalOverlays] = useState<Record<string, Overlay[]>>(overlaysByImage || {});
   const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({});
   const [errorMap, setErrorMap] = useState<Record<string, string | null>>({});
-  const controllersRef = useRef<Map<string, AbortController>>(new Map());
-  const imageRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const observerRef = useRef<any | null>(null);
+  const controllersRef = useRef(new Map<string, AbortController>());
+  const imageRefs = useRef(new Map<string, HTMLElement>());
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -122,39 +151,41 @@ export default function VisualOverlaysIsland(props: Props) {
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') return;
 
-    const intersectCb = debounce((entries: any[]) => {
+    const intersectCb = debounce((entries: IntersectionObserverEntry[]) => {
       const visibleIds = getVisibleImageIds(entries);
       // fetch overlays only for visible ids
-      visibleIds.forEach((id) => {
-        const img = images.find((i) => i.id === id || i.originalSrc === id || i.thumbnailSrc === id);
+      visibleIds.forEach((id: string) => {
+        const img = images.find((i: Image) => i.id === id || i.originalSrc === id || i.thumbnailSrc === id);
         if (!img) return;
         const key = img.id || img.originalSrc || '';
         // If overlays pre-provided, set and skip
-        if (Array.isArray(overlaysByImage && overlaysByImage[img.id])) {
-          setLocalOverlays((s) => ({ ...s, [img.id]: overlaysByImage[img.id] }));
+        if (overlaysByImage && Array.isArray(overlaysByImage[img.id])) {
+          setLocalOverlays((s: Record<string, Overlay[]>) => ({ ...s, [img.id]: overlaysByImage[img.id] }));
           return;
         }
         const cached = overlayCache.get(key);
         if (cached && (Date.now() - cached.ts) < CACHE_TTL) {
-          setLocalOverlays((s) => ({ ...s, [img.id]: cached.data }));
+          setLocalOverlays((s: Record<string, Overlay[]>) => ({ ...s, [img.id]: cached.data }));
           return;
         }
 
         // Start fetch for visible image
         (async () => {
-          setLoadingMap((m) => ({ ...m, [key]: true }));
-          setErrorMap((m) => ({ ...m, [key]: null }));
+          setLoadingMap((m: Record<string, boolean>) => ({ ...m, [key]: true }));
+          setErrorMap((m: Record<string, string | null>) => ({ ...m, [key]: null }));
           const controller = new AbortController();
           controllersRef.current.set(key, controller);
 
           try {
-            const overlays = await fetchOverlaysForImage(img, (globalThis as any).fetch, { timeoutMs: 8000 });
-            setLocalOverlays((s) => ({ ...s, [img.id]: overlays }));
-          } catch (err: any) {
-            const code = err?.code || 'fetch_error';
-            setErrorMap((m) => ({ ...m, [key]: `${code}: ${err?.message || 'Failed to fetch overlays'}` }));
+            const overlays = await fetchOverlaysForImage(img, (globalThis as { fetch?: FetchFunction }).fetch as FetchFunction, { timeoutMs: 8000 });
+            setLocalOverlays((s: Record<string, Overlay[]>) => ({ ...s, [img.id]: overlays }));
+          } catch (err: unknown) {
+            const e = err as FetchError;
+            const code = e?.code || 'fetch_error';
+            const msg = e?.message || 'Failed to fetch overlays';
+            setErrorMap((m: Record<string, string | null>) => ({ ...m, [key]: `${code}: ${msg}` }));
           } finally {
-            setLoadingMap((m) => ({ ...m, [key]: false }));
+            setLoadingMap((m: Record<string, boolean>) => ({ ...m, [key]: false }));
             controllersRef.current.delete(key);
           }
         })();
@@ -166,8 +197,8 @@ export default function VisualOverlaysIsland(props: Props) {
     }, { root: null, threshold: 0.05 });
 
     // Observe the registered image elements
-    imageRefs.current.forEach((el) => {
-      if (el) observerRef.current.observe(el);
+    imageRefs.current.forEach((el: HTMLElement) => {
+      if (el && observerRef.current) observerRef.current.observe(el);
     });
 
     return () => {
@@ -175,7 +206,7 @@ export default function VisualOverlaysIsland(props: Props) {
         observerRef.current.disconnect();
         observerRef.current = null;
       }
-      controllersRef.current.forEach((c) => c.abort());
+      controllersRef.current.forEach((c: AbortController) => c.abort());
       controllersRef.current.clear();
     };
   }, [images, overlaysByImage]);
@@ -193,9 +224,9 @@ export default function VisualOverlaysIsland(props: Props) {
 
   // Fallback: If an image has pre-provided overlays, ensure they are set on mount
   useEffect(() => {
-    images.forEach((img) => {
-      if (Array.isArray(overlaysByImage && overlaysByImage[img.id])) {
-        setLocalOverlays((s) => ({ ...s, [img.id]: overlaysByImage[img.id] }));
+    images.forEach((img: Image) => {
+      if (overlaysByImage && Array.isArray(overlaysByImage[img.id])) {
+        setLocalOverlays((s: Record<string, Overlay[]>) => ({ ...s, [img.id]: overlaysByImage[img.id] }));
       }
     });
   }, [images, overlaysByImage]);
@@ -203,7 +234,7 @@ export default function VisualOverlaysIsland(props: Props) {
   return (
     <div data-testid="visual-overlays-island-root" data-hydrated={mounted ? 'true' : 'false'}>
       <div className="visual-overlays-list space-y-6">
-        {images.map((img) => (
+        {images.map((img: Image) => (
           <div key={img.id} className="visual-image-item relative" data-testid={`visual-image-${img.id}`}>
             <img
               ref={attachImageRef(img.id)}
@@ -218,15 +249,14 @@ export default function VisualOverlaysIsland(props: Props) {
             {/* SVG overlay that scales with the image container */}
             <div data-testid={`overlay-container-${img.id}`} className="absolute inset-0 pointer-events-none">
               <svg data-testid={`overlay-svg-${img.id}`} width="100%" height="100%" preserveAspectRatio="none" className="block">
-                {(localOverlays[img.id] || []).map((ov: any) => {
-                  const bbox = normalizeBoxToPixels(ov.bbox || { x: 0, y: 0, width: 0, height: 0 }, 1000, 1000);
+                {(localOverlays[img.id] || []).map((ov: Overlay, index: number) => {
                   // Using percent viewBox mapping so that scaling works; we will render rect in percentage coordinates
                   const x = (ov.bbox?.x || 0) * 100;
                   const y = (ov.bbox?.y || 0) * 100;
                   const w = (ov.bbox?.width || 0) * 100;
                   const h = (ov.bbox?.height || 0) * 100;
                   return (
-                    <rect key={ov.id} data-testid={`overlay-marker-${ov.id}`} x={`${x}%`} y={`${y}%`} width={`${w}%`} height={`${h}%`} fill="none" stroke="rgba(34,197,94,0.9)" stroke-width="2" />
+                    <rect key={ov.id || index} data-testid={`overlay-marker-${ov.id || index}`} x={`${x}%`} y={`${y}%`} width={`${w}%`} height={`${h}%`} fill="none" stroke="rgba(34,197,94,0.9)" stroke-width="2" />
                   );
                 })}
               </svg>

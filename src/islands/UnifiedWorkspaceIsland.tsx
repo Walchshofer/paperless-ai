@@ -1,11 +1,23 @@
 import { h } from 'preact';
-import { useEffect } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
+
+function dispatchEventSafe(name: string, detail?: unknown) {
+  try {
+    const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null;
+    if (_doc && typeof _doc.dispatchEvent === 'function') _doc.dispatchEvent(new CustomEvent(name, { detail } as CustomEventInit<any>));
+  } catch (err) { /* ignore */ }
+  try {
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') window.dispatchEvent(new CustomEvent(name, { detail } as CustomEventInit<any>));
+  } catch (err) { /* ignore */ }
+}
 
 export default function UnifiedWorkspaceIsland(props: any) {
+  const [isDirty, setIsDirty] = useState(false);
+
   // Listen for metadata locate events and translate to overlay highlight events
   useEffect(() => {
-    const handler = (e: any) => {
-      const detail = e?.detail || {};
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
       const fieldId = detail.fieldId || detail.field_id || detail.id;
       try { (window as any).__last_metadata_locate = { fieldId, handled: false }; } catch (err) { /* ignore */ }
       if (!fieldId) return;
@@ -83,10 +95,66 @@ export default function UnifiedWorkspaceIsland(props: any) {
     return () => window.removeEventListener('metadata:locate-field', handler as EventListener);
   }, [props.visual]);
 
+  // Central workspace dirty-state management
+  useEffect(() => {
+    // ensure global state container exists
+    (window as any).__workspaceState = (window as any).__workspaceState || {};
+
+    const onDirty = (e: Event) => {
+      const documentId = (e as CustomEvent)?.detail?.documentId ?? props.documentId ?? null;
+      if (!documentId) return;
+      const state = (window as any).__workspaceState;
+      state[documentId] = state[documentId] || {};
+      state[documentId].isDirty = true;
+      state[documentId].lastDirtyAt = Date.now();
+      (window as any).__workspaceState = state;
+
+      // If this island is showing the same document, update local UI
+      if (props.documentId && Number(props.documentId) === Number(documentId)) setIsDirty(true);
+
+      try { (window as any).__last_workspace_state_change = { documentId, isDirty: true }; } catch (err) { /* ignore */ }
+      dispatchEventSafe('workspace:state-change', { documentId, isDirty: true });
+    };
+
+    const onSaved = (e: Event) => {
+      const documentId = (e as CustomEvent)?.detail?.documentId ?? props.documentId ?? null;
+      if (!documentId) return;
+      const state = (window as any).__workspaceState;
+      state[documentId] = state[documentId] || {};
+      state[documentId].isDirty = false;
+      state[documentId].lastSavedAt = Date.now();
+      (window as any).__workspaceState = state;
+
+      if (props.documentId && Number(props.documentId) === Number(documentId)) setIsDirty(false);
+
+      try { (window as any).__last_workspace_state_change = { documentId, isDirty: false }; } catch (err) { /* ignore */ }
+      dispatchEventSafe('workspace:state-change', { documentId, isDirty: false });
+    };
+
+    window.addEventListener('workspace:dirty', onDirty as EventListener);
+    window.addEventListener('sync:success', onSaved as EventListener);
+
+    // initialize local isDirty from global state
+    try {
+      const initDirty = (window as any).__workspaceState?.[props.documentId]?.isDirty || false;
+      setIsDirty(Boolean(initDirty));
+    } catch (err) { /* ignore */ }
+
+    return () => {
+      window.removeEventListener('workspace:dirty', onDirty as EventListener);
+      window.removeEventListener('sync:success', onSaved as EventListener);
+    };
+  }, [props.documentId]);
+
   return (
     <div className="h-full w-full flex flex-col p-8">
-      <div className="flex-1 border-2 border-dashed border-[#e5e0d8] rounded-lg flex items-center justify-center">
+      <div className="flex-1 border-2 border-dashed border-[#e5e0d8] rounded-lg flex items-center justify-center relative">
         <p className="font-['Space_Grotesk'] text-[#888]">Document Viewer Area Placeholder</p>
+        {props.documentId ? (
+          <div data-testid="workspace-state-badge" data-state={isDirty ? 'unsaved' : 'clean'} className="absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-semibold bg-white border">
+            {isDirty ? 'Unsaved Changes' : 'Saved'}
+          </div>
+        ) : null}
       </div>
     </div>
   );

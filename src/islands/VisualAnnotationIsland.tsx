@@ -39,7 +39,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
   useEffect(() => {
     if (props.annotations && Array.isArray(props.annotations)) {
       try {
-        const mapped = (props.annotations as any[]).map((a) => ({
+        const mapped = (props.annotations as any[]).map((a: any) => ({
           id: a.id,
           label: a.label || '',
           note: a.note || '',
@@ -54,7 +54,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
         // eslint-disable-next-line no-console
         console.debug && console.debug('VisualAnnotationIsland init annotations', mapped);
         setAnnotations(mapped as Annotation[]);
-      } catch (e) { /* ignore */ }
+      } catch (err: unknown) { /* ignore */ }
     }
   }, [props.annotations]);
 
@@ -87,8 +87,9 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
           context: a.context || undefined
         }));
         setAnnotations(mapped as Annotation[]);
-      } catch (e: any) {
-        console.error('Failed to load annotations:', e && e.message);
+      } catch (err: unknown) {
+        const msg = err && typeof err === 'object' && 'message' in err ? (err as any).message : String(err);
+        console.error('Failed to load annotations:', msg);
       }
     }
 
@@ -98,8 +99,8 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
 
   // Listen for annotations loaded events from other islands (OverlayViewerIsland)
   useEffect(() => {
-    const handler = (e: any) => {
-      const anns = e?.detail?.annotations;
+    const handler = (e: Event) => {
+      const anns = (e as CustomEvent)?.detail?.annotations;
       if (!Array.isArray(anns)) return;
       const mapped = anns.map((a: any) => ({
         id: a.id,
@@ -121,6 +122,8 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
   const canvasRef = useRef(null as HTMLDivElement | null);
   const startRef = useRef(null as {x: number, y: number} | null);
   const mountedRef = useRef(true);
+  const drawToggleRef = useRef(null as HTMLButtonElement | null);
+  const liveRectElRef = useRef(null as HTMLDivElement | null);
 
   // Calculate exponential backoff delay
   const getBackoffDelay = useCallback((attempt: number) => {
@@ -169,7 +172,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
         setStatus('error');
         setErrorMessage(`Sidecar returned status ${res.status}`);
       }
-    } catch (e: any) {
+    } catch (err: unknown) {
       clearTimeout(timeoutId);
       if (!mountedRef.current) return;
 
@@ -182,7 +185,9 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
         setTimeout(() => mountedRef.current && checkSidecar(retryAttemptRef), delay);
       } else {
         setStatus('error');
-        setErrorMessage(e.name === 'AbortError' ? 'Connection timeout' : e.message);
+        const name = (err && typeof err === 'object' && 'name' in err) ? (err as any).name : undefined;
+        const message = (err && typeof err === 'object' && 'message' in err) ? (err as any).message : String(err);
+        setErrorMessage(name === 'AbortError' ? 'Connection timeout' : message);
       }
     }
   }, [getBackoffDelay]);
@@ -199,6 +204,13 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
   }, [checkSidecar, retryNonce]);
 
   // 2. Canvas Interaction Logic
+  // Keep the aria-pressed attribute as a string token for accessibility tools
+  useEffect(() => {
+    if (drawToggleRef.current) {
+      drawToggleRef.current.setAttribute('aria-pressed', isDrawing ? 'true' : 'false');
+    }
+  }, [isDrawing]);
+
   const getLocalCoords = (evt: MouseEvent) => {
     if (!canvasRef.current) return { x: 0, y: 0 };
     const rect = canvasRef.current.getBoundingClientRect();
@@ -208,7 +220,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
       w: rect.width,
       h: rect.height
     };
-  };
+  }; 
 
   const handleMouseDown = (e: MouseEvent) => {
     if (!isDrawing || status !== 'ready') return;
@@ -246,6 +258,16 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
     setLiveRect(null);
     startRef.current = null;
   };
+
+  // Keep live-rect CSS variables in sync when liveRect changes
+  useEffect(() => {
+    const el = liveRectElRef.current;
+    if (!el || !liveRect) return;
+    el.style.setProperty('--vai-x', `${liveRect.x}px`);
+    el.style.setProperty('--vai-y', `${liveRect.y}px`);
+    el.style.setProperty('--vai-w', `${liveRect.w}px`);
+    el.style.setProperty('--vai-h', `${liveRect.h}px`);
+  }, [liveRect]);
 
   // 3. Actions
   const handleConfirm = async (index: number) => {
@@ -314,7 +336,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
     const payload = {
       documentId: props.documentId || null,
       page: props.page || null,
-      annotations: annotations.map((a) => ({ bbox: { x: a.x, y: a.y, width: a.width, height: a.height }, label: a.label, note: a.note }))
+      annotations: annotations.map((a: Annotation) => ({ bbox: { x: a.x, y: a.y, width: a.width, height: a.height }, label: a.label, note: a.note }))
     };
 
     try {
@@ -346,8 +368,8 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
         return Math.abs(local.x - cx) < 0.001 && Math.abs(local.y - cy) < 0.001 && Math.abs(local.width - cwidth) < 0.001 && Math.abs(local.height - cheight) < 0.001;
       };
 
-      const newAnns = annotations.map((local) => {
-        const found = created.find((c) => findMatch(local, c));
+      const newAnns = annotations.map((local: Annotation) => {
+        const found = created.find((c: any) => findMatch(local, c));
         if (found) {
           return {
             id: found.id,
@@ -368,9 +390,10 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
 
       // keep legacy event for other islands
       document.dispatchEvent(new CustomEvent('payload:ready', { detail: payload }));
-    } catch (e: any) {
-      console.error('Failed to save annotations:', e && e.message);
-      setSaveError(e && e.message ? e.message : 'Failed to save annotations');
+    } catch (err: unknown) {
+      const msg = (err && typeof err === 'object' && 'message' in err) ? (err as any).message : String(err);
+      console.error('Failed to save annotations:', msg);
+      setSaveError(msg || 'Failed to save annotations');
     } finally {
       setIsSaving(false);
     }
@@ -383,7 +406,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
     setErrorMessage('');
     mountedRef.current = true;
     // Increment nonce to trigger the handshake effect to re-run
-    setRetryNonce((n) => n + 1);
+    setRetryNonce((n: number) => n + 1);
   }, []);
 
   return (
@@ -443,9 +466,10 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
 
       <div className="vai-controls">
         <button
+          ref={drawToggleRef}
           data-testid="draw-toggle"
           onClick={() => setIsDrawing(!isDrawing)}
-          aria-pressed={String(isDrawing)}
+          aria-pressed="false"
           disabled={status !== 'ready'}
           className={`vai-btn ${isDrawing ? 'vai-btn-active' : ''}`}
         >
@@ -504,12 +528,14 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
         {annotations.map((ann: Annotation, i: number) => (
           <div
             key={i}
-            style={{
-              '--vai-x': `${ann.x * 100}%`,
-              '--vai-y': `${ann.y * 100}%`,
-              '--vai-w': `${ann.width * 100}%`,
-              '--vai-h': `${ann.height * 100}%`
-            } as any}
+            ref={(el: HTMLDivElement | null) => {
+              if (el) {
+                el.style.setProperty('--vai-x', `${ann.x * 100}%`);
+                el.style.setProperty('--vai-y', `${ann.y * 100}%`);
+                el.style.setProperty('--vai-w', `${ann.width * 100}%`);
+                el.style.setProperty('--vai-h', `${ann.height * 100}%`);
+              }
+            }}
             className={`vai-annotation-box ${ann.confirmed ? 'vai-box-confirmed' : 'vai-box-default'}`}
             data-testid={`annotation-box-${i}`}
           />
@@ -518,16 +544,11 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
         {/* Live Rect during drawing */}
         {liveRect && (
           <div
-            style={{
-              '--vai-x': `${liveRect.x}px`,
-              '--vai-y': `${liveRect.y}px`,
-              '--vai-w': `${liveRect.w}px`,
-              '--vai-h': `${liveRect.h}px`
-            } as any}
+            ref={liveRectElRef}
             className="vai-annotation-box vai-box-live"
             data-testid="live-rect"
           />
-        )}
+        )} 
       </div>
 
       <div data-testid="annotations-list" className="vai-list" role="list">
@@ -542,7 +563,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
               data-testid={`annotation-label-${i}`}
               placeholder="Label"
               value={ann.label}
-              onInput={async (e: any) => {
+              onInput={async (e: Event) => {
                 const newAnns = [...annotations];
                 const val = (e.target as HTMLInputElement).value;
                 newAnns[i].label = val;
@@ -567,7 +588,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
               data-testid={`annotation-note-${i}`}
               placeholder="Note (optional)"
               value={ann.note}
-              onInput={(e: any) => {
+              onInput={(e: Event) => {
                 const newAnns = [...annotations];
                 newAnns[i].note = (e.target as HTMLInputElement).value;
                 setAnnotations(newAnns);

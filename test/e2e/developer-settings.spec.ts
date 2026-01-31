@@ -17,13 +17,13 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe('DeveloperSettingsIsland E2E Tests', () => {
-  const clickToggle = async (page, id: string) => {
+  const clickToggle = async (page: any, id: string) => {
     const input = page.locator(`[data-testid="${id}"]`);
     const visible = input.locator('xpath=following-sibling::*[1]');
     try {
       await visible.click({ timeout: 3000 });
     } catch (e) {
-      await page.evaluate((tid) => {
+      await page.evaluate((tid: any) => {
         const el = document.querySelector(`[data-testid="${tid}"]`) as HTMLInputElement | null;
         if (el) {
           el.checked = !el.checked;

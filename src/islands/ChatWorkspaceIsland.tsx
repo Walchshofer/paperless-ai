@@ -64,17 +64,15 @@ export default function ChatWorkspaceIsland(
     ? props.documents
     : [];
 
-  const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(
-    props.openDocumentId ?? null
+  const [selectedDocumentId, setSelectedDocumentId] = useState(
+    props.openDocumentId ?? null as number | null
   );
   const [selectedDocumentTitle, setSelectedDocumentTitle] = useState('');
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatMessages, setChatMessages] = useState([] as ChatMessage[]);
   const [messageInput, setMessageInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [streamError, setStreamError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'chat' | 'document' | 'visual'>(
-    'chat'
-  );
+  const [streamError, setStreamError] = useState(null as string | null);
+  const [activeTab, setActiveTab] = useState('chat' as 'chat' | 'document' | 'visual');
   const [docPreview, setDocPreview] = useState({
     title: '',
     content: '',
@@ -82,19 +80,19 @@ export default function ChatWorkspaceIsland(
     originalUrl: null as string | null,
     pageCount: 1
   });
-  const [modelOptions, setModelOptions] = useState<OllamaModelGroup[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string | null>(
-    props.ollamaDefaultModel ?? null
+  const [modelOptions, setModelOptions] = useState([] as OllamaModelGroup[]);
+  const [selectedModel, setSelectedModel] = useState(
+    props.ollamaDefaultModel ?? null as string | null
   );
   const [isModelLoading, setIsModelLoading] = useState(false);
-  const [modelLoadError, setModelLoadError] = useState<string | null>(null);
+  const [modelLoadError, setModelLoadError] = useState(null as string | null);
 
   const [guidedStep, setGuidedStep] = useState('Select a document to begin.');
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [chatContext, setChatContext] = useState<any[]>([]);
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
-  const chatHistoryRef = useRef<HTMLDivElement | null>(null);
-  const streamMessageIdRef = useRef<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState(null as string | null);
+  const [chatContext, setChatContext] = useState([] as any[]);
+  const chatEndRef = useRef(null as HTMLDivElement | null);
+  const chatHistoryRef = useRef(null as HTMLDivElement | null);
+  const streamMessageIdRef = useRef(null as string | null);
 
   const aiProvider = props.aiProvider || 'ollama';
 
@@ -141,7 +139,7 @@ export default function ChatWorkspaceIsland(
       // Build groups from providers
       const providers = props.modelConfig.providers || {};
       const groups: OllamaModelGroup[] = Object.keys(providers).flatMap((provider) => {
-        const models = Array.isArray(providers[provider]) ? providers[provider] : [];
+        const models = Array.isArray(providers[provider]) ? (providers[provider] as string[]) : [];
         if (!models.length) return [];
         return [{
           label: `${provider} models`,
@@ -226,12 +224,12 @@ export default function ChatWorkspaceIsland(
       }
       const data = await response.json();
 
-      const installed = Array.isArray(data.models) ? data.models : [];
+      const installed = Array.isArray(data.models) ? (data.models as string[]) : [];
       const expertRaw = Array.isArray(data.expertModels)
-        ? data.expertModels
+        ? (data.expertModels as any[])
         : [];
       const placeholders = Array.isArray(data.placeholderModels)
-        ? data.placeholderModels
+        ? (data.placeholderModels as string[])
         : [];
 
       const installedSet = new Set(installed.filter(Boolean));
@@ -284,8 +282,8 @@ export default function ChatWorkspaceIsland(
       setModelOptions(groups);
 
       const defaultModel = data.defaultModel || props.ollamaDefaultModel;
-      const defaultExists = Boolean(defaultModel) && groups.some((group) =>
-        group.models.some((model) => model.model === defaultModel)
+      const defaultExists = Boolean(defaultModel) && groups.some((group: OllamaModelGroup) =>
+        group.models.some((model: { label: string; model: string; placeholder?: boolean }) => model.model === defaultModel)
       );
 
       if (defaultExists) {
@@ -325,7 +323,7 @@ export default function ChatWorkspaceIsland(
     }
   }, []);
 
-  const [localTextRagStatus, setLocalTextRagStatus] = useState<any>(null);
+  const [localTextRagStatus, setLocalTextRagStatus] = useState(null as any);
 
   const initializeChat = useCallback(async (documentId: number) => {
     try {
@@ -395,7 +393,7 @@ export default function ChatWorkspaceIsland(
     const assistantEntryId = makeId();
     streamMessageIdRef.current = assistantEntryId;
 
-    setChatMessages((prev) => [
+    setChatMessages((prev: ChatMessage[]) => [
       ...prev,
       userEntry,
       {
@@ -415,7 +413,7 @@ export default function ChatWorkspaceIsland(
           documentId: selectedDocumentId,
           message: userMessage,
           model: selectedModel,
-          context: chatContext.length > 0 ? chatContext.map(c => ({
+          context: chatContext.length > 0 ? chatContext.map((c: any) => ({
              type: c.type,
              page: c.data?.page,
              excerpt: c.data?.text,
@@ -459,8 +457,8 @@ export default function ChatWorkspaceIsland(
           }
 
           if (parsed.content) {
-            setChatMessages((prev) =>
-              prev.map((msg) =>
+            setChatMessages((prev: ChatMessage[]) =>
+              prev.map((msg: ChatMessage) =>
                 msg.id === assistantEntryId
                   ? { ...msg, content: msg.content + parsed.content }
                   : msg
@@ -505,8 +503,8 @@ export default function ChatWorkspaceIsland(
               data-testid="chat-document-select"
               className="sg-select"
               value={selectedDocumentId ?? ''}
-              onChange={(e: any) => {
-                const value = e.target.value;
+              onChange={(e: Event) => {
+                const value = (e.target as HTMLSelectElement).value;
                 setSelectedDocumentId(value ? Number(value) : null);
               }}
             >
@@ -549,8 +547,8 @@ export default function ChatWorkspaceIsland(
                     className="sg-select"
                     value={selectedModel ?? ''}
                     onFocus={() => { if (!modelOptions.length) void loadOllamaModels(); }}
-                    onChange={async (e: any) => {
-                      const value = e.target.value || null;
+                    onChange={async (e: Event) => {
+                      const value = (e.target as HTMLSelectElement).value || null;
                       setSelectedModel(value);
 
                       // For Ollama we still have a verification endpoint; for other providers we skip verification
@@ -573,9 +571,9 @@ export default function ChatWorkspaceIsland(
                     {modelOptions.length === 0 && (
                       <option value="">No models returned</option>
                     )}
-                    {modelOptions.map((group) => (
+                    {modelOptions.map((group: OllamaModelGroup) => (
                       <optgroup label={group.label} key={group.label}>
-                        {group.models.map((model) => (
+                        {group.models.map((model: { label: string; model: string; placeholder?: boolean }) => (
                           <option value={model.model} key={model.model}>
                             {model.label}
                           </option>
@@ -601,7 +599,7 @@ export default function ChatWorkspaceIsland(
 
       <div className="material-card sg-card sg-card--workspace">
         <div className="sg-tabs">
-          {tabs.map((tab) => (
+          {tabs.map((tab: { id: string; label: string }) => (
             <button
               key={tab.id}
               type="button"
@@ -629,19 +627,19 @@ export default function ChatWorkspaceIsland(
                   className="sg-chat-history"
                   data-testid="chat-history"
                 >
-                  {chatMessages.map((msg) => (
+                  {chatMessages.map((msg: ChatMessage) => (
                     <div
                       key={msg.id}
                       className={`sg-message sg-message--${msg.role}`}
                       data-testid={`chat-message-${msg.role}`}
-                      ref={(el) => {
+                      ref={(el: HTMLDivElement | null) => {
                         if (msg.role === 'assistant' && el) {
                           highlightBlocks(el);
                         }
                       }}
                       dangerouslySetInnerHTML={{
                         __html: msg.role === 'assistant'
-                          ? safeMarkdown(msg.content).replace(/\[visual:(\d+)\/(\d+)\/(.*?)\]/g, (match, docId, pg, bbox) => {
+                          ? safeMarkdown(msg.content).replace(/\[visual:(\d+)\/(\d+)\/(.*?)\]/g, (match: string, docId: string, pg: string, bbox: string) => {
                               return `<a href="/manual?open=${docId}&page=${pg}&highlight=${encodeURIComponent(bbox)}" class="text-blue-600 hover:underline inline-flex items-center gap-1" title="View in Manual Mode"><i class="fas fa-search"></i> Visual Reference (Page ${pg})</a>`;
                             })
                           : msg.content
@@ -662,8 +660,8 @@ export default function ChatWorkspaceIsland(
                     className="sg-textarea"
                     placeholder="Ask about the document..."
                     value={messageInput}
-                    onInput={(e: any) => setMessageInput(e.target.value)}
-                    onKeyDown={(e: any) => {
+                    onInput={(e: Event) => setMessageInput((e.target as HTMLTextAreaElement).value)}
+                    onKeyDown={(e: KeyboardEvent) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         if (!isStreaming) void sendMessage();

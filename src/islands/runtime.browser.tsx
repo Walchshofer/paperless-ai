@@ -1,7 +1,10 @@
 import { h, render } from 'preact';
+import type { ComponentType } from 'preact';
+
 import VisualAnnotationIsland from './VisualAnnotationIsland';
 import FeedbackControlsIsland from './FeedbackControlsIsland';
 import ManualEditorIsland from './ManualEditorIsland';
+import SmartMetadataIsland from './SmartMetadataIsland';
 import HistoryTabsIsland from './HistoryTabsIsland';
 import OverlayViewerIsland from './OverlayViewerIsland';
 import VisualOverlaysIsland from './VisualOverlaysIsland';
@@ -15,6 +18,7 @@ import ExpertModelsIsland from './ExpertModelsIsland';
 import RestartBannerIsland from './RestartBannerIsland';
 import DeveloperSettingsIsland from './DeveloperSettingsIsland';
 import PresetsManagerIsland from './PresetsManagerIsland';
+import ExportPanelIsland from './ExportPanelIsland';
 import ViewModeToggleIsland from './ViewModeToggleIsland';
 import TagsManagerIsland from './TagsManagerIsland';
 import AIAnalysisIsland from './AIAnalysisIsland';
@@ -26,7 +30,7 @@ import UnifiedWorkspaceIsland from './UnifiedWorkspaceIsland';
 import DocumentContextBarIsland from './DocumentContextBarIsland';
 import ContextSidebarIsland from './ContextSidebarIsland';
 
-type IslandComponent = (props: any) => JSX.Element;
+type IslandComponent = (props: any) => any;
 
 type IslandRegistry = Record<string, IslandComponent>;
 
@@ -47,6 +51,7 @@ const registry: IslandRegistry = {
   'restart-banner-island': RestartBannerIsland,
   'developer-settings-island': DeveloperSettingsIsland,
   'presets-manager-island': PresetsManagerIsland,
+  'export-panel-island': ExportPanelIsland,
   'view-mode-toggle-island': ViewModeToggleIsland,
   'tags-manager-island': TagsManagerIsland,
   'ai-analysis-island': AIAnalysisIsland,
@@ -54,7 +59,7 @@ const registry: IslandRegistry = {
   'history-manager-island': HistoryManagerIsland,
   'manual-workspace-island': ManualWorkspaceIsland,
   'document-content-island': DocumentContentIsland,
-  $1
+  'smart-metadata-island': SmartMetadataIsland,
   'unified-workspace-island': UnifiedWorkspaceIsland,
   'document-context-bar-island': DocumentContextBarIsland,
   'context-sidebar-island': ContextSidebarIsland,

@@ -14,19 +14,20 @@ export default function RestartBannerIsland(props: Partial<RestartBannerSettings
 
   const [isVisible, setIsVisible] = useState(validated.initiallyVisible || false);
   const [reason, setReason] = useState(validated.initialReason || 'Settings changed');
-  const [changedSettings, setChangedSettings] = useState<string[]>(validated.initialChangedSettings || []);
+  const [changedSettings, setChangedSettings] = useState(validated.initialChangedSettings || [] as string[]);
 
   useEffect(() => {
     // Listen for restart-required events
-    const handleRestartRequired = (event: CustomEvent) => {
+    const handleRestartRequired = (event: CustomEvent<{ settings?: string[]; reason?: string }>) => {
       const detail = event.detail;
       setIsVisible(true);
       setReason(detail.reason || 'Settings changed');
 
       // Accumulate changed settings (avoid duplicates)
       if (detail.settings && Array.isArray(detail.settings)) {
-        setChangedSettings(prev => {
-          const combined = [...prev, ...detail.settings];
+        setChangedSettings((prev: string[]) => {
+          const additions = detail.settings || [];
+          const combined = [...prev, ...additions];
           return Array.from(new Set(combined));
         });
       }

@@ -12,10 +12,10 @@ try {
   // Server/test: CSS module may not be available at runtime
 }
 
-function dispatchEventSafe(name: string, detail: any) {
+function dispatchEventSafe(name: string, detail?: unknown) {
   if (typeof document === 'undefined') return;
   if (typeof document.dispatchEvent !== 'function') return;
-  document.dispatchEvent(new CustomEvent(name, { detail }));
+  document.dispatchEvent(new CustomEvent(name, { detail } as CustomEventInit<any>));
 }
 
 export default function FeedbackControlsIsland(
@@ -23,11 +23,12 @@ export default function FeedbackControlsIsland(
 ) {
   const available = props.availableComponents || ['tags', 'correspondent', 'document_type'];
   // map of component -> 'up' | 'down' | null
-  const [stateMap, setStateMap] = useState<Record<string, FeedbackState>>({});
+  const [stateMap, setStateMap] = useState({} as Record<string, FeedbackState>);
   const [isSyncing, setIsSyncing] = useState(false);
 
   // refs for accessibility updates
-  const refs = useRef<Record<string, { up?: HTMLButtonElement | null; down?: HTMLButtonElement | null }>>({});
+  const refs = useRef({} as Record<string, { up?: HTMLButtonElement | null; down?: HTMLButtonElement | null }>);
+
 
   // Load initial state from props
   useEffect(() => {
@@ -97,7 +98,7 @@ export default function FeedbackControlsIsland(
 
   const handleUp = useCallback((component: string) => {
     const newState = stateMap[component] === 'up' ? null : 'up';
-    setStateMap((prev) => ({ ...prev, [component]: newState }));
+    setStateMap((prev: Record<string, FeedbackState>) => ({ ...prev, [component]: newState }));
     if (newState === 'up') {
       emitFeedback(component, 'thumbs_up');
     }
@@ -105,7 +106,7 @@ export default function FeedbackControlsIsland(
 
   const handleDown = useCallback((component: string) => {
     const newState = stateMap[component] === 'down' ? null : 'down';
-    setStateMap((prev) => ({ ...prev, [component]: newState }));
+    setStateMap((prev: Record<string, FeedbackState>) => ({ ...prev, [component]: newState }));
     if (newState === 'down') {
       emitFeedback(component, 'thumbs_down');
     }
@@ -145,8 +146,8 @@ export default function FeedbackControlsIsland(
               <button
                 type="button"
                 data-testid={`thumbs-up-${c}`}
-                aria-pressed={String(stateMap[c] === 'up')}
-                ref={(el) => {
+
+                ref={(el: HTMLButtonElement | null) => {
                   refs.current[c] = Object.assign(refs.current[c] || {}, { up: el });
                 }}
                 className={`fci-btn fci-btn-up ${stateMap[c] === 'up' ? 'fci-btn-active' : ''} ${styles.button ?? ''}`}
@@ -159,8 +160,8 @@ export default function FeedbackControlsIsland(
               <button
                 type="button"
                 data-testid={`thumbs-down-${c}`}
-                aria-pressed={String(stateMap[c] === 'down')}
-                ref={(el) => {
+
+                ref={(el: HTMLButtonElement | null) => {
                   refs.current[c] = Object.assign(refs.current[c] || {}, { down: el });
                 }}
                 className={`fci-btn fci-btn-down ${stateMap[c] === 'down' ? 'fci-btn-active' : ''} ${styles.button ?? ''}`}

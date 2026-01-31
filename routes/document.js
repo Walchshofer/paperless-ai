@@ -4,6 +4,7 @@ const paperlessService = require('../services/paperlessService.js');
 const documentModel = require('../services/documentModel.js');
 const configFile = require('../config/config.js');
 const jwt = require('jsonwebtoken');
+const { UnifiedWorkspaceSchema } = require('../src/ui/contracts/UnifiedWorkspace.contract.js');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // Middleware to ensure user is authenticated

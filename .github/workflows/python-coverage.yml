@@ -16,38 +16,19 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install Python deps
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt || true
+          pip install -r requirements.txt
           pip install pytest pytest-asyncio pytest-cov coverage
 
       - name: Run Python tests with coverage
         run: |
-          pytest test/unit test/integration test/e2e -q --cov=bridge --cov-report=term-missing
-
-      - name: Fail if coverage < 80%
-        run: |
-          python - <<'PY'
-import sys
-from coverage import Coverage
-cov = Coverage()
-cov.load()
-# Use coverage analysis to get file-specific numbers
-analysis = cov.analysis2('bridge/codex_serena_bridge.py')
-# analysis2 returns (filename, executed, missing, missing_lines)
-filename, executed, missing, missing_list = analysis
-total = executed + len(missing_list)
-percent = (executed / total) * 100 if total > 0 else 100
-print(f"bridge/codex_serena_bridge.py coverage: {percent:.2f}%")
-if percent < 80.0:
-    print('Coverage threshold not met: failing')
-    sys.exit(1)
-PY
+          pytest test/unit test/integration test/e2e -q --cov=bridge --cov-report=term-missing --cov-fail-under=80
 
 
   e2e:
@@ -60,20 +41,22 @@ PY
       - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install Python deps
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt || true
+          pip install -r requirements.txt
           pip install pytest pytest-asyncio
 
       - name: Verify Serena endpoint
-        env:
-          SERENA_BASE: ${{ secrets.SERENA_BASE }}
         run: |
+          # Pull secret into a shell variable to avoid step-level env interpolation
+          SECRET_SERENA_BASE="${{ secrets.SERENA_BASE }}"
+          SERENA_BASE="${SECRET_SERENA_BASE:-}"
+
           if [ -z "$SERENA_BASE" ]; then echo "SERENA_BASE secret not set" >&2; exit 1; fi
           echo "Checking Serena base: $SERENA_BASE"
           for i in 1 10; do
@@ -88,9 +71,11 @@ PY
           exit 1
 
       - name: Run Serena E2E tests
-        env:
-          SERENA_E2E: '1'
-          SERENA_BASE: ${{ secrets.SERENA_BASE }}
         run: |
+          # Pull secret into a shell variable and export required envs
+          SECRET_SERENA_BASE="${{ secrets.SERENA_BASE }}"
+          if [ -z "$SECRET_SERENA_BASE" ]; then echo "SERENA_BASE secret not set; failing Serena E2E" >&2; exit 1; fi
+          export SERENA_E2E='1'
+          export SERENA_BASE="$SECRET_SERENA_BASE"
           pytest test/e2e -q -k test_serena_e2e.py
 

@@ -79,7 +79,7 @@ describe('Templates audit (T21)', function() {
     const unregistered = [];
     for (const f of allViews) {
       const src = fs.readFileSync(f, 'utf8');
-      const islandMatches = [...src.matchAll(/data-island=\"([^\"]+)\"/gi)];
+      const islandMatches = [...src.matchAll(/data-island="([^"]+)"/gi)];
       for (const m of islandMatches) {
         const name = m[1];
         if (!runtimeIslands.includes(name)) {

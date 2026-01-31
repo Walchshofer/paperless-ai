@@ -12,14 +12,17 @@ import { AIProviderSettingsSchema } from '../ui/contracts/Settings.AIProvider.co
  * - Manual save for critical fields (provider selection, API keys, URLs)
  * - Flushes pending debounced saves on unmount
  */
+import ExpertModelsIsland from './ExpertModelsIsland';
+
 export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
   const validated = AIProviderSettingsSchema.parse(props);
 
-  const [activeTab, setActiveTab] = useState<'general' | 'openai' | 'ollama' | 'custom' | 'azure'>('general');
-  const [provider, setProvider] = useState(validated.provider || 'openai');
+  type ProviderTab = 'general' | 'openai' | 'ollama' | 'custom' | 'azure';
+  const [activeTab, setActiveTab] = useState('general' as ProviderTab);
+  const [provider, setProvider] = useState((validated.provider || 'openai') as string);
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState(null as string | null);
 
   // OpenAI state
   const [openaiApiKey, setOpenaiApiKey] = useState(validated.openai?.apiKey || '');
@@ -58,8 +61,13 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
   const [azureApiVersion, setAzureApiVersion] = useState(validated.azure?.apiVersion || '2023-05-15');
 
   // Debounce timer for auto-save fields
-  const debounceTimerRef = useRef<number | null>(null);
+  const debounceTimerRef = useRef(null as number | null);
   const hasPendingAutoSave = useRef(false);
+
+  // Ref for expert models area to support sidebar focus/scroll
+  const expertRef = useRef(null as HTMLDivElement | null);
+  // Accessible announcement text for Expert Models visibility changes
+  const [expertAnnouncement, setExpertAnnouncement] = useState(null as string | null);
 
   // Auto-clear save message
   useEffect(() => {
@@ -213,6 +221,50 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
 
   const markDirty = () => setIsDirty(true);
 
+  // Accessible announcement for Expert Models when provider changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (provider === 'ollama') {
+      setExpertAnnouncement('Expert Models are now available.');
+    } else {
+      setExpertAnnouncement('Expert Models are available only when Ollama is selected as the AI provider.');
+    }
+    const t = setTimeout(() => setExpertAnnouncement(null), 3000);
+    return () => clearTimeout(t);
+  }, [provider]);
+
+  // Listen for sidebar navigation focus (e.g., Expert Models shortcut)
+  useEffect(() => {
+    const onNavigate = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      if (detail && detail.focus === 'expert-models') {
+        setActiveTab('ollama');
+        setTimeout(() => {
+          if (expertRef.current) {
+            try {
+              expertRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              const switchBtn = expertRef.current.querySelector('[data-testid="switch-to-ollama-btn"]') as HTMLButtonElement | null;
+              if (switchBtn && provider !== 'ollama') switchBtn.focus();
+            } catch (err) { /* ignore */ }
+          }
+        }, 100);
+      }
+    };
+
+    window.addEventListener('settings:category-changed', onNavigate as EventListener);
+    return () => window.removeEventListener('settings:category-changed', onNavigate as EventListener);
+  }, [provider]);
+
+  // Reflect visibility state as string attributes for accessibility
+  useEffect(() => {
+    try {
+      const area = expertRef.current?.querySelector('[data-testid="expert-models-area"]') as HTMLElement | null;
+      const locked = expertRef.current?.querySelector('[data-testid="expert-models-locked"]') as HTMLElement | null;
+      if (area) area.setAttribute('aria-hidden', String(provider !== 'ollama'));
+      if (locked) locked.setAttribute('aria-hidden', String(provider === 'ollama'));
+    } catch (err) { /* ignore */ }
+  }, [provider]);
+
   return (
     <div className="ai-provider-settings space-y-6 p-6 max-w-4xl" data-testid="ai-provider-root">
       <div className="space-y-2">
@@ -294,8 +346,8 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
               <select
                 id="provider"
                 value={provider}
-                onChange={(e) => {
-                  setProvider((e.target as HTMLSelectElement).value as any);
+                onChange={(e: Event) => {
+                  setProvider((e.target as HTMLSelectElement).value as ProviderTab);
                   markDirty();
                 }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -333,7 +385,7 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
                 id="openai-api-key"
                 type="password"
                 value={openaiApiKey}
-                onChange={(e) => {
+                onChange={(e: Event) => {
                   setOpenaiApiKey((e.target as HTMLInputElement).value);
                   markDirty();
                 }}
@@ -364,7 +416,7 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
                   id="ollama-api-url"
                   type="url"
                   value={ollamaApiUrl}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setOllamaApiUrl((e.target as HTMLInputElement).value);
                     markDirty();
                   }}
@@ -387,7 +439,7 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
                     id="ollama-text-model"
                     type="text"
                     value={ollamaModel}
-                    onChange={(e) => {
+                    onChange={(e: Event) => {
                       setOllamaModel((e.target as HTMLInputElement).value);
                       markDirty();
                     }}
@@ -404,7 +456,7 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
                     id="ollama-vision-model"
                     type="text"
                     value={ollamaVisionModel}
-                    onChange={(e) => {
+                    onChange={(e: Event) => {
                       setOllamaVisionModel((e.target as HTMLInputElement).value);
                       markDirty();
                     }}
@@ -431,7 +483,7 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
                     id="ollama-text-context"
                     type="number"
                     value={ollamaTextContextWindow}
-                    onChange={(e) => {
+                    onChange={(e: Event) => {
                       setOllamaTextContextWindow(parseInt((e.target as HTMLInputElement).value));
                       handleAutoSaveField();
                     }}
@@ -447,7 +499,7 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
                     id="ollama-text-max-tokens"
                     type="number"
                     value={ollamaTextMaxTokens}
-                    onChange={(e) => {
+                    onChange={(e: Event) => {
                       setOllamaTextMaxTokens(parseInt((e.target as HTMLInputElement).value));
                       handleAutoSaveField();
                     }}
@@ -456,6 +508,22 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
                   />
                 </div>
               </div>
+            </div>
+
+            {/* Expert Models: Ollama-only; integrated here to prevent accidental overrides */}
+            <div className="mt-6" ref={expertRef}>
+              <div role="status" aria-live="polite" className="sr-only" data-testid="expert-models-announcement">{expertAnnouncement}</div>
+              {provider === 'ollama' ? (
+                <div data-testid="expert-models-area">
+                  <h4 className="text-md font-medium">Expert Models (Ollama)</h4>
+                  <ExpertModelsIsland {...((props as any).expertModels || {})} />
+                </div>
+              ) : (
+                <div data-testid="expert-models-locked" role="region" aria-labelledby="expert-locked-label" aria-disabled="true" className="p-3 bg-yellow-50 border border-yellow-200 rounded">
+                  <p id="expert-locked-label" className="text-sm text-yellow-800">Expert models are available only when <strong>Ollama</strong> is selected as the AI provider.</p>
+                  <button data-testid="switch-to-ollama-btn" aria-label="Switch to Ollama provider to enable Expert Models" type="button" onClick={() => { setProvider('ollama'); markDirty(); }} className="mt-2 px-3 py-1 bg-yellow-200 rounded">Switch to Ollama</button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -473,7 +541,7 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
                   id="custom-api-url"
                   type="url"
                   value={customApiUrl}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setCustomApiUrl((e.target as HTMLInputElement).value);
                     markDirty();
                   }}
@@ -490,7 +558,7 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
                   id="custom-api-key"
                   type="password"
                   value={customApiKey}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setCustomApiKey((e.target as HTMLInputElement).value);
                     markDirty();
                   }}
@@ -507,7 +575,7 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
                   id="custom-model"
                   type="text"
                   value={customModel}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setCustomModel((e.target as HTMLInputElement).value);
                     markDirty();
                   }}
@@ -533,7 +601,7 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
                   id="azure-endpoint"
                   type="url"
                   value={azureEndpoint}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setAzureEndpoint((e.target as HTMLInputElement).value);
                     markDirty();
                   }}
@@ -550,7 +618,7 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
                   id="azure-api-key"
                   type="password"
                   value={azureApiKey}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setAzureApiKey((e.target as HTMLInputElement).value);
                     markDirty();
                   }}
@@ -567,7 +635,7 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
                   id="azure-deployment"
                   type="text"
                   value={azureDeploymentName}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setAzureDeploymentName((e.target as HTMLInputElement).value);
                     markDirty();
                   }}
@@ -584,7 +652,7 @@ export default function AIProviderIsland(props: Partial<AIProviderSettings>) {
                   id="azure-api-version"
                   type="text"
                   value={azureApiVersion}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setAzureApiVersion((e.target as HTMLInputElement).value);
                     markDirty();
                   }}

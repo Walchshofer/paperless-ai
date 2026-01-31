@@ -260,8 +260,8 @@ test.describe('Cross-Island Event Communication', () => {
     // Set up event listener before triggering
     const eventPromise = page.evaluate(() => {
       return new Promise((resolve) => {
-        document.addEventListener('feedback:confirmed', (e: any) => {
-          resolve(e.detail);
+        document.addEventListener('feedback:confirmed', (e: Event) => {
+          resolve((e as CustomEvent).detail);
         }, { once: true });
 
         // Timeout after 5 seconds
@@ -294,8 +294,8 @@ test.describe('Cross-Island Event Communication', () => {
     // Set up event listener
     const eventPromise = page.evaluate(() => {
       return new Promise((resolve) => {
-        document.addEventListener('payload:ready', (e: any) => {
-          resolve(e.detail);
+        document.addEventListener('payload:ready', (e: Event) => {
+          resolve((e as CustomEvent).detail);
         }, { once: true });
         setTimeout(() => resolve(null), 5000);
       });

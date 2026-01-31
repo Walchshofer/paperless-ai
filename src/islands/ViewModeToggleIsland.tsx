@@ -1,22 +1,25 @@
 import { h } from 'preact';
-import { useState, useEffect, useCallback } from 'preact/hooks';
+import { useState, useEffect, useCallback, useRef } from 'preact/hooks';
 import { ViewModeToggleSchema, type ViewModeToggleContract } from '../ui/contracts/ViewModeToggle.contract';
 
-function dispatchEventSafe(name: string, detail: any) {
+function dispatchEventSafe(name: string, detail?: unknown) {
   if (typeof document === 'undefined') return;
   if (typeof document.dispatchEvent !== 'function') return;
   const EventConstructor = (typeof window !== 'undefined' && window.CustomEvent) ? window.CustomEvent : CustomEvent;
-  document.dispatchEvent(new EventConstructor(name, { detail }));
+  document.dispatchEvent(new EventConstructor(name, { detail } as CustomEventInit<any>));
 }
 
 export default function ViewModeToggleIsland(props: Partial<ViewModeToggleContract>) {
-  const [mode, setMode] = useState<'text' | 'visual'>(props.mode || 'text');
+  // Runtime validate props
+  const validated = ViewModeToggleSchema.parse(props);
+
+  const [mode, setMode] = useState((props.mode || 'text') as 'text' | 'visual');
   const [visualEnabled, setVisualEnabled] = useState(props.visualEnabled !== false);
 
   // Listen for document selection to enable/disable visual mode
   useEffect(() => {
-    const onDocumentSelected = (e: any) => {
-      const detail = e?.detail || {};
+    const onDocumentSelected = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
       if (detail.documentId) {
         setVisualEnabled(true);
         return;
@@ -46,15 +49,23 @@ export default function ViewModeToggleIsland(props: Partial<ViewModeToggleContra
     });
   }, [mode, props.documentId]);
 
+  const textBtnRef = useRef(null as HTMLButtonElement | null);
+  const visualBtnRef = useRef(null as HTMLButtonElement | null);
+
+  useEffect(() => {
+    if (textBtnRef.current) textBtnRef.current.setAttribute('aria-pressed', String(mode === 'text'));
+    if (visualBtnRef.current) visualBtnRef.current.setAttribute('aria-pressed', String(mode === 'visual'));
+  }, [mode]);
+
   return (
     <div data-testid="view-mode-toggle-root" data-hydrated="true" className="vmt-root">
       <div className="vmt-toggle-group" role="group" aria-label="View mode toggle">
         <button
           type="button"
           data-testid="view-text-btn"
+          ref={(el: HTMLButtonElement | null) => { textBtnRef.current = el; }}
           onClick={() => handleModeChange('text')}
           className={`vmt-btn ${mode === 'text' ? 'vmt-btn-active' : 'vmt-btn-inactive'}`}
-          aria-pressed={mode === 'text'}
         >
           <i className="fas fa-file-alt vmt-icon" aria-hidden="true"></i>
           <span>Text</span>
@@ -64,7 +75,7 @@ export default function ViewModeToggleIsland(props: Partial<ViewModeToggleContra
           data-testid="view-visual-btn"
           onClick={() => handleModeChange('visual')}
           className={`vmt-btn ${mode === 'visual' ? 'vmt-btn-active' : 'vmt-btn-inactive'}`}
-          aria-pressed={mode === 'visual'}
+          ref={(el: HTMLButtonElement | null) => { visualBtnRef.current = el; }}
           disabled={!visualEnabled}
         >
           <i className="fas fa-image vmt-icon" aria-hidden="true"></i>

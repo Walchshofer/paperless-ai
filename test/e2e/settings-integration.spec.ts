@@ -190,9 +190,24 @@ test.describe('Settings Phase 2 Integration Tests', () => {
 
     const navExpertModels = sidebar.getByRole('button', { name: /Expert Models/ });
     await expect(navExpertModels).toBeVisible();
+
+    // Click Expert Models - this redirects into AI Provider (focus expert models)
     await navExpertModels.click();
+    await waitForIsland(page, 'ai-provider-island', 10000);
+    await expect(page.locator('[data-island="ai-provider-island"]')).toBeVisible();
+
+    // Ensure Ollama provider is selected so embedded Expert Models are visible
+    const providerSelect = page.locator('[data-testid="provider-select"]');
+    if ((await providerSelect.count()) > 0) {
+      await providerSelect.selectOption('ollama');
+      await page.evaluate(() => {
+        const el = document.getElementById('provider') as HTMLSelectElement | null;
+        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }
+
     await waitForIsland(page, 'expert-models-island', 10000);
-    await expect(page.locator('[data-island="expert-models-island"]')).toBeVisible();
+    await expect(page.locator('[data-testid="expert-models-root"]')).toBeVisible();
 
     const navOverview = sidebar.getByRole('button', { name: /Overview/ });
     await expect(navOverview).toBeVisible();

@@ -180,7 +180,7 @@
                             ></div>
                         </div>
 
-                        <!-- AI Provider Island -->
+                        <!-- AI Provider Island (includes embedded Expert Models when Ollama is selected) -->
                         <div
                             class="settings-section"
                             data-settings-category="ai-provider"
@@ -195,19 +195,9 @@
                                     ollamaModel: vm.settings.OLLAMA_MODEL || ""
                                 }) %>'
                             ></div>
-                        </div>
 
-                        <!-- Expert Models Island -->
-                        <div
-                            class="settings-section"
-                            data-settings-category="expert-models"
-                            data-testid="settings-section-expert-models"
-                        >
-                            <div
-                                data-island="expert-models-island"
-                                data-testid="expert-models-island"
-                                data-props='{}'
-                            ></div>
+                            </div>
+                            </div>
                         </div>
 
                         <!-- Developer Settings Island -->
@@ -324,6 +314,7 @@
                 }
             });
 
+
             window.addEventListener('hashchange', function () {
                 const hash = window.location.hash.slice(1);
                 if (hash) {
@@ -342,7 +333,6 @@
             '/js/dist/restart-banner.island.js',
             '/js/dist/connection-settings.island.js',
             '/js/dist/ai-provider.island.js',
-            '/js/dist/expert-models.island.js',
             '/js/dist/developer-settings.island.js',
             '/js/dist/presets-manager.island.js'
         ]

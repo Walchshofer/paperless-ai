@@ -86,7 +86,7 @@ test.describe('Qdrant Payload Mirroring Verification', () => {
     // Poll Qdrant for the point
     let points;
     try {
-      points = await pollForQdrantPoints(TEST_DOC_ID, { timeoutMs: 15000, minCount: 1 });
+      points = await pollForQdrantPoints(TEST_DOC_ID, { timeoutMs: 15000, intervalMs: 500, minCount: 1 });
     } catch (err) {
       // May timeout if sidecar is initializing
       console.log('Qdrant poll failed:', err);
@@ -288,8 +288,8 @@ test.describe('Qdrant Payload Mirroring Verification', () => {
     // Verify payload mirroring
     const result = verifyPayloadMirroring(pgRow, qdrantPoint);
 
-    if (!result.match) {
-      console.log('Payload mismatches:', result.mismatches);
+    if (!(result as any).match) {
+      console.log('Payload mismatches:', (result as any).mismatches);
     }
 
     // Note: exact matching depends on implementation

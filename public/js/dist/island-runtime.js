@@ -1,23 +1,37 @@
+var __create = Object.create;
 var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __require = /* @__PURE__ */ ((x4) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x4, {
-  get: (a3, b3) => (typeof require !== "undefined" ? require : a3)[b3]
-}) : x4)(function(x4) {
-  if (typeof require !== "undefined") return require.apply(this, arguments);
-  throw Error('Dynamic require of "' + x4 + '" is not supported');
-});
-var __commonJS = (cb, mod) => function __require2() {
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
 };
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 
 // src/islands/FeedbackControlsIsland.module.css
 var require_FeedbackControlsIsland = __commonJS({
-  "src/islands/FeedbackControlsIsland.module.css"(exports, module2) {
-    module2.exports = {
+  "src/islands/FeedbackControlsIsland.module.css"(exports, module) {
+    module.exports = {
       root: "FeedbackControlsIsland_root",
       button: "FeedbackControlsIsland_button",
       buttonPressed: "FeedbackControlsIsland_buttonPressed"
@@ -25,27 +39,11 @@ var require_FeedbackControlsIsland = __commonJS({
   }
 });
 
-// src/islands/OverlayViewerIsland.module.css
-var require_OverlayViewerIsland = __commonJS({
-  "src/islands/OverlayViewerIsland.module.css"(exports, module2) {
-    module2.exports = {
-      legendDot: "OverlayViewerIsland_legendDot",
-      documentPane: "OverlayViewerIsland_documentPane",
-      viewport: "OverlayViewerIsland_viewport",
-      overlayBox: "OverlayViewerIsland_overlayBox",
-      overlayLabel: "OverlayViewerIsland_overlayLabel",
-      highlightRegion: "OverlayViewerIsland_highlightRegion",
-      selectionBoxContainer: "OverlayViewerIsland_selectionBoxContainer",
-      resultsPanel: "OverlayViewerIsland_resultsPanel"
-    };
-  }
-});
-
 // src/islands/overlay-utils.js
 var require_overlay_utils = __commonJS({
-  "src/islands/overlay-utils.js"(exports, module2) {
+  "src/islands/overlay-utils.js"(exports, module) {
     "use strict";
-    function computeUnscaledFromRaw(rawX, rawY, tx, ty, s3) {
+    function computeUnscaledFromRaw2(rawX, rawY, tx, ty, s3) {
       return {
         x: (rawX - tx) / s3,
         y: (rawY - ty) / s3
@@ -87,7 +85,7 @@ var require_overlay_utils = __commonJS({
       const cy = Math.min(maxY, Math.max(minY, ty));
       return { x: cx, y: cy, contentW, contentH };
     }
-    module2.exports = { computeUnscaledFromRaw, clampTranslate };
+    module.exports = { computeUnscaledFromRaw: computeUnscaledFromRaw2, clampTranslate };
   }
 });
 
@@ -614,7 +612,7 @@ function VisualAnnotationIsland(props) {
         }));
         console.debug && console.debug("VisualAnnotationIsland init annotations", mapped);
         setAnnotations(mapped);
-      } catch (e3) {
+      } catch (err) {
       }
     }
   }, [props.annotations]);
@@ -645,8 +643,9 @@ function VisualAnnotationIsland(props) {
           context: a3.context || void 0
         }));
         setAnnotations(mapped);
-      } catch (e3) {
-        console.error("Failed to load annotations:", e3 && e3.message);
+      } catch (err) {
+        const msg = err && typeof err === "object" && "message" in err ? err.message : String(err);
+        console.error("Failed to load annotations:", msg);
       }
     }
     loadSaved();
@@ -677,6 +676,8 @@ function VisualAnnotationIsland(props) {
   const canvasRef = A2(null);
   const startRef = A2(null);
   const mountedRef = A2(true);
+  const drawToggleRef = A2(null);
+  const liveRectElRef = A2(null);
   const getBackoffDelay = q2((attempt) => {
     const delay = INITIAL_BACKOFF_MS * Math.pow(2, attempt);
     return Math.min(delay, MAX_BACKOFF_MS);
@@ -714,7 +715,7 @@ function VisualAnnotationIsland(props) {
         setStatus("error");
         setErrorMessage(`Sidecar returned status ${res.status}`);
       }
-    } catch (e3) {
+    } catch (err) {
       clearTimeout(timeoutId);
       if (!mountedRef.current) return;
       retryAttemptRef.current++;
@@ -725,7 +726,9 @@ function VisualAnnotationIsland(props) {
         setTimeout(() => mountedRef.current && checkSidecar(retryAttemptRef), delay);
       } else {
         setStatus("error");
-        setErrorMessage(e3.name === "AbortError" ? "Connection timeout" : e3.message);
+        const name = err && typeof err === "object" && "name" in err ? err.name : void 0;
+        const message = err && typeof err === "object" && "message" in err ? err.message : String(err);
+        setErrorMessage(name === "AbortError" ? "Connection timeout" : message);
       }
     }
   }, [getBackoffDelay]);
@@ -737,6 +740,11 @@ function VisualAnnotationIsland(props) {
       mountedRef.current = false;
     };
   }, [checkSidecar, retryNonce]);
+  y2(() => {
+    if (drawToggleRef.current) {
+      drawToggleRef.current.setAttribute("aria-pressed", isDrawing ? "true" : "false");
+    }
+  }, [isDrawing]);
   const getLocalCoords = (evt) => {
     if (!canvasRef.current) return { x: 0, y: 0 };
     const rect = canvasRef.current.getBoundingClientRect();
@@ -778,6 +786,14 @@ function VisualAnnotationIsland(props) {
     setLiveRect(null);
     startRef.current = null;
   };
+  y2(() => {
+    const el = liveRectElRef.current;
+    if (!el || !liveRect) return;
+    el.style.setProperty("--vai-x", `${liveRect.x}px`);
+    el.style.setProperty("--vai-y", `${liveRect.y}px`);
+    el.style.setProperty("--vai-w", `${liveRect.w}px`);
+    el.style.setProperty("--vai-h", `${liveRect.h}px`);
+  }, [liveRect]);
   const handleConfirm = async (index) => {
     const ann = annotations[index];
     try {
@@ -881,9 +897,10 @@ function VisualAnnotationIsland(props) {
       });
       setAnnotations(newAnns);
       document.dispatchEvent(new CustomEvent("payload:ready", { detail: payload }));
-    } catch (e3) {
-      console.error("Failed to save annotations:", e3 && e3.message);
-      setSaveError(e3 && e3.message ? e3.message : "Failed to save annotations");
+    } catch (err) {
+      const msg = err && typeof err === "object" && "message" in err ? err.message : String(err);
+      console.error("Failed to save annotations:", msg);
+      setSaveError(msg || "Failed to save annotations");
     } finally {
       setIsSaving(false);
     }
@@ -944,9 +961,10 @@ function VisualAnnotationIsland(props) {
       /* @__PURE__ */ u3(
         "button",
         {
+          ref: drawToggleRef,
           "data-testid": "draw-toggle",
           onClick: () => setIsDrawing(!isDrawing),
-          "aria-pressed": String(isDrawing),
+          "aria-pressed": "false",
           disabled: status !== "ready",
           className: `vai-btn ${isDrawing ? "vai-btn-active" : ""}`,
           children: isDrawing ? "Drawing: ON" : "Draw Mode"
@@ -1005,11 +1023,13 @@ function VisualAnnotationIsland(props) {
           annotations.map((ann, i4) => /* @__PURE__ */ u3(
             "div",
             {
-              style: {
-                "--vai-x": `${ann.x * 100}%`,
-                "--vai-y": `${ann.y * 100}%`,
-                "--vai-w": `${ann.width * 100}%`,
-                "--vai-h": `${ann.height * 100}%`
+              ref: (el) => {
+                if (el) {
+                  el.style.setProperty("--vai-x", `${ann.x * 100}%`);
+                  el.style.setProperty("--vai-y", `${ann.y * 100}%`);
+                  el.style.setProperty("--vai-w", `${ann.width * 100}%`);
+                  el.style.setProperty("--vai-h", `${ann.height * 100}%`);
+                }
               },
               className: `vai-annotation-box ${ann.confirmed ? "vai-box-confirmed" : "vai-box-default"}`,
               "data-testid": `annotation-box-${i4}`
@@ -1019,12 +1039,7 @@ function VisualAnnotationIsland(props) {
           liveRect && /* @__PURE__ */ u3(
             "div",
             {
-              style: {
-                "--vai-x": `${liveRect.x}px`,
-                "--vai-y": `${liveRect.y}px`,
-                "--vai-w": `${liveRect.w}px`,
-                "--vai-h": `${liveRect.h}px`
-              },
+              ref: liveRectElRef,
               className: "vai-annotation-box vai-box-live",
               "data-testid": "live-rect"
             }
@@ -1452,7 +1467,6 @@ function FeedbackControlsIsland(props) {
               {
                 type: "button",
                 "data-testid": `thumbs-up-${c3}`,
-                "aria-pressed": String(stateMap[c3] === "up"),
                 ref: (el) => {
                   refs.current[c3] = Object.assign(refs.current[c3] || {}, { up: el });
                 },
@@ -1467,7 +1481,6 @@ function FeedbackControlsIsland(props) {
               {
                 type: "button",
                 "data-testid": `thumbs-down-${c3}`,
-                "aria-pressed": String(stateMap[c3] === "down"),
                 ref: (el) => {
                   refs.current[c3] = Object.assign(refs.current[c3] || {}, { down: el });
                 },
@@ -1552,6057 +1565,6 @@ function FeedbackControlsIsland(props) {
       ]
     }
   );
-}
-
-// src/islands/ManualEditorIsland.tsx
-function dispatchEventSafe2(name, detail) {
-  if (typeof document === "undefined") return;
-  if (typeof document.dispatchEvent !== "function") return;
-  document.dispatchEvent(new CustomEvent(name, { detail }));
-}
-function ManualEditorIsland(props) {
-  const [active, setActive] = d2("metadata");
-  const [gpuState, setGpuState] = d2("idle");
-  const [syncState, setSyncState] = d2("idle");
-  const [syncError, setSyncError] = d2("");
-  const [documentId, setDocumentId] = d2(props.documentId || null);
-  const normalizeFields = (contractFields) => {
-    if (!contractFields || contractFields.length === 0) {
-      return [{ name: "", value: "" }];
-    }
-    return contractFields.map((f4) => ({
-      name: f4.name || "",
-      value: f4.value != null ? String(f4.value) : ""
-    }));
-  };
-  const [title, setTitle] = d2(props.metadata?.title || "");
-  const [correspondent, setCorrespondent] = d2(props.metadata?.correspondent || "");
-  const [documentType, setDocumentType] = d2(props.metadata?.documentType || "");
-  const [content, setContent] = d2(props.content || "");
-  const [fields, setFields] = d2(normalizeFields(props.fields));
-  const [initialValues] = d2({
-    title: props.metadata?.title || "",
-    correspondent: props.metadata?.correspondent || "",
-    documentType: props.metadata?.documentType || "",
-    content: props.content || "",
-    fields: normalizeFields(props.fields)
-  });
-  const [aiResponse, setAiResponse] = d2(null);
-  const [aiLoading, setAiLoading] = d2(false);
-  const tabsRef = A2(null);
-  const tabRefs = A2({});
-  const syncBadgeTimeoutRef = A2(null);
-  y2(() => {
-    let mounted = true;
-    const checkGpu = async () => {
-      setGpuState("checking");
-      try {
-        const res = await fetch("/api/visual-rag/health", { signal: AbortSignal.timeout(5e3) });
-        if (!mounted) return;
-        if (res.status === 503) {
-          setGpuState("preparing");
-        } else if (res.ok) {
-          setGpuState("ready");
-        } else {
-          setGpuState("error");
-        }
-      } catch {
-        if (mounted) setGpuState("error");
-      }
-    };
-    checkGpu();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-  y2(() => {
-    setDocumentId(props.documentId ?? null);
-  }, [props.documentId]);
-  y2(() => {
-    const onMetadataUpdated = (e3) => {
-      const meta = e3?.detail || {};
-      try {
-        window.__manual_island_last_meta = meta;
-      } catch (err) {
-      }
-      if (meta.title !== void 0) setTitle(meta.title || "");
-      if (meta.content !== void 0) setContent(meta.content || "");
-      if (meta.correspondent !== void 0) {
-        setCorrespondent(meta.correspondent || "");
-      }
-      if (meta.documentType !== void 0) {
-        setDocumentType(meta.documentType || "");
-      }
-    };
-    window.addEventListener("manual:metadata-updated", onMetadataUpdated);
-    return () => window.removeEventListener("manual:metadata-updated", onMetadataUpdated);
-  }, []);
-  y2(() => {
-    const onFieldsUpdated = (e3) => {
-      const f4 = e3?.detail?.fields || [];
-      try {
-        window.__manual_island_last_fields = f4;
-      } catch (err) {
-      }
-      const normalized = f4 && f4.length > 0 ? f4.map((it) => ({ name: it.label || it.name || "", value: it.value != null ? String(it.value) : "" })) : [];
-      setFields(normalized);
-    };
-    window.addEventListener("manual:fields-updated", onFieldsUpdated);
-    return () => window.removeEventListener("manual:fields-updated", onFieldsUpdated);
-  }, []);
-  y2(() => {
-    const onDocumentSelected = (e3) => {
-      const detail = e3?.detail || {};
-      if (detail.documentId !== void 0) {
-        setDocumentId(detail.documentId ?? null);
-      }
-    };
-    window.addEventListener("document:selected", onDocumentSelected);
-    return () => window.removeEventListener("document:selected", onDocumentSelected);
-  }, []);
-  y2(() => {
-    if (syncState === "synced") {
-      syncBadgeTimeoutRef.current = window.setTimeout(() => {
-        setSyncState("idle");
-      }, 5e3);
-    }
-    return () => {
-      if (syncBadgeTimeoutRef.current) {
-        window.clearTimeout(syncBadgeTimeoutRef.current);
-      }
-    };
-  }, [syncState]);
-  y2(() => {
-    try {
-      window.__manual_island_mounted = true;
-    } catch (e3) {
-    }
-  }, []);
-  y2(() => {
-    ["metadata", "content", "fields", "ai-debug"].forEach((tab) => {
-      const ref = tabRefs.current[tab];
-      if (ref) {
-        ref.setAttribute("aria-selected", active === tab ? "true" : "false");
-      }
-    });
-  }, [active]);
-  const onKeyDown = q2((e3) => {
-    const order = ["metadata", "content", "fields", "ai-debug"];
-    const idx = order.indexOf(active);
-    let nextTab = null;
-    if (e3.key === "ArrowLeft") nextTab = order[(idx + order.length - 1) % order.length];
-    if (e3.key === "ArrowRight") nextTab = order[(idx + 1) % order.length];
-    if (nextTab) {
-      e3.preventDefault();
-      setActive(nextTab);
-      setTimeout(() => {
-        const btn = tabsRef.current?.querySelectorAll('[role="tab"]')[order.indexOf(nextTab)];
-        btn?.focus();
-      }, 0);
-    }
-  }, [active]);
-  const addField = q2(() => {
-    setFields((prev) => [...prev, { name: "", value: "" }]);
-  }, []);
-  const removeField = q2((index) => {
-    setFields((prev) => prev.filter((_3, i4) => i4 !== index));
-  }, []);
-  const updateField = q2((index, key, val) => {
-    setFields((prev) => {
-      const newFields = [...prev];
-      newFields[index] = { ...newFields[index], [key]: val };
-      return newFields;
-    });
-  }, []);
-  const handleSave = q2(async () => {
-    setSyncState("syncing");
-    setSyncError("");
-    const requestId = `mei-${Date.now()}`;
-    const page = props.page ?? 0;
-    const custom_fields = fields.filter((f4) => f4.name.trim() !== "").map((f4) => ({ name: f4.name.trim(), value: f4.value }));
-    const document_updates = {
-      title,
-      correspondent,
-      documentType,
-      content,
-      custom_fields
-    };
-    const feedback_events = [];
-    if (title !== initialValues.title) {
-      feedback_events.push({
-        event_type: "correction",
-        field_name: "title",
-        original_value: initialValues.title,
-        corrected_value: title,
-        context: { page, request_id: requestId }
-      });
-    }
-    if (correspondent !== initialValues.correspondent) {
-      feedback_events.push({
-        event_type: "correction",
-        field_name: "correspondent",
-        original_value: initialValues.correspondent,
-        corrected_value: correspondent,
-        context: { page, request_id: requestId }
-      });
-    }
-    if (documentType !== initialValues.documentType) {
-      feedback_events.push({
-        event_type: "correction",
-        field_name: "documentType",
-        original_value: initialValues.documentType,
-        corrected_value: documentType,
-        context: { page, request_id: requestId }
-      });
-    }
-    if (content !== initialValues.content) {
-      feedback_events.push({
-        event_type: "correction",
-        field_name: "content",
-        original_value: initialValues.content.substring(0, 500),
-        // Truncate for payload size
-        corrected_value: content.substring(0, 500),
-        context: { page, request_id: requestId }
-      });
-    }
-    const initialFieldMap = new Map(initialValues.fields.map((f4) => [f4.name, f4.value]));
-    for (const field of custom_fields) {
-      const originalValue = initialFieldMap.get(field.name) || "";
-      if (field.value !== originalValue) {
-        feedback_events.push({
-          event_type: "correction",
-          field_name: `custom_field:${field.name}`,
-          original_value: String(originalValue || ""),
-          corrected_value: String(field.value),
-          context: { page, request_id: requestId }
-        });
-      }
-    }
-    const payload = {
-      documentId: documentId ?? null,
-      document_updates,
-      feedback_events,
-      transactional: true
-    };
-    const metadata = {
-      title,
-      correspondent,
-      documentType
-    };
-    const eventDetail = {
-      type: "payload:ready",
-      documentId: documentId ?? null,
-      page,
-      metadata,
-      content,
-      fields: custom_fields,
-      timestamp: Date.now()
-    };
-    dispatchEventSafe2("payload:ready", eventDetail);
-    try {
-      const res = await fetch("/manual/updateDocument", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Request-Id": requestId
-        },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-        const result = await res.json().catch(() => ({}));
-        setSyncState("synced");
-        dispatchEventSafe2("sync:success", { documentId, ...result });
-      } else {
-        const errorData = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
-        throw new Error(errorData.message || `Sync failed with status ${res.status}`);
-      }
-    } catch (err) {
-      setSyncState("error");
-      setSyncError(err.message || "Sync failed");
-      dispatchEventSafe2("sync:failed", { documentId, error: err.message });
-    }
-  }, [documentId, props.page, title, correspondent, documentType, content, fields, initialValues]);
-  const runAiAnalysis = q2(async () => {
-    if (gpuState !== "ready") return;
-    setAiLoading(true);
-    setAiResponse(null);
-    try {
-      const res = await fetch("/manual/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: content.substring(0, 5e4),
-          id: documentId
-        })
-      });
-      const data = await res.json();
-      setAiResponse(data);
-    } catch (err) {
-      setAiResponse({ error: err.message });
-    } finally {
-      setAiLoading(false);
-    }
-  }, [gpuState, content, documentId]);
-  return /* @__PURE__ */ u3("div", { "data-testid": "manual-editor-island-root", "data-hydrated": "true", className: "mei-root", children: [
-    syncState !== "idle" && /* @__PURE__ */ u3(
-      "div",
-      {
-        className: `mei-sync-badge mei-sync-${syncState}`,
-        "data-testid": "sync-badge",
-        role: "status",
-        "aria-live": "polite",
-        children: [
-          syncState === "syncing" && "\u23F3 Syncing...",
-          syncState === "synced" && "\u2713 Synced",
-          syncState === "error" && `\u26A0\uFE0F ${syncError || "Sync failed"}`
-        ]
-      }
-    ),
-    /* @__PURE__ */ u3(
-      "div",
-      {
-        role: "tablist",
-        "aria-label": "Manual Editor Tabs",
-        onKeyDown,
-        ref: tabsRef,
-        className: "mei-tablist",
-        children: [
-          /* @__PURE__ */ u3(
-            "button",
-            {
-              id: "tab-metadata-btn",
-              type: "button",
-              role: "tab",
-              tabIndex: active === "metadata" ? 0 : -1,
-              "aria-controls": "panel-metadata",
-              "data-testid": "tab-metadata",
-              ref: (el) => {
-                tabRefs.current["metadata"] = el;
-              },
-              onClick: () => setActive("metadata"),
-              className: `mei-tab ${active === "metadata" ? "mei-tab-active" : ""}`,
-              children: "Metadata"
-            }
-          ),
-          /* @__PURE__ */ u3(
-            "button",
-            {
-              id: "tab-content-btn",
-              type: "button",
-              role: "tab",
-              tabIndex: active === "content" ? 0 : -1,
-              "aria-controls": "panel-content",
-              "data-testid": "tab-content",
-              ref: (el) => {
-                tabRefs.current["content"] = el;
-              },
-              onClick: () => setActive("content"),
-              className: `mei-tab ${active === "content" ? "mei-tab-active" : ""}`,
-              children: "Content"
-            }
-          ),
-          /* @__PURE__ */ u3(
-            "button",
-            {
-              id: "tab-fields-btn",
-              type: "button",
-              role: "tab",
-              tabIndex: active === "fields" ? 0 : -1,
-              "aria-controls": "panel-fields",
-              "data-testid": "tab-fields",
-              ref: (el) => {
-                tabRefs.current["fields"] = el;
-              },
-              onClick: () => setActive("fields"),
-              className: `mei-tab ${active === "fields" ? "mei-tab-active" : ""}`,
-              children: "Fields"
-            }
-          ),
-          /* @__PURE__ */ u3(
-            "button",
-            {
-              id: "tab-ai-debug-btn",
-              type: "button",
-              role: "tab",
-              tabIndex: active === "ai-debug" ? 0 : -1,
-              "aria-controls": "panel-ai-debug",
-              "data-testid": "tab-ai-debug",
-              ref: (el) => {
-                tabRefs.current["ai-debug"] = el;
-              },
-              onClick: () => setActive("ai-debug"),
-              className: `mei-tab ${active === "ai-debug" ? "mei-tab-active" : ""}`,
-              children: [
-                "AI Debug",
-                gpuState === "preparing" && /* @__PURE__ */ u3("span", { className: "mei-gpu-badge", children: "\u23F3" }),
-                gpuState === "ready" && /* @__PURE__ */ u3("span", { className: "mei-gpu-badge mei-gpu-ready", children: "\u2713" }),
-                gpuState === "error" && /* @__PURE__ */ u3("span", { className: "mei-gpu-badge mei-gpu-error", children: "\u26A0\uFE0F" })
-              ]
-            }
-          )
-        ]
-      }
-    ),
-    /* @__PURE__ */ u3("div", { className: "mei-panels", children: [
-      /* @__PURE__ */ u3(
-        "div",
-        {
-          id: "panel-metadata",
-          role: "tabpanel",
-          "aria-labelledby": "tab-metadata-btn",
-          "data-panel": "metadata",
-          className: `mei-panel ${active === "metadata" ? "" : "mei-panel-hidden"}`,
-          "data-testid": "panel-metadata",
-          children: [
-            /* @__PURE__ */ u3("div", { className: "mei-field-group", children: [
-              /* @__PURE__ */ u3("label", { htmlFor: "mei-title", className: "mei-label", children: "Title" }),
-              /* @__PURE__ */ u3(
-                "input",
-                {
-                  id: "mei-title",
-                  "data-testid": "manual-title-input",
-                  type: "text",
-                  value: title,
-                  onInput: (e3) => setTitle(e3.target.value),
-                  className: "mei-input"
-                }
-              )
-            ] }),
-            /* @__PURE__ */ u3("div", { className: "mei-field-group", children: [
-              /* @__PURE__ */ u3("label", { htmlFor: "mei-correspondent", className: "mei-label", children: "Correspondent" }),
-              /* @__PURE__ */ u3(
-                "input",
-                {
-                  id: "mei-correspondent",
-                  "data-testid": "manual-correspondent-input",
-                  type: "text",
-                  value: correspondent,
-                  onInput: (e3) => setCorrespondent(e3.target.value),
-                  className: "mei-input"
-                }
-              )
-            ] }),
-            /* @__PURE__ */ u3("div", { className: "mei-field-group", children: [
-              /* @__PURE__ */ u3("label", { htmlFor: "mei-doctype", className: "mei-label", children: "Document Type" }),
-              /* @__PURE__ */ u3(
-                "input",
-                {
-                  id: "mei-doctype",
-                  "data-testid": "manual-doctype-input",
-                  type: "text",
-                  value: documentType,
-                  onInput: (e3) => setDocumentType(e3.target.value),
-                  className: "mei-input"
-                }
-              )
-            ] })
-          ]
-        }
-      ),
-      /* @__PURE__ */ u3(
-        "div",
-        {
-          id: "panel-content",
-          role: "tabpanel",
-          "aria-labelledby": "tab-content-btn",
-          "data-panel": "content",
-          className: `mei-panel ${active === "content" ? "" : "mei-panel-hidden"}`,
-          "data-testid": "panel-content",
-          children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "mei-content", className: "mei-label", children: "Document Content" }),
-            /* @__PURE__ */ u3(
-              "textarea",
-              {
-                id: "mei-content",
-                "data-testid": "manual-content-input",
-                rows: 10,
-                value: content,
-                onInput: (e3) => setContent(e3.target.value),
-                className: "mei-textarea"
-              }
-            )
-          ]
-        }
-      ),
-      /* @__PURE__ */ u3(
-        "div",
-        {
-          id: "panel-fields",
-          role: "tabpanel",
-          "aria-labelledby": "tab-fields-btn",
-          "data-panel": "fields",
-          className: `mei-panel ${active === "fields" ? "" : "mei-panel-hidden"}`,
-          "data-testid": "panel-fields",
-          children: [
-            /* @__PURE__ */ u3("div", { className: "mei-fields-header", children: [
-              /* @__PURE__ */ u3("span", { className: "mei-label", children: "Custom Fields" }),
-              /* @__PURE__ */ u3(
-                "button",
-                {
-                  type: "button",
-                  onClick: addField,
-                  className: "mei-btn mei-btn-add",
-                  "data-testid": "add-field-btn",
-                  children: "+ Add Field"
-                }
-              )
-            ] }),
-            fields.map((field, i4) => /* @__PURE__ */ u3("div", { className: "mei-field-row", children: [
-              /* @__PURE__ */ u3(
-                "input",
-                {
-                  "data-testid": `field-name-${i4}`,
-                  placeholder: "Field name",
-                  value: field.name,
-                  onInput: (e3) => updateField(i4, "name", e3.target.value),
-                  className: "mei-input mei-field-name"
-                }
-              ),
-              /* @__PURE__ */ u3(
-                "input",
-                {
-                  "data-testid": `field-value-${i4}`,
-                  placeholder: "Field value",
-                  value: field.value,
-                  onInput: (e3) => updateField(i4, "value", e3.target.value),
-                  className: "mei-input mei-field-value"
-                }
-              ),
-              /* @__PURE__ */ u3(
-                "button",
-                {
-                  type: "button",
-                  onClick: () => removeField(i4),
-                  className: "mei-btn mei-btn-remove",
-                  "data-testid": `remove-field-${i4}`,
-                  "aria-label": `Remove field ${i4 + 1}`,
-                  children: "\xD7"
-                }
-              )
-            ] }, i4))
-          ]
-        }
-      ),
-      /* @__PURE__ */ u3(
-        "div",
-        {
-          id: "panel-ai-debug",
-          role: "tabpanel",
-          "aria-labelledby": "tab-ai-debug-btn",
-          "data-panel": "ai-debug",
-          className: `mei-panel ${active === "ai-debug" ? "" : "mei-panel-hidden"}`,
-          "data-testid": "panel-ai-debug",
-          children: [
-            gpuState === "preparing" && /* @__PURE__ */ u3("div", { className: "mei-gpu-preparing", "data-testid": "gpu-preparing-status", children: [
-              /* @__PURE__ */ u3("div", { className: "mei-spinner" }),
-              /* @__PURE__ */ u3("p", { children: "GPU Preparing (Warmup)..." }),
-              /* @__PURE__ */ u3("p", { className: "mei-gpu-hint", children: "Visual analysis features will be available shortly." })
-            ] }),
-            gpuState === "error" && /* @__PURE__ */ u3("div", { className: "mei-gpu-error-box", "data-testid": "gpu-error-status", children: [
-              /* @__PURE__ */ u3("p", { children: "\u26A0\uFE0F Visual Analysis Unavailable" }),
-              /* @__PURE__ */ u3("p", { className: "mei-gpu-hint", children: "The GPU sidecar is not responding." })
-            ] }),
-            gpuState === "ready" && /* @__PURE__ */ u3("div", { className: "mei-ai-debug-content", children: [
-              /* @__PURE__ */ u3(
-                "button",
-                {
-                  type: "button",
-                  onClick: runAiAnalysis,
-                  disabled: aiLoading || !content || !content.trim(),
-                  className: "mei-btn mei-btn-primary",
-                  "data-testid": "run-ai-analysis-btn",
-                  children: aiLoading ? "Analyzing..." : "Run AI Analysis"
-                }
-              ),
-              !content || !content.trim() ? /* @__PURE__ */ u3("p", { className: "mei-gpu-hint", "data-testid": "ai-no-content-hint", children: 'No document content available. Switch to the "Content" tab or paste text into the document content field before running analysis.' }) : null,
-              aiResponse && /* @__PURE__ */ u3("div", { className: "mei-ai-response", "data-testid": "ai-response", children: [
-                /* @__PURE__ */ u3("h4", { children: "AI Response" }),
-                /* @__PURE__ */ u3("pre", { className: "mei-ai-json", children: JSON.stringify(aiResponse, null, 2) })
-              ] })
-            ] }),
-            gpuState === "checking" && /* @__PURE__ */ u3("div", { className: "mei-gpu-checking", children: [
-              /* @__PURE__ */ u3("div", { className: "mei-spinner" }),
-              /* @__PURE__ */ u3("p", { children: "Checking GPU status..." })
-            ] })
-          ]
-        }
-      )
-    ] }),
-    /* @__PURE__ */ u3("div", { className: "mei-actions", children: /* @__PURE__ */ u3(
-      "button",
-      {
-        "data-testid": "manual-save-btn",
-        type: "button",
-        onClick: handleSave,
-        className: "mei-btn mei-btn-save",
-        disabled: syncState === "syncing",
-        children: syncState === "syncing" ? "Saving..." : "Save"
-      }
-    ) }),
-    /* @__PURE__ */ u3("style", { children: `
-        .mei-root {
-          font-family: system-ui, -apple-system, sans-serif;
-          position: relative;
-        }
-        .mei-sync-badge {
-          position: absolute;
-          top: -8px;
-          right: 0;
-          padding: 4px 12px;
-          border-radius: 4px;
-          font-size: 0.8rem;
-          font-weight: 500;
-          animation: mei-fade-in 0.3s ease;
-        }
-        .mei-sync-syncing { background: #fff3cd; color: #856404; }
-        .mei-sync-synced { background: #d4edda; color: #155724; }
-        .mei-sync-error { background: #f8d7da; color: #721c24; }
-
-        .mei-tablist {
-          display: flex;
-          gap: 4px;
-          margin-bottom: 16px;
-          border-bottom: 2px solid #e0e0e0;
-          padding-bottom: 8px;
-        }
-        .mei-tab {
-          padding: 8px 16px;
-          border: none;
-          background: transparent;
-          cursor: pointer;
-          font-size: 0.9rem;
-          border-radius: 4px 4px 0 0;
-          transition: all 0.2s;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-        .mei-tab:hover { background: #f5f5f5; }
-        .mei-tab-active {
-          background: #3498db;
-          color: white;
-        }
-        .mei-gpu-badge {
-          font-size: 0.75rem;
-        }
-        .mei-gpu-ready { color: #27ae60; }
-        .mei-gpu-error { color: #e74c3c; }
-
-        .mei-panels { min-height: 200px; }
-        .mei-panel { padding: 16px 0; }
-        .mei-panel-hidden { display: none; }
-
-        .mei-field-group { margin-bottom: 16px; }
-        .mei-label {
-          display: block;
-          font-weight: 500;
-          margin-bottom: 4px;
-          color: #333;
-          font-size: 0.9rem;
-        }
-        .mei-input {
-          width: 100%;
-          padding: 8px 12px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          font-size: 0.9rem;
-          box-sizing: border-box;
-        }
-        .mei-input:focus {
-          outline: none;
-          border-color: #3498db;
-        }
-        .mei-textarea {
-          width: 100%;
-          padding: 8px 12px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          font-size: 0.9rem;
-          resize: vertical;
-          font-family: monospace;
-          box-sizing: border-box;
-        }
-        .mei-textarea:focus {
-          outline: none;
-          border-color: #3498db;
-        }
-
-        .mei-fields-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 12px;
-        }
-        .mei-field-row {
-          display: flex;
-          gap: 8px;
-          margin-bottom: 8px;
-        }
-        .mei-field-name { flex: 1; }
-        .mei-field-value { flex: 2; }
-
-        .mei-btn {
-          padding: 8px 16px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 0.9rem;
-          transition: all 0.2s;
-        }
-        .mei-btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-        .mei-btn-add {
-          background: #f8f9fa;
-        }
-        .mei-btn-add:hover { background: #e9ecef; }
-        .mei-btn-remove {
-          background: #e74c3c;
-          color: white;
-          border-color: #e74c3c;
-          padding: 8px 12px;
-        }
-        .mei-btn-remove:hover { background: #c0392b; }
-        .mei-btn-primary {
-          background: #3498db;
-          color: white;
-          border-color: #3498db;
-        }
-        .mei-btn-primary:hover:not(:disabled) { background: #2980b9; }
-        .mei-btn-save {
-          background: #27ae60;
-          color: white;
-          border-color: #27ae60;
-          min-width: 100px;
-        }
-        .mei-btn-save:hover:not(:disabled) { background: #219a52; }
-
-        .mei-actions {
-          margin-top: 16px;
-          display: flex;
-          justify-content: flex-end;
-        }
-
-        /* AI Debug Panel */
-        .mei-gpu-preparing,
-        .mei-gpu-checking,
-        .mei-gpu-error-box {
-          text-align: center;
-          padding: 32px;
-          color: #666;
-        }
-        .mei-gpu-error-box {
-          background: #fff3f3;
-          border: 1px solid #e74c3c;
-          border-radius: 8px;
-          color: #c0392b;
-        }
-        .mei-gpu-hint {
-          font-size: 0.85rem;
-          color: #888;
-          margin-top: 8px;
-        }
-        .mei-spinner {
-          width: 32px;
-          height: 32px;
-          border: 3px solid #e0e0e0;
-          border-top-color: #3498db;
-          border-radius: 50%;
-          animation: mei-spin 1s linear infinite;
-          margin: 0 auto 12px;
-        }
-        .mei-ai-debug-content { padding: 8px 0; }
-        .mei-ai-response {
-          margin-top: 16px;
-          padding: 12px;
-          background: #f5f5f5;
-          border-radius: 4px;
-        }
-        .mei-ai-response h4 {
-          margin: 0 0 8px;
-          font-size: 0.9rem;
-        }
-        .mei-ai-json {
-          background: #2d2d2d;
-          color: #f8f8f2;
-          padding: 12px;
-          border-radius: 4px;
-          overflow-x: auto;
-          font-size: 0.8rem;
-          max-height: 300px;
-          overflow-y: auto;
-        }
-
-        @keyframes mei-spin {
-          to { transform: rotate(360deg); }
-        }
-        @keyframes mei-fade-in {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      ` })
-  ] });
-}
-
-// src/islands/HistoryTabsIsland.tsx
-function HistoryTabsIsland(props) {
-  const { documentId, content, metadata } = props;
-  const [activeTab, setActiveTab] = d2("text");
-  const [isSearching, setIsSearching] = d2(false);
-  const [isInitializing, setIsInitializing] = d2(false);
-  const [initStage, setInitStage] = d2("");
-  const [similarResults, setSimilarResults] = d2([]);
-  const [searchError, setSearchError] = d2(null);
-  const [activeFilters, setActiveFilters] = d2({});
-  const handleKeyDown = q2((e3) => {
-    const tabs = ["text", "metadata", "similar"];
-    const currentIndex = tabs.indexOf(activeTab);
-    if (e3.key === "ArrowRight") {
-      const nextIndex = (currentIndex + 1) % tabs.length;
-      setActiveTab(tabs[nextIndex]);
-    } else if (e3.key === "ArrowLeft") {
-      const prevIndex = (currentIndex - 1 + tabs.length) % tabs.length;
-      setActiveTab(tabs[prevIndex]);
-    }
-  }, [activeTab]);
-  y2(() => {
-    const handleVisualSearchRequest = async (event) => {
-      const { imageBase64, collection = "visual_pages" } = event.detail || {};
-      if (imageBase64 && documentId) {
-        await performVisualSearch(imageBase64, collection);
-      }
-    };
-    window.addEventListener(
-      "visual-search-requested",
-      handleVisualSearchRequest
-    );
-    return () => {
-      window.removeEventListener(
-        "visual-search-requested",
-        handleVisualSearchRequest
-      );
-    };
-  }, [documentId, activeFilters]);
-  const performVisualSearch = async (imageBase64, collection = "visual_pages") => {
-    setActiveTab("similar");
-    setIsSearching(true);
-    setSearchError(null);
-    setIsInitializing(false);
-    try {
-      const filters = {};
-      if (activeFilters.correspondentId) {
-        filters.correspondent_id = activeFilters.correspondentId;
-      }
-      if (activeFilters.tagIds && activeFilters.tagIds.length > 0) {
-        filters.tag_ids = activeFilters.tagIds;
-      }
-      const response = await fetch("/api/visual-rag/search/visual", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Request-Id": `history-${documentId}-${Date.now()}`
-        },
-        body: JSON.stringify({
-          image: imageBase64,
-          collection,
-          k: 5,
-          filters: Object.keys(filters).length > 0 ? filters : void 0
-        })
-      });
-      if (response.status === 503) {
-        const data2 = await response.json();
-        if (data2.type === "SIDECAR_INITIALIZING") {
-          setIsInitializing(true);
-          setInitStage(data2.detail || "GPU Initializing...");
-          return;
-        }
-        throw new Error(data2.error || "Service unavailable");
-      }
-      if (!response.ok) {
-        const data2 = await response.json();
-        throw new Error(data2.error || "Search failed");
-      }
-      const data = await response.json();
-      const results = (data.results || []).map(
-        (r3) => ({
-          docId: r3.docId,
-          pageNum: r3.pageNum,
-          score: r3.score,
-          thumbnailUrl: r3.thumbnailUrl
-        })
-      );
-      setSimilarResults(results);
-      setActiveTab("similar");
-    } catch (err) {
-      setSearchError(err instanceof Error ? err.message : "Search failed");
-    } finally {
-      setIsSearching(false);
-    }
-  };
-  const handleFilterByCorrespondent = (correspondentId) => {
-    setActiveFilters((prev) => ({
-      ...prev,
-      correspondentId
-    }));
-  };
-  const handleFilterByTag = (tagId) => {
-    setActiveFilters((prev) => ({
-      ...prev,
-      tagIds: [...prev.tagIds || [], tagId].filter(
-        (id, idx, arr) => arr.indexOf(id) === idx
-      )
-    }));
-  };
-  const removeFilter = (type, id) => {
-    if (type === "correspondent") {
-      setActiveFilters((prev) => {
-        const { correspondentId, ...rest } = prev;
-        return rest;
-      });
-    } else if (type === "tag" && id !== void 0) {
-      setActiveFilters((prev) => ({
-        ...prev,
-        tagIds: (prev.tagIds || []).filter((t3) => t3 !== id)
-      }));
-    }
-  };
-  const clearAllFilters = () => {
-    setActiveFilters({});
-  };
-  const TabButton = ({
-    id,
-    label,
-    icon
-  }) => /* @__PURE__ */ u3(
-    "button",
-    {
-      role: "tab",
-      "aria-selected": activeTab === id,
-      "aria-controls": `panel-${id}`,
-      "data-testid": `tab-${id}`,
-      onClick: () => setActiveTab(id),
-      onKeyDown: handleKeyDown,
-      className: `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === id ? "border-blue-600 text-blue-600" : "border-transparent text-gray-600 hover:text-gray-900"}`,
-      children: [
-        /* @__PURE__ */ u3("i", { className: `${icon} mr-1` }),
-        label
-      ]
-    }
-  );
-  const FilterBadge = ({
-    label,
-    onRemove
-  }) => /* @__PURE__ */ u3("span", { className: "inline-flex items-center px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full mr-1 mb-1", children: [
-    label,
-    /* @__PURE__ */ u3(
-      "button",
-      {
-        onClick: onRemove,
-        className: "ml-1 text-blue-600 hover:text-blue-800",
-        "aria-label": `Remove filter: ${label}`,
-        children: /* @__PURE__ */ u3("i", { className: "fas fa-times" })
-      }
-    )
-  ] });
-  return /* @__PURE__ */ u3("div", { "data-testid": "history-tabs-root", "data-hydrated": "true", className: "h-full flex flex-col", children: [
-    /* @__PURE__ */ u3(
-      "div",
-      {
-        role: "tablist",
-        "aria-label": "Document tabs",
-        className: "flex border-b border-gray-200",
-        children: [
-          /* @__PURE__ */ u3(TabButton, { id: "text", label: "Text", icon: "fas fa-file-alt" }),
-          /* @__PURE__ */ u3(TabButton, { id: "metadata", label: "Metadata", icon: "fas fa-tags" }),
-          /* @__PURE__ */ u3(TabButton, { id: "similar", label: "Similar", icon: "fas fa-search" })
-        ]
-      }
-    ),
-    (activeFilters.correspondentId || activeFilters.tagIds && activeFilters.tagIds.length > 0) && /* @__PURE__ */ u3("div", { className: "p-2 bg-gray-50 border-b flex flex-wrap items-center", children: [
-      /* @__PURE__ */ u3("span", { className: "text-xs text-gray-500 mr-2", children: "Active filters:" }),
-      activeFilters.correspondentId && /* @__PURE__ */ u3(
-        FilterBadge,
-        {
-          label: `Correspondent: ${metadata?.correspondent || activeFilters.correspondentId}`,
-          onRemove: () => removeFilter("correspondent")
-        }
-      ),
-      activeFilters.tagIds?.map((tagId) => {
-        const tag = metadata?.tags?.find((t3) => t3.id === tagId);
-        return /* @__PURE__ */ u3(
-          FilterBadge,
-          {
-            label: `Tag: ${tag?.name || tagId}`,
-            onRemove: () => removeFilter("tag", tagId)
-          },
-          tagId
-        );
-      }),
-      /* @__PURE__ */ u3(
-        "button",
-        {
-          onClick: clearAllFilters,
-          className: "text-xs text-red-600 hover:text-red-800 ml-2",
-          children: "Clear all"
-        }
-      )
-    ] }),
-    /* @__PURE__ */ u3("div", { className: "flex-1 overflow-auto p-4", children: [
-      activeTab === "text" && /* @__PURE__ */ u3(
-        "div",
-        {
-          role: "tabpanel",
-          id: "panel-text",
-          "aria-labelledby": "tab-text",
-          "data-testid": "panel-text",
-          children: /* @__PURE__ */ u3("div", { className: "prose prose-sm max-w-none", children: content ? /* @__PURE__ */ u3("pre", { className: "whitespace-pre-wrap text-sm text-gray-700", children: content }) : /* @__PURE__ */ u3("p", { className: "text-gray-500 italic", children: "No text content available" }) })
-        }
-      ),
-      activeTab === "metadata" && /* @__PURE__ */ u3(
-        "div",
-        {
-          role: "tabpanel",
-          id: "panel-metadata",
-          "aria-labelledby": "tab-metadata",
-          "data-testid": "panel-metadata",
-          children: /* @__PURE__ */ u3("dl", { className: "space-y-3", children: [
-            metadata?.correspondent && /* @__PURE__ */ u3("div", { className: "flex items-center justify-between", children: [
-              /* @__PURE__ */ u3("dt", { className: "text-sm font-medium text-gray-500", children: "Correspondent" }),
-              /* @__PURE__ */ u3("dd", { className: "text-sm text-gray-900 flex items-center", children: [
-                metadata.correspondent,
-                metadata.correspondentId && /* @__PURE__ */ u3(
-                  "button",
-                  {
-                    onClick: () => handleFilterByCorrespondent(metadata.correspondentId),
-                    className: "ml-2 text-xs text-blue-600 hover:text-blue-800",
-                    title: "Filter Similar by this correspondent",
-                    children: /* @__PURE__ */ u3("i", { className: "fas fa-filter" })
-                  }
-                )
-              ] })
-            ] }),
-            metadata?.tags && metadata.tags.length > 0 && /* @__PURE__ */ u3("div", { children: [
-              /* @__PURE__ */ u3("dt", { className: "text-sm font-medium text-gray-500 mb-1", children: "Tags" }),
-              /* @__PURE__ */ u3("dd", { className: "flex flex-wrap gap-1", children: metadata.tags.map((tag) => /* @__PURE__ */ u3(
-                "span",
-                {
-                  className: "inline-flex items-center px-2 py-1 text-xs bg-gray-100 rounded",
-                  children: [
-                    tag.name,
-                    /* @__PURE__ */ u3(
-                      "button",
-                      {
-                        onClick: () => handleFilterByTag(tag.id),
-                        className: "ml-1 text-gray-400 hover:text-blue-600",
-                        title: "Filter Similar by this tag",
-                        children: /* @__PURE__ */ u3("i", { className: "fas fa-filter text-xs" })
-                      }
-                    )
-                  ]
-                },
-                tag.id
-              )) })
-            ] }),
-            metadata?.documentType && /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-              /* @__PURE__ */ u3("dt", { className: "text-sm font-medium text-gray-500", children: "Document Type" }),
-              /* @__PURE__ */ u3("dd", { className: "text-sm text-gray-900", children: metadata.documentType })
-            ] }),
-            metadata?.created && /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-              /* @__PURE__ */ u3("dt", { className: "text-sm font-medium text-gray-500", children: "Created" }),
-              /* @__PURE__ */ u3("dd", { className: "text-sm text-gray-900", children: metadata.created })
-            ] }),
-            metadata?.modified && /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-              /* @__PURE__ */ u3("dt", { className: "text-sm font-medium text-gray-500", children: "Modified" }),
-              /* @__PURE__ */ u3("dd", { className: "text-sm text-gray-900", children: metadata.modified })
-            ] })
-          ] })
-        }
-      ),
-      activeTab === "similar" && /* @__PURE__ */ u3(
-        "div",
-        {
-          role: "tabpanel",
-          id: "panel-similar",
-          "aria-labelledby": "tab-similar",
-          "data-testid": "panel-similar",
-          children: [
-            isInitializing && /* @__PURE__ */ u3(
-              "div",
-              {
-                className: "flex flex-col items-center justify-center py-8",
-                "data-testid": "gpu-initializing",
-                children: [
-                  /* @__PURE__ */ u3("div", { className: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4" }),
-                  /* @__PURE__ */ u3("p", { className: "text-sm text-gray-600", children: "GPU Initializing..." }),
-                  /* @__PURE__ */ u3("p", { className: "text-xs text-gray-400 mt-1", children: initStage }),
-                  /* @__PURE__ */ u3("p", { className: "text-xs text-gray-400", children: "RTX 3090 Ti loading ColQwen3-4B-AWQ" })
-                ]
-              }
-            ),
-            isSearching && !isInitializing && /* @__PURE__ */ u3(
-              "div",
-              {
-                className: "flex flex-col items-center justify-center py-8",
-                "data-testid": "searching",
-                children: [
-                  /* @__PURE__ */ u3("div", { className: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4" }),
-                  /* @__PURE__ */ u3("p", { className: "text-sm text-gray-600", children: "Searching..." })
-                ]
-              }
-            ),
-            searchError && !isSearching && /* @__PURE__ */ u3(
-              "div",
-              {
-                className: "bg-red-50 border border-red-200 rounded p-4",
-                "data-testid": "search-error",
-                children: /* @__PURE__ */ u3("p", { className: "text-sm text-red-700", children: [
-                  /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-triangle mr-2" }),
-                  searchError
-                ] })
-              }
-            ),
-            !isSearching && !isInitializing && !searchError && similarResults.length > 0 && /* @__PURE__ */ u3("div", { "data-testid": "similar-results", children: [
-              /* @__PURE__ */ u3("p", { className: "text-sm text-gray-500 mb-3", children: [
-                "Found ",
-                similarResults.length,
-                " similar documents"
-              ] }),
-              /* @__PURE__ */ u3("div", { className: "space-y-3", children: similarResults.map((result, idx) => /* @__PURE__ */ u3(
-                "div",
-                {
-                  className: "flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors",
-                  children: [
-                    result.thumbnailUrl && /* @__PURE__ */ u3(
-                      "img",
-                      {
-                        src: result.thumbnailUrl,
-                        alt: `Document ${result.docId} thumbnail`,
-                        className: "w-16 h-20 object-cover rounded mr-3 border"
-                      }
-                    ),
-                    /* @__PURE__ */ u3("div", { className: "flex-1", children: [
-                      /* @__PURE__ */ u3(
-                        "a",
-                        {
-                          href: `/history/${result.docId}`,
-                          className: "text-blue-600 hover:text-blue-800 font-medium",
-                          children: [
-                            "Document #",
-                            result.docId
-                          ]
-                        }
-                      ),
-                      result.pageNum && /* @__PURE__ */ u3("span", { className: "text-xs text-gray-500 ml-2", children: [
-                        "Page ",
-                        result.pageNum
-                      ] }),
-                      /* @__PURE__ */ u3("div", { className: "mt-1", children: [
-                        /* @__PURE__ */ u3("span", { className: "text-xs text-gray-500", children: "Similarity:" }),
-                        /* @__PURE__ */ u3("span", { className: "ml-1 text-sm font-medium text-green-600", children: [
-                          (result.score * 100).toFixed(1),
-                          "%"
-                        ] }),
-                        /* @__PURE__ */ u3("div", { className: "w-24 h-1.5 bg-gray-200 rounded-full mt-1", children: /* @__PURE__ */ u3(
-                          "div",
-                          {
-                            className: "h-full bg-green-500 rounded-full",
-                            style: { width: `${result.score * 100}%` }
-                          }
-                        ) })
-                      ] })
-                    ] })
-                  ]
-                },
-                `${result.docId}-${idx}`
-              )) })
-            ] }),
-            !isSearching && !isInitializing && !searchError && similarResults.length === 0 && /* @__PURE__ */ u3(
-              "div",
-              {
-                className: "text-center py-8",
-                "data-testid": "similar-empty",
-                children: [
-                  /* @__PURE__ */ u3("i", { className: "fas fa-search text-4xl text-gray-300 mb-4" }),
-                  /* @__PURE__ */ u3("p", { className: "text-sm text-gray-500", children: "Select a region in the document viewer to find similar documents" }),
-                  /* @__PURE__ */ u3("p", { className: "text-xs text-gray-400 mt-2", children: "Results use MaxSim scoring from ColQwen3-4B-AWQ" })
-                ]
-              }
-            )
-          ]
-        }
-      )
-    ] })
-  ] });
-}
-
-// src/islands/OverlayViewerIsland.tsx
-var styles2 = {};
-try {
-  styles2 = require_OverlayViewerIsland();
-} catch (e3) {
-}
-var MIN_SELECTION_SIZE = 20;
-var MIN_SIZE_FRACTION = 0.01;
-function OverlayViewerIsland(props) {
-  const {
-    documentId: initialDocumentId,
-    page: initialPage = 1,
-    originalUrl: initialOriginalUrl = null,
-    onRegionSelected,
-    overlayMode = "none",
-    showLegend = false,
-    allowSelection = true
-  } = props;
-  const containerRef = A2(null);
-  const canvasRef = A2(null);
-  const imageRef = A2(null);
-  const [docId, setDocId] = d2(initialDocumentId || null);
-  const [page, setPage] = d2(initialPage);
-  const [originalUrl, setOriginalUrl] = d2(initialOriginalUrl || null);
-  const [pageCount, setPageCount] = d2(props && props.pageCount || null);
-  y2(() => {
-    const handler = (e3) => {
-      const d3 = e3?.detail || {};
-      if (d3.documentId !== void 0 && d3.documentId !== null) setDocId(d3.documentId);
-      if (d3.page !== void 0 && d3.page !== null) setPage(Number(d3.page));
-      if (Object.prototype.hasOwnProperty.call(d3, "originalUrl")) setOriginalUrl(d3.originalUrl || null);
-      else if (Object.prototype.hasOwnProperty.call(d3, "original_url")) setOriginalUrl(d3.original_url || null);
-      if (Object.prototype.hasOwnProperty.call(d3, "pageCount")) setPageCount(d3.pageCount === null ? null : Number(d3.pageCount));
-    };
-    window.addEventListener("overlay:document-changed", handler);
-    return () => {
-      window.removeEventListener("overlay:document-changed", handler);
-    };
-  }, []);
-  y2(() => {
-    if (initialDocumentId !== void 0 && initialDocumentId !== null) {
-      setDocId(initialDocumentId);
-    }
-  }, [initialDocumentId]);
-  const overlayUtils = typeof __require !== "undefined" ? require_overlay_utils() : null;
-  const computeUnscaledFromRaw = overlayUtils ? overlayUtils.computeUnscaledFromRaw : (rawX, rawY, tx, ty, s3) => ({ x: (rawX - tx) / s3, y: (rawY - ty) / s3 });
-  try {
-    if (typeof module !== "undefined" && module && module.exports) {
-      module.exports.computeUnscaledFromRaw = computeUnscaledFromRaw;
-    }
-  } catch (e3) {
-  }
-  const normalizeOverlayBox = q2((box) => {
-    if (!box) return null;
-    const x4 = Number(box.x ?? 0);
-    const y3 = Number(box.y ?? 0);
-    const width = Number(box.width ?? 0);
-    const height = Number(box.height ?? 0);
-    if (!Number.isFinite(x4) || !Number.isFinite(y3)) return null;
-    if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
-    const maxVal = Math.max(x4 + width, y3 + height);
-    const scale2 = maxVal <= 1 ? 1 : 1e3;
-    return {
-      left: x4 / scale2 * 100,
-      top: y3 / scale2 * 100,
-      width: width / scale2 * 100,
-      height: height / scale2 * 100
-    };
-  }, []);
-  const [isDrawMode, setIsDrawMode] = d2(false);
-  const drawModeRef = A2(false);
-  const [isDrawing, setIsDrawing] = d2(false);
-  const isDrawingRef = A2(false);
-  const pointerActiveRef = A2(false);
-  const [boxes, setBoxes] = d2([]);
-  const [currentBox, setCurrentBox] = d2(null);
-  const currentBoxRef = A2(null);
-  const [imageLoaded, setImageLoaded] = d2(false);
-  const [imageError, setImageError] = d2(null);
-  const [warning, setWarning] = d2(null);
-  const [legend, setLegend] = d2([]);
-  const [overlayItems, setOverlayItems] = d2([]);
-  const [overlayLoading, setOverlayLoading] = d2(false);
-  const [overlayError, setOverlayError] = d2(null);
-  const [mandatoryOnly, setMandatoryOnly] = d2(false);
-  const [overlayDomain, setOverlayDomain] = d2("general");
-  const selectionEnabled = allowSelection !== false;
-  const viewportRef = A2(null);
-  const [scale, setScale] = d2(1);
-  const scaleRef = A2(1);
-  const [translateX, setTranslateX] = d2(0);
-  const [translateY, setTranslateY] = d2(0);
-  const translateRef = A2({ x: 0, y: 0 });
-  const [panMode, setPanMode] = d2(false);
-  const panActiveRef = A2(false);
-  const lastPanPointRef = A2(null);
-  const drawModeButtonRef = A2(null);
-  const panModeButtonRef = A2(null);
-  const [showResults, setShowResults] = d2(false);
-  const [results, setResults] = d2([]);
-  const [resultsLoading, setResultsLoading] = d2(false);
-  const [resultsError, setResultsError] = d2(null);
-  const [splitPos, setSplitPos] = d2(60);
-  const [isResizing, setIsResizing] = d2(false);
-  const [highlightedRegion, setHighlightedRegion] = d2(null);
-  y2(() => {
-    const handler = (e3) => {
-      const { bbox, page: targetPage } = e3.detail || {};
-      if (targetPage && targetPage !== page) setPage(targetPage);
-      if (bbox) {
-        setHighlightedRegion({ ...bbox, id: "highlight" });
-        setTimeout(() => setHighlightedRegion(null), 5e3);
-      }
-    };
-    window.addEventListener("overlay:highlight-region", handler);
-    return () => window.removeEventListener("overlay:highlight-region", handler);
-  }, [page]);
-  const MIN_SCALE = 0.5;
-  const MAX_SCALE = 3;
-  const SCALE_STEP = 0.1;
-  const applyScale = q2((next) => {
-    const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next));
-    scaleRef.current = clamped;
-    setScale(clamped);
-  }, []);
-  const clampTranslate = q2((tx, ty, s3) => {
-    const container = containerRef.current;
-    if (!container) return { x: tx, y: ty };
-    const cw = container.clientWidth;
-    const ch = container.clientHeight;
-    const img = imageRef.current;
-    const natW = img && img.naturalWidth ? img.naturalWidth : null;
-    const natH = img && img.naturalHeight ? img.naturalHeight : null;
-    try {
-      const utils = require_overlay_utils();
-      const clamped = utils.clampTranslate(tx, ty, s3, cw, ch, natW, natH, "contain");
-      return { x: clamped.x, y: clamped.y };
-    } catch (e3) {
-      const minX = Math.min(0, cw - cw * s3);
-      const maxX = 0;
-      const minY = Math.min(0, ch - ch * s3);
-      const maxY = 0;
-      const cx = Math.min(maxX, Math.max(minX, tx));
-      const cy = Math.min(maxY, Math.max(minY, ty));
-      return { x: cx, y: cy };
-    }
-  }, []);
-  const applyTranslate = q2((x4, y3) => {
-    const clamped = clampTranslate(x4, y3, scaleRef.current || 1);
-    translateRef.current = { x: clamped.x, y: clamped.y };
-    setTranslateX(clamped.x);
-    setTranslateY(clamped.y);
-  }, [clampTranslate]);
-  const resetView = q2(() => {
-    applyScale(1);
-    applyTranslate(0, 0);
-  }, [applyScale, applyTranslate]);
-  const zoomIn = q2(() => applyScale(scaleRef.current + SCALE_STEP), [applyScale]);
-  const zoomOut = q2(() => applyScale(scaleRef.current - SCALE_STEP), [applyScale]);
-  const handleWheel = q2((e3) => {
-    if (!viewportRef.current || !containerRef.current) return;
-    const delta = -e3.deltaY;
-    const factor = e3.ctrlKey || e3.metaKey ? 15e-4 : 25e-4;
-    const s3 = scaleRef.current || 1;
-    const nextS = Math.min(MAX_SCALE, Math.max(MIN_SCALE, s3 * (1 + delta * factor)));
-    if (Math.abs(nextS - s3) < 1e-5) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const rawX = e3.clientX - rect.left;
-    const rawY = e3.clientY - rect.top;
-    const sx = nextS / s3;
-    const currentTx = translateRef.current.x || 0;
-    const currentTy = translateRef.current.y || 0;
-    const nextTx = currentTx * sx + rawX * (1 - sx);
-    const nextTy = currentTy * sx + rawY * (1 - sx);
-    applyScale(nextS);
-    applyTranslate(nextTx, nextTy);
-    e3.preventDefault();
-  }, [applyScale, applyTranslate]);
-  const togglePanMode = q2(() => {
-    const next = !panMode;
-    setPanMode(next);
-    if (next) {
-      drawModeRef.current = false;
-      setIsDrawMode(false);
-    }
-  }, [panMode]);
-  const imageUrl = docId ? originalUrl ? `${originalUrl}${originalUrl.includes("?") ? "&" : "?"}page=${page}` : `/documents/${docId}/download/original/?page=${page}` : null;
-  y2(() => {
-    if (!imageUrl) return;
-    setImageLoaded(false);
-    setImageError(null);
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      if (imageRef.current) {
-        imageRef.current.src = img.src;
-        try {
-          const area = (img.naturalWidth || 0) * (img.naturalHeight || 0);
-          if (area > 2e7) {
-            setWarning("Large document image detected. Rendering may be slow.");
-          }
-        } catch (e3) {
-        }
-      }
-      setImageLoaded(true);
-    };
-    img.onerror = () => setImageError("Failed to load document image");
-    img.src = imageUrl;
-  }, [imageUrl]);
-  y2(() => {
-    let cancelled = false;
-    const loadOverlays = async () => {
-      if (overlayMode !== "document" || !docId) {
-        setOverlayItems([]);
-        setOverlayError(null);
-        setOverlayLoading(false);
-        return;
-      }
-      setOverlayLoading(true);
-      setOverlayError(null);
-      try {
-        const response = await fetch(`/api/visual-rag/overlays/${docId}?page=${page}`);
-        if (!response.ok) throw new Error("Failed to load overlays");
-        const data = await response.json();
-        const overlays = Array.isArray(data.overlays) ? data.overlays : [];
-        if (!cancelled) {
-          setOverlayItems(overlays);
-          const domain = overlays[0]?.domain || "general";
-          setOverlayDomain(String(domain).toLowerCase());
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setOverlayError(err.message || "Overlay load failed");
-          setOverlayItems([]);
-        }
-      } finally {
-        if (!cancelled) setOverlayLoading(false);
-      }
-    };
-    void loadOverlays();
-    resetView();
-    return () => {
-      cancelled = true;
-    };
-  }, [overlayMode, docId, page, resetView]);
-  y2(() => {
-    let cancelled = false;
-    const loadUserAnnotations = async () => {
-      if (!docId) return;
-      try {
-        const resp = await fetch(`/manual/annotations/${docId}?page=${page}`);
-        if (!resp.ok) return;
-        const data = await resp.json();
-        if (cancelled) return;
-        const anns = Array.isArray(data.annotations) ? data.annotations : [];
-        document.dispatchEvent(new CustomEvent("annotations:loaded", { detail: { annotations: anns } }));
-      } catch (err) {
-        console.warn("Failed to load user annotations", err && err.message ? err.message : err);
-      }
-    };
-    void loadUserAnnotations();
-    const saveListener = async (e3) => {
-      const payload = e3?.detail;
-      if (!payload || !payload.documentId || !Array.isArray(payload.annotations)) return;
-      try {
-        const resp = await fetch("/manual/annotations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-        if (!resp.ok) {
-          const txt = await resp.text();
-          console.error("Failed to persist annotations", txt);
-          return;
-        }
-        const result = await resp.json();
-        if (cancelled) return;
-        const created = Array.isArray(result.created) ? result.created : [];
-        document.dispatchEvent(new CustomEvent("annotations:loaded", { detail: { annotations: created } }));
-      } catch (err) {
-        console.error("Annotation save failed", err && err.message ? err.message : err);
-      }
-    };
-    document.addEventListener("payload:ready", saveListener);
-    return () => {
-      cancelled = true;
-      document.removeEventListener("payload:ready", saveListener);
-    };
-  }, [docId, page]);
-  y2(() => {
-    let cancelled = false;
-    const loadLegend = async () => {
-      if (!showLegend) return;
-      try {
-        const resp = await fetch(`/api/visual-rag/legend/${overlayDomain}`);
-        if (!resp.ok) throw new Error("Legend not available");
-        const data = await resp.json();
-        if (!cancelled) setLegend(Array.isArray(data) ? data : []);
-      } catch (err) {
-        if (!cancelled) setLegend([]);
-      }
-    };
-    void loadLegend();
-    return () => {
-      cancelled = true;
-    };
-  }, [overlayDomain, showLegend]);
-  y2(() => {
-    const handler = async (e3) => {
-      const customEvent = e3;
-      const { imageBase64, collection } = customEvent.detail;
-      setResultsLoading(true);
-      setResultsError(null);
-      setShowResults(true);
-      setResults([]);
-      try {
-        const response = await fetch("/api/visual-rag/search/visual", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: imageBase64, collection, k: 10 })
-        });
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(`Search failed: ${response.status} ${text}`);
-        }
-        const data = await response.json();
-        setResults(Array.isArray(data.results) ? data.results : []);
-      } catch (err) {
-        setResultsError(err.message || "Visual search failed");
-      } finally {
-        setResultsLoading(false);
-      }
-    };
-    window.addEventListener("visual-search-requested", handler);
-    return () => window.removeEventListener("visual-search-requested", handler);
-  }, []);
-  const getRelativePosition = q2(
-    (e3) => {
-      const container = containerRef.current;
-      if (!container) return { x: 0, y: 0 };
-      const rect = container.getBoundingClientRect();
-      let clientX, clientY;
-      if ("touches" in e3) {
-        const touch = e3.touches[0] || e3.changedTouches[0];
-        clientX = touch.clientX;
-        clientY = touch.clientY;
-      } else {
-        clientX = e3.clientX;
-        clientY = e3.clientY;
-      }
-      const tx = translateRef.current.x || 0;
-      const ty = translateRef.current.y || 0;
-      const s3 = scaleRef.current || 1;
-      const rawX = clientX - rect.left;
-      const rawY = clientY - rect.top;
-      return { x: (rawX - tx) / s3, y: (rawY - ty) / s3 };
-    },
-    []
-  );
-  const handleMouseDown = q2(
-    (e3) => {
-      if (!selectionEnabled || !drawModeRef.current) return;
-      e3.preventDefault();
-      const pos = getRelativePosition(e3);
-      const nextBox = { id: `box-${Date.now()}`, x: pos.x, y: pos.y, width: 0, height: 0 };
-      isDrawingRef.current = true;
-      currentBoxRef.current = nextBox;
-      setIsDrawing(true);
-      setCurrentBox(nextBox);
-      setWarning(null);
-    },
-    [getRelativePosition]
-  );
-  const handleMouseMove = q2(
-    (e3) => {
-      if (!isDrawingRef.current || !currentBoxRef.current) return;
-      e3.preventDefault();
-      const pos = getRelativePosition(e3);
-      const nextBox = {
-        ...currentBoxRef.current,
-        width: pos.x - currentBoxRef.current.x,
-        height: pos.y - currentBoxRef.current.y
-      };
-      currentBoxRef.current = nextBox;
-      setCurrentBox(nextBox);
-    },
-    [getRelativePosition]
-  );
-  const captureRegion = q2(
-    async (box, eventName) => {
-      const container = containerRef.current;
-      const img = imageRef.current;
-      if (!container || !img) return;
-      if (!imageLoaded && !imageError) return;
-      try {
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        const naturalWidth = img.naturalWidth || container.clientWidth;
-        const naturalHeight = img.naturalHeight || container.clientHeight;
-        const scaleX = naturalWidth / container.clientWidth;
-        const scaleY = naturalHeight / container.clientHeight;
-        const srcX = box.x * scaleX;
-        const srcY = box.y * scaleY;
-        const srcWidth = box.width * scaleX;
-        const srcHeight = box.height * scaleY;
-        canvas.width = srcWidth;
-        canvas.height = srcHeight;
-        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-          ctx.drawImage(img, srcX, srcY, srcWidth, srcHeight, 0, 0, srcWidth, srcHeight);
-        } else {
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-        }
-        const dataUrl = canvas.toDataURL("image/png");
-        const base64 = dataUrl.split(",")[1];
-        const event = new CustomEvent(eventName, {
-          detail: {
-            imageBase64: base64,
-            collection: "visual_pages",
-            documentId: docId,
-            page,
-            bbox: {
-              x: box.x / container.clientWidth,
-              y: box.y / container.clientHeight,
-              width: box.width / container.clientWidth,
-              height: box.height / container.clientHeight
-            }
-          }
-        });
-        if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
-          window.dispatchEvent(event);
-        }
-        if (eventName === "visual-search-requested" && onRegionSelected) {
-          onRegionSelected(base64, box);
-        }
-      } catch (err) {
-        console.error("Failed to capture region:", err);
-        setWarning("Failed to capture selection. Please try again.");
-      }
-    },
-    [docId, page, imageLoaded, imageError, onRegionSelected]
-  );
-  const handleMouseUp = q2((e3) => {
-    if (!isDrawingRef.current || !currentBoxRef.current) return;
-    if (e3) {
-      const pos = getRelativePosition(e3);
-      currentBoxRef.current = {
-        ...currentBoxRef.current,
-        width: pos.x - currentBoxRef.current.x,
-        height: pos.y - currentBoxRef.current.y
-      };
-      setCurrentBox(currentBoxRef.current);
-    }
-    const activeBox = currentBoxRef.current;
-    isDrawingRef.current = false;
-    setIsDrawing(false);
-    const container = containerRef.current;
-    if (!container) return;
-    const normalizedBox = {
-      ...activeBox,
-      x: activeBox.width < 0 ? activeBox.x + activeBox.width : activeBox.x,
-      y: activeBox.height < 0 ? activeBox.y + activeBox.height : activeBox.y,
-      width: Math.abs(activeBox.width),
-      height: Math.abs(activeBox.height)
-    };
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
-    if (normalizedBox.width < MIN_SELECTION_SIZE || normalizedBox.height < MIN_SELECTION_SIZE) {
-      setWarning("Selection too small. Please draw a larger box.");
-      currentBoxRef.current = null;
-      setCurrentBox(null);
-      return;
-    }
-    const widthFraction = normalizedBox.width / containerWidth;
-    const heightFraction = normalizedBox.height / containerHeight;
-    if (widthFraction < MIN_SIZE_FRACTION || heightFraction < MIN_SIZE_FRACTION) {
-      setWarning("Selection too small to yield meaningful results.");
-      currentBoxRef.current = null;
-      setCurrentBox(null);
-      return;
-    }
-    setBoxes((prev) => [...prev, normalizedBox]);
-    currentBoxRef.current = null;
-    setCurrentBox(null);
-    captureRegion(normalizedBox, "visual-search-requested");
-  }, [captureRegion, getRelativePosition]);
-  const removeBox = q2((boxId) => {
-    setBoxes((prev) => prev.filter((b3) => b3.id !== boxId));
-  }, []);
-  const clearAllBoxes = q2(() => {
-    setBoxes([]);
-    setWarning(null);
-  }, []);
-  const toggleDrawMode = q2(() => {
-    if (!selectionEnabled) return;
-    const next = !drawModeRef.current;
-    drawModeRef.current = next;
-    setIsDrawMode(next);
-    if (!next) {
-      isDrawingRef.current = false;
-      currentBoxRef.current = null;
-      setIsDrawing(false);
-      setCurrentBox(null);
-    }
-  }, []);
-  y2(() => {
-    drawModeRef.current = isDrawMode;
-  }, [isDrawMode]);
-  y2(() => {
-    if (drawModeButtonRef.current) {
-      drawModeButtonRef.current.setAttribute("aria-pressed", isDrawMode ? "true" : "false");
-    }
-    if (panModeButtonRef.current) {
-      panModeButtonRef.current.setAttribute("aria-pressed", panMode ? "true" : "false");
-    }
-  }, [isDrawMode, panMode]);
-  const changePage = q2((delta) => {
-    const next = Math.max(1, page + delta);
-    if (pageCount && next > pageCount) return;
-    setPage(next);
-    const ev = new CustomEvent("overlay:document-changed", {
-      detail: { documentId: docId, page: next, originalUrl, pageCount }
-    });
-    if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
-      window.dispatchEvent(ev);
-    }
-  }, [page, pageCount, docId, originalUrl]);
-  y2(() => {
-    const handleGlobalUp = (event) => {
-      if (isDrawingRef.current) handleMouseUp(event);
-      if (isResizing) setIsResizing(false);
-    };
-    const handleGlobalMove = (e3) => {
-      if (isResizing) {
-        const container = containerRef.current?.parentElement?.parentElement;
-        if (container) {
-          const rect = container.getBoundingClientRect();
-          const percent = (e3.clientX - rect.left) / rect.width * 100;
-          setSplitPos(Math.min(80, Math.max(20, percent)));
-        }
-      }
-    };
-    window.addEventListener("pointerup", handleGlobalUp);
-    window.addEventListener("mouseup", handleGlobalUp);
-    window.addEventListener("touchend", handleGlobalUp);
-    window.addEventListener("mousemove", handleGlobalMove);
-    return () => {
-      window.removeEventListener("pointerup", handleGlobalUp);
-      window.removeEventListener("mouseup", handleGlobalUp);
-      window.removeEventListener("touchend", handleGlobalUp);
-      window.removeEventListener("mousemove", handleGlobalMove);
-    };
-  }, [handleMouseUp, isResizing]);
-  y2(() => {
-    const node = containerRef.current;
-    if (!node) return;
-    node.addEventListener("wheel", handleWheel, { passive: false });
-    return () => node.removeEventListener("wheel", handleWheel);
-  }, [handleWheel]);
-  y2(() => {
-    const handler = (e3) => {
-      if (e3.target) {
-        const t3 = e3.target;
-        const tag = (t3.tagName || "").toUpperCase();
-        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t3.isContentEditable) return;
-      }
-      if (e3.key === "+" || e3.key === "=") {
-        zoomIn();
-        e3.preventDefault();
-      } else if (e3.key === "-") {
-        zoomOut();
-        e3.preventDefault();
-      } else if (e3.key === "0" || e3.key.toLowerCase() === "r") {
-        resetView();
-        e3.preventDefault();
-      } else if (e3.code === "Space") {
-        togglePanMode();
-        e3.preventDefault();
-      } else if (e3.key.startsWith("Arrow") && panMode) {
-        const step = 20;
-        if (e3.key === "ArrowLeft") applyTranslate(translateRef.current.x + step, translateRef.current.y);
-        if (e3.key === "ArrowRight") applyTranslate(translateRef.current.x - step, translateRef.current.y);
-        if (e3.key === "ArrowUp") applyTranslate(translateRef.current.x, translateRef.current.y + step);
-        if (e3.key === "ArrowDown") applyTranslate(translateRef.current.x, translateRef.current.y - step);
-        e3.preventDefault();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [zoomIn, zoomOut, resetView, togglePanMode, panMode, applyTranslate]);
-  const handlePointerDown = q2((e3) => {
-    if (panMode) {
-      panActiveRef.current = true;
-      lastPanPointRef.current = { x: e3.clientX, y: e3.clientY };
-      if (containerRef.current?.setPointerCapture) containerRef.current.setPointerCapture(e3.pointerId);
-      e3.preventDefault();
-      return;
-    }
-    if (!selectionEnabled || !drawModeRef.current) return;
-    pointerActiveRef.current = true;
-    if (containerRef.current?.setPointerCapture) containerRef.current.setPointerCapture(e3.pointerId);
-    handleMouseDown(e3);
-  }, [handleMouseDown, panMode]);
-  const handlePointerMove = q2((e3) => {
-    if (panActiveRef.current && lastPanPointRef.current) {
-      const last = lastPanPointRef.current;
-      const dx = e3.clientX - last.x;
-      const dy = e3.clientY - last.y;
-      const nextX = (translateRef.current.x || 0) + dx;
-      const nextY = (translateRef.current.y || 0) + dy;
-      applyTranslate(nextX, nextY);
-      lastPanPointRef.current = { x: e3.clientX, y: e3.clientY };
-      e3.preventDefault();
-      return;
-    }
-    handleMouseMove(e3);
-  }, [handleMouseMove, applyTranslate]);
-  const handlePointerUp = q2((e3) => {
-    if (panActiveRef.current) {
-      panActiveRef.current = false;
-      lastPanPointRef.current = null;
-      if (containerRef.current?.releasePointerCapture) containerRef.current.releasePointerCapture(e3.pointerId);
-      e3.preventDefault();
-      return;
-    }
-    handleMouseUp(e3);
-    pointerActiveRef.current = false;
-    if (containerRef.current?.releasePointerCapture) containerRef.current.releasePointerCapture(e3.pointerId);
-  }, [handleMouseUp]);
-  const handlePointerCancel = q2((e3) => {
-    pointerActiveRef.current = false;
-    panActiveRef.current = false;
-    lastPanPointRef.current = null;
-    if (containerRef.current?.releasePointerCapture) containerRef.current.releasePointerCapture(e3.pointerId);
-  }, []);
-  const handleMouseDownFallback = q2((e3) => {
-    if (!pointerActiveRef.current) handleMouseDown(e3);
-  }, [handleMouseDown]);
-  const handleMouseMoveFallback = q2((e3) => {
-    if (!pointerActiveRef.current) handleMouseMove(e3);
-  }, [handleMouseMove]);
-  const handleMouseUpFallback = q2((e3) => {
-    if (!pointerActiveRef.current) handleMouseUp(e3);
-  }, [handleMouseUp]);
-  const visibleOverlays = T2(() => {
-    if (!overlayItems || overlayItems.length === 0) return [];
-    if (!mandatoryOnly) return overlayItems;
-    return overlayItems.filter((o3) => o3.isMandatory);
-  }, [overlayItems, mandatoryOnly]);
-  y2(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "rgba(220, 20, 60, 0.9)";
-    ctx.lineWidth = 2;
-    ctx.fillStyle = "rgba(220, 20, 60, 0.1)";
-    boxes.forEach((box) => {
-      ctx.strokeRect(box.x, box.y, box.width, box.height);
-      ctx.fillRect(box.x, box.y, box.width, box.height);
-    });
-    if (currentBox && isDrawing) {
-      ctx.strokeStyle = "rgba(255, 140, 0, 0.9)";
-      ctx.fillStyle = "rgba(255, 140, 0, 0.2)";
-      ctx.strokeRect(currentBox.x, currentBox.y, currentBox.width, currentBox.height);
-      ctx.fillRect(currentBox.x, currentBox.y, currentBox.width, currentBox.height);
-    }
-  }, [boxes, currentBox, isDrawing]);
-  return /* @__PURE__ */ u3(
-    "div",
-    {
-      "data-testid": "overlay-viewer-root",
-      "data-hydrated": "true",
-      "data-has-boxes": boxes.length,
-      "data-has-warning": warning ? "true" : "false",
-      "data-original-url": originalUrl || "",
-      className: "h-full flex flex-col overflow-hidden",
-      children: [
-        /* @__PURE__ */ u3("div", { className: "flex flex-wrap items-center gap-2 p-2 border-b border-gray-200 bg-white z-10", children: [
-          selectionEnabled && /* @__PURE__ */ u3(
-            "button",
-            {
-              "data-testid": "red-pen-toggle",
-              onClick: toggleDrawMode,
-              ref: drawModeButtonRef,
-              className: `px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${isDrawMode ? "bg-red-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`,
-              children: [
-                /* @__PURE__ */ u3("i", { className: `fas fa-pen mr-1.5 ${isDrawMode ? "animate-pulse" : ""}` }),
-                isDrawMode ? "Drawing Mode" : "Draw Mode"
-              ]
-            }
-          ),
-          selectionEnabled && boxes.length > 0 && /* @__PURE__ */ u3(
-            "button",
-            {
-              "data-testid": "clear-boxes",
-              onClick: clearAllBoxes,
-              className: "px-3 py-1.5 text-sm text-gray-600 hover:text-red-600",
-              children: [
-                /* @__PURE__ */ u3("i", { className: "fas fa-trash-alt mr-1" }),
-                "Clear (",
-                boxes.length,
-                ")"
-              ]
-            }
-          ),
-          overlayMode === "document" && /* @__PURE__ */ u3("div", { className: "flex items-center gap-2 text-xs text-gray-500", children: [
-            overlayLoading && /* @__PURE__ */ u3("span", { children: "Loading overlays..." }),
-            !overlayLoading && /* @__PURE__ */ u3("span", { "data-testid": "overlay-count", children: [
-              "Overlays: ",
-              overlayItems.length
-            ] }),
-            overlayError && /* @__PURE__ */ u3("span", { className: "text-red-600", children: overlayError }),
-            overlayItems.length > 0 && /* @__PURE__ */ u3("label", { className: "flex items-center gap-1 ml-2", children: [
-              /* @__PURE__ */ u3(
-                "input",
-                {
-                  type: "checkbox",
-                  checked: mandatoryOnly,
-                  onChange: (e3) => setMandatoryOnly(e3.target.checked)
-                }
-              ),
-              "Mandatory only"
-            ] })
-          ] }),
-          showLegend && legend.length > 0 && /* @__PURE__ */ u3("div", { "data-testid": "overlay-legend", className: "flex flex-wrap items-center gap-2 text-xs text-gray-600", children: legend.map((item) => /* @__PURE__ */ u3("div", { className: "flex items-center gap-1", children: [
-            /* @__PURE__ */ u3("span", { className: `${styles2.legendDot} [--dot-color:${item.color}]`, "aria-hidden": "true" }),
-            /* @__PURE__ */ u3("span", { children: item.label })
-          ] }, item.key)) }),
-          /* @__PURE__ */ u3("div", { className: "flex items-center gap-2 px-2", children: [
-            /* @__PURE__ */ u3("button", { "aria-label": "Zoom out", "data-testid": "overlay-zoom-out", onClick: zoomOut, className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "-" }),
-            /* @__PURE__ */ u3("span", { "data-testid": "overlay-zoom-percentage", className: "text-xs text-gray-500 w-8 text-center", children: [
-              Math.round(scale * 100),
-              "%"
-            ] }),
-            /* @__PURE__ */ u3("button", { "aria-label": "Zoom in", "data-testid": "overlay-zoom-in", onClick: zoomIn, className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "+" }),
-            /* @__PURE__ */ u3("button", { "aria-label": "Reset zoom", "data-testid": "overlay-zoom-reset", onClick: resetView, className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "Reset" }),
-            /* @__PURE__ */ u3("button", { "data-testid": "overlay-pan-toggle", onClick: togglePanMode, ref: panModeButtonRef, className: `px-2 py-1 rounded hover:bg-gray-200 ${panMode ? "bg-gray-300" : "bg-gray-100"}`, children: "Pan" })
-          ] }),
-          showResults && /* @__PURE__ */ u3("button", { onClick: () => setShowResults(false), className: "px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs ml-2 hover:bg-blue-200", children: [
-            /* @__PURE__ */ u3("i", { className: "fas fa-columns mr-1" }),
-            " Hide Results"
-          ] }),
-          !showResults && results.length > 0 && /* @__PURE__ */ u3("button", { onClick: () => setShowResults(true), className: "px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs ml-2 hover:bg-blue-200", children: [
-            /* @__PURE__ */ u3("i", { className: "fas fa-columns mr-1" }),
-            " Show Results"
-          ] }),
-          /* @__PURE__ */ u3("div", { className: "ml-auto flex items-center gap-2", children: [
-            /* @__PURE__ */ u3(
-              "button",
-              {
-                "data-testid": "overlay-prev-page",
-                onClick: () => changePage(-1),
-                "aria-label": "Previous page",
-                disabled: page <= 1,
-                className: "px-2 py-1 bg-gray-100 text-gray-700 rounded border border-gray-300 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed",
-                children: /* @__PURE__ */ u3("i", { className: "fas fa-chevron-left" })
-              }
-            ),
-            /* @__PURE__ */ u3("span", { "data-testid": "overlay-page-indicator", className: "text-xs text-gray-500", children: [
-              "Page ",
-              page,
-              pageCount ? ` of ${pageCount}` : ""
-            ] }),
-            /* @__PURE__ */ u3(
-              "button",
-              {
-                "data-testid": "overlay-next-page",
-                onClick: () => changePage(1),
-                "aria-label": "Next page",
-                disabled: pageCount ? page >= pageCount : false,
-                className: "px-2 py-1 bg-gray-100 text-gray-700 rounded border border-gray-300 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed",
-                children: /* @__PURE__ */ u3("i", { className: "fas fa-chevron-right" })
-              }
-            )
-          ] })
-        ] }),
-        warning && /* @__PURE__ */ u3(
-          "div",
-          {
-            className: "mx-2 my-1 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700",
-            "data-testid": "selection-warning",
-            children: [
-              /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-triangle mr-1" }),
-              warning
-            ]
-          }
-        ),
-        /* @__PURE__ */ u3("div", { className: "flex-1 flex overflow-hidden", children: [
-          /* @__PURE__ */ u3(
-            "div",
-            {
-              className: `${styles2.documentPane} ${showResults ? `[--pane-width:${splitPos}%]` : `[--pane-width:100%]`}`,
-              children: /* @__PURE__ */ u3(
-                "div",
-                {
-                  ref: containerRef,
-                  "data-testid": "overlay-container",
-                  className: `relative flex-1 overflow-hidden ${panMode ? panActiveRef.current ? "cursor-grabbing" : "cursor-grab" : isDrawMode ? "cursor-crosshair" : "cursor-default"} ${isDrawMode ? "touch-none" : "touch-auto"}`,
-                  onPointerDown: handlePointerDown,
-                  onPointerMove: handlePointerMove,
-                  onPointerUp: handlePointerUp,
-                  onPointerCancel: handlePointerCancel,
-                  onPointerLeave: () => {
-                    if (isDrawingRef.current) handleMouseUp();
-                  },
-                  onMouseDown: handleMouseDownFallback,
-                  onMouseMove: handleMouseMoveFallback,
-                  onMouseUp: handleMouseUpFallback,
-                  onMouseLeave: () => {
-                    if (pointerActiveRef.current) return;
-                    if (isDrawingRef.current) handleMouseUp();
-                  },
-                  onTouchStart: handleMouseDownFallback,
-                  onTouchMove: handleMouseMoveFallback,
-                  onTouchEnd: handleMouseUpFallback,
-                  children: [
-                    /* @__PURE__ */ u3(
-                      "div",
-                      {
-                        ref: viewportRef,
-                        "data-testid": "overlay-viewport",
-                        className: `${styles2.viewport} [--viewport-transform:translate(${translateX}px, ${translateY}px) scale(${scale})]`,
-                        children: [
-                          imageUrl && !imageError ? /* @__PURE__ */ u3(
-                            "img",
-                            {
-                              ref: imageRef,
-                              alt: `Document ${docId} page ${page}`,
-                              className: `w-full h-full object-contain pointer-events-none select-none ${imageLoaded ? "block" : "hidden"}`,
-                              "data-testid": "document-image",
-                              draggable: false,
-                              crossOrigin: "anonymous",
-                              onDragStart: (e3) => e3.preventDefault()
-                            }
-                          ) : null,
-                          imageUrl && !imageLoaded && !imageError && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center", "data-testid": "overlay-loading", children: /* @__PURE__ */ u3("div", { className: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" }) }),
-                          imageError && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center", "data-testid": "image-error", children: /* @__PURE__ */ u3("div", { className: "text-center text-gray-500", children: [
-                            /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-circle text-3xl mb-2" }),
-                            /* @__PURE__ */ u3("p", { className: "text-sm", children: imageError })
-                          ] }) }),
-                          !imageUrl && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center", children: /* @__PURE__ */ u3("p", { className: "text-sm text-gray-500", children: "No document selected" }) }),
-                          overlayMode === "document" && visibleOverlays.map((overlay, idx) => {
-                            const box = normalizeOverlayBox(overlay.boundingBox);
-                            if (!box) return null;
-                            const color = overlay.color || "#2563eb";
-                            return /* @__PURE__ */ u3(
-                              "div",
-                              {
-                                "data-testid": "overlay-box",
-                                className: `${styles2.overlayBox} [--box-left:${box.left}%] [--box-top:${box.top}%] [--box-width:${box.width}%] [--box-height:${box.height}%] [--box-color:${color}] [--box-bg:${color}22]`,
-                                children: /* @__PURE__ */ u3("span", { className: `${styles2.overlayLabel} [--box-color:${color}]`, children: overlay.label || "Overlay" })
-                              },
-                              overlay.id || `${overlay.label}-${idx}`
-                            );
-                          }),
-                          /* @__PURE__ */ u3("canvas", { ref: canvasRef, className: "absolute inset-0 pointer-events-none", "data-testid": "annotation-canvas" }),
-                          highlightedRegion && /* @__PURE__ */ u3(
-                            "div",
-                            {
-                              className: `${styles2.highlightRegion} animate-pulse [--region-left:${highlightedRegion.x * 100}%] [--region-top:${highlightedRegion.y * 100}%] [--region-width:${highlightedRegion.width * 100}%] [--region-height:${highlightedRegion.height * 100}%]`
-                            }
-                          )
-                        ]
-                      }
-                    ),
-                    boxes.map((box, idx) => /* @__PURE__ */ u3("div", { className: `${styles2.selectionBoxContainer} [--sel-left:${box.x}px] [--sel-top:${box.y - 24}px]`, children: [
-                      /* @__PURE__ */ u3("span", { className: "px-1.5 py-0.5 bg-red-600 text-white text-xs rounded", children: [
-                        "Region ",
-                        idx + 1
-                      ] }),
-                      /* @__PURE__ */ u3(
-                        "button",
-                        {
-                          onClick: () => removeBox(box.id),
-                          className: "w-5 h-5 bg-white border border-gray-300 rounded-l-none border-l-0 text-xs text-gray-600 hover:text-red-600 hover:border-red-300",
-                          title: "Remove this selection",
-                          children: /* @__PURE__ */ u3("i", { className: "fas fa-times" })
-                        }
-                      ),
-                      /* @__PURE__ */ u3(
-                        "button",
-                        {
-                          onClick: () => captureRegion(box, "export:region-requested"),
-                          className: "w-5 h-5 bg-white border border-gray-300 rounded text-xs text-gray-600 hover:text-blue-600 hover:border-blue-300 ml-1",
-                          title: "Export this region",
-                          children: /* @__PURE__ */ u3("i", { className: "fas fa-download" })
-                        }
-                      ),
-                      /* @__PURE__ */ u3(
-                        "button",
-                        {
-                          onClick: () => {
-                            captureRegion(box, "manual:send-to-chat");
-                            const onSend = (e3) => {
-                              const { imageBase64, bbox, page: page2, documentId } = e3.detail;
-                              const context = { type: "visual", data: { imageBase64, bbox, page: page2 }, documentId };
-                              window.location.href = `/chat?context=${encodeURIComponent(JSON.stringify(context))}`;
-                            };
-                            window.addEventListener("manual:send-to-chat", onSend, { once: true });
-                          },
-                          className: "w-5 h-5 bg-white border border-gray-300 rounded-r border-l-0 text-xs text-gray-600 hover:text-green-600 hover:border-green-300",
-                          title: "Send to Chat",
-                          children: /* @__PURE__ */ u3("i", { className: "fas fa-comment-dots" })
-                        }
-                      )
-                    ] }, box.id)),
-                    isDrawMode && boxes.length === 0 && /* @__PURE__ */ u3(
-                      "div",
-                      {
-                        className: "absolute bottom-2 left-2 right-2 p-2 text-center text-xs text-gray-500 bg-blue-50 rounded pointer-events-none",
-                        "data-testid": "selection-instructions",
-                        children: [
-                          /* @__PURE__ */ u3("i", { className: "fas fa-info-circle mr-1" }),
-                          "Click and drag to select a region for visual search"
-                        ]
-                      }
-                    )
-                  ]
-                }
-              )
-            }
-          ),
-          showResults && /* @__PURE__ */ u3(
-            "div",
-            {
-              className: "w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize flex items-center justify-center z-20",
-              onMouseDown: () => setIsResizing(true),
-              children: /* @__PURE__ */ u3("div", { className: "h-8 w-1 bg-gray-400 rounded-full" })
-            }
-          ),
-          showResults && /* @__PURE__ */ u3(
-            "div",
-            {
-              className: `${styles2.resultsPanel} [--panel-width:${100 - splitPos}%]`,
-              "data-testid": "visual-search-results-panel",
-              children: [
-                /* @__PURE__ */ u3("div", { className: "p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50", children: [
-                  /* @__PURE__ */ u3("h3", { className: "text-sm font-semibold text-gray-700", children: "Visual Search Results" }),
-                  /* @__PURE__ */ u3("button", { onClick: () => setShowResults(false), className: "text-gray-400 hover:text-gray-600", "aria-label": "Close results", children: /* @__PURE__ */ u3("i", { className: "fas fa-times" }) })
-                ] }),
-                /* @__PURE__ */ u3("div", { className: "flex-1 overflow-y-auto p-3 space-y-3", children: [
-                  resultsLoading && /* @__PURE__ */ u3("div", { className: "flex flex-col items-center justify-center py-8 text-gray-500", children: [
-                    /* @__PURE__ */ u3("div", { className: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2" }),
-                    /* @__PURE__ */ u3("p", { className: "text-xs", children: "Searching visual index..." })
-                  ] }),
-                  resultsError && /* @__PURE__ */ u3("div", { className: "p-3 bg-red-50 text-red-700 rounded text-sm border border-red-100", children: [
-                    /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-circle mr-2" }),
-                    resultsError
-                  ] }),
-                  !resultsLoading && !resultsError && results.length === 0 && /* @__PURE__ */ u3("div", { className: "text-center py-8 text-gray-400 text-sm", children: [
-                    /* @__PURE__ */ u3("i", { className: "fas fa-search mb-2 text-2xl opacity-20" }),
-                    /* @__PURE__ */ u3("p", { children: "No visually similar pages found." }),
-                    /* @__PURE__ */ u3("p", { className: "text-xs mt-1", children: "Try selecting a distinct region." })
-                  ] }),
-                  results.map((result, idx) => /* @__PURE__ */ u3(
-                    "div",
-                    {
-                      className: "group border border-gray-200 rounded-lg overflow-hidden hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer bg-white",
-                      onClick: () => {
-                        if (String(result.document_id) === String(docId)) {
-                          setPage(Number(result.page));
-                          const ev = new CustomEvent("overlay:document-changed", {
-                            detail: { documentId: docId, page: Number(result.page), originalUrl, pageCount }
-                          });
-                          window.dispatchEvent(ev);
-                        } else {
-                          window.open(`/manual?open=${result.document_id}&page=${result.page}`, "_blank");
-                        }
-                      },
-                      children: [
-                        /* @__PURE__ */ u3("div", { className: "relative aspect-[3/4] bg-gray-100 overflow-hidden border-b border-gray-100", children: [
-                          result.thumbnail ? /* @__PURE__ */ u3("img", { src: `data:image/jpeg;base64,${result.thumbnail}`, alt: "Result", className: "w-full h-full object-cover" }) : /* @__PURE__ */ u3("div", { className: "w-full h-full flex items-center justify-center text-gray-300", children: /* @__PURE__ */ u3("i", { className: "fas fa-file-image text-3xl" }) }),
-                          /* @__PURE__ */ u3("div", { className: "absolute top-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm", children: [
-                            "Score: ",
-                            (result.score * 100).toFixed(1),
-                            "%"
-                          ] })
-                        ] }),
-                        /* @__PURE__ */ u3("div", { className: "p-2", children: [
-                          /* @__PURE__ */ u3("div", { className: "font-medium text-xs text-gray-800 truncate", title: result.title || `Document ${result.document_id}`, children: result.title || `Document ${result.document_id}` }),
-                          /* @__PURE__ */ u3("div", { className: "flex justify-between items-center mt-1", children: [
-                            /* @__PURE__ */ u3("span", { className: "text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded", children: [
-                              "Page ",
-                              result.page
-                            ] }),
-                            String(result.document_id) !== String(docId) && /* @__PURE__ */ u3("i", { className: "fas fa-external-link-alt text-[10px] text-gray-400" })
-                          ] })
-                        ] })
-                      ]
-                    },
-                    idx
-                  ))
-                ] })
-              ]
-            }
-          )
-        ] })
-      ]
-    }
-  );
-}
-
-// src/islands/VisualOverlaysIsland.tsx
-var overlayCache = /* @__PURE__ */ new Map();
-var CACHE_TTL = 1e3 * 60 * 5;
-function debounce(fn2, wait = 200) {
-  let t3 = null;
-  return (...args) => {
-    if (t3) clearTimeout(t3);
-    t3 = setTimeout(() => fn2(...args), wait);
-  };
-}
-function normalizeBoxToPixels(bbox, containerWidth, containerHeight) {
-  return {
-    left: Math.round(bbox.x * containerWidth),
-    top: Math.round(bbox.y * containerHeight),
-    width: Math.round(bbox.width * containerWidth),
-    height: Math.round(bbox.height * containerHeight)
-  };
-}
-function getVisibleImageIds(entries) {
-  const ids = [];
-  entries.forEach((e3) => {
-    const target = e3.target;
-    const id = target?.dataset?.imageId || target?.getAttribute?.("data-image-id") || null;
-    if (!id) return;
-    if (e3.isIntersecting || e3.intersectionRatio > 0) ids.push(id);
-  });
-  return ids;
-}
-async function fetchOverlaysForImage(image, fetchImpl = globalThis.fetch, options = {}) {
-  if (!image) return [];
-  const cacheKey = image.id || image.originalSrc || image.thumbnailSrc || JSON.stringify(image);
-  const now = Date.now();
-  const cached = overlayCache.get(cacheKey);
-  if (cached && now - cached.ts < CACHE_TTL) return cached.data;
-  let url = "";
-  let opts = { method: "GET" };
-  if (image.id) {
-    url = `/api/visual-rag/overlays?imageId=${encodeURIComponent(image.id)}`;
-  } else if (image.originalSrc) {
-    url = `/api/visual-rag/overlays/search`;
-    opts = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageUrl: image.originalSrc }) };
-  } else {
-    return [];
-  }
-  if (typeof fetchImpl !== "function") throw Object.assign(new Error("fetch not available"), { code: "no_fetch" });
-  const controller = new AbortController();
-  opts.signal = controller.signal;
-  let timeoutHandle = null;
-  const timeoutMs = options.timeoutMs || 1e4;
-  const timeoutPromise = new Promise((_3, reject) => {
-    timeoutHandle = setTimeout(() => {
-      controller.abort();
-      reject(Object.assign(new Error("Fetch timeout"), { code: "timeout" }));
-    }, timeoutMs);
-  });
-  try {
-    const res = await Promise.race([fetchImpl(url, opts), timeoutPromise]);
-    if (!res || !res.ok) {
-      const err = new Error("Overlay service error");
-      err.code = res && res.status === 503 ? "service_unavailable" : "fetch_error";
-      throw err;
-    }
-    const json = await res.json();
-    const overlays = Array.isArray(json.overlays) ? json.overlays : json;
-    overlayCache.set(cacheKey, { ts: now, data: overlays });
-    return overlays;
-  } catch (err) {
-    if (!err.code) err.code = err.name === "AbortError" ? "timeout" : "fetch_error";
-    throw err;
-  } finally {
-    if (timeoutHandle) clearTimeout(timeoutHandle);
-  }
-}
-function VisualOverlaysIsland(props) {
-  const { images = [], overlaysByImage = {} } = props;
-  const [mounted, setMounted] = d2(false);
-  const [localOverlays, setLocalOverlays] = d2(overlaysByImage || {});
-  const [loadingMap, setLoadingMap] = d2({});
-  const [errorMap2, setErrorMap2] = d2({});
-  const controllersRef = A2(/* @__PURE__ */ new Map());
-  const imageRefs = A2(/* @__PURE__ */ new Map());
-  const observerRef = A2(null);
-  y2(() => {
-    setMounted(true);
-  }, []);
-  y2(() => {
-    if (typeof IntersectionObserver === "undefined") return;
-    const intersectCb = debounce((entries) => {
-      const visibleIds = getVisibleImageIds(entries);
-      visibleIds.forEach((id) => {
-        const img = images.find((i4) => i4.id === id || i4.originalSrc === id || i4.thumbnailSrc === id);
-        if (!img) return;
-        const key = img.id || img.originalSrc || "";
-        if (Array.isArray(overlaysByImage && overlaysByImage[img.id])) {
-          setLocalOverlays((s3) => ({ ...s3, [img.id]: overlaysByImage[img.id] }));
-          return;
-        }
-        const cached = overlayCache.get(key);
-        if (cached && Date.now() - cached.ts < CACHE_TTL) {
-          setLocalOverlays((s3) => ({ ...s3, [img.id]: cached.data }));
-          return;
-        }
-        (async () => {
-          setLoadingMap((m3) => ({ ...m3, [key]: true }));
-          setErrorMap2((m3) => ({ ...m3, [key]: null }));
-          const controller = new AbortController();
-          controllersRef.current.set(key, controller);
-          try {
-            const overlays = await fetchOverlaysForImage(img, globalThis.fetch, { timeoutMs: 8e3 });
-            setLocalOverlays((s3) => ({ ...s3, [img.id]: overlays }));
-          } catch (err) {
-            const code = err?.code || "fetch_error";
-            setErrorMap2((m3) => ({ ...m3, [key]: `${code}: ${err?.message || "Failed to fetch overlays"}` }));
-          } finally {
-            setLoadingMap((m3) => ({ ...m3, [key]: false }));
-            controllersRef.current.delete(key);
-          }
-        })();
-      });
-    }, 150);
-    observerRef.current = new IntersectionObserver((entries) => {
-      intersectCb(entries);
-    }, { root: null, threshold: 0.05 });
-    imageRefs.current.forEach((el) => {
-      if (el) observerRef.current.observe(el);
-    });
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-        observerRef.current = null;
-      }
-      controllersRef.current.forEach((c3) => c3.abort());
-      controllersRef.current.clear();
-    };
-  }, [images, overlaysByImage]);
-  const attachImageRef = (id) => (el) => {
-    if (!el) {
-      imageRefs.current.delete(id);
-      return;
-    }
-    el.dataset.imageId = id;
-    imageRefs.current.set(id, el);
-    if (observerRef.current) observerRef.current.observe(el);
-  };
-  y2(() => {
-    images.forEach((img) => {
-      if (Array.isArray(overlaysByImage && overlaysByImage[img.id])) {
-        setLocalOverlays((s3) => ({ ...s3, [img.id]: overlaysByImage[img.id] }));
-      }
-    });
-  }, [images, overlaysByImage]);
-  return /* @__PURE__ */ u3("div", { "data-testid": "visual-overlays-island-root", "data-hydrated": mounted ? "true" : "false", children: /* @__PURE__ */ u3("div", { className: "visual-overlays-list space-y-6", children: images.map((img) => /* @__PURE__ */ u3("div", { className: "visual-image-item relative", "data-testid": `visual-image-${img.id}`, children: [
-    /* @__PURE__ */ u3(
-      "img",
-      {
-        ref: attachImageRef(img.id),
-        src: img.originalSrc || img.thumbnailSrc || "",
-        alt: `Document ${props.documentId || ""} image ${img.id}`,
-        "data-testid": "document-image",
-        "data-image-id": img.id,
-        className: "w-full h-auto block",
-        crossOrigin: "anonymous"
-      }
-    ),
-    /* @__PURE__ */ u3("div", { "data-testid": `overlay-container-${img.id}`, className: "absolute inset-0 pointer-events-none", children: [
-      /* @__PURE__ */ u3("svg", { "data-testid": `overlay-svg-${img.id}`, width: "100%", height: "100%", preserveAspectRatio: "none", className: "block", children: (localOverlays[img.id] || []).map((ov) => {
-        const bbox = normalizeBoxToPixels(ov.bbox || { x: 0, y: 0, width: 0, height: 0 }, 1e3, 1e3);
-        const x4 = (ov.bbox?.x || 0) * 100;
-        const y3 = (ov.bbox?.y || 0) * 100;
-        const w4 = (ov.bbox?.width || 0) * 100;
-        const h3 = (ov.bbox?.height || 0) * 100;
-        return /* @__PURE__ */ u3("rect", { "data-testid": `overlay-marker-${ov.id}`, x: `${x4}%`, y: `${y3}%`, width: `${w4}%`, height: `${h3}%`, fill: "none", stroke: "rgba(34,197,94,0.9)", "stroke-width": "2" }, ov.id);
-      }) }),
-      loadingMap[img.id] ? /* @__PURE__ */ u3("div", { "data-testid": `overlay-loading-${img.id}`, "aria-hidden": "true", children: "Loading overlays..." }) : null,
-      errorMap2[img.id] ? /* @__PURE__ */ u3("div", { "data-testid": `overlay-error-${img.id}`, "aria-hidden": "true", children: errorMap2[img.id] }) : null
-    ] })
-  ] }, img.id)) }) });
-}
-
-// src/islands/PlaygroundIsland.tsx
-var API_HEALTH = "/api/visual-rag/health";
-var API_SEARCH = "/api/visual-rag/search/visual";
-var COLLECTIONS = [
-  { value: "visual_pages", label: "visual_pages (320D, Dot)" },
-  { value: "visual_overlays", label: "visual_overlays (320D, Cosine)" }
-];
-var MIN_BOX_SIZE = 20;
-function PlaygroundIsland(props) {
-  const {
-    mode = "visual-debug",
-    collection: initialCollection = "visual_pages",
-    gpuState: initialGpuState = "idle",
-    documentId,
-    filters: initialFilters,
-    onSearch
-  } = props;
-  const [collection, setCollection] = d2(initialCollection);
-  const [gpuState, setGpuState] = d2(initialGpuState);
-  const [sidecarStatus, setSidecarStatus] = d2({
-    state: "unknown",
-    model: "ColQwen3-4B-AWQ"
-  });
-  const [isDrawMode, setIsDrawMode] = d2(false);
-  const [isDrawing, setIsDrawing] = d2(false);
-  const [currentBox, setCurrentBox] = d2(null);
-  const [boxes, setBoxes] = d2([]);
-  const [imageData, setImageData] = d2(null);
-  const [imageLoaded, setImageLoaded] = d2(false);
-  const [searchResults, setSearchResults] = d2([]);
-  const [payloads, setPayloads] = d2([]);
-  const [isSearching, setIsSearching] = d2(false);
-  const [error, setError] = d2(null);
-  const [latency, setLatency] = d2(null);
-  const [docIdFilter, setDocIdFilter] = d2("");
-  const [showRawJson, setShowRawJson] = d2(false);
-  const containerRef = A2(null);
-  const canvasRef = A2(null);
-  const imageRef = A2(null);
-  const fileInputRef = A2(null);
-  y2(() => {
-    const pollHealth = async () => {
-      try {
-        const res = await fetch(API_HEALTH);
-        if (res.status === 503) {
-          setSidecarStatus({
-            state: "initializing",
-            model: "ColQwen3-4B-AWQ",
-            error: "GPU Preparing..."
-          });
-          setGpuState("preparing");
-        } else if (res.ok) {
-          const data = await res.json();
-          setSidecarStatus({
-            state: "ready",
-            model: data.model || "ColQwen3-4B-AWQ",
-            vram: data.vram,
-            lastCheck: Date.now()
-          });
-          setGpuState("ready");
-        } else {
-          setSidecarStatus({
-            state: "error",
-            error: `HTTP ${res.status}`
-          });
-          setGpuState("error");
-        }
-      } catch {
-        setSidecarStatus({
-          state: "error",
-          error: "Connection failed"
-        });
-        setGpuState("error");
-      }
-    };
-    pollHealth();
-    const interval = setInterval(pollHealth, 5e3);
-    return () => clearInterval(interval);
-  }, []);
-  const getRelativePosition = q2(
-    (e3) => {
-      const container = containerRef.current;
-      if (!container) return { x: 0, y: 0 };
-      const rect = container.getBoundingClientRect();
-      let clientX, clientY;
-      if ("touches" in e3) {
-        const touch = e3.touches[0] || e3.changedTouches[0];
-        clientX = touch.clientX;
-        clientY = touch.clientY;
-      } else {
-        clientX = e3.clientX;
-        clientY = e3.clientY;
-      }
-      return {
-        x: clientX - rect.left,
-        y: clientY - rect.top
-      };
-    },
-    []
-  );
-  const handleMouseDown = q2(
-    (e3) => {
-      if (!isDrawMode || !imageLoaded) return;
-      e3.preventDefault();
-      const pos = getRelativePosition(e3);
-      setIsDrawing(true);
-      setCurrentBox({ x: pos.x, y: pos.y, width: 0, height: 0 });
-      setError(null);
-    },
-    [isDrawMode, imageLoaded, getRelativePosition]
-  );
-  const handleMouseMove = q2(
-    (e3) => {
-      if (!isDrawing || !currentBox) return;
-      e3.preventDefault();
-      const pos = getRelativePosition(e3);
-      setCurrentBox((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          width: pos.x - prev.x,
-          height: pos.y - prev.y
-        };
-      });
-    },
-    [isDrawing, currentBox, getRelativePosition]
-  );
-  const handleMouseUp = q2(() => {
-    if (!isDrawing || !currentBox) return;
-    setIsDrawing(false);
-    const container = containerRef.current;
-    if (!container) return;
-    const normalizedBox = {
-      x: currentBox.width < 0 ? currentBox.x + currentBox.width : currentBox.x,
-      y: currentBox.height < 0 ? currentBox.y + currentBox.height : currentBox.y,
-      width: Math.abs(currentBox.width),
-      height: Math.abs(currentBox.height)
-    };
-    if (normalizedBox.width < MIN_BOX_SIZE || normalizedBox.height < MIN_BOX_SIZE) {
-      setError("Selection too small. Draw a larger box.");
-      setCurrentBox(null);
-      return;
-    }
-    setBoxes((prev) => [...prev, normalizedBox]);
-    setCurrentBox(null);
-  }, [isDrawing, currentBox]);
-  const handleFileUpload = q2(
-    (e3) => {
-      const target = e3.target;
-      const file = target.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const result = ev.target?.result;
-        setImageData(result);
-        setImageLoaded(false);
-        setBoxes([]);
-        setSearchResults([]);
-        setPayloads([]);
-        setLatency(null);
-      };
-      reader.readAsDataURL(file);
-    },
-    []
-  );
-  const handleImageLoad = q2(() => {
-    setImageLoaded(true);
-  }, []);
-  y2(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "rgba(220, 20, 60, 0.9)";
-    ctx.lineWidth = 2;
-    ctx.fillStyle = "rgba(220, 20, 60, 0.1)";
-    boxes.forEach((box) => {
-      ctx.strokeRect(box.x, box.y, box.width, box.height);
-      ctx.fillRect(box.x, box.y, box.width, box.height);
-    });
-    if (currentBox && isDrawing) {
-      ctx.strokeStyle = "rgba(255, 140, 0, 0.9)";
-      ctx.fillStyle = "rgba(255, 140, 0, 0.2)";
-      ctx.strokeRect(
-        currentBox.x,
-        currentBox.y,
-        currentBox.width,
-        currentBox.height
-      );
-      ctx.fillRect(
-        currentBox.x,
-        currentBox.y,
-        currentBox.width,
-        currentBox.height
-      );
-    }
-  }, [boxes, currentBox, isDrawing]);
-  const triggerSearch = q2(async () => {
-    if (!imageData || boxes.length === 0) {
-      setError("Upload an image and draw a region first");
-      return;
-    }
-    if (sidecarStatus.state !== "ready") {
-      setError("Sidecar not ready. Wait for GPU.");
-      return;
-    }
-    setIsSearching(true);
-    setError(null);
-    const startTime = Date.now();
-    try {
-      const box = boxes[boxes.length - 1];
-      const container = containerRef.current;
-      const img = imageRef.current;
-      if (!container || !img) throw new Error("No container/image");
-      const captureCanvas = document.createElement("canvas");
-      const ctx = captureCanvas.getContext("2d");
-      if (!ctx) throw new Error("No canvas context");
-      const scaleX = img.naturalWidth / container.clientWidth;
-      const scaleY = img.naturalHeight / container.clientHeight;
-      const srcX = box.x * scaleX;
-      const srcY = box.y * scaleY;
-      const srcW = box.width * scaleX;
-      const srcH = box.height * scaleY;
-      captureCanvas.width = srcW;
-      captureCanvas.height = srcH;
-      ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH);
-      const dataUrl = captureCanvas.toDataURL("image/png");
-      const base64 = dataUrl.split(",")[1];
-      const filters = {};
-      if (docIdFilter && !isNaN(parseInt(docIdFilter))) {
-        filters.doc_id = parseInt(docIdFilter);
-      }
-      const res = await fetch(API_SEARCH, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          image: base64,
-          collection,
-          filters: Object.keys(filters).length > 0 ? filters : void 0,
-          limit: 10
-        })
-      });
-      if (res.status === 503) {
-        setGpuState("preparing");
-        throw new Error("GPU still preparing. Try again.");
-      }
-      if (!res.ok) {
-        throw new Error(`Search failed: HTTP ${res.status}`);
-      }
-      const data = await res.json();
-      const elapsed = Date.now() - startTime;
-      setSearchResults(data.results || []);
-      setLatency(elapsed);
-      const extractedPayloads = (data.results || []).map((r3) => ({
-        doc_id: r3.docId,
-        correspondent_id: r3.metadata?.correspondent_id,
-        tag_ids: r3.metadata?.tag_ids,
-        created_date: r3.metadata?.created_date,
-        page_num: r3.pageNum
-      }));
-      setPayloads(extractedPayloads);
-      window.dispatchEvent(new CustomEvent("playground:results-received", {
-        detail: { results: data.results, executionTimeMs: elapsed }
-      }));
-      if (onSearch) {
-        onSearch(base64, collection, filters);
-      }
-    } catch (err) {
-      setError(err.message || "Search failed");
-    } finally {
-      setIsSearching(false);
-    }
-  }, [imageData, boxes, collection, docIdFilter, sidecarStatus.state, onSearch]);
-  const clearAll = q2(() => {
-    setBoxes([]);
-    setSearchResults([]);
-    setPayloads([]);
-    setLatency(null);
-    setError(null);
-  }, []);
-  const copyPayloads = q2(() => {
-    const json = JSON.stringify(payloads, null, 2);
-    navigator.clipboard.writeText(json);
-  }, [payloads]);
-  const renderStatusBadge = () => {
-    const stateColors = {
-      ready: "bg-green-500",
-      initializing: "bg-yellow-500",
-      error: "bg-red-500",
-      unknown: "bg-gray-500"
-    };
-    const stateLabels = {
-      ready: "200 OK",
-      initializing: "503 Initializing",
-      error: "Error",
-      unknown: "Unknown"
-    };
-    return /* @__PURE__ */ u3(
-      "div",
-      {
-        "data-testid": "sidecar-status",
-        className: `flex items-center gap-2 p-2 rounded border-l-4 ${sidecarStatus.state === "ready" ? "bg-green-50 border-green-500" : sidecarStatus.state === "initializing" ? "bg-yellow-50 border-yellow-500" : "bg-red-50 border-red-500"}`,
-        children: [
-          /* @__PURE__ */ u3(
-            "span",
-            {
-              className: `px-2 py-1 text-xs font-bold text-white rounded ${stateColors[sidecarStatus.state]}`,
-              children: stateLabels[sidecarStatus.state]
-            }
-          ),
-          sidecarStatus.vram && /* @__PURE__ */ u3("span", { className: "text-sm text-gray-600", children: [
-            "VRAM: ",
-            sidecarStatus.vram.used_mb,
-            "MB / ",
-            sidecarStatus.vram.total_mb,
-            "MB"
-          ] }),
-          /* @__PURE__ */ u3("span", { className: "text-sm text-gray-500", children: [
-            "Model: ",
-            sidecarStatus.model
-          ] })
-        ]
-      }
-    );
-  };
-  return /* @__PURE__ */ u3(
-    "div",
-    {
-      "data-testid": "playground-island-root",
-      className: "h-full flex flex-col bg-white rounded-lg shadow",
-      children: [
-        /* @__PURE__ */ u3("div", { className: "p-4 border-b", children: [
-          /* @__PURE__ */ u3("h1", { className: "text-xl font-bold", children: "Visual RAG Playground" }),
-          /* @__PURE__ */ u3("p", { className: "text-sm text-gray-500", children: "Debug and test Qdrant payloads, sidecar state, and visual search" })
-        ] }),
-        /* @__PURE__ */ u3("div", { className: "p-4 border-b", children: renderStatusBadge() }),
-        gpuState === "preparing" && /* @__PURE__ */ u3(
-          "div",
-          {
-            "data-testid": "gpu-preparing-modal",
-            className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
-            children: /* @__PURE__ */ u3("div", { className: "bg-white p-6 rounded-lg shadow-lg text-center", children: [
-              /* @__PURE__ */ u3("div", { className: "animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" }),
-              /* @__PURE__ */ u3("h2", { className: "text-lg font-bold", children: "GPU Preparing" }),
-              /* @__PURE__ */ u3("p", { className: "text-gray-600", children: "ColQwen3-4B-AWQ model is loading on RTX 3090 Ti..." }),
-              /* @__PURE__ */ u3("p", { className: "text-sm text-gray-400 mt-2", children: "Expected VRAM: ~3.5GB" })
-            ] })
-          }
-        ),
-        /* @__PURE__ */ u3("div", { className: "p-4 bg-gray-50 border-b flex flex-wrap gap-4 items-end", children: [
-          /* @__PURE__ */ u3("div", { className: "flex-1 min-w-[200px]", children: [
-            /* @__PURE__ */ u3("label", { className: "block text-sm font-medium mb-1", children: "Collection" }),
-            /* @__PURE__ */ u3(
-              "select",
-              {
-                "data-testid": "collection-select",
-                value: collection,
-                onChange: (e3) => setCollection(e3.target.value),
-                className: "w-full p-2 border rounded",
-                children: COLLECTIONS.map((c3) => /* @__PURE__ */ u3("option", { value: c3.value, children: c3.label }, c3.value))
-              }
-            )
-          ] }),
-          /* @__PURE__ */ u3("div", { className: "flex-1 min-w-[150px]", children: [
-            /* @__PURE__ */ u3("label", { className: "block text-sm font-medium mb-1", children: "Filter by Doc ID (optional)" }),
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                "data-testid": "doc-id-filter",
-                type: "text",
-                value: docIdFilter,
-                onChange: (e3) => setDocIdFilter(e3.target.value),
-                placeholder: "e.g., 12345",
-                className: "w-full p-2 border rounded"
-              }
-            )
-          ] }),
-          /* @__PURE__ */ u3("div", { children: /* @__PURE__ */ u3(
-            "button",
-            {
-              "data-testid": "search-button",
-              onClick: triggerSearch,
-              disabled: isSearching || !imageLoaded || boxes.length === 0,
-              className: `px-4 py-2 font-medium rounded ${isSearching || !imageLoaded || boxes.length === 0 ? "bg-gray-300 cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700"}`,
-              children: isSearching ? "Searching..." : "Search Collection"
-            }
-          ) })
-        ] }),
-        /* @__PURE__ */ u3("div", { className: "flex-1 grid grid-cols-2 gap-4 p-4 min-h-0 overflow-hidden", children: [
-          /* @__PURE__ */ u3("div", { className: "flex flex-col border rounded overflow-hidden", children: [
-            /* @__PURE__ */ u3("div", { className: "flex items-center gap-2 p-2 bg-gray-100 border-b", children: [
-              /* @__PURE__ */ u3(
-                "button",
-                {
-                  "data-testid": "upload-button",
-                  onClick: () => fileInputRef.current?.click(),
-                  className: "px-3 py-1 text-sm bg-white border rounded hover:bg-gray-50",
-                  children: [
-                    /* @__PURE__ */ u3("i", { className: "fas fa-upload mr-1" }),
-                    "Upload Image"
-                  ]
-                }
-              ),
-              /* @__PURE__ */ u3(
-                "input",
-                {
-                  ref: fileInputRef,
-                  type: "file",
-                  accept: "image/*",
-                  onChange: handleFileUpload,
-                  className: "hidden"
-                }
-              ),
-              /* @__PURE__ */ u3(
-                "button",
-                {
-                  "data-testid": "draw-toggle",
-                  onClick: () => setIsDrawMode(!isDrawMode),
-                  "aria-pressed": isDrawMode,
-                  className: `px-3 py-1 text-sm rounded ${isDrawMode ? "bg-red-600 text-white" : "bg-white border hover:bg-gray-50"}`,
-                  children: [
-                    /* @__PURE__ */ u3("i", { className: `fas fa-pen mr-1 ${isDrawMode ? "animate-pulse" : ""}` }),
-                    isDrawMode ? "Drawing" : "Draw"
-                  ]
-                }
-              ),
-              boxes.length > 0 && /* @__PURE__ */ u3(
-                "button",
-                {
-                  "data-testid": "clear-boxes",
-                  onClick: clearAll,
-                  className: "px-3 py-1 text-sm text-gray-600 hover:text-red-600",
-                  children: [
-                    /* @__PURE__ */ u3("i", { className: "fas fa-trash-alt mr-1" }),
-                    "Clear"
-                  ]
-                }
-              )
-            ] }),
-            /* @__PURE__ */ u3(
-              "div",
-              {
-                ref: containerRef,
-                className: "relative flex-1 bg-gray-200 overflow-hidden",
-                style: {
-                  cursor: isDrawMode ? "crosshair" : "default",
-                  touchAction: isDrawMode ? "none" : "auto"
-                },
-                onMouseDown: handleMouseDown,
-                onMouseMove: handleMouseMove,
-                onMouseUp: handleMouseUp,
-                onMouseLeave: () => isDrawing && handleMouseUp(),
-                onTouchStart: handleMouseDown,
-                onTouchMove: handleMouseMove,
-                onTouchEnd: handleMouseUp,
-                children: [
-                  imageData ? /* @__PURE__ */ u3(
-                    "img",
-                    {
-                      ref: imageRef,
-                      src: imageData,
-                      alt: "Uploaded",
-                      onLoad: handleImageLoad,
-                      className: "w-full h-full object-contain",
-                      "data-testid": "uploaded-image"
-                    }
-                  ) : /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center text-gray-500", children: /* @__PURE__ */ u3("div", { className: "text-center", children: [
-                    /* @__PURE__ */ u3("i", { className: "fas fa-image text-4xl mb-2" }),
-                    /* @__PURE__ */ u3("p", { children: "Upload an image to begin" })
-                  ] }) }),
-                  /* @__PURE__ */ u3(
-                    "canvas",
-                    {
-                      ref: canvasRef,
-                      className: "absolute inset-0 pointer-events-none",
-                      "data-testid": "annotation-canvas"
-                    }
-                  )
-                ]
-              }
-            ),
-            isDrawMode && imageLoaded && boxes.length === 0 && /* @__PURE__ */ u3("div", { className: "p-2 text-center text-xs text-gray-500 bg-blue-50", children: [
-              /* @__PURE__ */ u3("i", { className: "fas fa-info-circle mr-1" }),
-              "Click and drag to select a region"
-            ] })
-          ] }),
-          /* @__PURE__ */ u3("div", { className: "flex flex-col gap-4 overflow-hidden", children: [
-            error && /* @__PURE__ */ u3(
-              "div",
-              {
-                "data-testid": "error-message",
-                className: "p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700",
-                children: [
-                  /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-circle mr-1" }),
-                  error
-                ]
-              }
-            ),
-            latency !== null && /* @__PURE__ */ u3("div", { className: "text-sm text-gray-500", children: [
-              "Latency: ",
-              latency,
-              "ms"
-            ] }),
-            /* @__PURE__ */ u3("div", { className: "flex-1 border rounded overflow-hidden flex flex-col", children: [
-              /* @__PURE__ */ u3("div", { className: "p-2 bg-gray-100 border-b font-medium text-sm", children: [
-                "Search Results (",
-                searchResults.length,
-                ")"
-              ] }),
-              /* @__PURE__ */ u3("div", { className: "flex-1 overflow-auto p-2", "data-testid": "search-results", children: searchResults.length === 0 ? /* @__PURE__ */ u3("p", { className: "text-gray-500 text-sm", children: "No results yet" }) : searchResults.map((r3, i4) => /* @__PURE__ */ u3(
-                "div",
-                {
-                  className: "p-2 border rounded mb-2",
-                  "data-testid": `result-${i4}`,
-                  children: [
-                    /* @__PURE__ */ u3("div", { className: "flex justify-between items-start", children: [
-                      /* @__PURE__ */ u3("span", { className: "font-medium", children: [
-                        "Doc #",
-                        r3.docId
-                      ] }),
-                      /* @__PURE__ */ u3("span", { className: "px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs", children: r3.score.toFixed(3) })
-                    ] }),
-                    r3.pageNum && /* @__PURE__ */ u3("div", { className: "text-xs text-gray-500", children: [
-                      "Page ",
-                      r3.pageNum
-                    ] })
-                  ]
-                },
-                i4
-              )) })
-            ] }),
-            /* @__PURE__ */ u3("div", { className: "flex-1 border rounded overflow-hidden flex flex-col", children: [
-              /* @__PURE__ */ u3("div", { className: "p-2 bg-gray-100 border-b font-medium text-sm flex justify-between items-center", children: [
-                /* @__PURE__ */ u3("span", { children: "Payload Inspector" }),
-                /* @__PURE__ */ u3("div", { className: "flex gap-2", children: [
-                  /* @__PURE__ */ u3(
-                    "button",
-                    {
-                      "data-testid": "toggle-json",
-                      onClick: () => setShowRawJson(!showRawJson),
-                      className: "text-xs text-blue-600 hover:underline",
-                      children: showRawJson ? "Formatted" : "Raw JSON"
-                    }
-                  ),
-                  /* @__PURE__ */ u3(
-                    "button",
-                    {
-                      "data-testid": "copy-payloads",
-                      onClick: copyPayloads,
-                      className: "text-xs text-blue-600 hover:underline",
-                      children: "Copy"
-                    }
-                  )
-                ] })
-              ] }),
-              /* @__PURE__ */ u3("div", { className: "flex-1 overflow-auto p-2", "data-testid": "payload-inspector", children: payloads.length === 0 ? /* @__PURE__ */ u3("p", { className: "text-gray-500 text-sm", children: "No payloads to display" }) : showRawJson ? /* @__PURE__ */ u3("pre", { className: "text-xs bg-gray-50 p-2 rounded overflow-auto", children: JSON.stringify(payloads, null, 2) }) : payloads.map((p3, i4) => /* @__PURE__ */ u3(
-                "div",
-                {
-                  className: "p-2 bg-gray-50 rounded mb-2 font-mono text-xs",
-                  "data-testid": `payload-${i4}`,
-                  children: [
-                    /* @__PURE__ */ u3("div", { children: [
-                      /* @__PURE__ */ u3("span", { className: "text-red-600", children: "doc_id:" }),
-                      " ",
-                      /* @__PURE__ */ u3("span", { className: "text-blue-600", children: p3.doc_id })
-                    ] }),
-                    p3.correspondent_id !== void 0 && /* @__PURE__ */ u3("div", { children: [
-                      /* @__PURE__ */ u3("span", { className: "text-red-600", children: "correspondent_id:" }),
-                      " ",
-                      /* @__PURE__ */ u3("span", { className: "text-blue-600", children: p3.correspondent_id })
-                    ] }),
-                    p3.tag_ids && /* @__PURE__ */ u3("div", { children: [
-                      /* @__PURE__ */ u3("span", { className: "text-red-600", children: "tag_ids:" }),
-                      " ",
-                      /* @__PURE__ */ u3("span", { className: "text-blue-600", children: [
-                        "[",
-                        p3.tag_ids.join(", "),
-                        "]"
-                      ] })
-                    ] }),
-                    p3.created_date && /* @__PURE__ */ u3("div", { children: [
-                      /* @__PURE__ */ u3("span", { className: "text-red-600", children: "created_date:" }),
-                      " ",
-                      /* @__PURE__ */ u3("span", { className: "text-blue-600", children: [
-                        '"',
-                        p3.created_date,
-                        '"'
-                      ] })
-                    ] })
-                  ]
-                },
-                i4
-              )) })
-            ] })
-          ] })
-        ] })
-      ]
-    }
-  );
-}
-
-// node_modules/preact/compat/dist/compat.module.js
-var compat_module_exports = {};
-__export(compat_module_exports, {
-  Children: () => O2,
-  Component: () => x,
-  Fragment: () => k,
-  PureComponent: () => N2,
-  StrictMode: () => Cn,
-  Suspense: () => P3,
-  SuspenseList: () => B3,
-  __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: () => hn,
-  cloneElement: () => _n,
-  createContext: () => Q,
-  createElement: () => _,
-  createFactory: () => dn,
-  createPortal: () => $2,
-  createRef: () => b,
-  default: () => Rn,
-  findDOMNode: () => Sn,
-  flushSync: () => En,
-  forwardRef: () => D3,
-  hydrate: () => tn,
-  isElement: () => xn,
-  isFragment: () => pn,
-  isMemo: () => yn,
-  isValidElement: () => mn,
-  lazy: () => z3,
-  memo: () => M2,
-  render: () => nn,
-  startTransition: () => R,
-  unmountComponentAtNode: () => bn,
-  unstable_batchedUpdates: () => gn,
-  useCallback: () => q2,
-  useContext: () => x2,
-  useDebugValue: () => P2,
-  useDeferredValue: () => w3,
-  useEffect: () => y2,
-  useErrorBoundary: () => b2,
-  useId: () => g2,
-  useImperativeHandle: () => F2,
-  useInsertionEffect: () => I2,
-  useLayoutEffect: () => _2,
-  useMemo: () => T2,
-  useReducer: () => h2,
-  useRef: () => A2,
-  useState: () => d2,
-  useSyncExternalStore: () => C3,
-  useTransition: () => k3,
-  version: () => vn
-});
-function g3(n2, t3) {
-  for (var e3 in t3) n2[e3] = t3[e3];
-  return n2;
-}
-function E2(n2, t3) {
-  for (var e3 in n2) if ("__source" !== e3 && !(e3 in t3)) return true;
-  for (var r3 in t3) if ("__source" !== r3 && n2[r3] !== t3[r3]) return true;
-  return false;
-}
-function C3(n2, t3) {
-  var e3 = t3(), r3 = d2({ t: { __: e3, u: t3 } }), u4 = r3[0].t, o3 = r3[1];
-  return _2(function() {
-    u4.__ = e3, u4.u = t3, x3(u4) && o3({ t: u4 });
-  }, [n2, e3, t3]), y2(function() {
-    return x3(u4) && o3({ t: u4 }), n2(function() {
-      x3(u4) && o3({ t: u4 });
-    });
-  }, [n2]), e3;
-}
-function x3(n2) {
-  var t3, e3, r3 = n2.u, u4 = n2.__;
-  try {
-    var o3 = r3();
-    return !((t3 = u4) === (e3 = o3) && (0 !== t3 || 1 / t3 == 1 / e3) || t3 != t3 && e3 != e3);
-  } catch (n3) {
-    return true;
-  }
-}
-function R(n2) {
-  n2();
-}
-function w3(n2) {
-  return n2;
-}
-function k3() {
-  return [false, R];
-}
-var I2 = _2;
-function N2(n2, t3) {
-  this.props = n2, this.context = t3;
-}
-function M2(n2, e3) {
-  function r3(n3) {
-    var t3 = this.props.ref, r4 = t3 == n3.ref;
-    return !r4 && t3 && (t3.call ? t3(null) : t3.current = null), e3 ? !e3(this.props, n3) || !r4 : E2(this.props, n3);
-  }
-  function u4(e4) {
-    return this.shouldComponentUpdate = r3, _(n2, e4);
-  }
-  return u4.displayName = "Memo(" + (n2.displayName || n2.name) + ")", u4.prototype.isReactComponent = true, u4.__f = true, u4.type = n2, u4;
-}
-(N2.prototype = new x()).isPureReactComponent = true, N2.prototype.shouldComponentUpdate = function(n2, t3) {
-  return E2(this.props, n2) || E2(this.state, t3);
-};
-var T3 = l.__b;
-l.__b = function(n2) {
-  n2.type && n2.type.__f && n2.ref && (n2.props.ref = n2.ref, n2.ref = null), T3 && T3(n2);
-};
-var A3 = "undefined" != typeof Symbol && Symbol.for && Symbol.for("react.forward_ref") || 3911;
-function D3(n2) {
-  function t3(t4) {
-    var e3 = g3({}, t4);
-    return delete e3.ref, n2(e3, t4.ref || null);
-  }
-  return t3.$$typeof = A3, t3.render = n2, t3.prototype.isReactComponent = t3.__f = true, t3.displayName = "ForwardRef(" + (n2.displayName || n2.name) + ")", t3;
-}
-var L2 = function(n2, t3) {
-  return null == n2 ? null : H(H(n2).map(t3));
-};
-var O2 = { map: L2, forEach: L2, count: function(n2) {
-  return n2 ? H(n2).length : 0;
-}, only: function(n2) {
-  var t3 = H(n2);
-  if (1 !== t3.length) throw "Children.only";
-  return t3[0];
-}, toArray: H };
-var F3 = l.__e;
-l.__e = function(n2, t3, e3, r3) {
-  if (n2.then) {
-    for (var u4, o3 = t3; o3 = o3.__; ) if ((u4 = o3.__c) && u4.__c) return null == t3.__e && (t3.__e = e3.__e, t3.__k = e3.__k), u4.__c(n2, t3);
-  }
-  F3(n2, t3, e3, r3);
-};
-var U = l.unmount;
-function V2(n2, t3, e3) {
-  return n2 && (n2.__c && n2.__c.__H && (n2.__c.__H.__.forEach(function(n3) {
-    "function" == typeof n3.__c && n3.__c();
-  }), n2.__c.__H = null), null != (n2 = g3({}, n2)).__c && (n2.__c.__P === e3 && (n2.__c.__P = t3), n2.__c.__e = true, n2.__c = null), n2.__k = n2.__k && n2.__k.map(function(n3) {
-    return V2(n3, t3, e3);
-  })), n2;
-}
-function W(n2, t3, e3) {
-  return n2 && e3 && (n2.__v = null, n2.__k = n2.__k && n2.__k.map(function(n3) {
-    return W(n3, t3, e3);
-  }), n2.__c && n2.__c.__P === t3 && (n2.__e && e3.appendChild(n2.__e), n2.__c.__e = true, n2.__c.__P = e3)), n2;
-}
-function P3() {
-  this.__u = 0, this.o = null, this.__b = null;
-}
-function j3(n2) {
-  var t3 = n2.__.__c;
-  return t3 && t3.__a && t3.__a(n2);
-}
-function z3(n2) {
-  var e3, r3, u4, o3 = null;
-  function i4(i5) {
-    if (e3 || (e3 = n2()).then(function(n3) {
-      n3 && (o3 = n3.default || n3), u4 = true;
-    }, function(n3) {
-      r3 = n3, u4 = true;
-    }), r3) throw r3;
-    if (!u4) throw e3;
-    return o3 ? _(o3, i5) : null;
-  }
-  return i4.displayName = "Lazy", i4.__f = true, i4;
-}
-function B3() {
-  this.i = null, this.l = null;
-}
-l.unmount = function(n2) {
-  var t3 = n2.__c;
-  t3 && t3.__R && t3.__R(), t3 && 32 & n2.__u && (n2.type = null), U && U(n2);
-}, (P3.prototype = new x()).__c = function(n2, t3) {
-  var e3 = t3.__c, r3 = this;
-  null == r3.o && (r3.o = []), r3.o.push(e3);
-  var u4 = j3(r3.__v), o3 = false, i4 = function() {
-    o3 || (o3 = true, e3.__R = null, u4 ? u4(l3) : l3());
-  };
-  e3.__R = i4;
-  var l3 = function() {
-    if (!--r3.__u) {
-      if (r3.state.__a) {
-        var n3 = r3.state.__a;
-        r3.__v.__k[0] = W(n3, n3.__c.__P, n3.__c.__O);
-      }
-      var t4;
-      for (r3.setState({ __a: r3.__b = null }); t4 = r3.o.pop(); ) t4.forceUpdate();
-    }
-  };
-  r3.__u++ || 32 & t3.__u || r3.setState({ __a: r3.__b = r3.__v.__k[0] }), n2.then(i4, i4);
-}, P3.prototype.componentWillUnmount = function() {
-  this.o = [];
-}, P3.prototype.render = function(n2, e3) {
-  if (this.__b) {
-    if (this.__v.__k) {
-      var r3 = document.createElement("div"), o3 = this.__v.__k[0].__c;
-      this.__v.__k[0] = V2(this.__b, r3, o3.__O = o3.__P);
-    }
-    this.__b = null;
-  }
-  var i4 = e3.__a && _(k, null, n2.fallback);
-  return i4 && (i4.__u &= -33), [_(k, null, e3.__a ? null : n2.children), i4];
-};
-var H2 = function(n2, t3, e3) {
-  if (++e3[1] === e3[0] && n2.l.delete(t3), n2.props.revealOrder && ("t" !== n2.props.revealOrder[0] || !n2.l.size)) for (e3 = n2.i; e3; ) {
-    for (; e3.length > 3; ) e3.pop()();
-    if (e3[1] < e3[0]) break;
-    n2.i = e3 = e3[2];
-  }
-};
-function Z(n2) {
-  return this.getChildContext = function() {
-    return n2.context;
-  }, n2.children;
-}
-function Y(n2) {
-  var e3 = this, r3 = n2.h;
-  if (e3.componentWillUnmount = function() {
-    G(null, e3.v), e3.v = null, e3.h = null;
-  }, e3.h && e3.h !== r3 && e3.componentWillUnmount(), !e3.v) {
-    for (var u4 = e3.__v; null !== u4 && !u4.__m && null !== u4.__; ) u4 = u4.__;
-    e3.h = r3, e3.v = { nodeType: 1, parentNode: r3, childNodes: [], __k: { __m: u4.__m }, contains: function() {
-      return true;
-    }, insertBefore: function(n3, t3) {
-      this.childNodes.push(n3), e3.h.insertBefore(n3, t3);
-    }, removeChild: function(n3) {
-      this.childNodes.splice(this.childNodes.indexOf(n3) >>> 1, 1), e3.h.removeChild(n3);
-    } };
-  }
-  G(_(Z, { context: e3.context }, n2.__v), e3.v);
-}
-function $2(n2, e3) {
-  var r3 = _(Y, { __v: n2, h: e3 });
-  return r3.containerInfo = e3, r3;
-}
-(B3.prototype = new x()).__a = function(n2) {
-  var t3 = this, e3 = j3(t3.__v), r3 = t3.l.get(n2);
-  return r3[0]++, function(u4) {
-    var o3 = function() {
-      t3.props.revealOrder ? (r3.push(u4), H2(t3, n2, r3)) : u4();
-    };
-    e3 ? e3(o3) : o3();
-  };
-}, B3.prototype.render = function(n2) {
-  this.i = null, this.l = /* @__PURE__ */ new Map();
-  var t3 = H(n2.children);
-  n2.revealOrder && "b" === n2.revealOrder[0] && t3.reverse();
-  for (var e3 = t3.length; e3--; ) this.l.set(t3[e3], this.i = [1, 0, this.i]);
-  return n2.children;
-}, B3.prototype.componentDidUpdate = B3.prototype.componentDidMount = function() {
-  var n2 = this;
-  this.l.forEach(function(t3, e3) {
-    H2(n2, e3, t3);
-  });
-};
-var q3 = "undefined" != typeof Symbol && Symbol.for && Symbol.for("react.element") || 60103;
-var G2 = /^(?:accent|alignment|arabic|baseline|cap|clip(?!PathU)|color|dominant|fill|flood|font|glyph(?!R)|horiz|image(!S)|letter|lighting|marker(?!H|W|U)|overline|paint|pointer|shape|stop|strikethrough|stroke|text(?!L)|transform|underline|unicode|units|v|vector|vert|word|writing|x(?!C))[A-Z]/;
-var J2 = /^on(Ani|Tra|Tou|BeforeInp|Compo)/;
-var K2 = /[A-Z0-9]/g;
-var Q2 = "undefined" != typeof document;
-var X = function(n2) {
-  return ("undefined" != typeof Symbol && "symbol" == typeof Symbol() ? /fil|che|rad/ : /fil|che|ra/).test(n2);
-};
-function nn(n2, t3, e3) {
-  return null == t3.__k && (t3.textContent = ""), G(n2, t3), "function" == typeof e3 && e3(), n2 ? n2.__c : null;
-}
-function tn(n2, t3, e3) {
-  return J(n2, t3), "function" == typeof e3 && e3(), n2 ? n2.__c : null;
-}
-x.prototype.isReactComponent = {}, ["componentWillMount", "componentWillReceiveProps", "componentWillUpdate"].forEach(function(t3) {
-  Object.defineProperty(x.prototype, t3, { configurable: true, get: function() {
-    return this["UNSAFE_" + t3];
-  }, set: function(n2) {
-    Object.defineProperty(this, t3, { configurable: true, writable: true, value: n2 });
-  } });
-});
-var en = l.event;
-function rn() {
-}
-function un() {
-  return this.cancelBubble;
-}
-function on() {
-  return this.defaultPrevented;
-}
-l.event = function(n2) {
-  return en && (n2 = en(n2)), n2.persist = rn, n2.isPropagationStopped = un, n2.isDefaultPrevented = on, n2.nativeEvent = n2;
-};
-var ln;
-var cn = { enumerable: false, configurable: true, get: function() {
-  return this.class;
-} };
-var fn = l.vnode;
-l.vnode = function(n2) {
-  "string" == typeof n2.type && function(n3) {
-    var t3 = n3.props, e3 = n3.type, u4 = {}, o3 = -1 === e3.indexOf("-");
-    for (var i4 in t3) {
-      var l3 = t3[i4];
-      if (!("value" === i4 && "defaultValue" in t3 && null == l3 || Q2 && "children" === i4 && "noscript" === e3 || "class" === i4 || "className" === i4)) {
-        var c3 = i4.toLowerCase();
-        "defaultValue" === i4 && "value" in t3 && null == t3.value ? i4 = "value" : "download" === i4 && true === l3 ? l3 = "" : "translate" === c3 && "no" === l3 ? l3 = false : "o" === c3[0] && "n" === c3[1] ? "ondoubleclick" === c3 ? i4 = "ondblclick" : "onchange" !== c3 || "input" !== e3 && "textarea" !== e3 || X(t3.type) ? "onfocus" === c3 ? i4 = "onfocusin" : "onblur" === c3 ? i4 = "onfocusout" : J2.test(i4) && (i4 = c3) : c3 = i4 = "oninput" : o3 && G2.test(i4) ? i4 = i4.replace(K2, "-$&").toLowerCase() : null === l3 && (l3 = void 0), "oninput" === c3 && u4[i4 = c3] && (i4 = "oninputCapture"), u4[i4] = l3;
-      }
-    }
-    "select" == e3 && u4.multiple && Array.isArray(u4.value) && (u4.value = H(t3.children).forEach(function(n4) {
-      n4.props.selected = -1 != u4.value.indexOf(n4.props.value);
-    })), "select" == e3 && null != u4.defaultValue && (u4.value = H(t3.children).forEach(function(n4) {
-      n4.props.selected = u4.multiple ? -1 != u4.defaultValue.indexOf(n4.props.value) : u4.defaultValue == n4.props.value;
-    })), t3.class && !t3.className ? (u4.class = t3.class, Object.defineProperty(u4, "className", cn)) : (t3.className && !t3.class || t3.class && t3.className) && (u4.class = u4.className = t3.className), n3.props = u4;
-  }(n2), n2.$$typeof = q3, fn && fn(n2);
-};
-var an = l.__r;
-l.__r = function(n2) {
-  an && an(n2), ln = n2.__c;
-};
-var sn = l.diffed;
-l.diffed = function(n2) {
-  sn && sn(n2);
-  var t3 = n2.props, e3 = n2.__e;
-  null != e3 && "textarea" === n2.type && "value" in t3 && t3.value !== e3.value && (e3.value = null == t3.value ? "" : t3.value), ln = null;
-};
-var hn = { ReactCurrentDispatcher: { current: { readContext: function(n2) {
-  return ln.__n[n2.__c].props.value;
-}, useCallback: q2, useContext: x2, useDebugValue: P2, useDeferredValue: w3, useEffect: y2, useId: g2, useImperativeHandle: F2, useInsertionEffect: I2, useLayoutEffect: _2, useMemo: T2, useReducer: h2, useRef: A2, useState: d2, useSyncExternalStore: C3, useTransition: k3 } } };
-var vn = "18.3.1";
-function dn(n2) {
-  return _.bind(null, n2);
-}
-function mn(n2) {
-  return !!n2 && n2.$$typeof === q3;
-}
-function pn(n2) {
-  return mn(n2) && n2.type === k;
-}
-function yn(n2) {
-  return !!n2 && !!n2.displayName && ("string" == typeof n2.displayName || n2.displayName instanceof String) && n2.displayName.startsWith("Memo(");
-}
-function _n(n2) {
-  return mn(n2) ? K.apply(null, arguments) : n2;
-}
-function bn(n2) {
-  return !!n2.__k && (G(null, n2), true);
-}
-function Sn(n2) {
-  return n2 && (n2.base || 1 === n2.nodeType && n2) || null;
-}
-var gn = function(n2, t3) {
-  return n2(t3);
-};
-var En = function(n2, t3) {
-  return n2(t3);
-};
-var Cn = k;
-var xn = mn;
-var Rn = { useState: d2, useId: g2, useReducer: h2, useEffect: y2, useLayoutEffect: _2, useInsertionEffect: I2, useTransition: k3, useDeferredValue: w3, useSyncExternalStore: C3, startTransition: R, useRef: A2, useImperativeHandle: F2, useMemo: T2, useCallback: q2, useContext: x2, useDebugValue: P2, version: "18.3.1", Children: O2, render: nn, hydrate: tn, unmountComponentAtNode: bn, createPortal: $2, createElement: _, createContext: Q, createFactory: dn, cloneElement: _n, createRef: b, Fragment: k, isValidElement: mn, isElement: xn, isFragment: pn, isMemo: yn, findDOMNode: Sn, Component: x, PureComponent: N2, memo: M2, forwardRef: D3, flushSync: En, unstable_batchedUpdates: gn, StrictMode: Cn, Suspense: P3, SuspenseList: B3, lazy: z3, __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: hn };
-
-// node_modules/@radix-ui/primitive/dist/index.mjs
-var canUseDOM = !!(typeof window !== "undefined" && window.document && window.document.createElement);
-function composeEventHandlers(originalEventHandler, ourEventHandler, { checkForDefaultPrevented = true } = {}) {
-  return function handleEvent(event) {
-    originalEventHandler?.(event);
-    if (checkForDefaultPrevented === false || !event.defaultPrevented) {
-      return ourEventHandler?.(event);
-    }
-  };
-}
-
-// node_modules/@radix-ui/react-context/dist/index.mjs
-function createContext2(rootComponentName, defaultContext) {
-  const Context = Q(defaultContext);
-  const Provider = (props) => {
-    const { children, ...context } = props;
-    const value = T2(() => context, Object.values(context));
-    return /* @__PURE__ */ u3(Context.Provider, { value, children });
-  };
-  Provider.displayName = rootComponentName + "Provider";
-  function useContext2(consumerName) {
-    const context = x2(Context);
-    if (context) return context;
-    if (defaultContext !== void 0) return defaultContext;
-    throw new Error(`\`${consumerName}\` must be used within \`${rootComponentName}\``);
-  }
-  return [Provider, useContext2];
-}
-function createContextScope(scopeName, createContextScopeDeps = []) {
-  let defaultContexts = [];
-  function createContext3(rootComponentName, defaultContext) {
-    const BaseContext = Q(defaultContext);
-    const index = defaultContexts.length;
-    defaultContexts = [...defaultContexts, defaultContext];
-    const Provider = (props) => {
-      const { scope, children, ...context } = props;
-      const Context = scope?.[scopeName]?.[index] || BaseContext;
-      const value = T2(() => context, Object.values(context));
-      return /* @__PURE__ */ u3(Context.Provider, { value, children });
-    };
-    Provider.displayName = rootComponentName + "Provider";
-    function useContext2(consumerName, scope) {
-      const Context = scope?.[scopeName]?.[index] || BaseContext;
-      const context = x2(Context);
-      if (context) return context;
-      if (defaultContext !== void 0) return defaultContext;
-      throw new Error(`\`${consumerName}\` must be used within \`${rootComponentName}\``);
-    }
-    return [Provider, useContext2];
-  }
-  const createScope = () => {
-    const scopeContexts = defaultContexts.map((defaultContext) => {
-      return Q(defaultContext);
-    });
-    return function useScope(scope) {
-      const contexts = scope?.[scopeName] || scopeContexts;
-      return T2(
-        () => ({ [`__scope${scopeName}`]: { ...scope, [scopeName]: contexts } }),
-        [scope, contexts]
-      );
-    };
-  };
-  createScope.scopeName = scopeName;
-  return [createContext3, composeContextScopes(createScope, ...createContextScopeDeps)];
-}
-function composeContextScopes(...scopes) {
-  const baseScope = scopes[0];
-  if (scopes.length === 1) return baseScope;
-  const createScope = () => {
-    const scopeHooks = scopes.map((createScope2) => ({
-      useScope: createScope2(),
-      scopeName: createScope2.scopeName
-    }));
-    return function useComposedScopes(overrideScopes) {
-      const nextScopes = scopeHooks.reduce((nextScopes2, { useScope, scopeName }) => {
-        const scopeProps = useScope(overrideScopes);
-        const currentScope = scopeProps[`__scope${scopeName}`];
-        return { ...nextScopes2, ...currentScope };
-      }, {});
-      return T2(() => ({ [`__scope${baseScope.scopeName}`]: nextScopes }), [nextScopes]);
-    };
-  };
-  createScope.scopeName = baseScope.scopeName;
-  return createScope;
-}
-
-// node_modules/@radix-ui/react-compose-refs/dist/index.mjs
-function setRef(ref, value) {
-  if (typeof ref === "function") {
-    return ref(value);
-  } else if (ref !== null && ref !== void 0) {
-    ref.current = value;
-  }
-}
-function composeRefs(...refs) {
-  return (node) => {
-    let hasCleanup = false;
-    const cleanups = refs.map((ref) => {
-      const cleanup = setRef(ref, node);
-      if (!hasCleanup && typeof cleanup == "function") {
-        hasCleanup = true;
-      }
-      return cleanup;
-    });
-    if (hasCleanup) {
-      return () => {
-        for (let i4 = 0; i4 < cleanups.length; i4++) {
-          const cleanup = cleanups[i4];
-          if (typeof cleanup == "function") {
-            cleanup();
-          } else {
-            setRef(refs[i4], null);
-          }
-        }
-      };
-    }
-  };
-}
-function useComposedRefs(...refs) {
-  return q2(composeRefs(...refs), refs);
-}
-
-// node_modules/@radix-ui/react-slot/dist/index.mjs
-// @__NO_SIDE_EFFECTS__
-function createSlot(ownerName) {
-  const SlotClone = /* @__PURE__ */ createSlotClone(ownerName);
-  const Slot2 = D3((props, forwardedRef) => {
-    const { children, ...slotProps } = props;
-    const childrenArray = O2.toArray(children);
-    const slottable = childrenArray.find(isSlottable);
-    if (slottable) {
-      const newElement = slottable.props.children;
-      const newChildren = childrenArray.map((child) => {
-        if (child === slottable) {
-          if (O2.count(newElement) > 1) return O2.only(null);
-          return mn(newElement) ? newElement.props.children : null;
-        } else {
-          return child;
-        }
-      });
-      return /* @__PURE__ */ u3(SlotClone, { ...slotProps, ref: forwardedRef, children: mn(newElement) ? _n(newElement, void 0, newChildren) : null });
-    }
-    return /* @__PURE__ */ u3(SlotClone, { ...slotProps, ref: forwardedRef, children });
-  });
-  Slot2.displayName = `${ownerName}.Slot`;
-  return Slot2;
-}
-// @__NO_SIDE_EFFECTS__
-function createSlotClone(ownerName) {
-  const SlotClone = D3((props, forwardedRef) => {
-    const { children, ...slotProps } = props;
-    if (mn(children)) {
-      const childrenRef = getElementRef(children);
-      const props2 = mergeProps(slotProps, children.props);
-      if (children.type !== k) {
-        props2.ref = forwardedRef ? composeRefs(forwardedRef, childrenRef) : childrenRef;
-      }
-      return _n(children, props2);
-    }
-    return O2.count(children) > 1 ? O2.only(null) : null;
-  });
-  SlotClone.displayName = `${ownerName}.SlotClone`;
-  return SlotClone;
-}
-var SLOTTABLE_IDENTIFIER = Symbol("radix.slottable");
-function isSlottable(child) {
-  return mn(child) && typeof child.type === "function" && "__radixId" in child.type && child.type.__radixId === SLOTTABLE_IDENTIFIER;
-}
-function mergeProps(slotProps, childProps) {
-  const overrideProps = { ...childProps };
-  for (const propName in childProps) {
-    const slotPropValue = slotProps[propName];
-    const childPropValue = childProps[propName];
-    const isHandler = /^on[A-Z]/.test(propName);
-    if (isHandler) {
-      if (slotPropValue && childPropValue) {
-        overrideProps[propName] = (...args) => {
-          const result = childPropValue(...args);
-          slotPropValue(...args);
-          return result;
-        };
-      } else if (slotPropValue) {
-        overrideProps[propName] = slotPropValue;
-      }
-    } else if (propName === "style") {
-      overrideProps[propName] = { ...slotPropValue, ...childPropValue };
-    } else if (propName === "className") {
-      overrideProps[propName] = [slotPropValue, childPropValue].filter(Boolean).join(" ");
-    }
-  }
-  return { ...slotProps, ...overrideProps };
-}
-function getElementRef(element) {
-  let getter = Object.getOwnPropertyDescriptor(element.props, "ref")?.get;
-  let mayWarn = getter && "isReactWarning" in getter && getter.isReactWarning;
-  if (mayWarn) {
-    return element.ref;
-  }
-  getter = Object.getOwnPropertyDescriptor(element, "ref")?.get;
-  mayWarn = getter && "isReactWarning" in getter && getter.isReactWarning;
-  if (mayWarn) {
-    return element.props.ref;
-  }
-  return element.props.ref || element.ref;
-}
-
-// node_modules/@radix-ui/react-collection/dist/index.mjs
-function createCollection(name) {
-  const PROVIDER_NAME = name + "CollectionProvider";
-  const [createCollectionContext, createCollectionScope2] = createContextScope(PROVIDER_NAME);
-  const [CollectionProviderImpl, useCollectionContext] = createCollectionContext(
-    PROVIDER_NAME,
-    { collectionRef: { current: null }, itemMap: /* @__PURE__ */ new Map() }
-  );
-  const CollectionProvider = (props) => {
-    const { scope, children } = props;
-    const ref = Rn.useRef(null);
-    const itemMap = Rn.useRef(/* @__PURE__ */ new Map()).current;
-    return /* @__PURE__ */ u3(CollectionProviderImpl, { scope, itemMap, collectionRef: ref, children });
-  };
-  CollectionProvider.displayName = PROVIDER_NAME;
-  const COLLECTION_SLOT_NAME = name + "CollectionSlot";
-  const CollectionSlotImpl = createSlot(COLLECTION_SLOT_NAME);
-  const CollectionSlot = Rn.forwardRef(
-    (props, forwardedRef) => {
-      const { scope, children } = props;
-      const context = useCollectionContext(COLLECTION_SLOT_NAME, scope);
-      const composedRefs = useComposedRefs(forwardedRef, context.collectionRef);
-      return /* @__PURE__ */ u3(CollectionSlotImpl, { ref: composedRefs, children });
-    }
-  );
-  CollectionSlot.displayName = COLLECTION_SLOT_NAME;
-  const ITEM_SLOT_NAME = name + "CollectionItemSlot";
-  const ITEM_DATA_ATTR = "data-radix-collection-item";
-  const CollectionItemSlotImpl = createSlot(ITEM_SLOT_NAME);
-  const CollectionItemSlot = Rn.forwardRef(
-    (props, forwardedRef) => {
-      const { scope, children, ...itemData } = props;
-      const ref = Rn.useRef(null);
-      const composedRefs = useComposedRefs(forwardedRef, ref);
-      const context = useCollectionContext(ITEM_SLOT_NAME, scope);
-      Rn.useEffect(() => {
-        context.itemMap.set(ref, { ref, ...itemData });
-        return () => void context.itemMap.delete(ref);
-      });
-      return /* @__PURE__ */ u3(CollectionItemSlotImpl, { ...{ [ITEM_DATA_ATTR]: "" }, ref: composedRefs, children });
-    }
-  );
-  CollectionItemSlot.displayName = ITEM_SLOT_NAME;
-  function useCollection2(scope) {
-    const context = useCollectionContext(name + "CollectionConsumer", scope);
-    const getItems = Rn.useCallback(() => {
-      const collectionNode = context.collectionRef.current;
-      if (!collectionNode) return [];
-      const orderedNodes = Array.from(collectionNode.querySelectorAll(`[${ITEM_DATA_ATTR}]`));
-      const items = Array.from(context.itemMap.values());
-      const orderedItems = items.sort(
-        (a3, b3) => orderedNodes.indexOf(a3.ref.current) - orderedNodes.indexOf(b3.ref.current)
-      );
-      return orderedItems;
-    }, [context.collectionRef, context.itemMap]);
-    return getItems;
-  }
-  return [
-    { Provider: CollectionProvider, Slot: CollectionSlot, ItemSlot: CollectionItemSlot },
-    useCollection2,
-    createCollectionScope2
-  ];
-}
-
-// node_modules/@radix-ui/react-use-layout-effect/dist/index.mjs
-var useLayoutEffect2 = globalThis?.document ? _2 : () => {
-};
-
-// node_modules/@radix-ui/react-id/dist/index.mjs
-var useReactId = compat_module_exports[" useId ".trim().toString()] || (() => void 0);
-var count = 0;
-function useId(deterministicId) {
-  const [id, setId] = d2(useReactId());
-  useLayoutEffect2(() => {
-    if (!deterministicId) setId((reactId) => reactId ?? String(count++));
-  }, [deterministicId]);
-  return deterministicId || (id ? `radix-${id}` : "");
-}
-
-// node_modules/@radix-ui/react-primitive/dist/index.mjs
-var NODES = [
-  "a",
-  "button",
-  "div",
-  "form",
-  "h2",
-  "h3",
-  "img",
-  "input",
-  "label",
-  "li",
-  "nav",
-  "ol",
-  "p",
-  "select",
-  "span",
-  "svg",
-  "ul"
-];
-var Primitive = NODES.reduce((primitive, node) => {
-  const Slot2 = createSlot(`Primitive.${node}`);
-  const Node2 = D3((props, forwardedRef) => {
-    const { asChild, ...primitiveProps } = props;
-    const Comp = asChild ? Slot2 : node;
-    if (typeof window !== "undefined") {
-      window[Symbol.for("radix-ui")] = true;
-    }
-    return /* @__PURE__ */ u3(Comp, { ...primitiveProps, ref: forwardedRef });
-  });
-  Node2.displayName = `Primitive.${node}`;
-  return { ...primitive, [node]: Node2 };
-}, {});
-function dispatchDiscreteCustomEvent(target, event) {
-  if (target) En(() => target.dispatchEvent(event));
-}
-
-// node_modules/@radix-ui/react-use-callback-ref/dist/index.mjs
-function useCallbackRef(callback) {
-  const callbackRef = A2(callback);
-  y2(() => {
-    callbackRef.current = callback;
-  });
-  return T2(() => (...args) => callbackRef.current?.(...args), []);
-}
-
-// node_modules/@radix-ui/react-use-controllable-state/dist/index.mjs
-var useInsertionEffect = compat_module_exports[" useInsertionEffect ".trim().toString()] || useLayoutEffect2;
-function useControllableState({
-  prop,
-  defaultProp,
-  onChange = () => {
-  },
-  caller
-}) {
-  const [uncontrolledProp, setUncontrolledProp, onChangeRef] = useUncontrolledState({
-    defaultProp,
-    onChange
-  });
-  const isControlled = prop !== void 0;
-  const value = isControlled ? prop : uncontrolledProp;
-  if (true) {
-    const isControlledRef = A2(prop !== void 0);
-    y2(() => {
-      const wasControlled = isControlledRef.current;
-      if (wasControlled !== isControlled) {
-        const from = wasControlled ? "controlled" : "uncontrolled";
-        const to = isControlled ? "controlled" : "uncontrolled";
-        console.warn(
-          `${caller} is changing from ${from} to ${to}. Components should not switch from controlled to uncontrolled (or vice versa). Decide between using a controlled or uncontrolled value for the lifetime of the component.`
-        );
-      }
-      isControlledRef.current = isControlled;
-    }, [isControlled, caller]);
-  }
-  const setValue = q2(
-    (nextValue) => {
-      if (isControlled) {
-        const value2 = isFunction(nextValue) ? nextValue(prop) : nextValue;
-        if (value2 !== prop) {
-          onChangeRef.current?.(value2);
-        }
-      } else {
-        setUncontrolledProp(nextValue);
-      }
-    },
-    [isControlled, prop, setUncontrolledProp, onChangeRef]
-  );
-  return [value, setValue];
-}
-function useUncontrolledState({
-  defaultProp,
-  onChange
-}) {
-  const [value, setValue] = d2(defaultProp);
-  const prevValueRef = A2(value);
-  const onChangeRef = A2(onChange);
-  useInsertionEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
-  y2(() => {
-    if (prevValueRef.current !== value) {
-      onChangeRef.current?.(value);
-      prevValueRef.current = value;
-    }
-  }, [value, prevValueRef]);
-  return [value, setValue, onChangeRef];
-}
-function isFunction(value) {
-  return typeof value === "function";
-}
-var SYNC_STATE = Symbol("RADIX:SYNC_STATE");
-
-// node_modules/@radix-ui/react-direction/dist/index.mjs
-var DirectionContext = Q(void 0);
-function useDirection(localDir) {
-  const globalDir = x2(DirectionContext);
-  return localDir || globalDir || "ltr";
-}
-
-// node_modules/@radix-ui/react-roving-focus/dist/index.mjs
-var ENTRY_FOCUS = "rovingFocusGroup.onEntryFocus";
-var EVENT_OPTIONS = { bubbles: false, cancelable: true };
-var GROUP_NAME = "RovingFocusGroup";
-var [Collection, useCollection, createCollectionScope] = createCollection(GROUP_NAME);
-var [createRovingFocusGroupContext, createRovingFocusGroupScope] = createContextScope(
-  GROUP_NAME,
-  [createCollectionScope]
-);
-var [RovingFocusProvider, useRovingFocusContext] = createRovingFocusGroupContext(GROUP_NAME);
-var RovingFocusGroup = D3(
-  (props, forwardedRef) => {
-    return /* @__PURE__ */ u3(Collection.Provider, { scope: props.__scopeRovingFocusGroup, children: /* @__PURE__ */ u3(Collection.Slot, { scope: props.__scopeRovingFocusGroup, children: /* @__PURE__ */ u3(RovingFocusGroupImpl, { ...props, ref: forwardedRef }) }) });
-  }
-);
-RovingFocusGroup.displayName = GROUP_NAME;
-var RovingFocusGroupImpl = D3((props, forwardedRef) => {
-  const {
-    __scopeRovingFocusGroup,
-    orientation,
-    loop = false,
-    dir,
-    currentTabStopId: currentTabStopIdProp,
-    defaultCurrentTabStopId,
-    onCurrentTabStopIdChange,
-    onEntryFocus,
-    preventScrollOnEntryFocus = false,
-    ...groupProps
-  } = props;
-  const ref = A2(null);
-  const composedRefs = useComposedRefs(forwardedRef, ref);
-  const direction = useDirection(dir);
-  const [currentTabStopId, setCurrentTabStopId] = useControllableState({
-    prop: currentTabStopIdProp,
-    defaultProp: defaultCurrentTabStopId ?? null,
-    onChange: onCurrentTabStopIdChange,
-    caller: GROUP_NAME
-  });
-  const [isTabbingBackOut, setIsTabbingBackOut] = d2(false);
-  const handleEntryFocus = useCallbackRef(onEntryFocus);
-  const getItems = useCollection(__scopeRovingFocusGroup);
-  const isClickFocusRef = A2(false);
-  const [focusableItemsCount, setFocusableItemsCount] = d2(0);
-  y2(() => {
-    const node = ref.current;
-    if (node) {
-      node.addEventListener(ENTRY_FOCUS, handleEntryFocus);
-      return () => node.removeEventListener(ENTRY_FOCUS, handleEntryFocus);
-    }
-  }, [handleEntryFocus]);
-  return /* @__PURE__ */ u3(
-    RovingFocusProvider,
-    {
-      scope: __scopeRovingFocusGroup,
-      orientation,
-      dir: direction,
-      loop,
-      currentTabStopId,
-      onItemFocus: q2(
-        (tabStopId) => setCurrentTabStopId(tabStopId),
-        [setCurrentTabStopId]
-      ),
-      onItemShiftTab: q2(() => setIsTabbingBackOut(true), []),
-      onFocusableItemAdd: q2(
-        () => setFocusableItemsCount((prevCount) => prevCount + 1),
-        []
-      ),
-      onFocusableItemRemove: q2(
-        () => setFocusableItemsCount((prevCount) => prevCount - 1),
-        []
-      ),
-      children: /* @__PURE__ */ u3(
-        Primitive.div,
-        {
-          tabIndex: isTabbingBackOut || focusableItemsCount === 0 ? -1 : 0,
-          "data-orientation": orientation,
-          ...groupProps,
-          ref: composedRefs,
-          style: { outline: "none", ...props.style },
-          onMouseDown: composeEventHandlers(props.onMouseDown, () => {
-            isClickFocusRef.current = true;
-          }),
-          onFocus: composeEventHandlers(props.onFocus, (event) => {
-            const isKeyboardFocus = !isClickFocusRef.current;
-            if (event.target === event.currentTarget && isKeyboardFocus && !isTabbingBackOut) {
-              const entryFocusEvent = new CustomEvent(ENTRY_FOCUS, EVENT_OPTIONS);
-              event.currentTarget.dispatchEvent(entryFocusEvent);
-              if (!entryFocusEvent.defaultPrevented) {
-                const items = getItems().filter((item) => item.focusable);
-                const activeItem = items.find((item) => item.active);
-                const currentItem = items.find((item) => item.id === currentTabStopId);
-                const candidateItems = [activeItem, currentItem, ...items].filter(
-                  Boolean
-                );
-                const candidateNodes = candidateItems.map((item) => item.ref.current);
-                focusFirst(candidateNodes, preventScrollOnEntryFocus);
-              }
-            }
-            isClickFocusRef.current = false;
-          }),
-          onBlur: composeEventHandlers(props.onBlur, () => setIsTabbingBackOut(false))
-        }
-      )
-    }
-  );
-});
-var ITEM_NAME = "RovingFocusGroupItem";
-var RovingFocusGroupItem = D3(
-  (props, forwardedRef) => {
-    const {
-      __scopeRovingFocusGroup,
-      focusable = true,
-      active = false,
-      tabStopId,
-      children,
-      ...itemProps
-    } = props;
-    const autoId = useId();
-    const id = tabStopId || autoId;
-    const context = useRovingFocusContext(ITEM_NAME, __scopeRovingFocusGroup);
-    const isCurrentTabStop = context.currentTabStopId === id;
-    const getItems = useCollection(__scopeRovingFocusGroup);
-    const { onFocusableItemAdd, onFocusableItemRemove, currentTabStopId } = context;
-    y2(() => {
-      if (focusable) {
-        onFocusableItemAdd();
-        return () => onFocusableItemRemove();
-      }
-    }, [focusable, onFocusableItemAdd, onFocusableItemRemove]);
-    return /* @__PURE__ */ u3(
-      Collection.ItemSlot,
-      {
-        scope: __scopeRovingFocusGroup,
-        id,
-        focusable,
-        active,
-        children: /* @__PURE__ */ u3(
-          Primitive.span,
-          {
-            tabIndex: isCurrentTabStop ? 0 : -1,
-            "data-orientation": context.orientation,
-            ...itemProps,
-            ref: forwardedRef,
-            onMouseDown: composeEventHandlers(props.onMouseDown, (event) => {
-              if (!focusable) event.preventDefault();
-              else context.onItemFocus(id);
-            }),
-            onFocus: composeEventHandlers(props.onFocus, () => context.onItemFocus(id)),
-            onKeyDown: composeEventHandlers(props.onKeyDown, (event) => {
-              if (event.key === "Tab" && event.shiftKey) {
-                context.onItemShiftTab();
-                return;
-              }
-              if (event.target !== event.currentTarget) return;
-              const focusIntent = getFocusIntent(event, context.orientation, context.dir);
-              if (focusIntent !== void 0) {
-                if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
-                event.preventDefault();
-                const items = getItems().filter((item) => item.focusable);
-                let candidateNodes = items.map((item) => item.ref.current);
-                if (focusIntent === "last") candidateNodes.reverse();
-                else if (focusIntent === "prev" || focusIntent === "next") {
-                  if (focusIntent === "prev") candidateNodes.reverse();
-                  const currentIndex = candidateNodes.indexOf(event.currentTarget);
-                  candidateNodes = context.loop ? wrapArray(candidateNodes, currentIndex + 1) : candidateNodes.slice(currentIndex + 1);
-                }
-                setTimeout(() => focusFirst(candidateNodes));
-              }
-            }),
-            children: typeof children === "function" ? children({ isCurrentTabStop, hasTabStop: currentTabStopId != null }) : children
-          }
-        )
-      }
-    );
-  }
-);
-RovingFocusGroupItem.displayName = ITEM_NAME;
-var MAP_KEY_TO_FOCUS_INTENT = {
-  ArrowLeft: "prev",
-  ArrowUp: "prev",
-  ArrowRight: "next",
-  ArrowDown: "next",
-  PageUp: "first",
-  Home: "first",
-  PageDown: "last",
-  End: "last"
-};
-function getDirectionAwareKey(key, dir) {
-  if (dir !== "rtl") return key;
-  return key === "ArrowLeft" ? "ArrowRight" : key === "ArrowRight" ? "ArrowLeft" : key;
-}
-function getFocusIntent(event, orientation, dir) {
-  const key = getDirectionAwareKey(event.key, dir);
-  if (orientation === "vertical" && ["ArrowLeft", "ArrowRight"].includes(key)) return void 0;
-  if (orientation === "horizontal" && ["ArrowUp", "ArrowDown"].includes(key)) return void 0;
-  return MAP_KEY_TO_FOCUS_INTENT[key];
-}
-function focusFirst(candidates, preventScroll = false) {
-  const PREVIOUSLY_FOCUSED_ELEMENT = document.activeElement;
-  for (const candidate of candidates) {
-    if (candidate === PREVIOUSLY_FOCUSED_ELEMENT) return;
-    candidate.focus({ preventScroll });
-    if (document.activeElement !== PREVIOUSLY_FOCUSED_ELEMENT) return;
-  }
-}
-function wrapArray(array, startIndex) {
-  return array.map((_3, index) => array[(startIndex + index) % array.length]);
-}
-var Root = RovingFocusGroup;
-var Item = RovingFocusGroupItem;
-
-// node_modules/@radix-ui/react-presence/dist/index.mjs
-function useStateMachine(initialState, machine) {
-  return h2((state, event) => {
-    const nextState = machine[state][event];
-    return nextState ?? state;
-  }, initialState);
-}
-var Presence = (props) => {
-  const { present, children } = props;
-  const presence = usePresence(present);
-  const child = typeof children === "function" ? children({ present: presence.isPresent }) : O2.only(children);
-  const ref = useComposedRefs(presence.ref, getElementRef2(child));
-  const forceMount = typeof children === "function";
-  return forceMount || presence.isPresent ? _n(child, { ref }) : null;
-};
-Presence.displayName = "Presence";
-function usePresence(present) {
-  const [node, setNode] = d2();
-  const stylesRef = A2(null);
-  const prevPresentRef = A2(present);
-  const prevAnimationNameRef = A2("none");
-  const initialState = present ? "mounted" : "unmounted";
-  const [state, send] = useStateMachine(initialState, {
-    mounted: {
-      UNMOUNT: "unmounted",
-      ANIMATION_OUT: "unmountSuspended"
-    },
-    unmountSuspended: {
-      MOUNT: "mounted",
-      ANIMATION_END: "unmounted"
-    },
-    unmounted: {
-      MOUNT: "mounted"
-    }
-  });
-  y2(() => {
-    const currentAnimationName = getAnimationName(stylesRef.current);
-    prevAnimationNameRef.current = state === "mounted" ? currentAnimationName : "none";
-  }, [state]);
-  useLayoutEffect2(() => {
-    const styles3 = stylesRef.current;
-    const wasPresent = prevPresentRef.current;
-    const hasPresentChanged = wasPresent !== present;
-    if (hasPresentChanged) {
-      const prevAnimationName = prevAnimationNameRef.current;
-      const currentAnimationName = getAnimationName(styles3);
-      if (present) {
-        send("MOUNT");
-      } else if (currentAnimationName === "none" || styles3?.display === "none") {
-        send("UNMOUNT");
-      } else {
-        const isAnimating = prevAnimationName !== currentAnimationName;
-        if (wasPresent && isAnimating) {
-          send("ANIMATION_OUT");
-        } else {
-          send("UNMOUNT");
-        }
-      }
-      prevPresentRef.current = present;
-    }
-  }, [present, send]);
-  useLayoutEffect2(() => {
-    if (node) {
-      let timeoutId;
-      const ownerWindow = node.ownerDocument.defaultView ?? window;
-      const handleAnimationEnd = (event) => {
-        const currentAnimationName = getAnimationName(stylesRef.current);
-        const isCurrentAnimation = currentAnimationName.includes(CSS.escape(event.animationName));
-        if (event.target === node && isCurrentAnimation) {
-          send("ANIMATION_END");
-          if (!prevPresentRef.current) {
-            const currentFillMode = node.style.animationFillMode;
-            node.style.animationFillMode = "forwards";
-            timeoutId = ownerWindow.setTimeout(() => {
-              if (node.style.animationFillMode === "forwards") {
-                node.style.animationFillMode = currentFillMode;
-              }
-            });
-          }
-        }
-      };
-      const handleAnimationStart = (event) => {
-        if (event.target === node) {
-          prevAnimationNameRef.current = getAnimationName(stylesRef.current);
-        }
-      };
-      node.addEventListener("animationstart", handleAnimationStart);
-      node.addEventListener("animationcancel", handleAnimationEnd);
-      node.addEventListener("animationend", handleAnimationEnd);
-      return () => {
-        ownerWindow.clearTimeout(timeoutId);
-        node.removeEventListener("animationstart", handleAnimationStart);
-        node.removeEventListener("animationcancel", handleAnimationEnd);
-        node.removeEventListener("animationend", handleAnimationEnd);
-      };
-    } else {
-      send("ANIMATION_END");
-    }
-  }, [node, send]);
-  return {
-    isPresent: ["mounted", "unmountSuspended"].includes(state),
-    ref: q2((node2) => {
-      stylesRef.current = node2 ? getComputedStyle(node2) : null;
-      setNode(node2);
-    }, [])
-  };
-}
-function getAnimationName(styles3) {
-  return styles3?.animationName || "none";
-}
-function getElementRef2(element) {
-  let getter = Object.getOwnPropertyDescriptor(element.props, "ref")?.get;
-  let mayWarn = getter && "isReactWarning" in getter && getter.isReactWarning;
-  if (mayWarn) {
-    return element.ref;
-  }
-  getter = Object.getOwnPropertyDescriptor(element, "ref")?.get;
-  mayWarn = getter && "isReactWarning" in getter && getter.isReactWarning;
-  if (mayWarn) {
-    return element.props.ref;
-  }
-  return element.props.ref || element.ref;
-}
-
-// node_modules/@radix-ui/react-tabs/dist/index.mjs
-var TABS_NAME = "Tabs";
-var [createTabsContext, createTabsScope] = createContextScope(TABS_NAME, [
-  createRovingFocusGroupScope
-]);
-var useRovingFocusGroupScope = createRovingFocusGroupScope();
-var [TabsProvider, useTabsContext] = createTabsContext(TABS_NAME);
-var Tabs = D3(
-  (props, forwardedRef) => {
-    const {
-      __scopeTabs,
-      value: valueProp,
-      onValueChange,
-      defaultValue,
-      orientation = "horizontal",
-      dir,
-      activationMode = "automatic",
-      ...tabsProps
-    } = props;
-    const direction = useDirection(dir);
-    const [value, setValue] = useControllableState({
-      prop: valueProp,
-      onChange: onValueChange,
-      defaultProp: defaultValue ?? "",
-      caller: TABS_NAME
-    });
-    return /* @__PURE__ */ u3(
-      TabsProvider,
-      {
-        scope: __scopeTabs,
-        baseId: useId(),
-        value,
-        onValueChange: setValue,
-        orientation,
-        dir: direction,
-        activationMode,
-        children: /* @__PURE__ */ u3(
-          Primitive.div,
-          {
-            dir: direction,
-            "data-orientation": orientation,
-            ...tabsProps,
-            ref: forwardedRef
-          }
-        )
-      }
-    );
-  }
-);
-Tabs.displayName = TABS_NAME;
-var TAB_LIST_NAME = "TabsList";
-var TabsList = D3(
-  (props, forwardedRef) => {
-    const { __scopeTabs, loop = true, ...listProps } = props;
-    const context = useTabsContext(TAB_LIST_NAME, __scopeTabs);
-    const rovingFocusGroupScope = useRovingFocusGroupScope(__scopeTabs);
-    return /* @__PURE__ */ u3(
-      Root,
-      {
-        asChild: true,
-        ...rovingFocusGroupScope,
-        orientation: context.orientation,
-        dir: context.dir,
-        loop,
-        children: /* @__PURE__ */ u3(
-          Primitive.div,
-          {
-            role: "tablist",
-            "aria-orientation": context.orientation,
-            ...listProps,
-            ref: forwardedRef
-          }
-        )
-      }
-    );
-  }
-);
-TabsList.displayName = TAB_LIST_NAME;
-var TRIGGER_NAME = "TabsTrigger";
-var TabsTrigger = D3(
-  (props, forwardedRef) => {
-    const { __scopeTabs, value, disabled = false, ...triggerProps } = props;
-    const context = useTabsContext(TRIGGER_NAME, __scopeTabs);
-    const rovingFocusGroupScope = useRovingFocusGroupScope(__scopeTabs);
-    const triggerId = makeTriggerId(context.baseId, value);
-    const contentId = makeContentId(context.baseId, value);
-    const isSelected = value === context.value;
-    return /* @__PURE__ */ u3(
-      Item,
-      {
-        asChild: true,
-        ...rovingFocusGroupScope,
-        focusable: !disabled,
-        active: isSelected,
-        children: /* @__PURE__ */ u3(
-          Primitive.button,
-          {
-            type: "button",
-            role: "tab",
-            "aria-selected": isSelected,
-            "aria-controls": contentId,
-            "data-state": isSelected ? "active" : "inactive",
-            "data-disabled": disabled ? "" : void 0,
-            disabled,
-            id: triggerId,
-            ...triggerProps,
-            ref: forwardedRef,
-            onMouseDown: composeEventHandlers(props.onMouseDown, (event) => {
-              if (!disabled && event.button === 0 && event.ctrlKey === false) {
-                context.onValueChange(value);
-              } else {
-                event.preventDefault();
-              }
-            }),
-            onKeyDown: composeEventHandlers(props.onKeyDown, (event) => {
-              if ([" ", "Enter"].includes(event.key)) context.onValueChange(value);
-            }),
-            onFocus: composeEventHandlers(props.onFocus, () => {
-              const isAutomaticActivation = context.activationMode !== "manual";
-              if (!isSelected && !disabled && isAutomaticActivation) {
-                context.onValueChange(value);
-              }
-            })
-          }
-        )
-      }
-    );
-  }
-);
-TabsTrigger.displayName = TRIGGER_NAME;
-var CONTENT_NAME = "TabsContent";
-var TabsContent = D3(
-  (props, forwardedRef) => {
-    const { __scopeTabs, value, forceMount, children, ...contentProps } = props;
-    const context = useTabsContext(CONTENT_NAME, __scopeTabs);
-    const triggerId = makeTriggerId(context.baseId, value);
-    const contentId = makeContentId(context.baseId, value);
-    const isSelected = value === context.value;
-    const isMountAnimationPreventedRef = A2(isSelected);
-    y2(() => {
-      const rAF = requestAnimationFrame(() => isMountAnimationPreventedRef.current = false);
-      return () => cancelAnimationFrame(rAF);
-    }, []);
-    return /* @__PURE__ */ u3(Presence, { present: forceMount || isSelected, children: ({ present }) => /* @__PURE__ */ u3(
-      Primitive.div,
-      {
-        "data-state": isSelected ? "active" : "inactive",
-        "data-orientation": context.orientation,
-        role: "tabpanel",
-        "aria-labelledby": triggerId,
-        hidden: !present,
-        id: contentId,
-        tabIndex: 0,
-        ...contentProps,
-        ref: forwardedRef,
-        style: {
-          ...props.style,
-          animationDuration: isMountAnimationPreventedRef.current ? "0s" : void 0
-        },
-        children: present && children
-      }
-    ) });
-  }
-);
-TabsContent.displayName = CONTENT_NAME;
-function makeTriggerId(baseId, value) {
-  return `${baseId}-trigger-${value}`;
-}
-function makeContentId(baseId, value) {
-  return `${baseId}-content-${value}`;
-}
-var Root2 = Tabs;
-var List = TabsList;
-var Trigger = TabsTrigger;
-var Content = TabsContent;
-
-// node_modules/@radix-ui/react-use-escape-keydown/dist/index.mjs
-function useEscapeKeydown(onEscapeKeyDownProp, ownerDocument = globalThis?.document) {
-  const onEscapeKeyDown = useCallbackRef(onEscapeKeyDownProp);
-  y2(() => {
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        onEscapeKeyDown(event);
-      }
-    };
-    ownerDocument.addEventListener("keydown", handleKeyDown, { capture: true });
-    return () => ownerDocument.removeEventListener("keydown", handleKeyDown, { capture: true });
-  }, [onEscapeKeyDown, ownerDocument]);
-}
-
-// node_modules/@radix-ui/react-dismissable-layer/dist/index.mjs
-var DISMISSABLE_LAYER_NAME = "DismissableLayer";
-var CONTEXT_UPDATE = "dismissableLayer.update";
-var POINTER_DOWN_OUTSIDE = "dismissableLayer.pointerDownOutside";
-var FOCUS_OUTSIDE = "dismissableLayer.focusOutside";
-var originalBodyPointerEvents;
-var DismissableLayerContext = Q({
-  layers: /* @__PURE__ */ new Set(),
-  layersWithOutsidePointerEventsDisabled: /* @__PURE__ */ new Set(),
-  branches: /* @__PURE__ */ new Set()
-});
-var DismissableLayer = D3(
-  (props, forwardedRef) => {
-    const {
-      disableOutsidePointerEvents = false,
-      onEscapeKeyDown,
-      onPointerDownOutside,
-      onFocusOutside,
-      onInteractOutside,
-      onDismiss,
-      ...layerProps
-    } = props;
-    const context = x2(DismissableLayerContext);
-    const [node, setNode] = d2(null);
-    const ownerDocument = node?.ownerDocument ?? globalThis?.document;
-    const [, force] = d2({});
-    const composedRefs = useComposedRefs(forwardedRef, (node2) => setNode(node2));
-    const layers = Array.from(context.layers);
-    const [highestLayerWithOutsidePointerEventsDisabled] = [...context.layersWithOutsidePointerEventsDisabled].slice(-1);
-    const highestLayerWithOutsidePointerEventsDisabledIndex = layers.indexOf(highestLayerWithOutsidePointerEventsDisabled);
-    const index = node ? layers.indexOf(node) : -1;
-    const isBodyPointerEventsDisabled = context.layersWithOutsidePointerEventsDisabled.size > 0;
-    const isPointerEventsEnabled = index >= highestLayerWithOutsidePointerEventsDisabledIndex;
-    const pointerDownOutside = usePointerDownOutside((event) => {
-      const target = event.target;
-      const isPointerDownOnBranch = [...context.branches].some((branch) => branch.contains(target));
-      if (!isPointerEventsEnabled || isPointerDownOnBranch) return;
-      onPointerDownOutside?.(event);
-      onInteractOutside?.(event);
-      if (!event.defaultPrevented) onDismiss?.();
-    }, ownerDocument);
-    const focusOutside = useFocusOutside((event) => {
-      const target = event.target;
-      const isFocusInBranch = [...context.branches].some((branch) => branch.contains(target));
-      if (isFocusInBranch) return;
-      onFocusOutside?.(event);
-      onInteractOutside?.(event);
-      if (!event.defaultPrevented) onDismiss?.();
-    }, ownerDocument);
-    useEscapeKeydown((event) => {
-      const isHighestLayer = index === context.layers.size - 1;
-      if (!isHighestLayer) return;
-      onEscapeKeyDown?.(event);
-      if (!event.defaultPrevented && onDismiss) {
-        event.preventDefault();
-        onDismiss();
-      }
-    }, ownerDocument);
-    y2(() => {
-      if (!node) return;
-      if (disableOutsidePointerEvents) {
-        if (context.layersWithOutsidePointerEventsDisabled.size === 0) {
-          originalBodyPointerEvents = ownerDocument.body.style.pointerEvents;
-          ownerDocument.body.style.pointerEvents = "none";
-        }
-        context.layersWithOutsidePointerEventsDisabled.add(node);
-      }
-      context.layers.add(node);
-      dispatchUpdate();
-      return () => {
-        if (disableOutsidePointerEvents && context.layersWithOutsidePointerEventsDisabled.size === 1) {
-          ownerDocument.body.style.pointerEvents = originalBodyPointerEvents;
-        }
-      };
-    }, [node, ownerDocument, disableOutsidePointerEvents, context]);
-    y2(() => {
-      return () => {
-        if (!node) return;
-        context.layers.delete(node);
-        context.layersWithOutsidePointerEventsDisabled.delete(node);
-        dispatchUpdate();
-      };
-    }, [node, context]);
-    y2(() => {
-      const handleUpdate = () => force({});
-      document.addEventListener(CONTEXT_UPDATE, handleUpdate);
-      return () => document.removeEventListener(CONTEXT_UPDATE, handleUpdate);
-    }, []);
-    return /* @__PURE__ */ u3(
-      Primitive.div,
-      {
-        ...layerProps,
-        ref: composedRefs,
-        style: {
-          pointerEvents: isBodyPointerEventsDisabled ? isPointerEventsEnabled ? "auto" : "none" : void 0,
-          ...props.style
-        },
-        onFocusCapture: composeEventHandlers(props.onFocusCapture, focusOutside.onFocusCapture),
-        onBlurCapture: composeEventHandlers(props.onBlurCapture, focusOutside.onBlurCapture),
-        onPointerDownCapture: composeEventHandlers(
-          props.onPointerDownCapture,
-          pointerDownOutside.onPointerDownCapture
-        )
-      }
-    );
-  }
-);
-DismissableLayer.displayName = DISMISSABLE_LAYER_NAME;
-var BRANCH_NAME = "DismissableLayerBranch";
-var DismissableLayerBranch = D3((props, forwardedRef) => {
-  const context = x2(DismissableLayerContext);
-  const ref = A2(null);
-  const composedRefs = useComposedRefs(forwardedRef, ref);
-  y2(() => {
-    const node = ref.current;
-    if (node) {
-      context.branches.add(node);
-      return () => {
-        context.branches.delete(node);
-      };
-    }
-  }, [context.branches]);
-  return /* @__PURE__ */ u3(Primitive.div, { ...props, ref: composedRefs });
-});
-DismissableLayerBranch.displayName = BRANCH_NAME;
-function usePointerDownOutside(onPointerDownOutside, ownerDocument = globalThis?.document) {
-  const handlePointerDownOutside = useCallbackRef(onPointerDownOutside);
-  const isPointerInsideReactTreeRef = A2(false);
-  const handleClickRef = A2(() => {
-  });
-  y2(() => {
-    const handlePointerDown = (event) => {
-      if (event.target && !isPointerInsideReactTreeRef.current) {
-        let handleAndDispatchPointerDownOutsideEvent2 = function() {
-          handleAndDispatchCustomEvent(
-            POINTER_DOWN_OUTSIDE,
-            handlePointerDownOutside,
-            eventDetail,
-            { discrete: true }
-          );
-        };
-        var handleAndDispatchPointerDownOutsideEvent = handleAndDispatchPointerDownOutsideEvent2;
-        const eventDetail = { originalEvent: event };
-        if (event.pointerType === "touch") {
-          ownerDocument.removeEventListener("click", handleClickRef.current);
-          handleClickRef.current = handleAndDispatchPointerDownOutsideEvent2;
-          ownerDocument.addEventListener("click", handleClickRef.current, { once: true });
-        } else {
-          handleAndDispatchPointerDownOutsideEvent2();
-        }
-      } else {
-        ownerDocument.removeEventListener("click", handleClickRef.current);
-      }
-      isPointerInsideReactTreeRef.current = false;
-    };
-    const timerId = window.setTimeout(() => {
-      ownerDocument.addEventListener("pointerdown", handlePointerDown);
-    }, 0);
-    return () => {
-      window.clearTimeout(timerId);
-      ownerDocument.removeEventListener("pointerdown", handlePointerDown);
-      ownerDocument.removeEventListener("click", handleClickRef.current);
-    };
-  }, [ownerDocument, handlePointerDownOutside]);
-  return {
-    // ensures we check React component tree (not just DOM tree)
-    onPointerDownCapture: () => isPointerInsideReactTreeRef.current = true
-  };
-}
-function useFocusOutside(onFocusOutside, ownerDocument = globalThis?.document) {
-  const handleFocusOutside = useCallbackRef(onFocusOutside);
-  const isFocusInsideReactTreeRef = A2(false);
-  y2(() => {
-    const handleFocus = (event) => {
-      if (event.target && !isFocusInsideReactTreeRef.current) {
-        const eventDetail = { originalEvent: event };
-        handleAndDispatchCustomEvent(FOCUS_OUTSIDE, handleFocusOutside, eventDetail, {
-          discrete: false
-        });
-      }
-    };
-    ownerDocument.addEventListener("focusin", handleFocus);
-    return () => ownerDocument.removeEventListener("focusin", handleFocus);
-  }, [ownerDocument, handleFocusOutside]);
-  return {
-    onFocusCapture: () => isFocusInsideReactTreeRef.current = true,
-    onBlurCapture: () => isFocusInsideReactTreeRef.current = false
-  };
-}
-function dispatchUpdate() {
-  const event = new CustomEvent(CONTEXT_UPDATE);
-  document.dispatchEvent(event);
-}
-function handleAndDispatchCustomEvent(name, handler, detail, { discrete }) {
-  const target = detail.originalEvent.target;
-  const event = new CustomEvent(name, { bubbles: false, cancelable: true, detail });
-  if (handler) target.addEventListener(name, handler, { once: true });
-  if (discrete) {
-    dispatchDiscreteCustomEvent(target, event);
-  } else {
-    target.dispatchEvent(event);
-  }
-}
-
-// node_modules/@radix-ui/react-focus-scope/dist/index.mjs
-var AUTOFOCUS_ON_MOUNT = "focusScope.autoFocusOnMount";
-var AUTOFOCUS_ON_UNMOUNT = "focusScope.autoFocusOnUnmount";
-var EVENT_OPTIONS2 = { bubbles: false, cancelable: true };
-var FOCUS_SCOPE_NAME = "FocusScope";
-var FocusScope = D3((props, forwardedRef) => {
-  const {
-    loop = false,
-    trapped = false,
-    onMountAutoFocus: onMountAutoFocusProp,
-    onUnmountAutoFocus: onUnmountAutoFocusProp,
-    ...scopeProps
-  } = props;
-  const [container, setContainer] = d2(null);
-  const onMountAutoFocus = useCallbackRef(onMountAutoFocusProp);
-  const onUnmountAutoFocus = useCallbackRef(onUnmountAutoFocusProp);
-  const lastFocusedElementRef = A2(null);
-  const composedRefs = useComposedRefs(forwardedRef, (node) => setContainer(node));
-  const focusScope = A2({
-    paused: false,
-    pause() {
-      this.paused = true;
-    },
-    resume() {
-      this.paused = false;
-    }
-  }).current;
-  y2(() => {
-    if (trapped) {
-      let handleFocusIn2 = function(event) {
-        if (focusScope.paused || !container) return;
-        const target = event.target;
-        if (container.contains(target)) {
-          lastFocusedElementRef.current = target;
-        } else {
-          focus(lastFocusedElementRef.current, { select: true });
-        }
-      }, handleFocusOut2 = function(event) {
-        if (focusScope.paused || !container) return;
-        const relatedTarget = event.relatedTarget;
-        if (relatedTarget === null) return;
-        if (!container.contains(relatedTarget)) {
-          focus(lastFocusedElementRef.current, { select: true });
-        }
-      }, handleMutations2 = function(mutations) {
-        const focusedElement = document.activeElement;
-        if (focusedElement !== document.body) return;
-        for (const mutation of mutations) {
-          if (mutation.removedNodes.length > 0) focus(container);
-        }
-      };
-      var handleFocusIn = handleFocusIn2, handleFocusOut = handleFocusOut2, handleMutations = handleMutations2;
-      document.addEventListener("focusin", handleFocusIn2);
-      document.addEventListener("focusout", handleFocusOut2);
-      const mutationObserver = new MutationObserver(handleMutations2);
-      if (container) mutationObserver.observe(container, { childList: true, subtree: true });
-      return () => {
-        document.removeEventListener("focusin", handleFocusIn2);
-        document.removeEventListener("focusout", handleFocusOut2);
-        mutationObserver.disconnect();
-      };
-    }
-  }, [trapped, container, focusScope.paused]);
-  y2(() => {
-    if (container) {
-      focusScopesStack.add(focusScope);
-      const previouslyFocusedElement = document.activeElement;
-      const hasFocusedCandidate = container.contains(previouslyFocusedElement);
-      if (!hasFocusedCandidate) {
-        const mountEvent = new CustomEvent(AUTOFOCUS_ON_MOUNT, EVENT_OPTIONS2);
-        container.addEventListener(AUTOFOCUS_ON_MOUNT, onMountAutoFocus);
-        container.dispatchEvent(mountEvent);
-        if (!mountEvent.defaultPrevented) {
-          focusFirst2(removeLinks(getTabbableCandidates(container)), { select: true });
-          if (document.activeElement === previouslyFocusedElement) {
-            focus(container);
-          }
-        }
-      }
-      return () => {
-        container.removeEventListener(AUTOFOCUS_ON_MOUNT, onMountAutoFocus);
-        setTimeout(() => {
-          const unmountEvent = new CustomEvent(AUTOFOCUS_ON_UNMOUNT, EVENT_OPTIONS2);
-          container.addEventListener(AUTOFOCUS_ON_UNMOUNT, onUnmountAutoFocus);
-          container.dispatchEvent(unmountEvent);
-          if (!unmountEvent.defaultPrevented) {
-            focus(previouslyFocusedElement ?? document.body, { select: true });
-          }
-          container.removeEventListener(AUTOFOCUS_ON_UNMOUNT, onUnmountAutoFocus);
-          focusScopesStack.remove(focusScope);
-        }, 0);
-      };
-    }
-  }, [container, onMountAutoFocus, onUnmountAutoFocus, focusScope]);
-  const handleKeyDown = q2(
-    (event) => {
-      if (!loop && !trapped) return;
-      if (focusScope.paused) return;
-      const isTabKey = event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey;
-      const focusedElement = document.activeElement;
-      if (isTabKey && focusedElement) {
-        const container2 = event.currentTarget;
-        const [first, last] = getTabbableEdges(container2);
-        const hasTabbableElementsInside = first && last;
-        if (!hasTabbableElementsInside) {
-          if (focusedElement === container2) event.preventDefault();
-        } else {
-          if (!event.shiftKey && focusedElement === last) {
-            event.preventDefault();
-            if (loop) focus(first, { select: true });
-          } else if (event.shiftKey && focusedElement === first) {
-            event.preventDefault();
-            if (loop) focus(last, { select: true });
-          }
-        }
-      }
-    },
-    [loop, trapped, focusScope.paused]
-  );
-  return /* @__PURE__ */ u3(Primitive.div, { tabIndex: -1, ...scopeProps, ref: composedRefs, onKeyDown: handleKeyDown });
-});
-FocusScope.displayName = FOCUS_SCOPE_NAME;
-function focusFirst2(candidates, { select = false } = {}) {
-  const previouslyFocusedElement = document.activeElement;
-  for (const candidate of candidates) {
-    focus(candidate, { select });
-    if (document.activeElement !== previouslyFocusedElement) return;
-  }
-}
-function getTabbableEdges(container) {
-  const candidates = getTabbableCandidates(container);
-  const first = findVisible(candidates, container);
-  const last = findVisible(candidates.reverse(), container);
-  return [first, last];
-}
-function getTabbableCandidates(container) {
-  const nodes = [];
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_ELEMENT, {
-    acceptNode: (node) => {
-      const isHiddenInput = node.tagName === "INPUT" && node.type === "hidden";
-      if (node.disabled || node.hidden || isHiddenInput) return NodeFilter.FILTER_SKIP;
-      return node.tabIndex >= 0 ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
-    }
-  });
-  while (walker.nextNode()) nodes.push(walker.currentNode);
-  return nodes;
-}
-function findVisible(elements, container) {
-  for (const element of elements) {
-    if (!isHidden(element, { upTo: container })) return element;
-  }
-}
-function isHidden(node, { upTo }) {
-  if (getComputedStyle(node).visibility === "hidden") return true;
-  while (node) {
-    if (upTo !== void 0 && node === upTo) return false;
-    if (getComputedStyle(node).display === "none") return true;
-    node = node.parentElement;
-  }
-  return false;
-}
-function isSelectableInput(element) {
-  return element instanceof HTMLInputElement && "select" in element;
-}
-function focus(element, { select = false } = {}) {
-  if (element && element.focus) {
-    const previouslyFocusedElement = document.activeElement;
-    element.focus({ preventScroll: true });
-    if (element !== previouslyFocusedElement && isSelectableInput(element) && select)
-      element.select();
-  }
-}
-var focusScopesStack = createFocusScopesStack();
-function createFocusScopesStack() {
-  let stack = [];
-  return {
-    add(focusScope) {
-      const activeFocusScope = stack[0];
-      if (focusScope !== activeFocusScope) {
-        activeFocusScope?.pause();
-      }
-      stack = arrayRemove(stack, focusScope);
-      stack.unshift(focusScope);
-    },
-    remove(focusScope) {
-      stack = arrayRemove(stack, focusScope);
-      stack[0]?.resume();
-    }
-  };
-}
-function arrayRemove(array, item) {
-  const updatedArray = [...array];
-  const index = updatedArray.indexOf(item);
-  if (index !== -1) {
-    updatedArray.splice(index, 1);
-  }
-  return updatedArray;
-}
-function removeLinks(items) {
-  return items.filter((item) => item.tagName !== "A");
-}
-
-// node_modules/@radix-ui/react-portal/dist/index.mjs
-var PORTAL_NAME = "Portal";
-var Portal = D3((props, forwardedRef) => {
-  const { container: containerProp, ...portalProps } = props;
-  const [mounted, setMounted] = d2(false);
-  useLayoutEffect2(() => setMounted(true), []);
-  const container = containerProp || mounted && globalThis?.document?.body;
-  return container ? Rn.createPortal(/* @__PURE__ */ u3(Primitive.div, { ...portalProps, ref: forwardedRef }), container) : null;
-});
-Portal.displayName = PORTAL_NAME;
-
-// node_modules/@radix-ui/react-focus-guards/dist/index.mjs
-var count2 = 0;
-function useFocusGuards() {
-  y2(() => {
-    const edgeGuards = document.querySelectorAll("[data-radix-focus-guard]");
-    document.body.insertAdjacentElement("afterbegin", edgeGuards[0] ?? createFocusGuard());
-    document.body.insertAdjacentElement("beforeend", edgeGuards[1] ?? createFocusGuard());
-    count2++;
-    return () => {
-      if (count2 === 1) {
-        document.querySelectorAll("[data-radix-focus-guard]").forEach((node) => node.remove());
-      }
-      count2--;
-    };
-  }, []);
-}
-function createFocusGuard() {
-  const element = document.createElement("span");
-  element.setAttribute("data-radix-focus-guard", "");
-  element.tabIndex = 0;
-  element.style.outline = "none";
-  element.style.opacity = "0";
-  element.style.position = "fixed";
-  element.style.pointerEvents = "none";
-  return element;
-}
-
-// node_modules/tslib/tslib.es6.mjs
-var __assign = function() {
-  __assign = Object.assign || function __assign2(t3) {
-    for (var s3, i4 = 1, n2 = arguments.length; i4 < n2; i4++) {
-      s3 = arguments[i4];
-      for (var p3 in s3) if (Object.prototype.hasOwnProperty.call(s3, p3)) t3[p3] = s3[p3];
-    }
-    return t3;
-  };
-  return __assign.apply(this, arguments);
-};
-function __rest(s3, e3) {
-  var t3 = {};
-  for (var p3 in s3) if (Object.prototype.hasOwnProperty.call(s3, p3) && e3.indexOf(p3) < 0)
-    t3[p3] = s3[p3];
-  if (s3 != null && typeof Object.getOwnPropertySymbols === "function")
-    for (var i4 = 0, p3 = Object.getOwnPropertySymbols(s3); i4 < p3.length; i4++) {
-      if (e3.indexOf(p3[i4]) < 0 && Object.prototype.propertyIsEnumerable.call(s3, p3[i4]))
-        t3[p3[i4]] = s3[p3[i4]];
-    }
-  return t3;
-}
-function __spreadArray(to, from, pack) {
-  if (pack || arguments.length === 2) for (var i4 = 0, l3 = from.length, ar; i4 < l3; i4++) {
-    if (ar || !(i4 in from)) {
-      if (!ar) ar = Array.prototype.slice.call(from, 0, i4);
-      ar[i4] = from[i4];
-    }
-  }
-  return to.concat(ar || Array.prototype.slice.call(from));
-}
-
-// node_modules/react-remove-scroll-bar/dist/es2015/constants.js
-var zeroRightClassName = "right-scroll-bar-position";
-var fullWidthClassName = "width-before-scroll-bar";
-var noScrollbarsClassName = "with-scroll-bars-hidden";
-var removedBarSizeVariable = "--removed-body-scroll-bar-size";
-
-// node_modules/use-callback-ref/dist/es2015/assignRef.js
-function assignRef(ref, value) {
-  if (typeof ref === "function") {
-    ref(value);
-  } else if (ref) {
-    ref.current = value;
-  }
-  return ref;
-}
-
-// node_modules/use-callback-ref/dist/es2015/useRef.js
-function useCallbackRef2(initialValue, callback) {
-  var ref = d2(function() {
-    return {
-      // value
-      value: initialValue,
-      // last callback
-      callback,
-      // "memoized" public interface
-      facade: {
-        get current() {
-          return ref.value;
-        },
-        set current(value) {
-          var last = ref.value;
-          if (last !== value) {
-            ref.value = value;
-            ref.callback(value, last);
-          }
-        }
-      }
-    };
-  })[0];
-  ref.callback = callback;
-  return ref.facade;
-}
-
-// node_modules/use-callback-ref/dist/es2015/useMergeRef.js
-var useIsomorphicLayoutEffect = typeof window !== "undefined" ? _2 : y2;
-var currentValues = /* @__PURE__ */ new WeakMap();
-function useMergeRefs(refs, defaultValue) {
-  var callbackRef = useCallbackRef2(defaultValue || null, function(newValue) {
-    return refs.forEach(function(ref) {
-      return assignRef(ref, newValue);
-    });
-  });
-  useIsomorphicLayoutEffect(function() {
-    var oldValue = currentValues.get(callbackRef);
-    if (oldValue) {
-      var prevRefs_1 = new Set(oldValue);
-      var nextRefs_1 = new Set(refs);
-      var current_1 = callbackRef.current;
-      prevRefs_1.forEach(function(ref) {
-        if (!nextRefs_1.has(ref)) {
-          assignRef(ref, null);
-        }
-      });
-      nextRefs_1.forEach(function(ref) {
-        if (!prevRefs_1.has(ref)) {
-          assignRef(ref, current_1);
-        }
-      });
-    }
-    currentValues.set(callbackRef, refs);
-  }, [refs]);
-  return callbackRef;
-}
-
-// node_modules/use-sidecar/dist/es2015/medium.js
-function ItoI(a3) {
-  return a3;
-}
-function innerCreateMedium(defaults, middleware) {
-  if (middleware === void 0) {
-    middleware = ItoI;
-  }
-  var buffer = [];
-  var assigned = false;
-  var medium = {
-    read: function() {
-      if (assigned) {
-        throw new Error("Sidecar: could not `read` from an `assigned` medium. `read` could be used only with `useMedium`.");
-      }
-      if (buffer.length) {
-        return buffer[buffer.length - 1];
-      }
-      return defaults;
-    },
-    useMedium: function(data) {
-      var item = middleware(data, assigned);
-      buffer.push(item);
-      return function() {
-        buffer = buffer.filter(function(x4) {
-          return x4 !== item;
-        });
-      };
-    },
-    assignSyncMedium: function(cb) {
-      assigned = true;
-      while (buffer.length) {
-        var cbs = buffer;
-        buffer = [];
-        cbs.forEach(cb);
-      }
-      buffer = {
-        push: function(x4) {
-          return cb(x4);
-        },
-        filter: function() {
-          return buffer;
-        }
-      };
-    },
-    assignMedium: function(cb) {
-      assigned = true;
-      var pendingQueue = [];
-      if (buffer.length) {
-        var cbs = buffer;
-        buffer = [];
-        cbs.forEach(cb);
-        pendingQueue = buffer;
-      }
-      var executeQueue = function() {
-        var cbs2 = pendingQueue;
-        pendingQueue = [];
-        cbs2.forEach(cb);
-      };
-      var cycle = function() {
-        return Promise.resolve().then(executeQueue);
-      };
-      cycle();
-      buffer = {
-        push: function(x4) {
-          pendingQueue.push(x4);
-          cycle();
-        },
-        filter: function(filter) {
-          pendingQueue = pendingQueue.filter(filter);
-          return buffer;
-        }
-      };
-    }
-  };
-  return medium;
-}
-function createSidecarMedium(options) {
-  if (options === void 0) {
-    options = {};
-  }
-  var medium = innerCreateMedium(null);
-  medium.options = __assign({ async: true, ssr: false }, options);
-  return medium;
-}
-
-// node_modules/use-sidecar/dist/es2015/exports.js
-var SideCar = function(_a) {
-  var sideCar = _a.sideCar, rest = __rest(_a, ["sideCar"]);
-  if (!sideCar) {
-    throw new Error("Sidecar: please provide `sideCar` property to import the right car");
-  }
-  var Target = sideCar.read();
-  if (!Target) {
-    throw new Error("Sidecar medium not found");
-  }
-  return _(Target, __assign({}, rest));
-};
-SideCar.isSideCarExport = true;
-function exportSidecar(medium, exported) {
-  medium.useMedium(exported);
-  return SideCar;
-}
-
-// node_modules/react-remove-scroll/dist/es2015/medium.js
-var effectCar = createSidecarMedium();
-
-// node_modules/react-remove-scroll/dist/es2015/UI.js
-var nothing = function() {
-  return;
-};
-var RemoveScroll = D3(function(props, parentRef) {
-  var ref = A2(null);
-  var _a = d2({
-    onScrollCapture: nothing,
-    onWheelCapture: nothing,
-    onTouchMoveCapture: nothing
-  }), callbacks = _a[0], setCallbacks = _a[1];
-  var forwardProps = props.forwardProps, children = props.children, className = props.className, removeScrollBar = props.removeScrollBar, enabled = props.enabled, shards = props.shards, sideCar = props.sideCar, noRelative = props.noRelative, noIsolation = props.noIsolation, inert = props.inert, allowPinchZoom = props.allowPinchZoom, _b = props.as, Container = _b === void 0 ? "div" : _b, gapMode = props.gapMode, rest = __rest(props, ["forwardProps", "children", "className", "removeScrollBar", "enabled", "shards", "sideCar", "noRelative", "noIsolation", "inert", "allowPinchZoom", "as", "gapMode"]);
-  var SideCar2 = sideCar;
-  var containerRef = useMergeRefs([ref, parentRef]);
-  var containerProps = __assign(__assign({}, rest), callbacks);
-  return _(
-    k,
-    null,
-    enabled && _(SideCar2, { sideCar: effectCar, removeScrollBar, shards, noRelative, noIsolation, inert, setCallbacks, allowPinchZoom: !!allowPinchZoom, lockRef: ref, gapMode }),
-    forwardProps ? _n(O2.only(children), __assign(__assign({}, containerProps), { ref: containerRef })) : _(Container, __assign({}, containerProps, { className, ref: containerRef }), children)
-  );
-});
-RemoveScroll.defaultProps = {
-  enabled: true,
-  removeScrollBar: true,
-  inert: false
-};
-RemoveScroll.classNames = {
-  fullWidth: fullWidthClassName,
-  zeroRight: zeroRightClassName
-};
-
-// node_modules/get-nonce/dist/es2015/index.js
-var currentNonce;
-var getNonce = function() {
-  if (currentNonce) {
-    return currentNonce;
-  }
-  if (typeof __webpack_nonce__ !== "undefined") {
-    return __webpack_nonce__;
-  }
-  return void 0;
-};
-
-// node_modules/react-style-singleton/dist/es2015/singleton.js
-function makeStyleTag() {
-  if (!document)
-    return null;
-  var tag = document.createElement("style");
-  tag.type = "text/css";
-  var nonce = getNonce();
-  if (nonce) {
-    tag.setAttribute("nonce", nonce);
-  }
-  return tag;
-}
-function injectStyles(tag, css) {
-  if (tag.styleSheet) {
-    tag.styleSheet.cssText = css;
-  } else {
-    tag.appendChild(document.createTextNode(css));
-  }
-}
-function insertStyleTag(tag) {
-  var head = document.head || document.getElementsByTagName("head")[0];
-  head.appendChild(tag);
-}
-var stylesheetSingleton = function() {
-  var counter = 0;
-  var stylesheet = null;
-  return {
-    add: function(style) {
-      if (counter == 0) {
-        if (stylesheet = makeStyleTag()) {
-          injectStyles(stylesheet, style);
-          insertStyleTag(stylesheet);
-        }
-      }
-      counter++;
-    },
-    remove: function() {
-      counter--;
-      if (!counter && stylesheet) {
-        stylesheet.parentNode && stylesheet.parentNode.removeChild(stylesheet);
-        stylesheet = null;
-      }
-    }
-  };
-};
-
-// node_modules/react-style-singleton/dist/es2015/hook.js
-var styleHookSingleton = function() {
-  var sheet = stylesheetSingleton();
-  return function(styles3, isDynamic) {
-    y2(function() {
-      sheet.add(styles3);
-      return function() {
-        sheet.remove();
-      };
-    }, [styles3 && isDynamic]);
-  };
-};
-
-// node_modules/react-style-singleton/dist/es2015/component.js
-var styleSingleton = function() {
-  var useStyle = styleHookSingleton();
-  var Sheet = function(_a) {
-    var styles3 = _a.styles, dynamic = _a.dynamic;
-    useStyle(styles3, dynamic);
-    return null;
-  };
-  return Sheet;
-};
-
-// node_modules/react-remove-scroll-bar/dist/es2015/utils.js
-var zeroGap = {
-  left: 0,
-  top: 0,
-  right: 0,
-  gap: 0
-};
-var parse = function(x4) {
-  return parseInt(x4 || "", 10) || 0;
-};
-var getOffset = function(gapMode) {
-  var cs = window.getComputedStyle(document.body);
-  var left = cs[gapMode === "padding" ? "paddingLeft" : "marginLeft"];
-  var top = cs[gapMode === "padding" ? "paddingTop" : "marginTop"];
-  var right = cs[gapMode === "padding" ? "paddingRight" : "marginRight"];
-  return [parse(left), parse(top), parse(right)];
-};
-var getGapWidth = function(gapMode) {
-  if (gapMode === void 0) {
-    gapMode = "margin";
-  }
-  if (typeof window === "undefined") {
-    return zeroGap;
-  }
-  var offsets = getOffset(gapMode);
-  var documentWidth = document.documentElement.clientWidth;
-  var windowWidth = window.innerWidth;
-  return {
-    left: offsets[0],
-    top: offsets[1],
-    right: offsets[2],
-    gap: Math.max(0, windowWidth - documentWidth + offsets[2] - offsets[0])
-  };
-};
-
-// node_modules/react-remove-scroll-bar/dist/es2015/component.js
-var Style = styleSingleton();
-var lockAttribute = "data-scroll-locked";
-var getStyles = function(_a, allowRelative, gapMode, important) {
-  var left = _a.left, top = _a.top, right = _a.right, gap = _a.gap;
-  if (gapMode === void 0) {
-    gapMode = "margin";
-  }
-  return "\n  .".concat(noScrollbarsClassName, " {\n   overflow: hidden ").concat(important, ";\n   padding-right: ").concat(gap, "px ").concat(important, ";\n  }\n  body[").concat(lockAttribute, "] {\n    overflow: hidden ").concat(important, ";\n    overscroll-behavior: contain;\n    ").concat([
-    allowRelative && "position: relative ".concat(important, ";"),
-    gapMode === "margin" && "\n    padding-left: ".concat(left, "px;\n    padding-top: ").concat(top, "px;\n    padding-right: ").concat(right, "px;\n    margin-left:0;\n    margin-top:0;\n    margin-right: ").concat(gap, "px ").concat(important, ";\n    "),
-    gapMode === "padding" && "padding-right: ".concat(gap, "px ").concat(important, ";")
-  ].filter(Boolean).join(""), "\n  }\n  \n  .").concat(zeroRightClassName, " {\n    right: ").concat(gap, "px ").concat(important, ";\n  }\n  \n  .").concat(fullWidthClassName, " {\n    margin-right: ").concat(gap, "px ").concat(important, ";\n  }\n  \n  .").concat(zeroRightClassName, " .").concat(zeroRightClassName, " {\n    right: 0 ").concat(important, ";\n  }\n  \n  .").concat(fullWidthClassName, " .").concat(fullWidthClassName, " {\n    margin-right: 0 ").concat(important, ";\n  }\n  \n  body[").concat(lockAttribute, "] {\n    ").concat(removedBarSizeVariable, ": ").concat(gap, "px;\n  }\n");
-};
-var getCurrentUseCounter = function() {
-  var counter = parseInt(document.body.getAttribute(lockAttribute) || "0", 10);
-  return isFinite(counter) ? counter : 0;
-};
-var useLockAttribute = function() {
-  y2(function() {
-    document.body.setAttribute(lockAttribute, (getCurrentUseCounter() + 1).toString());
-    return function() {
-      var newCounter = getCurrentUseCounter() - 1;
-      if (newCounter <= 0) {
-        document.body.removeAttribute(lockAttribute);
-      } else {
-        document.body.setAttribute(lockAttribute, newCounter.toString());
-      }
-    };
-  }, []);
-};
-var RemoveScrollBar = function(_a) {
-  var noRelative = _a.noRelative, noImportant = _a.noImportant, _b = _a.gapMode, gapMode = _b === void 0 ? "margin" : _b;
-  useLockAttribute();
-  var gap = T2(function() {
-    return getGapWidth(gapMode);
-  }, [gapMode]);
-  return _(Style, { styles: getStyles(gap, !noRelative, gapMode, !noImportant ? "!important" : "") });
-};
-
-// node_modules/react-remove-scroll/dist/es2015/aggresiveCapture.js
-var passiveSupported = false;
-if (typeof window !== "undefined") {
-  try {
-    options = Object.defineProperty({}, "passive", {
-      get: function() {
-        passiveSupported = true;
-        return true;
-      }
-    });
-    window.addEventListener("test", options, options);
-    window.removeEventListener("test", options, options);
-  } catch (err) {
-    passiveSupported = false;
-  }
-}
-var options;
-var nonPassive = passiveSupported ? { passive: false } : false;
-
-// node_modules/react-remove-scroll/dist/es2015/handleScroll.js
-var alwaysContainsScroll = function(node) {
-  return node.tagName === "TEXTAREA";
-};
-var elementCanBeScrolled = function(node, overflow) {
-  if (!(node instanceof Element)) {
-    return false;
-  }
-  var styles3 = window.getComputedStyle(node);
-  return (
-    // not-not-scrollable
-    styles3[overflow] !== "hidden" && // contains scroll inside self
-    !(styles3.overflowY === styles3.overflowX && !alwaysContainsScroll(node) && styles3[overflow] === "visible")
-  );
-};
-var elementCouldBeVScrolled = function(node) {
-  return elementCanBeScrolled(node, "overflowY");
-};
-var elementCouldBeHScrolled = function(node) {
-  return elementCanBeScrolled(node, "overflowX");
-};
-var locationCouldBeScrolled = function(axis, node) {
-  var ownerDocument = node.ownerDocument;
-  var current = node;
-  do {
-    if (typeof ShadowRoot !== "undefined" && current instanceof ShadowRoot) {
-      current = current.host;
-    }
-    var isScrollable = elementCouldBeScrolled(axis, current);
-    if (isScrollable) {
-      var _a = getScrollVariables(axis, current), scrollHeight = _a[1], clientHeight = _a[2];
-      if (scrollHeight > clientHeight) {
-        return true;
-      }
-    }
-    current = current.parentNode;
-  } while (current && current !== ownerDocument.body);
-  return false;
-};
-var getVScrollVariables = function(_a) {
-  var scrollTop = _a.scrollTop, scrollHeight = _a.scrollHeight, clientHeight = _a.clientHeight;
-  return [
-    scrollTop,
-    scrollHeight,
-    clientHeight
-  ];
-};
-var getHScrollVariables = function(_a) {
-  var scrollLeft = _a.scrollLeft, scrollWidth = _a.scrollWidth, clientWidth = _a.clientWidth;
-  return [
-    scrollLeft,
-    scrollWidth,
-    clientWidth
-  ];
-};
-var elementCouldBeScrolled = function(axis, node) {
-  return axis === "v" ? elementCouldBeVScrolled(node) : elementCouldBeHScrolled(node);
-};
-var getScrollVariables = function(axis, node) {
-  return axis === "v" ? getVScrollVariables(node) : getHScrollVariables(node);
-};
-var getDirectionFactor = function(axis, direction) {
-  return axis === "h" && direction === "rtl" ? -1 : 1;
-};
-var handleScroll = function(axis, endTarget, event, sourceDelta, noOverscroll) {
-  var directionFactor = getDirectionFactor(axis, window.getComputedStyle(endTarget).direction);
-  var delta = directionFactor * sourceDelta;
-  var target = event.target;
-  var targetInLock = endTarget.contains(target);
-  var shouldCancelScroll = false;
-  var isDeltaPositive = delta > 0;
-  var availableScroll = 0;
-  var availableScrollTop = 0;
-  do {
-    if (!target) {
-      break;
-    }
-    var _a = getScrollVariables(axis, target), position = _a[0], scroll_1 = _a[1], capacity = _a[2];
-    var elementScroll = scroll_1 - capacity - directionFactor * position;
-    if (position || elementScroll) {
-      if (elementCouldBeScrolled(axis, target)) {
-        availableScroll += elementScroll;
-        availableScrollTop += position;
-      }
-    }
-    var parent_1 = target.parentNode;
-    target = parent_1 && parent_1.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? parent_1.host : parent_1;
-  } while (
-    // portaled content
-    !targetInLock && target !== document.body || // self content
-    targetInLock && (endTarget.contains(target) || endTarget === target)
-  );
-  if (isDeltaPositive && (noOverscroll && Math.abs(availableScroll) < 1 || !noOverscroll && delta > availableScroll)) {
-    shouldCancelScroll = true;
-  } else if (!isDeltaPositive && (noOverscroll && Math.abs(availableScrollTop) < 1 || !noOverscroll && -delta > availableScrollTop)) {
-    shouldCancelScroll = true;
-  }
-  return shouldCancelScroll;
-};
-
-// node_modules/react-remove-scroll/dist/es2015/SideEffect.js
-var getTouchXY = function(event) {
-  return "changedTouches" in event ? [event.changedTouches[0].clientX, event.changedTouches[0].clientY] : [0, 0];
-};
-var getDeltaXY = function(event) {
-  return [event.deltaX, event.deltaY];
-};
-var extractRef = function(ref) {
-  return ref && "current" in ref ? ref.current : ref;
-};
-var deltaCompare = function(x4, y3) {
-  return x4[0] === y3[0] && x4[1] === y3[1];
-};
-var generateStyle = function(id) {
-  return "\n  .block-interactivity-".concat(id, " {pointer-events: none;}\n  .allow-interactivity-").concat(id, " {pointer-events: all;}\n");
-};
-var idCounter = 0;
-var lockStack = [];
-function RemoveScrollSideCar(props) {
-  var shouldPreventQueue = A2([]);
-  var touchStartRef = A2([0, 0]);
-  var activeAxis = A2();
-  var id = d2(idCounter++)[0];
-  var Style2 = d2(styleSingleton)[0];
-  var lastProps = A2(props);
-  y2(function() {
-    lastProps.current = props;
-  }, [props]);
-  y2(function() {
-    if (props.inert) {
-      document.body.classList.add("block-interactivity-".concat(id));
-      var allow_1 = __spreadArray([props.lockRef.current], (props.shards || []).map(extractRef), true).filter(Boolean);
-      allow_1.forEach(function(el) {
-        return el.classList.add("allow-interactivity-".concat(id));
-      });
-      return function() {
-        document.body.classList.remove("block-interactivity-".concat(id));
-        allow_1.forEach(function(el) {
-          return el.classList.remove("allow-interactivity-".concat(id));
-        });
-      };
-    }
-    return;
-  }, [props.inert, props.lockRef.current, props.shards]);
-  var shouldCancelEvent = q2(function(event, parent) {
-    if ("touches" in event && event.touches.length === 2 || event.type === "wheel" && event.ctrlKey) {
-      return !lastProps.current.allowPinchZoom;
-    }
-    var touch = getTouchXY(event);
-    var touchStart = touchStartRef.current;
-    var deltaX = "deltaX" in event ? event.deltaX : touchStart[0] - touch[0];
-    var deltaY = "deltaY" in event ? event.deltaY : touchStart[1] - touch[1];
-    var currentAxis;
-    var target = event.target;
-    var moveDirection = Math.abs(deltaX) > Math.abs(deltaY) ? "h" : "v";
-    if ("touches" in event && moveDirection === "h" && target.type === "range") {
-      return false;
-    }
-    var selection = window.getSelection();
-    var anchorNode = selection && selection.anchorNode;
-    var isTouchingSelection = anchorNode ? anchorNode === target || anchorNode.contains(target) : false;
-    if (isTouchingSelection) {
-      return false;
-    }
-    var canBeScrolledInMainDirection = locationCouldBeScrolled(moveDirection, target);
-    if (!canBeScrolledInMainDirection) {
-      return true;
-    }
-    if (canBeScrolledInMainDirection) {
-      currentAxis = moveDirection;
-    } else {
-      currentAxis = moveDirection === "v" ? "h" : "v";
-      canBeScrolledInMainDirection = locationCouldBeScrolled(moveDirection, target);
-    }
-    if (!canBeScrolledInMainDirection) {
-      return false;
-    }
-    if (!activeAxis.current && "changedTouches" in event && (deltaX || deltaY)) {
-      activeAxis.current = currentAxis;
-    }
-    if (!currentAxis) {
-      return true;
-    }
-    var cancelingAxis = activeAxis.current || currentAxis;
-    return handleScroll(cancelingAxis, parent, event, cancelingAxis === "h" ? deltaX : deltaY, true);
-  }, []);
-  var shouldPrevent = q2(function(_event) {
-    var event = _event;
-    if (!lockStack.length || lockStack[lockStack.length - 1] !== Style2) {
-      return;
-    }
-    var delta = "deltaY" in event ? getDeltaXY(event) : getTouchXY(event);
-    var sourceEvent = shouldPreventQueue.current.filter(function(e3) {
-      return e3.name === event.type && (e3.target === event.target || event.target === e3.shadowParent) && deltaCompare(e3.delta, delta);
-    })[0];
-    if (sourceEvent && sourceEvent.should) {
-      if (event.cancelable) {
-        event.preventDefault();
-      }
-      return;
-    }
-    if (!sourceEvent) {
-      var shardNodes = (lastProps.current.shards || []).map(extractRef).filter(Boolean).filter(function(node) {
-        return node.contains(event.target);
-      });
-      var shouldStop = shardNodes.length > 0 ? shouldCancelEvent(event, shardNodes[0]) : !lastProps.current.noIsolation;
-      if (shouldStop) {
-        if (event.cancelable) {
-          event.preventDefault();
-        }
-      }
-    }
-  }, []);
-  var shouldCancel = q2(function(name, delta, target, should) {
-    var event = { name, delta, target, should, shadowParent: getOutermostShadowParent(target) };
-    shouldPreventQueue.current.push(event);
-    setTimeout(function() {
-      shouldPreventQueue.current = shouldPreventQueue.current.filter(function(e3) {
-        return e3 !== event;
-      });
-    }, 1);
-  }, []);
-  var scrollTouchStart = q2(function(event) {
-    touchStartRef.current = getTouchXY(event);
-    activeAxis.current = void 0;
-  }, []);
-  var scrollWheel = q2(function(event) {
-    shouldCancel(event.type, getDeltaXY(event), event.target, shouldCancelEvent(event, props.lockRef.current));
-  }, []);
-  var scrollTouchMove = q2(function(event) {
-    shouldCancel(event.type, getTouchXY(event), event.target, shouldCancelEvent(event, props.lockRef.current));
-  }, []);
-  y2(function() {
-    lockStack.push(Style2);
-    props.setCallbacks({
-      onScrollCapture: scrollWheel,
-      onWheelCapture: scrollWheel,
-      onTouchMoveCapture: scrollTouchMove
-    });
-    document.addEventListener("wheel", shouldPrevent, nonPassive);
-    document.addEventListener("touchmove", shouldPrevent, nonPassive);
-    document.addEventListener("touchstart", scrollTouchStart, nonPassive);
-    return function() {
-      lockStack = lockStack.filter(function(inst) {
-        return inst !== Style2;
-      });
-      document.removeEventListener("wheel", shouldPrevent, nonPassive);
-      document.removeEventListener("touchmove", shouldPrevent, nonPassive);
-      document.removeEventListener("touchstart", scrollTouchStart, nonPassive);
-    };
-  }, []);
-  var removeScrollBar = props.removeScrollBar, inert = props.inert;
-  return _(
-    k,
-    null,
-    inert ? _(Style2, { styles: generateStyle(id) }) : null,
-    removeScrollBar ? _(RemoveScrollBar, { noRelative: props.noRelative, gapMode: props.gapMode }) : null
-  );
-}
-function getOutermostShadowParent(node) {
-  var shadowParent = null;
-  while (node !== null) {
-    if (node instanceof ShadowRoot) {
-      shadowParent = node.host;
-      node = node.host;
-    }
-    node = node.parentNode;
-  }
-  return shadowParent;
-}
-
-// node_modules/react-remove-scroll/dist/es2015/sidecar.js
-var sidecar_default = exportSidecar(effectCar, RemoveScrollSideCar);
-
-// node_modules/react-remove-scroll/dist/es2015/Combination.js
-var ReactRemoveScroll = D3(function(props, ref) {
-  return _(RemoveScroll, __assign({}, props, { ref, sideCar: sidecar_default }));
-});
-ReactRemoveScroll.classNames = RemoveScroll.classNames;
-var Combination_default = ReactRemoveScroll;
-
-// node_modules/aria-hidden/dist/es2015/index.js
-var getDefaultParent = function(originalTarget) {
-  if (typeof document === "undefined") {
-    return null;
-  }
-  var sampleTarget = Array.isArray(originalTarget) ? originalTarget[0] : originalTarget;
-  return sampleTarget.ownerDocument.body;
-};
-var counterMap = /* @__PURE__ */ new WeakMap();
-var uncontrolledNodes = /* @__PURE__ */ new WeakMap();
-var markerMap = {};
-var lockCount = 0;
-var unwrapHost = function(node) {
-  return node && (node.host || unwrapHost(node.parentNode));
-};
-var correctTargets = function(parent, targets) {
-  return targets.map(function(target) {
-    if (parent.contains(target)) {
-      return target;
-    }
-    var correctedTarget = unwrapHost(target);
-    if (correctedTarget && parent.contains(correctedTarget)) {
-      return correctedTarget;
-    }
-    console.error("aria-hidden", target, "in not contained inside", parent, ". Doing nothing");
-    return null;
-  }).filter(function(x4) {
-    return Boolean(x4);
-  });
-};
-var applyAttributeToOthers = function(originalTarget, parentNode, markerName, controlAttribute) {
-  var targets = correctTargets(parentNode, Array.isArray(originalTarget) ? originalTarget : [originalTarget]);
-  if (!markerMap[markerName]) {
-    markerMap[markerName] = /* @__PURE__ */ new WeakMap();
-  }
-  var markerCounter = markerMap[markerName];
-  var hiddenNodes = [];
-  var elementsToKeep = /* @__PURE__ */ new Set();
-  var elementsToStop = new Set(targets);
-  var keep = function(el) {
-    if (!el || elementsToKeep.has(el)) {
-      return;
-    }
-    elementsToKeep.add(el);
-    keep(el.parentNode);
-  };
-  targets.forEach(keep);
-  var deep = function(parent) {
-    if (!parent || elementsToStop.has(parent)) {
-      return;
-    }
-    Array.prototype.forEach.call(parent.children, function(node) {
-      if (elementsToKeep.has(node)) {
-        deep(node);
-      } else {
-        try {
-          var attr = node.getAttribute(controlAttribute);
-          var alreadyHidden = attr !== null && attr !== "false";
-          var counterValue = (counterMap.get(node) || 0) + 1;
-          var markerValue = (markerCounter.get(node) || 0) + 1;
-          counterMap.set(node, counterValue);
-          markerCounter.set(node, markerValue);
-          hiddenNodes.push(node);
-          if (counterValue === 1 && alreadyHidden) {
-            uncontrolledNodes.set(node, true);
-          }
-          if (markerValue === 1) {
-            node.setAttribute(markerName, "true");
-          }
-          if (!alreadyHidden) {
-            node.setAttribute(controlAttribute, "true");
-          }
-        } catch (e3) {
-          console.error("aria-hidden: cannot operate on ", node, e3);
-        }
-      }
-    });
-  };
-  deep(parentNode);
-  elementsToKeep.clear();
-  lockCount++;
-  return function() {
-    hiddenNodes.forEach(function(node) {
-      var counterValue = counterMap.get(node) - 1;
-      var markerValue = markerCounter.get(node) - 1;
-      counterMap.set(node, counterValue);
-      markerCounter.set(node, markerValue);
-      if (!counterValue) {
-        if (!uncontrolledNodes.has(node)) {
-          node.removeAttribute(controlAttribute);
-        }
-        uncontrolledNodes.delete(node);
-      }
-      if (!markerValue) {
-        node.removeAttribute(markerName);
-      }
-    });
-    lockCount--;
-    if (!lockCount) {
-      counterMap = /* @__PURE__ */ new WeakMap();
-      counterMap = /* @__PURE__ */ new WeakMap();
-      uncontrolledNodes = /* @__PURE__ */ new WeakMap();
-      markerMap = {};
-    }
-  };
-};
-var hideOthers = function(originalTarget, parentNode, markerName) {
-  if (markerName === void 0) {
-    markerName = "data-aria-hidden";
-  }
-  var targets = Array.from(Array.isArray(originalTarget) ? originalTarget : [originalTarget]);
-  var activeParentNode = parentNode || getDefaultParent(originalTarget);
-  if (!activeParentNode) {
-    return function() {
-      return null;
-    };
-  }
-  targets.push.apply(targets, Array.from(activeParentNode.querySelectorAll("[aria-live], script")));
-  return applyAttributeToOthers(targets, activeParentNode, markerName, "aria-hidden");
-};
-
-// node_modules/@radix-ui/react-dialog/dist/index.mjs
-var DIALOG_NAME = "Dialog";
-var [createDialogContext, createDialogScope] = createContextScope(DIALOG_NAME);
-var [DialogProvider, useDialogContext] = createDialogContext(DIALOG_NAME);
-var Dialog = (props) => {
-  const {
-    __scopeDialog,
-    children,
-    open: openProp,
-    defaultOpen,
-    onOpenChange,
-    modal = true
-  } = props;
-  const triggerRef = A2(null);
-  const contentRef = A2(null);
-  const [open, setOpen] = useControllableState({
-    prop: openProp,
-    defaultProp: defaultOpen ?? false,
-    onChange: onOpenChange,
-    caller: DIALOG_NAME
-  });
-  return /* @__PURE__ */ u3(
-    DialogProvider,
-    {
-      scope: __scopeDialog,
-      triggerRef,
-      contentRef,
-      contentId: useId(),
-      titleId: useId(),
-      descriptionId: useId(),
-      open,
-      onOpenChange: setOpen,
-      onOpenToggle: q2(() => setOpen((prevOpen) => !prevOpen), [setOpen]),
-      modal,
-      children
-    }
-  );
-};
-Dialog.displayName = DIALOG_NAME;
-var TRIGGER_NAME2 = "DialogTrigger";
-var DialogTrigger = D3(
-  (props, forwardedRef) => {
-    const { __scopeDialog, ...triggerProps } = props;
-    const context = useDialogContext(TRIGGER_NAME2, __scopeDialog);
-    const composedTriggerRef = useComposedRefs(forwardedRef, context.triggerRef);
-    return /* @__PURE__ */ u3(
-      Primitive.button,
-      {
-        type: "button",
-        "aria-haspopup": "dialog",
-        "aria-expanded": context.open,
-        "aria-controls": context.contentId,
-        "data-state": getState(context.open),
-        ...triggerProps,
-        ref: composedTriggerRef,
-        onClick: composeEventHandlers(props.onClick, context.onOpenToggle)
-      }
-    );
-  }
-);
-DialogTrigger.displayName = TRIGGER_NAME2;
-var PORTAL_NAME2 = "DialogPortal";
-var [PortalProvider, usePortalContext] = createDialogContext(PORTAL_NAME2, {
-  forceMount: void 0
-});
-var DialogPortal = (props) => {
-  const { __scopeDialog, forceMount, children, container } = props;
-  const context = useDialogContext(PORTAL_NAME2, __scopeDialog);
-  return /* @__PURE__ */ u3(PortalProvider, { scope: __scopeDialog, forceMount, children: O2.map(children, (child) => /* @__PURE__ */ u3(Presence, { present: forceMount || context.open, children: /* @__PURE__ */ u3(Portal, { asChild: true, container, children: child }) })) });
-};
-DialogPortal.displayName = PORTAL_NAME2;
-var OVERLAY_NAME = "DialogOverlay";
-var DialogOverlay = D3(
-  (props, forwardedRef) => {
-    const portalContext = usePortalContext(OVERLAY_NAME, props.__scopeDialog);
-    const { forceMount = portalContext.forceMount, ...overlayProps } = props;
-    const context = useDialogContext(OVERLAY_NAME, props.__scopeDialog);
-    return context.modal ? /* @__PURE__ */ u3(Presence, { present: forceMount || context.open, children: /* @__PURE__ */ u3(DialogOverlayImpl, { ...overlayProps, ref: forwardedRef }) }) : null;
-  }
-);
-DialogOverlay.displayName = OVERLAY_NAME;
-var Slot = createSlot("DialogOverlay.RemoveScroll");
-var DialogOverlayImpl = D3(
-  (props, forwardedRef) => {
-    const { __scopeDialog, ...overlayProps } = props;
-    const context = useDialogContext(OVERLAY_NAME, __scopeDialog);
-    return (
-      // Make sure `Content` is scrollable even when it doesn't live inside `RemoveScroll`
-      // ie. when `Overlay` and `Content` are siblings
-      /* @__PURE__ */ u3(Combination_default, { as: Slot, allowPinchZoom: true, shards: [context.contentRef], children: /* @__PURE__ */ u3(
-        Primitive.div,
-        {
-          "data-state": getState(context.open),
-          ...overlayProps,
-          ref: forwardedRef,
-          style: { pointerEvents: "auto", ...overlayProps.style }
-        }
-      ) })
-    );
-  }
-);
-var CONTENT_NAME2 = "DialogContent";
-var DialogContent = D3(
-  (props, forwardedRef) => {
-    const portalContext = usePortalContext(CONTENT_NAME2, props.__scopeDialog);
-    const { forceMount = portalContext.forceMount, ...contentProps } = props;
-    const context = useDialogContext(CONTENT_NAME2, props.__scopeDialog);
-    return /* @__PURE__ */ u3(Presence, { present: forceMount || context.open, children: context.modal ? /* @__PURE__ */ u3(DialogContentModal, { ...contentProps, ref: forwardedRef }) : /* @__PURE__ */ u3(DialogContentNonModal, { ...contentProps, ref: forwardedRef }) });
-  }
-);
-DialogContent.displayName = CONTENT_NAME2;
-var DialogContentModal = D3(
-  (props, forwardedRef) => {
-    const context = useDialogContext(CONTENT_NAME2, props.__scopeDialog);
-    const contentRef = A2(null);
-    const composedRefs = useComposedRefs(forwardedRef, context.contentRef, contentRef);
-    y2(() => {
-      const content = contentRef.current;
-      if (content) return hideOthers(content);
-    }, []);
-    return /* @__PURE__ */ u3(
-      DialogContentImpl,
-      {
-        ...props,
-        ref: composedRefs,
-        trapFocus: context.open,
-        disableOutsidePointerEvents: true,
-        onCloseAutoFocus: composeEventHandlers(props.onCloseAutoFocus, (event) => {
-          event.preventDefault();
-          context.triggerRef.current?.focus();
-        }),
-        onPointerDownOutside: composeEventHandlers(props.onPointerDownOutside, (event) => {
-          const originalEvent = event.detail.originalEvent;
-          const ctrlLeftClick = originalEvent.button === 0 && originalEvent.ctrlKey === true;
-          const isRightClick = originalEvent.button === 2 || ctrlLeftClick;
-          if (isRightClick) event.preventDefault();
-        }),
-        onFocusOutside: composeEventHandlers(
-          props.onFocusOutside,
-          (event) => event.preventDefault()
-        )
-      }
-    );
-  }
-);
-var DialogContentNonModal = D3(
-  (props, forwardedRef) => {
-    const context = useDialogContext(CONTENT_NAME2, props.__scopeDialog);
-    const hasInteractedOutsideRef = A2(false);
-    const hasPointerDownOutsideRef = A2(false);
-    return /* @__PURE__ */ u3(
-      DialogContentImpl,
-      {
-        ...props,
-        ref: forwardedRef,
-        trapFocus: false,
-        disableOutsidePointerEvents: false,
-        onCloseAutoFocus: (event) => {
-          props.onCloseAutoFocus?.(event);
-          if (!event.defaultPrevented) {
-            if (!hasInteractedOutsideRef.current) context.triggerRef.current?.focus();
-            event.preventDefault();
-          }
-          hasInteractedOutsideRef.current = false;
-          hasPointerDownOutsideRef.current = false;
-        },
-        onInteractOutside: (event) => {
-          props.onInteractOutside?.(event);
-          if (!event.defaultPrevented) {
-            hasInteractedOutsideRef.current = true;
-            if (event.detail.originalEvent.type === "pointerdown") {
-              hasPointerDownOutsideRef.current = true;
-            }
-          }
-          const target = event.target;
-          const targetIsTrigger = context.triggerRef.current?.contains(target);
-          if (targetIsTrigger) event.preventDefault();
-          if (event.detail.originalEvent.type === "focusin" && hasPointerDownOutsideRef.current) {
-            event.preventDefault();
-          }
-        }
-      }
-    );
-  }
-);
-var DialogContentImpl = D3(
-  (props, forwardedRef) => {
-    const { __scopeDialog, trapFocus, onOpenAutoFocus, onCloseAutoFocus, ...contentProps } = props;
-    const context = useDialogContext(CONTENT_NAME2, __scopeDialog);
-    const contentRef = A2(null);
-    const composedRefs = useComposedRefs(forwardedRef, contentRef);
-    useFocusGuards();
-    return /* @__PURE__ */ u3(k, { children: [
-      /* @__PURE__ */ u3(
-        FocusScope,
-        {
-          asChild: true,
-          loop: true,
-          trapped: trapFocus,
-          onMountAutoFocus: onOpenAutoFocus,
-          onUnmountAutoFocus: onCloseAutoFocus,
-          children: /* @__PURE__ */ u3(
-            DismissableLayer,
-            {
-              role: "dialog",
-              id: context.contentId,
-              "aria-describedby": context.descriptionId,
-              "aria-labelledby": context.titleId,
-              "data-state": getState(context.open),
-              ...contentProps,
-              ref: composedRefs,
-              onDismiss: () => context.onOpenChange(false)
-            }
-          )
-        }
-      ),
-      /* @__PURE__ */ u3(k, { children: [
-        /* @__PURE__ */ u3(TitleWarning, { titleId: context.titleId }),
-        /* @__PURE__ */ u3(DescriptionWarning, { contentRef, descriptionId: context.descriptionId })
-      ] })
-    ] });
-  }
-);
-var TITLE_NAME = "DialogTitle";
-var DialogTitle = D3(
-  (props, forwardedRef) => {
-    const { __scopeDialog, ...titleProps } = props;
-    const context = useDialogContext(TITLE_NAME, __scopeDialog);
-    return /* @__PURE__ */ u3(Primitive.h2, { id: context.titleId, ...titleProps, ref: forwardedRef });
-  }
-);
-DialogTitle.displayName = TITLE_NAME;
-var DESCRIPTION_NAME = "DialogDescription";
-var DialogDescription = D3(
-  (props, forwardedRef) => {
-    const { __scopeDialog, ...descriptionProps } = props;
-    const context = useDialogContext(DESCRIPTION_NAME, __scopeDialog);
-    return /* @__PURE__ */ u3(Primitive.p, { id: context.descriptionId, ...descriptionProps, ref: forwardedRef });
-  }
-);
-DialogDescription.displayName = DESCRIPTION_NAME;
-var CLOSE_NAME = "DialogClose";
-var DialogClose = D3(
-  (props, forwardedRef) => {
-    const { __scopeDialog, ...closeProps } = props;
-    const context = useDialogContext(CLOSE_NAME, __scopeDialog);
-    return /* @__PURE__ */ u3(
-      Primitive.button,
-      {
-        type: "button",
-        ...closeProps,
-        ref: forwardedRef,
-        onClick: composeEventHandlers(props.onClick, () => context.onOpenChange(false))
-      }
-    );
-  }
-);
-DialogClose.displayName = CLOSE_NAME;
-function getState(open) {
-  return open ? "open" : "closed";
-}
-var TITLE_WARNING_NAME = "DialogTitleWarning";
-var [WarningProvider, useWarningContext] = createContext2(TITLE_WARNING_NAME, {
-  contentName: CONTENT_NAME2,
-  titleName: TITLE_NAME,
-  docsSlug: "dialog"
-});
-var TitleWarning = ({ titleId }) => {
-  const titleWarningContext = useWarningContext(TITLE_WARNING_NAME);
-  const MESSAGE = `\`${titleWarningContext.contentName}\` requires a \`${titleWarningContext.titleName}\` for the component to be accessible for screen reader users.
-
-If you want to hide the \`${titleWarningContext.titleName}\`, you can wrap it with our VisuallyHidden component.
-
-For more information, see https://radix-ui.com/primitives/docs/components/${titleWarningContext.docsSlug}`;
-  y2(() => {
-    if (titleId) {
-      const hasTitle = document.getElementById(titleId);
-      if (!hasTitle) console.error(MESSAGE);
-    }
-  }, [MESSAGE, titleId]);
-  return null;
-};
-var DESCRIPTION_WARNING_NAME = "DialogDescriptionWarning";
-var DescriptionWarning = ({ contentRef, descriptionId }) => {
-  const descriptionWarningContext = useWarningContext(DESCRIPTION_WARNING_NAME);
-  const MESSAGE = `Warning: Missing \`Description\` or \`aria-describedby={undefined}\` for {${descriptionWarningContext.contentName}}.`;
-  y2(() => {
-    const describedById = contentRef.current?.getAttribute("aria-describedby");
-    if (descriptionId && describedById) {
-      const hasDescription = document.getElementById(descriptionId);
-      if (!hasDescription) console.warn(MESSAGE);
-    }
-  }, [MESSAGE, contentRef, descriptionId]);
-  return null;
-};
-var Root3 = Dialog;
-var Trigger2 = DialogTrigger;
-var Portal2 = DialogPortal;
-var Overlay = DialogOverlay;
-var Content2 = DialogContent;
-var Title = DialogTitle;
-var Description = DialogDescription;
-
-// node_modules/@radix-ui/react-use-previous/dist/index.mjs
-function usePrevious(value) {
-  const ref = A2({ value, previous: value });
-  return T2(() => {
-    if (ref.current.value !== value) {
-      ref.current.previous = ref.current.value;
-      ref.current.value = value;
-    }
-    return ref.current.previous;
-  }, [value]);
-}
-
-// node_modules/@radix-ui/react-use-size/dist/index.mjs
-function useSize(element) {
-  const [size, setSize] = d2(void 0);
-  useLayoutEffect2(() => {
-    if (element) {
-      setSize({ width: element.offsetWidth, height: element.offsetHeight });
-      const resizeObserver = new ResizeObserver((entries) => {
-        if (!Array.isArray(entries)) {
-          return;
-        }
-        if (!entries.length) {
-          return;
-        }
-        const entry = entries[0];
-        let width;
-        let height;
-        if ("borderBoxSize" in entry) {
-          const borderSizeEntry = entry["borderBoxSize"];
-          const borderSize = Array.isArray(borderSizeEntry) ? borderSizeEntry[0] : borderSizeEntry;
-          width = borderSize["inlineSize"];
-          height = borderSize["blockSize"];
-        } else {
-          width = element.offsetWidth;
-          height = element.offsetHeight;
-        }
-        setSize({ width, height });
-      });
-      resizeObserver.observe(element, { box: "border-box" });
-      return () => resizeObserver.unobserve(element);
-    } else {
-      setSize(void 0);
-    }
-  }, [element]);
-  return size;
-}
-
-// node_modules/@radix-ui/react-switch/dist/index.mjs
-var SWITCH_NAME = "Switch";
-var [createSwitchContext, createSwitchScope] = createContextScope(SWITCH_NAME);
-var [SwitchProvider, useSwitchContext] = createSwitchContext(SWITCH_NAME);
-var Switch = D3(
-  (props, forwardedRef) => {
-    const {
-      __scopeSwitch,
-      name,
-      checked: checkedProp,
-      defaultChecked,
-      required,
-      disabled,
-      value = "on",
-      onCheckedChange,
-      form,
-      ...switchProps
-    } = props;
-    const [button, setButton] = d2(null);
-    const composedRefs = useComposedRefs(forwardedRef, (node) => setButton(node));
-    const hasConsumerStoppedPropagationRef = A2(false);
-    const isFormControl = button ? form || !!button.closest("form") : true;
-    const [checked, setChecked] = useControllableState({
-      prop: checkedProp,
-      defaultProp: defaultChecked ?? false,
-      onChange: onCheckedChange,
-      caller: SWITCH_NAME
-    });
-    return /* @__PURE__ */ u3(SwitchProvider, { scope: __scopeSwitch, checked, disabled, children: [
-      /* @__PURE__ */ u3(
-        Primitive.button,
-        {
-          type: "button",
-          role: "switch",
-          "aria-checked": checked,
-          "aria-required": required,
-          "data-state": getState2(checked),
-          "data-disabled": disabled ? "" : void 0,
-          disabled,
-          value,
-          ...switchProps,
-          ref: composedRefs,
-          onClick: composeEventHandlers(props.onClick, (event) => {
-            setChecked((prevChecked) => !prevChecked);
-            if (isFormControl) {
-              hasConsumerStoppedPropagationRef.current = event.isPropagationStopped();
-              if (!hasConsumerStoppedPropagationRef.current) event.stopPropagation();
-            }
-          })
-        }
-      ),
-      isFormControl && /* @__PURE__ */ u3(
-        SwitchBubbleInput,
-        {
-          control: button,
-          bubbles: !hasConsumerStoppedPropagationRef.current,
-          name,
-          value,
-          checked,
-          required,
-          disabled,
-          form,
-          style: { transform: "translateX(-100%)" }
-        }
-      )
-    ] });
-  }
-);
-Switch.displayName = SWITCH_NAME;
-var THUMB_NAME = "SwitchThumb";
-var SwitchThumb = D3(
-  (props, forwardedRef) => {
-    const { __scopeSwitch, ...thumbProps } = props;
-    const context = useSwitchContext(THUMB_NAME, __scopeSwitch);
-    return /* @__PURE__ */ u3(
-      Primitive.span,
-      {
-        "data-state": getState2(context.checked),
-        "data-disabled": context.disabled ? "" : void 0,
-        ...thumbProps,
-        ref: forwardedRef
-      }
-    );
-  }
-);
-SwitchThumb.displayName = THUMB_NAME;
-var BUBBLE_INPUT_NAME = "SwitchBubbleInput";
-var SwitchBubbleInput = D3(
-  ({
-    __scopeSwitch,
-    control,
-    checked,
-    bubbles = true,
-    ...props
-  }, forwardedRef) => {
-    const ref = A2(null);
-    const composedRefs = useComposedRefs(ref, forwardedRef);
-    const prevChecked = usePrevious(checked);
-    const controlSize = useSize(control);
-    y2(() => {
-      const input = ref.current;
-      if (!input) return;
-      const inputProto = window.HTMLInputElement.prototype;
-      const descriptor = Object.getOwnPropertyDescriptor(
-        inputProto,
-        "checked"
-      );
-      const setChecked = descriptor.set;
-      if (prevChecked !== checked && setChecked) {
-        const event = new Event("click", { bubbles });
-        setChecked.call(input, checked);
-        input.dispatchEvent(event);
-      }
-    }, [prevChecked, checked, bubbles]);
-    return /* @__PURE__ */ u3(
-      "input",
-      {
-        type: "checkbox",
-        "aria-hidden": true,
-        defaultChecked: checked,
-        ...props,
-        tabIndex: -1,
-        ref: composedRefs,
-        style: {
-          ...props.style,
-          ...controlSize,
-          position: "absolute",
-          pointerEvents: "none",
-          opacity: 0,
-          margin: 0
-        }
-      }
-    );
-  }
-);
-SwitchBubbleInput.displayName = BUBBLE_INPUT_NAME;
-function getState2(checked) {
-  return checked ? "checked" : "unchecked";
-}
-var Root4 = Switch;
-var Thumb = SwitchThumb;
-
-// src/islands/shadcn-compat.tsx
-function ShadcnCompat() {
-  const [open, setOpen] = d2(false);
-  const [toggled, setToggled] = d2(false);
-  return /* @__PURE__ */ u3("div", { class: "p-4", children: [
-    /* @__PURE__ */ u3("h2", { class: "text-lg font-bold mb-2", children: "shadcn/ui compatibility demo" }),
-    /* @__PURE__ */ u3(Root2, { defaultValue: "tab1", children: [
-      /* @__PURE__ */ u3(List, { "aria-label": "tabs", children: [
-        /* @__PURE__ */ u3(Trigger, { value: "tab1", children: "Tab 1" }),
-        /* @__PURE__ */ u3(Trigger, { value: "tab2", children: "Tab 2" })
-      ] }),
-      /* @__PURE__ */ u3(Content, { value: "tab1", children: /* @__PURE__ */ u3("p", { children: "Content for tab 1" }) }),
-      /* @__PURE__ */ u3(Content, { value: "tab2", children: /* @__PURE__ */ u3("p", { children: "Content for tab 2" }) })
-    ] }),
-    /* @__PURE__ */ u3("div", { class: "mt-4", children: /* @__PURE__ */ u3(Root3, { open, onOpenChange: setOpen, children: [
-      /* @__PURE__ */ u3(Trigger2, { asChild: true, children: /* @__PURE__ */ u3("button", { class: "px-3 py-1 bg-blue-600 text-white rounded", children: "Open Dialog" }) }),
-      /* @__PURE__ */ u3(Portal2, { children: [
-        /* @__PURE__ */ u3(Overlay, { class: "fixed inset-0 bg-black/40" }),
-        /* @__PURE__ */ u3(Content2, { class: "fixed left-1/2 top-1/3 -translate-x-1/2 bg-white p-4 rounded shadow", children: [
-          /* @__PURE__ */ u3(Title, { children: "Dialog Title" }),
-          /* @__PURE__ */ u3(Description, { children: "Simple dialog content for testing." }),
-          /* @__PURE__ */ u3("div", { class: "mt-2", children: /* @__PURE__ */ u3("button", { onClick: () => setOpen(false), class: "px-2 py-1 bg-gray-200 rounded", children: "Close" }) })
-        ] })
-      ] })
-    ] }) }),
-    /* @__PURE__ */ u3("div", { class: "mt-4 flex items-center gap-3", children: /* @__PURE__ */ u3("label", { class: "flex items-center gap-2", children: [
-      /* @__PURE__ */ u3(Root4, { checked: toggled, onCheckedChange: (v3) => setToggled(v3), children: /* @__PURE__ */ u3(Thumb, { class: "inline-block w-4 h-4 bg-white rounded-full" }) }),
-      /* @__PURE__ */ u3("span", { children: toggled ? "On" : "Off" })
-    ] }) })
-  ] });
 }
 
 // node_modules/zod/v3/external.js
@@ -11646,6 +5608,6549 @@ var coerce = {
 };
 var NEVER = INVALID;
 
+// src/ui/contracts/VisualOverlays.contract.ts
+var BoundingBoxNormalizedSchema = external_exports.object({
+  x: external_exports.number().min(0).max(1),
+  y: external_exports.number().min(0).max(1),
+  width: external_exports.number().min(0).max(1),
+  height: external_exports.number().min(0).max(1)
+});
+var ImageSchema = external_exports.object({
+  id: external_exports.string(),
+  originalSrc: external_exports.string().url().optional(),
+  width: external_exports.number().int().positive().optional(),
+  height: external_exports.number().int().positive().optional(),
+  thumbnailSrc: external_exports.string().optional()
+});
+var OverlaySchema = external_exports.object({
+  id: external_exports.string(),
+  bbox: BoundingBoxNormalizedSchema,
+  label: external_exports.string().optional(),
+  score: external_exports.number().optional(),
+  metadata: external_exports.record(external_exports.any()).optional()
+});
+var ImagesSchema = external_exports.array(ImageSchema);
+var OverlaysByImageSchema = external_exports.record(external_exports.array(OverlaySchema));
+
+// src/ui/contracts/ManualEditor.contract.ts
+var FieldSchema = external_exports.object({
+  name: external_exports.string(),
+  value: external_exports.union([external_exports.string(), external_exports.number(), external_exports.boolean(), external_exports.null()])
+});
+var MetadataSchema = external_exports.object({
+  title: external_exports.string().optional(),
+  correspondent: external_exports.string().optional(),
+  documentType: external_exports.string().optional()
+  // Additional fields can be added dynamically
+}).passthrough();
+var ManualEditorSchema = external_exports.object({
+  documentId: external_exports.number().int().nullable(),
+  // Current page (0-indexed) for multi-page documents
+  page: external_exports.number().int().nonnegative().optional(),
+  // Metadata for the document (title, correspondent, documentType, etc.)
+  metadata: MetadataSchema.optional(),
+  // Raw document content text
+  content: external_exports.string().optional(),
+  // Custom field key-value pairs
+  fields: external_exports.array(FieldSchema).optional(),
+  // Initial active tab
+  activeTab: external_exports.enum(["metadata", "content", "fields", "ai-debug"]).optional(),
+  // GPU state passed from parent
+  gpuState: external_exports.enum(["idle", "checking", "preparing", "ready", "error"]).optional(),
+  // Visual overlays payloads (optional)
+  images: ImagesSchema.optional(),
+  overlaysByImage: OverlaysByImageSchema.optional()
+});
+var PayloadReadyEventSchema = external_exports.object({
+  type: external_exports.literal("payload:ready"),
+  documentId: external_exports.number().int().nullable().optional(),
+  metadata: MetadataSchema.optional(),
+  content: external_exports.string().optional(),
+  fields: external_exports.array(FieldSchema).optional(),
+  timestamp: external_exports.number().optional()
+});
+var SyncFailedEventSchema = external_exports.object({
+  type: external_exports.literal("sync:failed"),
+  documentId: external_exports.number().int().nullable().optional(),
+  error: external_exports.string(),
+  timestamp: external_exports.number().optional()
+});
+
+// src/islands/ManualEditorIsland.tsx
+function dispatchEventSafe2(name, detail) {
+  if (typeof document === "undefined") return;
+  if (typeof document.dispatchEvent !== "function") return;
+  document.dispatchEvent(new CustomEvent(name, { detail }));
+}
+function ManualEditorIsland(props) {
+  const validated = ManualEditorSchema.parse(props);
+  const [active, setActive] = d2("metadata");
+  const [gpuState, setGpuState] = d2("idle");
+  const [syncState, setSyncState] = d2("idle");
+  const [syncError, setSyncError] = d2("");
+  const [documentId, setDocumentId] = d2(props.documentId || null);
+  const normalizeFields = (contractFields) => {
+    if (!contractFields || contractFields.length === 0) {
+      return [{ name: "", value: "" }];
+    }
+    return contractFields.map((f4) => ({
+      name: f4.name || "",
+      value: f4.value != null ? String(f4.value) : ""
+    }));
+  };
+  const [title, setTitle] = d2(props.metadata?.title || "");
+  const [correspondent, setCorrespondent] = d2(props.metadata?.correspondent || "");
+  const [documentType, setDocumentType] = d2(props.metadata?.documentType || "");
+  const [content, setContent] = d2(props.content || "");
+  const [fields, setFields] = d2(normalizeFields(props.fields));
+  const [initialValues] = d2({
+    title: props.metadata?.title || "",
+    correspondent: props.metadata?.correspondent || "",
+    documentType: props.metadata?.documentType || "",
+    content: props.content || "",
+    fields: normalizeFields(props.fields)
+  });
+  const [aiResponse, setAiResponse] = d2(null);
+  const [aiLoading, setAiLoading] = d2(false);
+  const tabsRef = A2(null);
+  const tabRefs = A2({});
+  const syncBadgeTimeoutRef = A2(null);
+  y2(() => {
+    let mounted = true;
+    const checkGpu = async () => {
+      setGpuState("checking");
+      try {
+        const res = await fetch("/api/visual-rag/health", { signal: AbortSignal.timeout(5e3) });
+        if (!mounted) return;
+        if (res.status === 503) {
+          setGpuState("preparing");
+        } else if (res.ok) {
+          setGpuState("ready");
+        } else {
+          setGpuState("error");
+        }
+      } catch {
+        if (mounted) setGpuState("error");
+      }
+    };
+    checkGpu();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+  y2(() => {
+    setDocumentId(props.documentId ?? null);
+  }, [props.documentId]);
+  y2(() => {
+    const onMetadataUpdated = (e3) => {
+      const meta = e3?.detail || {};
+      try {
+        window.__manual_island_last_meta = meta;
+      } catch (err) {
+      }
+      if (meta.title !== void 0) setTitle(meta.title || "");
+      if (meta.content !== void 0) setContent(meta.content || "");
+      if (meta.correspondent !== void 0) {
+        setCorrespondent(meta.correspondent || "");
+      }
+      if (meta.documentType !== void 0) {
+        setDocumentType(meta.documentType || "");
+      }
+    };
+    window.addEventListener("manual:metadata-updated", onMetadataUpdated);
+    return () => window.removeEventListener("manual:metadata-updated", onMetadataUpdated);
+  }, []);
+  y2(() => {
+    const onFieldsUpdated = (e3) => {
+      const f4 = e3?.detail?.fields || [];
+      try {
+        window.__manual_island_last_fields = f4;
+      } catch (err) {
+      }
+      const normalized = f4 && f4.length > 0 ? f4.map((it) => ({ name: it.label || it.name || "", value: it.value != null ? String(it.value) : "" })) : [];
+      setFields(normalized);
+    };
+    window.addEventListener("manual:fields-updated", onFieldsUpdated);
+    return () => window.removeEventListener("manual:fields-updated", onFieldsUpdated);
+  }, []);
+  y2(() => {
+    const onDocumentSelected = (e3) => {
+      const detail = e3?.detail || {};
+      if (detail.documentId !== void 0) {
+        setDocumentId(detail.documentId ?? null);
+      }
+    };
+    window.addEventListener("document:selected", onDocumentSelected);
+    return () => window.removeEventListener("document:selected", onDocumentSelected);
+  }, []);
+  y2(() => {
+    if (syncState === "synced") {
+      syncBadgeTimeoutRef.current = window.setTimeout(() => {
+        setSyncState("idle");
+      }, 5e3);
+    }
+    return () => {
+      if (syncBadgeTimeoutRef.current) {
+        window.clearTimeout(syncBadgeTimeoutRef.current);
+      }
+    };
+  }, [syncState]);
+  y2(() => {
+    try {
+      window.__manual_island_mounted = true;
+    } catch (e3) {
+    }
+  }, []);
+  y2(() => {
+    ["metadata", "content", "fields", "ai-debug"].forEach((tab) => {
+      const ref = tabRefs.current[tab];
+      if (ref) {
+        ref.setAttribute("aria-selected", active === tab ? "true" : "false");
+      }
+    });
+  }, [active]);
+  const onKeyDown = q2((e3) => {
+    const order = ["metadata", "content", "fields", "ai-debug"];
+    const idx = order.indexOf(active);
+    let nextTab = null;
+    if (e3.key === "ArrowLeft") nextTab = order[(idx + order.length - 1) % order.length];
+    if (e3.key === "ArrowRight") nextTab = order[(idx + 1) % order.length];
+    if (nextTab) {
+      e3.preventDefault();
+      setActive(nextTab);
+      setTimeout(() => {
+        const btn = tabsRef.current?.querySelectorAll('[role="tab"]')[order.indexOf(nextTab)];
+        btn?.focus();
+      }, 0);
+    }
+  }, [active]);
+  const addField = q2(() => {
+    setFields((prev) => [...prev, { name: "", value: "" }]);
+  }, []);
+  const removeField = q2((index) => {
+    setFields((prev) => prev.filter((_3, i4) => i4 !== index));
+  }, []);
+  const updateField = q2((index, key, val) => {
+    setFields((prev) => {
+      const newFields = [...prev];
+      newFields[index] = { ...newFields[index], [key]: val };
+      return newFields;
+    });
+  }, []);
+  const handleSave = q2(async () => {
+    setSyncState("syncing");
+    setSyncError("");
+    const requestId = `mei-${Date.now()}`;
+    const page = props.page ?? 0;
+    const custom_fields = fields.filter((f4) => f4.name.trim() !== "").map((f4) => ({ name: f4.name.trim(), value: f4.value }));
+    const document_updates = {
+      title,
+      correspondent,
+      documentType,
+      content,
+      custom_fields
+    };
+    const feedback_events = [];
+    if (title !== initialValues.title) {
+      feedback_events.push({
+        event_type: "correction",
+        field_name: "title",
+        original_value: initialValues.title,
+        corrected_value: title,
+        context: { page, request_id: requestId }
+      });
+    }
+    if (correspondent !== initialValues.correspondent) {
+      feedback_events.push({
+        event_type: "correction",
+        field_name: "correspondent",
+        original_value: initialValues.correspondent,
+        corrected_value: correspondent,
+        context: { page, request_id: requestId }
+      });
+    }
+    if (documentType !== initialValues.documentType) {
+      feedback_events.push({
+        event_type: "correction",
+        field_name: "documentType",
+        original_value: initialValues.documentType,
+        corrected_value: documentType,
+        context: { page, request_id: requestId }
+      });
+    }
+    if (content !== initialValues.content) {
+      feedback_events.push({
+        event_type: "correction",
+        field_name: "content",
+        original_value: initialValues.content.substring(0, 500),
+        // Truncate for payload size
+        corrected_value: content.substring(0, 500),
+        context: { page, request_id: requestId }
+      });
+    }
+    const initialFieldMap = new Map(initialValues.fields.map((f4) => [f4.name, f4.value]));
+    for (const field of custom_fields) {
+      const originalValue = initialFieldMap.get(field.name) || "";
+      if (field.value !== originalValue) {
+        feedback_events.push({
+          event_type: "correction",
+          field_name: `custom_field:${field.name}`,
+          original_value: String(originalValue || ""),
+          corrected_value: String(field.value),
+          context: { page, request_id: requestId }
+        });
+      }
+    }
+    const payload = {
+      documentId: documentId ?? null,
+      document_updates,
+      feedback_events,
+      transactional: true
+    };
+    const metadata = {
+      title,
+      correspondent,
+      documentType
+    };
+    const eventDetail = {
+      type: "payload:ready",
+      documentId: documentId ?? null,
+      page,
+      metadata,
+      content,
+      fields: custom_fields,
+      timestamp: Date.now()
+    };
+    dispatchEventSafe2("payload:ready", eventDetail);
+    try {
+      const res = await fetch("/manual/updateDocument", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Request-Id": requestId
+        },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const result = await res.json().catch(() => ({}));
+        setSyncState("synced");
+        dispatchEventSafe2("sync:success", { documentId, ...result });
+      } else {
+        const errorData = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
+        throw new Error(errorData.message || `Sync failed with status ${res.status}`);
+      }
+    } catch (err) {
+      setSyncState("error");
+      setSyncError(err.message || "Sync failed");
+      dispatchEventSafe2("sync:failed", { documentId, error: err.message });
+    }
+  }, [documentId, props.page, title, correspondent, documentType, content, fields, initialValues]);
+  const runAiAnalysis = q2(async () => {
+    if (gpuState !== "ready") return;
+    setAiLoading(true);
+    setAiResponse(null);
+    try {
+      const res = await fetch("/manual/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: content.substring(0, 5e4),
+          id: documentId
+        })
+      });
+      const data = await res.json();
+      setAiResponse(data);
+    } catch (err) {
+      setAiResponse({ error: err.message });
+    } finally {
+      setAiLoading(false);
+    }
+  }, [gpuState, content, documentId]);
+  return /* @__PURE__ */ u3("div", { "data-testid": "manual-editor-island-root", "data-hydrated": "true", className: "mei-root", children: [
+    syncState !== "idle" && /* @__PURE__ */ u3(
+      "div",
+      {
+        className: `mei-sync-badge mei-sync-${syncState}`,
+        "data-testid": "sync-badge",
+        role: "status",
+        "aria-live": "polite",
+        children: [
+          syncState === "syncing" && "\u23F3 Syncing...",
+          syncState === "synced" && "\u2713 Synced",
+          syncState === "error" && `\u26A0\uFE0F ${syncError || "Sync failed"}`
+        ]
+      }
+    ),
+    /* @__PURE__ */ u3(
+      "div",
+      {
+        role: "tablist",
+        "aria-label": "Manual Editor Tabs",
+        onKeyDown,
+        ref: tabsRef,
+        className: "mei-tablist",
+        children: [
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              id: "tab-metadata-btn",
+              type: "button",
+              role: "tab",
+              tabIndex: active === "metadata" ? 0 : -1,
+              "aria-controls": "panel-metadata",
+              "data-testid": "tab-metadata",
+              ref: (el) => {
+                tabRefs.current["metadata"] = el;
+              },
+              onClick: () => setActive("metadata"),
+              className: `mei-tab ${active === "metadata" ? "mei-tab-active" : ""}`,
+              children: "Metadata"
+            }
+          ),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              id: "tab-content-btn",
+              type: "button",
+              role: "tab",
+              tabIndex: active === "content" ? 0 : -1,
+              "aria-controls": "panel-content",
+              "data-testid": "tab-content",
+              ref: (el) => {
+                tabRefs.current["content"] = el;
+              },
+              onClick: () => setActive("content"),
+              className: `mei-tab ${active === "content" ? "mei-tab-active" : ""}`,
+              children: "Content"
+            }
+          ),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              id: "tab-fields-btn",
+              type: "button",
+              role: "tab",
+              tabIndex: active === "fields" ? 0 : -1,
+              "aria-controls": "panel-fields",
+              "data-testid": "tab-fields",
+              ref: (el) => {
+                tabRefs.current["fields"] = el;
+              },
+              onClick: () => setActive("fields"),
+              className: `mei-tab ${active === "fields" ? "mei-tab-active" : ""}`,
+              children: "Fields"
+            }
+          ),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              id: "tab-ai-debug-btn",
+              type: "button",
+              role: "tab",
+              tabIndex: active === "ai-debug" ? 0 : -1,
+              "aria-controls": "panel-ai-debug",
+              "data-testid": "tab-ai-debug",
+              ref: (el) => {
+                tabRefs.current["ai-debug"] = el;
+              },
+              onClick: () => setActive("ai-debug"),
+              className: `mei-tab ${active === "ai-debug" ? "mei-tab-active" : ""}`,
+              children: [
+                "AI Debug",
+                gpuState === "preparing" && /* @__PURE__ */ u3("span", { className: "mei-gpu-badge", children: "\u23F3" }),
+                gpuState === "ready" && /* @__PURE__ */ u3("span", { className: "mei-gpu-badge mei-gpu-ready", children: "\u2713" }),
+                gpuState === "error" && /* @__PURE__ */ u3("span", { className: "mei-gpu-badge mei-gpu-error", children: "\u26A0\uFE0F" })
+              ]
+            }
+          )
+        ]
+      }
+    ),
+    /* @__PURE__ */ u3("div", { className: "mei-panels", children: [
+      /* @__PURE__ */ u3(
+        "div",
+        {
+          id: "panel-metadata",
+          role: "tabpanel",
+          "aria-labelledby": "tab-metadata-btn",
+          "data-panel": "metadata",
+          className: `mei-panel ${active === "metadata" ? "" : "mei-panel-hidden"}`,
+          "data-testid": "panel-metadata",
+          children: [
+            /* @__PURE__ */ u3("div", { className: "mei-field-group", children: [
+              /* @__PURE__ */ u3("label", { htmlFor: "mei-title", className: "mei-label", children: "Title" }),
+              /* @__PURE__ */ u3(
+                "input",
+                {
+                  id: "mei-title",
+                  "data-testid": "manual-title-input",
+                  type: "text",
+                  value: title,
+                  onInput: (e3) => setTitle(e3.target.value),
+                  className: "mei-input"
+                }
+              )
+            ] }),
+            /* @__PURE__ */ u3("div", { className: "mei-field-group", children: [
+              /* @__PURE__ */ u3("label", { htmlFor: "mei-correspondent", className: "mei-label", children: "Correspondent" }),
+              /* @__PURE__ */ u3(
+                "input",
+                {
+                  id: "mei-correspondent",
+                  "data-testid": "manual-correspondent-input",
+                  type: "text",
+                  value: correspondent,
+                  onInput: (e3) => setCorrespondent(e3.target.value),
+                  className: "mei-input"
+                }
+              )
+            ] }),
+            /* @__PURE__ */ u3("div", { className: "mei-field-group", children: [
+              /* @__PURE__ */ u3("label", { htmlFor: "mei-doctype", className: "mei-label", children: "Document Type" }),
+              /* @__PURE__ */ u3(
+                "input",
+                {
+                  id: "mei-doctype",
+                  "data-testid": "manual-doctype-input",
+                  type: "text",
+                  value: documentType,
+                  onInput: (e3) => setDocumentType(e3.target.value),
+                  className: "mei-input"
+                }
+              )
+            ] })
+          ]
+        }
+      ),
+      /* @__PURE__ */ u3(
+        "div",
+        {
+          id: "panel-content",
+          role: "tabpanel",
+          "aria-labelledby": "tab-content-btn",
+          "data-panel": "content",
+          className: `mei-panel ${active === "content" ? "" : "mei-panel-hidden"}`,
+          "data-testid": "panel-content",
+          children: [
+            /* @__PURE__ */ u3("label", { htmlFor: "mei-content", className: "mei-label", children: "Document Content" }),
+            /* @__PURE__ */ u3(
+              "textarea",
+              {
+                id: "mei-content",
+                "data-testid": "manual-content-input",
+                rows: 10,
+                value: content,
+                onInput: (e3) => setContent(e3.target.value),
+                className: "mei-textarea"
+              }
+            )
+          ]
+        }
+      ),
+      /* @__PURE__ */ u3(
+        "div",
+        {
+          id: "panel-fields",
+          role: "tabpanel",
+          "aria-labelledby": "tab-fields-btn",
+          "data-panel": "fields",
+          className: `mei-panel ${active === "fields" ? "" : "mei-panel-hidden"}`,
+          "data-testid": "panel-fields",
+          children: [
+            /* @__PURE__ */ u3("div", { className: "mei-fields-header", children: [
+              /* @__PURE__ */ u3("span", { className: "mei-label", children: "Custom Fields" }),
+              /* @__PURE__ */ u3(
+                "button",
+                {
+                  type: "button",
+                  onClick: addField,
+                  className: "mei-btn mei-btn-add",
+                  "data-testid": "add-field-btn",
+                  children: "+ Add Field"
+                }
+              )
+            ] }),
+            fields.map((field, i4) => /* @__PURE__ */ u3("div", { className: "mei-field-row", children: [
+              /* @__PURE__ */ u3(
+                "input",
+                {
+                  "data-testid": `field-name-${i4}`,
+                  placeholder: "Field name",
+                  value: field.name,
+                  onInput: (e3) => updateField(i4, "name", e3.target.value),
+                  className: "mei-input mei-field-name"
+                }
+              ),
+              /* @__PURE__ */ u3(
+                "input",
+                {
+                  "data-testid": `field-value-${i4}`,
+                  placeholder: "Field value",
+                  value: field.value,
+                  onInput: (e3) => updateField(i4, "value", e3.target.value),
+                  className: "mei-input mei-field-value"
+                }
+              ),
+              /* @__PURE__ */ u3(
+                "button",
+                {
+                  type: "button",
+                  onClick: () => removeField(i4),
+                  className: "mei-btn mei-btn-remove",
+                  "data-testid": `remove-field-${i4}`,
+                  "aria-label": `Remove field ${i4 + 1}`,
+                  children: "\xD7"
+                }
+              )
+            ] }, i4))
+          ]
+        }
+      ),
+      /* @__PURE__ */ u3(
+        "div",
+        {
+          id: "panel-ai-debug",
+          role: "tabpanel",
+          "aria-labelledby": "tab-ai-debug-btn",
+          "data-panel": "ai-debug",
+          className: `mei-panel ${active === "ai-debug" ? "" : "mei-panel-hidden"}`,
+          "data-testid": "panel-ai-debug",
+          children: [
+            gpuState === "preparing" && /* @__PURE__ */ u3("div", { className: "mei-gpu-preparing", "data-testid": "gpu-preparing-status", children: [
+              /* @__PURE__ */ u3("div", { className: "mei-spinner" }),
+              /* @__PURE__ */ u3("p", { children: "GPU Preparing (Warmup)..." }),
+              /* @__PURE__ */ u3("p", { className: "mei-gpu-hint", children: "Visual analysis features will be available shortly." })
+            ] }),
+            gpuState === "error" && /* @__PURE__ */ u3("div", { className: "mei-gpu-error-box", "data-testid": "gpu-error-status", children: [
+              /* @__PURE__ */ u3("p", { children: "\u26A0\uFE0F Visual Analysis Unavailable" }),
+              /* @__PURE__ */ u3("p", { className: "mei-gpu-hint", children: "The GPU sidecar is not responding." })
+            ] }),
+            gpuState === "ready" && /* @__PURE__ */ u3("div", { className: "mei-ai-debug-content", children: [
+              /* @__PURE__ */ u3(
+                "button",
+                {
+                  type: "button",
+                  onClick: runAiAnalysis,
+                  disabled: aiLoading || !content || !content.trim(),
+                  className: "mei-btn mei-btn-primary",
+                  "data-testid": "run-ai-analysis-btn",
+                  children: aiLoading ? "Analyzing..." : "Run AI Analysis"
+                }
+              ),
+              !content || !content.trim() ? /* @__PURE__ */ u3("p", { className: "mei-gpu-hint", "data-testid": "ai-no-content-hint", children: 'No document content available. Switch to the "Content" tab or paste text into the document content field before running analysis.' }) : null,
+              aiResponse && /* @__PURE__ */ u3("div", { className: "mei-ai-response", "data-testid": "ai-response", children: [
+                /* @__PURE__ */ u3("h4", { children: "AI Response" }),
+                /* @__PURE__ */ u3("pre", { className: "mei-ai-json", children: JSON.stringify(aiResponse, null, 2) })
+              ] })
+            ] }),
+            gpuState === "checking" && /* @__PURE__ */ u3("div", { className: "mei-gpu-checking", children: [
+              /* @__PURE__ */ u3("div", { className: "mei-spinner" }),
+              /* @__PURE__ */ u3("p", { children: "Checking GPU status..." })
+            ] })
+          ]
+        }
+      )
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "mei-actions", children: /* @__PURE__ */ u3(
+      "button",
+      {
+        "data-testid": "manual-save-btn",
+        type: "button",
+        onClick: handleSave,
+        className: "mei-btn mei-btn-save",
+        disabled: syncState === "syncing",
+        children: syncState === "syncing" ? "Saving..." : "Save"
+      }
+    ) }),
+    /* @__PURE__ */ u3("style", { children: `
+        .mei-root {
+          font-family: system-ui, -apple-system, sans-serif;
+          position: relative;
+        }
+        .mei-sync-badge {
+          position: absolute;
+          top: -8px;
+          right: 0;
+          padding: 4px 12px;
+          border-radius: 4px;
+          font-size: 0.8rem;
+          font-weight: 500;
+          animation: mei-fade-in 0.3s ease;
+        }
+        .mei-sync-syncing { background: #fff3cd; color: #856404; }
+        .mei-sync-synced { background: #d4edda; color: #155724; }
+        .mei-sync-error { background: #f8d7da; color: #721c24; }
+
+        .mei-tablist {
+          display: flex;
+          gap: 4px;
+          margin-bottom: 16px;
+          border-bottom: 2px solid #e0e0e0;
+          padding-bottom: 8px;
+        }
+        .mei-tab {
+          padding: 8px 16px;
+          border: none;
+          background: transparent;
+          cursor: pointer;
+          font-size: 0.9rem;
+          border-radius: 4px 4px 0 0;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .mei-tab:hover { background: #f5f5f5; }
+        .mei-tab-active {
+          background: #3498db;
+          color: white;
+        }
+        .mei-gpu-badge {
+          font-size: 0.75rem;
+        }
+        .mei-gpu-ready { color: #27ae60; }
+        .mei-gpu-error { color: #e74c3c; }
+
+        .mei-panels { min-height: 200px; }
+        .mei-panel { padding: 16px 0; }
+        .mei-panel-hidden { display: none; }
+
+        .mei-field-group { margin-bottom: 16px; }
+        .mei-label {
+          display: block;
+          font-weight: 500;
+          margin-bottom: 4px;
+          color: #333;
+          font-size: 0.9rem;
+        }
+        .mei-input {
+          width: 100%;
+          padding: 8px 12px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          font-size: 0.9rem;
+          box-sizing: border-box;
+        }
+        .mei-input:focus {
+          outline: none;
+          border-color: #3498db;
+        }
+        .mei-textarea {
+          width: 100%;
+          padding: 8px 12px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          font-size: 0.9rem;
+          resize: vertical;
+          font-family: monospace;
+          box-sizing: border-box;
+        }
+        .mei-textarea:focus {
+          outline: none;
+          border-color: #3498db;
+        }
+
+        .mei-fields-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+        .mei-field-row {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 8px;
+        }
+        .mei-field-name { flex: 1; }
+        .mei-field-value { flex: 2; }
+
+        .mei-btn {
+          padding: 8px 16px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 0.9rem;
+          transition: all 0.2s;
+        }
+        .mei-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+        .mei-btn-add {
+          background: #f8f9fa;
+        }
+        .mei-btn-add:hover { background: #e9ecef; }
+        .mei-btn-remove {
+          background: #e74c3c;
+          color: white;
+          border-color: #e74c3c;
+          padding: 8px 12px;
+        }
+        .mei-btn-remove:hover { background: #c0392b; }
+        .mei-btn-primary {
+          background: #3498db;
+          color: white;
+          border-color: #3498db;
+        }
+        .mei-btn-primary:hover:not(:disabled) { background: #2980b9; }
+        .mei-btn-save {
+          background: #27ae60;
+          color: white;
+          border-color: #27ae60;
+          min-width: 100px;
+        }
+        .mei-btn-save:hover:not(:disabled) { background: #219a52; }
+
+        .mei-actions {
+          margin-top: 16px;
+          display: flex;
+          justify-content: flex-end;
+        }
+
+        /* AI Debug Panel */
+        .mei-gpu-preparing,
+        .mei-gpu-checking,
+        .mei-gpu-error-box {
+          text-align: center;
+          padding: 32px;
+          color: #666;
+        }
+        .mei-gpu-error-box {
+          background: #fff3f3;
+          border: 1px solid #e74c3c;
+          border-radius: 8px;
+          color: #c0392b;
+        }
+        .mei-gpu-hint {
+          font-size: 0.85rem;
+          color: #888;
+          margin-top: 8px;
+        }
+        .mei-spinner {
+          width: 32px;
+          height: 32px;
+          border: 3px solid #e0e0e0;
+          border-top-color: #3498db;
+          border-radius: 50%;
+          animation: mei-spin 1s linear infinite;
+          margin: 0 auto 12px;
+        }
+        .mei-ai-debug-content { padding: 8px 0; }
+        .mei-ai-response {
+          margin-top: 16px;
+          padding: 12px;
+          background: #f5f5f5;
+          border-radius: 4px;
+        }
+        .mei-ai-response h4 {
+          margin: 0 0 8px;
+          font-size: 0.9rem;
+        }
+        .mei-ai-json {
+          background: #2d2d2d;
+          color: #f8f8f2;
+          padding: 12px;
+          border-radius: 4px;
+          overflow-x: auto;
+          font-size: 0.8rem;
+          max-height: 300px;
+          overflow-y: auto;
+        }
+
+        @keyframes mei-spin {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes mei-fade-in {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      ` })
+  ] });
+}
+
+// src/ui/contracts/SmartMetadata.contract.ts
+var SmartFieldSchema = external_exports.object({
+  id: external_exports.union([external_exports.string(), external_exports.number()]),
+  label: external_exports.string().optional(),
+  value: external_exports.any().optional(),
+  overlayId: external_exports.string().nullable().optional(),
+  pageNumber: external_exports.number().nullable().optional()
+});
+var SmartMetadataSchema = external_exports.object({
+  documentId: external_exports.number().int().nullable().optional(),
+  metadata: external_exports.object({
+    title: external_exports.string().optional(),
+    correspondent: external_exports.string().optional()
+  }).passthrough().optional(),
+  customFields: external_exports.array(SmartFieldSchema).optional()
+});
+
+// src/islands/SmartMetadataIsland.tsx
+function dispatchEventSafe3(name, detail) {
+  try {
+    if (typeof document !== "undefined" && typeof document.dispatchEvent === "function") {
+      document.dispatchEvent(new CustomEvent(name, { detail }));
+    }
+  } catch (e3) {
+  }
+  try {
+    if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+      window.dispatchEvent(new CustomEvent(name, { detail }));
+    }
+  } catch (e3) {
+  }
+}
+function SmartMetadataIsland(props) {
+  const initial = props || {};
+  const fields = Array.isArray(initial.customFields) ? initial.customFields : [];
+  const [localMetadata, setLocalMetadata] = d2(() => ({
+    title: initial.metadata?.title || "",
+    correspondent: initial.metadata?.correspondent || ""
+  }));
+  const [localFields, setLocalFields] = d2(() => fields.map((f4) => ({ ...f4 })));
+  const [validationError, setValidationError] = d2(null);
+  y2(() => {
+    try {
+      window.__smart_metadata_mounted = true;
+    } catch (e3) {
+    }
+  }, []);
+  const onLocate = (fieldId) => {
+    dispatchEventSafe3("metadata:locate-field", { fieldId });
+  };
+  const onFeedback = (fieldId, vote) => {
+    dispatchEventSafe3("feedback:vote", { fieldId, vote });
+  };
+  const markDirty = () => {
+    try {
+      window.__smart_metadata_dirty = true;
+    } catch (e3) {
+    }
+    dispatchEventSafe3("workspace:dirty", { documentId: props.documentId ?? null });
+  };
+  const validateAndMarkDirty = (meta, fields2) => {
+    const payload = { documentId: props.documentId ?? null, metadata: meta, customFields: fields2 };
+    const res = SmartMetadataSchema.safeParse(payload);
+    if (!res.success) {
+      const msg = res.error?.issues?.[0]?.message || "Validation failed";
+      setValidationError(msg);
+      return false;
+    }
+    setValidationError(null);
+    markDirty();
+    return true;
+  };
+  const onMetaChange = (key, val) => {
+    const next = { ...localMetadata, [key]: val };
+    setLocalMetadata(next);
+    validateAndMarkDirty(next, localFields);
+  };
+  const onFieldValueChange = (idx, val) => {
+    const nextFields = localFields.map((f4, i4) => i4 === idx ? { ...f4, value: val } : f4);
+    setLocalFields(nextFields);
+    validateAndMarkDirty(localMetadata, nextFields);
+  };
+  return /* @__PURE__ */ u3("div", { "data-testid": "smart-metadata-root", className: "flex flex-col gap-3", children: [
+    /* @__PURE__ */ u3("div", { className: "flex flex-col gap-2", children: [
+      /* @__PURE__ */ u3("label", { htmlFor: "smart-title-input", className: "text-xs text-[#666]", children: "Title" }),
+      /* @__PURE__ */ u3(
+        "input",
+        {
+          id: "smart-title-input",
+          title: "Document title",
+          placeholder: "Enter document title",
+          "data-testid": "smart-title-input",
+          className: "w-full border border-[#e5e0d8] rounded-md px-3 py-2 text-sm",
+          value: localMetadata.title,
+          onInput: (e3) => onMetaChange("title", e3.target.value)
+        }
+      )
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "flex flex-col gap-2", children: [
+      /* @__PURE__ */ u3("label", { htmlFor: "smart-correspondent-input", className: "text-xs text-[#666]", children: "Correspondent" }),
+      /* @__PURE__ */ u3(
+        "input",
+        {
+          id: "smart-correspondent-input",
+          title: "Correspondent name",
+          placeholder: "Enter correspondent name",
+          "data-testid": "smart-correspondent-input",
+          className: "w-full border border-[#e5e0d8] rounded-md px-3 py-2 text-sm",
+          value: localMetadata.correspondent,
+          onInput: (e3) => onMetaChange("correspondent", e3.target.value)
+        }
+      )
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "mt-2", children: [
+      /* @__PURE__ */ u3("div", { className: "text-sm font-medium mb-2", children: "Custom Fields" }),
+      localFields.length === 0 && /* @__PURE__ */ u3("div", { "data-testid": "no-custom-fields", className: "text-xs text-[#888]", children: "No custom fields" }),
+      localFields.map((f4, idx) => /* @__PURE__ */ u3("div", { className: "flex items-center gap-2 mb-2 border border-[#f2efe9] rounded-md p-2", "data-testid": `custom-field-${f4.id}`, children: [
+        /* @__PURE__ */ u3("div", { className: "flex-1", children: [
+          /* @__PURE__ */ u3("div", { className: "text-xs text-[#444] font-medium", children: f4.label || `Field ${idx + 1}` }),
+          /* @__PURE__ */ u3(
+            "input",
+            {
+              id: `custom-field-value-${f4.id}`,
+              title: `Value for ${f4.label || `field ${idx + 1}`}`,
+              placeholder: "Enter value",
+              "data-testid": `custom-field-value-${f4.id}`,
+              className: "w-full border border-[#eae6df] rounded px-2 py-1 text-sm",
+              value: f4.value ?? "",
+              onInput: (e3) => onFieldValueChange(idx, e3.target.value)
+            }
+          )
+        ] }),
+        /* @__PURE__ */ u3("div", { className: "flex flex-col gap-1 items-end", children: [
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              "data-testid": `locate-btn-${f4.id}`,
+              className: "px-2 py-1 text-xs rounded bg-[#f6efe8] border border-[#e5e0d8]",
+              title: "Locate field on document",
+              onClick: () => onLocate(f4.id),
+              children: [
+                /* @__PURE__ */ u3("i", { className: "fas fa-crosshairs mr-1" }),
+                "Locate"
+              ]
+            }
+          ),
+          /* @__PURE__ */ u3("div", { className: "flex gap-1", children: [
+            /* @__PURE__ */ u3(
+              "button",
+              {
+                "data-testid": `feedback-up-${f4.id}`,
+                className: "px-2 py-1 rounded bg-white border border-[#eae6df] text-sm",
+                onClick: () => onFeedback(f4.id, "up"),
+                title: "Thumbs up",
+                children: /* @__PURE__ */ u3("i", { className: "fas fa-thumbs-up" })
+              }
+            ),
+            /* @__PURE__ */ u3(
+              "button",
+              {
+                "data-testid": `feedback-down-${f4.id}`,
+                className: "px-2 py-1 rounded bg-white border border-[#eae6df] text-sm",
+                onClick: () => onFeedback(f4.id, "down"),
+                title: "Thumbs down",
+                children: /* @__PURE__ */ u3("i", { className: "fas fa-thumbs-down" })
+              }
+            )
+          ] })
+        ] })
+      ] }, String(f4.id)))
+    ] })
+  ] });
+}
+
+// src/ui/contracts/HistoryTabs.contract.ts
+var TagSchema = external_exports.object({
+  id: external_exports.number().int(),
+  name: external_exports.string()
+});
+var MetadataSchema2 = external_exports.object({
+  correspondent: external_exports.string().optional(),
+  correspondentId: external_exports.number().int().optional(),
+  tags: external_exports.array(TagSchema).optional(),
+  documentType: external_exports.string().optional(),
+  created: external_exports.string().optional(),
+  modified: external_exports.string().optional()
+});
+var SimilarResultSchema = external_exports.object({
+  docId: external_exports.number().int(),
+  pageNum: external_exports.number().int().optional(),
+  score: external_exports.number().min(0).max(1),
+  thumbnailUrl: external_exports.string().url().optional()
+});
+var ActiveFiltersSchema = external_exports.object({
+  correspondentId: external_exports.number().int().optional(),
+  tagIds: external_exports.array(external_exports.number().int()).optional()
+});
+var HistoryTabsSchema = external_exports.object({
+  documentId: external_exports.number().int().nullable(),
+  content: external_exports.string().optional(),
+  metadata: MetadataSchema2.optional()
+});
+var SearchResponseSchema = external_exports.object({
+  success: external_exports.boolean(),
+  results: external_exports.array(SimilarResultSchema),
+  collectionUsed: external_exports.enum(["visual_pages", "visual_overlays"]),
+  scoreType: external_exports.string().default("maxsim"),
+  executionTimeMs: external_exports.number().optional(),
+  maxsimScoreMean: external_exports.number().optional()
+});
+
+// src/islands/HistoryTabsIsland.tsx
+function HistoryTabsIsland(props) {
+  const validated = HistoryTabsSchema.parse(props);
+  const { documentId, content, metadata } = validated;
+  const [activeTab, setActiveTab] = d2("text");
+  const [isSearching, setIsSearching] = d2(false);
+  const [isInitializing, setIsInitializing] = d2(false);
+  const [initStage, setInitStage] = d2("");
+  const [similarResults, setSimilarResults] = d2([]);
+  const [searchError, setSearchError] = d2(null);
+  const [activeFilters, setActiveFilters] = d2({});
+  const handleKeyDown = q2((e3) => {
+    const tabs = ["text", "metadata", "similar"];
+    const currentIndex = tabs.indexOf(activeTab);
+    if (e3.key === "ArrowRight") {
+      const nextIndex = (currentIndex + 1) % tabs.length;
+      const next = tabs[nextIndex];
+      setActiveTab(next);
+      setTimeout(() => document.getElementById(`tab-${next}`)?.focus(), 0);
+    } else if (e3.key === "ArrowLeft") {
+      const prevIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+      const prev = tabs[prevIndex];
+      setActiveTab(prev);
+      setTimeout(() => document.getElementById(`tab-${prev}`)?.focus(), 0);
+    }
+  }, [activeTab]);
+  y2(() => {
+    const tabs = ["text", "metadata", "similar"];
+    tabs.forEach((t3) => {
+      const tabEl = document.getElementById(`tab-${t3}`);
+      const panelEl = document.getElementById(`panel-${t3}`);
+      if (tabEl) {
+        tabEl.setAttribute("aria-selected", activeTab === t3 ? "true" : "false");
+      }
+      if (panelEl) {
+        if (activeTab === t3) {
+          panelEl.removeAttribute("aria-hidden");
+        } else {
+          panelEl.setAttribute("aria-hidden", "true");
+        }
+      }
+    });
+  }, [activeTab]);
+  y2(() => {
+    const handleVisualSearchRequest = async (event) => {
+      const { imageBase64, collection = "visual_pages" } = event.detail || {};
+      if (imageBase64 && documentId) {
+        await performVisualSearch(imageBase64, collection);
+      }
+    };
+    window.addEventListener(
+      "visual-search-requested",
+      handleVisualSearchRequest
+    );
+    return () => {
+      window.removeEventListener(
+        "visual-search-requested",
+        handleVisualSearchRequest
+      );
+    };
+  }, [documentId, activeFilters]);
+  const performVisualSearch = async (imageBase64, collection = "visual_pages") => {
+    setActiveTab("similar");
+    setIsSearching(true);
+    setSearchError(null);
+    setIsInitializing(false);
+    try {
+      const filters = {};
+      if (activeFilters.correspondentId) {
+        filters.correspondent_id = activeFilters.correspondentId;
+      }
+      if (activeFilters.tagIds && activeFilters.tagIds.length > 0) {
+        filters.tag_ids = activeFilters.tagIds;
+      }
+      const response = await fetch("/api/visual-rag/search/visual", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Request-Id": `history-${documentId}-${Date.now()}`
+        },
+        body: JSON.stringify({
+          image: imageBase64,
+          collection,
+          k: 5,
+          filters: Object.keys(filters).length > 0 ? filters : void 0
+        })
+      });
+      if (response.status === 503) {
+        const data2 = await response.json();
+        if (data2.type === "SIDECAR_INITIALIZING") {
+          setIsInitializing(true);
+          setInitStage(data2.detail || "GPU Initializing...");
+          return;
+        }
+        throw new Error(data2.error || "Service unavailable");
+      }
+      if (!response.ok) {
+        const data2 = await response.json();
+        throw new Error(data2.error || "Search failed");
+      }
+      const data = await response.json();
+      const results = (data.results || []).map(
+        (r3) => ({
+          docId: r3.docId,
+          pageNum: r3.pageNum,
+          score: r3.score,
+          thumbnailUrl: r3.thumbnailUrl
+        })
+      );
+      setSimilarResults(results);
+      setActiveTab("similar");
+    } catch (err) {
+      setSearchError(err instanceof Error ? err.message : "Search failed");
+    } finally {
+      setIsSearching(false);
+    }
+  };
+  const handleFilterByCorrespondent = (correspondentId) => {
+    setActiveFilters((prev) => ({
+      ...prev,
+      correspondentId
+    }));
+  };
+  const handleFilterByTag = (tagId) => {
+    setActiveFilters((prev) => ({
+      ...prev,
+      tagIds: [...prev.tagIds || [], tagId].filter(
+        (id, idx, arr) => arr.indexOf(id) === idx
+      )
+    }));
+  };
+  const removeFilter = (type, id) => {
+    if (type === "correspondent") {
+      setActiveFilters((prev) => {
+        const { correspondentId, ...rest } = prev;
+        return rest;
+      });
+    } else if (type === "tag" && id !== void 0) {
+      setActiveFilters((prev) => ({
+        ...prev,
+        tagIds: (prev.tagIds || []).filter((t3) => t3 !== id)
+      }));
+    }
+  };
+  const clearAllFilters = () => {
+    setActiveFilters({});
+  };
+  const FilterBadge = ({
+    label,
+    onRemove
+  }) => /* @__PURE__ */ u3("span", { className: "inline-flex items-center px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full mr-1 mb-1", children: [
+    label,
+    /* @__PURE__ */ u3(
+      "button",
+      {
+        onClick: onRemove,
+        className: "ml-1 text-blue-600 hover:text-blue-800",
+        "aria-label": `Remove filter: ${label}`,
+        children: /* @__PURE__ */ u3("i", { className: "fas fa-times" })
+      }
+    )
+  ] });
+  return /* @__PURE__ */ u3("div", { "data-testid": "history-tabs-root", "data-hydrated": "true", className: "h-full flex flex-col", children: [
+    /* @__PURE__ */ u3(
+      "div",
+      {
+        role: "tablist",
+        "aria-label": "Document tabs",
+        "aria-orientation": "horizontal",
+        className: "flex border-b border-gray-200",
+        children: [
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              type: "button",
+              id: `tab-text`,
+              role: "tab",
+              "aria-selected": "true",
+              "aria-controls": `panel-text`,
+              tabIndex: activeTab === "text" ? 0 : -1,
+              "data-testid": `tab-text`,
+              onClick: () => setActiveTab("text"),
+              onKeyDown: handleKeyDown,
+              className: `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === "text" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-600 hover:text-gray-900"}`,
+              children: [
+                /* @__PURE__ */ u3("i", { className: "fas fa-file-alt mr-1" }),
+                "Text"
+              ]
+            }
+          ),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              type: "button",
+              id: `tab-metadata`,
+              role: "tab",
+              "aria-selected": "false",
+              "aria-controls": `panel-metadata`,
+              tabIndex: activeTab === "metadata" ? 0 : -1,
+              "data-testid": `tab-metadata`,
+              onClick: () => setActiveTab("metadata"),
+              onKeyDown: handleKeyDown,
+              className: `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === "metadata" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-600 hover:text-gray-900"}`,
+              children: [
+                /* @__PURE__ */ u3("i", { className: "fas fa-tags mr-1" }),
+                "Metadata"
+              ]
+            }
+          ),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              type: "button",
+              id: `tab-similar`,
+              role: "tab",
+              "aria-selected": "false",
+              "aria-controls": `panel-similar`,
+              tabIndex: activeTab === "similar" ? 0 : -1,
+              "data-testid": `tab-similar`,
+              onClick: () => setActiveTab("similar"),
+              onKeyDown: handleKeyDown,
+              className: `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === "similar" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-600 hover:text-gray-900"}`,
+              children: [
+                /* @__PURE__ */ u3("i", { className: "fas fa-search mr-1" }),
+                "Similar"
+              ]
+            }
+          )
+        ]
+      }
+    ),
+    (activeFilters.correspondentId || activeFilters.tagIds && activeFilters.tagIds.length > 0) && /* @__PURE__ */ u3("div", { className: "p-2 bg-gray-50 border-b flex flex-wrap items-center", children: [
+      /* @__PURE__ */ u3("span", { className: "text-xs text-gray-500 mr-2", children: "Active filters:" }),
+      activeFilters.correspondentId && /* @__PURE__ */ u3(
+        FilterBadge,
+        {
+          label: `Correspondent: ${metadata?.correspondent || activeFilters.correspondentId}`,
+          onRemove: () => removeFilter("correspondent")
+        }
+      ),
+      activeFilters.tagIds?.map((tagId) => {
+        const tag = metadata?.tags?.find((t3) => t3.id === tagId);
+        return /* @__PURE__ */ u3("span", { children: /* @__PURE__ */ u3(
+          FilterBadge,
+          {
+            label: `Tag: ${tag?.name || tagId}`,
+            onRemove: () => removeFilter("tag", tagId)
+          }
+        ) }, tagId);
+      }),
+      /* @__PURE__ */ u3(
+        "button",
+        {
+          onClick: clearAllFilters,
+          className: "text-xs text-red-600 hover:text-red-800 ml-2",
+          children: "Clear all"
+        }
+      )
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "flex-1 overflow-auto p-4", children: [
+      /* @__PURE__ */ u3(
+        "div",
+        {
+          role: "tabpanel",
+          id: "panel-text",
+          "aria-labelledby": "tab-text",
+          "data-testid": "panel-text",
+          "aria-hidden": "false",
+          tabIndex: activeTab === "text" ? 0 : -1,
+          className: activeTab === "text" ? "" : "hidden",
+          children: /* @__PURE__ */ u3("div", { className: "prose prose-sm max-w-none", children: content ? /* @__PURE__ */ u3("pre", { className: "whitespace-pre-wrap text-sm text-gray-700", children: content }) : /* @__PURE__ */ u3("p", { className: "text-gray-500 italic", children: "No text content available" }) })
+        }
+      ),
+      /* @__PURE__ */ u3(
+        "div",
+        {
+          role: "tabpanel",
+          id: "panel-metadata",
+          "aria-labelledby": "tab-metadata",
+          "data-testid": "panel-metadata",
+          "aria-hidden": "true",
+          tabIndex: activeTab === "metadata" ? 0 : -1,
+          className: activeTab === "metadata" ? "" : "hidden",
+          children: /* @__PURE__ */ u3("dl", { className: "space-y-3", children: [
+            metadata?.correspondent && /* @__PURE__ */ u3("div", { className: "flex items-center justify-between", children: [
+              /* @__PURE__ */ u3("dt", { className: "text-sm font-medium text-gray-500", children: "Correspondent" }),
+              /* @__PURE__ */ u3("dd", { className: "text-sm text-gray-900 flex items-center", children: [
+                metadata.correspondent,
+                metadata.correspondentId && /* @__PURE__ */ u3(
+                  "button",
+                  {
+                    onClick: () => handleFilterByCorrespondent(metadata.correspondentId),
+                    className: "ml-2 text-xs text-blue-600 hover:text-blue-800",
+                    title: "Filter Similar by this correspondent",
+                    children: /* @__PURE__ */ u3("i", { className: "fas fa-filter" })
+                  }
+                )
+              ] })
+            ] }),
+            metadata?.tags && metadata.tags.length > 0 && /* @__PURE__ */ u3("div", { children: [
+              /* @__PURE__ */ u3("dt", { className: "text-sm font-medium text-gray-500 mb-1", children: "Tags" }),
+              /* @__PURE__ */ u3("dd", { className: "flex flex-wrap gap-1", children: metadata.tags.map((tag) => /* @__PURE__ */ u3(
+                "span",
+                {
+                  className: "inline-flex items-center px-2 py-1 text-xs bg-gray-100 rounded",
+                  children: [
+                    tag.name,
+                    /* @__PURE__ */ u3(
+                      "button",
+                      {
+                        onClick: () => handleFilterByTag(tag.id),
+                        className: "ml-1 text-gray-400 hover:text-blue-600",
+                        title: "Filter Similar by this tag",
+                        children: /* @__PURE__ */ u3("i", { className: "fas fa-filter text-xs" })
+                      }
+                    )
+                  ]
+                },
+                tag.id
+              )) })
+            ] }),
+            metadata?.documentType && /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
+              /* @__PURE__ */ u3("dt", { className: "text-sm font-medium text-gray-500", children: "Document Type" }),
+              /* @__PURE__ */ u3("dd", { className: "text-sm text-gray-900", children: metadata.documentType })
+            ] }),
+            metadata?.created && /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
+              /* @__PURE__ */ u3("dt", { className: "text-sm font-medium text-gray-500", children: "Created" }),
+              /* @__PURE__ */ u3("dd", { className: "text-sm text-gray-900", children: metadata.created })
+            ] }),
+            metadata?.modified && /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
+              /* @__PURE__ */ u3("dt", { className: "text-sm font-medium text-gray-500", children: "Modified" }),
+              /* @__PURE__ */ u3("dd", { className: "text-sm text-gray-900", children: metadata.modified })
+            ] })
+          ] })
+        }
+      ),
+      /* @__PURE__ */ u3(
+        "div",
+        {
+          role: "tabpanel",
+          id: "panel-similar",
+          "aria-labelledby": "tab-similar",
+          "data-testid": "panel-similar",
+          "aria-hidden": "true",
+          tabIndex: activeTab === "similar" ? 0 : -1,
+          className: activeTab === "similar" ? "" : "hidden",
+          children: [
+            isInitializing && /* @__PURE__ */ u3(
+              "div",
+              {
+                className: "flex flex-col items-center justify-center py-8",
+                "data-testid": "gpu-initializing",
+                children: [
+                  /* @__PURE__ */ u3("div", { className: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4" }),
+                  /* @__PURE__ */ u3("p", { className: "text-sm text-gray-600", children: "GPU Initializing..." }),
+                  /* @__PURE__ */ u3("p", { className: "text-xs text-gray-400 mt-1", children: initStage }),
+                  /* @__PURE__ */ u3("p", { className: "text-xs text-gray-400", children: "RTX 3090 Ti loading ColQwen3-4B-AWQ" })
+                ]
+              }
+            ),
+            isSearching && !isInitializing && /* @__PURE__ */ u3(
+              "div",
+              {
+                className: "flex flex-col items-center justify-center py-8",
+                "data-testid": "searching",
+                children: [
+                  /* @__PURE__ */ u3("div", { className: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4" }),
+                  /* @__PURE__ */ u3("p", { className: "text-sm text-gray-600", children: "Searching..." })
+                ]
+              }
+            ),
+            searchError && !isSearching && /* @__PURE__ */ u3(
+              "div",
+              {
+                className: "bg-red-50 border border-red-200 rounded p-4",
+                "data-testid": "search-error",
+                children: /* @__PURE__ */ u3("p", { className: "text-sm text-red-700", children: [
+                  /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-triangle mr-2" }),
+                  searchError
+                ] })
+              }
+            ),
+            !isSearching && !isInitializing && !searchError && similarResults.length > 0 && /* @__PURE__ */ u3("div", { "data-testid": "similar-results", children: [
+              /* @__PURE__ */ u3("p", { className: "text-sm text-gray-500 mb-3", children: [
+                "Found ",
+                similarResults.length,
+                " similar documents"
+              ] }),
+              /* @__PURE__ */ u3("div", { className: "space-y-3", children: similarResults.map((result, idx) => /* @__PURE__ */ u3(
+                "div",
+                {
+                  className: "flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors",
+                  children: [
+                    result.thumbnailUrl && /* @__PURE__ */ u3(
+                      "img",
+                      {
+                        src: result.thumbnailUrl,
+                        alt: `Document ${result.docId} thumbnail`,
+                        className: "w-16 h-20 object-cover rounded mr-3 border"
+                      }
+                    ),
+                    /* @__PURE__ */ u3("div", { className: "flex-1", children: [
+                      /* @__PURE__ */ u3(
+                        "a",
+                        {
+                          href: `/history/${result.docId}`,
+                          className: "text-blue-600 hover:text-blue-800 font-medium",
+                          children: [
+                            "Document #",
+                            result.docId
+                          ]
+                        }
+                      ),
+                      result.pageNum && /* @__PURE__ */ u3("span", { className: "text-xs text-gray-500 ml-2", children: [
+                        "Page ",
+                        result.pageNum
+                      ] }),
+                      /* @__PURE__ */ u3("div", { className: "mt-1", children: [
+                        /* @__PURE__ */ u3("span", { className: "text-xs text-gray-500", children: "Similarity:" }),
+                        /* @__PURE__ */ u3("span", { className: "ml-1 text-sm font-medium text-green-600", children: [
+                          (result.score * 100).toFixed(1),
+                          "%"
+                        ] }),
+                        /* @__PURE__ */ u3("div", { className: "w-24 h-1.5 bg-gray-200 rounded-full mt-1", children: (() => {
+                          const pct = Math.round(result.score * 100);
+                          return /* @__PURE__ */ u3("div", { className: "h-full bg-green-500 rounded-full", style: { width: `${pct}%` } });
+                        })() })
+                      ] })
+                    ] })
+                  ]
+                },
+                `${result.docId}-${idx}`
+              )) })
+            ] }),
+            !isSearching && !isInitializing && !searchError && similarResults.length === 0 && /* @__PURE__ */ u3(
+              "div",
+              {
+                className: "text-center py-8",
+                "data-testid": "similar-empty",
+                children: [
+                  /* @__PURE__ */ u3("i", { className: "fas fa-search text-4xl text-gray-300 mb-4" }),
+                  /* @__PURE__ */ u3("p", { className: "text-sm text-gray-500", children: "Select a region in the document viewer to find similar documents" }),
+                  /* @__PURE__ */ u3("p", { className: "text-xs text-gray-400 mt-2", children: "Results use MaxSim scoring from ColQwen3-4B-AWQ" })
+                ]
+              }
+            )
+          ]
+        }
+      )
+    ] })
+  ] });
+}
+
+// src/islands/OverlayViewerIsland.module.css
+var OverlayViewerIsland_default = {
+  legendDot: "OverlayViewerIsland_legendDot",
+  documentPane: "OverlayViewerIsland_documentPane",
+  viewport: "OverlayViewerIsland_viewport",
+  overlayBox: "OverlayViewerIsland_overlayBox",
+  overlayLabel: "OverlayViewerIsland_overlayLabel",
+  highlightRegion: "OverlayViewerIsland_highlightRegion",
+  selectionBoxContainer: "OverlayViewerIsland_selectionBoxContainer",
+  resultsPanel: "OverlayViewerIsland_resultsPanel"
+};
+
+// src/islands/OverlayViewerIsland.tsx
+var import_overlay_utils = __toESM(require_overlay_utils());
+var MIN_SELECTION_SIZE = 20;
+var MIN_SIZE_FRACTION = 0.01;
+function OverlayViewerIsland(props) {
+  const {
+    documentId: initialDocumentId,
+    page: initialPage = 1,
+    originalUrl: initialOriginalUrl = null,
+    onRegionSelected,
+    overlayMode = "none",
+    showLegend = false,
+    allowSelection = true,
+    mode = "visual-search",
+    suggestions = []
+  } = props;
+  const containerRef = A2(null);
+  const canvasRef = A2(null);
+  const imageRef = A2(null);
+  const [docId, setDocId] = d2(initialDocumentId || null);
+  const [page, setPage] = d2(initialPage);
+  const [originalUrl, setOriginalUrl] = d2(initialOriginalUrl || null);
+  const [pageCount, setPageCount] = d2(props?.pageCount ?? null);
+  y2(() => {
+    const handler = (e3) => {
+      const d3 = e3?.detail || {};
+      if (d3.documentId !== void 0 && d3.documentId !== null) setDocId(d3.documentId);
+      if (d3.page !== void 0 && d3.page !== null) setPage(Number(d3.page));
+      if (Object.prototype.hasOwnProperty.call(d3, "originalUrl")) setOriginalUrl(d3.originalUrl || null);
+      else if (Object.prototype.hasOwnProperty.call(d3, "original_url")) setOriginalUrl(d3.original_url || null);
+      if (Object.prototype.hasOwnProperty.call(d3, "pageCount")) setPageCount(d3.pageCount === null ? null : Number(d3.pageCount));
+    };
+    window.addEventListener("overlay:document-changed", handler);
+    return () => {
+      window.removeEventListener("overlay:document-changed", handler);
+    };
+  }, []);
+  y2(() => {
+    if (initialDocumentId !== void 0 && initialDocumentId !== null) {
+      setDocId(initialDocumentId);
+    }
+  }, [initialDocumentId]);
+  const normalizeOverlayBox = q2((box) => {
+    if (!box) return null;
+    const x4 = Number(box.x ?? 0);
+    const y3 = Number(box.y ?? 0);
+    const width = Number(box.width ?? 0);
+    const height = Number(box.height ?? 0);
+    if (!Number.isFinite(x4) || !Number.isFinite(y3)) return null;
+    if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
+    const maxVal = Math.max(x4 + width, y3 + height);
+    const scale2 = maxVal <= 1 ? 1 : 1e3;
+    return {
+      left: x4 / scale2 * 100,
+      top: y3 / scale2 * 100,
+      width: width / scale2 * 100,
+      height: height / scale2 * 100
+    };
+  }, []);
+  const [isDrawMode, setIsDrawMode] = d2(false);
+  const drawModeRef = A2(false);
+  const [isDrawing, setIsDrawing] = d2(false);
+  const isDrawingRef = A2(false);
+  const pointerActiveRef = A2(false);
+  const [boxes, setBoxes] = d2([]);
+  const [currentBox, setCurrentBox] = d2(null);
+  const currentBoxRef = A2(null);
+  const [imageLoaded, setImageLoaded] = d2(false);
+  const [imageError, setImageError] = d2(null);
+  const [warning, setWarning] = d2(null);
+  const [legend, setLegend] = d2([]);
+  const [overlayItems, setOverlayItems] = d2([]);
+  const [overlayLoading, setOverlayLoading] = d2(false);
+  const [overlayError, setOverlayError] = d2(null);
+  const [mandatoryOnly, setMandatoryOnly] = d2(false);
+  const [overlayDomain, setOverlayDomain] = d2("general");
+  const selectionEnabled = allowSelection !== false;
+  const viewportRef = A2(null);
+  const [scale, setScale] = d2(1);
+  const scaleRef = A2(1);
+  const [translateX, setTranslateX] = d2(0);
+  const [translateY, setTranslateY] = d2(0);
+  const translateRef = A2({ x: 0, y: 0 });
+  const [panMode, setPanMode] = d2(false);
+  const panActiveRef = A2(false);
+  const lastPanPointRef = A2(null);
+  const drawModeButtonRef = A2(null);
+  const panModeButtonRef = A2(null);
+  const [showResults, setShowResults] = d2(false);
+  const [results, setResults] = d2([]);
+  const [resultsLoading, setResultsLoading] = d2(false);
+  const [resultsError, setResultsError] = d2(null);
+  const [splitPos, setSplitPos] = d2(60);
+  const [isResizing, setIsResizing] = d2(false);
+  const [highlightedRegion, setHighlightedRegion] = d2(null);
+  const MIN_SCALE = 0.5;
+  const MAX_SCALE = 3;
+  const SCALE_STEP = 0.1;
+  const applyScale = q2((next) => {
+    const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next));
+    scaleRef.current = clamped;
+    setScale(clamped);
+  }, []);
+  const clampTranslate = q2((tx, ty, s3) => {
+    const container = containerRef.current;
+    if (!container) return { x: tx, y: ty };
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+    const img = imageRef.current;
+    const natW = img && img.naturalWidth ? img.naturalWidth : null;
+    const natH = img && img.naturalHeight ? img.naturalHeight : null;
+    try {
+      const clamped = (0, import_overlay_utils.clampTranslate)(tx, ty, s3, cw, ch, natW, natH, "contain");
+      return { x: clamped.x, y: clamped.y };
+    } catch (_e) {
+      const minX = Math.min(0, cw - cw * s3);
+      const maxX = 0;
+      const minY = Math.min(0, ch - ch * s3);
+      const maxY = 0;
+      const cx = Math.min(maxX, Math.max(minX, tx));
+      const cy = Math.min(maxY, Math.max(minY, ty));
+      return { x: cx, y: cy };
+    }
+  }, []);
+  const applyTranslate = q2((x4, y3) => {
+    const clamped = clampTranslate(x4, y3, scaleRef.current || 1);
+    translateRef.current = { x: clamped.x, y: clamped.y };
+    setTranslateX(clamped.x);
+    setTranslateY(clamped.y);
+  }, [clampTranslate]);
+  y2(() => {
+    const handler = (e3) => {
+      const detail = e3?.detail || {};
+      const { bbox, page: targetPage } = detail;
+      if (targetPage && targetPage !== page) setPage(targetPage);
+      if (bbox) {
+        setHighlightedRegion({ ...bbox, id: "highlight" });
+        const container = containerRef.current;
+        if (container) {
+          const cw = container.clientWidth;
+          const ch = container.clientHeight;
+          const w4 = bbox.width;
+          const h3 = bbox.height;
+          const desiredCoverage = 0.6;
+          const scaleX = w4 > 0 ? desiredCoverage / w4 : 1;
+          const scaleY = h3 > 0 ? desiredCoverage / h3 : 1;
+          const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min(scaleX, scaleY)));
+          const cx = bbox.x + bbox.width / 2;
+          const cy = bbox.y + bbox.height / 2;
+          const tx = cw / 2 - cx * cw * newScale;
+          const ty = ch / 2 - cy * ch * newScale;
+          applyScale(newScale);
+          applyTranslate(tx, ty);
+        }
+        setTimeout(() => setHighlightedRegion(null), 5e3);
+      }
+    };
+    window.addEventListener("overlay:highlight-region", handler);
+    return () => window.removeEventListener("overlay:highlight-region", handler);
+  }, [page, applyScale, applyTranslate]);
+  const resetView = q2(() => {
+    applyScale(1);
+    applyTranslate(0, 0);
+  }, [applyScale, applyTranslate]);
+  const zoomIn = q2(() => applyScale(scaleRef.current + SCALE_STEP), [applyScale]);
+  const zoomOut = q2(() => applyScale(scaleRef.current - SCALE_STEP), [applyScale]);
+  const handleWheel = q2((e3) => {
+    if (!viewportRef.current || !containerRef.current) return;
+    const delta = -e3.deltaY;
+    const factor = e3.ctrlKey || e3.metaKey ? 15e-4 : 25e-4;
+    const s3 = scaleRef.current || 1;
+    const nextS = Math.min(MAX_SCALE, Math.max(MIN_SCALE, s3 * (1 + delta * factor)));
+    if (Math.abs(nextS - s3) < 1e-5) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const rawX = e3.clientX - rect.left;
+    const rawY = e3.clientY - rect.top;
+    const sx = nextS / s3;
+    const currentTx = translateRef.current.x || 0;
+    const currentTy = translateRef.current.y || 0;
+    const nextTx = currentTx * sx + rawX * (1 - sx);
+    const nextTy = currentTy * sx + rawY * (1 - sx);
+    applyScale(nextS);
+    applyTranslate(nextTx, nextTy);
+    e3.preventDefault();
+  }, [applyScale, applyTranslate]);
+  const togglePanMode = q2(() => {
+    const next = !panMode;
+    setPanMode(next);
+    if (next) {
+      drawModeRef.current = false;
+      setIsDrawMode(false);
+    }
+  }, [panMode]);
+  const imageUrl = docId ? originalUrl ? `${originalUrl}${originalUrl.includes("?") ? "&" : "?"}page=${page}` : `/documents/${docId}/download/original/?page=${page}` : null;
+  y2(() => {
+    if (!imageUrl) return;
+    setImageLoaded(false);
+    setImageError(null);
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      if (imageRef.current) {
+        imageRef.current.src = img.src;
+        try {
+          const area = (img.naturalWidth || 0) * (img.naturalHeight || 0);
+          if (area > 2e7) {
+            setWarning("Large document image detected. Rendering may be slow.");
+          }
+        } catch (e3) {
+        }
+      }
+      setImageLoaded(true);
+    };
+    img.onerror = () => setImageError("Failed to load document image");
+    img.src = imageUrl;
+  }, [imageUrl]);
+  y2(() => {
+    let cancelled = false;
+    const loadOverlays = async () => {
+      if (overlayMode !== "document" || !docId) {
+        setOverlayItems([]);
+        setOverlayError(null);
+        setOverlayLoading(false);
+        return;
+      }
+      setOverlayLoading(true);
+      setOverlayError(null);
+      try {
+        const response = await fetch(`/api/visual-rag/overlays/${docId}?page=${page}`);
+        if (!response.ok) throw new Error("Failed to load overlays");
+        const data = await response.json();
+        const overlays = Array.isArray(data.overlays) ? data.overlays : [];
+        if (!cancelled) {
+          setOverlayItems(overlays);
+          const domain = overlays[0]?.domain || "general";
+          setOverlayDomain(String(domain).toLowerCase());
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setOverlayError(err.message || "Overlay load failed");
+          setOverlayItems([]);
+        }
+      } finally {
+        if (!cancelled) setOverlayLoading(false);
+      }
+    };
+    void loadOverlays();
+    resetView();
+    return () => {
+      cancelled = true;
+    };
+  }, [overlayMode, docId, page, resetView]);
+  y2(() => {
+    let cancelled = false;
+    const loadUserAnnotations = async () => {
+      if (!docId) return;
+      try {
+        const resp = await fetch(`/manual/annotations/${docId}?page=${page}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (cancelled) return;
+        const anns = Array.isArray(data.annotations) ? data.annotations : [];
+        document.dispatchEvent(new CustomEvent("annotations:loaded", { detail: { annotations: anns } }));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn("Failed to load user annotations", msg);
+      }
+    };
+    void loadUserAnnotations();
+    const saveListener = async (e3) => {
+      const payload = e3?.detail;
+      if (!payload || !payload.documentId || !Array.isArray(payload.annotations)) return;
+      try {
+        const resp = await fetch("/manual/annotations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (!resp.ok) {
+          const txt = await resp.text();
+          console.error("Failed to persist annotations", txt);
+          return;
+        }
+        const result = await resp.json();
+        if (cancelled) return;
+        const created = Array.isArray(result.created) ? result.created : [];
+        document.dispatchEvent(new CustomEvent("annotations:loaded", { detail: { annotations: created } }));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("Annotation save failed", msg);
+      }
+    };
+    document.addEventListener("payload:ready", saveListener);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("payload:ready", saveListener);
+    };
+  }, [docId, page]);
+  y2(() => {
+    let cancelled = false;
+    const loadLegend = async () => {
+      if (!showLegend) return;
+      try {
+        const resp = await fetch(`/api/visual-rag/legend/${overlayDomain}`);
+        if (!resp.ok) throw new Error("Legend not available");
+        const data = await resp.json();
+        if (!cancelled) setLegend(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (!cancelled) setLegend([]);
+      }
+    };
+    void loadLegend();
+    return () => {
+      cancelled = true;
+    };
+  }, [overlayDomain, showLegend]);
+  y2(() => {
+    const handler = async (e3) => {
+      const customEvent = e3;
+      const { imageBase64, collection } = customEvent?.detail || {};
+      setResultsLoading(true);
+      setResultsError(null);
+      setShowResults(true);
+      setResults([]);
+      try {
+        const response = await fetch("/api/visual-rag/search/visual", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: imageBase64, collection, k: 10 })
+        });
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`Search failed: ${response.status} ${text}`);
+        }
+        const data = await response.json();
+        setResults(Array.isArray(data.results) ? data.results : []);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setResultsError(msg || "Visual search failed");
+      } finally {
+        setResultsLoading(false);
+      }
+    };
+    window.addEventListener("visual-search-requested", handler);
+    return () => window.removeEventListener("visual-search-requested", handler);
+  }, []);
+  const getRelativePosition = q2(
+    (e3) => {
+      const container = containerRef.current;
+      if (!container) return { x: 0, y: 0 };
+      const rect = container.getBoundingClientRect();
+      let clientX, clientY;
+      if ("touches" in e3) {
+        const touch = e3.touches[0] || e3.changedTouches[0];
+        clientX = touch.clientX;
+        clientY = touch.clientY;
+      } else {
+        clientX = e3.clientX;
+        clientY = e3.clientY;
+      }
+      const tx = translateRef.current.x || 0;
+      const ty = translateRef.current.y || 0;
+      const s3 = scaleRef.current || 1;
+      const rawX = clientX - rect.left;
+      const rawY = clientY - rect.top;
+      return { x: (rawX - tx) / s3, y: (rawY - ty) / s3 };
+    },
+    []
+  );
+  const handleMouseDown = q2(
+    (e3) => {
+      if (!selectionEnabled || !drawModeRef.current) return;
+      e3.preventDefault();
+      const pos = getRelativePosition(e3);
+      const nextBox = { id: `box-${Date.now()}`, x: pos.x, y: pos.y, width: 0, height: 0 };
+      isDrawingRef.current = true;
+      currentBoxRef.current = nextBox;
+      setIsDrawing(true);
+      setCurrentBox(nextBox);
+      setWarning(null);
+    },
+    [getRelativePosition]
+  );
+  const handleMouseMove = q2(
+    (e3) => {
+      if (!isDrawingRef.current || !currentBoxRef.current) return;
+      e3.preventDefault();
+      const pos = getRelativePosition(e3);
+      const nextBox = {
+        ...currentBoxRef.current,
+        width: pos.x - currentBoxRef.current.x,
+        height: pos.y - currentBoxRef.current.y
+      };
+      currentBoxRef.current = nextBox;
+      setCurrentBox(nextBox);
+    },
+    [getRelativePosition]
+  );
+  const captureRegion = q2(
+    async (box, eventName) => {
+      const container = containerRef.current;
+      const img = imageRef.current;
+      if (!container || !img) return;
+      if (!imageLoaded && !imageError) {
+        return;
+      }
+      try {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        const naturalWidth = img.naturalWidth || container.clientWidth;
+        const naturalHeight = img.naturalHeight || container.clientHeight;
+        const scaleX = naturalWidth / container.clientWidth;
+        const scaleY = naturalHeight / container.clientHeight;
+        const srcX = box.x * scaleX;
+        const srcY = box.y * scaleY;
+        const srcWidth = box.width * scaleX;
+        const srcHeight = box.height * scaleY;
+        canvas.width = srcWidth;
+        canvas.height = srcHeight;
+        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+          ctx.drawImage(img, srcX, srcY, srcWidth, srcHeight, 0, 0, srcWidth, srcHeight);
+        } else {
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        const dataUrl = canvas.toDataURL("image/png");
+        const base64 = dataUrl.split(",")[1];
+        const event = new CustomEvent(eventName, {
+          detail: {
+            imageBase64: base64,
+            collection: "visual_pages",
+            documentId: docId,
+            page,
+            bbox: {
+              x: box.x / container.clientWidth,
+              y: box.y / container.clientHeight,
+              width: box.width / container.clientWidth,
+              height: box.height / container.clientHeight
+            }
+          }
+        });
+        if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+          window.dispatchEvent(event);
+        }
+        if (eventName === "visual-search-requested" && onRegionSelected) {
+          onRegionSelected(base64, box);
+        }
+      } catch (err) {
+        console.error("Failed to capture region:", err);
+        setWarning("Failed to capture selection. Please try again.");
+      }
+    },
+    [docId, page, imageLoaded, imageError, onRegionSelected]
+  );
+  const handleMouseUp = q2((e3) => {
+    if (!isDrawingRef.current || !currentBoxRef.current) return;
+    if (e3) {
+      const pos = getRelativePosition(e3);
+      currentBoxRef.current = {
+        ...currentBoxRef.current,
+        width: pos.x - currentBoxRef.current.x,
+        height: pos.y - currentBoxRef.current.y
+      };
+      setCurrentBox(currentBoxRef.current);
+    }
+    const activeBox = currentBoxRef.current;
+    isDrawingRef.current = false;
+    setIsDrawing(false);
+    const container = containerRef.current;
+    if (!container) return;
+    const normalizedBox = {
+      ...activeBox,
+      x: activeBox.width < 0 ? activeBox.x + activeBox.width : activeBox.x,
+      y: activeBox.height < 0 ? activeBox.y + activeBox.height : activeBox.y,
+      width: Math.abs(activeBox.width),
+      height: Math.abs(activeBox.height)
+    };
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    if (normalizedBox.width < MIN_SELECTION_SIZE || normalizedBox.height < MIN_SELECTION_SIZE) {
+      setWarning("Selection too small. Please draw a larger box.");
+      currentBoxRef.current = null;
+      setCurrentBox(null);
+      return;
+    }
+    const widthFraction = normalizedBox.width / containerWidth;
+    const heightFraction = normalizedBox.height / containerHeight;
+    if (widthFraction < MIN_SIZE_FRACTION || heightFraction < MIN_SIZE_FRACTION) {
+      setWarning("Selection too small to yield meaningful results.");
+      currentBoxRef.current = null;
+      setCurrentBox(null);
+      return;
+    }
+    setBoxes((prev) => [...prev, normalizedBox]);
+    currentBoxRef.current = null;
+    setCurrentBox(null);
+    if (mode === "draw") {
+      captureRegion(normalizedBox, "overlay:draw-complete");
+    } else {
+      captureRegion(normalizedBox, "visual-search-requested");
+    }
+  }, [captureRegion, getRelativePosition, mode]);
+  const removeBox = q2((boxId) => {
+    setBoxes((prev) => prev.filter((b3) => b3.id !== boxId));
+  }, []);
+  const clearAllBoxes = q2(() => {
+    setBoxes([]);
+    setWarning(null);
+  }, []);
+  const toggleDrawMode = q2(() => {
+    if (!selectionEnabled) return;
+    const next = !drawModeRef.current;
+    drawModeRef.current = next;
+    setIsDrawMode(next);
+    if (!next) {
+      isDrawingRef.current = false;
+      currentBoxRef.current = null;
+      setIsDrawing(false);
+      setCurrentBox(null);
+    }
+  }, []);
+  y2(() => {
+    drawModeRef.current = isDrawMode;
+  }, [isDrawMode]);
+  y2(() => {
+    if (drawModeButtonRef.current) {
+      drawModeButtonRef.current.setAttribute("aria-pressed", isDrawMode ? "true" : "false");
+    }
+    if (panModeButtonRef.current) {
+      panModeButtonRef.current.setAttribute("aria-pressed", panMode ? "true" : "false");
+    }
+  }, [isDrawMode, panMode]);
+  const changePage = q2((delta) => {
+    const next = Math.max(1, page + delta);
+    if (pageCount && next > pageCount) return;
+    setPage(next);
+    const ev = new CustomEvent("overlay:document-changed", {
+      detail: { documentId: docId, page: next, originalUrl, pageCount }
+    });
+    if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+      window.dispatchEvent(ev);
+    }
+  }, [page, pageCount, docId, originalUrl]);
+  y2(() => {
+    const handleGlobalUp = (event) => {
+      if (isDrawingRef.current) handleMouseUp(event);
+      if (isResizing) setIsResizing(false);
+    };
+    const handleGlobalMove = (e3) => {
+      if (isResizing) {
+        const container = containerRef.current?.parentElement?.parentElement;
+        if (container) {
+          const rect = container.getBoundingClientRect();
+          const percent = (e3.clientX - rect.left) / rect.width * 100;
+          setSplitPos(Math.min(80, Math.max(20, percent)));
+        }
+      }
+    };
+    window.addEventListener("pointerup", handleGlobalUp);
+    window.addEventListener("mouseup", handleGlobalUp);
+    window.addEventListener("touchend", handleGlobalUp);
+    window.addEventListener("mousemove", handleGlobalMove);
+    return () => {
+      window.removeEventListener("pointerup", handleGlobalUp);
+      window.removeEventListener("mouseup", handleGlobalUp);
+      window.removeEventListener("touchend", handleGlobalUp);
+      window.removeEventListener("mousemove", handleGlobalMove);
+    };
+  }, [handleMouseUp, isResizing]);
+  y2(() => {
+    const node = containerRef.current;
+    if (!node) return;
+    node.addEventListener("wheel", handleWheel, { passive: false });
+    return () => node.removeEventListener("wheel", handleWheel);
+  }, [handleWheel]);
+  y2(() => {
+    const handler = (e3) => {
+      if (e3.target) {
+        const t3 = e3.target;
+        const tag = (t3.tagName || "").toUpperCase();
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t3.isContentEditable) return;
+      }
+      if (e3.key === "+" || e3.key === "=") {
+        zoomIn();
+        e3.preventDefault();
+      } else if (e3.key === "-") {
+        zoomOut();
+        e3.preventDefault();
+      } else if (e3.key === "0" || e3.key.toLowerCase() === "r") {
+        resetView();
+        e3.preventDefault();
+      } else if (e3.code === "Space") {
+        togglePanMode();
+        e3.preventDefault();
+      } else if (e3.key.startsWith("Arrow") && panMode) {
+        const step = 20;
+        if (e3.key === "ArrowLeft") applyTranslate(translateRef.current.x + step, translateRef.current.y);
+        if (e3.key === "ArrowRight") applyTranslate(translateRef.current.x - step, translateRef.current.y);
+        if (e3.key === "ArrowUp") applyTranslate(translateRef.current.x, translateRef.current.y + step);
+        if (e3.key === "ArrowDown") applyTranslate(translateRef.current.x, translateRef.current.y - step);
+        e3.preventDefault();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [zoomIn, zoomOut, resetView, togglePanMode, panMode, applyTranslate]);
+  const handlePointerDown = q2((e3) => {
+    if (panMode) {
+      panActiveRef.current = true;
+      lastPanPointRef.current = { x: e3.clientX, y: e3.clientY };
+      if (containerRef.current?.setPointerCapture) containerRef.current.setPointerCapture(e3.pointerId);
+      e3.preventDefault();
+      return;
+    }
+    if (!selectionEnabled || !drawModeRef.current) return;
+    pointerActiveRef.current = true;
+    if (containerRef.current?.setPointerCapture) containerRef.current.setPointerCapture(e3.pointerId);
+    handleMouseDown(e3);
+  }, [handleMouseDown, panMode]);
+  const handlePointerMove = q2((e3) => {
+    if (panActiveRef.current && lastPanPointRef.current) {
+      const last = lastPanPointRef.current;
+      const dx = e3.clientX - last.x;
+      const dy = e3.clientY - last.y;
+      const nextX = (translateRef.current.x || 0) + dx;
+      const nextY = (translateRef.current.y || 0) + dy;
+      applyTranslate(nextX, nextY);
+      lastPanPointRef.current = { x: e3.clientX, y: e3.clientY };
+      e3.preventDefault();
+      return;
+    }
+    handleMouseMove(e3);
+  }, [handleMouseMove, applyTranslate]);
+  const handlePointerUp = q2((e3) => {
+    if (panActiveRef.current) {
+      panActiveRef.current = false;
+      lastPanPointRef.current = null;
+      if (containerRef.current?.releasePointerCapture) containerRef.current.releasePointerCapture(e3.pointerId);
+      e3.preventDefault();
+      return;
+    }
+    handleMouseUp(e3);
+    pointerActiveRef.current = false;
+    if (containerRef.current?.releasePointerCapture) containerRef.current.releasePointerCapture(e3.pointerId);
+  }, [handleMouseUp]);
+  const handlePointerCancel = q2((e3) => {
+    pointerActiveRef.current = false;
+    panActiveRef.current = false;
+    lastPanPointRef.current = null;
+    if (containerRef.current?.releasePointerCapture) containerRef.current.releasePointerCapture(e3.pointerId);
+  }, []);
+  const handleMouseDownFallback = q2((e3) => {
+    if (!pointerActiveRef.current) handleMouseDown(e3);
+  }, [handleMouseDown]);
+  const handleMouseMoveFallback = q2((e3) => {
+    if (!pointerActiveRef.current) handleMouseMove(e3);
+  }, [handleMouseMove]);
+  const handleMouseUpFallback = q2((e3) => {
+    if (!pointerActiveRef.current) handleMouseUp(e3);
+  }, [handleMouseUp]);
+  const visibleOverlays = T2(() => {
+    if (!overlayItems || overlayItems.length === 0) return [];
+    if (!mandatoryOnly) return overlayItems;
+    return overlayItems.filter((o3) => o3.isMandatory);
+  }, [overlayItems, mandatoryOnly]);
+  y2(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "rgba(220, 20, 60, 0.9)";
+    ctx.lineWidth = 2;
+    ctx.fillStyle = "rgba(220, 20, 60, 0.1)";
+    boxes.forEach((box) => {
+      ctx.strokeRect(box.x, box.y, box.width, box.height);
+      ctx.fillRect(box.x, box.y, box.width, box.height);
+    });
+    if (currentBox && isDrawing) {
+      ctx.strokeStyle = "rgba(255, 140, 0, 0.9)";
+      ctx.fillStyle = "rgba(255, 140, 0, 0.2)";
+      ctx.strokeRect(currentBox.x, currentBox.y, currentBox.width, currentBox.height);
+      ctx.fillRect(currentBox.x, currentBox.y, currentBox.width, currentBox.height);
+    }
+  }, [boxes, currentBox, isDrawing]);
+  return /* @__PURE__ */ u3(
+    "div",
+    {
+      "data-testid": "overlay-viewer-root",
+      "data-hydrated": "true",
+      "data-has-boxes": boxes.length,
+      "data-has-warning": warning ? "true" : "false",
+      "data-original-url": originalUrl || "",
+      className: "h-full flex flex-col overflow-hidden",
+      children: [
+        /* @__PURE__ */ u3("div", { className: "flex flex-wrap items-center gap-2 p-2 border-b border-gray-200 bg-white z-10", children: [
+          selectionEnabled && /* @__PURE__ */ u3(
+            "button",
+            {
+              "data-testid": "red-pen-toggle",
+              onClick: toggleDrawMode,
+              ref: drawModeButtonRef,
+              className: `px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${isDrawMode ? "bg-red-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`,
+              children: [
+                /* @__PURE__ */ u3("i", { className: `fas fa-pen mr-1.5 ${isDrawMode ? "animate-pulse" : ""}` }),
+                isDrawMode ? "Drawing Mode" : "Draw Mode"
+              ]
+            }
+          ),
+          selectionEnabled && boxes.length > 0 && /* @__PURE__ */ u3(
+            "button",
+            {
+              "data-testid": "clear-boxes",
+              onClick: clearAllBoxes,
+              className: "px-3 py-1.5 text-sm text-gray-600 hover:text-red-600",
+              children: [
+                /* @__PURE__ */ u3("i", { className: "fas fa-trash-alt mr-1" }),
+                "Clear (",
+                boxes.length,
+                ")"
+              ]
+            }
+          ),
+          overlayMode === "document" && /* @__PURE__ */ u3("div", { className: "flex items-center gap-2 text-xs text-gray-500", children: [
+            overlayLoading && /* @__PURE__ */ u3("span", { children: "Loading overlays..." }),
+            !overlayLoading && /* @__PURE__ */ u3("span", { "data-testid": "overlay-count", children: [
+              "Overlays: ",
+              overlayItems.length
+            ] }),
+            overlayError && /* @__PURE__ */ u3("span", { className: "text-red-600", children: overlayError }),
+            overlayItems.length > 0 && /* @__PURE__ */ u3("label", { className: "flex items-center gap-1 ml-2", children: [
+              /* @__PURE__ */ u3(
+                "input",
+                {
+                  type: "checkbox",
+                  checked: mandatoryOnly,
+                  onChange: (e3) => setMandatoryOnly(e3.target.checked)
+                }
+              ),
+              "Mandatory only"
+            ] })
+          ] }),
+          showLegend && legend.length > 0 && /* @__PURE__ */ u3("div", { "data-testid": "overlay-legend", className: "flex flex-wrap items-center gap-2 text-xs text-gray-600", children: legend.map((item) => /* @__PURE__ */ u3("div", { className: "flex items-center gap-1", children: [
+            /* @__PURE__ */ u3("span", { className: `${OverlayViewerIsland_default.legendDot} [--dot-color:${item.color}]`, "aria-hidden": "true" }),
+            /* @__PURE__ */ u3("span", { children: item.label })
+          ] }, item.key)) }),
+          /* @__PURE__ */ u3("div", { className: "flex items-center gap-2 px-2", children: [
+            /* @__PURE__ */ u3("button", { "aria-label": "Zoom out", "data-testid": "overlay-zoom-out", onClick: zoomOut, className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "-" }),
+            /* @__PURE__ */ u3("span", { "data-testid": "overlay-zoom-percentage", className: "text-xs text-gray-500 w-8 text-center", children: [
+              Math.round(scale * 100),
+              "%"
+            ] }),
+            /* @__PURE__ */ u3("button", { "aria-label": "Zoom in", "data-testid": "overlay-zoom-in", onClick: zoomIn, className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "+" }),
+            /* @__PURE__ */ u3("button", { "aria-label": "Reset zoom", "data-testid": "overlay-zoom-reset", onClick: resetView, className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "Reset" }),
+            /* @__PURE__ */ u3("button", { "data-testid": "overlay-pan-toggle", onClick: togglePanMode, ref: panModeButtonRef, className: `px-2 py-1 rounded hover:bg-gray-200 ${panMode ? "bg-gray-300" : "bg-gray-100"}`, children: "Pan" })
+          ] }),
+          showResults && /* @__PURE__ */ u3("button", { onClick: () => setShowResults(false), className: "px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs ml-2 hover:bg-blue-200", children: [
+            /* @__PURE__ */ u3("i", { className: "fas fa-columns mr-1" }),
+            " Hide Results"
+          ] }),
+          !showResults && results.length > 0 && /* @__PURE__ */ u3("button", { onClick: () => setShowResults(true), className: "px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs ml-2 hover:bg-blue-200", children: [
+            /* @__PURE__ */ u3("i", { className: "fas fa-columns mr-1" }),
+            " Show Results"
+          ] }),
+          /* @__PURE__ */ u3("div", { className: "ml-auto flex items-center gap-2", children: [
+            /* @__PURE__ */ u3(
+              "button",
+              {
+                "data-testid": "overlay-prev-page",
+                onClick: () => changePage(-1),
+                "aria-label": "Previous page",
+                disabled: page <= 1,
+                className: "px-2 py-1 bg-gray-100 text-gray-700 rounded border border-gray-300 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed",
+                children: /* @__PURE__ */ u3("i", { className: "fas fa-chevron-left" })
+              }
+            ),
+            /* @__PURE__ */ u3("span", { "data-testid": "overlay-page-indicator", className: "text-xs text-gray-500", children: [
+              "Page ",
+              page,
+              pageCount ? ` of ${pageCount}` : ""
+            ] }),
+            /* @__PURE__ */ u3(
+              "button",
+              {
+                "data-testid": "overlay-next-page",
+                onClick: () => changePage(1),
+                "aria-label": "Next page",
+                disabled: pageCount ? page >= pageCount : false,
+                className: "px-2 py-1 bg-gray-100 text-gray-700 rounded border border-gray-300 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed",
+                children: /* @__PURE__ */ u3("i", { className: "fas fa-chevron-right" })
+              }
+            )
+          ] })
+        ] }),
+        warning && /* @__PURE__ */ u3(
+          "div",
+          {
+            className: "mx-2 my-1 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700",
+            "data-testid": "selection-warning",
+            children: [
+              /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-triangle mr-1" }),
+              warning
+            ]
+          }
+        ),
+        /* @__PURE__ */ u3("div", { className: "flex-1 flex overflow-hidden", children: [
+          /* @__PURE__ */ u3(
+            "div",
+            {
+              className: `${OverlayViewerIsland_default.documentPane} ${showResults ? `[--pane-width:${splitPos}%]` : `[--pane-width:100%]`}`,
+              children: /* @__PURE__ */ u3(
+                "div",
+                {
+                  ref: containerRef,
+                  "data-testid": "overlay-container",
+                  className: `relative flex-1 overflow-hidden ${panMode ? panActiveRef.current ? "cursor-grabbing" : "cursor-grab" : isDrawMode ? "cursor-crosshair" : "cursor-default"} ${isDrawMode ? "touch-none" : "touch-auto"}`,
+                  onPointerDown: handlePointerDown,
+                  onPointerMove: handlePointerMove,
+                  onPointerUp: handlePointerUp,
+                  onPointerCancel: handlePointerCancel,
+                  onPointerLeave: () => {
+                    if (isDrawingRef.current) handleMouseUp();
+                  },
+                  onMouseDown: handleMouseDownFallback,
+                  onMouseMove: handleMouseMoveFallback,
+                  onMouseUp: handleMouseUpFallback,
+                  onMouseLeave: () => {
+                    if (pointerActiveRef.current) return;
+                    if (isDrawingRef.current) handleMouseUp();
+                  },
+                  onTouchStart: handleMouseDownFallback,
+                  onTouchMove: handleMouseMoveFallback,
+                  onTouchEnd: handleMouseUpFallback,
+                  children: [
+                    /* @__PURE__ */ u3(
+                      "div",
+                      {
+                        ref: viewportRef,
+                        "data-testid": "overlay-viewport",
+                        className: `${OverlayViewerIsland_default.viewport} [--viewport-transform:translate(${translateX}px, ${translateY}px) scale(${scale})]`,
+                        children: [
+                          imageUrl && !imageError ? /* @__PURE__ */ u3(
+                            "img",
+                            {
+                              ref: imageRef,
+                              alt: `Document ${docId} page ${page}`,
+                              className: `w-full h-full object-contain pointer-events-none select-none ${imageLoaded ? "block" : "hidden"}`,
+                              "data-testid": "document-image",
+                              draggable: false,
+                              crossOrigin: "anonymous",
+                              onDragStart: (e3) => e3.preventDefault()
+                            }
+                          ) : null,
+                          imageUrl && !imageLoaded && !imageError && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center", "data-testid": "overlay-loading", children: /* @__PURE__ */ u3("div", { className: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" }) }),
+                          imageError && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center", "data-testid": "image-error", children: /* @__PURE__ */ u3("div", { className: "text-center text-gray-500", children: [
+                            /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-circle text-3xl mb-2" }),
+                            /* @__PURE__ */ u3("p", { className: "text-sm", children: imageError })
+                          ] }) }),
+                          !imageUrl && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center", children: /* @__PURE__ */ u3("p", { className: "text-sm text-gray-500", children: "No document selected" }) }),
+                          suggestions.map((item, idx) => {
+                            const box = normalizeOverlayBox(item.boundingBox);
+                            if (!box) return null;
+                            return /* @__PURE__ */ u3(
+                              "div",
+                              {
+                                "data-testid": "overlay-ghost-box",
+                                "data-label": item.label,
+                                className: `${OverlayViewerIsland_default.overlayBox} [--box-left:${box.left}%] [--box-top:${box.top}%] [--box-width:${box.width}%] [--box-height:${box.height}%] border-dashed border-2 border-gray-400 bg-gray-100/20`,
+                                title: item.label || "Suggestion",
+                                children: item.label && /* @__PURE__ */ u3("span", { className: "absolute -top-5 left-0 text-xs bg-gray-200 text-gray-700 px-1 rounded", children: item.label })
+                              },
+                              `ghost-${idx}`
+                            );
+                          }),
+                          overlayMode === "document" && visibleOverlays.map((overlay, idx) => {
+                            const box = normalizeOverlayBox(overlay.boundingBox);
+                            if (!box) return null;
+                            const color = overlay.color || "#2563eb";
+                            return /* @__PURE__ */ u3(
+                              "div",
+                              {
+                                "data-testid": "overlay-box",
+                                className: `${OverlayViewerIsland_default.overlayBox} [--box-left:${box.left}%] [--box-top:${box.top}%] [--box-width:${box.width}%] [--box-height:${box.height}%] [--box-color:${color}] [--box-bg:${color}22]`,
+                                children: /* @__PURE__ */ u3("span", { className: `${OverlayViewerIsland_default.overlayLabel} [--box-color:${color}]`, children: overlay.label || "Overlay" })
+                              },
+                              overlay.id || `${overlay.label}-${idx}`
+                            );
+                          }),
+                          /* @__PURE__ */ u3("canvas", { ref: canvasRef, className: "absolute inset-0 pointer-events-none", "data-testid": "annotation-canvas" }),
+                          highlightedRegion && /* @__PURE__ */ u3(
+                            "div",
+                            {
+                              "data-testid": "overlay-highlight-region",
+                              className: `${OverlayViewerIsland_default.highlightRegion} animate-pulse [--region-left:${highlightedRegion.x * 100}%] [--region-top:${highlightedRegion.y * 100}%] [--region-width:${highlightedRegion.width * 100}%] [--region-height:${highlightedRegion.height * 100}%]`
+                            }
+                          )
+                        ]
+                      }
+                    ),
+                    boxes.map((box, idx) => /* @__PURE__ */ u3("div", { className: `${OverlayViewerIsland_default.selectionBoxContainer} [--sel-left:${box.x}px] [--sel-top:${box.y - 24}px]`, children: [
+                      /* @__PURE__ */ u3("span", { className: "px-1.5 py-0.5 bg-red-600 text-white text-xs rounded", children: [
+                        "Region ",
+                        idx + 1
+                      ] }),
+                      /* @__PURE__ */ u3(
+                        "button",
+                        {
+                          onClick: () => removeBox(box.id),
+                          className: "w-5 h-5 bg-white border border-gray-300 rounded-l-none border-l-0 text-xs text-gray-600 hover:text-red-600 hover:border-red-300",
+                          title: "Remove this selection",
+                          children: /* @__PURE__ */ u3("i", { className: "fas fa-times" })
+                        }
+                      ),
+                      /* @__PURE__ */ u3(
+                        "button",
+                        {
+                          onClick: () => captureRegion(box, "export:region-requested"),
+                          className: "w-5 h-5 bg-white border border-gray-300 rounded text-xs text-gray-600 hover:text-blue-600 hover:border-blue-300 ml-1",
+                          title: "Export this region",
+                          children: /* @__PURE__ */ u3("i", { className: "fas fa-download" })
+                        }
+                      ),
+                      /* @__PURE__ */ u3(
+                        "button",
+                        {
+                          onClick: () => {
+                            captureRegion(box, "manual:send-to-chat");
+                            const onSend = (e3) => {
+                              const { imageBase64, bbox, page: page2, documentId } = e3.detail || {};
+                              const context = { type: "visual", data: { imageBase64, bbox, page: page2 }, documentId };
+                              window.location.href = `/chat?context=${encodeURIComponent(JSON.stringify(context))}`;
+                            };
+                            window.addEventListener("manual:send-to-chat", onSend, { once: true });
+                          },
+                          className: "w-5 h-5 bg-white border border-gray-300 rounded-r border-l-0 text-xs text-gray-600 hover:text-green-600 hover:border-green-300",
+                          title: "Send to Chat",
+                          children: /* @__PURE__ */ u3("i", { className: "fas fa-comment-dots" })
+                        }
+                      )
+                    ] }, box.id)),
+                    isDrawMode && boxes.length === 0 && /* @__PURE__ */ u3(
+                      "div",
+                      {
+                        className: "absolute bottom-2 left-2 right-2 p-2 text-center text-xs text-gray-500 bg-blue-50 rounded pointer-events-none",
+                        "data-testid": "selection-instructions",
+                        children: [
+                          /* @__PURE__ */ u3("i", { className: "fas fa-info-circle mr-1" }),
+                          "Click and drag to select a region for visual search"
+                        ]
+                      }
+                    )
+                  ]
+                }
+              )
+            }
+          ),
+          showResults && /* @__PURE__ */ u3(
+            "div",
+            {
+              className: "w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize flex items-center justify-center z-20",
+              onMouseDown: () => setIsResizing(true),
+              children: /* @__PURE__ */ u3("div", { className: "h-8 w-1 bg-gray-400 rounded-full" })
+            }
+          ),
+          showResults && /* @__PURE__ */ u3(
+            "div",
+            {
+              className: `${OverlayViewerIsland_default.resultsPanel} [--panel-width:${100 - splitPos}%]`,
+              "data-testid": "visual-search-results-panel",
+              children: [
+                /* @__PURE__ */ u3("div", { className: "p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50", children: [
+                  /* @__PURE__ */ u3("h3", { className: "text-sm font-semibold text-gray-700", children: "Visual Search Results" }),
+                  /* @__PURE__ */ u3("button", { onClick: () => setShowResults(false), className: "text-gray-400 hover:text-gray-600", "aria-label": "Close results", children: /* @__PURE__ */ u3("i", { className: "fas fa-times" }) })
+                ] }),
+                /* @__PURE__ */ u3("div", { className: "flex-1 overflow-y-auto p-3 space-y-3", children: [
+                  resultsLoading && /* @__PURE__ */ u3("div", { className: "flex flex-col items-center justify-center py-8 text-gray-500", children: [
+                    /* @__PURE__ */ u3("div", { className: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2" }),
+                    /* @__PURE__ */ u3("p", { className: "text-xs", children: "Searching visual index..." })
+                  ] }),
+                  resultsError && /* @__PURE__ */ u3("div", { className: "p-3 bg-red-50 text-red-700 rounded text-sm border border-red-100", children: [
+                    /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-circle mr-2" }),
+                    resultsError
+                  ] }),
+                  !resultsLoading && !resultsError && results.length === 0 && /* @__PURE__ */ u3("div", { className: "text-center py-8 text-gray-400 text-sm", children: [
+                    /* @__PURE__ */ u3("i", { className: "fas fa-search mb-2 text-2xl opacity-20" }),
+                    /* @__PURE__ */ u3("p", { children: "No visually similar pages found." }),
+                    /* @__PURE__ */ u3("p", { className: "text-xs mt-1", children: "Try selecting a distinct region." })
+                  ] }),
+                  results.map((result, idx) => /* @__PURE__ */ u3(
+                    "div",
+                    {
+                      className: "group border border-gray-200 rounded-lg overflow-hidden hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer bg-white",
+                      onClick: () => {
+                        if (String(result.document_id) === String(docId)) {
+                          setPage(Number(result.page));
+                          const ev = new CustomEvent("overlay:document-changed", {
+                            detail: { documentId: docId, page: Number(result.page), originalUrl, pageCount }
+                          });
+                          window.dispatchEvent(ev);
+                        } else {
+                          window.open(`/manual?open=${result.document_id}&page=${result.page}`, "_blank");
+                        }
+                      },
+                      children: [
+                        /* @__PURE__ */ u3("div", { className: "relative aspect-[3/4] bg-gray-100 overflow-hidden border-b border-gray-100", children: [
+                          result.thumbnail ? /* @__PURE__ */ u3("img", { src: `data:image/jpeg;base64,${result.thumbnail}`, alt: "Result", className: "w-full h-full object-cover" }) : /* @__PURE__ */ u3("div", { className: "w-full h-full flex items-center justify-center text-gray-300", children: /* @__PURE__ */ u3("i", { className: "fas fa-file-image text-3xl" }) }),
+                          /* @__PURE__ */ u3("div", { className: "absolute top-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm", children: [
+                            "Score: ",
+                            (result.score * 100).toFixed(1),
+                            "%"
+                          ] })
+                        ] }),
+                        /* @__PURE__ */ u3("div", { className: "p-2", children: [
+                          /* @__PURE__ */ u3("div", { className: "font-medium text-xs text-gray-800 truncate", title: result.title || `Document ${result.document_id}`, children: result.title || `Document ${result.document_id}` }),
+                          /* @__PURE__ */ u3("div", { className: "flex justify-between items-center mt-1", children: [
+                            /* @__PURE__ */ u3("span", { className: "text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded", children: [
+                              "Page ",
+                              result.page
+                            ] }),
+                            String(result.document_id) !== String(docId) && /* @__PURE__ */ u3("i", { className: "fas fa-external-link-alt text-[10px] text-gray-400" })
+                          ] })
+                        ] })
+                      ]
+                    },
+                    idx
+                  ))
+                ] })
+              ]
+            }
+          )
+        ] })
+      ]
+    }
+  );
+}
+
+// src/islands/VisualOverlaysIsland.tsx
+var overlayCache = /* @__PURE__ */ new Map();
+var CACHE_TTL = 1e3 * 60 * 5;
+function debounce(fn2, wait = 200) {
+  let t3 = null;
+  return (...args) => {
+    if (t3) clearTimeout(t3);
+    t3 = setTimeout(() => fn2(...args), wait);
+  };
+}
+function getVisibleImageIds(entries) {
+  const ids = [];
+  entries.forEach((e3) => {
+    const target = e3.target;
+    const id = target?.dataset?.imageId || target?.getAttribute?.("data-image-id") || null;
+    if (!id) return;
+    if (e3.isIntersecting || e3.intersectionRatio > 0) ids.push(id);
+  });
+  return ids;
+}
+async function fetchOverlaysForImage(image, fetchImpl = globalThis.fetch, options = {}) {
+  if (!image) return [];
+  const cacheKey = image.id || image.originalSrc || image.thumbnailSrc || JSON.stringify(image);
+  const now = Date.now();
+  const cached = overlayCache.get(cacheKey);
+  if (cached && now - cached.ts < CACHE_TTL) return cached.data;
+  let url = "";
+  let opts = { method: "GET" };
+  if (image.id) {
+    url = `/api/visual-rag/overlays?imageId=${encodeURIComponent(image.id)}`;
+  } else if (image.originalSrc) {
+    url = `/api/visual-rag/overlays/search`;
+    opts = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageUrl: image.originalSrc }) };
+  } else {
+    return [];
+  }
+  if (typeof fetchImpl !== "function") throw Object.assign(new Error("fetch not available"), { code: "no_fetch" });
+  const controller = new AbortController();
+  opts.signal = controller.signal;
+  let timeoutHandle = null;
+  const timeoutMs = options.timeoutMs || 1e4;
+  const timeoutPromise = new Promise((_3, reject) => {
+    timeoutHandle = setTimeout(() => {
+      controller.abort();
+      reject(Object.assign(new Error("Fetch timeout"), { code: "timeout" }));
+    }, timeoutMs);
+  });
+  try {
+    const res = await Promise.race([fetchImpl(url, opts), timeoutPromise]);
+    if (!res || !res.ok) {
+      const err = new Error("Overlay service error");
+      err.code = res && res.status === 503 ? "service_unavailable" : "fetch_error";
+      throw err;
+    }
+    const json = await res.json();
+    const overlays = Array.isArray(json) ? json : Array.isArray(json.overlays) ? json.overlays : [];
+    overlayCache.set(cacheKey, { ts: now, data: overlays });
+    return overlays;
+  } catch (err) {
+    const fetchErr = err;
+    if (!fetchErr.code) fetchErr.code = fetchErr.name === "AbortError" ? "timeout" : "fetch_error";
+    throw fetchErr;
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
+}
+function VisualOverlaysIsland(props) {
+  const { images = [], overlaysByImage = {} } = props;
+  const [mounted, setMounted] = d2(false);
+  const [localOverlays, setLocalOverlays] = d2(overlaysByImage || {});
+  const [loadingMap, setLoadingMap] = d2({});
+  const [errorMap2, setErrorMap2] = d2({});
+  const controllersRef = A2(/* @__PURE__ */ new Map());
+  const imageRefs = A2(/* @__PURE__ */ new Map());
+  const observerRef = A2(null);
+  y2(() => {
+    setMounted(true);
+  }, []);
+  y2(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const intersectCb = debounce((entries) => {
+      const visibleIds = getVisibleImageIds(entries);
+      visibleIds.forEach((id) => {
+        const img = images.find((i4) => i4.id === id || i4.originalSrc === id || i4.thumbnailSrc === id);
+        if (!img) return;
+        const key = img.id || img.originalSrc || "";
+        if (overlaysByImage && Array.isArray(overlaysByImage[img.id])) {
+          setLocalOverlays((s3) => ({ ...s3, [img.id]: overlaysByImage[img.id] }));
+          return;
+        }
+        const cached = overlayCache.get(key);
+        if (cached && Date.now() - cached.ts < CACHE_TTL) {
+          setLocalOverlays((s3) => ({ ...s3, [img.id]: cached.data }));
+          return;
+        }
+        (async () => {
+          setLoadingMap((m3) => ({ ...m3, [key]: true }));
+          setErrorMap2((m3) => ({ ...m3, [key]: null }));
+          const controller = new AbortController();
+          controllersRef.current.set(key, controller);
+          try {
+            const overlays = await fetchOverlaysForImage(img, globalThis.fetch, { timeoutMs: 8e3 });
+            setLocalOverlays((s3) => ({ ...s3, [img.id]: overlays }));
+          } catch (err) {
+            const e3 = err;
+            const code = e3?.code || "fetch_error";
+            const msg = e3?.message || "Failed to fetch overlays";
+            setErrorMap2((m3) => ({ ...m3, [key]: `${code}: ${msg}` }));
+          } finally {
+            setLoadingMap((m3) => ({ ...m3, [key]: false }));
+            controllersRef.current.delete(key);
+          }
+        })();
+      });
+    }, 150);
+    observerRef.current = new IntersectionObserver((entries) => {
+      intersectCb(entries);
+    }, { root: null, threshold: 0.05 });
+    imageRefs.current.forEach((el) => {
+      if (el && observerRef.current) observerRef.current.observe(el);
+    });
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+        observerRef.current = null;
+      }
+      controllersRef.current.forEach((c3) => c3.abort());
+      controllersRef.current.clear();
+    };
+  }, [images, overlaysByImage]);
+  const attachImageRef = (id) => (el) => {
+    if (!el) {
+      imageRefs.current.delete(id);
+      return;
+    }
+    el.dataset.imageId = id;
+    imageRefs.current.set(id, el);
+    if (observerRef.current) observerRef.current.observe(el);
+  };
+  y2(() => {
+    images.forEach((img) => {
+      if (overlaysByImage && Array.isArray(overlaysByImage[img.id])) {
+        setLocalOverlays((s3) => ({ ...s3, [img.id]: overlaysByImage[img.id] }));
+      }
+    });
+  }, [images, overlaysByImage]);
+  return /* @__PURE__ */ u3("div", { "data-testid": "visual-overlays-island-root", "data-hydrated": mounted ? "true" : "false", children: /* @__PURE__ */ u3("div", { className: "visual-overlays-list space-y-6", children: images.map((img) => /* @__PURE__ */ u3("div", { className: "visual-image-item relative", "data-testid": `visual-image-${img.id}`, children: [
+    /* @__PURE__ */ u3(
+      "img",
+      {
+        ref: attachImageRef(img.id),
+        src: img.originalSrc || img.thumbnailSrc || "",
+        alt: `Document ${props.documentId || ""} image ${img.id}`,
+        "data-testid": "document-image",
+        "data-image-id": img.id,
+        className: "w-full h-auto block",
+        crossOrigin: "anonymous"
+      }
+    ),
+    /* @__PURE__ */ u3("div", { "data-testid": `overlay-container-${img.id}`, className: "absolute inset-0 pointer-events-none", children: [
+      /* @__PURE__ */ u3("svg", { "data-testid": `overlay-svg-${img.id}`, width: "100%", height: "100%", preserveAspectRatio: "none", className: "block", children: (localOverlays[img.id] || []).map((ov, index) => {
+        const x4 = (ov.bbox?.x || 0) * 100;
+        const y3 = (ov.bbox?.y || 0) * 100;
+        const w4 = (ov.bbox?.width || 0) * 100;
+        const h3 = (ov.bbox?.height || 0) * 100;
+        return /* @__PURE__ */ u3("rect", { "data-testid": `overlay-marker-${ov.id || index}`, x: `${x4}%`, y: `${y3}%`, width: `${w4}%`, height: `${h3}%`, fill: "none", stroke: "rgba(34,197,94,0.9)", "stroke-width": "2" }, ov.id || index);
+      }) }),
+      loadingMap[img.id] ? /* @__PURE__ */ u3("div", { "data-testid": `overlay-loading-${img.id}`, "aria-hidden": "true", children: "Loading overlays..." }) : null,
+      errorMap2[img.id] ? /* @__PURE__ */ u3("div", { "data-testid": `overlay-error-${img.id}`, "aria-hidden": "true", children: errorMap2[img.id] }) : null
+    ] })
+  ] }, img.id)) }) });
+}
+
+// src/ui/contracts/Playground.contract.ts
+var CollectionEnum = external_exports.enum(["visual_pages", "visual_overlays"]);
+var BoundingBoxSchema = external_exports.object({
+  x: external_exports.number().min(0).max(1),
+  y: external_exports.number().min(0).max(1),
+  width: external_exports.number().min(0).max(1),
+  height: external_exports.number().min(0).max(1)
+});
+var SidecarStateEnum = external_exports.enum([
+  "unknown",
+  "initializing",
+  "ready",
+  "error"
+]);
+var VramInfoSchema = external_exports.object({
+  used_mb: external_exports.number().nonnegative().optional(),
+  total_mb: external_exports.number().nonnegative().optional(),
+  percent: external_exports.number().min(0).max(100).optional()
+});
+var SidecarStatusSchema = external_exports.object({
+  state: SidecarStateEnum,
+  model: external_exports.string().optional(),
+  vram: VramInfoSchema.optional(),
+  lastCheck: external_exports.number().optional(),
+  error: external_exports.string().optional()
+});
+var SearchResultSchema = external_exports.object({
+  docId: external_exports.number().int(),
+  score: external_exports.number(),
+  pageNum: external_exports.number().int().optional(),
+  thumbnailUrl: external_exports.string().optional(),
+  metadata: external_exports.record(external_exports.any()).optional()
+});
+var QdrantPayloadSchema = external_exports.object({
+  doc_id: external_exports.number().int(),
+  correspondent_id: external_exports.number().int().nullable().optional(),
+  tag_ids: external_exports.array(external_exports.number().int()).optional(),
+  created_date: external_exports.string().optional(),
+  modified_date: external_exports.string().optional(),
+  page_num: external_exports.number().int().optional(),
+  custom_fields: external_exports.record(external_exports.any()).optional()
+});
+var FilterOptionsSchema = external_exports.object({
+  doc_id: external_exports.number().int().optional(),
+  tag_ids: external_exports.array(external_exports.number().int()).optional(),
+  correspondent_id: external_exports.number().int().optional()
+});
+var PlaygroundSchema = external_exports.object({
+  // Mode: visual-debug (default) or text-debug
+  mode: external_exports.enum(["visual-debug", "text-debug"]).default("visual-debug"),
+  // Collection selection
+  collection: CollectionEnum.default("visual_pages"),
+  // Initial sidecar status
+  sidecarStatus: SidecarStatusSchema.optional(),
+  // GPU state for 503 handling
+  gpuState: external_exports.enum([
+    "idle",
+    "checking",
+    "preparing",
+    "ready",
+    "error"
+  ]).default("idle"),
+  // Filter options
+  filters: FilterOptionsSchema.optional(),
+  // Document ID for filtering
+  documentId: external_exports.number().int().nullable().optional(),
+  // Visual overlays payloads (optional)
+  images: ImagesSchema.optional(),
+  overlaysByImage: OverlaysByImageSchema.optional()
+});
+var SearchRequestSchema = external_exports.object({
+  image: external_exports.string().min(1),
+  // Base64 encoded image
+  collection: CollectionEnum,
+  filters: FilterOptionsSchema.optional(),
+  limit: external_exports.number().int().min(1).max(50).default(5)
+});
+var SearchResponseSchema2 = external_exports.object({
+  results: external_exports.array(SearchResultSchema),
+  scoreType: external_exports.string().default("maxsim"),
+  collectionUsed: external_exports.string(),
+  executionTimeMs: external_exports.number(),
+  queryType: external_exports.string().default("image")
+});
+var PlaygroundSearchTriggerEventSchema = external_exports.object({
+  type: external_exports.literal("playground:search-trigger"),
+  image: external_exports.string().min(1),
+  collection: CollectionEnum,
+  filters: FilterOptionsSchema.optional(),
+  timestamp: external_exports.number().optional()
+});
+var PlaygroundResultsReceivedEventSchema = external_exports.object({
+  type: external_exports.literal("playground:results-received"),
+  results: external_exports.array(SearchResultSchema),
+  executionTimeMs: external_exports.number(),
+  timestamp: external_exports.number().optional()
+});
+var PlaygroundSidecarStateChangeEventSchema = external_exports.object({
+  type: external_exports.literal("playground:sidecar-state-change"),
+  state: SidecarStateEnum,
+  error: external_exports.string().optional(),
+  timestamp: external_exports.number().optional()
+});
+
+// src/islands/PlaygroundIsland.tsx
+var API_HEALTH = "/api/visual-rag/health";
+var API_SEARCH = "/api/visual-rag/search/visual";
+var COLLECTIONS = [
+  { value: "visual_pages", label: "visual_pages (320D, Dot)" },
+  { value: "visual_overlays", label: "visual_overlays (320D, Cosine)" }
+];
+var MIN_BOX_SIZE = 20;
+function PlaygroundIsland(props) {
+  const validated = PlaygroundSchema.parse(props);
+  const {
+    mode,
+    collection: initialCollection,
+    gpuState: initialGpuState,
+    documentId,
+    filters: initialFilters
+  } = validated;
+  const { onSearch } = props;
+  const [collection, setCollection] = d2(initialCollection);
+  const [gpuState, setGpuState] = d2(initialGpuState);
+  const [sidecarStatus, setSidecarStatus] = d2(validated.sidecarStatus ?? { state: "unknown", model: "ColQwen3-4B-AWQ" });
+  const [isDrawMode, setIsDrawMode] = d2(false);
+  const [isDrawing, setIsDrawing] = d2(false);
+  const [currentBox, setCurrentBox] = d2(null);
+  const [boxes, setBoxes] = d2([]);
+  const [imageData, setImageData] = d2(null);
+  const [imageLoaded, setImageLoaded] = d2(false);
+  const [searchResults, setSearchResults] = d2([]);
+  const [payloads, setPayloads] = d2([]);
+  const [isSearching, setIsSearching] = d2(false);
+  const [error, setError] = d2(null);
+  const [latency, setLatency] = d2(null);
+  const [docIdFilter, setDocIdFilter] = d2("");
+  const [showRawJson, setShowRawJson] = d2(false);
+  const containerRef = A2(null);
+  const canvasRef = A2(null);
+  const imageRef = A2(null);
+  const fileInputRef = A2(null);
+  const drawToggleRef = A2(null);
+  y2(() => {
+    if (drawToggleRef.current) drawToggleRef.current.setAttribute("aria-pressed", String(isDrawMode));
+  }, [isDrawMode]);
+  y2(() => {
+    const pollHealth = async () => {
+      try {
+        const res = await fetch(API_HEALTH);
+        if (res.status === 503) {
+          setSidecarStatus({
+            state: "initializing",
+            model: "ColQwen3-4B-AWQ",
+            error: "GPU Preparing..."
+          });
+          setGpuState("preparing");
+        } else if (res.ok) {
+          const data = await res.json();
+          setSidecarStatus({
+            state: "ready",
+            model: data.model || "ColQwen3-4B-AWQ",
+            vram: data.vram,
+            lastCheck: Date.now()
+          });
+          setGpuState("ready");
+        } else {
+          setSidecarStatus({
+            state: "error",
+            error: `HTTP ${res.status}`
+          });
+          setGpuState("error");
+        }
+      } catch {
+        setSidecarStatus({
+          state: "error",
+          error: "Connection failed"
+        });
+        setGpuState("error");
+      }
+    };
+    pollHealth();
+    const interval = setInterval(pollHealth, 5e3);
+    return () => clearInterval(interval);
+  }, []);
+  const getRelativePosition = q2(
+    (e3) => {
+      const container = containerRef.current;
+      if (!container) return { x: 0, y: 0 };
+      const rect = container.getBoundingClientRect();
+      let clientX, clientY;
+      if ("touches" in e3) {
+        const touch = e3.touches[0] || e3.changedTouches[0];
+        clientX = touch.clientX;
+        clientY = touch.clientY;
+      } else {
+        clientX = e3.clientX;
+        clientY = e3.clientY;
+      }
+      return {
+        x: clientX - rect.left,
+        y: clientY - rect.top
+      };
+    },
+    []
+  );
+  const handleMouseDown = q2(
+    (e3) => {
+      if (!isDrawMode || !imageLoaded) return;
+      e3.preventDefault();
+      const pos = getRelativePosition(e3);
+      setIsDrawing(true);
+      setCurrentBox({ x: pos.x, y: pos.y, width: 0, height: 0 });
+      setError(null);
+    },
+    [isDrawMode, imageLoaded, getRelativePosition]
+  );
+  const handleMouseMove = q2(
+    (e3) => {
+      if (!isDrawing || !currentBox) return;
+      e3.preventDefault();
+      const pos = getRelativePosition(e3);
+      setCurrentBox((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          width: pos.x - prev.x,
+          height: pos.y - prev.y
+        };
+      });
+    },
+    [isDrawing, currentBox, getRelativePosition]
+  );
+  const handleMouseUp = q2(() => {
+    if (!isDrawing || !currentBox) return;
+    setIsDrawing(false);
+    const container = containerRef.current;
+    if (!container) return;
+    const normalizedBox = {
+      x: currentBox.width < 0 ? currentBox.x + currentBox.width : currentBox.x,
+      y: currentBox.height < 0 ? currentBox.y + currentBox.height : currentBox.y,
+      width: Math.abs(currentBox.width),
+      height: Math.abs(currentBox.height)
+    };
+    if (normalizedBox.width < MIN_BOX_SIZE || normalizedBox.height < MIN_BOX_SIZE) {
+      setError("Selection too small. Draw a larger box.");
+      setCurrentBox(null);
+      return;
+    }
+    setBoxes((prev) => [...prev, normalizedBox]);
+    setCurrentBox(null);
+  }, [isDrawing, currentBox]);
+  const handleFileUpload = q2(
+    (e3) => {
+      const target = e3.target;
+      const file = target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const result = ev.target?.result;
+        setImageData(result);
+        setImageLoaded(false);
+        setBoxes([]);
+        setSearchResults([]);
+        setPayloads([]);
+        setLatency(null);
+      };
+      reader.readAsDataURL(file);
+    },
+    []
+  );
+  const handleImageLoad = q2(() => {
+    setImageLoaded(true);
+  }, []);
+  y2(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "rgba(220, 20, 60, 0.9)";
+    ctx.lineWidth = 2;
+    ctx.fillStyle = "rgba(220, 20, 60, 0.1)";
+    boxes.forEach((box) => {
+      ctx.strokeRect(box.x, box.y, box.width, box.height);
+      ctx.fillRect(box.x, box.y, box.width, box.height);
+    });
+    if (currentBox && isDrawing) {
+      ctx.strokeStyle = "rgba(255, 140, 0, 0.9)";
+      ctx.fillStyle = "rgba(255, 140, 0, 0.2)";
+      ctx.strokeRect(
+        currentBox.x,
+        currentBox.y,
+        currentBox.width,
+        currentBox.height
+      );
+      ctx.fillRect(
+        currentBox.x,
+        currentBox.y,
+        currentBox.width,
+        currentBox.height
+      );
+    }
+  }, [boxes, currentBox, isDrawing]);
+  const triggerSearch = q2(async () => {
+    if (!imageData || boxes.length === 0) {
+      setError("Upload an image and draw a region first");
+      return;
+    }
+    if (sidecarStatus.state !== "ready") {
+      setError("Sidecar not ready. Wait for GPU.");
+      return;
+    }
+    setIsSearching(true);
+    setError(null);
+    const startTime = Date.now();
+    try {
+      const box = boxes[boxes.length - 1];
+      const container = containerRef.current;
+      const img = imageRef.current;
+      if (!container || !img) throw new Error("No container/image");
+      const captureCanvas = document.createElement("canvas");
+      const ctx = captureCanvas.getContext("2d");
+      if (!ctx) throw new Error("No canvas context");
+      const scaleX = img.naturalWidth / container.clientWidth;
+      const scaleY = img.naturalHeight / container.clientHeight;
+      const srcX = box.x * scaleX;
+      const srcY = box.y * scaleY;
+      const srcW = box.width * scaleX;
+      const srcH = box.height * scaleY;
+      captureCanvas.width = srcW;
+      captureCanvas.height = srcH;
+      ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH);
+      const dataUrl = captureCanvas.toDataURL("image/png");
+      const base64 = dataUrl.split(",")[1];
+      const filters = {};
+      if (docIdFilter && !isNaN(parseInt(docIdFilter))) {
+        filters.doc_id = parseInt(docIdFilter);
+      }
+      const res = await fetch(API_SEARCH, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image: base64,
+          collection,
+          filters: Object.keys(filters).length > 0 ? filters : void 0,
+          limit: 10
+        })
+      });
+      if (res.status === 503) {
+        setGpuState("preparing");
+        throw new Error("GPU still preparing. Try again.");
+      }
+      if (!res.ok) {
+        throw new Error(`Search failed: HTTP ${res.status}`);
+      }
+      const raw = await res.json();
+      const parsed = SearchResponseSchema2.safeParse(raw);
+      if (!parsed.success) throw new Error("Invalid search response");
+      const data = parsed.data;
+      const elapsed = Date.now() - startTime;
+      setSearchResults(data.results || []);
+      setLatency(elapsed);
+      const extractedPayloads = (data.results || []).map((r3) => ({
+        doc_id: r3.docId,
+        correspondent_id: r3.metadata?.correspondent_id,
+        tag_ids: r3.metadata?.tag_ids,
+        created_date: r3.metadata?.created_date,
+        page_num: r3.pageNum
+      }));
+      setPayloads(extractedPayloads);
+      window.dispatchEvent(new CustomEvent("playground:results-received", {
+        detail: { results: data.results, executionTimeMs: elapsed }
+      }));
+      if (onSearch) {
+        onSearch(base64, collection, filters);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message || "Search failed");
+    } finally {
+      setIsSearching(false);
+    }
+  }, [imageData, boxes, collection, docIdFilter, sidecarStatus.state, onSearch]);
+  const clearAll = q2(() => {
+    setBoxes([]);
+    setSearchResults([]);
+    setPayloads([]);
+    setLatency(null);
+    setError(null);
+  }, []);
+  const copyPayloads = q2(() => {
+    const json = JSON.stringify(payloads, null, 2);
+    navigator.clipboard.writeText(json);
+  }, [payloads]);
+  const renderStatusBadge = () => {
+    const stateColors = {
+      ready: "bg-green-500",
+      initializing: "bg-yellow-500",
+      error: "bg-red-500",
+      unknown: "bg-gray-500"
+    };
+    const stateLabels = {
+      ready: "200 OK",
+      initializing: "503 Initializing",
+      error: "Error",
+      unknown: "Unknown"
+    };
+    return /* @__PURE__ */ u3(
+      "div",
+      {
+        "data-testid": "sidecar-status",
+        className: `flex items-center gap-2 p-2 rounded border-l-4 ${sidecarStatus.state === "ready" ? "bg-green-50 border-green-500" : sidecarStatus.state === "initializing" ? "bg-yellow-50 border-yellow-500" : "bg-red-50 border-red-500"}`,
+        children: [
+          /* @__PURE__ */ u3(
+            "span",
+            {
+              className: `px-2 py-1 text-xs font-bold text-white rounded ${stateColors[sidecarStatus.state]}`,
+              children: stateLabels[sidecarStatus.state]
+            }
+          ),
+          sidecarStatus.vram && /* @__PURE__ */ u3("span", { className: "text-sm text-gray-600", children: [
+            "VRAM: ",
+            sidecarStatus.vram.used_mb,
+            "MB / ",
+            sidecarStatus.vram.total_mb,
+            "MB"
+          ] }),
+          /* @__PURE__ */ u3("span", { className: "text-sm text-gray-500", children: [
+            "Model: ",
+            sidecarStatus.model
+          ] })
+        ]
+      }
+    );
+  };
+  return /* @__PURE__ */ u3(
+    "div",
+    {
+      "data-testid": "playground-island-root",
+      className: "h-full flex flex-col bg-white rounded-lg shadow",
+      children: [
+        /* @__PURE__ */ u3("div", { className: "p-4 border-b", children: [
+          /* @__PURE__ */ u3("h1", { className: "text-xl font-bold", children: "Visual RAG Playground" }),
+          /* @__PURE__ */ u3("p", { className: "text-sm text-gray-500", children: "Debug and test Qdrant payloads, sidecar state, and visual search" })
+        ] }),
+        /* @__PURE__ */ u3("div", { className: "p-4 border-b", children: renderStatusBadge() }),
+        gpuState === "preparing" && /* @__PURE__ */ u3(
+          "div",
+          {
+            "data-testid": "gpu-preparing-modal",
+            className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
+            children: /* @__PURE__ */ u3("div", { className: "bg-white p-6 rounded-lg shadow-lg text-center", children: [
+              /* @__PURE__ */ u3("div", { className: "animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" }),
+              /* @__PURE__ */ u3("h2", { className: "text-lg font-bold", children: "GPU Preparing" }),
+              /* @__PURE__ */ u3("p", { className: "text-gray-600", children: "ColQwen3-4B-AWQ model is loading on RTX 3090 Ti..." }),
+              /* @__PURE__ */ u3("p", { className: "text-sm text-gray-400 mt-2", children: "Expected VRAM: ~3.5GB" })
+            ] })
+          }
+        ),
+        /* @__PURE__ */ u3("div", { className: "p-4 bg-gray-50 border-b flex flex-wrap gap-4 items-end", children: [
+          /* @__PURE__ */ u3("div", { className: "flex-1 min-w-[200px]", children: [
+            /* @__PURE__ */ u3("label", { htmlFor: "collection-select", className: "block text-sm font-medium mb-1", children: "Collection" }),
+            /* @__PURE__ */ u3(
+              "select",
+              {
+                id: "collection-select",
+                "data-testid": "collection-select",
+                value: collection,
+                onChange: (e3) => setCollection(e3.target.value),
+                className: "w-full p-2 border rounded",
+                children: COLLECTIONS.map((c3) => /* @__PURE__ */ u3("option", { value: c3.value, children: c3.label }, c3.value))
+              }
+            )
+          ] }),
+          /* @__PURE__ */ u3("div", { className: "flex-1 min-w-[150px]", children: [
+            /* @__PURE__ */ u3("label", { htmlFor: "doc-id-filter", className: "block text-sm font-medium mb-1", children: "Filter by Doc ID (optional)" }),
+            /* @__PURE__ */ u3(
+              "input",
+              {
+                id: "doc-id-filter",
+                title: "Filter by document ID",
+                "data-testid": "doc-id-filter",
+                type: "text",
+                value: docIdFilter,
+                onChange: (e3) => setDocIdFilter(e3.target.value),
+                placeholder: "e.g., 12345",
+                className: "w-full p-2 border rounded"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ u3("div", { children: /* @__PURE__ */ u3(
+            "button",
+            {
+              "data-testid": "search-button",
+              onClick: triggerSearch,
+              disabled: isSearching || !imageLoaded || boxes.length === 0,
+              className: `px-4 py-2 font-medium rounded ${isSearching || !imageLoaded || boxes.length === 0 ? "bg-gray-300 cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700"}`,
+              children: isSearching ? "Searching..." : "Search Collection"
+            }
+          ) })
+        ] }),
+        /* @__PURE__ */ u3("div", { className: "flex-1 grid grid-cols-2 gap-4 p-4 min-h-0 overflow-hidden", children: [
+          /* @__PURE__ */ u3("div", { className: "flex flex-col border rounded overflow-hidden", children: [
+            /* @__PURE__ */ u3("div", { className: "flex items-center gap-2 p-2 bg-gray-100 border-b", children: [
+              /* @__PURE__ */ u3(
+                "button",
+                {
+                  "data-testid": "upload-button",
+                  onClick: () => fileInputRef.current?.click(),
+                  className: "px-3 py-1 text-sm bg-white border rounded hover:bg-gray-50",
+                  children: [
+                    /* @__PURE__ */ u3("i", { className: "fas fa-upload mr-1" }),
+                    "Upload Image"
+                  ]
+                }
+              ),
+              /* @__PURE__ */ u3(
+                "input",
+                {
+                  ref: fileInputRef,
+                  type: "file",
+                  accept: "image/*",
+                  "aria-label": "Upload image file",
+                  onChange: handleFileUpload,
+                  className: "hidden"
+                }
+              ),
+              /* @__PURE__ */ u3(
+                "button",
+                {
+                  "data-testid": "draw-toggle",
+                  ref: (el) => {
+                    drawToggleRef.current = el;
+                  },
+                  onClick: () => setIsDrawMode(!isDrawMode),
+                  className: `px-3 py-1 text-sm rounded ${isDrawMode ? "bg-red-600 text-white" : "bg-white border hover:bg-gray-50"}`,
+                  children: [
+                    /* @__PURE__ */ u3("i", { className: `fas fa-pen mr-1 ${isDrawMode ? "animate-pulse" : ""}` }),
+                    isDrawMode ? "Drawing" : "Draw"
+                  ]
+                }
+              ),
+              boxes.length > 0 && /* @__PURE__ */ u3(
+                "button",
+                {
+                  "data-testid": "clear-boxes",
+                  onClick: clearAll,
+                  className: "px-3 py-1 text-sm text-gray-600 hover:text-red-600",
+                  children: [
+                    /* @__PURE__ */ u3("i", { className: "fas fa-trash-alt mr-1" }),
+                    "Clear"
+                  ]
+                }
+              )
+            ] }),
+            /* @__PURE__ */ u3(
+              "div",
+              {
+                ref: containerRef,
+                className: `relative flex-1 bg-gray-200 overflow-hidden ${isDrawMode ? "cursor-crosshair touch-none" : "cursor-default"}`,
+                onMouseDown: handleMouseDown,
+                onMouseMove: handleMouseMove,
+                onMouseUp: handleMouseUp,
+                onMouseLeave: () => isDrawing && handleMouseUp(),
+                onTouchStart: handleMouseDown,
+                onTouchMove: handleMouseMove,
+                onTouchEnd: handleMouseUp,
+                children: [
+                  imageData ? /* @__PURE__ */ u3(
+                    "img",
+                    {
+                      ref: imageRef,
+                      src: imageData,
+                      alt: "Uploaded",
+                      onLoad: handleImageLoad,
+                      className: "w-full h-full object-contain",
+                      "data-testid": "uploaded-image"
+                    }
+                  ) : /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center text-gray-500", children: /* @__PURE__ */ u3("div", { className: "text-center", children: [
+                    /* @__PURE__ */ u3("i", { className: "fas fa-image text-4xl mb-2" }),
+                    /* @__PURE__ */ u3("p", { children: "Upload an image to begin" })
+                  ] }) }),
+                  /* @__PURE__ */ u3(
+                    "canvas",
+                    {
+                      ref: canvasRef,
+                      className: "absolute inset-0 pointer-events-none",
+                      "data-testid": "annotation-canvas"
+                    }
+                  )
+                ]
+              }
+            ),
+            isDrawMode && imageLoaded && boxes.length === 0 && /* @__PURE__ */ u3("div", { className: "p-2 text-center text-xs text-gray-500 bg-blue-50", children: [
+              /* @__PURE__ */ u3("i", { className: "fas fa-info-circle mr-1" }),
+              "Click and drag to select a region"
+            ] })
+          ] }),
+          /* @__PURE__ */ u3("div", { className: "flex flex-col gap-4 overflow-hidden", children: [
+            error && /* @__PURE__ */ u3(
+              "div",
+              {
+                "data-testid": "error-message",
+                className: "p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700",
+                children: [
+                  /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-circle mr-1" }),
+                  error
+                ]
+              }
+            ),
+            latency !== null && /* @__PURE__ */ u3("div", { className: "text-sm text-gray-500", children: [
+              "Latency: ",
+              latency,
+              "ms"
+            ] }),
+            /* @__PURE__ */ u3("div", { className: "flex-1 border rounded overflow-hidden flex flex-col", children: [
+              /* @__PURE__ */ u3("div", { className: "p-2 bg-gray-100 border-b font-medium text-sm", children: [
+                "Search Results (",
+                searchResults.length,
+                ")"
+              ] }),
+              /* @__PURE__ */ u3("div", { className: "flex-1 overflow-auto p-2", "data-testid": "search-results", children: searchResults.length === 0 ? /* @__PURE__ */ u3("p", { className: "text-gray-500 text-sm", children: "No results yet" }) : searchResults.map((r3, i4) => /* @__PURE__ */ u3(
+                "div",
+                {
+                  className: "p-2 border rounded mb-2",
+                  "data-testid": `result-${i4}`,
+                  children: [
+                    /* @__PURE__ */ u3("div", { className: "flex justify-between items-start", children: [
+                      /* @__PURE__ */ u3("span", { className: "font-medium", children: [
+                        "Doc #",
+                        r3.docId
+                      ] }),
+                      /* @__PURE__ */ u3("span", { className: "px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs", children: r3.score.toFixed(3) })
+                    ] }),
+                    r3.pageNum && /* @__PURE__ */ u3("div", { className: "text-xs text-gray-500", children: [
+                      "Page ",
+                      r3.pageNum
+                    ] })
+                  ]
+                },
+                i4
+              )) })
+            ] }),
+            /* @__PURE__ */ u3("div", { className: "flex-1 border rounded overflow-hidden flex flex-col", children: [
+              /* @__PURE__ */ u3("div", { className: "p-2 bg-gray-100 border-b font-medium text-sm flex justify-between items-center", children: [
+                /* @__PURE__ */ u3("span", { children: "Payload Inspector" }),
+                /* @__PURE__ */ u3("div", { className: "flex gap-2", children: [
+                  /* @__PURE__ */ u3(
+                    "button",
+                    {
+                      "data-testid": "toggle-json",
+                      onClick: () => setShowRawJson(!showRawJson),
+                      className: "text-xs text-blue-600 hover:underline",
+                      children: showRawJson ? "Formatted" : "Raw JSON"
+                    }
+                  ),
+                  /* @__PURE__ */ u3(
+                    "button",
+                    {
+                      "data-testid": "copy-payloads",
+                      onClick: copyPayloads,
+                      className: "text-xs text-blue-600 hover:underline",
+                      children: "Copy"
+                    }
+                  )
+                ] })
+              ] }),
+              /* @__PURE__ */ u3("div", { className: "flex-1 overflow-auto p-2", "data-testid": "payload-inspector", children: payloads.length === 0 ? /* @__PURE__ */ u3("p", { className: "text-gray-500 text-sm", children: "No payloads to display" }) : showRawJson ? /* @__PURE__ */ u3("pre", { className: "text-xs bg-gray-50 p-2 rounded overflow-auto", children: JSON.stringify(payloads, null, 2) }) : payloads.map((p3, i4) => /* @__PURE__ */ u3(
+                "div",
+                {
+                  className: "p-2 bg-gray-50 rounded mb-2 font-mono text-xs",
+                  "data-testid": `payload-${i4}`,
+                  children: [
+                    /* @__PURE__ */ u3("div", { children: [
+                      /* @__PURE__ */ u3("span", { className: "text-red-600", children: "doc_id:" }),
+                      " ",
+                      /* @__PURE__ */ u3("span", { className: "text-blue-600", children: p3.doc_id })
+                    ] }),
+                    p3.correspondent_id !== void 0 && /* @__PURE__ */ u3("div", { children: [
+                      /* @__PURE__ */ u3("span", { className: "text-red-600", children: "correspondent_id:" }),
+                      " ",
+                      /* @__PURE__ */ u3("span", { className: "text-blue-600", children: p3.correspondent_id })
+                    ] }),
+                    p3.tag_ids && /* @__PURE__ */ u3("div", { children: [
+                      /* @__PURE__ */ u3("span", { className: "text-red-600", children: "tag_ids:" }),
+                      " ",
+                      /* @__PURE__ */ u3("span", { className: "text-blue-600", children: [
+                        "[",
+                        p3.tag_ids.join(", "),
+                        "]"
+                      ] })
+                    ] }),
+                    p3.created_date && /* @__PURE__ */ u3("div", { children: [
+                      /* @__PURE__ */ u3("span", { className: "text-red-600", children: "created_date:" }),
+                      " ",
+                      /* @__PURE__ */ u3("span", { className: "text-blue-600", children: [
+                        '"',
+                        p3.created_date,
+                        '"'
+                      ] })
+                    ] })
+                  ]
+                },
+                i4
+              )) })
+            ] })
+          ] })
+        ] })
+      ]
+    }
+  );
+}
+
+// node_modules/preact/compat/dist/compat.module.js
+var compat_module_exports = {};
+__export(compat_module_exports, {
+  Children: () => O2,
+  Component: () => x,
+  Fragment: () => k,
+  PureComponent: () => N2,
+  StrictMode: () => Cn,
+  Suspense: () => P3,
+  SuspenseList: () => B3,
+  __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: () => hn,
+  cloneElement: () => _n,
+  createContext: () => Q,
+  createElement: () => _,
+  createFactory: () => dn,
+  createPortal: () => $2,
+  createRef: () => b,
+  default: () => Rn,
+  findDOMNode: () => Sn,
+  flushSync: () => En,
+  forwardRef: () => D3,
+  hydrate: () => tn,
+  isElement: () => xn,
+  isFragment: () => pn,
+  isMemo: () => yn,
+  isValidElement: () => mn,
+  lazy: () => z3,
+  memo: () => M2,
+  render: () => nn,
+  startTransition: () => R,
+  unmountComponentAtNode: () => bn,
+  unstable_batchedUpdates: () => gn,
+  useCallback: () => q2,
+  useContext: () => x2,
+  useDebugValue: () => P2,
+  useDeferredValue: () => w3,
+  useEffect: () => y2,
+  useErrorBoundary: () => b2,
+  useId: () => g2,
+  useImperativeHandle: () => F2,
+  useInsertionEffect: () => I2,
+  useLayoutEffect: () => _2,
+  useMemo: () => T2,
+  useReducer: () => h2,
+  useRef: () => A2,
+  useState: () => d2,
+  useSyncExternalStore: () => C3,
+  useTransition: () => k3,
+  version: () => vn
+});
+function g3(n2, t3) {
+  for (var e3 in t3) n2[e3] = t3[e3];
+  return n2;
+}
+function E2(n2, t3) {
+  for (var e3 in n2) if ("__source" !== e3 && !(e3 in t3)) return true;
+  for (var r3 in t3) if ("__source" !== r3 && n2[r3] !== t3[r3]) return true;
+  return false;
+}
+function C3(n2, t3) {
+  var e3 = t3(), r3 = d2({ t: { __: e3, u: t3 } }), u4 = r3[0].t, o3 = r3[1];
+  return _2(function() {
+    u4.__ = e3, u4.u = t3, x3(u4) && o3({ t: u4 });
+  }, [n2, e3, t3]), y2(function() {
+    return x3(u4) && o3({ t: u4 }), n2(function() {
+      x3(u4) && o3({ t: u4 });
+    });
+  }, [n2]), e3;
+}
+function x3(n2) {
+  var t3, e3, r3 = n2.u, u4 = n2.__;
+  try {
+    var o3 = r3();
+    return !((t3 = u4) === (e3 = o3) && (0 !== t3 || 1 / t3 == 1 / e3) || t3 != t3 && e3 != e3);
+  } catch (n3) {
+    return true;
+  }
+}
+function R(n2) {
+  n2();
+}
+function w3(n2) {
+  return n2;
+}
+function k3() {
+  return [false, R];
+}
+var I2 = _2;
+function N2(n2, t3) {
+  this.props = n2, this.context = t3;
+}
+function M2(n2, e3) {
+  function r3(n3) {
+    var t3 = this.props.ref, r4 = t3 == n3.ref;
+    return !r4 && t3 && (t3.call ? t3(null) : t3.current = null), e3 ? !e3(this.props, n3) || !r4 : E2(this.props, n3);
+  }
+  function u4(e4) {
+    return this.shouldComponentUpdate = r3, _(n2, e4);
+  }
+  return u4.displayName = "Memo(" + (n2.displayName || n2.name) + ")", u4.prototype.isReactComponent = true, u4.__f = true, u4.type = n2, u4;
+}
+(N2.prototype = new x()).isPureReactComponent = true, N2.prototype.shouldComponentUpdate = function(n2, t3) {
+  return E2(this.props, n2) || E2(this.state, t3);
+};
+var T3 = l.__b;
+l.__b = function(n2) {
+  n2.type && n2.type.__f && n2.ref && (n2.props.ref = n2.ref, n2.ref = null), T3 && T3(n2);
+};
+var A3 = "undefined" != typeof Symbol && Symbol.for && Symbol.for("react.forward_ref") || 3911;
+function D3(n2) {
+  function t3(t4) {
+    var e3 = g3({}, t4);
+    return delete e3.ref, n2(e3, t4.ref || null);
+  }
+  return t3.$$typeof = A3, t3.render = n2, t3.prototype.isReactComponent = t3.__f = true, t3.displayName = "ForwardRef(" + (n2.displayName || n2.name) + ")", t3;
+}
+var L2 = function(n2, t3) {
+  return null == n2 ? null : H(H(n2).map(t3));
+};
+var O2 = { map: L2, forEach: L2, count: function(n2) {
+  return n2 ? H(n2).length : 0;
+}, only: function(n2) {
+  var t3 = H(n2);
+  if (1 !== t3.length) throw "Children.only";
+  return t3[0];
+}, toArray: H };
+var F3 = l.__e;
+l.__e = function(n2, t3, e3, r3) {
+  if (n2.then) {
+    for (var u4, o3 = t3; o3 = o3.__; ) if ((u4 = o3.__c) && u4.__c) return null == t3.__e && (t3.__e = e3.__e, t3.__k = e3.__k), u4.__c(n2, t3);
+  }
+  F3(n2, t3, e3, r3);
+};
+var U = l.unmount;
+function V2(n2, t3, e3) {
+  return n2 && (n2.__c && n2.__c.__H && (n2.__c.__H.__.forEach(function(n3) {
+    "function" == typeof n3.__c && n3.__c();
+  }), n2.__c.__H = null), null != (n2 = g3({}, n2)).__c && (n2.__c.__P === e3 && (n2.__c.__P = t3), n2.__c.__e = true, n2.__c = null), n2.__k = n2.__k && n2.__k.map(function(n3) {
+    return V2(n3, t3, e3);
+  })), n2;
+}
+function W(n2, t3, e3) {
+  return n2 && e3 && (n2.__v = null, n2.__k = n2.__k && n2.__k.map(function(n3) {
+    return W(n3, t3, e3);
+  }), n2.__c && n2.__c.__P === t3 && (n2.__e && e3.appendChild(n2.__e), n2.__c.__e = true, n2.__c.__P = e3)), n2;
+}
+function P3() {
+  this.__u = 0, this.o = null, this.__b = null;
+}
+function j3(n2) {
+  var t3 = n2.__.__c;
+  return t3 && t3.__a && t3.__a(n2);
+}
+function z3(n2) {
+  var e3, r3, u4, o3 = null;
+  function i4(i5) {
+    if (e3 || (e3 = n2()).then(function(n3) {
+      n3 && (o3 = n3.default || n3), u4 = true;
+    }, function(n3) {
+      r3 = n3, u4 = true;
+    }), r3) throw r3;
+    if (!u4) throw e3;
+    return o3 ? _(o3, i5) : null;
+  }
+  return i4.displayName = "Lazy", i4.__f = true, i4;
+}
+function B3() {
+  this.i = null, this.l = null;
+}
+l.unmount = function(n2) {
+  var t3 = n2.__c;
+  t3 && t3.__R && t3.__R(), t3 && 32 & n2.__u && (n2.type = null), U && U(n2);
+}, (P3.prototype = new x()).__c = function(n2, t3) {
+  var e3 = t3.__c, r3 = this;
+  null == r3.o && (r3.o = []), r3.o.push(e3);
+  var u4 = j3(r3.__v), o3 = false, i4 = function() {
+    o3 || (o3 = true, e3.__R = null, u4 ? u4(l3) : l3());
+  };
+  e3.__R = i4;
+  var l3 = function() {
+    if (!--r3.__u) {
+      if (r3.state.__a) {
+        var n3 = r3.state.__a;
+        r3.__v.__k[0] = W(n3, n3.__c.__P, n3.__c.__O);
+      }
+      var t4;
+      for (r3.setState({ __a: r3.__b = null }); t4 = r3.o.pop(); ) t4.forceUpdate();
+    }
+  };
+  r3.__u++ || 32 & t3.__u || r3.setState({ __a: r3.__b = r3.__v.__k[0] }), n2.then(i4, i4);
+}, P3.prototype.componentWillUnmount = function() {
+  this.o = [];
+}, P3.prototype.render = function(n2, e3) {
+  if (this.__b) {
+    if (this.__v.__k) {
+      var r3 = document.createElement("div"), o3 = this.__v.__k[0].__c;
+      this.__v.__k[0] = V2(this.__b, r3, o3.__O = o3.__P);
+    }
+    this.__b = null;
+  }
+  var i4 = e3.__a && _(k, null, n2.fallback);
+  return i4 && (i4.__u &= -33), [_(k, null, e3.__a ? null : n2.children), i4];
+};
+var H2 = function(n2, t3, e3) {
+  if (++e3[1] === e3[0] && n2.l.delete(t3), n2.props.revealOrder && ("t" !== n2.props.revealOrder[0] || !n2.l.size)) for (e3 = n2.i; e3; ) {
+    for (; e3.length > 3; ) e3.pop()();
+    if (e3[1] < e3[0]) break;
+    n2.i = e3 = e3[2];
+  }
+};
+function Z(n2) {
+  return this.getChildContext = function() {
+    return n2.context;
+  }, n2.children;
+}
+function Y(n2) {
+  var e3 = this, r3 = n2.h;
+  if (e3.componentWillUnmount = function() {
+    G(null, e3.v), e3.v = null, e3.h = null;
+  }, e3.h && e3.h !== r3 && e3.componentWillUnmount(), !e3.v) {
+    for (var u4 = e3.__v; null !== u4 && !u4.__m && null !== u4.__; ) u4 = u4.__;
+    e3.h = r3, e3.v = { nodeType: 1, parentNode: r3, childNodes: [], __k: { __m: u4.__m }, contains: function() {
+      return true;
+    }, insertBefore: function(n3, t3) {
+      this.childNodes.push(n3), e3.h.insertBefore(n3, t3);
+    }, removeChild: function(n3) {
+      this.childNodes.splice(this.childNodes.indexOf(n3) >>> 1, 1), e3.h.removeChild(n3);
+    } };
+  }
+  G(_(Z, { context: e3.context }, n2.__v), e3.v);
+}
+function $2(n2, e3) {
+  var r3 = _(Y, { __v: n2, h: e3 });
+  return r3.containerInfo = e3, r3;
+}
+(B3.prototype = new x()).__a = function(n2) {
+  var t3 = this, e3 = j3(t3.__v), r3 = t3.l.get(n2);
+  return r3[0]++, function(u4) {
+    var o3 = function() {
+      t3.props.revealOrder ? (r3.push(u4), H2(t3, n2, r3)) : u4();
+    };
+    e3 ? e3(o3) : o3();
+  };
+}, B3.prototype.render = function(n2) {
+  this.i = null, this.l = /* @__PURE__ */ new Map();
+  var t3 = H(n2.children);
+  n2.revealOrder && "b" === n2.revealOrder[0] && t3.reverse();
+  for (var e3 = t3.length; e3--; ) this.l.set(t3[e3], this.i = [1, 0, this.i]);
+  return n2.children;
+}, B3.prototype.componentDidUpdate = B3.prototype.componentDidMount = function() {
+  var n2 = this;
+  this.l.forEach(function(t3, e3) {
+    H2(n2, e3, t3);
+  });
+};
+var q3 = "undefined" != typeof Symbol && Symbol.for && Symbol.for("react.element") || 60103;
+var G2 = /^(?:accent|alignment|arabic|baseline|cap|clip(?!PathU)|color|dominant|fill|flood|font|glyph(?!R)|horiz|image(!S)|letter|lighting|marker(?!H|W|U)|overline|paint|pointer|shape|stop|strikethrough|stroke|text(?!L)|transform|underline|unicode|units|v|vector|vert|word|writing|x(?!C))[A-Z]/;
+var J2 = /^on(Ani|Tra|Tou|BeforeInp|Compo)/;
+var K2 = /[A-Z0-9]/g;
+var Q2 = "undefined" != typeof document;
+var X = function(n2) {
+  return ("undefined" != typeof Symbol && "symbol" == typeof Symbol() ? /fil|che|rad/ : /fil|che|ra/).test(n2);
+};
+function nn(n2, t3, e3) {
+  return null == t3.__k && (t3.textContent = ""), G(n2, t3), "function" == typeof e3 && e3(), n2 ? n2.__c : null;
+}
+function tn(n2, t3, e3) {
+  return J(n2, t3), "function" == typeof e3 && e3(), n2 ? n2.__c : null;
+}
+x.prototype.isReactComponent = {}, ["componentWillMount", "componentWillReceiveProps", "componentWillUpdate"].forEach(function(t3) {
+  Object.defineProperty(x.prototype, t3, { configurable: true, get: function() {
+    return this["UNSAFE_" + t3];
+  }, set: function(n2) {
+    Object.defineProperty(this, t3, { configurable: true, writable: true, value: n2 });
+  } });
+});
+var en = l.event;
+function rn() {
+}
+function un() {
+  return this.cancelBubble;
+}
+function on() {
+  return this.defaultPrevented;
+}
+l.event = function(n2) {
+  return en && (n2 = en(n2)), n2.persist = rn, n2.isPropagationStopped = un, n2.isDefaultPrevented = on, n2.nativeEvent = n2;
+};
+var ln;
+var cn = { enumerable: false, configurable: true, get: function() {
+  return this.class;
+} };
+var fn = l.vnode;
+l.vnode = function(n2) {
+  "string" == typeof n2.type && function(n3) {
+    var t3 = n3.props, e3 = n3.type, u4 = {}, o3 = -1 === e3.indexOf("-");
+    for (var i4 in t3) {
+      var l3 = t3[i4];
+      if (!("value" === i4 && "defaultValue" in t3 && null == l3 || Q2 && "children" === i4 && "noscript" === e3 || "class" === i4 || "className" === i4)) {
+        var c3 = i4.toLowerCase();
+        "defaultValue" === i4 && "value" in t3 && null == t3.value ? i4 = "value" : "download" === i4 && true === l3 ? l3 = "" : "translate" === c3 && "no" === l3 ? l3 = false : "o" === c3[0] && "n" === c3[1] ? "ondoubleclick" === c3 ? i4 = "ondblclick" : "onchange" !== c3 || "input" !== e3 && "textarea" !== e3 || X(t3.type) ? "onfocus" === c3 ? i4 = "onfocusin" : "onblur" === c3 ? i4 = "onfocusout" : J2.test(i4) && (i4 = c3) : c3 = i4 = "oninput" : o3 && G2.test(i4) ? i4 = i4.replace(K2, "-$&").toLowerCase() : null === l3 && (l3 = void 0), "oninput" === c3 && u4[i4 = c3] && (i4 = "oninputCapture"), u4[i4] = l3;
+      }
+    }
+    "select" == e3 && u4.multiple && Array.isArray(u4.value) && (u4.value = H(t3.children).forEach(function(n4) {
+      n4.props.selected = -1 != u4.value.indexOf(n4.props.value);
+    })), "select" == e3 && null != u4.defaultValue && (u4.value = H(t3.children).forEach(function(n4) {
+      n4.props.selected = u4.multiple ? -1 != u4.defaultValue.indexOf(n4.props.value) : u4.defaultValue == n4.props.value;
+    })), t3.class && !t3.className ? (u4.class = t3.class, Object.defineProperty(u4, "className", cn)) : (t3.className && !t3.class || t3.class && t3.className) && (u4.class = u4.className = t3.className), n3.props = u4;
+  }(n2), n2.$$typeof = q3, fn && fn(n2);
+};
+var an = l.__r;
+l.__r = function(n2) {
+  an && an(n2), ln = n2.__c;
+};
+var sn = l.diffed;
+l.diffed = function(n2) {
+  sn && sn(n2);
+  var t3 = n2.props, e3 = n2.__e;
+  null != e3 && "textarea" === n2.type && "value" in t3 && t3.value !== e3.value && (e3.value = null == t3.value ? "" : t3.value), ln = null;
+};
+var hn = { ReactCurrentDispatcher: { current: { readContext: function(n2) {
+  return ln.__n[n2.__c].props.value;
+}, useCallback: q2, useContext: x2, useDebugValue: P2, useDeferredValue: w3, useEffect: y2, useId: g2, useImperativeHandle: F2, useInsertionEffect: I2, useLayoutEffect: _2, useMemo: T2, useReducer: h2, useRef: A2, useState: d2, useSyncExternalStore: C3, useTransition: k3 } } };
+var vn = "18.3.1";
+function dn(n2) {
+  return _.bind(null, n2);
+}
+function mn(n2) {
+  return !!n2 && n2.$$typeof === q3;
+}
+function pn(n2) {
+  return mn(n2) && n2.type === k;
+}
+function yn(n2) {
+  return !!n2 && !!n2.displayName && ("string" == typeof n2.displayName || n2.displayName instanceof String) && n2.displayName.startsWith("Memo(");
+}
+function _n(n2) {
+  return mn(n2) ? K.apply(null, arguments) : n2;
+}
+function bn(n2) {
+  return !!n2.__k && (G(null, n2), true);
+}
+function Sn(n2) {
+  return n2 && (n2.base || 1 === n2.nodeType && n2) || null;
+}
+var gn = function(n2, t3) {
+  return n2(t3);
+};
+var En = function(n2, t3) {
+  return n2(t3);
+};
+var Cn = k;
+var xn = mn;
+var Rn = { useState: d2, useId: g2, useReducer: h2, useEffect: y2, useLayoutEffect: _2, useInsertionEffect: I2, useTransition: k3, useDeferredValue: w3, useSyncExternalStore: C3, startTransition: R, useRef: A2, useImperativeHandle: F2, useMemo: T2, useCallback: q2, useContext: x2, useDebugValue: P2, version: "18.3.1", Children: O2, render: nn, hydrate: tn, unmountComponentAtNode: bn, createPortal: $2, createElement: _, createContext: Q, createFactory: dn, cloneElement: _n, createRef: b, Fragment: k, isValidElement: mn, isElement: xn, isFragment: pn, isMemo: yn, findDOMNode: Sn, Component: x, PureComponent: N2, memo: M2, forwardRef: D3, flushSync: En, unstable_batchedUpdates: gn, StrictMode: Cn, Suspense: P3, SuspenseList: B3, lazy: z3, __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: hn };
+
+// node_modules/@radix-ui/primitive/dist/index.mjs
+var canUseDOM = !!(typeof window !== "undefined" && window.document && window.document.createElement);
+function composeEventHandlers(originalEventHandler, ourEventHandler, { checkForDefaultPrevented = true } = {}) {
+  return function handleEvent(event) {
+    originalEventHandler?.(event);
+    if (checkForDefaultPrevented === false || !event.defaultPrevented) {
+      return ourEventHandler?.(event);
+    }
+  };
+}
+
+// node_modules/@radix-ui/react-context/dist/index.mjs
+function createContext2(rootComponentName, defaultContext) {
+  const Context = Q(defaultContext);
+  const Provider = (props) => {
+    const { children, ...context } = props;
+    const value = T2(() => context, Object.values(context));
+    return /* @__PURE__ */ u3(Context.Provider, { value, children });
+  };
+  Provider.displayName = rootComponentName + "Provider";
+  function useContext2(consumerName) {
+    const context = x2(Context);
+    if (context) return context;
+    if (defaultContext !== void 0) return defaultContext;
+    throw new Error(`\`${consumerName}\` must be used within \`${rootComponentName}\``);
+  }
+  return [Provider, useContext2];
+}
+function createContextScope(scopeName, createContextScopeDeps = []) {
+  let defaultContexts = [];
+  function createContext3(rootComponentName, defaultContext) {
+    const BaseContext = Q(defaultContext);
+    const index = defaultContexts.length;
+    defaultContexts = [...defaultContexts, defaultContext];
+    const Provider = (props) => {
+      const { scope, children, ...context } = props;
+      const Context = scope?.[scopeName]?.[index] || BaseContext;
+      const value = T2(() => context, Object.values(context));
+      return /* @__PURE__ */ u3(Context.Provider, { value, children });
+    };
+    Provider.displayName = rootComponentName + "Provider";
+    function useContext2(consumerName, scope) {
+      const Context = scope?.[scopeName]?.[index] || BaseContext;
+      const context = x2(Context);
+      if (context) return context;
+      if (defaultContext !== void 0) return defaultContext;
+      throw new Error(`\`${consumerName}\` must be used within \`${rootComponentName}\``);
+    }
+    return [Provider, useContext2];
+  }
+  const createScope = () => {
+    const scopeContexts = defaultContexts.map((defaultContext) => {
+      return Q(defaultContext);
+    });
+    return function useScope(scope) {
+      const contexts = scope?.[scopeName] || scopeContexts;
+      return T2(
+        () => ({ [`__scope${scopeName}`]: { ...scope, [scopeName]: contexts } }),
+        [scope, contexts]
+      );
+    };
+  };
+  createScope.scopeName = scopeName;
+  return [createContext3, composeContextScopes(createScope, ...createContextScopeDeps)];
+}
+function composeContextScopes(...scopes) {
+  const baseScope = scopes[0];
+  if (scopes.length === 1) return baseScope;
+  const createScope = () => {
+    const scopeHooks = scopes.map((createScope2) => ({
+      useScope: createScope2(),
+      scopeName: createScope2.scopeName
+    }));
+    return function useComposedScopes(overrideScopes) {
+      const nextScopes = scopeHooks.reduce((nextScopes2, { useScope, scopeName }) => {
+        const scopeProps = useScope(overrideScopes);
+        const currentScope = scopeProps[`__scope${scopeName}`];
+        return { ...nextScopes2, ...currentScope };
+      }, {});
+      return T2(() => ({ [`__scope${baseScope.scopeName}`]: nextScopes }), [nextScopes]);
+    };
+  };
+  createScope.scopeName = baseScope.scopeName;
+  return createScope;
+}
+
+// node_modules/@radix-ui/react-compose-refs/dist/index.mjs
+function setRef(ref, value) {
+  if (typeof ref === "function") {
+    return ref(value);
+  } else if (ref !== null && ref !== void 0) {
+    ref.current = value;
+  }
+}
+function composeRefs(...refs) {
+  return (node) => {
+    let hasCleanup = false;
+    const cleanups = refs.map((ref) => {
+      const cleanup = setRef(ref, node);
+      if (!hasCleanup && typeof cleanup == "function") {
+        hasCleanup = true;
+      }
+      return cleanup;
+    });
+    if (hasCleanup) {
+      return () => {
+        for (let i4 = 0; i4 < cleanups.length; i4++) {
+          const cleanup = cleanups[i4];
+          if (typeof cleanup == "function") {
+            cleanup();
+          } else {
+            setRef(refs[i4], null);
+          }
+        }
+      };
+    }
+  };
+}
+function useComposedRefs(...refs) {
+  return q2(composeRefs(...refs), refs);
+}
+
+// node_modules/@radix-ui/react-slot/dist/index.mjs
+// @__NO_SIDE_EFFECTS__
+function createSlot(ownerName) {
+  const SlotClone = /* @__PURE__ */ createSlotClone(ownerName);
+  const Slot2 = D3((props, forwardedRef) => {
+    const { children, ...slotProps } = props;
+    const childrenArray = O2.toArray(children);
+    const slottable = childrenArray.find(isSlottable);
+    if (slottable) {
+      const newElement = slottable.props.children;
+      const newChildren = childrenArray.map((child) => {
+        if (child === slottable) {
+          if (O2.count(newElement) > 1) return O2.only(null);
+          return mn(newElement) ? newElement.props.children : null;
+        } else {
+          return child;
+        }
+      });
+      return /* @__PURE__ */ u3(SlotClone, { ...slotProps, ref: forwardedRef, children: mn(newElement) ? _n(newElement, void 0, newChildren) : null });
+    }
+    return /* @__PURE__ */ u3(SlotClone, { ...slotProps, ref: forwardedRef, children });
+  });
+  Slot2.displayName = `${ownerName}.Slot`;
+  return Slot2;
+}
+// @__NO_SIDE_EFFECTS__
+function createSlotClone(ownerName) {
+  const SlotClone = D3((props, forwardedRef) => {
+    const { children, ...slotProps } = props;
+    if (mn(children)) {
+      const childrenRef = getElementRef(children);
+      const props2 = mergeProps(slotProps, children.props);
+      if (children.type !== k) {
+        props2.ref = forwardedRef ? composeRefs(forwardedRef, childrenRef) : childrenRef;
+      }
+      return _n(children, props2);
+    }
+    return O2.count(children) > 1 ? O2.only(null) : null;
+  });
+  SlotClone.displayName = `${ownerName}.SlotClone`;
+  return SlotClone;
+}
+var SLOTTABLE_IDENTIFIER = Symbol("radix.slottable");
+function isSlottable(child) {
+  return mn(child) && typeof child.type === "function" && "__radixId" in child.type && child.type.__radixId === SLOTTABLE_IDENTIFIER;
+}
+function mergeProps(slotProps, childProps) {
+  const overrideProps = { ...childProps };
+  for (const propName in childProps) {
+    const slotPropValue = slotProps[propName];
+    const childPropValue = childProps[propName];
+    const isHandler = /^on[A-Z]/.test(propName);
+    if (isHandler) {
+      if (slotPropValue && childPropValue) {
+        overrideProps[propName] = (...args) => {
+          const result = childPropValue(...args);
+          slotPropValue(...args);
+          return result;
+        };
+      } else if (slotPropValue) {
+        overrideProps[propName] = slotPropValue;
+      }
+    } else if (propName === "style") {
+      overrideProps[propName] = { ...slotPropValue, ...childPropValue };
+    } else if (propName === "className") {
+      overrideProps[propName] = [slotPropValue, childPropValue].filter(Boolean).join(" ");
+    }
+  }
+  return { ...slotProps, ...overrideProps };
+}
+function getElementRef(element) {
+  let getter = Object.getOwnPropertyDescriptor(element.props, "ref")?.get;
+  let mayWarn = getter && "isReactWarning" in getter && getter.isReactWarning;
+  if (mayWarn) {
+    return element.ref;
+  }
+  getter = Object.getOwnPropertyDescriptor(element, "ref")?.get;
+  mayWarn = getter && "isReactWarning" in getter && getter.isReactWarning;
+  if (mayWarn) {
+    return element.props.ref;
+  }
+  return element.props.ref || element.ref;
+}
+
+// node_modules/@radix-ui/react-collection/dist/index.mjs
+function createCollection(name) {
+  const PROVIDER_NAME = name + "CollectionProvider";
+  const [createCollectionContext, createCollectionScope2] = createContextScope(PROVIDER_NAME);
+  const [CollectionProviderImpl, useCollectionContext] = createCollectionContext(
+    PROVIDER_NAME,
+    { collectionRef: { current: null }, itemMap: /* @__PURE__ */ new Map() }
+  );
+  const CollectionProvider = (props) => {
+    const { scope, children } = props;
+    const ref = Rn.useRef(null);
+    const itemMap = Rn.useRef(/* @__PURE__ */ new Map()).current;
+    return /* @__PURE__ */ u3(CollectionProviderImpl, { scope, itemMap, collectionRef: ref, children });
+  };
+  CollectionProvider.displayName = PROVIDER_NAME;
+  const COLLECTION_SLOT_NAME = name + "CollectionSlot";
+  const CollectionSlotImpl = createSlot(COLLECTION_SLOT_NAME);
+  const CollectionSlot = Rn.forwardRef(
+    (props, forwardedRef) => {
+      const { scope, children } = props;
+      const context = useCollectionContext(COLLECTION_SLOT_NAME, scope);
+      const composedRefs = useComposedRefs(forwardedRef, context.collectionRef);
+      return /* @__PURE__ */ u3(CollectionSlotImpl, { ref: composedRefs, children });
+    }
+  );
+  CollectionSlot.displayName = COLLECTION_SLOT_NAME;
+  const ITEM_SLOT_NAME = name + "CollectionItemSlot";
+  const ITEM_DATA_ATTR = "data-radix-collection-item";
+  const CollectionItemSlotImpl = createSlot(ITEM_SLOT_NAME);
+  const CollectionItemSlot = Rn.forwardRef(
+    (props, forwardedRef) => {
+      const { scope, children, ...itemData } = props;
+      const ref = Rn.useRef(null);
+      const composedRefs = useComposedRefs(forwardedRef, ref);
+      const context = useCollectionContext(ITEM_SLOT_NAME, scope);
+      Rn.useEffect(() => {
+        context.itemMap.set(ref, { ref, ...itemData });
+        return () => void context.itemMap.delete(ref);
+      });
+      return /* @__PURE__ */ u3(CollectionItemSlotImpl, { ...{ [ITEM_DATA_ATTR]: "" }, ref: composedRefs, children });
+    }
+  );
+  CollectionItemSlot.displayName = ITEM_SLOT_NAME;
+  function useCollection2(scope) {
+    const context = useCollectionContext(name + "CollectionConsumer", scope);
+    const getItems = Rn.useCallback(() => {
+      const collectionNode = context.collectionRef.current;
+      if (!collectionNode) return [];
+      const orderedNodes = Array.from(collectionNode.querySelectorAll(`[${ITEM_DATA_ATTR}]`));
+      const items = Array.from(context.itemMap.values());
+      const orderedItems = items.sort(
+        (a3, b3) => orderedNodes.indexOf(a3.ref.current) - orderedNodes.indexOf(b3.ref.current)
+      );
+      return orderedItems;
+    }, [context.collectionRef, context.itemMap]);
+    return getItems;
+  }
+  return [
+    { Provider: CollectionProvider, Slot: CollectionSlot, ItemSlot: CollectionItemSlot },
+    useCollection2,
+    createCollectionScope2
+  ];
+}
+
+// node_modules/@radix-ui/react-use-layout-effect/dist/index.mjs
+var useLayoutEffect2 = globalThis?.document ? _2 : () => {
+};
+
+// node_modules/@radix-ui/react-id/dist/index.mjs
+var useReactId = compat_module_exports[" useId ".trim().toString()] || (() => void 0);
+var count = 0;
+function useId(deterministicId) {
+  const [id, setId] = d2(useReactId());
+  useLayoutEffect2(() => {
+    if (!deterministicId) setId((reactId) => reactId ?? String(count++));
+  }, [deterministicId]);
+  return deterministicId || (id ? `radix-${id}` : "");
+}
+
+// node_modules/@radix-ui/react-primitive/dist/index.mjs
+var NODES = [
+  "a",
+  "button",
+  "div",
+  "form",
+  "h2",
+  "h3",
+  "img",
+  "input",
+  "label",
+  "li",
+  "nav",
+  "ol",
+  "p",
+  "select",
+  "span",
+  "svg",
+  "ul"
+];
+var Primitive = NODES.reduce((primitive, node) => {
+  const Slot2 = createSlot(`Primitive.${node}`);
+  const Node2 = D3((props, forwardedRef) => {
+    const { asChild, ...primitiveProps } = props;
+    const Comp = asChild ? Slot2 : node;
+    if (typeof window !== "undefined") {
+      window[Symbol.for("radix-ui")] = true;
+    }
+    return /* @__PURE__ */ u3(Comp, { ...primitiveProps, ref: forwardedRef });
+  });
+  Node2.displayName = `Primitive.${node}`;
+  return { ...primitive, [node]: Node2 };
+}, {});
+function dispatchDiscreteCustomEvent(target, event) {
+  if (target) En(() => target.dispatchEvent(event));
+}
+
+// node_modules/@radix-ui/react-use-callback-ref/dist/index.mjs
+function useCallbackRef(callback) {
+  const callbackRef = A2(callback);
+  y2(() => {
+    callbackRef.current = callback;
+  });
+  return T2(() => (...args) => callbackRef.current?.(...args), []);
+}
+
+// node_modules/@radix-ui/react-use-controllable-state/dist/index.mjs
+var useInsertionEffect = compat_module_exports[" useInsertionEffect ".trim().toString()] || useLayoutEffect2;
+function useControllableState({
+  prop,
+  defaultProp,
+  onChange = () => {
+  },
+  caller
+}) {
+  const [uncontrolledProp, setUncontrolledProp, onChangeRef] = useUncontrolledState({
+    defaultProp,
+    onChange
+  });
+  const isControlled = prop !== void 0;
+  const value = isControlled ? prop : uncontrolledProp;
+  if (true) {
+    const isControlledRef = A2(prop !== void 0);
+    y2(() => {
+      const wasControlled = isControlledRef.current;
+      if (wasControlled !== isControlled) {
+        const from = wasControlled ? "controlled" : "uncontrolled";
+        const to = isControlled ? "controlled" : "uncontrolled";
+        console.warn(
+          `${caller} is changing from ${from} to ${to}. Components should not switch from controlled to uncontrolled (or vice versa). Decide between using a controlled or uncontrolled value for the lifetime of the component.`
+        );
+      }
+      isControlledRef.current = isControlled;
+    }, [isControlled, caller]);
+  }
+  const setValue = q2(
+    (nextValue) => {
+      if (isControlled) {
+        const value2 = isFunction(nextValue) ? nextValue(prop) : nextValue;
+        if (value2 !== prop) {
+          onChangeRef.current?.(value2);
+        }
+      } else {
+        setUncontrolledProp(nextValue);
+      }
+    },
+    [isControlled, prop, setUncontrolledProp, onChangeRef]
+  );
+  return [value, setValue];
+}
+function useUncontrolledState({
+  defaultProp,
+  onChange
+}) {
+  const [value, setValue] = d2(defaultProp);
+  const prevValueRef = A2(value);
+  const onChangeRef = A2(onChange);
+  useInsertionEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+  y2(() => {
+    if (prevValueRef.current !== value) {
+      onChangeRef.current?.(value);
+      prevValueRef.current = value;
+    }
+  }, [value, prevValueRef]);
+  return [value, setValue, onChangeRef];
+}
+function isFunction(value) {
+  return typeof value === "function";
+}
+var SYNC_STATE = Symbol("RADIX:SYNC_STATE");
+
+// node_modules/@radix-ui/react-direction/dist/index.mjs
+var DirectionContext = Q(void 0);
+function useDirection(localDir) {
+  const globalDir = x2(DirectionContext);
+  return localDir || globalDir || "ltr";
+}
+
+// node_modules/@radix-ui/react-roving-focus/dist/index.mjs
+var ENTRY_FOCUS = "rovingFocusGroup.onEntryFocus";
+var EVENT_OPTIONS = { bubbles: false, cancelable: true };
+var GROUP_NAME = "RovingFocusGroup";
+var [Collection, useCollection, createCollectionScope] = createCollection(GROUP_NAME);
+var [createRovingFocusGroupContext, createRovingFocusGroupScope] = createContextScope(
+  GROUP_NAME,
+  [createCollectionScope]
+);
+var [RovingFocusProvider, useRovingFocusContext] = createRovingFocusGroupContext(GROUP_NAME);
+var RovingFocusGroup = D3(
+  (props, forwardedRef) => {
+    return /* @__PURE__ */ u3(Collection.Provider, { scope: props.__scopeRovingFocusGroup, children: /* @__PURE__ */ u3(Collection.Slot, { scope: props.__scopeRovingFocusGroup, children: /* @__PURE__ */ u3(RovingFocusGroupImpl, { ...props, ref: forwardedRef }) }) });
+  }
+);
+RovingFocusGroup.displayName = GROUP_NAME;
+var RovingFocusGroupImpl = D3((props, forwardedRef) => {
+  const {
+    __scopeRovingFocusGroup,
+    orientation,
+    loop = false,
+    dir,
+    currentTabStopId: currentTabStopIdProp,
+    defaultCurrentTabStopId,
+    onCurrentTabStopIdChange,
+    onEntryFocus,
+    preventScrollOnEntryFocus = false,
+    ...groupProps
+  } = props;
+  const ref = A2(null);
+  const composedRefs = useComposedRefs(forwardedRef, ref);
+  const direction = useDirection(dir);
+  const [currentTabStopId, setCurrentTabStopId] = useControllableState({
+    prop: currentTabStopIdProp,
+    defaultProp: defaultCurrentTabStopId ?? null,
+    onChange: onCurrentTabStopIdChange,
+    caller: GROUP_NAME
+  });
+  const [isTabbingBackOut, setIsTabbingBackOut] = d2(false);
+  const handleEntryFocus = useCallbackRef(onEntryFocus);
+  const getItems = useCollection(__scopeRovingFocusGroup);
+  const isClickFocusRef = A2(false);
+  const [focusableItemsCount, setFocusableItemsCount] = d2(0);
+  y2(() => {
+    const node = ref.current;
+    if (node) {
+      node.addEventListener(ENTRY_FOCUS, handleEntryFocus);
+      return () => node.removeEventListener(ENTRY_FOCUS, handleEntryFocus);
+    }
+  }, [handleEntryFocus]);
+  return /* @__PURE__ */ u3(
+    RovingFocusProvider,
+    {
+      scope: __scopeRovingFocusGroup,
+      orientation,
+      dir: direction,
+      loop,
+      currentTabStopId,
+      onItemFocus: q2(
+        (tabStopId) => setCurrentTabStopId(tabStopId),
+        [setCurrentTabStopId]
+      ),
+      onItemShiftTab: q2(() => setIsTabbingBackOut(true), []),
+      onFocusableItemAdd: q2(
+        () => setFocusableItemsCount((prevCount) => prevCount + 1),
+        []
+      ),
+      onFocusableItemRemove: q2(
+        () => setFocusableItemsCount((prevCount) => prevCount - 1),
+        []
+      ),
+      children: /* @__PURE__ */ u3(
+        Primitive.div,
+        {
+          tabIndex: isTabbingBackOut || focusableItemsCount === 0 ? -1 : 0,
+          "data-orientation": orientation,
+          ...groupProps,
+          ref: composedRefs,
+          style: { outline: "none", ...props.style },
+          onMouseDown: composeEventHandlers(props.onMouseDown, () => {
+            isClickFocusRef.current = true;
+          }),
+          onFocus: composeEventHandlers(props.onFocus, (event) => {
+            const isKeyboardFocus = !isClickFocusRef.current;
+            if (event.target === event.currentTarget && isKeyboardFocus && !isTabbingBackOut) {
+              const entryFocusEvent = new CustomEvent(ENTRY_FOCUS, EVENT_OPTIONS);
+              event.currentTarget.dispatchEvent(entryFocusEvent);
+              if (!entryFocusEvent.defaultPrevented) {
+                const items = getItems().filter((item) => item.focusable);
+                const activeItem = items.find((item) => item.active);
+                const currentItem = items.find((item) => item.id === currentTabStopId);
+                const candidateItems = [activeItem, currentItem, ...items].filter(
+                  Boolean
+                );
+                const candidateNodes = candidateItems.map((item) => item.ref.current);
+                focusFirst(candidateNodes, preventScrollOnEntryFocus);
+              }
+            }
+            isClickFocusRef.current = false;
+          }),
+          onBlur: composeEventHandlers(props.onBlur, () => setIsTabbingBackOut(false))
+        }
+      )
+    }
+  );
+});
+var ITEM_NAME = "RovingFocusGroupItem";
+var RovingFocusGroupItem = D3(
+  (props, forwardedRef) => {
+    const {
+      __scopeRovingFocusGroup,
+      focusable = true,
+      active = false,
+      tabStopId,
+      children,
+      ...itemProps
+    } = props;
+    const autoId = useId();
+    const id = tabStopId || autoId;
+    const context = useRovingFocusContext(ITEM_NAME, __scopeRovingFocusGroup);
+    const isCurrentTabStop = context.currentTabStopId === id;
+    const getItems = useCollection(__scopeRovingFocusGroup);
+    const { onFocusableItemAdd, onFocusableItemRemove, currentTabStopId } = context;
+    y2(() => {
+      if (focusable) {
+        onFocusableItemAdd();
+        return () => onFocusableItemRemove();
+      }
+    }, [focusable, onFocusableItemAdd, onFocusableItemRemove]);
+    return /* @__PURE__ */ u3(
+      Collection.ItemSlot,
+      {
+        scope: __scopeRovingFocusGroup,
+        id,
+        focusable,
+        active,
+        children: /* @__PURE__ */ u3(
+          Primitive.span,
+          {
+            tabIndex: isCurrentTabStop ? 0 : -1,
+            "data-orientation": context.orientation,
+            ...itemProps,
+            ref: forwardedRef,
+            onMouseDown: composeEventHandlers(props.onMouseDown, (event) => {
+              if (!focusable) event.preventDefault();
+              else context.onItemFocus(id);
+            }),
+            onFocus: composeEventHandlers(props.onFocus, () => context.onItemFocus(id)),
+            onKeyDown: composeEventHandlers(props.onKeyDown, (event) => {
+              if (event.key === "Tab" && event.shiftKey) {
+                context.onItemShiftTab();
+                return;
+              }
+              if (event.target !== event.currentTarget) return;
+              const focusIntent = getFocusIntent(event, context.orientation, context.dir);
+              if (focusIntent !== void 0) {
+                if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+                event.preventDefault();
+                const items = getItems().filter((item) => item.focusable);
+                let candidateNodes = items.map((item) => item.ref.current);
+                if (focusIntent === "last") candidateNodes.reverse();
+                else if (focusIntent === "prev" || focusIntent === "next") {
+                  if (focusIntent === "prev") candidateNodes.reverse();
+                  const currentIndex = candidateNodes.indexOf(event.currentTarget);
+                  candidateNodes = context.loop ? wrapArray(candidateNodes, currentIndex + 1) : candidateNodes.slice(currentIndex + 1);
+                }
+                setTimeout(() => focusFirst(candidateNodes));
+              }
+            }),
+            children: typeof children === "function" ? children({ isCurrentTabStop, hasTabStop: currentTabStopId != null }) : children
+          }
+        )
+      }
+    );
+  }
+);
+RovingFocusGroupItem.displayName = ITEM_NAME;
+var MAP_KEY_TO_FOCUS_INTENT = {
+  ArrowLeft: "prev",
+  ArrowUp: "prev",
+  ArrowRight: "next",
+  ArrowDown: "next",
+  PageUp: "first",
+  Home: "first",
+  PageDown: "last",
+  End: "last"
+};
+function getDirectionAwareKey(key, dir) {
+  if (dir !== "rtl") return key;
+  return key === "ArrowLeft" ? "ArrowRight" : key === "ArrowRight" ? "ArrowLeft" : key;
+}
+function getFocusIntent(event, orientation, dir) {
+  const key = getDirectionAwareKey(event.key, dir);
+  if (orientation === "vertical" && ["ArrowLeft", "ArrowRight"].includes(key)) return void 0;
+  if (orientation === "horizontal" && ["ArrowUp", "ArrowDown"].includes(key)) return void 0;
+  return MAP_KEY_TO_FOCUS_INTENT[key];
+}
+function focusFirst(candidates, preventScroll = false) {
+  const PREVIOUSLY_FOCUSED_ELEMENT = document.activeElement;
+  for (const candidate of candidates) {
+    if (candidate === PREVIOUSLY_FOCUSED_ELEMENT) return;
+    candidate.focus({ preventScroll });
+    if (document.activeElement !== PREVIOUSLY_FOCUSED_ELEMENT) return;
+  }
+}
+function wrapArray(array, startIndex) {
+  return array.map((_3, index) => array[(startIndex + index) % array.length]);
+}
+var Root = RovingFocusGroup;
+var Item = RovingFocusGroupItem;
+
+// node_modules/@radix-ui/react-presence/dist/index.mjs
+function useStateMachine(initialState, machine) {
+  return h2((state, event) => {
+    const nextState = machine[state][event];
+    return nextState ?? state;
+  }, initialState);
+}
+var Presence = (props) => {
+  const { present, children } = props;
+  const presence = usePresence(present);
+  const child = typeof children === "function" ? children({ present: presence.isPresent }) : O2.only(children);
+  const ref = useComposedRefs(presence.ref, getElementRef2(child));
+  const forceMount = typeof children === "function";
+  return forceMount || presence.isPresent ? _n(child, { ref }) : null;
+};
+Presence.displayName = "Presence";
+function usePresence(present) {
+  const [node, setNode] = d2();
+  const stylesRef = A2(null);
+  const prevPresentRef = A2(present);
+  const prevAnimationNameRef = A2("none");
+  const initialState = present ? "mounted" : "unmounted";
+  const [state, send] = useStateMachine(initialState, {
+    mounted: {
+      UNMOUNT: "unmounted",
+      ANIMATION_OUT: "unmountSuspended"
+    },
+    unmountSuspended: {
+      MOUNT: "mounted",
+      ANIMATION_END: "unmounted"
+    },
+    unmounted: {
+      MOUNT: "mounted"
+    }
+  });
+  y2(() => {
+    const currentAnimationName = getAnimationName(stylesRef.current);
+    prevAnimationNameRef.current = state === "mounted" ? currentAnimationName : "none";
+  }, [state]);
+  useLayoutEffect2(() => {
+    const styles2 = stylesRef.current;
+    const wasPresent = prevPresentRef.current;
+    const hasPresentChanged = wasPresent !== present;
+    if (hasPresentChanged) {
+      const prevAnimationName = prevAnimationNameRef.current;
+      const currentAnimationName = getAnimationName(styles2);
+      if (present) {
+        send("MOUNT");
+      } else if (currentAnimationName === "none" || styles2?.display === "none") {
+        send("UNMOUNT");
+      } else {
+        const isAnimating = prevAnimationName !== currentAnimationName;
+        if (wasPresent && isAnimating) {
+          send("ANIMATION_OUT");
+        } else {
+          send("UNMOUNT");
+        }
+      }
+      prevPresentRef.current = present;
+    }
+  }, [present, send]);
+  useLayoutEffect2(() => {
+    if (node) {
+      let timeoutId;
+      const ownerWindow = node.ownerDocument.defaultView ?? window;
+      const handleAnimationEnd = (event) => {
+        const currentAnimationName = getAnimationName(stylesRef.current);
+        const isCurrentAnimation = currentAnimationName.includes(CSS.escape(event.animationName));
+        if (event.target === node && isCurrentAnimation) {
+          send("ANIMATION_END");
+          if (!prevPresentRef.current) {
+            const currentFillMode = node.style.animationFillMode;
+            node.style.animationFillMode = "forwards";
+            timeoutId = ownerWindow.setTimeout(() => {
+              if (node.style.animationFillMode === "forwards") {
+                node.style.animationFillMode = currentFillMode;
+              }
+            });
+          }
+        }
+      };
+      const handleAnimationStart = (event) => {
+        if (event.target === node) {
+          prevAnimationNameRef.current = getAnimationName(stylesRef.current);
+        }
+      };
+      node.addEventListener("animationstart", handleAnimationStart);
+      node.addEventListener("animationcancel", handleAnimationEnd);
+      node.addEventListener("animationend", handleAnimationEnd);
+      return () => {
+        ownerWindow.clearTimeout(timeoutId);
+        node.removeEventListener("animationstart", handleAnimationStart);
+        node.removeEventListener("animationcancel", handleAnimationEnd);
+        node.removeEventListener("animationend", handleAnimationEnd);
+      };
+    } else {
+      send("ANIMATION_END");
+    }
+  }, [node, send]);
+  return {
+    isPresent: ["mounted", "unmountSuspended"].includes(state),
+    ref: q2((node2) => {
+      stylesRef.current = node2 ? getComputedStyle(node2) : null;
+      setNode(node2);
+    }, [])
+  };
+}
+function getAnimationName(styles2) {
+  return styles2?.animationName || "none";
+}
+function getElementRef2(element) {
+  let getter = Object.getOwnPropertyDescriptor(element.props, "ref")?.get;
+  let mayWarn = getter && "isReactWarning" in getter && getter.isReactWarning;
+  if (mayWarn) {
+    return element.ref;
+  }
+  getter = Object.getOwnPropertyDescriptor(element, "ref")?.get;
+  mayWarn = getter && "isReactWarning" in getter && getter.isReactWarning;
+  if (mayWarn) {
+    return element.props.ref;
+  }
+  return element.props.ref || element.ref;
+}
+
+// node_modules/@radix-ui/react-tabs/dist/index.mjs
+var TABS_NAME = "Tabs";
+var [createTabsContext, createTabsScope] = createContextScope(TABS_NAME, [
+  createRovingFocusGroupScope
+]);
+var useRovingFocusGroupScope = createRovingFocusGroupScope();
+var [TabsProvider, useTabsContext] = createTabsContext(TABS_NAME);
+var Tabs = D3(
+  (props, forwardedRef) => {
+    const {
+      __scopeTabs,
+      value: valueProp,
+      onValueChange,
+      defaultValue,
+      orientation = "horizontal",
+      dir,
+      activationMode = "automatic",
+      ...tabsProps
+    } = props;
+    const direction = useDirection(dir);
+    const [value, setValue] = useControllableState({
+      prop: valueProp,
+      onChange: onValueChange,
+      defaultProp: defaultValue ?? "",
+      caller: TABS_NAME
+    });
+    return /* @__PURE__ */ u3(
+      TabsProvider,
+      {
+        scope: __scopeTabs,
+        baseId: useId(),
+        value,
+        onValueChange: setValue,
+        orientation,
+        dir: direction,
+        activationMode,
+        children: /* @__PURE__ */ u3(
+          Primitive.div,
+          {
+            dir: direction,
+            "data-orientation": orientation,
+            ...tabsProps,
+            ref: forwardedRef
+          }
+        )
+      }
+    );
+  }
+);
+Tabs.displayName = TABS_NAME;
+var TAB_LIST_NAME = "TabsList";
+var TabsList = D3(
+  (props, forwardedRef) => {
+    const { __scopeTabs, loop = true, ...listProps } = props;
+    const context = useTabsContext(TAB_LIST_NAME, __scopeTabs);
+    const rovingFocusGroupScope = useRovingFocusGroupScope(__scopeTabs);
+    return /* @__PURE__ */ u3(
+      Root,
+      {
+        asChild: true,
+        ...rovingFocusGroupScope,
+        orientation: context.orientation,
+        dir: context.dir,
+        loop,
+        children: /* @__PURE__ */ u3(
+          Primitive.div,
+          {
+            role: "tablist",
+            "aria-orientation": context.orientation,
+            ...listProps,
+            ref: forwardedRef
+          }
+        )
+      }
+    );
+  }
+);
+TabsList.displayName = TAB_LIST_NAME;
+var TRIGGER_NAME = "TabsTrigger";
+var TabsTrigger = D3(
+  (props, forwardedRef) => {
+    const { __scopeTabs, value, disabled = false, ...triggerProps } = props;
+    const context = useTabsContext(TRIGGER_NAME, __scopeTabs);
+    const rovingFocusGroupScope = useRovingFocusGroupScope(__scopeTabs);
+    const triggerId = makeTriggerId(context.baseId, value);
+    const contentId = makeContentId(context.baseId, value);
+    const isSelected = value === context.value;
+    return /* @__PURE__ */ u3(
+      Item,
+      {
+        asChild: true,
+        ...rovingFocusGroupScope,
+        focusable: !disabled,
+        active: isSelected,
+        children: /* @__PURE__ */ u3(
+          Primitive.button,
+          {
+            type: "button",
+            role: "tab",
+            "aria-selected": isSelected,
+            "aria-controls": contentId,
+            "data-state": isSelected ? "active" : "inactive",
+            "data-disabled": disabled ? "" : void 0,
+            disabled,
+            id: triggerId,
+            ...triggerProps,
+            ref: forwardedRef,
+            onMouseDown: composeEventHandlers(props.onMouseDown, (event) => {
+              if (!disabled && event.button === 0 && event.ctrlKey === false) {
+                context.onValueChange(value);
+              } else {
+                event.preventDefault();
+              }
+            }),
+            onKeyDown: composeEventHandlers(props.onKeyDown, (event) => {
+              if ([" ", "Enter"].includes(event.key)) context.onValueChange(value);
+            }),
+            onFocus: composeEventHandlers(props.onFocus, () => {
+              const isAutomaticActivation = context.activationMode !== "manual";
+              if (!isSelected && !disabled && isAutomaticActivation) {
+                context.onValueChange(value);
+              }
+            })
+          }
+        )
+      }
+    );
+  }
+);
+TabsTrigger.displayName = TRIGGER_NAME;
+var CONTENT_NAME = "TabsContent";
+var TabsContent = D3(
+  (props, forwardedRef) => {
+    const { __scopeTabs, value, forceMount, children, ...contentProps } = props;
+    const context = useTabsContext(CONTENT_NAME, __scopeTabs);
+    const triggerId = makeTriggerId(context.baseId, value);
+    const contentId = makeContentId(context.baseId, value);
+    const isSelected = value === context.value;
+    const isMountAnimationPreventedRef = A2(isSelected);
+    y2(() => {
+      const rAF = requestAnimationFrame(() => isMountAnimationPreventedRef.current = false);
+      return () => cancelAnimationFrame(rAF);
+    }, []);
+    return /* @__PURE__ */ u3(Presence, { present: forceMount || isSelected, children: ({ present }) => /* @__PURE__ */ u3(
+      Primitive.div,
+      {
+        "data-state": isSelected ? "active" : "inactive",
+        "data-orientation": context.orientation,
+        role: "tabpanel",
+        "aria-labelledby": triggerId,
+        hidden: !present,
+        id: contentId,
+        tabIndex: 0,
+        ...contentProps,
+        ref: forwardedRef,
+        style: {
+          ...props.style,
+          animationDuration: isMountAnimationPreventedRef.current ? "0s" : void 0
+        },
+        children: present && children
+      }
+    ) });
+  }
+);
+TabsContent.displayName = CONTENT_NAME;
+function makeTriggerId(baseId, value) {
+  return `${baseId}-trigger-${value}`;
+}
+function makeContentId(baseId, value) {
+  return `${baseId}-content-${value}`;
+}
+var Root2 = Tabs;
+var List = TabsList;
+var Trigger = TabsTrigger;
+var Content = TabsContent;
+
+// node_modules/@radix-ui/react-use-escape-keydown/dist/index.mjs
+function useEscapeKeydown(onEscapeKeyDownProp, ownerDocument = globalThis?.document) {
+  const onEscapeKeyDown = useCallbackRef(onEscapeKeyDownProp);
+  y2(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        onEscapeKeyDown(event);
+      }
+    };
+    ownerDocument.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () => ownerDocument.removeEventListener("keydown", handleKeyDown, { capture: true });
+  }, [onEscapeKeyDown, ownerDocument]);
+}
+
+// node_modules/@radix-ui/react-dismissable-layer/dist/index.mjs
+var DISMISSABLE_LAYER_NAME = "DismissableLayer";
+var CONTEXT_UPDATE = "dismissableLayer.update";
+var POINTER_DOWN_OUTSIDE = "dismissableLayer.pointerDownOutside";
+var FOCUS_OUTSIDE = "dismissableLayer.focusOutside";
+var originalBodyPointerEvents;
+var DismissableLayerContext = Q({
+  layers: /* @__PURE__ */ new Set(),
+  layersWithOutsidePointerEventsDisabled: /* @__PURE__ */ new Set(),
+  branches: /* @__PURE__ */ new Set()
+});
+var DismissableLayer = D3(
+  (props, forwardedRef) => {
+    const {
+      disableOutsidePointerEvents = false,
+      onEscapeKeyDown,
+      onPointerDownOutside,
+      onFocusOutside,
+      onInteractOutside,
+      onDismiss,
+      ...layerProps
+    } = props;
+    const context = x2(DismissableLayerContext);
+    const [node, setNode] = d2(null);
+    const ownerDocument = node?.ownerDocument ?? globalThis?.document;
+    const [, force] = d2({});
+    const composedRefs = useComposedRefs(forwardedRef, (node2) => setNode(node2));
+    const layers = Array.from(context.layers);
+    const [highestLayerWithOutsidePointerEventsDisabled] = [...context.layersWithOutsidePointerEventsDisabled].slice(-1);
+    const highestLayerWithOutsidePointerEventsDisabledIndex = layers.indexOf(highestLayerWithOutsidePointerEventsDisabled);
+    const index = node ? layers.indexOf(node) : -1;
+    const isBodyPointerEventsDisabled = context.layersWithOutsidePointerEventsDisabled.size > 0;
+    const isPointerEventsEnabled = index >= highestLayerWithOutsidePointerEventsDisabledIndex;
+    const pointerDownOutside = usePointerDownOutside((event) => {
+      const target = event.target;
+      const isPointerDownOnBranch = [...context.branches].some((branch) => branch.contains(target));
+      if (!isPointerEventsEnabled || isPointerDownOnBranch) return;
+      onPointerDownOutside?.(event);
+      onInteractOutside?.(event);
+      if (!event.defaultPrevented) onDismiss?.();
+    }, ownerDocument);
+    const focusOutside = useFocusOutside((event) => {
+      const target = event.target;
+      const isFocusInBranch = [...context.branches].some((branch) => branch.contains(target));
+      if (isFocusInBranch) return;
+      onFocusOutside?.(event);
+      onInteractOutside?.(event);
+      if (!event.defaultPrevented) onDismiss?.();
+    }, ownerDocument);
+    useEscapeKeydown((event) => {
+      const isHighestLayer = index === context.layers.size - 1;
+      if (!isHighestLayer) return;
+      onEscapeKeyDown?.(event);
+      if (!event.defaultPrevented && onDismiss) {
+        event.preventDefault();
+        onDismiss();
+      }
+    }, ownerDocument);
+    y2(() => {
+      if (!node) return;
+      if (disableOutsidePointerEvents) {
+        if (context.layersWithOutsidePointerEventsDisabled.size === 0) {
+          originalBodyPointerEvents = ownerDocument.body.style.pointerEvents;
+          ownerDocument.body.style.pointerEvents = "none";
+        }
+        context.layersWithOutsidePointerEventsDisabled.add(node);
+      }
+      context.layers.add(node);
+      dispatchUpdate();
+      return () => {
+        if (disableOutsidePointerEvents && context.layersWithOutsidePointerEventsDisabled.size === 1) {
+          ownerDocument.body.style.pointerEvents = originalBodyPointerEvents;
+        }
+      };
+    }, [node, ownerDocument, disableOutsidePointerEvents, context]);
+    y2(() => {
+      return () => {
+        if (!node) return;
+        context.layers.delete(node);
+        context.layersWithOutsidePointerEventsDisabled.delete(node);
+        dispatchUpdate();
+      };
+    }, [node, context]);
+    y2(() => {
+      const handleUpdate = () => force({});
+      document.addEventListener(CONTEXT_UPDATE, handleUpdate);
+      return () => document.removeEventListener(CONTEXT_UPDATE, handleUpdate);
+    }, []);
+    return /* @__PURE__ */ u3(
+      Primitive.div,
+      {
+        ...layerProps,
+        ref: composedRefs,
+        style: {
+          pointerEvents: isBodyPointerEventsDisabled ? isPointerEventsEnabled ? "auto" : "none" : void 0,
+          ...props.style
+        },
+        onFocusCapture: composeEventHandlers(props.onFocusCapture, focusOutside.onFocusCapture),
+        onBlurCapture: composeEventHandlers(props.onBlurCapture, focusOutside.onBlurCapture),
+        onPointerDownCapture: composeEventHandlers(
+          props.onPointerDownCapture,
+          pointerDownOutside.onPointerDownCapture
+        )
+      }
+    );
+  }
+);
+DismissableLayer.displayName = DISMISSABLE_LAYER_NAME;
+var BRANCH_NAME = "DismissableLayerBranch";
+var DismissableLayerBranch = D3((props, forwardedRef) => {
+  const context = x2(DismissableLayerContext);
+  const ref = A2(null);
+  const composedRefs = useComposedRefs(forwardedRef, ref);
+  y2(() => {
+    const node = ref.current;
+    if (node) {
+      context.branches.add(node);
+      return () => {
+        context.branches.delete(node);
+      };
+    }
+  }, [context.branches]);
+  return /* @__PURE__ */ u3(Primitive.div, { ...props, ref: composedRefs });
+});
+DismissableLayerBranch.displayName = BRANCH_NAME;
+function usePointerDownOutside(onPointerDownOutside, ownerDocument = globalThis?.document) {
+  const handlePointerDownOutside = useCallbackRef(onPointerDownOutside);
+  const isPointerInsideReactTreeRef = A2(false);
+  const handleClickRef = A2(() => {
+  });
+  y2(() => {
+    const handlePointerDown = (event) => {
+      if (event.target && !isPointerInsideReactTreeRef.current) {
+        let handleAndDispatchPointerDownOutsideEvent2 = function() {
+          handleAndDispatchCustomEvent(
+            POINTER_DOWN_OUTSIDE,
+            handlePointerDownOutside,
+            eventDetail,
+            { discrete: true }
+          );
+        };
+        var handleAndDispatchPointerDownOutsideEvent = handleAndDispatchPointerDownOutsideEvent2;
+        const eventDetail = { originalEvent: event };
+        if (event.pointerType === "touch") {
+          ownerDocument.removeEventListener("click", handleClickRef.current);
+          handleClickRef.current = handleAndDispatchPointerDownOutsideEvent2;
+          ownerDocument.addEventListener("click", handleClickRef.current, { once: true });
+        } else {
+          handleAndDispatchPointerDownOutsideEvent2();
+        }
+      } else {
+        ownerDocument.removeEventListener("click", handleClickRef.current);
+      }
+      isPointerInsideReactTreeRef.current = false;
+    };
+    const timerId = window.setTimeout(() => {
+      ownerDocument.addEventListener("pointerdown", handlePointerDown);
+    }, 0);
+    return () => {
+      window.clearTimeout(timerId);
+      ownerDocument.removeEventListener("pointerdown", handlePointerDown);
+      ownerDocument.removeEventListener("click", handleClickRef.current);
+    };
+  }, [ownerDocument, handlePointerDownOutside]);
+  return {
+    // ensures we check React component tree (not just DOM tree)
+    onPointerDownCapture: () => isPointerInsideReactTreeRef.current = true
+  };
+}
+function useFocusOutside(onFocusOutside, ownerDocument = globalThis?.document) {
+  const handleFocusOutside = useCallbackRef(onFocusOutside);
+  const isFocusInsideReactTreeRef = A2(false);
+  y2(() => {
+    const handleFocus = (event) => {
+      if (event.target && !isFocusInsideReactTreeRef.current) {
+        const eventDetail = { originalEvent: event };
+        handleAndDispatchCustomEvent(FOCUS_OUTSIDE, handleFocusOutside, eventDetail, {
+          discrete: false
+        });
+      }
+    };
+    ownerDocument.addEventListener("focusin", handleFocus);
+    return () => ownerDocument.removeEventListener("focusin", handleFocus);
+  }, [ownerDocument, handleFocusOutside]);
+  return {
+    onFocusCapture: () => isFocusInsideReactTreeRef.current = true,
+    onBlurCapture: () => isFocusInsideReactTreeRef.current = false
+  };
+}
+function dispatchUpdate() {
+  const event = new CustomEvent(CONTEXT_UPDATE);
+  document.dispatchEvent(event);
+}
+function handleAndDispatchCustomEvent(name, handler, detail, { discrete }) {
+  const target = detail.originalEvent.target;
+  const event = new CustomEvent(name, { bubbles: false, cancelable: true, detail });
+  if (handler) target.addEventListener(name, handler, { once: true });
+  if (discrete) {
+    dispatchDiscreteCustomEvent(target, event);
+  } else {
+    target.dispatchEvent(event);
+  }
+}
+
+// node_modules/@radix-ui/react-focus-scope/dist/index.mjs
+var AUTOFOCUS_ON_MOUNT = "focusScope.autoFocusOnMount";
+var AUTOFOCUS_ON_UNMOUNT = "focusScope.autoFocusOnUnmount";
+var EVENT_OPTIONS2 = { bubbles: false, cancelable: true };
+var FOCUS_SCOPE_NAME = "FocusScope";
+var FocusScope = D3((props, forwardedRef) => {
+  const {
+    loop = false,
+    trapped = false,
+    onMountAutoFocus: onMountAutoFocusProp,
+    onUnmountAutoFocus: onUnmountAutoFocusProp,
+    ...scopeProps
+  } = props;
+  const [container, setContainer] = d2(null);
+  const onMountAutoFocus = useCallbackRef(onMountAutoFocusProp);
+  const onUnmountAutoFocus = useCallbackRef(onUnmountAutoFocusProp);
+  const lastFocusedElementRef = A2(null);
+  const composedRefs = useComposedRefs(forwardedRef, (node) => setContainer(node));
+  const focusScope = A2({
+    paused: false,
+    pause() {
+      this.paused = true;
+    },
+    resume() {
+      this.paused = false;
+    }
+  }).current;
+  y2(() => {
+    if (trapped) {
+      let handleFocusIn2 = function(event) {
+        if (focusScope.paused || !container) return;
+        const target = event.target;
+        if (container.contains(target)) {
+          lastFocusedElementRef.current = target;
+        } else {
+          focus(lastFocusedElementRef.current, { select: true });
+        }
+      }, handleFocusOut2 = function(event) {
+        if (focusScope.paused || !container) return;
+        const relatedTarget = event.relatedTarget;
+        if (relatedTarget === null) return;
+        if (!container.contains(relatedTarget)) {
+          focus(lastFocusedElementRef.current, { select: true });
+        }
+      }, handleMutations2 = function(mutations) {
+        const focusedElement = document.activeElement;
+        if (focusedElement !== document.body) return;
+        for (const mutation of mutations) {
+          if (mutation.removedNodes.length > 0) focus(container);
+        }
+      };
+      var handleFocusIn = handleFocusIn2, handleFocusOut = handleFocusOut2, handleMutations = handleMutations2;
+      document.addEventListener("focusin", handleFocusIn2);
+      document.addEventListener("focusout", handleFocusOut2);
+      const mutationObserver = new MutationObserver(handleMutations2);
+      if (container) mutationObserver.observe(container, { childList: true, subtree: true });
+      return () => {
+        document.removeEventListener("focusin", handleFocusIn2);
+        document.removeEventListener("focusout", handleFocusOut2);
+        mutationObserver.disconnect();
+      };
+    }
+  }, [trapped, container, focusScope.paused]);
+  y2(() => {
+    if (container) {
+      focusScopesStack.add(focusScope);
+      const previouslyFocusedElement = document.activeElement;
+      const hasFocusedCandidate = container.contains(previouslyFocusedElement);
+      if (!hasFocusedCandidate) {
+        const mountEvent = new CustomEvent(AUTOFOCUS_ON_MOUNT, EVENT_OPTIONS2);
+        container.addEventListener(AUTOFOCUS_ON_MOUNT, onMountAutoFocus);
+        container.dispatchEvent(mountEvent);
+        if (!mountEvent.defaultPrevented) {
+          focusFirst2(removeLinks(getTabbableCandidates(container)), { select: true });
+          if (document.activeElement === previouslyFocusedElement) {
+            focus(container);
+          }
+        }
+      }
+      return () => {
+        container.removeEventListener(AUTOFOCUS_ON_MOUNT, onMountAutoFocus);
+        setTimeout(() => {
+          const unmountEvent = new CustomEvent(AUTOFOCUS_ON_UNMOUNT, EVENT_OPTIONS2);
+          container.addEventListener(AUTOFOCUS_ON_UNMOUNT, onUnmountAutoFocus);
+          container.dispatchEvent(unmountEvent);
+          if (!unmountEvent.defaultPrevented) {
+            focus(previouslyFocusedElement ?? document.body, { select: true });
+          }
+          container.removeEventListener(AUTOFOCUS_ON_UNMOUNT, onUnmountAutoFocus);
+          focusScopesStack.remove(focusScope);
+        }, 0);
+      };
+    }
+  }, [container, onMountAutoFocus, onUnmountAutoFocus, focusScope]);
+  const handleKeyDown = q2(
+    (event) => {
+      if (!loop && !trapped) return;
+      if (focusScope.paused) return;
+      const isTabKey = event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey;
+      const focusedElement = document.activeElement;
+      if (isTabKey && focusedElement) {
+        const container2 = event.currentTarget;
+        const [first, last] = getTabbableEdges(container2);
+        const hasTabbableElementsInside = first && last;
+        if (!hasTabbableElementsInside) {
+          if (focusedElement === container2) event.preventDefault();
+        } else {
+          if (!event.shiftKey && focusedElement === last) {
+            event.preventDefault();
+            if (loop) focus(first, { select: true });
+          } else if (event.shiftKey && focusedElement === first) {
+            event.preventDefault();
+            if (loop) focus(last, { select: true });
+          }
+        }
+      }
+    },
+    [loop, trapped, focusScope.paused]
+  );
+  return /* @__PURE__ */ u3(Primitive.div, { tabIndex: -1, ...scopeProps, ref: composedRefs, onKeyDown: handleKeyDown });
+});
+FocusScope.displayName = FOCUS_SCOPE_NAME;
+function focusFirst2(candidates, { select = false } = {}) {
+  const previouslyFocusedElement = document.activeElement;
+  for (const candidate of candidates) {
+    focus(candidate, { select });
+    if (document.activeElement !== previouslyFocusedElement) return;
+  }
+}
+function getTabbableEdges(container) {
+  const candidates = getTabbableCandidates(container);
+  const first = findVisible(candidates, container);
+  const last = findVisible(candidates.reverse(), container);
+  return [first, last];
+}
+function getTabbableCandidates(container) {
+  const nodes = [];
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_ELEMENT, {
+    acceptNode: (node) => {
+      const isHiddenInput = node.tagName === "INPUT" && node.type === "hidden";
+      if (node.disabled || node.hidden || isHiddenInput) return NodeFilter.FILTER_SKIP;
+      return node.tabIndex >= 0 ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+    }
+  });
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  return nodes;
+}
+function findVisible(elements, container) {
+  for (const element of elements) {
+    if (!isHidden(element, { upTo: container })) return element;
+  }
+}
+function isHidden(node, { upTo }) {
+  if (getComputedStyle(node).visibility === "hidden") return true;
+  while (node) {
+    if (upTo !== void 0 && node === upTo) return false;
+    if (getComputedStyle(node).display === "none") return true;
+    node = node.parentElement;
+  }
+  return false;
+}
+function isSelectableInput(element) {
+  return element instanceof HTMLInputElement && "select" in element;
+}
+function focus(element, { select = false } = {}) {
+  if (element && element.focus) {
+    const previouslyFocusedElement = document.activeElement;
+    element.focus({ preventScroll: true });
+    if (element !== previouslyFocusedElement && isSelectableInput(element) && select)
+      element.select();
+  }
+}
+var focusScopesStack = createFocusScopesStack();
+function createFocusScopesStack() {
+  let stack = [];
+  return {
+    add(focusScope) {
+      const activeFocusScope = stack[0];
+      if (focusScope !== activeFocusScope) {
+        activeFocusScope?.pause();
+      }
+      stack = arrayRemove(stack, focusScope);
+      stack.unshift(focusScope);
+    },
+    remove(focusScope) {
+      stack = arrayRemove(stack, focusScope);
+      stack[0]?.resume();
+    }
+  };
+}
+function arrayRemove(array, item) {
+  const updatedArray = [...array];
+  const index = updatedArray.indexOf(item);
+  if (index !== -1) {
+    updatedArray.splice(index, 1);
+  }
+  return updatedArray;
+}
+function removeLinks(items) {
+  return items.filter((item) => item.tagName !== "A");
+}
+
+// node_modules/@radix-ui/react-portal/dist/index.mjs
+var PORTAL_NAME = "Portal";
+var Portal = D3((props, forwardedRef) => {
+  const { container: containerProp, ...portalProps } = props;
+  const [mounted, setMounted] = d2(false);
+  useLayoutEffect2(() => setMounted(true), []);
+  const container = containerProp || mounted && globalThis?.document?.body;
+  return container ? Rn.createPortal(/* @__PURE__ */ u3(Primitive.div, { ...portalProps, ref: forwardedRef }), container) : null;
+});
+Portal.displayName = PORTAL_NAME;
+
+// node_modules/@radix-ui/react-focus-guards/dist/index.mjs
+var count2 = 0;
+function useFocusGuards() {
+  y2(() => {
+    const edgeGuards = document.querySelectorAll("[data-radix-focus-guard]");
+    document.body.insertAdjacentElement("afterbegin", edgeGuards[0] ?? createFocusGuard());
+    document.body.insertAdjacentElement("beforeend", edgeGuards[1] ?? createFocusGuard());
+    count2++;
+    return () => {
+      if (count2 === 1) {
+        document.querySelectorAll("[data-radix-focus-guard]").forEach((node) => node.remove());
+      }
+      count2--;
+    };
+  }, []);
+}
+function createFocusGuard() {
+  const element = document.createElement("span");
+  element.setAttribute("data-radix-focus-guard", "");
+  element.tabIndex = 0;
+  element.style.outline = "none";
+  element.style.opacity = "0";
+  element.style.position = "fixed";
+  element.style.pointerEvents = "none";
+  return element;
+}
+
+// node_modules/tslib/tslib.es6.mjs
+var __assign = function() {
+  __assign = Object.assign || function __assign2(t3) {
+    for (var s3, i4 = 1, n2 = arguments.length; i4 < n2; i4++) {
+      s3 = arguments[i4];
+      for (var p3 in s3) if (Object.prototype.hasOwnProperty.call(s3, p3)) t3[p3] = s3[p3];
+    }
+    return t3;
+  };
+  return __assign.apply(this, arguments);
+};
+function __rest(s3, e3) {
+  var t3 = {};
+  for (var p3 in s3) if (Object.prototype.hasOwnProperty.call(s3, p3) && e3.indexOf(p3) < 0)
+    t3[p3] = s3[p3];
+  if (s3 != null && typeof Object.getOwnPropertySymbols === "function")
+    for (var i4 = 0, p3 = Object.getOwnPropertySymbols(s3); i4 < p3.length; i4++) {
+      if (e3.indexOf(p3[i4]) < 0 && Object.prototype.propertyIsEnumerable.call(s3, p3[i4]))
+        t3[p3[i4]] = s3[p3[i4]];
+    }
+  return t3;
+}
+function __spreadArray(to, from, pack) {
+  if (pack || arguments.length === 2) for (var i4 = 0, l3 = from.length, ar; i4 < l3; i4++) {
+    if (ar || !(i4 in from)) {
+      if (!ar) ar = Array.prototype.slice.call(from, 0, i4);
+      ar[i4] = from[i4];
+    }
+  }
+  return to.concat(ar || Array.prototype.slice.call(from));
+}
+
+// node_modules/react-remove-scroll-bar/dist/es2015/constants.js
+var zeroRightClassName = "right-scroll-bar-position";
+var fullWidthClassName = "width-before-scroll-bar";
+var noScrollbarsClassName = "with-scroll-bars-hidden";
+var removedBarSizeVariable = "--removed-body-scroll-bar-size";
+
+// node_modules/use-callback-ref/dist/es2015/assignRef.js
+function assignRef(ref, value) {
+  if (typeof ref === "function") {
+    ref(value);
+  } else if (ref) {
+    ref.current = value;
+  }
+  return ref;
+}
+
+// node_modules/use-callback-ref/dist/es2015/useRef.js
+function useCallbackRef2(initialValue, callback) {
+  var ref = d2(function() {
+    return {
+      // value
+      value: initialValue,
+      // last callback
+      callback,
+      // "memoized" public interface
+      facade: {
+        get current() {
+          return ref.value;
+        },
+        set current(value) {
+          var last = ref.value;
+          if (last !== value) {
+            ref.value = value;
+            ref.callback(value, last);
+          }
+        }
+      }
+    };
+  })[0];
+  ref.callback = callback;
+  return ref.facade;
+}
+
+// node_modules/use-callback-ref/dist/es2015/useMergeRef.js
+var useIsomorphicLayoutEffect = typeof window !== "undefined" ? _2 : y2;
+var currentValues = /* @__PURE__ */ new WeakMap();
+function useMergeRefs(refs, defaultValue) {
+  var callbackRef = useCallbackRef2(defaultValue || null, function(newValue) {
+    return refs.forEach(function(ref) {
+      return assignRef(ref, newValue);
+    });
+  });
+  useIsomorphicLayoutEffect(function() {
+    var oldValue = currentValues.get(callbackRef);
+    if (oldValue) {
+      var prevRefs_1 = new Set(oldValue);
+      var nextRefs_1 = new Set(refs);
+      var current_1 = callbackRef.current;
+      prevRefs_1.forEach(function(ref) {
+        if (!nextRefs_1.has(ref)) {
+          assignRef(ref, null);
+        }
+      });
+      nextRefs_1.forEach(function(ref) {
+        if (!prevRefs_1.has(ref)) {
+          assignRef(ref, current_1);
+        }
+      });
+    }
+    currentValues.set(callbackRef, refs);
+  }, [refs]);
+  return callbackRef;
+}
+
+// node_modules/use-sidecar/dist/es2015/medium.js
+function ItoI(a3) {
+  return a3;
+}
+function innerCreateMedium(defaults, middleware) {
+  if (middleware === void 0) {
+    middleware = ItoI;
+  }
+  var buffer = [];
+  var assigned = false;
+  var medium = {
+    read: function() {
+      if (assigned) {
+        throw new Error("Sidecar: could not `read` from an `assigned` medium. `read` could be used only with `useMedium`.");
+      }
+      if (buffer.length) {
+        return buffer[buffer.length - 1];
+      }
+      return defaults;
+    },
+    useMedium: function(data) {
+      var item = middleware(data, assigned);
+      buffer.push(item);
+      return function() {
+        buffer = buffer.filter(function(x4) {
+          return x4 !== item;
+        });
+      };
+    },
+    assignSyncMedium: function(cb) {
+      assigned = true;
+      while (buffer.length) {
+        var cbs = buffer;
+        buffer = [];
+        cbs.forEach(cb);
+      }
+      buffer = {
+        push: function(x4) {
+          return cb(x4);
+        },
+        filter: function() {
+          return buffer;
+        }
+      };
+    },
+    assignMedium: function(cb) {
+      assigned = true;
+      var pendingQueue = [];
+      if (buffer.length) {
+        var cbs = buffer;
+        buffer = [];
+        cbs.forEach(cb);
+        pendingQueue = buffer;
+      }
+      var executeQueue = function() {
+        var cbs2 = pendingQueue;
+        pendingQueue = [];
+        cbs2.forEach(cb);
+      };
+      var cycle = function() {
+        return Promise.resolve().then(executeQueue);
+      };
+      cycle();
+      buffer = {
+        push: function(x4) {
+          pendingQueue.push(x4);
+          cycle();
+        },
+        filter: function(filter) {
+          pendingQueue = pendingQueue.filter(filter);
+          return buffer;
+        }
+      };
+    }
+  };
+  return medium;
+}
+function createSidecarMedium(options) {
+  if (options === void 0) {
+    options = {};
+  }
+  var medium = innerCreateMedium(null);
+  medium.options = __assign({ async: true, ssr: false }, options);
+  return medium;
+}
+
+// node_modules/use-sidecar/dist/es2015/exports.js
+var SideCar = function(_a) {
+  var sideCar = _a.sideCar, rest = __rest(_a, ["sideCar"]);
+  if (!sideCar) {
+    throw new Error("Sidecar: please provide `sideCar` property to import the right car");
+  }
+  var Target = sideCar.read();
+  if (!Target) {
+    throw new Error("Sidecar medium not found");
+  }
+  return _(Target, __assign({}, rest));
+};
+SideCar.isSideCarExport = true;
+function exportSidecar(medium, exported) {
+  medium.useMedium(exported);
+  return SideCar;
+}
+
+// node_modules/react-remove-scroll/dist/es2015/medium.js
+var effectCar = createSidecarMedium();
+
+// node_modules/react-remove-scroll/dist/es2015/UI.js
+var nothing = function() {
+  return;
+};
+var RemoveScroll = D3(function(props, parentRef) {
+  var ref = A2(null);
+  var _a = d2({
+    onScrollCapture: nothing,
+    onWheelCapture: nothing,
+    onTouchMoveCapture: nothing
+  }), callbacks = _a[0], setCallbacks = _a[1];
+  var forwardProps = props.forwardProps, children = props.children, className = props.className, removeScrollBar = props.removeScrollBar, enabled = props.enabled, shards = props.shards, sideCar = props.sideCar, noRelative = props.noRelative, noIsolation = props.noIsolation, inert = props.inert, allowPinchZoom = props.allowPinchZoom, _b = props.as, Container = _b === void 0 ? "div" : _b, gapMode = props.gapMode, rest = __rest(props, ["forwardProps", "children", "className", "removeScrollBar", "enabled", "shards", "sideCar", "noRelative", "noIsolation", "inert", "allowPinchZoom", "as", "gapMode"]);
+  var SideCar2 = sideCar;
+  var containerRef = useMergeRefs([ref, parentRef]);
+  var containerProps = __assign(__assign({}, rest), callbacks);
+  return _(
+    k,
+    null,
+    enabled && _(SideCar2, { sideCar: effectCar, removeScrollBar, shards, noRelative, noIsolation, inert, setCallbacks, allowPinchZoom: !!allowPinchZoom, lockRef: ref, gapMode }),
+    forwardProps ? _n(O2.only(children), __assign(__assign({}, containerProps), { ref: containerRef })) : _(Container, __assign({}, containerProps, { className, ref: containerRef }), children)
+  );
+});
+RemoveScroll.defaultProps = {
+  enabled: true,
+  removeScrollBar: true,
+  inert: false
+};
+RemoveScroll.classNames = {
+  fullWidth: fullWidthClassName,
+  zeroRight: zeroRightClassName
+};
+
+// node_modules/get-nonce/dist/es2015/index.js
+var currentNonce;
+var getNonce = function() {
+  if (currentNonce) {
+    return currentNonce;
+  }
+  if (typeof __webpack_nonce__ !== "undefined") {
+    return __webpack_nonce__;
+  }
+  return void 0;
+};
+
+// node_modules/react-style-singleton/dist/es2015/singleton.js
+function makeStyleTag() {
+  if (!document)
+    return null;
+  var tag = document.createElement("style");
+  tag.type = "text/css";
+  var nonce = getNonce();
+  if (nonce) {
+    tag.setAttribute("nonce", nonce);
+  }
+  return tag;
+}
+function injectStyles(tag, css) {
+  if (tag.styleSheet) {
+    tag.styleSheet.cssText = css;
+  } else {
+    tag.appendChild(document.createTextNode(css));
+  }
+}
+function insertStyleTag(tag) {
+  var head = document.head || document.getElementsByTagName("head")[0];
+  head.appendChild(tag);
+}
+var stylesheetSingleton = function() {
+  var counter = 0;
+  var stylesheet = null;
+  return {
+    add: function(style) {
+      if (counter == 0) {
+        if (stylesheet = makeStyleTag()) {
+          injectStyles(stylesheet, style);
+          insertStyleTag(stylesheet);
+        }
+      }
+      counter++;
+    },
+    remove: function() {
+      counter--;
+      if (!counter && stylesheet) {
+        stylesheet.parentNode && stylesheet.parentNode.removeChild(stylesheet);
+        stylesheet = null;
+      }
+    }
+  };
+};
+
+// node_modules/react-style-singleton/dist/es2015/hook.js
+var styleHookSingleton = function() {
+  var sheet = stylesheetSingleton();
+  return function(styles2, isDynamic) {
+    y2(function() {
+      sheet.add(styles2);
+      return function() {
+        sheet.remove();
+      };
+    }, [styles2 && isDynamic]);
+  };
+};
+
+// node_modules/react-style-singleton/dist/es2015/component.js
+var styleSingleton = function() {
+  var useStyle = styleHookSingleton();
+  var Sheet = function(_a) {
+    var styles2 = _a.styles, dynamic = _a.dynamic;
+    useStyle(styles2, dynamic);
+    return null;
+  };
+  return Sheet;
+};
+
+// node_modules/react-remove-scroll-bar/dist/es2015/utils.js
+var zeroGap = {
+  left: 0,
+  top: 0,
+  right: 0,
+  gap: 0
+};
+var parse = function(x4) {
+  return parseInt(x4 || "", 10) || 0;
+};
+var getOffset = function(gapMode) {
+  var cs = window.getComputedStyle(document.body);
+  var left = cs[gapMode === "padding" ? "paddingLeft" : "marginLeft"];
+  var top = cs[gapMode === "padding" ? "paddingTop" : "marginTop"];
+  var right = cs[gapMode === "padding" ? "paddingRight" : "marginRight"];
+  return [parse(left), parse(top), parse(right)];
+};
+var getGapWidth = function(gapMode) {
+  if (gapMode === void 0) {
+    gapMode = "margin";
+  }
+  if (typeof window === "undefined") {
+    return zeroGap;
+  }
+  var offsets = getOffset(gapMode);
+  var documentWidth = document.documentElement.clientWidth;
+  var windowWidth = window.innerWidth;
+  return {
+    left: offsets[0],
+    top: offsets[1],
+    right: offsets[2],
+    gap: Math.max(0, windowWidth - documentWidth + offsets[2] - offsets[0])
+  };
+};
+
+// node_modules/react-remove-scroll-bar/dist/es2015/component.js
+var Style = styleSingleton();
+var lockAttribute = "data-scroll-locked";
+var getStyles = function(_a, allowRelative, gapMode, important) {
+  var left = _a.left, top = _a.top, right = _a.right, gap = _a.gap;
+  if (gapMode === void 0) {
+    gapMode = "margin";
+  }
+  return "\n  .".concat(noScrollbarsClassName, " {\n   overflow: hidden ").concat(important, ";\n   padding-right: ").concat(gap, "px ").concat(important, ";\n  }\n  body[").concat(lockAttribute, "] {\n    overflow: hidden ").concat(important, ";\n    overscroll-behavior: contain;\n    ").concat([
+    allowRelative && "position: relative ".concat(important, ";"),
+    gapMode === "margin" && "\n    padding-left: ".concat(left, "px;\n    padding-top: ").concat(top, "px;\n    padding-right: ").concat(right, "px;\n    margin-left:0;\n    margin-top:0;\n    margin-right: ").concat(gap, "px ").concat(important, ";\n    "),
+    gapMode === "padding" && "padding-right: ".concat(gap, "px ").concat(important, ";")
+  ].filter(Boolean).join(""), "\n  }\n  \n  .").concat(zeroRightClassName, " {\n    right: ").concat(gap, "px ").concat(important, ";\n  }\n  \n  .").concat(fullWidthClassName, " {\n    margin-right: ").concat(gap, "px ").concat(important, ";\n  }\n  \n  .").concat(zeroRightClassName, " .").concat(zeroRightClassName, " {\n    right: 0 ").concat(important, ";\n  }\n  \n  .").concat(fullWidthClassName, " .").concat(fullWidthClassName, " {\n    margin-right: 0 ").concat(important, ";\n  }\n  \n  body[").concat(lockAttribute, "] {\n    ").concat(removedBarSizeVariable, ": ").concat(gap, "px;\n  }\n");
+};
+var getCurrentUseCounter = function() {
+  var counter = parseInt(document.body.getAttribute(lockAttribute) || "0", 10);
+  return isFinite(counter) ? counter : 0;
+};
+var useLockAttribute = function() {
+  y2(function() {
+    document.body.setAttribute(lockAttribute, (getCurrentUseCounter() + 1).toString());
+    return function() {
+      var newCounter = getCurrentUseCounter() - 1;
+      if (newCounter <= 0) {
+        document.body.removeAttribute(lockAttribute);
+      } else {
+        document.body.setAttribute(lockAttribute, newCounter.toString());
+      }
+    };
+  }, []);
+};
+var RemoveScrollBar = function(_a) {
+  var noRelative = _a.noRelative, noImportant = _a.noImportant, _b = _a.gapMode, gapMode = _b === void 0 ? "margin" : _b;
+  useLockAttribute();
+  var gap = T2(function() {
+    return getGapWidth(gapMode);
+  }, [gapMode]);
+  return _(Style, { styles: getStyles(gap, !noRelative, gapMode, !noImportant ? "!important" : "") });
+};
+
+// node_modules/react-remove-scroll/dist/es2015/aggresiveCapture.js
+var passiveSupported = false;
+if (typeof window !== "undefined") {
+  try {
+    options = Object.defineProperty({}, "passive", {
+      get: function() {
+        passiveSupported = true;
+        return true;
+      }
+    });
+    window.addEventListener("test", options, options);
+    window.removeEventListener("test", options, options);
+  } catch (err) {
+    passiveSupported = false;
+  }
+}
+var options;
+var nonPassive = passiveSupported ? { passive: false } : false;
+
+// node_modules/react-remove-scroll/dist/es2015/handleScroll.js
+var alwaysContainsScroll = function(node) {
+  return node.tagName === "TEXTAREA";
+};
+var elementCanBeScrolled = function(node, overflow) {
+  if (!(node instanceof Element)) {
+    return false;
+  }
+  var styles2 = window.getComputedStyle(node);
+  return (
+    // not-not-scrollable
+    styles2[overflow] !== "hidden" && // contains scroll inside self
+    !(styles2.overflowY === styles2.overflowX && !alwaysContainsScroll(node) && styles2[overflow] === "visible")
+  );
+};
+var elementCouldBeVScrolled = function(node) {
+  return elementCanBeScrolled(node, "overflowY");
+};
+var elementCouldBeHScrolled = function(node) {
+  return elementCanBeScrolled(node, "overflowX");
+};
+var locationCouldBeScrolled = function(axis, node) {
+  var ownerDocument = node.ownerDocument;
+  var current = node;
+  do {
+    if (typeof ShadowRoot !== "undefined" && current instanceof ShadowRoot) {
+      current = current.host;
+    }
+    var isScrollable = elementCouldBeScrolled(axis, current);
+    if (isScrollable) {
+      var _a = getScrollVariables(axis, current), scrollHeight = _a[1], clientHeight = _a[2];
+      if (scrollHeight > clientHeight) {
+        return true;
+      }
+    }
+    current = current.parentNode;
+  } while (current && current !== ownerDocument.body);
+  return false;
+};
+var getVScrollVariables = function(_a) {
+  var scrollTop = _a.scrollTop, scrollHeight = _a.scrollHeight, clientHeight = _a.clientHeight;
+  return [
+    scrollTop,
+    scrollHeight,
+    clientHeight
+  ];
+};
+var getHScrollVariables = function(_a) {
+  var scrollLeft = _a.scrollLeft, scrollWidth = _a.scrollWidth, clientWidth = _a.clientWidth;
+  return [
+    scrollLeft,
+    scrollWidth,
+    clientWidth
+  ];
+};
+var elementCouldBeScrolled = function(axis, node) {
+  return axis === "v" ? elementCouldBeVScrolled(node) : elementCouldBeHScrolled(node);
+};
+var getScrollVariables = function(axis, node) {
+  return axis === "v" ? getVScrollVariables(node) : getHScrollVariables(node);
+};
+var getDirectionFactor = function(axis, direction) {
+  return axis === "h" && direction === "rtl" ? -1 : 1;
+};
+var handleScroll = function(axis, endTarget, event, sourceDelta, noOverscroll) {
+  var directionFactor = getDirectionFactor(axis, window.getComputedStyle(endTarget).direction);
+  var delta = directionFactor * sourceDelta;
+  var target = event.target;
+  var targetInLock = endTarget.contains(target);
+  var shouldCancelScroll = false;
+  var isDeltaPositive = delta > 0;
+  var availableScroll = 0;
+  var availableScrollTop = 0;
+  do {
+    if (!target) {
+      break;
+    }
+    var _a = getScrollVariables(axis, target), position = _a[0], scroll_1 = _a[1], capacity = _a[2];
+    var elementScroll = scroll_1 - capacity - directionFactor * position;
+    if (position || elementScroll) {
+      if (elementCouldBeScrolled(axis, target)) {
+        availableScroll += elementScroll;
+        availableScrollTop += position;
+      }
+    }
+    var parent_1 = target.parentNode;
+    target = parent_1 && parent_1.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? parent_1.host : parent_1;
+  } while (
+    // portaled content
+    !targetInLock && target !== document.body || // self content
+    targetInLock && (endTarget.contains(target) || endTarget === target)
+  );
+  if (isDeltaPositive && (noOverscroll && Math.abs(availableScroll) < 1 || !noOverscroll && delta > availableScroll)) {
+    shouldCancelScroll = true;
+  } else if (!isDeltaPositive && (noOverscroll && Math.abs(availableScrollTop) < 1 || !noOverscroll && -delta > availableScrollTop)) {
+    shouldCancelScroll = true;
+  }
+  return shouldCancelScroll;
+};
+
+// node_modules/react-remove-scroll/dist/es2015/SideEffect.js
+var getTouchXY = function(event) {
+  return "changedTouches" in event ? [event.changedTouches[0].clientX, event.changedTouches[0].clientY] : [0, 0];
+};
+var getDeltaXY = function(event) {
+  return [event.deltaX, event.deltaY];
+};
+var extractRef = function(ref) {
+  return ref && "current" in ref ? ref.current : ref;
+};
+var deltaCompare = function(x4, y3) {
+  return x4[0] === y3[0] && x4[1] === y3[1];
+};
+var generateStyle = function(id) {
+  return "\n  .block-interactivity-".concat(id, " {pointer-events: none;}\n  .allow-interactivity-").concat(id, " {pointer-events: all;}\n");
+};
+var idCounter = 0;
+var lockStack = [];
+function RemoveScrollSideCar(props) {
+  var shouldPreventQueue = A2([]);
+  var touchStartRef = A2([0, 0]);
+  var activeAxis = A2();
+  var id = d2(idCounter++)[0];
+  var Style2 = d2(styleSingleton)[0];
+  var lastProps = A2(props);
+  y2(function() {
+    lastProps.current = props;
+  }, [props]);
+  y2(function() {
+    if (props.inert) {
+      document.body.classList.add("block-interactivity-".concat(id));
+      var allow_1 = __spreadArray([props.lockRef.current], (props.shards || []).map(extractRef), true).filter(Boolean);
+      allow_1.forEach(function(el) {
+        return el.classList.add("allow-interactivity-".concat(id));
+      });
+      return function() {
+        document.body.classList.remove("block-interactivity-".concat(id));
+        allow_1.forEach(function(el) {
+          return el.classList.remove("allow-interactivity-".concat(id));
+        });
+      };
+    }
+    return;
+  }, [props.inert, props.lockRef.current, props.shards]);
+  var shouldCancelEvent = q2(function(event, parent) {
+    if ("touches" in event && event.touches.length === 2 || event.type === "wheel" && event.ctrlKey) {
+      return !lastProps.current.allowPinchZoom;
+    }
+    var touch = getTouchXY(event);
+    var touchStart = touchStartRef.current;
+    var deltaX = "deltaX" in event ? event.deltaX : touchStart[0] - touch[0];
+    var deltaY = "deltaY" in event ? event.deltaY : touchStart[1] - touch[1];
+    var currentAxis;
+    var target = event.target;
+    var moveDirection = Math.abs(deltaX) > Math.abs(deltaY) ? "h" : "v";
+    if ("touches" in event && moveDirection === "h" && target.type === "range") {
+      return false;
+    }
+    var selection = window.getSelection();
+    var anchorNode = selection && selection.anchorNode;
+    var isTouchingSelection = anchorNode ? anchorNode === target || anchorNode.contains(target) : false;
+    if (isTouchingSelection) {
+      return false;
+    }
+    var canBeScrolledInMainDirection = locationCouldBeScrolled(moveDirection, target);
+    if (!canBeScrolledInMainDirection) {
+      return true;
+    }
+    if (canBeScrolledInMainDirection) {
+      currentAxis = moveDirection;
+    } else {
+      currentAxis = moveDirection === "v" ? "h" : "v";
+      canBeScrolledInMainDirection = locationCouldBeScrolled(moveDirection, target);
+    }
+    if (!canBeScrolledInMainDirection) {
+      return false;
+    }
+    if (!activeAxis.current && "changedTouches" in event && (deltaX || deltaY)) {
+      activeAxis.current = currentAxis;
+    }
+    if (!currentAxis) {
+      return true;
+    }
+    var cancelingAxis = activeAxis.current || currentAxis;
+    return handleScroll(cancelingAxis, parent, event, cancelingAxis === "h" ? deltaX : deltaY, true);
+  }, []);
+  var shouldPrevent = q2(function(_event) {
+    var event = _event;
+    if (!lockStack.length || lockStack[lockStack.length - 1] !== Style2) {
+      return;
+    }
+    var delta = "deltaY" in event ? getDeltaXY(event) : getTouchXY(event);
+    var sourceEvent = shouldPreventQueue.current.filter(function(e3) {
+      return e3.name === event.type && (e3.target === event.target || event.target === e3.shadowParent) && deltaCompare(e3.delta, delta);
+    })[0];
+    if (sourceEvent && sourceEvent.should) {
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+      return;
+    }
+    if (!sourceEvent) {
+      var shardNodes = (lastProps.current.shards || []).map(extractRef).filter(Boolean).filter(function(node) {
+        return node.contains(event.target);
+      });
+      var shouldStop = shardNodes.length > 0 ? shouldCancelEvent(event, shardNodes[0]) : !lastProps.current.noIsolation;
+      if (shouldStop) {
+        if (event.cancelable) {
+          event.preventDefault();
+        }
+      }
+    }
+  }, []);
+  var shouldCancel = q2(function(name, delta, target, should) {
+    var event = { name, delta, target, should, shadowParent: getOutermostShadowParent(target) };
+    shouldPreventQueue.current.push(event);
+    setTimeout(function() {
+      shouldPreventQueue.current = shouldPreventQueue.current.filter(function(e3) {
+        return e3 !== event;
+      });
+    }, 1);
+  }, []);
+  var scrollTouchStart = q2(function(event) {
+    touchStartRef.current = getTouchXY(event);
+    activeAxis.current = void 0;
+  }, []);
+  var scrollWheel = q2(function(event) {
+    shouldCancel(event.type, getDeltaXY(event), event.target, shouldCancelEvent(event, props.lockRef.current));
+  }, []);
+  var scrollTouchMove = q2(function(event) {
+    shouldCancel(event.type, getTouchXY(event), event.target, shouldCancelEvent(event, props.lockRef.current));
+  }, []);
+  y2(function() {
+    lockStack.push(Style2);
+    props.setCallbacks({
+      onScrollCapture: scrollWheel,
+      onWheelCapture: scrollWheel,
+      onTouchMoveCapture: scrollTouchMove
+    });
+    document.addEventListener("wheel", shouldPrevent, nonPassive);
+    document.addEventListener("touchmove", shouldPrevent, nonPassive);
+    document.addEventListener("touchstart", scrollTouchStart, nonPassive);
+    return function() {
+      lockStack = lockStack.filter(function(inst) {
+        return inst !== Style2;
+      });
+      document.removeEventListener("wheel", shouldPrevent, nonPassive);
+      document.removeEventListener("touchmove", shouldPrevent, nonPassive);
+      document.removeEventListener("touchstart", scrollTouchStart, nonPassive);
+    };
+  }, []);
+  var removeScrollBar = props.removeScrollBar, inert = props.inert;
+  return _(
+    k,
+    null,
+    inert ? _(Style2, { styles: generateStyle(id) }) : null,
+    removeScrollBar ? _(RemoveScrollBar, { noRelative: props.noRelative, gapMode: props.gapMode }) : null
+  );
+}
+function getOutermostShadowParent(node) {
+  var shadowParent = null;
+  while (node !== null) {
+    if (node instanceof ShadowRoot) {
+      shadowParent = node.host;
+      node = node.host;
+    }
+    node = node.parentNode;
+  }
+  return shadowParent;
+}
+
+// node_modules/react-remove-scroll/dist/es2015/sidecar.js
+var sidecar_default = exportSidecar(effectCar, RemoveScrollSideCar);
+
+// node_modules/react-remove-scroll/dist/es2015/Combination.js
+var ReactRemoveScroll = D3(function(props, ref) {
+  return _(RemoveScroll, __assign({}, props, { ref, sideCar: sidecar_default }));
+});
+ReactRemoveScroll.classNames = RemoveScroll.classNames;
+var Combination_default = ReactRemoveScroll;
+
+// node_modules/aria-hidden/dist/es2015/index.js
+var getDefaultParent = function(originalTarget) {
+  if (typeof document === "undefined") {
+    return null;
+  }
+  var sampleTarget = Array.isArray(originalTarget) ? originalTarget[0] : originalTarget;
+  return sampleTarget.ownerDocument.body;
+};
+var counterMap = /* @__PURE__ */ new WeakMap();
+var uncontrolledNodes = /* @__PURE__ */ new WeakMap();
+var markerMap = {};
+var lockCount = 0;
+var unwrapHost = function(node) {
+  return node && (node.host || unwrapHost(node.parentNode));
+};
+var correctTargets = function(parent, targets) {
+  return targets.map(function(target) {
+    if (parent.contains(target)) {
+      return target;
+    }
+    var correctedTarget = unwrapHost(target);
+    if (correctedTarget && parent.contains(correctedTarget)) {
+      return correctedTarget;
+    }
+    console.error("aria-hidden", target, "in not contained inside", parent, ". Doing nothing");
+    return null;
+  }).filter(function(x4) {
+    return Boolean(x4);
+  });
+};
+var applyAttributeToOthers = function(originalTarget, parentNode, markerName, controlAttribute) {
+  var targets = correctTargets(parentNode, Array.isArray(originalTarget) ? originalTarget : [originalTarget]);
+  if (!markerMap[markerName]) {
+    markerMap[markerName] = /* @__PURE__ */ new WeakMap();
+  }
+  var markerCounter = markerMap[markerName];
+  var hiddenNodes = [];
+  var elementsToKeep = /* @__PURE__ */ new Set();
+  var elementsToStop = new Set(targets);
+  var keep = function(el) {
+    if (!el || elementsToKeep.has(el)) {
+      return;
+    }
+    elementsToKeep.add(el);
+    keep(el.parentNode);
+  };
+  targets.forEach(keep);
+  var deep = function(parent) {
+    if (!parent || elementsToStop.has(parent)) {
+      return;
+    }
+    Array.prototype.forEach.call(parent.children, function(node) {
+      if (elementsToKeep.has(node)) {
+        deep(node);
+      } else {
+        try {
+          var attr = node.getAttribute(controlAttribute);
+          var alreadyHidden = attr !== null && attr !== "false";
+          var counterValue = (counterMap.get(node) || 0) + 1;
+          var markerValue = (markerCounter.get(node) || 0) + 1;
+          counterMap.set(node, counterValue);
+          markerCounter.set(node, markerValue);
+          hiddenNodes.push(node);
+          if (counterValue === 1 && alreadyHidden) {
+            uncontrolledNodes.set(node, true);
+          }
+          if (markerValue === 1) {
+            node.setAttribute(markerName, "true");
+          }
+          if (!alreadyHidden) {
+            node.setAttribute(controlAttribute, "true");
+          }
+        } catch (e3) {
+          console.error("aria-hidden: cannot operate on ", node, e3);
+        }
+      }
+    });
+  };
+  deep(parentNode);
+  elementsToKeep.clear();
+  lockCount++;
+  return function() {
+    hiddenNodes.forEach(function(node) {
+      var counterValue = counterMap.get(node) - 1;
+      var markerValue = markerCounter.get(node) - 1;
+      counterMap.set(node, counterValue);
+      markerCounter.set(node, markerValue);
+      if (!counterValue) {
+        if (!uncontrolledNodes.has(node)) {
+          node.removeAttribute(controlAttribute);
+        }
+        uncontrolledNodes.delete(node);
+      }
+      if (!markerValue) {
+        node.removeAttribute(markerName);
+      }
+    });
+    lockCount--;
+    if (!lockCount) {
+      counterMap = /* @__PURE__ */ new WeakMap();
+      counterMap = /* @__PURE__ */ new WeakMap();
+      uncontrolledNodes = /* @__PURE__ */ new WeakMap();
+      markerMap = {};
+    }
+  };
+};
+var hideOthers = function(originalTarget, parentNode, markerName) {
+  if (markerName === void 0) {
+    markerName = "data-aria-hidden";
+  }
+  var targets = Array.from(Array.isArray(originalTarget) ? originalTarget : [originalTarget]);
+  var activeParentNode = parentNode || getDefaultParent(originalTarget);
+  if (!activeParentNode) {
+    return function() {
+      return null;
+    };
+  }
+  targets.push.apply(targets, Array.from(activeParentNode.querySelectorAll("[aria-live], script")));
+  return applyAttributeToOthers(targets, activeParentNode, markerName, "aria-hidden");
+};
+
+// node_modules/@radix-ui/react-dialog/dist/index.mjs
+var DIALOG_NAME = "Dialog";
+var [createDialogContext, createDialogScope] = createContextScope(DIALOG_NAME);
+var [DialogProvider, useDialogContext] = createDialogContext(DIALOG_NAME);
+var Dialog = (props) => {
+  const {
+    __scopeDialog,
+    children,
+    open: openProp,
+    defaultOpen,
+    onOpenChange,
+    modal = true
+  } = props;
+  const triggerRef = A2(null);
+  const contentRef = A2(null);
+  const [open, setOpen] = useControllableState({
+    prop: openProp,
+    defaultProp: defaultOpen ?? false,
+    onChange: onOpenChange,
+    caller: DIALOG_NAME
+  });
+  return /* @__PURE__ */ u3(
+    DialogProvider,
+    {
+      scope: __scopeDialog,
+      triggerRef,
+      contentRef,
+      contentId: useId(),
+      titleId: useId(),
+      descriptionId: useId(),
+      open,
+      onOpenChange: setOpen,
+      onOpenToggle: q2(() => setOpen((prevOpen) => !prevOpen), [setOpen]),
+      modal,
+      children
+    }
+  );
+};
+Dialog.displayName = DIALOG_NAME;
+var TRIGGER_NAME2 = "DialogTrigger";
+var DialogTrigger = D3(
+  (props, forwardedRef) => {
+    const { __scopeDialog, ...triggerProps } = props;
+    const context = useDialogContext(TRIGGER_NAME2, __scopeDialog);
+    const composedTriggerRef = useComposedRefs(forwardedRef, context.triggerRef);
+    return /* @__PURE__ */ u3(
+      Primitive.button,
+      {
+        type: "button",
+        "aria-haspopup": "dialog",
+        "aria-expanded": context.open,
+        "aria-controls": context.contentId,
+        "data-state": getState(context.open),
+        ...triggerProps,
+        ref: composedTriggerRef,
+        onClick: composeEventHandlers(props.onClick, context.onOpenToggle)
+      }
+    );
+  }
+);
+DialogTrigger.displayName = TRIGGER_NAME2;
+var PORTAL_NAME2 = "DialogPortal";
+var [PortalProvider, usePortalContext] = createDialogContext(PORTAL_NAME2, {
+  forceMount: void 0
+});
+var DialogPortal = (props) => {
+  const { __scopeDialog, forceMount, children, container } = props;
+  const context = useDialogContext(PORTAL_NAME2, __scopeDialog);
+  return /* @__PURE__ */ u3(PortalProvider, { scope: __scopeDialog, forceMount, children: O2.map(children, (child) => /* @__PURE__ */ u3(Presence, { present: forceMount || context.open, children: /* @__PURE__ */ u3(Portal, { asChild: true, container, children: child }) })) });
+};
+DialogPortal.displayName = PORTAL_NAME2;
+var OVERLAY_NAME = "DialogOverlay";
+var DialogOverlay = D3(
+  (props, forwardedRef) => {
+    const portalContext = usePortalContext(OVERLAY_NAME, props.__scopeDialog);
+    const { forceMount = portalContext.forceMount, ...overlayProps } = props;
+    const context = useDialogContext(OVERLAY_NAME, props.__scopeDialog);
+    return context.modal ? /* @__PURE__ */ u3(Presence, { present: forceMount || context.open, children: /* @__PURE__ */ u3(DialogOverlayImpl, { ...overlayProps, ref: forwardedRef }) }) : null;
+  }
+);
+DialogOverlay.displayName = OVERLAY_NAME;
+var Slot = createSlot("DialogOverlay.RemoveScroll");
+var DialogOverlayImpl = D3(
+  (props, forwardedRef) => {
+    const { __scopeDialog, ...overlayProps } = props;
+    const context = useDialogContext(OVERLAY_NAME, __scopeDialog);
+    return (
+      // Make sure `Content` is scrollable even when it doesn't live inside `RemoveScroll`
+      // ie. when `Overlay` and `Content` are siblings
+      /* @__PURE__ */ u3(Combination_default, { as: Slot, allowPinchZoom: true, shards: [context.contentRef], children: /* @__PURE__ */ u3(
+        Primitive.div,
+        {
+          "data-state": getState(context.open),
+          ...overlayProps,
+          ref: forwardedRef,
+          style: { pointerEvents: "auto", ...overlayProps.style }
+        }
+      ) })
+    );
+  }
+);
+var CONTENT_NAME2 = "DialogContent";
+var DialogContent = D3(
+  (props, forwardedRef) => {
+    const portalContext = usePortalContext(CONTENT_NAME2, props.__scopeDialog);
+    const { forceMount = portalContext.forceMount, ...contentProps } = props;
+    const context = useDialogContext(CONTENT_NAME2, props.__scopeDialog);
+    return /* @__PURE__ */ u3(Presence, { present: forceMount || context.open, children: context.modal ? /* @__PURE__ */ u3(DialogContentModal, { ...contentProps, ref: forwardedRef }) : /* @__PURE__ */ u3(DialogContentNonModal, { ...contentProps, ref: forwardedRef }) });
+  }
+);
+DialogContent.displayName = CONTENT_NAME2;
+var DialogContentModal = D3(
+  (props, forwardedRef) => {
+    const context = useDialogContext(CONTENT_NAME2, props.__scopeDialog);
+    const contentRef = A2(null);
+    const composedRefs = useComposedRefs(forwardedRef, context.contentRef, contentRef);
+    y2(() => {
+      const content = contentRef.current;
+      if (content) return hideOthers(content);
+    }, []);
+    return /* @__PURE__ */ u3(
+      DialogContentImpl,
+      {
+        ...props,
+        ref: composedRefs,
+        trapFocus: context.open,
+        disableOutsidePointerEvents: true,
+        onCloseAutoFocus: composeEventHandlers(props.onCloseAutoFocus, (event) => {
+          event.preventDefault();
+          context.triggerRef.current?.focus();
+        }),
+        onPointerDownOutside: composeEventHandlers(props.onPointerDownOutside, (event) => {
+          const originalEvent = event.detail.originalEvent;
+          const ctrlLeftClick = originalEvent.button === 0 && originalEvent.ctrlKey === true;
+          const isRightClick = originalEvent.button === 2 || ctrlLeftClick;
+          if (isRightClick) event.preventDefault();
+        }),
+        onFocusOutside: composeEventHandlers(
+          props.onFocusOutside,
+          (event) => event.preventDefault()
+        )
+      }
+    );
+  }
+);
+var DialogContentNonModal = D3(
+  (props, forwardedRef) => {
+    const context = useDialogContext(CONTENT_NAME2, props.__scopeDialog);
+    const hasInteractedOutsideRef = A2(false);
+    const hasPointerDownOutsideRef = A2(false);
+    return /* @__PURE__ */ u3(
+      DialogContentImpl,
+      {
+        ...props,
+        ref: forwardedRef,
+        trapFocus: false,
+        disableOutsidePointerEvents: false,
+        onCloseAutoFocus: (event) => {
+          props.onCloseAutoFocus?.(event);
+          if (!event.defaultPrevented) {
+            if (!hasInteractedOutsideRef.current) context.triggerRef.current?.focus();
+            event.preventDefault();
+          }
+          hasInteractedOutsideRef.current = false;
+          hasPointerDownOutsideRef.current = false;
+        },
+        onInteractOutside: (event) => {
+          props.onInteractOutside?.(event);
+          if (!event.defaultPrevented) {
+            hasInteractedOutsideRef.current = true;
+            if (event.detail.originalEvent.type === "pointerdown") {
+              hasPointerDownOutsideRef.current = true;
+            }
+          }
+          const target = event.target;
+          const targetIsTrigger = context.triggerRef.current?.contains(target);
+          if (targetIsTrigger) event.preventDefault();
+          if (event.detail.originalEvent.type === "focusin" && hasPointerDownOutsideRef.current) {
+            event.preventDefault();
+          }
+        }
+      }
+    );
+  }
+);
+var DialogContentImpl = D3(
+  (props, forwardedRef) => {
+    const { __scopeDialog, trapFocus, onOpenAutoFocus, onCloseAutoFocus, ...contentProps } = props;
+    const context = useDialogContext(CONTENT_NAME2, __scopeDialog);
+    const contentRef = A2(null);
+    const composedRefs = useComposedRefs(forwardedRef, contentRef);
+    useFocusGuards();
+    return /* @__PURE__ */ u3(k, { children: [
+      /* @__PURE__ */ u3(
+        FocusScope,
+        {
+          asChild: true,
+          loop: true,
+          trapped: trapFocus,
+          onMountAutoFocus: onOpenAutoFocus,
+          onUnmountAutoFocus: onCloseAutoFocus,
+          children: /* @__PURE__ */ u3(
+            DismissableLayer,
+            {
+              role: "dialog",
+              id: context.contentId,
+              "aria-describedby": context.descriptionId,
+              "aria-labelledby": context.titleId,
+              "data-state": getState(context.open),
+              ...contentProps,
+              ref: composedRefs,
+              onDismiss: () => context.onOpenChange(false)
+            }
+          )
+        }
+      ),
+      /* @__PURE__ */ u3(k, { children: [
+        /* @__PURE__ */ u3(TitleWarning, { titleId: context.titleId }),
+        /* @__PURE__ */ u3(DescriptionWarning, { contentRef, descriptionId: context.descriptionId })
+      ] })
+    ] });
+  }
+);
+var TITLE_NAME = "DialogTitle";
+var DialogTitle = D3(
+  (props, forwardedRef) => {
+    const { __scopeDialog, ...titleProps } = props;
+    const context = useDialogContext(TITLE_NAME, __scopeDialog);
+    return /* @__PURE__ */ u3(Primitive.h2, { id: context.titleId, ...titleProps, ref: forwardedRef });
+  }
+);
+DialogTitle.displayName = TITLE_NAME;
+var DESCRIPTION_NAME = "DialogDescription";
+var DialogDescription = D3(
+  (props, forwardedRef) => {
+    const { __scopeDialog, ...descriptionProps } = props;
+    const context = useDialogContext(DESCRIPTION_NAME, __scopeDialog);
+    return /* @__PURE__ */ u3(Primitive.p, { id: context.descriptionId, ...descriptionProps, ref: forwardedRef });
+  }
+);
+DialogDescription.displayName = DESCRIPTION_NAME;
+var CLOSE_NAME = "DialogClose";
+var DialogClose = D3(
+  (props, forwardedRef) => {
+    const { __scopeDialog, ...closeProps } = props;
+    const context = useDialogContext(CLOSE_NAME, __scopeDialog);
+    return /* @__PURE__ */ u3(
+      Primitive.button,
+      {
+        type: "button",
+        ...closeProps,
+        ref: forwardedRef,
+        onClick: composeEventHandlers(props.onClick, () => context.onOpenChange(false))
+      }
+    );
+  }
+);
+DialogClose.displayName = CLOSE_NAME;
+function getState(open) {
+  return open ? "open" : "closed";
+}
+var TITLE_WARNING_NAME = "DialogTitleWarning";
+var [WarningProvider, useWarningContext] = createContext2(TITLE_WARNING_NAME, {
+  contentName: CONTENT_NAME2,
+  titleName: TITLE_NAME,
+  docsSlug: "dialog"
+});
+var TitleWarning = ({ titleId }) => {
+  const titleWarningContext = useWarningContext(TITLE_WARNING_NAME);
+  const MESSAGE = `\`${titleWarningContext.contentName}\` requires a \`${titleWarningContext.titleName}\` for the component to be accessible for screen reader users.
+
+If you want to hide the \`${titleWarningContext.titleName}\`, you can wrap it with our VisuallyHidden component.
+
+For more information, see https://radix-ui.com/primitives/docs/components/${titleWarningContext.docsSlug}`;
+  y2(() => {
+    if (titleId) {
+      const hasTitle = document.getElementById(titleId);
+      if (!hasTitle) console.error(MESSAGE);
+    }
+  }, [MESSAGE, titleId]);
+  return null;
+};
+var DESCRIPTION_WARNING_NAME = "DialogDescriptionWarning";
+var DescriptionWarning = ({ contentRef, descriptionId }) => {
+  const descriptionWarningContext = useWarningContext(DESCRIPTION_WARNING_NAME);
+  const MESSAGE = `Warning: Missing \`Description\` or \`aria-describedby={undefined}\` for {${descriptionWarningContext.contentName}}.`;
+  y2(() => {
+    const describedById = contentRef.current?.getAttribute("aria-describedby");
+    if (descriptionId && describedById) {
+      const hasDescription = document.getElementById(descriptionId);
+      if (!hasDescription) console.warn(MESSAGE);
+    }
+  }, [MESSAGE, contentRef, descriptionId]);
+  return null;
+};
+var Root3 = Dialog;
+var Trigger2 = DialogTrigger;
+var Portal2 = DialogPortal;
+var Overlay = DialogOverlay;
+var Content2 = DialogContent;
+var Title = DialogTitle;
+var Description = DialogDescription;
+
+// node_modules/@radix-ui/react-use-previous/dist/index.mjs
+function usePrevious(value) {
+  const ref = A2({ value, previous: value });
+  return T2(() => {
+    if (ref.current.value !== value) {
+      ref.current.previous = ref.current.value;
+      ref.current.value = value;
+    }
+    return ref.current.previous;
+  }, [value]);
+}
+
+// node_modules/@radix-ui/react-use-size/dist/index.mjs
+function useSize(element) {
+  const [size, setSize] = d2(void 0);
+  useLayoutEffect2(() => {
+    if (element) {
+      setSize({ width: element.offsetWidth, height: element.offsetHeight });
+      const resizeObserver = new ResizeObserver((entries) => {
+        if (!Array.isArray(entries)) {
+          return;
+        }
+        if (!entries.length) {
+          return;
+        }
+        const entry = entries[0];
+        let width;
+        let height;
+        if ("borderBoxSize" in entry) {
+          const borderSizeEntry = entry["borderBoxSize"];
+          const borderSize = Array.isArray(borderSizeEntry) ? borderSizeEntry[0] : borderSizeEntry;
+          width = borderSize["inlineSize"];
+          height = borderSize["blockSize"];
+        } else {
+          width = element.offsetWidth;
+          height = element.offsetHeight;
+        }
+        setSize({ width, height });
+      });
+      resizeObserver.observe(element, { box: "border-box" });
+      return () => resizeObserver.unobserve(element);
+    } else {
+      setSize(void 0);
+    }
+  }, [element]);
+  return size;
+}
+
+// node_modules/@radix-ui/react-switch/dist/index.mjs
+var SWITCH_NAME = "Switch";
+var [createSwitchContext, createSwitchScope] = createContextScope(SWITCH_NAME);
+var [SwitchProvider, useSwitchContext] = createSwitchContext(SWITCH_NAME);
+var Switch = D3(
+  (props, forwardedRef) => {
+    const {
+      __scopeSwitch,
+      name,
+      checked: checkedProp,
+      defaultChecked,
+      required,
+      disabled,
+      value = "on",
+      onCheckedChange,
+      form,
+      ...switchProps
+    } = props;
+    const [button, setButton] = d2(null);
+    const composedRefs = useComposedRefs(forwardedRef, (node) => setButton(node));
+    const hasConsumerStoppedPropagationRef = A2(false);
+    const isFormControl = button ? form || !!button.closest("form") : true;
+    const [checked, setChecked] = useControllableState({
+      prop: checkedProp,
+      defaultProp: defaultChecked ?? false,
+      onChange: onCheckedChange,
+      caller: SWITCH_NAME
+    });
+    return /* @__PURE__ */ u3(SwitchProvider, { scope: __scopeSwitch, checked, disabled, children: [
+      /* @__PURE__ */ u3(
+        Primitive.button,
+        {
+          type: "button",
+          role: "switch",
+          "aria-checked": checked,
+          "aria-required": required,
+          "data-state": getState2(checked),
+          "data-disabled": disabled ? "" : void 0,
+          disabled,
+          value,
+          ...switchProps,
+          ref: composedRefs,
+          onClick: composeEventHandlers(props.onClick, (event) => {
+            setChecked((prevChecked) => !prevChecked);
+            if (isFormControl) {
+              hasConsumerStoppedPropagationRef.current = event.isPropagationStopped();
+              if (!hasConsumerStoppedPropagationRef.current) event.stopPropagation();
+            }
+          })
+        }
+      ),
+      isFormControl && /* @__PURE__ */ u3(
+        SwitchBubbleInput,
+        {
+          control: button,
+          bubbles: !hasConsumerStoppedPropagationRef.current,
+          name,
+          value,
+          checked,
+          required,
+          disabled,
+          form,
+          style: { transform: "translateX(-100%)" }
+        }
+      )
+    ] });
+  }
+);
+Switch.displayName = SWITCH_NAME;
+var THUMB_NAME = "SwitchThumb";
+var SwitchThumb = D3(
+  (props, forwardedRef) => {
+    const { __scopeSwitch, ...thumbProps } = props;
+    const context = useSwitchContext(THUMB_NAME, __scopeSwitch);
+    return /* @__PURE__ */ u3(
+      Primitive.span,
+      {
+        "data-state": getState2(context.checked),
+        "data-disabled": context.disabled ? "" : void 0,
+        ...thumbProps,
+        ref: forwardedRef
+      }
+    );
+  }
+);
+SwitchThumb.displayName = THUMB_NAME;
+var BUBBLE_INPUT_NAME = "SwitchBubbleInput";
+var SwitchBubbleInput = D3(
+  ({
+    __scopeSwitch,
+    control,
+    checked,
+    bubbles = true,
+    ...props
+  }, forwardedRef) => {
+    const ref = A2(null);
+    const composedRefs = useComposedRefs(ref, forwardedRef);
+    const prevChecked = usePrevious(checked);
+    const controlSize = useSize(control);
+    y2(() => {
+      const input = ref.current;
+      if (!input) return;
+      const inputProto = window.HTMLInputElement.prototype;
+      const descriptor = Object.getOwnPropertyDescriptor(
+        inputProto,
+        "checked"
+      );
+      const setChecked = descriptor.set;
+      if (prevChecked !== checked && setChecked) {
+        const event = new Event("click", { bubbles });
+        setChecked.call(input, checked);
+        input.dispatchEvent(event);
+      }
+    }, [prevChecked, checked, bubbles]);
+    return /* @__PURE__ */ u3(
+      "input",
+      {
+        type: "checkbox",
+        "aria-hidden": true,
+        defaultChecked: checked,
+        ...props,
+        tabIndex: -1,
+        ref: composedRefs,
+        style: {
+          ...props.style,
+          ...controlSize,
+          position: "absolute",
+          pointerEvents: "none",
+          opacity: 0,
+          margin: 0
+        }
+      }
+    );
+  }
+);
+SwitchBubbleInput.displayName = BUBBLE_INPUT_NAME;
+function getState2(checked) {
+  return checked ? "checked" : "unchecked";
+}
+var Root4 = Switch;
+var Thumb = SwitchThumb;
+
+// src/islands/shadcn-compat.tsx
+function ShadcnCompat() {
+  const [open, setOpen] = d2(false);
+  const [toggled, setToggled] = d2(false);
+  return /* @__PURE__ */ u3("div", { class: "p-4", children: [
+    /* @__PURE__ */ u3("h2", { class: "text-lg font-bold mb-2", children: "shadcn/ui compatibility demo" }),
+    /* @__PURE__ */ u3(Root2, { defaultValue: "tab1", children: [
+      /* @__PURE__ */ u3(List, { "aria-label": "tabs", children: [
+        /* @__PURE__ */ u3(Trigger, { value: "tab1", children: "Tab 1" }),
+        /* @__PURE__ */ u3(Trigger, { value: "tab2", children: "Tab 2" })
+      ] }),
+      /* @__PURE__ */ u3(Content, { value: "tab1", children: /* @__PURE__ */ u3("p", { children: "Content for tab 1" }) }),
+      /* @__PURE__ */ u3(Content, { value: "tab2", children: /* @__PURE__ */ u3("p", { children: "Content for tab 2" }) })
+    ] }),
+    /* @__PURE__ */ u3("div", { class: "mt-4", children: /* @__PURE__ */ u3(Root3, { open, onOpenChange: setOpen, children: [
+      /* @__PURE__ */ u3(Trigger2, { asChild: true, children: /* @__PURE__ */ u3("button", { class: "px-3 py-1 bg-blue-600 text-white rounded", children: "Open Dialog" }) }),
+      /* @__PURE__ */ u3(Portal2, { children: [
+        /* @__PURE__ */ u3(Overlay, { class: "fixed inset-0 bg-black/40" }),
+        /* @__PURE__ */ u3(Content2, { class: "fixed left-1/2 top-1/3 -translate-x-1/2 bg-white p-4 rounded shadow", children: [
+          /* @__PURE__ */ u3(Title, { children: "Dialog Title" }),
+          /* @__PURE__ */ u3(Description, { children: "Simple dialog content for testing." }),
+          /* @__PURE__ */ u3("div", { class: "mt-2", children: /* @__PURE__ */ u3("button", { onClick: () => setOpen(false), class: "px-2 py-1 bg-gray-200 rounded", children: "Close" }) })
+        ] })
+      ] })
+    ] }) }),
+    /* @__PURE__ */ u3("div", { class: "mt-4 flex items-center gap-3", children: /* @__PURE__ */ u3("label", { class: "flex items-center gap-2", children: [
+      /* @__PURE__ */ u3(Root4, { checked: toggled, onCheckedChange: (v3) => setToggled(v3), children: /* @__PURE__ */ u3(Thumb, { class: "inline-block w-4 h-4 bg-white rounded-full" }) }),
+      /* @__PURE__ */ u3("span", { children: toggled ? "On" : "Off" })
+    ] }) })
+  ] });
+}
+
 // src/ui/contracts/Settings.Overview.contract.ts
 var OverviewDashboardSchema = external_exports.object({
   // Connection summary
@@ -11866,18 +12371,20 @@ var CATEGORIES = [
 function SettingsSidebarIsland(props) {
   const validated = SettingsSidebarSchema.parse(props);
   const [developerMode, setDeveloperMode] = d2(() => {
-    if (typeof localStorage === "undefined") return validated.developerModeEnabled || false;
+    if (typeof localStorage === "undefined") return Boolean(validated.developerModeEnabled || false);
     const stored = localStorage.getItem(STORAGE_KEY_DEVELOPER_MODE);
-    return stored ? stored === "true" : validated.developerModeEnabled || false;
+    return stored ? stored === "true" : Boolean(validated.developerModeEnabled || false);
   });
   const [activeCategory, setActiveCategory] = d2(() => {
-    if (typeof localStorage === "undefined") return validated.activeCategory;
+    if (typeof localStorage === "undefined") return validated.activeCategory || "overview";
     const stored = localStorage.getItem(STORAGE_KEY_LAST_CATEGORY);
-    return stored || validated.activeCategory;
+    return stored || validated.activeCategory || "overview";
   });
-  const [aiProvider, setAiProvider] = d2(
-    validated.aiProvider || "ollama"
-  );
+  const [aiProvider, setAiProvider] = d2(validated.aiProvider || "ollama");
+  const toggleRef = A2(null);
+  y2(() => {
+    if (toggleRef.current) toggleRef.current.setAttribute("aria-checked", String(developerMode));
+  }, [developerMode]);
   const dispatchSettingsEvent = (name, detail) => {
     if (typeof document === "undefined") return;
     const CustomEventCtor = typeof window !== "undefined" && typeof window.CustomEvent === "function" ? window.CustomEvent : null;
@@ -11941,12 +12448,13 @@ function SettingsSidebarIsland(props) {
     }
   }, [aiProvider, activeCategory]);
   const handleCategoryClick = (categoryId) => {
-    setActiveCategory(categoryId);
-    dispatchSettingsEvent("settings:category-changed", {
-      category: categoryId
-    });
+    const targetCategory = categoryId === "expert-models" ? "ai-provider" : categoryId;
+    setActiveCategory(targetCategory);
+    const detail = { category: targetCategory };
+    if (categoryId === "expert-models") detail.focus = "expert-models";
+    dispatchSettingsEvent("settings:category-changed", detail);
     if (typeof window !== "undefined") {
-      window.location.hash = categoryId;
+      window.location.hash = targetCategory;
     }
   };
   const handleDeveloperToggle = () => {
@@ -11985,7 +12493,10 @@ function SettingsSidebarIsland(props) {
           {
             id: "developer-toggle",
             role: "switch",
-            "aria-checked": developerMode,
+            "aria-checked": "false",
+            ref: (el) => {
+              toggleRef.current = el;
+            },
             onClick: handleDeveloperToggle,
             className: `relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${developerMode ? "bg-blue-600" : "bg-gray-300"}`,
             "data-testid": "developer-toggle",
@@ -12284,576 +12795,6 @@ var AIProviderSettingsSchema = external_exports.object({
   autoSaveDebounceMs: external_exports.number().int().positive().optional().default(1e3)
 });
 
-// src/islands/AIProviderIsland.tsx
-function AIProviderIsland(props) {
-  const validated = AIProviderSettingsSchema.parse(props);
-  const [activeTab, setActiveTab] = d2("general");
-  const [provider, setProvider] = d2(validated.provider || "openai");
-  const [isDirty2, setIsDirty] = d2(false);
-  const [isSaving, setIsSaving] = d2(false);
-  const [saveMessage, setSaveMessage] = d2(null);
-  const [openaiApiKey, setOpenaiApiKey] = d2(validated.openai?.apiKey || "");
-  const [ollamaApiUrl, setOllamaApiUrl] = d2(validated.ollama?.apiUrl || "http://localhost:11434");
-  const [ollamaModel, setOllamaModel] = d2(validated.ollama?.model || "sauerkraut-llama3.1:8b");
-  const [ollamaVisionModel, setOllamaVisionModel] = d2(validated.ollama?.visionModel || "qwen3-vl:8b");
-  const [ollamaPlannerModel, setOllamaPlannerModel] = d2(validated.ollama?.plannerModel || "");
-  const [ollamaRouterModel, setOllamaRouterModel] = d2(validated.ollama?.routerModel || "");
-  const [ollamaOrchestratorModel, setOllamaOrchestratorModel] = d2(validated.ollama?.orchestratorModel || "");
-  const [ollamaVisionKeepAlive, setOllamaVisionKeepAlive] = d2(validated.ollama?.visionKeepAlive || "5m");
-  const [ollamaTextKeepAlive, setOllamaTextKeepAlive] = d2(validated.ollama?.textKeepAlive || "2m");
-  const [ollamaRouterKeepAlive, setOllamaRouterKeepAlive] = d2(validated.ollama?.routerKeepAlive || "5m");
-  const [ollamaTextContextWindow, setOllamaTextContextWindow] = d2(validated.ollama?.limits?.text?.contextWindow || 128e3);
-  const [ollamaTextMaxTokens, setOllamaTextMaxTokens] = d2(validated.ollama?.limits?.text?.maxResponseTokens || 4096);
-  const [ollamaVisionContextWindow, setOllamaVisionContextWindow] = d2(validated.ollama?.limits?.vision?.contextWindow || 128e3);
-  const [ollamaVisionMaxTokens, setOllamaVisionMaxTokens] = d2(validated.ollama?.limits?.vision?.maxResponseTokens || 2048);
-  const [ollamaPlannerContextWindow, setOllamaPlannerContextWindow] = d2(validated.ollama?.limits?.planner?.contextWindow || 128e3);
-  const [ollamaPlannerMaxTokens, setOllamaPlannerMaxTokens] = d2(validated.ollama?.limits?.planner?.maxResponseTokens || 700);
-  const [ollamaExpertContextWindow, setOllamaExpertContextWindow] = d2(validated.ollama?.limits?.expert?.contextWindow || 128e3);
-  const [ollamaExpertMaxTokens, setOllamaExpertMaxTokens] = d2(validated.ollama?.limits?.expert?.maxResponseTokens || 4096);
-  const [ollamaImageTokenOverhead, setOllamaImageTokenOverhead] = d2(validated.ollama?.limits?.imageTokenOverhead || 1024);
-  const [customApiUrl, setCustomApiUrl] = d2(validated.custom?.apiUrl || "");
-  const [customApiKey, setCustomApiKey] = d2(validated.custom?.apiKey || "");
-  const [customModel, setCustomModel] = d2(validated.custom?.model || "");
-  const [azureApiKey, setAzureApiKey] = d2(validated.azure?.apiKey || "");
-  const [azureEndpoint, setAzureEndpoint] = d2(validated.azure?.endpoint || "");
-  const [azureDeploymentName, setAzureDeploymentName] = d2(validated.azure?.deploymentName || "");
-  const [azureApiVersion, setAzureApiVersion] = d2(validated.azure?.apiVersion || "2023-05-15");
-  const debounceTimerRef = A2(null);
-  const hasPendingAutoSave = A2(false);
-  y2(() => {
-    if (saveMessage) {
-      const timer = setTimeout(() => setSaveMessage(null), 3e3);
-      return () => clearTimeout(timer);
-    }
-  }, [saveMessage]);
-  y2(() => {
-    return () => {
-      if (hasPendingAutoSave.current && debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        flushAutoSave();
-      }
-    };
-  }, []);
-  const flushAutoSave = () => {
-    if (!hasPendingAutoSave.current) return;
-    const autoSaveSettings = {
-      OLLAMA_CONTEXT_WINDOW: ollamaTextContextWindow,
-      OLLAMA_MAX_RESPONSE_TOKENS: ollamaTextMaxTokens,
-      OLLAMA_VISION_CONTEXT_WINDOW: ollamaVisionContextWindow,
-      OLLAMA_VISION_MAX_RESPONSE_TOKENS: ollamaVisionMaxTokens,
-      OLLAMA_PLANNER_CONTEXT_WINDOW: ollamaPlannerContextWindow,
-      OLLAMA_PLANNER_MAX_RESPONSE_TOKENS: ollamaPlannerMaxTokens,
-      OLLAMA_EXPERT_CONTEXT_WINDOW: ollamaExpertContextWindow,
-      OLLAMA_EXPERT_MAX_RESPONSE_TOKENS: ollamaExpertMaxTokens,
-      OLLAMA_VISION_IMAGE_TOKENS: ollamaImageTokenOverhead
-    };
-    fetch("/settings/apply", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        category: "ai-provider",
-        settings: autoSaveSettings,
-        requiresRestart: false
-        // Token limits don't require restart
-      })
-    }).catch((err) => console.error("Auto-save failed:", err));
-    hasPendingAutoSave.current = false;
-  };
-  const handleAutoSaveField = () => {
-    hasPendingAutoSave.current = true;
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    debounceTimerRef.current = setTimeout(() => {
-      flushAutoSave();
-    }, validated.autoSaveDebounceMs || 1e3);
-  };
-  const handleSave = async () => {
-    setIsSaving(true);
-    setSaveMessage(null);
-    try {
-      if (hasPendingAutoSave.current && debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        flushAutoSave();
-      }
-      const settings = {
-        AI_PROVIDER: provider
-      };
-      if (provider === "openai") {
-        settings.PAPERLESS_OPENAI_API_KEY = openaiApiKey;
-      } else if (provider === "ollama") {
-        settings.OLLAMA_API_URL = ollamaApiUrl;
-        settings.OLLAMA_MODEL = ollamaModel;
-        settings.OLLAMA_VISION_MODEL = ollamaVisionModel;
-        if (ollamaPlannerModel) settings.PLANNER_MODEL = ollamaPlannerModel;
-        if (ollamaRouterModel) settings.ROUTER_MODEL = ollamaRouterModel;
-        if (ollamaOrchestratorModel) settings.ORCHESTRATOR_MODEL = ollamaOrchestratorModel;
-        settings.VISION_KEEP_ALIVE = ollamaVisionKeepAlive;
-        settings.TEXT_KEEP_ALIVE = ollamaTextKeepAlive;
-        settings.ROUTER_KEEP_ALIVE = ollamaRouterKeepAlive;
-      } else if (provider === "custom") {
-        settings.CUSTOM_BASE_URL = customApiUrl;
-        settings.CUSTOM_API_KEY = customApiKey;
-        settings.CUSTOM_MODEL = customModel;
-      } else if (provider === "azure") {
-        settings.AZURE_API_KEY = azureApiKey;
-        settings.AZURE_ENDPOINT = azureEndpoint;
-        settings.AZURE_DEPLOYMENT_NAME = azureDeploymentName;
-        settings.AZURE_API_VERSION = azureApiVersion;
-      }
-      const response = await fetch("/settings/apply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          category: "ai-provider",
-          settings,
-          requiresRestart: true
-          // Provider changes require restart
-        })
-      });
-      const result = await response.json();
-      if (response.ok && result.success) {
-        setSaveMessage("AI provider settings saved successfully");
-        setIsDirty(false);
-        if (typeof document !== "undefined") {
-          document.dispatchEvent(new CustomEvent("settings:changed", {
-            detail: {
-              type: "settings:changed",
-              category: "ai-provider",
-              settings,
-              requiresRestart: true
-            }
-          }));
-          document.dispatchEvent(new CustomEvent("settings:restart-required", {
-            detail: {
-              type: "settings:restart-required",
-              reason: "AI provider settings changed",
-              settings: ["AI Provider", "API Configuration"]
-            }
-          }));
-          document.dispatchEvent(new CustomEvent("settings:saved", {
-            detail: {
-              type: "settings:saved",
-              category: "ai-provider",
-              success: true,
-              message: "AI provider settings saved successfully"
-            }
-          }));
-        }
-      } else {
-        setSaveMessage(`Save failed: ${result.message || result.error || "Unknown error"}`);
-      }
-    } catch (error) {
-      setSaveMessage(`Save failed: ${error instanceof Error ? error.message : "Unknown error"}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-  const markDirty = () => setIsDirty(true);
-  return /* @__PURE__ */ u3("div", { className: "ai-provider-settings space-y-6 p-6 max-w-4xl", "data-testid": "ai-provider-root", children: [
-    /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-      /* @__PURE__ */ u3("h2", { className: "text-2xl font-bold", children: "AI Provider Settings" }),
-      /* @__PURE__ */ u3("p", { className: "text-gray-600", children: "Configure AI provider and model settings" })
-    ] }),
-    /* @__PURE__ */ u3("div", { className: "border-b border-gray-200", children: /* @__PURE__ */ u3("nav", { className: "-mb-px flex space-x-8", "data-testid": "ai-provider-tabs", children: [
-      /* @__PURE__ */ u3(
-        "button",
-        {
-          onClick: () => setActiveTab("general"),
-          className: `py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "general" ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`,
-          "data-testid": "tab-general",
-          children: "General"
-        }
-      ),
-      /* @__PURE__ */ u3(
-        "button",
-        {
-          onClick: () => setActiveTab("openai"),
-          className: `py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "openai" ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`,
-          "data-testid": "tab-openai",
-          children: "OpenAI"
-        }
-      ),
-      /* @__PURE__ */ u3(
-        "button",
-        {
-          onClick: () => setActiveTab("ollama"),
-          className: `py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "ollama" ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`,
-          "data-testid": "tab-ollama",
-          children: "Ollama"
-        }
-      ),
-      /* @__PURE__ */ u3(
-        "button",
-        {
-          onClick: () => setActiveTab("custom"),
-          className: `py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "custom" ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`,
-          "data-testid": "tab-custom",
-          children: "Custom"
-        }
-      ),
-      /* @__PURE__ */ u3(
-        "button",
-        {
-          onClick: () => setActiveTab("azure"),
-          className: `py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "azure" ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`,
-          "data-testid": "tab-azure",
-          children: "Azure"
-        }
-      )
-    ] }) }),
-    /* @__PURE__ */ u3("div", { className: "mt-6", children: [
-      activeTab === "general" && /* @__PURE__ */ u3("div", { className: "space-y-4", "data-testid": "tab-content-general", children: [
-        /* @__PURE__ */ u3("h3", { className: "text-lg font-semibold", children: "Provider Selection" }),
-        /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-          /* @__PURE__ */ u3("label", { htmlFor: "provider", className: "block text-sm font-medium text-gray-700", children: [
-            "Active AI Provider ",
-            /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
-          ] }),
-          /* @__PURE__ */ u3(
-            "select",
-            {
-              id: "provider",
-              value: provider,
-              onChange: (e3) => {
-                setProvider(e3.target.value);
-                markDirty();
-              },
-              className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-              "data-testid": "provider-select",
-              children: [
-                /* @__PURE__ */ u3("option", { value: "openai", children: "OpenAI" }),
-                /* @__PURE__ */ u3("option", { value: "ollama", children: "Ollama (Local)" }),
-                /* @__PURE__ */ u3("option", { value: "custom", children: "Custom Provider" }),
-                /* @__PURE__ */ u3("option", { value: "azure", children: "Azure OpenAI" })
-              ]
-            }
-          ),
-          /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Select which AI provider to use for document processing" })
-        ] }),
-        /* @__PURE__ */ u3("div", { className: "mt-4 p-4 bg-blue-50 border border-blue-200 rounded", children: [
-          /* @__PURE__ */ u3("p", { className: "text-sm text-blue-800", children: [
-            /* @__PURE__ */ u3("span", { className: "font-medium", children: "Current provider:" }),
-            " ",
-            provider
-          ] }),
-          /* @__PURE__ */ u3("p", { className: "text-sm text-blue-700 mt-1", children: "Configure provider-specific settings in the respective tab" })
-        ] })
-      ] }),
-      activeTab === "openai" && /* @__PURE__ */ u3("div", { className: "space-y-4", "data-testid": "tab-content-openai", children: [
-        /* @__PURE__ */ u3("h3", { className: "text-lg font-semibold", children: "OpenAI Configuration" }),
-        /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-          /* @__PURE__ */ u3("label", { htmlFor: "openai-api-key", className: "block text-sm font-medium text-gray-700", children: [
-            "API Key ",
-            /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
-          ] }),
-          /* @__PURE__ */ u3(
-            "input",
-            {
-              id: "openai-api-key",
-              type: "password",
-              value: openaiApiKey,
-              onChange: (e3) => {
-                setOpenaiApiKey(e3.target.value);
-                markDirty();
-              },
-              placeholder: "sk-...",
-              className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-              "data-testid": "openai-api-key-input"
-            }
-          ),
-          /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Your OpenAI API key from platform.openai.com" })
-        ] })
-      ] }),
-      activeTab === "ollama" && /* @__PURE__ */ u3("div", { className: "space-y-6", "data-testid": "tab-content-ollama", children: [
-        /* @__PURE__ */ u3("h3", { className: "text-lg font-semibold", children: "Ollama Configuration" }),
-        /* @__PURE__ */ u3("div", { className: "space-y-4", children: [
-          /* @__PURE__ */ u3("h4", { className: "text-md font-medium", children: "Connection" }),
-          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "ollama-api-url", className: "block text-sm font-medium text-gray-700", children: [
-              "API URL ",
-              /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
-            ] }),
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "ollama-api-url",
-                type: "url",
-                value: ollamaApiUrl,
-                onChange: (e3) => {
-                  setOllamaApiUrl(e3.target.value);
-                  markDirty();
-                },
-                placeholder: "http://localhost:11434",
-                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                "data-testid": "ollama-api-url-input"
-              }
-            )
-          ] })
-        ] }),
-        /* @__PURE__ */ u3("div", { className: "space-y-4", children: [
-          /* @__PURE__ */ u3("h4", { className: "text-md font-medium", children: "Models" }),
-          /* @__PURE__ */ u3("div", { className: "grid grid-cols-2 gap-4", children: [
-            /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-              /* @__PURE__ */ u3("label", { htmlFor: "ollama-text-model", className: "block text-sm font-medium text-gray-700", children: "Text Model" }),
-              /* @__PURE__ */ u3(
-                "input",
-                {
-                  id: "ollama-text-model",
-                  type: "text",
-                  value: ollamaModel,
-                  onChange: (e3) => {
-                    setOllamaModel(e3.target.value);
-                    markDirty();
-                  },
-                  placeholder: "sauerkraut-llama3.1:8b",
-                  className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                  "data-testid": "ollama-text-model-input"
-                }
-              )
-            ] }),
-            /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-              /* @__PURE__ */ u3("label", { htmlFor: "ollama-vision-model", className: "block text-sm font-medium text-gray-700", children: "Vision Model" }),
-              /* @__PURE__ */ u3(
-                "input",
-                {
-                  id: "ollama-vision-model",
-                  type: "text",
-                  value: ollamaVisionModel,
-                  onChange: (e3) => {
-                    setOllamaVisionModel(e3.target.value);
-                    markDirty();
-                  },
-                  placeholder: "qwen3-vl:8b",
-                  className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                  "data-testid": "ollama-vision-model-input"
-                }
-              )
-            ] })
-          ] })
-        ] }),
-        /* @__PURE__ */ u3("div", { className: "space-y-4 border-t pt-4", children: [
-          /* @__PURE__ */ u3("div", { className: "flex items-center justify-between", children: [
-            /* @__PURE__ */ u3("h4", { className: "text-md font-medium", children: "Token Limits" }),
-            /* @__PURE__ */ u3("span", { className: "text-xs text-gray-500 italic", children: "Auto-saves on change" })
-          ] }),
-          /* @__PURE__ */ u3("div", { className: "grid grid-cols-2 gap-4", children: [
-            /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-              /* @__PURE__ */ u3("label", { htmlFor: "ollama-text-context", className: "block text-sm font-medium text-gray-700", children: "Text Context Window" }),
-              /* @__PURE__ */ u3(
-                "input",
-                {
-                  id: "ollama-text-context",
-                  type: "number",
-                  value: ollamaTextContextWindow,
-                  onChange: (e3) => {
-                    setOllamaTextContextWindow(parseInt(e3.target.value));
-                    handleAutoSaveField();
-                  },
-                  className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                  "data-testid": "ollama-text-context-input"
-                }
-              )
-            ] }),
-            /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-              /* @__PURE__ */ u3("label", { htmlFor: "ollama-text-max-tokens", className: "block text-sm font-medium text-gray-700", children: "Text Max Response Tokens" }),
-              /* @__PURE__ */ u3(
-                "input",
-                {
-                  id: "ollama-text-max-tokens",
-                  type: "number",
-                  value: ollamaTextMaxTokens,
-                  onChange: (e3) => {
-                    setOllamaTextMaxTokens(parseInt(e3.target.value));
-                    handleAutoSaveField();
-                  },
-                  className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                  "data-testid": "ollama-text-max-tokens-input"
-                }
-              )
-            ] })
-          ] })
-        ] })
-      ] }),
-      activeTab === "custom" && /* @__PURE__ */ u3("div", { className: "space-y-4", "data-testid": "tab-content-custom", children: [
-        /* @__PURE__ */ u3("h3", { className: "text-lg font-semibold", children: "Custom Provider Configuration" }),
-        /* @__PURE__ */ u3("div", { className: "space-y-4", children: [
-          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "custom-api-url", className: "block text-sm font-medium text-gray-700", children: [
-              "API Base URL ",
-              /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
-            ] }),
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "custom-api-url",
-                type: "url",
-                value: customApiUrl,
-                onChange: (e3) => {
-                  setCustomApiUrl(e3.target.value);
-                  markDirty();
-                },
-                placeholder: "https://api.example.com/v1",
-                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                "data-testid": "custom-api-url-input"
-              }
-            )
-          ] }),
-          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "custom-api-key", className: "block text-sm font-medium text-gray-700", children: [
-              "API Key ",
-              /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
-            ] }),
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "custom-api-key",
-                type: "password",
-                value: customApiKey,
-                onChange: (e3) => {
-                  setCustomApiKey(e3.target.value);
-                  markDirty();
-                },
-                placeholder: "Enter API key",
-                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                "data-testid": "custom-api-key-input"
-              }
-            )
-          ] }),
-          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "custom-model", className: "block text-sm font-medium text-gray-700", children: [
-              "Model Name ",
-              /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
-            ] }),
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "custom-model",
-                type: "text",
-                value: customModel,
-                onChange: (e3) => {
-                  setCustomModel(e3.target.value);
-                  markDirty();
-                },
-                placeholder: "model-name",
-                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                "data-testid": "custom-model-input"
-              }
-            )
-          ] })
-        ] })
-      ] }),
-      activeTab === "azure" && /* @__PURE__ */ u3("div", { className: "space-y-4", "data-testid": "tab-content-azure", children: [
-        /* @__PURE__ */ u3("h3", { className: "text-lg font-semibold", children: "Azure OpenAI Configuration" }),
-        /* @__PURE__ */ u3("div", { className: "space-y-4", children: [
-          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "azure-endpoint", className: "block text-sm font-medium text-gray-700", children: [
-              "Endpoint ",
-              /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
-            ] }),
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "azure-endpoint",
-                type: "url",
-                value: azureEndpoint,
-                onChange: (e3) => {
-                  setAzureEndpoint(e3.target.value);
-                  markDirty();
-                },
-                placeholder: "https://your-resource.openai.azure.com",
-                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                "data-testid": "azure-endpoint-input"
-              }
-            )
-          ] }),
-          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "azure-api-key", className: "block text-sm font-medium text-gray-700", children: [
-              "API Key ",
-              /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
-            ] }),
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "azure-api-key",
-                type: "password",
-                value: azureApiKey,
-                onChange: (e3) => {
-                  setAzureApiKey(e3.target.value);
-                  markDirty();
-                },
-                placeholder: "Enter Azure API key",
-                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                "data-testid": "azure-api-key-input"
-              }
-            )
-          ] }),
-          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "azure-deployment", className: "block text-sm font-medium text-gray-700", children: [
-              "Deployment Name ",
-              /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
-            ] }),
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "azure-deployment",
-                type: "text",
-                value: azureDeploymentName,
-                onChange: (e3) => {
-                  setAzureDeploymentName(e3.target.value);
-                  markDirty();
-                },
-                placeholder: "your-deployment-name",
-                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                "data-testid": "azure-deployment-input"
-              }
-            )
-          ] }),
-          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "azure-api-version", className: "block text-sm font-medium text-gray-700", children: "API Version" }),
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "azure-api-version",
-                type: "text",
-                value: azureApiVersion,
-                onChange: (e3) => {
-                  setAzureApiVersion(e3.target.value);
-                  markDirty();
-                },
-                placeholder: "2023-05-15",
-                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                "data-testid": "azure-api-version-input"
-              }
-            )
-          ] })
-        ] })
-      ] })
-    ] }),
-    /* @__PURE__ */ u3("div", { className: "border-t pt-4", children: [
-      /* @__PURE__ */ u3(
-        "button",
-        {
-          onClick: handleSave,
-          disabled: !isDirty2 || isSaving,
-          className: "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed",
-          "data-testid": "save-button",
-          children: isSaving ? "Saving..." : "Save Settings"
-        }
-      ),
-      saveMessage && /* @__PURE__ */ u3(
-        "div",
-        {
-          className: "mt-3 p-3 rounded bg-blue-50 border border-blue-200 text-blue-800",
-          "data-testid": "save-message",
-          children: saveMessage
-        }
-      ),
-      /* @__PURE__ */ u3("p", { className: "mt-2 text-sm text-gray-500", children: "\u26A0\uFE0F Changing AI provider settings requires a restart to take effect" })
-    ] })
-  ] });
-}
-
 // src/ui/contracts/Settings.ExpertModels.contract.ts
 var MedicalModelsSchema = external_exports.object({
   vision: external_exports.string().optional().default("llava-med-v1.6"),
@@ -12908,6 +12849,26 @@ function ExpertModelsIsland(props) {
       return () => clearTimeout(timer);
     }
   }, [saveMessage]);
+  y2(() => {
+    try {
+      const raw = window.localStorage.getItem("expert-models-settings");
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (saved.medicalVision) setMedicalVision(saved.medicalVision);
+        if (saved.medicalAnalysis) setMedicalAnalysis(saved.medicalAnalysis);
+        if (saved.medicalRadiology) setMedicalRadiology(saved.medicalRadiology);
+        if (saved.financialAnalysis) setFinancialAnalysis(saved.financialAnalysis);
+        if (saved.financialReasoning) setFinancialReasoning(saved.financialReasoning);
+        if (saved.financialVision) setFinancialVision(saved.financialVision);
+        if (saved.financialVatExpert) setFinancialVatExpert(saved.financialVatExpert);
+        if (saved.legalVision) setLegalVision(saved.legalVision);
+        if (saved.legalAnalysis) setLegalAnalysis(saved.legalAnalysis);
+        if (saved.legalOrchestrator) setLegalOrchestrator(saved.legalOrchestrator);
+        if (typeof saved.expertPipelineEnabled === "boolean") setExpertPipelineEnabled(Boolean(saved.expertPipelineEnabled));
+      }
+    } catch (err) {
+    }
+  }, []);
   const handleSave = async () => {
     setIsSaving(true);
     setSaveMessage(null);
@@ -13273,6 +13234,634 @@ function ExpertModelsIsland(props) {
   ] });
 }
 
+// src/islands/AIProviderIsland.tsx
+function AIProviderIsland(props) {
+  const validated = AIProviderSettingsSchema.parse(props);
+  const [activeTab, setActiveTab] = d2("general");
+  const [provider, setProvider] = d2(validated.provider || "openai");
+  const [isDirty2, setIsDirty] = d2(false);
+  const [isSaving, setIsSaving] = d2(false);
+  const [saveMessage, setSaveMessage] = d2(null);
+  const [openaiApiKey, setOpenaiApiKey] = d2(validated.openai?.apiKey || "");
+  const [ollamaApiUrl, setOllamaApiUrl] = d2(validated.ollama?.apiUrl || "http://localhost:11434");
+  const [ollamaModel, setOllamaModel] = d2(validated.ollama?.model || "sauerkraut-llama3.1:8b");
+  const [ollamaVisionModel, setOllamaVisionModel] = d2(validated.ollama?.visionModel || "qwen3-vl:8b");
+  const [ollamaPlannerModel, setOllamaPlannerModel] = d2(validated.ollama?.plannerModel || "");
+  const [ollamaRouterModel, setOllamaRouterModel] = d2(validated.ollama?.routerModel || "");
+  const [ollamaOrchestratorModel, setOllamaOrchestratorModel] = d2(validated.ollama?.orchestratorModel || "");
+  const [ollamaVisionKeepAlive, setOllamaVisionKeepAlive] = d2(validated.ollama?.visionKeepAlive || "5m");
+  const [ollamaTextKeepAlive, setOllamaTextKeepAlive] = d2(validated.ollama?.textKeepAlive || "2m");
+  const [ollamaRouterKeepAlive, setOllamaRouterKeepAlive] = d2(validated.ollama?.routerKeepAlive || "5m");
+  const [ollamaTextContextWindow, setOllamaTextContextWindow] = d2(validated.ollama?.limits?.text?.contextWindow || 128e3);
+  const [ollamaTextMaxTokens, setOllamaTextMaxTokens] = d2(validated.ollama?.limits?.text?.maxResponseTokens || 4096);
+  const [ollamaVisionContextWindow, setOllamaVisionContextWindow] = d2(validated.ollama?.limits?.vision?.contextWindow || 128e3);
+  const [ollamaVisionMaxTokens, setOllamaVisionMaxTokens] = d2(validated.ollama?.limits?.vision?.maxResponseTokens || 2048);
+  const [ollamaPlannerContextWindow, setOllamaPlannerContextWindow] = d2(validated.ollama?.limits?.planner?.contextWindow || 128e3);
+  const [ollamaPlannerMaxTokens, setOllamaPlannerMaxTokens] = d2(validated.ollama?.limits?.planner?.maxResponseTokens || 700);
+  const [ollamaExpertContextWindow, setOllamaExpertContextWindow] = d2(validated.ollama?.limits?.expert?.contextWindow || 128e3);
+  const [ollamaExpertMaxTokens, setOllamaExpertMaxTokens] = d2(validated.ollama?.limits?.expert?.maxResponseTokens || 4096);
+  const [ollamaImageTokenOverhead, setOllamaImageTokenOverhead] = d2(validated.ollama?.limits?.imageTokenOverhead || 1024);
+  const [customApiUrl, setCustomApiUrl] = d2(validated.custom?.apiUrl || "");
+  const [customApiKey, setCustomApiKey] = d2(validated.custom?.apiKey || "");
+  const [customModel, setCustomModel] = d2(validated.custom?.model || "");
+  const [azureApiKey, setAzureApiKey] = d2(validated.azure?.apiKey || "");
+  const [azureEndpoint, setAzureEndpoint] = d2(validated.azure?.endpoint || "");
+  const [azureDeploymentName, setAzureDeploymentName] = d2(validated.azure?.deploymentName || "");
+  const [azureApiVersion, setAzureApiVersion] = d2(validated.azure?.apiVersion || "2023-05-15");
+  const debounceTimerRef = A2(null);
+  const hasPendingAutoSave = A2(false);
+  const expertRef = A2(null);
+  const [expertAnnouncement, setExpertAnnouncement] = d2(null);
+  y2(() => {
+    if (saveMessage) {
+      const timer = setTimeout(() => setSaveMessage(null), 3e3);
+      return () => clearTimeout(timer);
+    }
+  }, [saveMessage]);
+  y2(() => {
+    return () => {
+      if (hasPendingAutoSave.current && debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        flushAutoSave();
+      }
+    };
+  }, []);
+  const flushAutoSave = () => {
+    if (!hasPendingAutoSave.current) return;
+    const autoSaveSettings = {
+      OLLAMA_CONTEXT_WINDOW: ollamaTextContextWindow,
+      OLLAMA_MAX_RESPONSE_TOKENS: ollamaTextMaxTokens,
+      OLLAMA_VISION_CONTEXT_WINDOW: ollamaVisionContextWindow,
+      OLLAMA_VISION_MAX_RESPONSE_TOKENS: ollamaVisionMaxTokens,
+      OLLAMA_PLANNER_CONTEXT_WINDOW: ollamaPlannerContextWindow,
+      OLLAMA_PLANNER_MAX_RESPONSE_TOKENS: ollamaPlannerMaxTokens,
+      OLLAMA_EXPERT_CONTEXT_WINDOW: ollamaExpertContextWindow,
+      OLLAMA_EXPERT_MAX_RESPONSE_TOKENS: ollamaExpertMaxTokens,
+      OLLAMA_VISION_IMAGE_TOKENS: ollamaImageTokenOverhead
+    };
+    fetch("/settings/apply", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        category: "ai-provider",
+        settings: autoSaveSettings,
+        requiresRestart: false
+        // Token limits don't require restart
+      })
+    }).catch((err) => console.error("Auto-save failed:", err));
+    hasPendingAutoSave.current = false;
+  };
+  const handleAutoSaveField = () => {
+    hasPendingAutoSave.current = true;
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      flushAutoSave();
+    }, validated.autoSaveDebounceMs || 1e3);
+  };
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveMessage(null);
+    try {
+      if (hasPendingAutoSave.current && debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        flushAutoSave();
+      }
+      const settings = {
+        AI_PROVIDER: provider
+      };
+      if (provider === "openai") {
+        settings.PAPERLESS_OPENAI_API_KEY = openaiApiKey;
+      } else if (provider === "ollama") {
+        settings.OLLAMA_API_URL = ollamaApiUrl;
+        settings.OLLAMA_MODEL = ollamaModel;
+        settings.OLLAMA_VISION_MODEL = ollamaVisionModel;
+        if (ollamaPlannerModel) settings.PLANNER_MODEL = ollamaPlannerModel;
+        if (ollamaRouterModel) settings.ROUTER_MODEL = ollamaRouterModel;
+        if (ollamaOrchestratorModel) settings.ORCHESTRATOR_MODEL = ollamaOrchestratorModel;
+        settings.VISION_KEEP_ALIVE = ollamaVisionKeepAlive;
+        settings.TEXT_KEEP_ALIVE = ollamaTextKeepAlive;
+        settings.ROUTER_KEEP_ALIVE = ollamaRouterKeepAlive;
+      } else if (provider === "custom") {
+        settings.CUSTOM_BASE_URL = customApiUrl;
+        settings.CUSTOM_API_KEY = customApiKey;
+        settings.CUSTOM_MODEL = customModel;
+      } else if (provider === "azure") {
+        settings.AZURE_API_KEY = azureApiKey;
+        settings.AZURE_ENDPOINT = azureEndpoint;
+        settings.AZURE_DEPLOYMENT_NAME = azureDeploymentName;
+        settings.AZURE_API_VERSION = azureApiVersion;
+      }
+      const response = await fetch("/settings/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: "ai-provider",
+          settings,
+          requiresRestart: true
+          // Provider changes require restart
+        })
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        setSaveMessage("AI provider settings saved successfully");
+        setIsDirty(false);
+        if (typeof document !== "undefined") {
+          document.dispatchEvent(new CustomEvent("settings:changed", {
+            detail: {
+              type: "settings:changed",
+              category: "ai-provider",
+              settings,
+              requiresRestart: true
+            }
+          }));
+          document.dispatchEvent(new CustomEvent("settings:restart-required", {
+            detail: {
+              type: "settings:restart-required",
+              reason: "AI provider settings changed",
+              settings: ["AI Provider", "API Configuration"]
+            }
+          }));
+          document.dispatchEvent(new CustomEvent("settings:saved", {
+            detail: {
+              type: "settings:saved",
+              category: "ai-provider",
+              success: true,
+              message: "AI provider settings saved successfully"
+            }
+          }));
+        }
+      } else {
+        setSaveMessage(`Save failed: ${result.message || result.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      setSaveMessage(`Save failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  const markDirty = () => setIsDirty(true);
+  y2(() => {
+    if (typeof window === "undefined") return;
+    if (provider === "ollama") {
+      setExpertAnnouncement("Expert Models are now available.");
+    } else {
+      setExpertAnnouncement("Expert Models are available only when Ollama is selected as the AI provider.");
+    }
+    const t3 = setTimeout(() => setExpertAnnouncement(null), 3e3);
+    return () => clearTimeout(t3);
+  }, [provider]);
+  y2(() => {
+    const onNavigate = (e3) => {
+      const detail = e3?.detail || {};
+      if (detail && detail.focus === "expert-models") {
+        setActiveTab("ollama");
+        setTimeout(() => {
+          if (expertRef.current) {
+            try {
+              expertRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+              const switchBtn = expertRef.current.querySelector('[data-testid="switch-to-ollama-btn"]');
+              if (switchBtn && provider !== "ollama") switchBtn.focus();
+            } catch (err) {
+            }
+          }
+        }, 100);
+      }
+    };
+    window.addEventListener("settings:category-changed", onNavigate);
+    return () => window.removeEventListener("settings:category-changed", onNavigate);
+  }, [provider]);
+  y2(() => {
+    try {
+      const area = expertRef.current?.querySelector('[data-testid="expert-models-area"]');
+      const locked = expertRef.current?.querySelector('[data-testid="expert-models-locked"]');
+      if (area) area.setAttribute("aria-hidden", String(provider !== "ollama"));
+      if (locked) locked.setAttribute("aria-hidden", String(provider === "ollama"));
+    } catch (err) {
+    }
+  }, [provider]);
+  return /* @__PURE__ */ u3("div", { className: "ai-provider-settings space-y-6 p-6 max-w-4xl", "data-testid": "ai-provider-root", children: [
+    /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+      /* @__PURE__ */ u3("h2", { className: "text-2xl font-bold", children: "AI Provider Settings" }),
+      /* @__PURE__ */ u3("p", { className: "text-gray-600", children: "Configure AI provider and model settings" })
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "border-b border-gray-200", children: /* @__PURE__ */ u3("nav", { className: "-mb-px flex space-x-8", "data-testid": "ai-provider-tabs", children: [
+      /* @__PURE__ */ u3(
+        "button",
+        {
+          onClick: () => setActiveTab("general"),
+          className: `py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "general" ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`,
+          "data-testid": "tab-general",
+          children: "General"
+        }
+      ),
+      /* @__PURE__ */ u3(
+        "button",
+        {
+          onClick: () => setActiveTab("openai"),
+          className: `py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "openai" ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`,
+          "data-testid": "tab-openai",
+          children: "OpenAI"
+        }
+      ),
+      /* @__PURE__ */ u3(
+        "button",
+        {
+          onClick: () => setActiveTab("ollama"),
+          className: `py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "ollama" ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`,
+          "data-testid": "tab-ollama",
+          children: "Ollama"
+        }
+      ),
+      /* @__PURE__ */ u3(
+        "button",
+        {
+          onClick: () => setActiveTab("custom"),
+          className: `py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "custom" ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`,
+          "data-testid": "tab-custom",
+          children: "Custom"
+        }
+      ),
+      /* @__PURE__ */ u3(
+        "button",
+        {
+          onClick: () => setActiveTab("azure"),
+          className: `py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "azure" ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`,
+          "data-testid": "tab-azure",
+          children: "Azure"
+        }
+      )
+    ] }) }),
+    /* @__PURE__ */ u3("div", { className: "mt-6", children: [
+      activeTab === "general" && /* @__PURE__ */ u3("div", { className: "space-y-4", "data-testid": "tab-content-general", children: [
+        /* @__PURE__ */ u3("h3", { className: "text-lg font-semibold", children: "Provider Selection" }),
+        /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+          /* @__PURE__ */ u3("label", { htmlFor: "provider", className: "block text-sm font-medium text-gray-700", children: [
+            "Active AI Provider ",
+            /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
+          ] }),
+          /* @__PURE__ */ u3(
+            "select",
+            {
+              id: "provider",
+              value: provider,
+              onChange: (e3) => {
+                setProvider(e3.target.value);
+                markDirty();
+              },
+              className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+              "data-testid": "provider-select",
+              children: [
+                /* @__PURE__ */ u3("option", { value: "openai", children: "OpenAI" }),
+                /* @__PURE__ */ u3("option", { value: "ollama", children: "Ollama (Local)" }),
+                /* @__PURE__ */ u3("option", { value: "custom", children: "Custom Provider" }),
+                /* @__PURE__ */ u3("option", { value: "azure", children: "Azure OpenAI" })
+              ]
+            }
+          ),
+          /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Select which AI provider to use for document processing" })
+        ] }),
+        /* @__PURE__ */ u3("div", { className: "mt-4 p-4 bg-blue-50 border border-blue-200 rounded", children: [
+          /* @__PURE__ */ u3("p", { className: "text-sm text-blue-800", children: [
+            /* @__PURE__ */ u3("span", { className: "font-medium", children: "Current provider:" }),
+            " ",
+            provider
+          ] }),
+          /* @__PURE__ */ u3("p", { className: "text-sm text-blue-700 mt-1", children: "Configure provider-specific settings in the respective tab" })
+        ] })
+      ] }),
+      activeTab === "openai" && /* @__PURE__ */ u3("div", { className: "space-y-4", "data-testid": "tab-content-openai", children: [
+        /* @__PURE__ */ u3("h3", { className: "text-lg font-semibold", children: "OpenAI Configuration" }),
+        /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+          /* @__PURE__ */ u3("label", { htmlFor: "openai-api-key", className: "block text-sm font-medium text-gray-700", children: [
+            "API Key ",
+            /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
+          ] }),
+          /* @__PURE__ */ u3(
+            "input",
+            {
+              id: "openai-api-key",
+              type: "password",
+              value: openaiApiKey,
+              onChange: (e3) => {
+                setOpenaiApiKey(e3.target.value);
+                markDirty();
+              },
+              placeholder: "sk-...",
+              className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+              "data-testid": "openai-api-key-input"
+            }
+          ),
+          /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Your OpenAI API key from platform.openai.com" })
+        ] })
+      ] }),
+      activeTab === "ollama" && /* @__PURE__ */ u3("div", { className: "space-y-6", "data-testid": "tab-content-ollama", children: [
+        /* @__PURE__ */ u3("h3", { className: "text-lg font-semibold", children: "Ollama Configuration" }),
+        /* @__PURE__ */ u3("div", { className: "space-y-4", children: [
+          /* @__PURE__ */ u3("h4", { className: "text-md font-medium", children: "Connection" }),
+          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+            /* @__PURE__ */ u3("label", { htmlFor: "ollama-api-url", className: "block text-sm font-medium text-gray-700", children: [
+              "API URL ",
+              /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
+            ] }),
+            /* @__PURE__ */ u3(
+              "input",
+              {
+                id: "ollama-api-url",
+                type: "url",
+                value: ollamaApiUrl,
+                onChange: (e3) => {
+                  setOllamaApiUrl(e3.target.value);
+                  markDirty();
+                },
+                placeholder: "http://localhost:11434",
+                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                "data-testid": "ollama-api-url-input"
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ u3("div", { className: "space-y-4", children: [
+          /* @__PURE__ */ u3("h4", { className: "text-md font-medium", children: "Models" }),
+          /* @__PURE__ */ u3("div", { className: "grid grid-cols-2 gap-4", children: [
+            /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+              /* @__PURE__ */ u3("label", { htmlFor: "ollama-text-model", className: "block text-sm font-medium text-gray-700", children: "Text Model" }),
+              /* @__PURE__ */ u3(
+                "input",
+                {
+                  id: "ollama-text-model",
+                  type: "text",
+                  value: ollamaModel,
+                  onChange: (e3) => {
+                    setOllamaModel(e3.target.value);
+                    markDirty();
+                  },
+                  placeholder: "sauerkraut-llama3.1:8b",
+                  className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                  "data-testid": "ollama-text-model-input"
+                }
+              )
+            ] }),
+            /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+              /* @__PURE__ */ u3("label", { htmlFor: "ollama-vision-model", className: "block text-sm font-medium text-gray-700", children: "Vision Model" }),
+              /* @__PURE__ */ u3(
+                "input",
+                {
+                  id: "ollama-vision-model",
+                  type: "text",
+                  value: ollamaVisionModel,
+                  onChange: (e3) => {
+                    setOllamaVisionModel(e3.target.value);
+                    markDirty();
+                  },
+                  placeholder: "qwen3-vl:8b",
+                  className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                  "data-testid": "ollama-vision-model-input"
+                }
+              )
+            ] })
+          ] })
+        ] }),
+        /* @__PURE__ */ u3("div", { className: "space-y-4 border-t pt-4", children: [
+          /* @__PURE__ */ u3("div", { className: "flex items-center justify-between", children: [
+            /* @__PURE__ */ u3("h4", { className: "text-md font-medium", children: "Token Limits" }),
+            /* @__PURE__ */ u3("span", { className: "text-xs text-gray-500 italic", children: "Auto-saves on change" })
+          ] }),
+          /* @__PURE__ */ u3("div", { className: "grid grid-cols-2 gap-4", children: [
+            /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+              /* @__PURE__ */ u3("label", { htmlFor: "ollama-text-context", className: "block text-sm font-medium text-gray-700", children: "Text Context Window" }),
+              /* @__PURE__ */ u3(
+                "input",
+                {
+                  id: "ollama-text-context",
+                  type: "number",
+                  value: ollamaTextContextWindow,
+                  onChange: (e3) => {
+                    setOllamaTextContextWindow(parseInt(e3.target.value));
+                    handleAutoSaveField();
+                  },
+                  className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                  "data-testid": "ollama-text-context-input"
+                }
+              )
+            ] }),
+            /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+              /* @__PURE__ */ u3("label", { htmlFor: "ollama-text-max-tokens", className: "block text-sm font-medium text-gray-700", children: "Text Max Response Tokens" }),
+              /* @__PURE__ */ u3(
+                "input",
+                {
+                  id: "ollama-text-max-tokens",
+                  type: "number",
+                  value: ollamaTextMaxTokens,
+                  onChange: (e3) => {
+                    setOllamaTextMaxTokens(parseInt(e3.target.value));
+                    handleAutoSaveField();
+                  },
+                  className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                  "data-testid": "ollama-text-max-tokens-input"
+                }
+              )
+            ] })
+          ] })
+        ] }),
+        /* @__PURE__ */ u3("div", { className: "mt-6", ref: expertRef, children: [
+          /* @__PURE__ */ u3("div", { role: "status", "aria-live": "polite", className: "sr-only", "data-testid": "expert-models-announcement", children: expertAnnouncement }),
+          provider === "ollama" ? /* @__PURE__ */ u3("div", { "data-testid": "expert-models-area", children: [
+            /* @__PURE__ */ u3("h4", { className: "text-md font-medium", children: "Expert Models (Ollama)" }),
+            /* @__PURE__ */ u3(ExpertModelsIsland, { ...props.expertModels || {} })
+          ] }) : /* @__PURE__ */ u3("div", { "data-testid": "expert-models-locked", role: "region", "aria-labelledby": "expert-locked-label", "aria-disabled": "true", className: "p-3 bg-yellow-50 border border-yellow-200 rounded", children: [
+            /* @__PURE__ */ u3("p", { id: "expert-locked-label", className: "text-sm text-yellow-800", children: [
+              "Expert models are available only when ",
+              /* @__PURE__ */ u3("strong", { children: "Ollama" }),
+              " is selected as the AI provider."
+            ] }),
+            /* @__PURE__ */ u3("button", { "data-testid": "switch-to-ollama-btn", "aria-label": "Switch to Ollama provider to enable Expert Models", type: "button", onClick: () => {
+              setProvider("ollama");
+              markDirty();
+            }, className: "mt-2 px-3 py-1 bg-yellow-200 rounded", children: "Switch to Ollama" })
+          ] })
+        ] })
+      ] }),
+      activeTab === "custom" && /* @__PURE__ */ u3("div", { className: "space-y-4", "data-testid": "tab-content-custom", children: [
+        /* @__PURE__ */ u3("h3", { className: "text-lg font-semibold", children: "Custom Provider Configuration" }),
+        /* @__PURE__ */ u3("div", { className: "space-y-4", children: [
+          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+            /* @__PURE__ */ u3("label", { htmlFor: "custom-api-url", className: "block text-sm font-medium text-gray-700", children: [
+              "API Base URL ",
+              /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
+            ] }),
+            /* @__PURE__ */ u3(
+              "input",
+              {
+                id: "custom-api-url",
+                type: "url",
+                value: customApiUrl,
+                onChange: (e3) => {
+                  setCustomApiUrl(e3.target.value);
+                  markDirty();
+                },
+                placeholder: "https://api.example.com/v1",
+                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                "data-testid": "custom-api-url-input"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+            /* @__PURE__ */ u3("label", { htmlFor: "custom-api-key", className: "block text-sm font-medium text-gray-700", children: [
+              "API Key ",
+              /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
+            ] }),
+            /* @__PURE__ */ u3(
+              "input",
+              {
+                id: "custom-api-key",
+                type: "password",
+                value: customApiKey,
+                onChange: (e3) => {
+                  setCustomApiKey(e3.target.value);
+                  markDirty();
+                },
+                placeholder: "Enter API key",
+                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                "data-testid": "custom-api-key-input"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+            /* @__PURE__ */ u3("label", { htmlFor: "custom-model", className: "block text-sm font-medium text-gray-700", children: [
+              "Model Name ",
+              /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
+            ] }),
+            /* @__PURE__ */ u3(
+              "input",
+              {
+                id: "custom-model",
+                type: "text",
+                value: customModel,
+                onChange: (e3) => {
+                  setCustomModel(e3.target.value);
+                  markDirty();
+                },
+                placeholder: "model-name",
+                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                "data-testid": "custom-model-input"
+              }
+            )
+          ] })
+        ] })
+      ] }),
+      activeTab === "azure" && /* @__PURE__ */ u3("div", { className: "space-y-4", "data-testid": "tab-content-azure", children: [
+        /* @__PURE__ */ u3("h3", { className: "text-lg font-semibold", children: "Azure OpenAI Configuration" }),
+        /* @__PURE__ */ u3("div", { className: "space-y-4", children: [
+          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+            /* @__PURE__ */ u3("label", { htmlFor: "azure-endpoint", className: "block text-sm font-medium text-gray-700", children: [
+              "Endpoint ",
+              /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
+            ] }),
+            /* @__PURE__ */ u3(
+              "input",
+              {
+                id: "azure-endpoint",
+                type: "url",
+                value: azureEndpoint,
+                onChange: (e3) => {
+                  setAzureEndpoint(e3.target.value);
+                  markDirty();
+                },
+                placeholder: "https://your-resource.openai.azure.com",
+                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                "data-testid": "azure-endpoint-input"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+            /* @__PURE__ */ u3("label", { htmlFor: "azure-api-key", className: "block text-sm font-medium text-gray-700", children: [
+              "API Key ",
+              /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
+            ] }),
+            /* @__PURE__ */ u3(
+              "input",
+              {
+                id: "azure-api-key",
+                type: "password",
+                value: azureApiKey,
+                onChange: (e3) => {
+                  setAzureApiKey(e3.target.value);
+                  markDirty();
+                },
+                placeholder: "Enter Azure API key",
+                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                "data-testid": "azure-api-key-input"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+            /* @__PURE__ */ u3("label", { htmlFor: "azure-deployment", className: "block text-sm font-medium text-gray-700", children: [
+              "Deployment Name ",
+              /* @__PURE__ */ u3("span", { className: "text-red-500", children: "*" })
+            ] }),
+            /* @__PURE__ */ u3(
+              "input",
+              {
+                id: "azure-deployment",
+                type: "text",
+                value: azureDeploymentName,
+                onChange: (e3) => {
+                  setAzureDeploymentName(e3.target.value);
+                  markDirty();
+                },
+                placeholder: "your-deployment-name",
+                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                "data-testid": "azure-deployment-input"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+            /* @__PURE__ */ u3("label", { htmlFor: "azure-api-version", className: "block text-sm font-medium text-gray-700", children: "API Version" }),
+            /* @__PURE__ */ u3(
+              "input",
+              {
+                id: "azure-api-version",
+                type: "text",
+                value: azureApiVersion,
+                onChange: (e3) => {
+                  setAzureApiVersion(e3.target.value);
+                  markDirty();
+                },
+                placeholder: "2023-05-15",
+                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                "data-testid": "azure-api-version-input"
+              }
+            )
+          ] })
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "border-t pt-4", children: [
+      /* @__PURE__ */ u3(
+        "button",
+        {
+          onClick: handleSave,
+          disabled: !isDirty2 || isSaving,
+          className: "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed",
+          "data-testid": "save-button",
+          children: isSaving ? "Saving..." : "Save Settings"
+        }
+      ),
+      saveMessage && /* @__PURE__ */ u3(
+        "div",
+        {
+          className: "mt-3 p-3 rounded bg-blue-50 border border-blue-200 text-blue-800",
+          "data-testid": "save-message",
+          children: saveMessage
+        }
+      ),
+      /* @__PURE__ */ u3("p", { className: "mt-2 text-sm text-gray-500", children: "\u26A0\uFE0F Changing AI provider settings requires a restart to take effect" })
+    ] })
+  ] });
+}
+
 // src/ui/contracts/Settings.RestartBanner.contract.ts
 var RestartBannerSettingsSchema = external_exports.object({
   // Initial visibility state
@@ -13296,7 +13885,8 @@ function RestartBannerIsland(props) {
       setReason(detail.reason || "Settings changed");
       if (detail.settings && Array.isArray(detail.settings)) {
         setChangedSettings((prev) => {
-          const combined = [...prev, ...detail.settings];
+          const additions = detail.settings || [];
+          const combined = [...prev, ...additions];
           return Array.from(new Set(combined));
         });
       }
@@ -13445,11 +14035,12 @@ var DeveloperSettingsSchema = external_exports.object({
 var STORAGE_KEY_DEVELOPER_MODE2 = "settings:developerMode";
 function DeveloperSettingsIsland(props) {
   const validated = DeveloperSettingsSchema.parse(props);
-  const [isDeveloperMode, setIsDeveloperMode] = d2(() => {
+  const initialDeveloperMode = (() => {
     if (typeof localStorage === "undefined") return false;
     const stored = localStorage.getItem(STORAGE_KEY_DEVELOPER_MODE2);
     return stored === "true";
-  });
+  })();
+  const [isDeveloperMode, setIsDeveloperMode] = d2(initialDeveloperMode);
   const [featureFlagsExpanded, setFeatureFlagsExpanded] = d2(true);
   const [envVarsExpanded, setEnvVarsExpanded] = d2(false);
   const [runtimeStateExpanded, setRuntimeStateExpanded] = d2(false);
@@ -14519,6 +15110,7 @@ ${errorData.details.join("\n")}`);
             onClick: handleClose,
             className: "text-gray-400 hover:text-gray-600",
             "data-testid": "close-modal-button",
+            "aria-label": "Close",
             children: /* @__PURE__ */ u3("svg", { className: "w-6 h-6", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ u3("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M6 18L18 6M6 6l12 12" }) })
           }
         )
@@ -14602,20 +15194,215 @@ ${errorData.details.join("\n")}`);
         accept: ".env",
         onChange: handleFileSelect,
         className: "hidden",
+        "aria-hidden": "true",
         "data-testid": "file-input"
       }
     )
   ] }) });
 }
 
+// src/islands/ExportPanelIsland.tsx
+function ExportPanelIsland(props) {
+  const [showModal, setShowModal] = d2(false);
+  const [exportType, setExportType] = d2("text");
+  const [data, setData] = d2(null);
+  const [format, setFormat] = d2("png");
+  const [loading, setLoading] = d2(false);
+  y2(() => {
+    const onRegion = (e3) => {
+      setData(e3.detail?.imageBase64);
+      setExportType("region");
+      setFormat("png");
+      setShowModal(true);
+    };
+    const onText = (e3) => {
+      setData(e3.detail?.text);
+      setExportType("text");
+      setFormat("txt");
+      setShowModal(true);
+    };
+    const onAnnotations = (e3) => {
+      setData(e3.detail?.annotations);
+      setExportType("annotations");
+      setFormat("json");
+      setShowModal(true);
+    };
+    window.addEventListener("export:region-requested", onRegion);
+    window.addEventListener("export:text-requested", onText);
+    window.addEventListener("export:annotations-requested", onAnnotations);
+    return () => {
+      window.removeEventListener("export:region-requested", onRegion);
+      window.removeEventListener("export:text-requested", onText);
+      window.removeEventListener("export:annotations-requested", onAnnotations);
+    };
+  }, []);
+  const handleExport = async () => {
+    setLoading(true);
+    try {
+      let endpoint = "";
+      let body = {};
+      if (exportType === "region") {
+        endpoint = "/manual/export/region";
+        body = { imageBase64: data, format };
+      } else if (exportType === "text") {
+        endpoint = "/manual/export/text";
+        body = { text: data, format };
+      } else if (exportType === "annotations") {
+        endpoint = "/manual/export/annotations";
+        body = { annotations: data, documentId: props.documentId };
+      }
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (!response.ok) throw new Error("Export failed");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a3 = document.createElement("a");
+      a3.href = url;
+      const disposition = response.headers.get("Content-Disposition");
+      let filename = `export.${format}`;
+      if (disposition && disposition.indexOf("filename=") !== -1) {
+        const matches = /filename="([^"]*)"/.exec(disposition);
+        if (matches != null && matches[1]) {
+          filename = matches[1];
+        }
+      }
+      a3.download = filename;
+      document.body.appendChild(a3);
+      a3.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a3);
+      setShowModal(false);
+    } catch (e3) {
+      console.error("Export error", e3);
+      alert("Export failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const handleCopy = async () => {
+    try {
+      if (exportType === "text") {
+        await navigator.clipboard.writeText(data);
+        alert("Copied to clipboard!");
+      } else if (exportType === "annotations") {
+        await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+        alert("Copied to clipboard!");
+      } else if (exportType === "region") {
+        alert("Image copy not supported yet. Please download.");
+      }
+    } catch (e3) {
+      console.error("Copy failed", e3);
+    }
+  };
+  if (!showModal) return null;
+  return /* @__PURE__ */ u3("div", { className: "fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm", children: /* @__PURE__ */ u3("div", { className: "bg-white rounded-lg shadow-xl p-6 w-full max-w-md", children: [
+    /* @__PURE__ */ u3("h2", { className: "text-xl font-bold mb-4 capitalize", children: [
+      "Export ",
+      exportType
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "mb-4", children: [
+      /* @__PURE__ */ u3("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "Format" }),
+      /* @__PURE__ */ u3("div", { className: "flex gap-2", children: [
+        exportType === "region" && /* @__PURE__ */ u3(k, { children: [
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              onClick: () => setFormat("png"),
+              className: `px-3 py-2 border rounded ${format === "png" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
+              children: "PNG"
+            }
+          ),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              onClick: () => setFormat("pdf"),
+              className: `px-3 py-2 border rounded ${format === "pdf" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
+              children: "PDF"
+            }
+          )
+        ] }),
+        exportType === "text" && /* @__PURE__ */ u3(k, { children: [
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              onClick: () => setFormat("txt"),
+              className: `px-3 py-2 border rounded ${format === "txt" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
+              children: "TXT"
+            }
+          ),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              onClick: () => setFormat("pdf"),
+              className: `px-3 py-2 border rounded ${format === "pdf" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
+              children: "PDF"
+            }
+          )
+        ] }),
+        exportType === "annotations" && /* @__PURE__ */ u3(
+          "button",
+          {
+            onClick: () => setFormat("json"),
+            className: `px-3 py-2 border rounded ${format === "json" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
+            children: "JSON"
+          }
+        )
+      ] })
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "flex justify-end gap-3 mt-6", children: [
+      /* @__PURE__ */ u3(
+        "button",
+        {
+          onClick: () => setShowModal(false),
+          className: "px-4 py-2 text-gray-600 hover:bg-gray-100 rounded",
+          children: "Cancel"
+        }
+      ),
+      /* @__PURE__ */ u3(
+        "button",
+        {
+          onClick: handleCopy,
+          className: "px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50",
+          children: "Copy"
+        }
+      ),
+      /* @__PURE__ */ u3(
+        "button",
+        {
+          onClick: handleExport,
+          disabled: loading,
+          className: "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50",
+          children: loading ? "Exporting..." : "Download"
+        }
+      )
+    ] })
+  ] }) });
+}
+
+// src/ui/contracts/ViewModeToggle.contract.ts
+var ViewModeToggleSchema = external_exports.object({
+  documentId: external_exports.number().int().nullable().optional(),
+  mode: external_exports.enum(["text", "visual"]).optional().default("text"),
+  visualEnabled: external_exports.boolean().optional().default(true)
+});
+var ViewModeChangedEventSchema = external_exports.object({
+  type: external_exports.literal("viewmode:changed"),
+  mode: external_exports.enum(["text", "visual"]),
+  documentId: external_exports.number().int().nullable().optional()
+});
+
 // src/islands/ViewModeToggleIsland.tsx
-function dispatchEventSafe3(name, detail) {
+function dispatchEventSafe4(name, detail) {
   if (typeof document === "undefined") return;
   if (typeof document.dispatchEvent !== "function") return;
   const EventConstructor = typeof window !== "undefined" && window.CustomEvent ? window.CustomEvent : CustomEvent;
   document.dispatchEvent(new EventConstructor(name, { detail }));
 }
 function ViewModeToggleIsland(props) {
+  const validated = ViewModeToggleSchema.parse(props);
   const [mode, setMode] = d2(props.mode || "text");
   const [visualEnabled, setVisualEnabled] = d2(props.visualEnabled !== false);
   y2(() => {
@@ -14640,12 +15427,18 @@ function ViewModeToggleIsland(props) {
   const handleModeChange = q2((newMode) => {
     if (newMode === mode) return;
     setMode(newMode);
-    dispatchEventSafe3("viewmode:changed", {
+    dispatchEventSafe4("viewmode:changed", {
       type: "viewmode:changed",
       mode: newMode,
       documentId: props.documentId ?? null
     });
   }, [mode, props.documentId]);
+  const textBtnRef = A2(null);
+  const visualBtnRef = A2(null);
+  y2(() => {
+    if (textBtnRef.current) textBtnRef.current.setAttribute("aria-pressed", String(mode === "text"));
+    if (visualBtnRef.current) visualBtnRef.current.setAttribute("aria-pressed", String(mode === "visual"));
+  }, [mode]);
   return /* @__PURE__ */ u3("div", { "data-testid": "view-mode-toggle-root", "data-hydrated": "true", className: "vmt-root", children: [
     /* @__PURE__ */ u3("div", { className: "vmt-toggle-group", role: "group", "aria-label": "View mode toggle", children: [
       /* @__PURE__ */ u3(
@@ -14653,9 +15446,11 @@ function ViewModeToggleIsland(props) {
         {
           type: "button",
           "data-testid": "view-text-btn",
+          ref: (el) => {
+            textBtnRef.current = el;
+          },
           onClick: () => handleModeChange("text"),
           className: `vmt-btn ${mode === "text" ? "vmt-btn-active" : "vmt-btn-inactive"}`,
-          "aria-pressed": mode === "text",
           children: [
             /* @__PURE__ */ u3("i", { className: "fas fa-file-alt vmt-icon", "aria-hidden": "true" }),
             /* @__PURE__ */ u3("span", { children: "Text" })
@@ -14669,7 +15464,9 @@ function ViewModeToggleIsland(props) {
           "data-testid": "view-visual-btn",
           onClick: () => handleModeChange("visual"),
           className: `vmt-btn ${mode === "visual" ? "vmt-btn-active" : "vmt-btn-inactive"}`,
-          "aria-pressed": mode === "visual",
+          ref: (el) => {
+            visualBtnRef.current = el;
+          },
           disabled: !visualEnabled,
           children: [
             /* @__PURE__ */ u3("i", { className: "fas fa-image vmt-icon", "aria-hidden": "true" }),
@@ -14720,14 +15517,40 @@ function ViewModeToggleIsland(props) {
   ] });
 }
 
+// src/ui/contracts/TagsManager.contract.ts
+var TagSchema2 = external_exports.object({
+  id: external_exports.number().int(),
+  name: external_exports.string(),
+  color: external_exports.string().optional()
+});
+var TagsManagerSchema = external_exports.object({
+  documentId: external_exports.number().int().nullable().optional(),
+  currentTags: external_exports.array(TagSchema2).optional().default([]),
+  suggestedTags: external_exports.array(TagSchema2).optional().default([]),
+  availableTags: external_exports.array(TagSchema2).optional().default([]),
+  isSaving: external_exports.boolean().optional().default(false)
+});
+var TagsUpdatedEventSchema = external_exports.object({
+  type: external_exports.literal("tags:updated"),
+  documentId: external_exports.number().int().nullable().optional(),
+  currentTags: external_exports.array(external_exports.number().int()),
+  action: external_exports.enum(["add", "remove", "accept-suggestion", "save"])
+});
+var TagsSuggestionsReceivedEventSchema = external_exports.object({
+  type: external_exports.literal("tags:suggestions-received"),
+  documentId: external_exports.number().int().nullable().optional(),
+  suggestedTags: external_exports.array(TagSchema2)
+});
+
 // src/islands/TagsManagerIsland.tsx
-function dispatchEventSafe4(name, detail) {
+function dispatchEventSafe5(name, detail) {
   if (typeof document === "undefined") return;
   if (typeof document.dispatchEvent !== "function") return;
   const EventConstructor = typeof window !== "undefined" && window.CustomEvent ? window.CustomEvent : CustomEvent;
   document.dispatchEvent(new EventConstructor(name, { detail }));
 }
 function TagsManagerIsland(props) {
+  const validated = TagsManagerSchema.parse(props);
   const [currentTags, setCurrentTags] = d2(props.currentTags || []);
   const [suggestedTags, setSuggestedTags] = d2(props.suggestedTags || []);
   const [availableTags, setAvailableTags] = d2(props.availableTags || []);
@@ -14824,7 +15647,7 @@ function TagsManagerIsland(props) {
     if (!currentTags.find((t3) => t3.id === tag.id || t3.name === tag.name)) {
       const newCurrentTags = [...currentTags, tag];
       setCurrentTags(newCurrentTags);
-      dispatchEventSafe4("tags:updated", {
+      dispatchEventSafe5("tags:updated", {
         type: "tags:updated",
         documentId,
         currentTags: newCurrentTags.map((t3) => t3.id),
@@ -14839,7 +15662,7 @@ function TagsManagerIsland(props) {
   const handleRemoveTag = q2((tag) => {
     const newCurrentTags = currentTags.filter((t3) => t3.id !== tag.id);
     setCurrentTags(newCurrentTags);
-    dispatchEventSafe4("tags:updated", {
+    dispatchEventSafe5("tags:updated", {
       type: "tags:updated",
       documentId,
       currentTags: newCurrentTags.map((t3) => t3.id),
@@ -14853,7 +15676,7 @@ function TagsManagerIsland(props) {
     if (!currentTags.find((t3) => t3.id === tag.id)) {
       const newCurrentTags = [...currentTags, tag];
       setCurrentTags(newCurrentTags);
-      dispatchEventSafe4("tags:updated", {
+      dispatchEventSafe5("tags:updated", {
         type: "tags:updated",
         documentId,
         currentTags: newCurrentTags.map((t3) => t3.id),
@@ -14878,7 +15701,7 @@ function TagsManagerIsland(props) {
       });
       if (res.ok) {
         setSaveStatus("success");
-        dispatchEventSafe4("tags:updated", {
+        dispatchEventSafe5("tags:updated", {
           type: "tags:updated",
           documentId,
           currentTags: tagIds,
@@ -14985,6 +15808,7 @@ function TagsManagerIsland(props) {
             value: selectedTagId,
             onChange: (e3) => setSelectedTagId(e3.target.value),
             "data-testid": "new-tag-select",
+            "aria-label": "Select tag to add",
             children: [
               /* @__PURE__ */ u3("option", { value: "", children: "Select a tag..." }),
               selectableTags.map((tag) => /* @__PURE__ */ u3("option", { value: tag.id, children: tag.name }, tag.id))
@@ -14999,6 +15823,7 @@ function TagsManagerIsland(props) {
             onClick: handleAddTag,
             disabled: !selectedTagId,
             "data-testid": "add-tag-btn",
+            "aria-label": "Add selected tag",
             children: /* @__PURE__ */ u3("i", { className: "fas fa-plus", "aria-hidden": "true" })
           }
         )
@@ -15138,14 +15963,41 @@ function TagsManagerIsland(props) {
   ] });
 }
 
+// src/ui/contracts/AIAnalysis.contract.ts
+var AIAnalysisSchema = external_exports.object({
+  documentId: external_exports.number().int().nullable().optional(),
+  content: external_exports.string().optional(),
+  isAnalyzing: external_exports.boolean().optional().default(false),
+  analysisType: external_exports.enum(["text", "visual", "chat"]).nullable().optional(),
+  gpuState: external_exports.enum(["idle", "checking", "preparing", "ready", "error"]).optional().default("idle")
+});
+var AIAnalysisResultSchema = external_exports.object({
+  tags: external_exports.array(external_exports.string()).optional(),
+  correspondent: external_exports.string().nullable().optional(),
+  title: external_exports.string().nullable().optional(),
+  domain: external_exports.string().optional()
+});
+var AIAnalysisCompletedEventSchema = external_exports.object({
+  type: external_exports.literal("ai:analysis-completed"),
+  documentId: external_exports.number().int().nullable().optional(),
+  analysisType: external_exports.enum(["text", "visual"]),
+  result: AIAnalysisResultSchema.optional()
+});
+var AIAnalysisStartedEventSchema = external_exports.object({
+  type: external_exports.literal("ai:analysis-started"),
+  documentId: external_exports.number().int().nullable().optional(),
+  analysisType: external_exports.enum(["text", "visual", "chat"])
+});
+
 // src/islands/AIAnalysisIsland.tsx
-function dispatchEventSafe5(name, detail) {
+function dispatchEventSafe6(name, detail) {
   if (typeof document === "undefined") return;
   if (typeof document.dispatchEvent !== "function") return;
   const EventConstructor = typeof window !== "undefined" && window.CustomEvent ? window.CustomEvent : CustomEvent;
   document.dispatchEvent(new EventConstructor(name, { detail }));
 }
 function AIAnalysisIsland(props) {
+  const validated = AIAnalysisSchema.parse(props);
   const [isAnalyzing, setIsAnalyzing] = d2(false);
   const [analysisType, setAnalysisType] = d2(null);
   const [gpuState, setGpuState] = d2(props.gpuState || "idle");
@@ -15211,6 +16063,7 @@ function AIAnalysisIsland(props) {
     }
   }, [statusMessage]);
   const toManualFields = q2((doc, fallbackDomain = "AI") => {
+    if (!doc || typeof doc !== "object") return [];
     const customFields = doc?.custom_fields;
     if (!customFields || typeof customFields !== "object") return [];
     return Object.entries(customFields).map(([label, value]) => ({
@@ -15225,7 +16078,7 @@ function AIAnalysisIsland(props) {
     setIsAnalyzing(true);
     setAnalysisType("text");
     setStatusMessage("AI is analyzing the document...");
-    dispatchEventSafe5("ai:analysis-started", {
+    dispatchEventSafe6("ai:analysis-started", {
       type: "ai:analysis-started",
       documentId,
       analysisType: "text"
@@ -15255,7 +16108,7 @@ function AIAnalysisIsland(props) {
       const tags = Array.isArray(doc.tags) ? doc.tags : [];
       const fields = toManualFields(doc);
       const documentType = doc.document_type || null;
-      dispatchEventSafe5("ai:analysis-completed", {
+      dispatchEventSafe6("ai:analysis-completed", {
         type: "ai:analysis-completed",
         documentId,
         analysisType: "text",
@@ -15268,7 +16121,7 @@ function AIAnalysisIsland(props) {
         }
       });
       if (tags && tags.length > 0) {
-        dispatchEventSafe5("tags:suggestions-received", {
+        dispatchEventSafe6("tags:suggestions-received", {
           type: "tags:suggestions-received",
           documentId,
           suggestedTags: tags
@@ -15292,7 +16145,7 @@ function AIAnalysisIsland(props) {
     setIsAnalyzing(true);
     setAnalysisType("visual");
     setStatusMessage("Running Visual Analysis (Expert Pipeline)...");
-    dispatchEventSafe5("ai:analysis-started", {
+    dispatchEventSafe6("ai:analysis-started", {
       type: "ai:analysis-started",
       documentId,
       analysisType: "visual"
@@ -15307,7 +16160,7 @@ function AIAnalysisIsland(props) {
       if (!data.success) {
         throw new Error(data.error || "Visual analysis failed");
       }
-      dispatchEventSafe5("visual:fallback", {
+      dispatchEventSafe6("visual:fallback", {
         type: "visual:fallback",
         documentId,
         fallback: data.fallback || null
@@ -15317,7 +16170,7 @@ function AIAnalysisIsland(props) {
       const domain = doc.domain || "general";
       const fields = toManualFields(doc, domain);
       const documentType = doc.document_type || null;
-      dispatchEventSafe5("ai:analysis-completed", {
+      dispatchEventSafe6("ai:analysis-completed", {
         type: "ai:analysis-completed",
         documentId,
         analysisType: "visual",
@@ -15331,7 +16184,7 @@ function AIAnalysisIsland(props) {
         }
       });
       if (tags.length > 0) {
-        dispatchEventSafe5("tags:suggestions-received", {
+        dispatchEventSafe6("tags:suggestions-received", {
           type: "tags:suggestions-received",
           documentId,
           suggestedTags: tags
@@ -15348,7 +16201,7 @@ function AIAnalysisIsland(props) {
   }, [documentId, gpuState, toManualFields]);
   const handleChat = q2(() => {
     if (!documentId) return;
-    dispatchEventSafe5("ai:analysis-started", {
+    dispatchEventSafe6("ai:analysis-started", {
       type: "ai:analysis-started",
       documentId,
       analysisType: "chat"
@@ -15541,9 +16394,7 @@ function ChatWorkspaceIsland(props) {
   const [messageInput, setMessageInput] = d2("");
   const [isStreaming, setIsStreaming] = d2(false);
   const [streamError, setStreamError] = d2(null);
-  const [activeTab, setActiveTab] = d2(
-    "chat"
-  );
+  const [activeTab, setActiveTab] = d2("chat");
   const [docPreview, setDocPreview] = d2({
     title: "",
     content: "",
@@ -16081,6 +16932,35 @@ function ChatWorkspaceIsland(props) {
   ] });
 }
 
+// src/ui/contracts/HistoryManager.contract.ts
+var HistoryTagSchema = external_exports.object({
+  id: external_exports.number().int(),
+  name: external_exports.string()
+});
+var HistoryFiltersSchema = external_exports.object({
+  tags: external_exports.array(HistoryTagSchema).optional().default([]),
+  correspondents: external_exports.array(external_exports.string()).optional().default([])
+});
+var HistorySortSchema = external_exports.object({
+  column: external_exports.enum(["document_id", "title", "created_at", "tags", "correspondent"]).optional().default("created_at"),
+  dir: external_exports.enum(["asc", "desc"]).optional().default("desc")
+});
+var HistoryQuerySchema = external_exports.object({
+  search: external_exports.string().optional().default(""),
+  tag: external_exports.string().nullable().optional().default(null),
+  correspondent: external_exports.string().nullable().optional().default(null),
+  sort: HistorySortSchema.optional().default({
+    column: "created_at",
+    dir: "desc"
+  }),
+  page: external_exports.number().int().nonnegative().optional().default(0),
+  pageSize: external_exports.number().int().positive().optional().default(10)
+});
+var HistoryManagerSchema = external_exports.object({
+  filters: HistoryFiltersSchema,
+  initialQuery: HistoryQuerySchema.optional().default({})
+});
+
 // src/islands/HistoryManagerIsland.tsx
 var columns = [
   "document_id",
@@ -16100,15 +16980,9 @@ var domainColors = {
 };
 var getDomainColor = (domain) => domainColors[domain.toUpperCase()] || "#6B7280";
 function HistoryManagerIsland(props) {
-  const filters = props.filters || { tags: [], correspondents: [] };
-  const initialQuery = props.initialQuery || {
-    search: "",
-    tag: null,
-    correspondent: null,
-    sort: { column: "created_at", dir: "desc" },
-    page: 0,
-    pageSize: 10
-  };
+  const validated = HistoryManagerSchema.parse(props);
+  const filters = validated.filters;
+  const initialQuery = validated.initialQuery;
   const [query, setQuery] = d2(initialQuery);
   const [rows, setRows] = d2([]);
   const [total, setTotal] = d2(0);
@@ -16149,7 +17023,8 @@ function HistoryManagerIsland(props) {
       setFilteredTotal(data.recordsFiltered || 0);
       setSelected(/* @__PURE__ */ new Set());
     } catch (err) {
-      setError(err.message || "Failed to load history");
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message || "Failed to load history");
     } finally {
       setLoading(false);
     }
@@ -16333,6 +17208,7 @@ function HistoryManagerIsland(props) {
           "data-testid": "history-search",
           className: "sg-input",
           placeholder: "Search title, correspondent, tags...",
+          "aria-label": "Search history",
           value: query.search || "",
           onInput: (e3) => setQuery((prev) => ({ ...prev, search: e3.target.value, page: 0 }))
         }
@@ -16342,6 +17218,7 @@ function HistoryManagerIsland(props) {
         {
           "data-testid": "history-tag-filter",
           className: "sg-select",
+          "aria-label": "Filter by tag",
           value: query.tag || "",
           onChange: (e3) => setQuery((prev) => ({ ...prev, tag: e3.target.value || null, page: 0 })),
           children: [
@@ -16355,6 +17232,7 @@ function HistoryManagerIsland(props) {
         {
           "data-testid": "history-correspondent-filter",
           className: "sg-select",
+          "aria-label": "Filter by correspondent",
           value: query.correspondent || "",
           onChange: (e3) => setQuery((prev) => ({
             ...prev,
@@ -16377,6 +17255,7 @@ function HistoryManagerIsland(props) {
             {
               type: "checkbox",
               "data-testid": "history-select-all",
+              "aria-label": "Select all history rows",
               checked: rows.length > 0 && selected.size === rows.length,
               onChange: (e3) => toggleSelectAll(e3.target.checked)
             }
@@ -16428,6 +17307,7 @@ function HistoryManagerIsland(props) {
                 {
                   type: "checkbox",
                   "data-testid": `history-select-${row.document_id}`,
+                  "aria-label": `Select history row ${row.document_id}`,
                   checked: selected.has(row.document_id),
                   onChange: () => toggleSelectOne(row.document_id)
                 }
@@ -16445,7 +17325,13 @@ function HistoryManagerIsland(props) {
                   "span",
                   {
                     className: "sg-badge",
-                    style: { color: getDomainColor(domain), borderColor: `${getDomainColor(domain)}55` },
+                    ref: (el) => {
+                      if (el) {
+                        const color = getDomainColor(domain);
+                        el.style.setProperty("color", color);
+                        el.style.setProperty("border-color", `${color}55`);
+                      }
+                    },
                     children: [
                       domain.slice(0, 1),
                       " ",
@@ -16595,7 +17481,7 @@ function HistoryManagerIsland(props) {
 }
 
 // src/islands/ManualWorkspaceIsland.tsx
-function dispatchEventSafe6(name, detail) {
+function dispatchEventSafe7(name, detail) {
   if (typeof document === "undefined") return;
   if (typeof document.dispatchEvent !== "function") return;
   const EventConstructor = typeof window !== "undefined" && window.CustomEvent ? window.CustomEvent : CustomEvent;
@@ -16606,18 +17492,14 @@ function formatDocumentLabel(doc) {
 }
 function ManualWorkspaceIsland(props) {
   const [documents, setDocuments] = d2(props.documents || []);
-  const [documentId, setDocumentId] = d2(
-    props.documentId ?? null
-  );
+  const [documentId, setDocumentId] = d2(props.documentId ?? null);
   const [content, setContent] = d2(props.content || "");
   const [title, setTitle] = d2(props.title || "");
   const [correspondent, setCorrespondent] = d2(props.correspondent || "");
   const [documentType, setDocumentType] = d2("");
   const [tags, setTags] = d2(props.tags || []);
   const [originalUrl, setOriginalUrl] = d2(props.originalUrl ?? null);
-  const [pageCount, setPageCount] = d2(
-    props.pageCount ?? null
-  );
+  const [pageCount, setPageCount] = d2(props.pageCount ?? null);
   const [viewMode, setViewMode] = d2("text");
   const [isLoading, setIsLoading] = d2(false);
   const [status, setStatus] = d2(null);
@@ -16637,13 +17519,13 @@ function ManualWorkspaceIsland(props) {
           if (highlight) {
             try {
               const bbox = JSON.parse(decodeURIComponent(highlight));
-              dispatchEventSafe6("overlay:highlight-region", { bbox, page: targetPage });
+              dispatchEventSafe7("overlay:highlight-region", { bbox, page: targetPage });
             } catch (e3) {
               console.error("Failed to parse highlight", e3);
             }
           }
           if (targetPage > 1) {
-            dispatchEventSafe6("overlay:document-changed", { documentId, page: targetPage });
+            dispatchEventSafe7("overlay:document-changed", { documentId, page: targetPage });
           }
         }, 500);
       }
@@ -16718,16 +17600,16 @@ function ManualWorkspaceIsland(props) {
     return () => clearTimeout(timer);
   }, [status]);
   const dispatchDocumentFields = q2((fields, docId) => {
-    dispatchEventSafe6("manual:fields-updated", { fields, documentId: docId });
+    dispatchEventSafe7("manual:fields-updated", { fields, documentId: docId });
   }, []);
   const dispatchDocumentMetadata = q2((metadata) => {
-    dispatchEventSafe6("manual:metadata-updated", metadata);
+    dispatchEventSafe7("manual:metadata-updated", metadata);
   }, []);
   const dispatchDocumentSelected = q2((detail) => {
-    dispatchEventSafe6("document:selected", detail);
+    dispatchEventSafe7("document:selected", detail);
   }, []);
   const dispatchOverlayDocumentChanged = q2((detail) => {
-    dispatchEventSafe6("overlay:document-changed", detail);
+    dispatchEventSafe7("overlay:document-changed", detail);
   }, []);
   const resetDocumentState = q2(() => {
     setDocumentId(null);
@@ -17013,18 +17895,29 @@ function ManualWorkspaceIsland(props) {
 
 // src/islands/DocumentContentIsland.tsx
 function DocumentContentIsland(props) {
-  const [documentId, setDocumentId] = d2(props.documentId ?? null);
-  const [content, setContent] = d2(props.content || "");
-  const [searchQuery, setSearchQuery] = d2(props.initialQuery || "");
+  const [documentId, setDocumentId] = d2(null);
+  const [content, setContent] = d2("");
+  const [searchQuery, setSearchQuery] = d2("");
   const [caseSensitive, setCaseSensitive] = d2(false);
   const [useRegex, setUseRegex] = d2(false);
+  y2(() => {
+    if (props.documentId !== void 0 && props.documentId !== null) {
+      setDocumentId(props.documentId);
+    }
+    if (props.content !== void 0) {
+      setContent(props.content);
+    }
+    if (props.initialQuery !== void 0) {
+      setSearchQuery(props.initialQuery);
+    }
+  }, [props.documentId, props.content, props.initialQuery]);
   const [matches, setMatches] = d2([]);
   const [currentMatchIndex, setCurrentMatchIndex] = d2(-1);
   const [regexError, setRegexError] = d2(null);
   const contentRef = A2(null);
   y2(() => {
     const handler = (e3) => {
-      const detail = e3.detail || {};
+      const detail = e3?.detail || {};
       if (detail.documentId !== void 0) setDocumentId(detail.documentId);
       if (detail.content !== void 0) {
         setContent(detail.content);
@@ -17072,8 +17965,9 @@ function DocumentContentIsland(props) {
         } else {
           setCurrentMatchIndex(-1);
         }
-      } catch (e3) {
-        setRegexError(e3.message);
+      } catch (err) {
+        const msg = err && typeof err === "object" && "message" in err ? err.message : String(err);
+        setRegexError(msg);
         setMatches([]);
       }
     }, 300);
@@ -17208,7 +18102,7 @@ function DocumentContentIsland(props) {
               const context = { type: "text", data: { text: content.substring(0, 5e3) }, documentId };
               window.location.href = `/chat?context=${encodeURIComponent(JSON.stringify(context))}`;
             },
-            className: "px-2 py-1 border rounded text-xs bg-white border-gray-300 text-gray-600 hover:bg-gray-50 text-green-600",
+            className: "px-2 py-1 border rounded text-xs bg-white border-gray-300 hover:bg-gray-50 text-green-600",
             title: "Send to Chat",
             "data-testid": "send-to-chat",
             children: /* @__PURE__ */ u3("i", { className: "fas fa-comment-dots" })
@@ -17232,185 +18126,411 @@ function DocumentContentIsland(props) {
   ] });
 }
 
-// src/islands/ExportPanelIsland.tsx
-function ExportPanelIsland(props) {
-  const [showModal, setShowModal] = d2(false);
-  const [exportType, setExportType] = d2("text");
-  const [data, setData] = d2(null);
-  const [format, setFormat] = d2("png");
-  const [loading, setLoading] = d2(false);
+// src/islands/UnifiedWorkspaceIsland.tsx
+function dispatchEventSafe8(name, detail) {
+  try {
+    const _doc = typeof document !== "undefined" ? document : typeof window !== "undefined" && window.document ? window.document : null;
+    if (_doc && typeof _doc.dispatchEvent === "function") _doc.dispatchEvent(new CustomEvent(name, { detail }));
+  } catch (err) {
+  }
+  try {
+    if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") window.dispatchEvent(new CustomEvent(name, { detail }));
+  } catch (err) {
+  }
+}
+function UnifiedWorkspaceIsland(props) {
+  const [isDirty2, setIsDirty] = d2(false);
   y2(() => {
-    const onRegion = (e3) => {
-      setData(e3.detail?.imageBase64);
-      setExportType("region");
-      setFormat("png");
-      setShowModal(true);
-    };
-    const onText = (e3) => {
-      setData(e3.detail?.text);
-      setExportType("text");
-      setFormat("txt");
-      setShowModal(true);
-    };
-    const onAnnotations = (e3) => {
-      setData(e3.detail?.annotations);
-      setExportType("annotations");
-      setFormat("json");
-      setShowModal(true);
-    };
-    window.addEventListener("export:region-requested", onRegion);
-    window.addEventListener("export:text-requested", onText);
-    window.addEventListener("export:annotations-requested", onAnnotations);
-    return () => {
-      window.removeEventListener("export:region-requested", onRegion);
-      window.removeEventListener("export:text-requested", onText);
-      window.removeEventListener("export:annotations-requested", onAnnotations);
-    };
-  }, []);
-  const handleExport = async () => {
-    setLoading(true);
-    try {
-      let endpoint = "";
-      let body = {};
-      if (exportType === "region") {
-        endpoint = "/manual/export/region";
-        body = { imageBase64: data, format };
-      } else if (exportType === "text") {
-        endpoint = "/manual/export/text";
-        body = { text: data, format };
-      } else if (exportType === "annotations") {
-        endpoint = "/manual/export/annotations";
-        body = { annotations: data, documentId: props.documentId };
+    const handler = (e3) => {
+      const detail = e3?.detail || {};
+      const fieldId = detail.fieldId || detail.field_id || detail.id;
+      try {
+        window.__last_metadata_locate = { fieldId, handled: false };
+      } catch (err) {
       }
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
-      if (!response.ok) throw new Error("Export failed");
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a3 = document.createElement("a");
-      a3.href = url;
-      const disposition = response.headers.get("Content-Disposition");
-      let filename = `export.${format}`;
-      if (disposition && disposition.indexOf("filename=") !== -1) {
-        const matches = /filename="([^"]*)"/.exec(disposition);
-        if (matches != null && matches[1]) {
-          filename = matches[1];
+      if (!fieldId) return;
+      const visual = props.visual || {};
+      const overlays = visual.overlays || visual.overlayItems || visual.items || [];
+      const vfields = visual.fields || [];
+      const getBboxFromOverlay = (ov) => {
+        if (!ov) return null;
+        if (ov.bbox) return ov.bbox;
+        if (ov.box) return ov.box;
+        if (Array.isArray(ov.bbox_array)) {
+          const [x4, y3, w4, h3] = ov.bbox_array;
+          return { x: x4, y: y3, width: w4, height: h3 };
+        }
+        return null;
+      };
+      let found = vfields.find((f4) => f4.id === fieldId || f4.name === fieldId || f4.label === fieldId || f4.paperlessMapping === fieldId);
+      if (found && (found.bbox || found.overlay || found.overlayId || found.overlay_bbox)) {
+        const bbox = found.bbox || found.overlay?.bbox || found.overlay_bbox || null;
+        const page = found.pageNumber || found.page || 1;
+        if (bbox) {
+          window.dispatchEvent(new CustomEvent("overlay:highlight-region", { detail: { bbox, page } }));
+          try {
+            window.__last_metadata_locate = { fieldId, handled: true, bbox, page };
+          } catch (err) {
+          }
+          return;
+        }
+        if (found.overlayId) {
+          const overlay = overlays.find((o3) => o3.id === found.overlayId || o3.overlayId === found.overlayId);
+          const bbox2 = getBboxFromOverlay(overlay);
+          const page2 = overlay?.pageNumber || overlay?.page || found.pageNumber || 1;
+          if (bbox2) {
+            window.dispatchEvent(new CustomEvent("overlay:highlight-region", { detail: { bbox: bbox2, page: page2 } }));
+            try {
+              window.__last_metadata_locate = { fieldId, handled: true, bbox: bbox2, page: page2 };
+            } catch (err) {
+            }
+            return;
+          }
         }
       }
-      a3.download = filename;
-      document.body.appendChild(a3);
-      a3.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a3);
-      setShowModal(false);
-    } catch (e3) {
-      console.error("Export error", e3);
-      alert("Export failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-  const handleCopy = async () => {
-    try {
-      if (exportType === "text") {
-        await navigator.clipboard.writeText(data);
-        alert("Copied to clipboard!");
-      } else if (exportType === "annotations") {
-        await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-        alert("Copied to clipboard!");
-      } else if (exportType === "region") {
-        alert("Image copy not supported yet. Please download.");
+      const overlayByMapping = overlays.find((o3) => o3.paperlessMapping === fieldId || o3.paperless_mapping === fieldId || o3.paperless_mapping === vfields.find((f4) => f4.id === fieldId)?.paperlessMapping);
+      if (overlayByMapping) {
+        const bbox = getBboxFromOverlay(overlayByMapping);
+        const page = overlayByMapping?.pageNumber || overlayByMapping?.page || 1;
+        if (bbox) {
+          window.dispatchEvent(new CustomEvent("overlay:highlight-region", { detail: { bbox, page } }));
+          try {
+            window.__last_metadata_locate = { fieldId, handled: true, bbox, page };
+          } catch (err) {
+          }
+          return;
+        }
       }
-    } catch (e3) {
-      console.error("Copy failed", e3);
+      const overlayById = overlays.find((o3) => o3.id === fieldId);
+      if (overlayById) {
+        const bbox = getBboxFromOverlay(overlayById);
+        const page = overlayById?.pageNumber || overlayById?.page || 1;
+        if (bbox) {
+          window.dispatchEvent(new CustomEvent("overlay:highlight-region", { detail: { bbox, page } }));
+          try {
+            window.__last_metadata_locate = { fieldId, handled: true, bbox, page };
+          } catch (err) {
+          }
+          return;
+        }
+      }
+      try {
+        window.__last_metadata_locate = { fieldId, handled: false };
+      } catch (err) {
+      }
+      console.warn("[UnifiedWorkspaceIsland] metadata:locate-field: could not resolve fieldId to overlay bbox", fieldId);
+    };
+    window.addEventListener("metadata:locate-field", handler);
+    return () => window.removeEventListener("metadata:locate-field", handler);
+  }, [props.visual]);
+  y2(() => {
+    window.__workspaceState = window.__workspaceState || {};
+    const onDirty = (e3) => {
+      const documentId = e3?.detail?.documentId ?? props.documentId ?? null;
+      if (!documentId) return;
+      const state = window.__workspaceState;
+      state[documentId] = state[documentId] || {};
+      state[documentId].isDirty = true;
+      state[documentId].lastDirtyAt = Date.now();
+      window.__workspaceState = state;
+      if (props.documentId && Number(props.documentId) === Number(documentId)) setIsDirty(true);
+      try {
+        window.__last_workspace_state_change = { documentId, isDirty: true };
+      } catch (err) {
+      }
+      dispatchEventSafe8("workspace:state-change", { documentId, isDirty: true });
+    };
+    const onSaved = (e3) => {
+      const documentId = e3?.detail?.documentId ?? props.documentId ?? null;
+      if (!documentId) return;
+      const state = window.__workspaceState;
+      state[documentId] = state[documentId] || {};
+      state[documentId].isDirty = false;
+      state[documentId].lastSavedAt = Date.now();
+      window.__workspaceState = state;
+      if (props.documentId && Number(props.documentId) === Number(documentId)) setIsDirty(false);
+      try {
+        window.__last_workspace_state_change = { documentId, isDirty: false };
+      } catch (err) {
+      }
+      dispatchEventSafe8("workspace:state-change", { documentId, isDirty: false });
+    };
+    window.addEventListener("workspace:dirty", onDirty);
+    window.addEventListener("sync:success", onSaved);
+    try {
+      const initDirty = window.__workspaceState?.[props.documentId]?.isDirty || false;
+      setIsDirty(Boolean(initDirty));
+    } catch (err) {
+    }
+    return () => {
+      window.removeEventListener("workspace:dirty", onDirty);
+      window.removeEventListener("sync:success", onSaved);
+    };
+  }, [props.documentId]);
+  return /* @__PURE__ */ u3("div", { className: "h-full w-full flex flex-col p-8", children: /* @__PURE__ */ u3("div", { className: "flex-1 border-2 border-dashed border-[#e5e0d8] rounded-lg flex items-center justify-center relative", children: [
+    /* @__PURE__ */ u3("p", { className: "font-['Space_Grotesk'] text-[#888]", children: "Document Viewer Area Placeholder" }),
+    props.documentId ? /* @__PURE__ */ u3("div", { "data-testid": "workspace-state-badge", "data-state": isDirty2 ? "unsaved" : "clean", className: "absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-semibold bg-white border", children: isDirty2 ? "Unsaved Changes" : "Saved" }) : null
+  ] }) });
+}
+
+// src/islands/DocumentContextBarIsland.tsx
+function DocumentContextBarIsland(props) {
+  const [isDropdownOpen, setIsDropdownOpen] = d2(false);
+  const [searchTerm, setSearchOpen] = d2("");
+  const filteredDocuments = T2(() => {
+    if (!searchTerm) return props.availableDocuments;
+    const term = searchTerm.toLowerCase();
+    return props.availableDocuments.filter(
+      (doc) => (doc.title || "").toLowerCase().includes(term) || (doc.original_filename || "").toLowerCase().includes(term) || String(doc.id).includes(term)
+    );
+  }, [props.availableDocuments, searchTerm]);
+  const currentIndex = T2(() => {
+    if (!props.documentId) return -1;
+    return props.availableDocuments.findIndex((doc) => doc.id === props.documentId);
+  }, [props.availableDocuments, props.documentId]);
+  const handleNavigate = q2((id) => {
+    window.location.href = `/document/${id}`;
+  }, []);
+  const handlePrev = q2(() => {
+    if (currentIndex > 0) {
+      handleNavigate(props.availableDocuments[currentIndex - 1].id);
+    }
+  }, [currentIndex, props.availableDocuments, handleNavigate]);
+  const handleNext = q2(() => {
+    if (currentIndex < props.availableDocuments.length - 1) {
+      handleNavigate(props.availableDocuments[currentIndex + 1].id);
+    }
+  }, [currentIndex, props.availableDocuments, handleNavigate]);
+  y2(() => {
+    const onDirty = (e3) => {
+      const d3 = e3?.detail || {};
+      if (d3 && (d3.documentId === props.documentId || props.documentId == null)) {
+        const root = document.querySelector('[data-testid="document-context-bar-root"]');
+        if (root) root.setAttribute("data-status", "unsaved");
+      }
+    };
+    const onSaved = (_e) => {
+      const root = document.querySelector('[data-testid="document-context-bar-root"]');
+      if (root) root.setAttribute("data-status", "saved");
+    };
+    window.addEventListener("workspace:dirty", onDirty);
+    window.addEventListener("sync:success", onSaved);
+    return () => {
+      window.removeEventListener("workspace:dirty", onDirty);
+      window.removeEventListener("sync:success", onSaved);
+    };
+  }, [props.documentId]);
+  const getStatusBadge = () => {
+    switch (props.status) {
+      case "processing":
+        return /* @__PURE__ */ u3("span", { className: "flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full border border-blue-100", "data-testid": "status-processing", children: [
+          /* @__PURE__ */ u3("i", { class: "fas fa-circle-notch fa-spin" }),
+          " Processing"
+        ] });
+      case "unsaved":
+        return /* @__PURE__ */ u3("span", { className: "flex items-center gap-1.5 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-100", "data-testid": "status-unsaved", children: [
+          /* @__PURE__ */ u3("i", { class: "fas fa-circle text-[8px]" }),
+          " Unsaved Changes"
+        ] });
+      case "error":
+        return /* @__PURE__ */ u3("span", { className: "flex items-center gap-1.5 text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded-full border border-red-100", "data-testid": "status-error", children: [
+          /* @__PURE__ */ u3("i", { class: "fas fa-exclamation-circle" }),
+          " Error"
+        ] });
+      case "saved":
+      default:
+        return /* @__PURE__ */ u3("span", { className: "flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100", "data-testid": "status-saved", children: [
+          /* @__PURE__ */ u3("i", { class: "fas fa-check-circle" }),
+          " Saved"
+        ] });
     }
   };
-  if (!showModal) return null;
-  return /* @__PURE__ */ u3("div", { className: "fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm", children: /* @__PURE__ */ u3("div", { className: "bg-white rounded-lg shadow-xl p-6 w-full max-w-md", children: [
-    /* @__PURE__ */ u3("h2", { className: "text-xl font-bold mb-4 capitalize", children: [
-      "Export ",
-      exportType
-    ] }),
-    /* @__PURE__ */ u3("div", { className: "mb-4", children: [
-      /* @__PURE__ */ u3("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "Format" }),
-      /* @__PURE__ */ u3("div", { className: "flex gap-2", children: [
-        exportType === "region" && /* @__PURE__ */ u3(k, { children: [
-          /* @__PURE__ */ u3(
-            "button",
-            {
-              onClick: () => setFormat("png"),
-              className: `px-3 py-2 border rounded ${format === "png" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
-              children: "PNG"
-            }
-          ),
-          /* @__PURE__ */ u3(
-            "button",
-            {
-              onClick: () => setFormat("pdf"),
-              className: `px-3 py-2 border rounded ${format === "pdf" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
-              children: "PDF"
-            }
-          )
-        ] }),
-        exportType === "text" && /* @__PURE__ */ u3(k, { children: [
-          /* @__PURE__ */ u3(
-            "button",
-            {
-              onClick: () => setFormat("txt"),
-              className: `px-3 py-2 border rounded ${format === "txt" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
-              children: "TXT"
-            }
-          ),
-          /* @__PURE__ */ u3(
-            "button",
-            {
-              onClick: () => setFormat("pdf"),
-              className: `px-3 py-2 border rounded ${format === "pdf" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
-              children: "PDF"
-            }
-          )
-        ] }),
-        exportType === "annotations" && /* @__PURE__ */ u3(
+  return /* @__PURE__ */ u3("div", { className: "flex items-center gap-4 w-full max-w-4xl", "data-testid": "document-context-bar-root", children: [
+    /* @__PURE__ */ u3("div", { className: "flex items-center bg-[#fdfaf6] border border-[#e5e0d8] rounded-lg p-1", children: [
+      /* @__PURE__ */ u3(
+        "button",
+        {
+          onClick: handlePrev,
+          disabled: currentIndex <= 0,
+          className: "p-2 text-[#555] hover:text-[#b87333] disabled:opacity-30 disabled:cursor-not-allowed transition-colors",
+          "data-testid": "nav-prev-btn",
+          title: "Previous Document",
+          children: /* @__PURE__ */ u3("i", { class: "fas fa-chevron-left" })
+        }
+      ),
+      /* @__PURE__ */ u3("div", { className: "relative", children: [
+        /* @__PURE__ */ u3(
           "button",
           {
-            onClick: () => setFormat("json"),
-            className: `px-3 py-2 border rounded ${format === "json" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
-            children: "JSON"
+            onClick: () => setIsDropdownOpen(!isDropdownOpen),
+            className: "flex items-center gap-2 px-4 py-1.5 hover:bg-white rounded-md transition-colors min-w-[200px] justify-between group",
+            "data-testid": "document-selector-trigger",
+            children: [
+              /* @__PURE__ */ u3("span", { className: "font-['Space_Grotesk'] font-medium truncate max-w-[240px]", children: props.title || "Select Document" }),
+              /* @__PURE__ */ u3("i", { class: `fas fa-chevron-down text-xs transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}` })
+            ]
+          }
+        ),
+        isDropdownOpen && /* @__PURE__ */ u3("div", { className: "absolute top-full left-0 mt-2 w-[320px] bg-white border border-[#e5e0d8] rounded-xl shadow-xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200", "data-testid": "document-selector-dropdown", children: [
+          /* @__PURE__ */ u3("div", { className: "p-3 border-b border-[#f5f0e8] bg-[#fdfaf6]", children: /* @__PURE__ */ u3("div", { className: "relative", children: [
+            /* @__PURE__ */ u3("i", { class: "fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa] text-xs" }),
+            /* @__PURE__ */ u3(
+              "input",
+              {
+                type: "text",
+                placeholder: "Search documents...",
+                className: "w-full pl-9 pr-4 py-2 bg-white border border-[#e5e0d8] rounded-lg text-sm focus:outline-none focus:border-[#b87333] transition-colors",
+                value: searchTerm,
+                onInput: (e3) => setSearchOpen(e3.target.value),
+                autoFocus: true,
+                "data-testid": "document-search-input"
+              }
+            )
+          ] }) }),
+          /* @__PURE__ */ u3("div", { className: "max-h-[400px] overflow-y-auto p-1", children: filteredDocuments.length > 0 ? filteredDocuments.map((doc) => /* @__PURE__ */ u3(
+            "button",
+            {
+              onClick: () => handleNavigate(doc.id),
+              className: `w-full text-left px-4 py-3 rounded-lg flex flex-col gap-0.5 hover:bg-[#fdfaf6] transition-colors group ${doc.id === props.documentId ? "bg-[#fdfaf6]" : ""}`,
+              "data-testid": `document-option-${doc.id}`,
+              children: [
+                /* @__PURE__ */ u3("span", { className: `text-sm font-medium truncate ${doc.id === props.documentId ? "text-[#b87333]" : "text-[#2c2c2c]"}`, children: doc.title || doc.original_filename }),
+                /* @__PURE__ */ u3("span", { className: "text-[10px] text-[#888] font-mono", children: [
+                  "#",
+                  doc.id
+                ] })
+              ]
+            },
+            doc.id
+          )) : /* @__PURE__ */ u3("div", { className: "px-4 py-8 text-center text-[#888] text-sm", children: "No documents found" }) })
+        ] })
+      ] }),
+      /* @__PURE__ */ u3(
+        "button",
+        {
+          onClick: handleNext,
+          disabled: currentIndex < 0 || currentIndex >= props.availableDocuments.length - 1,
+          className: "p-2 text-[#555] hover:text-[#b87333] disabled:opacity-30 disabled:cursor-not-allowed transition-colors",
+          "data-testid": "nav-next-btn",
+          title: "Next Document",
+          children: /* @__PURE__ */ u3("i", { class: "fas fa-chevron-right" })
+        }
+      )
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "flex items-center gap-3 ml-auto", children: [
+      /* @__PURE__ */ u3("div", { className: "hidden sm:block", children: getStatusBadge() }),
+      /* @__PURE__ */ u3("div", { className: "h-6 w-[1px] bg-[#e5e0d8] mx-1 hidden sm:block" }),
+      /* @__PURE__ */ u3("div", { className: "flex items-center gap-2", children: [
+        /* @__PURE__ */ u3(
+          "button",
+          {
+            className: "px-4 py-1.5 text-sm font-medium text-[#555] hover:bg-[#f5f0e8] rounded-lg transition-colors flex items-center gap-2 border border-[#e5e0d8]",
+            "data-testid": "reprocess-btn",
+            children: [
+              /* @__PURE__ */ u3("i", { class: "fas fa-redo-alt text-xs" }),
+              "Reprocess"
+            ]
+          }
+        ),
+        /* @__PURE__ */ u3(
+          "button",
+          {
+            className: "px-4 py-1.5 text-sm font-medium text-white bg-[#b87333] hover:bg-[#a06028] rounded-lg shadow-sm transition-colors flex items-center gap-2 border border-[#905020]",
+            "data-testid": "save-all-btn",
+            children: [
+              /* @__PURE__ */ u3("i", { class: "fas fa-save text-xs" }),
+              "Save Changes"
+            ]
           }
         )
       ] })
     ] }),
-    /* @__PURE__ */ u3("div", { className: "flex justify-end gap-3 mt-6", children: [
-      /* @__PURE__ */ u3(
-        "button",
+    isDropdownOpen && /* @__PURE__ */ u3(
+      "div",
+      {
+        className: "fixed inset-0 z-40 bg-transparent",
+        onClick: () => setIsDropdownOpen(false)
+      }
+    )
+  ] });
+}
+
+// src/islands/ContextSidebarIsland.tsx
+var STORAGE_KEY = "paperless:context-sidebar.activeTab";
+function ContextSidebarIsland(props) {
+  const initial = typeof window !== "undefined" && window.localStorage && window.localStorage.getItem(STORAGE_KEY) || props.activeTab || "metadata";
+  const [activeTab, setActiveTab] = d2(initial);
+  const tabRefs = A2({});
+  y2(() => {
+    tabs.forEach((t3) => {
+      const el = tabRefs.current[t3.key];
+      if (el) el.setAttribute("aria-pressed", String(activeTab === t3.key));
+    });
+  }, [activeTab]);
+  const isAdmin = Boolean(props.isAdmin || typeof window !== "undefined" && window.__TEST_IS_ADMIN === true);
+  y2(() => {
+    try {
+      if (window && window.localStorage) {
+        const stored = window.localStorage.getItem(STORAGE_KEY);
+        if (stored) setActiveTab(stored);
+      }
+    } catch (e3) {
+    }
+  }, []);
+  y2(() => {
+    try {
+      if (window && window.localStorage) {
+        window.localStorage.setItem(STORAGE_KEY, activeTab);
+      }
+    } catch (e3) {
+    }
+  }, [activeTab]);
+  y2(() => {
+    try {
+      window.__context_sidebar_mounted = true;
+    } catch (e3) {
+    }
+  }, []);
+  const tabs = [
+    { key: "metadata", label: "Metadata", icon: "fa-list", testid: "tab-metadata" },
+    { key: "content", label: "Content", icon: "fa-file-text", testid: "tab-content" },
+    { key: "chat", label: "Chat", icon: "fa-comments", testid: "tab-chat" }
+  ];
+  if (isAdmin) {
+    tabs.push({ key: "debug", label: "Debug", icon: "fa-bug", testid: "tab-debug" });
+  }
+  return /* @__PURE__ */ u3("div", { "data-testid": "context-sidebar-root", "data-hydrated": "true", className: "h-full flex flex-col", children: [
+    /* @__PURE__ */ u3("div", { role: "tablist", "aria-label": "Context Sidebar Tabs", className: "flex border-b border-[#e5e0d8] bg-[#fdfaf6]", children: tabs.map((t3) => /* @__PURE__ */ u3(
+      "button",
+      {
+        role: "tab",
+        "data-testid": t3.testid,
+        ref: (el) => {
+          tabRefs.current[t3.key] = el;
+        },
+        className: `flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium ${activeTab === t3.key ? "border-b-2 border-copper text-copper" : "text-[#888]"}`,
+        onClick: () => setActiveTab(t3.key),
+        children: [
+          /* @__PURE__ */ u3("i", { className: `fas ${t3.icon} mr-2` }),
+          /* @__PURE__ */ u3("span", { className: "hidden sm:inline", children: t3.label })
+        ]
+      },
+      t3.key
+    )) }),
+    /* @__PURE__ */ u3("div", { className: "p-4 overflow-auto flex-1", children: [
+      activeTab === "metadata" && /* @__PURE__ */ u3("div", { "data-testid": "tab-panel-metadata", children: /* @__PURE__ */ u3(
+        SmartMetadataIsland,
         {
-          onClick: () => setShowModal(false),
-          className: "px-4 py-2 text-gray-600 hover:bg-gray-100 rounded",
-          children: "Cancel"
+          documentId: props.document?.id,
+          metadata: props.document,
+          customFields: props.document?.customFields || props.visual?.fields
         }
-      ),
-      /* @__PURE__ */ u3(
-        "button",
-        {
-          onClick: handleCopy,
-          className: "px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50",
-          children: "Copy"
-        }
-      ),
-      /* @__PURE__ */ u3(
-        "button",
-        {
-          onClick: handleExport,
-          disabled: loading,
-          className: "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50",
-          children: loading ? "Exporting..." : "Download"
-        }
-      )
+      ) }),
+      activeTab === "content" && /* @__PURE__ */ u3("div", { "data-testid": "tab-panel-content", children: /* @__PURE__ */ u3(DocumentContentIsland, { documentId: props.document?.id, content: props.document?.content || "" }) }),
+      activeTab === "chat" && /* @__PURE__ */ u3("div", { "data-testid": "tab-panel-chat", children: /* @__PURE__ */ u3(ChatWorkspaceIsland, { documents: props.availableDocuments || [], openDocumentId: props.document?.id, ...props.chat }) }),
+      activeTab === "debug" && isAdmin && /* @__PURE__ */ u3("div", { "data-testid": "tab-panel-debug", children: /* @__PURE__ */ u3("pre", { className: "text-xs whitespace-pre-wrap text-gray-700", "data-testid": "debug-content", children: JSON.stringify({ document: props.document, chat: props.chat, visual: props.visual }, null, 2) }) })
     ] })
-  ] }) });
+  ] });
 }
 
 // src/islands/runtime.browser.tsx
@@ -17431,6 +18551,7 @@ var registry = {
   "restart-banner-island": RestartBannerIsland,
   "developer-settings-island": DeveloperSettingsIsland,
   "presets-manager-island": PresetsManagerIsland,
+  "export-panel-island": ExportPanelIsland,
   "view-mode-toggle-island": ViewModeToggleIsland,
   "tags-manager-island": TagsManagerIsland,
   "ai-analysis-island": AIAnalysisIsland,
@@ -17438,7 +18559,10 @@ var registry = {
   "history-manager-island": HistoryManagerIsland,
   "manual-workspace-island": ManualWorkspaceIsland,
   "document-content-island": DocumentContentIsland,
-  "export-panel-island": ExportPanelIsland
+  "smart-metadata-island": SmartMetadataIsland,
+  "unified-workspace-island": UnifiedWorkspaceIsland,
+  "document-context-bar-island": DocumentContextBarIsland,
+  "context-sidebar-island": ContextSidebarIsland
 };
 function parseProps(el) {
   const raw = el.getAttribute("data-props") || "{}";

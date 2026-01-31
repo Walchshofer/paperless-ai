@@ -9,21 +9,34 @@ type Match = {
 };
 
 export default function DocumentContentIsland(props: DocumentContentContract) {
-  const [documentId, setDocumentId] = useState(props.documentId ?? null);
-  const [content, setContent] = useState(props.content || '');
-  const [searchQuery, setSearchQuery] = useState(props.initialQuery || '');
+  const [documentId, setDocumentId] = useState(null as number | null);
+  const [content, setContent] = useState('' as string);
+  const [searchQuery, setSearchQuery] = useState('' as string);
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [useRegex, setUseRegex] = useState(false);
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [currentMatchIndex, setCurrentMatchIndex] = useState(-1);
-  const [regexError, setRegexError] = useState<string | null>(null);
 
-  const contentRef = useRef<HTMLDivElement | null>(null);
+  // Hydrate initial values from props to avoid passing type assertions into the hook call
+  useEffect(() => {
+    if (props.documentId !== undefined && props.documentId !== null) {
+      setDocumentId(props.documentId);
+    }
+    if (props.content !== undefined) {
+      setContent(props.content);
+    }
+    if (props.initialQuery !== undefined) {
+      setSearchQuery(props.initialQuery);
+    }
+  }, [props.documentId, props.content, props.initialQuery]);
+  const [matches, setMatches] = useState([] as Match[]);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(-1);
+  const [regexError, setRegexError] = useState(null as string | null);
+
+  const contentRef = useRef(null as HTMLDivElement | null);
 
   // Listen for document selection events from ManualWorkspaceIsland
   useEffect(() => {
-    const handler = (e: any) => {
-      const detail = e.detail || {};
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
       if (detail.documentId !== undefined) setDocumentId(detail.documentId);
       if (detail.content !== undefined) {
         setContent(detail.content);
@@ -81,8 +94,9 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
         } else {
           setCurrentMatchIndex(-1);
         }
-      } catch (e: any) {
-        setRegexError(e.message);
+      } catch (err: unknown) {
+        const msg = (err && typeof err === 'object' && 'message' in err) ? (err as any).message : String(err);
+        setRegexError(msg);
         setMatches([]);
       }
     }, 300);
@@ -103,7 +117,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
 
   const navigate = (dir: 1 | -1) => {
     if (matches.length === 0) return;
-    setCurrentMatchIndex(prev => {
+    setCurrentMatchIndex((prev: number) => {
       const next = prev + dir;
       if (next >= matches.length) return 0;
       if (next < 0) return matches.length - 1;
@@ -119,7 +133,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
     const parts = [];
     let lastIndex = 0;
 
-    matches.forEach((m, i) => {
+    matches.forEach((m: Match, i: number) => {
       // Text before match
       if (m.start > lastIndex) {
         parts.push(content.substring(lastIndex, m.start));
@@ -157,7 +171,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
             type="text"
             data-testid="search-input"
             value={searchQuery}
-            onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
+            onInput={(e: Event) => setSearchQuery((e.target as HTMLInputElement).value)}
             placeholder="Search in document..."
             className={`w-full pl-8 pr-4 py-1.5 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${regexError ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
           />
@@ -222,7 +236,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
               const context = { type: 'text', data: { text: content.substring(0, 5000) }, documentId }; // Limit text size
               window.location.href = `/chat?context=${encodeURIComponent(JSON.stringify(context))}`;
             }}
-            className="px-2 py-1 border rounded text-xs bg-white border-gray-300 text-gray-600 hover:bg-gray-50 text-green-600"
+            className="px-2 py-1 border rounded text-xs bg-white border-gray-300 hover:bg-gray-50 text-green-600"
             title="Send to Chat"
             data-testid="send-to-chat"
           >

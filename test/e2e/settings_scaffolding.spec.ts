@@ -27,7 +27,7 @@ test.describe('Settings scaffolding smoke', () => {
     try {
       response = await gotoPage(page, SETTINGS_URL);
     } catch (err) {
-      test.skip(true, `Skipping because auth or environment not ready: ${err.message}`);
+      test.skip(true, `Skipping because auth or environment not ready: ${(err as any).message}`);
       return;
     }
 

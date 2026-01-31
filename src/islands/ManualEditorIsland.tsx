@@ -13,13 +13,16 @@ type Field = {
 
 type SyncState = 'idle' | 'syncing' | 'synced' | 'error';
 
-function dispatchEventSafe(name: string, detail: any) {
+function dispatchEventSafe(name: string, detail?: unknown) {
   if (typeof document === 'undefined') return;
   if (typeof document.dispatchEvent !== 'function') return;
-  document.dispatchEvent(new CustomEvent(name, { detail }));
+  document.dispatchEvent(new CustomEvent(name, { detail } as CustomEventInit<any>));
 }
 
 export default function ManualEditorIsland(props: Partial<ManualEditorContract>) {
+  // Validate incoming props at runtime to avoid shape drift
+  const validated = ManualEditorSchema.parse(props);
+
   const [active, setActive] = useState('metadata' as TabKeys);
   const [gpuState, setGpuState] = useState('idle' as GpuState);
   const [syncState, setSyncState] = useState('idle' as SyncState);
@@ -60,8 +63,8 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
   
 
   const tabsRef = useRef(null as HTMLDivElement | null);
-  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const syncBadgeTimeoutRef = useRef<number | null>(null);
+  const tabRefs = useRef({} as Record<string, HTMLButtonElement | null>);
+  const syncBadgeTimeoutRef = useRef(null as number | null);
 
   
 
@@ -97,8 +100,8 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
   }, [props.documentId]);
 
   useEffect(() => {
-    const onMetadataUpdated = (e: any) => {
-      const meta = e?.detail || {};
+    const onMetadataUpdated = (e: Event) => {
+      const meta = (e as CustomEvent)?.detail || {};
       // Test-only hook for visibility in unit tests
       try { (window as any).__manual_island_last_meta = meta; } catch (err) { /* ignore */ }
       if (meta.title !== undefined) setTitle(meta.title || '');
@@ -117,13 +120,10 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
 
   // Listen for field extraction updates (visual/AI) and update island fields
   useEffect(() => {
-    const onFieldsUpdated = (e: any) => {
-      const f = e?.detail?.fields || [];
+    const onFieldsUpdated = (e: Event) => {
+      const f = (e as CustomEvent)?.detail?.fields || [];
       try { (window as any).__manual_island_last_fields = f; } catch (err) { /* ignore */ }
       const normalized = (f && f.length > 0) ? f.map((it: any) => ({ name: it.label || it.name || '', value: it.value != null ? String(it.value) : '' })) : [];
-      // Cast normalized to any to satisfy normalizeFields signature in this context or just set directly
-      // Since normalizeFields expects ManualEditorContract['fields'] which is likely optional array
-      // We can just use the normalized array as Field[] directly if we trust it
       setFields(normalized as Field[]);
     };
 
@@ -132,8 +132,8 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
   }, []);
 
   useEffect(() => {
-    const onDocumentSelected = (e: any) => {
-      const detail = e?.detail || {};
+    const onDocumentSelected = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
       if (detail.documentId !== undefined) {
         setDocumentId(detail.documentId ?? null);
       }
@@ -403,7 +403,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
           tabIndex={active === 'metadata' ? 0 : -1}
           aria-controls="panel-metadata"
           data-testid="tab-metadata"
-          ref={(el) => { tabRefs.current['metadata'] = el; }}
+          ref={(el: HTMLButtonElement | null) => { tabRefs.current['metadata'] = el; }}
           onClick={() => setActive('metadata')}
           className={`mei-tab ${active === 'metadata' ? 'mei-tab-active' : ''}`}
         >
@@ -416,7 +416,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
           tabIndex={active === 'content' ? 0 : -1}
           aria-controls="panel-content"
           data-testid="tab-content"
-          ref={(el) => { tabRefs.current['content'] = el; }}
+          ref={(el: HTMLButtonElement | null) => { tabRefs.current['content'] = el; }}
           onClick={() => setActive('content')}
           className={`mei-tab ${active === 'content' ? 'mei-tab-active' : ''}`}
         >
@@ -429,7 +429,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
           tabIndex={active === 'fields' ? 0 : -1}
           aria-controls="panel-fields"
           data-testid="tab-fields"
-          ref={(el) => { tabRefs.current['fields'] = el; }}
+          ref={(el: HTMLButtonElement | null) => { tabRefs.current['fields'] = el; }}
           onClick={() => setActive('fields')}
           className={`mei-tab ${active === 'fields' ? 'mei-tab-active' : ''}`}
         >
@@ -442,7 +442,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
           tabIndex={active === 'ai-debug' ? 0 : -1}
           aria-controls="panel-ai-debug"
           data-testid="tab-ai-debug"
-          ref={(el) => { tabRefs.current['ai-debug'] = el; }}
+          ref={(el: HTMLButtonElement | null) => { tabRefs.current['ai-debug'] = el; }}
           onClick={() => setActive('ai-debug')}
           className={`mei-tab ${active === 'ai-debug' ? 'mei-tab-active' : ''}`}
         >
@@ -471,7 +471,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
               data-testid="manual-title-input"
               type="text"
               value={title}
-              onInput={(e: any) => setTitle(e.target.value)}
+              onInput={(e: Event) => setTitle((e.target as HTMLInputElement).value)}
               className="mei-input"
             />
           </div>
@@ -482,7 +482,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
               data-testid="manual-correspondent-input"
               type="text"
               value={correspondent}
-              onInput={(e: any) => setCorrespondent(e.target.value)}
+              onInput={(e: Event) => setCorrespondent((e.target as HTMLInputElement).value)}
               className="mei-input"
             />
           </div>
@@ -493,7 +493,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
               data-testid="manual-doctype-input"
               type="text"
               value={documentType}
-              onInput={(e: any) => setDocumentType(e.target.value)}
+              onInput={(e: Event) => setDocumentType((e.target as HTMLInputElement).value)}
               className="mei-input"
             />
           </div>
@@ -514,7 +514,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
             data-testid="manual-content-input"
             rows={10}
             value={content}
-            onInput={(e: any) => setContent(e.target.value)}
+            onInput={(e: Event) => setContent((e.target as HTMLTextAreaElement).value)}
             className="mei-textarea"
           />
         </div>
@@ -545,14 +545,14 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
                 data-testid={`field-name-${i}`}
                 placeholder="Field name"
                 value={field.name}
-                onInput={(e: any) => updateField(i, 'name', e.target.value)}
+                onInput={(e: Event) => updateField(i, 'name', (e.target as HTMLInputElement).value)}
                 className="mei-input mei-field-name"
               />
               <input
                 data-testid={`field-value-${i}`}
                 placeholder="Field value"
                 value={field.value}
-                onInput={(e: any) => updateField(i, 'value', e.target.value)}
+                onInput={(e: Event) => updateField(i, 'value', (e.target as HTMLInputElement).value)}
                 className="mei-input mei-field-value"
               />
               <button

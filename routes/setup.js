@@ -2,30 +2,16 @@ const express = require('express');
 const router = express.Router();
 const setupService = require('../services/setupService.js');
 const paperlessService = require('../services/paperlessService.js');
-const openaiService = require('../services/openaiService.js');
 const ollamaService = require('../services/ollamaService.js');
-const azureService = require('../services/azureService.js');
 const documentModel = require('../services/documentModel.js');
-const AIServiceFactory = require('../services/aiServiceFactory');
-const debugService = require('../services/debugService.js');
 const configFile = require('../config/config.js');
-const documentsService = require('../services/documentsService.js');
 const RAGService = require('../services/ragService.js');
-const fs = require('fs').promises;
-const path = require('path');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { authenticateJWT, isAuthenticated } = require('./auth.js');
 const logger = require('../services/logger');
-const { normalizeManualUpdatePayload } = require('../services/manualUpdateNormalizer');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const customService = require('../services/customService.js');
 const { expertRegistry } = require('../services/experts/ExpertRegistry');
-const { DocumentProcessor } = require('../services/integration/DocumentProcessor');
-const { qdrantAdapter } = require('../services/visual-rag-client/QdrantAdapter');
-const axios = require('axios');
 const config = require('../config/config.js');
-const { DashboardVmSchema } = require('../src/ui/contracts/Dashboard.contract');
 // Load runtime env persisted by setup (renamed to data/runtime.env)
 require('dotenv').config({ path: '../data/runtime.env' });
 
@@ -35,77 +21,6 @@ const _expertModelsCache = {
   ts: 0
 };
 const EXPERT_MODELS_CACHE_TTL_MS = parseInt(process.env.EXPERT_MODELS_CACHE_TTL_MS, 10) || 10000; // 10s default
-
-const parseOllamaModelLimits = (value) => {
-  if (!value) return {};
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch (error) {
-    logger.warn('[SETTINGS] Failed to parse OLLAMA_MODEL_LIMITS_JSON', { error: error.message });
-    return {};
-  }
-};
-
-const findModelLimitKey = (limits, modelName) => {
-  if (!limits || !modelName) return null;
-  const normalized = String(modelName).toLowerCase();
-  return Object.keys(limits).find((key) => key.toLowerCase() === normalized) || null;
-};
-
-const resolveModelLimit = (limits, modelName, kind) => {
-  const key = findModelLimitKey(limits, modelName);
-  if (!key) return {};
-  const entry = limits[key];
-  if (!entry || typeof entry !== 'object') return {};
-  const candidate = entry[kind] && typeof entry[kind] === 'object' ? entry[kind] : entry;
-  return candidate && typeof candidate === 'object' ? candidate : {};
-};
-
-const parseLimitInput = (value) => {
-  if (value === undefined || value === null || value === '') return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-const upsertModelLimit = (limits, modelName, kind, contextWindowInput, maxResponseTokensInput) => {
-  if (!limits || !modelName || !kind) return;
-  const trimmed = String(modelName).trim();
-  if (!trimmed) return;
-
-  const existingKey = findModelLimitKey(limits, trimmed);
-  const key = existingKey || trimmed;
-  const existingEntry = limits[key];
-  const nextEntry = existingEntry && typeof existingEntry === 'object' ? { ...existingEntry } : {};
-  const kindEntry = nextEntry[kind] && typeof nextEntry[kind] === 'object' ? { ...nextEntry[kind] } : {};
-
-  const contextWindow = parseLimitInput(contextWindowInput);
-  const maxResponseTokens = parseLimitInput(maxResponseTokensInput);
-
-  if (contextWindow === null) {
-    delete kindEntry.contextWindow;
-  } else {
-    kindEntry.contextWindow = contextWindow;
-  }
-
-  if (maxResponseTokens === null) {
-    delete kindEntry.maxResponseTokens;
-  } else {
-    kindEntry.maxResponseTokens = maxResponseTokens;
-  }
-
-  if (Object.keys(kindEntry).length === 0) {
-    delete nextEntry[kind];
-  } else {
-    nextEntry[kind] = kindEntry;
-  }
-
-  if (Object.keys(nextEntry).length === 0) {
-    delete limits[key];
-  } else {
-    limits[key] = nextEntry;
-  }
-};
 
 /**
  * @swagger

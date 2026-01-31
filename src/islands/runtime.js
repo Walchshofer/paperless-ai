@@ -204,6 +204,20 @@ const HistoryTabsSchema = z.object({
   metadata: HistoryMetadataSchema.optional()
 });
 
+const OverlayItemSchema = z.object({
+  id: z.string().optional(),
+  label: z.string().optional(),
+  domain: z.string().optional(),
+  color: z.string().optional(),
+  isMandatory: z.boolean().optional(),
+  boundingBox: z.object({
+    x: z.number(),
+    y: z.number(),
+    width: z.number(),
+    height: z.number(),
+  }).optional(),
+});
+
 const OverlayViewerSchema = z.object({
   documentId: z.number().int().nullable(),
   page: z.number().int().optional(),
@@ -212,6 +226,8 @@ const OverlayViewerSchema = z.object({
   overlayMode: z.enum(['none', 'document']).optional().default('none'),
   showLegend: z.boolean().optional().default(false),
   allowSelection: z.boolean().optional().default(true),
+  mode: z.enum(['view', 'draw', 'locate', 'visual-search']).optional().default('visual-search'),
+  suggestions: z.array(OverlayItemSchema).optional().default([]),
 });
 
 const ViewModeToggleSchema = z.object({
@@ -306,6 +322,57 @@ const PlaygroundSchema = z.object({
   }).optional(),
 });
 
+// Unified Workspace Schema - lightweight shape used for runtime validation
+const UnifiedWorkspaceSchema = z.object({
+  documentId: z.union([z.string().min(1), z.number().int().positive()]).nullable().optional(),
+  visual: z.object({
+    overlays: z.array(z.any()).optional(),
+    overlayItems: z.array(z.any()).optional(),
+    items: z.array(z.any()).optional(),
+    fields: z.array(z.any()).optional(),
+  }).optional(),
+}).optional();
+
+// Document Context Bar Schema
+const DocumentContextBarSchema = z.object({
+  documentId: z.number().int().nullable().optional(),
+  title: z.string().nullable().optional(),
+  availableDocuments: z.array(z.object({ id: z.number().int(), title: z.string().optional(), original_filename: z.string().optional() })).optional().default([]),
+  status: z.enum(['saved', 'unsaved', 'processing', 'error']).optional(),
+}).optional();
+
+// Context Sidebar Schema
+const ContextSidebarSchema = z.object({
+  activeTab: z.enum(['metadata','content','chat','debug']).optional(),
+  isAdmin: z.boolean().optional(),
+  document: z.record(z.any()).optional(),
+  availableDocuments: z.array(z.object({ id: z.number().int() })).optional().default([]),
+  chat: z.record(z.any()).optional(),
+  visual: z.record(z.any()).optional(),
+}).optional();
+
+// Overview Dashboard Schema (minimal runtime shape)
+const OverviewDashboardSchema = z.object({
+  connection: z.object({ paperlessApiUrl: z.string().optional(), isConnected: z.boolean().optional() }).optional(),
+  aiProvider: z.object({ provider: z.string().optional(), model: z.string().optional(), tokenLimit: z.number().optional() }).optional(),
+  expertModels: z.object({ enabled: z.boolean().optional(), medicalVisionModel: z.string().optional(), financialAnalysisModel: z.string().optional() }).optional(),
+  advanced: z.object({ activateTagging: z.boolean().optional(), activateCorrespondents: z.boolean().optional(), scanInterval: z.number().optional() }).optional(),
+}).optional();
+
+// Settings Sidebar Schema (minimal runtime shape)
+const SettingsSidebarSchema = z.object({
+  activeCategory: z.string().optional(),
+  developerModeEnabled: z.boolean().optional(),
+  aiProvider: z.string().optional(),
+}).optional();
+
+// Restart Banner Schema
+const RestartBannerSchema = z.object({
+  initiallyVisible: z.boolean().optional(),
+  initialReason: z.string().optional(),
+  initialChangedSettings: z.array(z.string()).optional().default([]),
+}).optional();
+
 const schemaMap = {
   'visual-annotation-island': VisualAnnotationSchema,
   'feedback-controls-island': FeedbackControlsSchema,
@@ -318,13 +385,14 @@ const schemaMap = {
   'ai-analysis-island': AIAnalysisSchema,
   'chat-workspace-island': ChatWorkspaceSchema,
   'history-manager-island': HistoryManagerSchema,
-  'unified-workspace-island': z.any(),
-  'document-context-bar-island': z.any(),
-  'context-sidebar-island': z.any(),
+  'playground-island': PlaygroundSchema,
+  'unified-workspace-island': UnifiedWorkspaceSchema,
+  'document-context-bar-island': DocumentContextBarSchema,
+  'context-sidebar-island': ContextSidebarSchema,
   // Base settings islands scaffolding (P1.3)
-  'overview-dashboard-island': z.object({ type: z.literal('overview-dashboard').optional() }).optional(),
-  'settings-sidebar-island': z.object({ type: z.literal('settings-sidebar').optional() }).optional(),
-  'restart-banner-island': z.object({ type: z.literal('restart-banner').optional(), visible: z.boolean().optional() }).optional(),
+  'overview-dashboard-island': OverviewDashboardSchema,
+  'settings-sidebar-island': SettingsSidebarSchema,
+  'restart-banner-island': RestartBannerSchema,
 };
 
 // Helper to create a Cross-Environment CustomEvent (JSDOM vs Node)
@@ -519,20 +587,20 @@ const defaultRenderers = {
                   btn.textContent = 'Confirmed';
                 }
               }
-            } catch (e) { /* ignore render errors */ }
+            } catch { /* ignore render errors */ }
           }
         }
 
         // Listen for cross-island loaded annotations
-        document.addEventListener('annotations:loaded', (ev) => { try { applyLoadedAnnotations(ev?.detail?.annotations || []); } catch(e){} });
+        document.addEventListener('annotations:loaded', (ev) => { try { applyLoadedAnnotations(ev?.detail?.annotations || []); } catch { /* ignore */ } });
 
         // If initial props include annotations, apply them (runtime/data-props payload)
         try {
           const propsRaw = (root.closest('[data-props]') && root.closest('[data-props]').getAttribute('data-props')) || '{}';
           let props = {};
-          try { props = JSON.parse(propsRaw); } catch{};
+          try { props = JSON.parse(propsRaw); } catch { /* ignore */ };
           if (Array.isArray(props.annotations)) applyLoadedAnnotations(props.annotations);
-        } catch (e) { /* ignore */ }
+        } catch { /* ignore */ }
 
 
         drawToggle.addEventListener('click', ()=>{
@@ -611,16 +679,16 @@ const defaultRenderers = {
 
     el.innerHTML = `\n      <div data-testid="feedback-controls-island-root" data-hydrated="true" role="group" aria-label="Feedback Controls">\n        ${rows}\n      </div>\n      <script>\n        (function(){\n          try {\n            const root = document.currentScript.parentElement.querySelector('[data-testid="feedback-controls-island-root"]');\n            if (!root) return;\n            const ups = Array.from(root.querySelectorAll('[data-testid^="thumbs-up-"]'));
             const downs = Array.from(root.querySelectorAll('[data-testid^="thumbs-down-"]'));
-            ups.forEach(u => {\n              u.addEventListener('click', ()=>{\n                const name = u.getAttribute('data-testid').replace('thumbs-up-','');\n                u.setAttribute('aria-pressed', (u.getAttribute('aria-pressed') !== 'true') ? 'true' : 'false');\n                const d = root.querySelector("[data-testid=\"thumbs-down-\${name}\"]"); if (d) d.setAttribute('aria-pressed','false');\n                document.dispatchEvent(createCustomEvent('feedback:updated', { component: name, feedback_type: 'thumbs_up' }));\n                document.dispatchEvent(createCustomEvent('feedback:confirmed', { component: name, documentId: (root.closest('[data-props]') && JSON.parse(root.closest('[data-props]').getAttribute('data-props')||'{}').documentId) || null }));\n              });\n            });\n            downs.forEach(d => {\n              d.addEventListener('click', ()=>{\n                const name = d.getAttribute('data-testid').replace('thumbs-down-','');\n                d.setAttribute('aria-pressed', (d.getAttribute('aria-pressed') !== 'true') ? 'true' : 'false');\n                const u = root.querySelector("[data-testid=\"thumbs-up-\${name}\"]"); if (u) u.setAttribute('aria-pressed','false');\n                (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') { _doc.dispatchEvent(createCustomEvent('feedback:updated', { component: name, feedback_type: 'thumbs_down' })); } })();\n              });\n            });\n          } catch(e){ console.warn('feedback-controls-island runtime setup failed', e); }\n        })();\n      </script>\n    `;
+            ups.forEach(u => {\n              u.addEventListener('click', ()=>{\n                const name = u.getAttribute('data-testid').replace('thumbs-up-','');\n                u.setAttribute('aria-pressed', (u.getAttribute('aria-pressed') !== 'true') ? 'true' : 'false');\n                const d = root.querySelector('[data-testid="thumbs-down-\${name}"]'); if (d) d.setAttribute('aria-pressed','false');\n                document.dispatchEvent(createCustomEvent('feedback:updated', { component: name, feedback_type: 'thumbs_up' }));\n                document.dispatchEvent(createCustomEvent('feedback:confirmed', { component: name, documentId: (root.closest('[data-props]') && JSON.parse(root.closest('[data-props]').getAttribute('data-props')||'{}').documentId) || null }));\n              });\n            });\n            downs.forEach(d => {\n              d.addEventListener('click', ()=>{\n                const name = d.getAttribute('data-testid').replace('thumbs-down-','');\n                d.setAttribute('aria-pressed', (d.getAttribute('aria-pressed') !== 'true') ? 'true' : 'false');\n                const u = root.querySelector('[data-testid="thumbs-up-\${name}"]'); if (u) u.setAttribute('aria-pressed','false');\n                (function(){ const _doc = (typeof document !== 'undefined') ? document : (typeof window !== 'undefined' && window.document) ? window.document : null; if (_doc && typeof _doc.dispatchEvent === 'function') { _doc.dispatchEvent(createCustomEvent('feedback:updated', { component: name, feedback_type: 'thumbs_down' })); } })();\n              });\n            });\n          } catch(e){ console.warn('feedback-controls-island runtime setup failed', e); }\n        })();\n      </script>\n    `;
   },
   'manual-editor-island': (el) => {
     el.innerHTML = `
       <div data-testid="manual-editor-island-root" data-hydrated="true">
         <div role="tablist" aria-label="Manual Editor Tabs" style="display:flex;gap:8px;margin-bottom:8px">
-          <button role="tab" data-testid="tab-metadata" aria-selected="true" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">Metadata</button>
-          <button role="tab" data-testid="tab-content" aria-selected="false" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">Content</button>
-          <button role="tab" data-testid="tab-fields" aria-selected="false" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">Fields</button>
-          <button role="tab" data-testid="tab-ai-debug" aria-selected="false" onclick="(function(){ const root = this.closest('[data-testid=\'manual-editor-island-root\']'); const tabs = Array.from(root.querySelectorAll('[role=\'tab\']')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">AI Debug</button>
+          <button role="tab" data-testid="tab-metadata" aria-selected="true" onclick="(function(){ const root = this.closest('[data-testid="manual-editor-island-root"]'); const tabs = Array.from(root.querySelectorAll('[role="tab"]')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">Metadata</button>
+          <button role="tab" data-testid="tab-content" aria-selected="false" onclick="(function(){ const root = this.closest('[data-testid="manual-editor-island-root"]'); const tabs = Array.from(root.querySelectorAll('[role="tab"]')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">Content</button>
+          <button role="tab" data-testid="tab-fields" aria-selected="false" onclick="(function(){ const root = this.closest('[data-testid="manual-editor-island-root"]'); const tabs = Array.from(root.querySelectorAll('[role="tab"]')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">Fields</button>
+          <button role="tab" data-testid="tab-ai-debug" aria-selected="false" onclick="(function(){ const root = this.closest('[data-testid="manual-editor-island-root"]'); const tabs = Array.from(root.querySelectorAll('[role="tab"]')); const panels = Array.from(root.querySelectorAll('[data-panel]')); const idx = tabs.indexOf(this); tabs.forEach((t,i)=>t.setAttribute('aria-selected', String(i===idx))); panels.forEach((p,i)=>p.style.display = i===idx ? '' : 'none'); }).call(this);">AI Debug</button>
         </div>
         <div id="manual-editor-panel">
           <div data-panel="metadata" data-testid="panel-metadata">
@@ -701,7 +769,7 @@ const defaultRenderers = {
             }
 
             if (prev) prev.addEventListener('click', () => {
-              const m = (pageEl.textContent || '').match(/(\d+)/g);
+              const m = (pageEl.textContent || '').match(/(\\d+)/g);
               const cur = m ? Number(m[0]) : ${page};
               const nextPage = Math.max(1, cur - 1);
               if (pageEl) pageEl.textContent = 'Page ' + nextPage + (props.pageCount ? ' of ' + props.pageCount : '');
@@ -709,7 +777,7 @@ const defaultRenderers = {
             });
 
             if (next) next.addEventListener('click', () => {
-              const m = (pageEl.textContent || '').match(/(\d+)/g);
+              const m = (pageEl.textContent || '').match(/(\\d+)/g);
               const cur = m ? Number(m[0]) : ${page};
               const nextPage = cur + 1;
               if (props.pageCount && nextPage > props.pageCount) return;
@@ -769,13 +837,13 @@ const defaultRenderers = {
                 if (src) img.src = src;
               }
             });
-          } catch (e) { /* ignore */ }
+          } catch { /* ignore */ }
         })();
       </script>
     `;
   },
 
-  'overview-dashboard-island': (el, props = {}) => {
+  'overview-dashboard-island': (el) => {
     el.innerHTML = `
       <div data-testid="overview-dashboard-root" data-hydrated="true" style="padding:12px;font-family:system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;">
         <h2 style="margin:0 0 8px 0">Overview</h2>
@@ -784,7 +852,7 @@ const defaultRenderers = {
     `;
   },
 
-  'settings-sidebar-island': (el, props = {}) => {
+  'settings-sidebar-island': (el) => {
     el.innerHTML = `
       <div data-testid="settings-sidebar-root" data-hydrated="true" style="padding:8px;font-family:system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;">
         <nav aria-label="Settings navigation">
@@ -810,6 +878,10 @@ const defaultRenderers = {
         <button data-testid="restart-btn" style="margin-left:8px;padding:4px 8px;">Restart Now</button>
       </div>
     `;
+  },
+  'export-panel-island': (el, props = {}) => {
+    const docId = props && props.documentId ? props.documentId : '';
+    el.innerHTML = `<div data-testid="export-panel-root" data-hydrated="true">Export Panel Placeholder${docId ? ' - documentId: ' + docId : ''}</div>`;
   },
   'unified-workspace-island': (el) => {
     el.innerHTML = '<div data-testid="unified-workspace-root" data-hydrated="true">Unified Workspace Placeholder</div>';
@@ -1097,7 +1169,7 @@ function mountIslands(container = document) {
                   resultsEl.textContent = `${results.length} similar documents`;
                 }
                 if (emptyEl) emptyEl.style.display = results.length ? 'none' : '';
-              } catch (err) {
+              } catch {
                 if (resultsEl) {
                   resultsEl.style.display = '';
                   resultsEl.textContent = 'Search failed';
@@ -1125,7 +1197,7 @@ function mountIslands(container = document) {
             const dispatchOverlayChange = (pageNum) => {
               const propsRaw = el.getAttribute('data-props') || '{}';
               let props = {};
-              try { props = JSON.parse(propsRaw); } catch(e) { props = {}; }
+              try { props = JSON.parse(propsRaw); } catch { props = {}; }
               const docId = props.documentId || null;
               const original = props.originalUrl || props.original_url || '';
 
@@ -1157,7 +1229,7 @@ function mountIslands(container = document) {
                 const propsRaw = el.getAttribute('data-props') || '{}';
                 const props = JSON.parse(propsRaw);
                 if (props.pageCount && nextPage > props.pageCount) return;
-              } catch(e) { /* ignore */ }
+              } catch { /* ignore */ }
               if (pageEl) pageEl.textContent = 'Page ' + nextPage;
               dispatchOverlayChange(nextPage);
             });

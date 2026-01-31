@@ -15,11 +15,12 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
   const validated = DeveloperSettingsSchema.parse(props);
 
   // Developer mode visibility state
-  const [isDeveloperMode, setIsDeveloperMode] = useState<boolean>(() => {
+  const initialDeveloperMode = ((): boolean => {
     if (typeof localStorage === 'undefined') return false;
     const stored = localStorage.getItem(STORAGE_KEY_DEVELOPER_MODE);
     return stored === 'true';
-  });
+  })();
+  const [isDeveloperMode, setIsDeveloperMode] = useState(initialDeveloperMode as boolean);
 
   // Section collapse state
   const [featureFlagsExpanded, setFeatureFlagsExpanded] = useState(true);
@@ -49,22 +50,22 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
 
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState(null as string | null);
 
   // Runtime state
-  const [runtimeState, setRuntimeState] = useState<any>(null);
+  const [runtimeState, setRuntimeState] = useState(null as any);
   const [isLoadingRuntimeState, setIsLoadingRuntimeState] = useState(false);
-  const [runtimeStateError, setRuntimeStateError] = useState<string | null>(null);
+  const [runtimeStateError, setRuntimeStateError] = useState(null as string | null);
 
   // Debounce timer for feature flag auto-save
-  const debounceTimerRef = useRef<number | null>(null);
+  const debounceTimerRef = useRef(null as number | null);
   // Auto-refresh interval for runtime state
-  const refreshIntervalRef = useRef<number | null>(null);
+  const refreshIntervalRef = useRef(null as number | null);
 
   // Listen for developer mode toggle events
   useEffect(() => {
-    const handleDeveloperToggle = (event: CustomEvent) => {
-      const enabled = event.detail?.enabled ?? false;
+    const handleDeveloperToggle = (event: Event) => {
+      const enabled = (event as CustomEvent).detail?.enabled ?? false;
       setIsDeveloperMode(enabled);
 
       // If developer mode is being disabled, collapse all sections
@@ -331,7 +332,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                     id="flag-expert-pipeline"
                     type="checkbox"
                     checked={expertPipeline}
-                    onChange={(e) => {
+                    onChange={(e: Event) => {
                       const value = (e.target as HTMLInputElement).checked;
                       setExpertPipeline(value);
                       handleFeatureFlagChange('expertPipelineEnabled', value);
@@ -356,7 +357,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                     id="flag-visual-rag"
                     type="checkbox"
                     checked={visualRag}
-                    onChange={(e) => {
+                    onChange={(e: Event) => {
                       const value = (e.target as HTMLInputElement).checked;
                       setVisualRag(value);
                       handleFeatureFlagChange('visualRagEnabled', value);
@@ -381,7 +382,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                     id="flag-visual-rag-sidecar"
                     type="checkbox"
                     checked={visualRagSidecar}
-                    onChange={(e) => {
+                    onChange={(e: Event) => {
                       const value = (e.target as HTMLInputElement).checked;
                       setVisualRagSidecar(value);
                       handleFeatureFlagChange('visualRagSidecarEnabled', value);
@@ -406,7 +407,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                     id="flag-force-visual-rag"
                     type="checkbox"
                     checked={forceVisualRag}
-                    onChange={(e) => {
+                    onChange={(e: Event) => {
                       const value = (e.target as HTMLInputElement).checked;
                       setForceVisualRag(value);
                       handleFeatureFlagChange('forceVisualRag', value);
@@ -431,7 +432,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                     id="flag-guidance"
                     type="checkbox"
                     checked={guidanceService}
-                    onChange={(e) => {
+                    onChange={(e: Event) => {
                       const value = (e.target as HTMLInputElement).checked;
                       setGuidanceService(value);
                       handleFeatureFlagChange('guidanceServiceEnabled', value);
@@ -456,7 +457,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                     id="flag-metrics"
                     type="checkbox"
                     checked={metrics}
-                    onChange={(e) => {
+                    onChange={(e: Event) => {
                       const value = (e.target as HTMLInputElement).checked;
                       setMetrics(value);
                       handleFeatureFlagChange('metricsEnabled', value);
@@ -481,7 +482,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                     id="flag-duplicate-detection"
                     type="checkbox"
                     checked={duplicateDetection}
-                    onChange={(e) => {
+                    onChange={(e: Event) => {
                       const value = (e.target as HTMLInputElement).checked;
                       setDuplicateDetection(value);
                       handleFeatureFlagChange('duplicateDetectionEnabled', value);
@@ -506,7 +507,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                     id="flag-ocr-checkpoint"
                     type="checkbox"
                     checked={ocrCheckpoint}
-                    onChange={(e) => {
+                    onChange={(e: Event) => {
                       const value = (e.target as HTMLInputElement).checked;
                       setOcrCheckpoint(value);
                       handleFeatureFlagChange('ocrCheckpointEnabled', value);
@@ -531,7 +532,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                     id="flag-summary-fallback"
                     type="checkbox"
                     checked={summaryFallback}
-                    onChange={(e) => {
+                    onChange={(e: Event) => {
                       const value = (e.target as HTMLInputElement).checked;
                       setSummaryFallback(value);
                       handleFeatureFlagChange('summaryFallbackEnabled', value);
@@ -580,7 +581,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                   id="scan-interval"
                   type="text"
                   value={scanInterval}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setScanInterval((e.target as HTMLInputElement).value);
                     markDirty();
                   }}
@@ -600,7 +601,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                   id="token-limit"
                   type="number"
                   value={tokenLimit}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setTokenLimit(parseInt((e.target as HTMLInputElement).value));
                     markDirty();
                   }}
@@ -619,7 +620,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                   id="response-tokens"
                   type="number"
                   value={responseTokens}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setResponseTokens(parseInt((e.target as HTMLInputElement).value));
                     markDirty();
                   }}
@@ -640,7 +641,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                   min="0"
                   max="100"
                   value={textQualityThreshold}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setTextQualityThreshold(parseInt((e.target as HTMLInputElement).value));
                     markDirty();
                   }}
@@ -660,7 +661,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                   type="number"
                   min="1"
                   value={maxVisionPages}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setMaxVisionPages(parseInt((e.target as HTMLInputElement).value));
                     markDirty();
                   }}
@@ -680,7 +681,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                   type="number"
                   min="1000"
                   value={guidanceTimeout}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setGuidanceTimeout(parseInt((e.target as HTMLInputElement).value));
                     markDirty();
                   }}
@@ -700,7 +701,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                   type="number"
                   min="1000"
                   value={visualRagTimeout}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setVisualRagTimeout(parseInt((e.target as HTMLInputElement).value));
                     markDirty();
                   }}

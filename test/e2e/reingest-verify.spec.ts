@@ -58,7 +58,7 @@ test.describe('Reingest Verification', () => {
       return;
     }
 
-    const arrayBuf = await resp.arrayBuffer();
+    const arrayBuf = await (resp as any).arrayBuffer();
     const pdfBase64 = Buffer.from(new Uint8Array(arrayBuf)).toString('base64');
 
     // Send PDF to Visual-RAG index endpoint
@@ -79,7 +79,7 @@ test.describe('Reingest Verification', () => {
     try {
       points = await pollForQdrantPoints(TEST_DOC_ID, { timeoutMs: 20000, intervalMs: 500, minCount: 1 });
     } catch (err) {
-      console.log('Timed out waiting for Qdrant points:', err.message);
+      console.log('Timed out waiting for Qdrant points:', (err as any).message);
       test.skip(true, 'Qdrant points not found - sidecar may be initializing');
       return;
     }
@@ -93,7 +93,7 @@ test.describe('Reingest Verification', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           filter: {
-            must: [ { key: 'doc_id', match: { value: parseInt(TEST_DOC_ID, 10) } } ]
+            must: [ { key: 'doc_id', match: { value: String(TEST_DOC_ID) } } ]
           }
         })
       });
@@ -102,7 +102,7 @@ test.describe('Reingest Verification', () => {
         console.warn('Failed to delete Qdrant points for cleanup:', delResp.statusText);
       }
     } catch (err) {
-      console.warn('Cleanup deletion failed:', err.message);
+      console.warn('Cleanup deletion failed:', (err as any).message);
     }
   });
 });

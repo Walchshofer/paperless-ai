@@ -8,6 +8,7 @@ import type {
   FilterOptions,
   BoundingBox
 } from '../ui/contracts/Playground.contract';
+import { PlaygroundSchema, SearchResponseSchema } from '../ui/contracts/Playground.contract';
 
 /**
  * PlaygroundIsland - Visual RAG Debugger
@@ -40,41 +41,47 @@ const COLLECTIONS = [
 const MIN_BOX_SIZE = 20;
 
 export default function PlaygroundIsland(props: PlaygroundProps) {
+  const validated = PlaygroundSchema.parse(props as any);
+
   const {
-    mode = 'visual-debug',
-    collection: initialCollection = 'visual_pages',
-    gpuState: initialGpuState = 'idle',
+    mode,
+    collection: initialCollection,
+    gpuState: initialGpuState,
     documentId,
     filters: initialFilters,
-    onSearch
-  } = props;
+  } = validated;
+  const { onSearch } = props; // callback not part of the Zod contract
+
 
   // State
   const [collection, setCollection] = useState(initialCollection);
   const [gpuState, setGpuState] = useState(initialGpuState);
-  const [sidecarStatus, setSidecarStatus] = useState<SidecarStatus>({
-    state: 'unknown',
-    model: 'ColQwen3-4B-AWQ'
-  });
+  const [sidecarStatus, setSidecarStatus] = useState(validated.sidecarStatus ?? ({ state: 'unknown', model: 'ColQwen3-4B-AWQ' } as SidecarStatus));
   const [isDrawMode, setIsDrawMode] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [currentBox, setCurrentBox] = useState<BoundingBox | null>(null);
-  const [boxes, setBoxes] = useState<BoundingBox[]>([]);
-  const [imageData, setImageData] = useState<string | null>(null);
+  const [currentBox, setCurrentBox] = useState(null as BoundingBox | null);
+  const [boxes, setBoxes] = useState([] as BoundingBox[]);
+  const [imageData, setImageData] = useState(null as string | null);
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [payloads, setPayloads] = useState<QdrantPayload[]>([]);
+  const [searchResults, setSearchResults] = useState([] as SearchResult[]);
+  const [payloads, setPayloads] = useState([] as QdrantPayload[]);
   const [isSearching, setIsSearching] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [latency, setLatency] = useState<number | null>(null);
-  const [docIdFilter, setDocIdFilter] = useState<string>('');
+  const [error, setError] = useState(null as string | null);
+  const [latency, setLatency] = useState(null as number | null);
+  const [docIdFilter, setDocIdFilter] = useState('' as string);
   const [showRawJson, setShowRawJson] = useState(false);
 
   // Refs
-  const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef(null as HTMLDivElement | null);
+  const canvasRef = useRef(null as HTMLCanvasElement | null);
+  const imageRef = useRef(null as HTMLImageElement | null);
+  const fileInputRef = useRef(null as HTMLInputElement | null);
+  const drawToggleRef = useRef(null as HTMLButtonElement | null);
+
+  // Keep aria-pressed in sync for assistive tech (set as string on the DOM element)
+  useEffect(() => {
+    if (drawToggleRef.current) drawToggleRef.current.setAttribute('aria-pressed', String(isDrawMode));
+  }, [isDrawMode]);
 
   // Poll sidecar health
   useEffect(() => {
@@ -163,7 +170,7 @@ export default function PlaygroundIsland(props: PlaygroundProps) {
       if (!isDrawing || !currentBox) return;
       e.preventDefault();
       const pos = getRelativePosition(e);
-      setCurrentBox(prev => {
+      setCurrentBox((prev: BoundingBox | null) => {
         if (!prev) return null;
         return {
           ...prev,
@@ -197,7 +204,7 @@ export default function PlaygroundIsland(props: PlaygroundProps) {
       return;
     }
 
-    setBoxes(prev => [...prev, normalizedBox]);
+    setBoxes((prev: BoundingBox[]) => [...prev, normalizedBox]);
     setCurrentBox(null);
   }, [isDrawing, currentBox]);
 
@@ -247,7 +254,7 @@ export default function PlaygroundIsland(props: PlaygroundProps) {
     ctx.lineWidth = 2;
     ctx.fillStyle = 'rgba(220, 20, 60, 0.1)';
 
-    boxes.forEach(box => {
+    boxes.forEach((box: BoundingBox) => {
       ctx.strokeRect(box.x, box.y, box.width, box.height);
       ctx.fillRect(box.x, box.y, box.width, box.height);
     });
@@ -341,20 +348,23 @@ export default function PlaygroundIsland(props: PlaygroundProps) {
         throw new Error(`Search failed: HTTP ${res.status}`);
       }
 
-      const data = await res.json();
+      const raw = await res.json();
+      const parsed = SearchResponseSchema.safeParse(raw);
+      if (!parsed.success) throw new Error('Invalid search response');
+      const data = parsed.data;
       const elapsed = Date.now() - startTime;
 
       setSearchResults(data.results || []);
       setLatency(elapsed);
 
       // Extract payloads from results
-      const extractedPayloads = (data.results || []).map((r: any) => ({
+      const extractedPayloads = (data.results || []).map((r: SearchResult) => ({
         doc_id: r.docId,
-        correspondent_id: r.metadata?.correspondent_id,
-        tag_ids: r.metadata?.tag_ids,
-        created_date: r.metadata?.created_date,
+        correspondent_id: (r.metadata as Record<string, any> | undefined)?.correspondent_id,
+        tag_ids: (r.metadata as Record<string, any> | undefined)?.tag_ids,
+        created_date: (r.metadata as Record<string, any> | undefined)?.created_date,
         page_num: r.pageNum
-      }));
+      } as QdrantPayload));
       setPayloads(extractedPayloads);
 
       // Dispatch event
@@ -366,8 +376,9 @@ export default function PlaygroundIsland(props: PlaygroundProps) {
         onSearch(base64, collection, filters);
       }
 
-    } catch (err: any) {
-      setError(err.message || 'Search failed');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message || 'Search failed');
     } finally {
       setIsSearching(false);
     }
@@ -473,11 +484,12 @@ export default function PlaygroundIsland(props: PlaygroundProps) {
       <div className="p-4 bg-gray-50 border-b flex flex-wrap gap-4 items-end">
         {/* Collection Selector */}
         <div className="flex-1 min-w-[200px]">
-          <label className="block text-sm font-medium mb-1">Collection</label>
+          <label htmlFor="collection-select" className="block text-sm font-medium mb-1">Collection</label>
           <select
+            id="collection-select"
             data-testid="collection-select"
             value={collection}
-            onChange={(e) => setCollection((e.target as HTMLSelectElement).value as any)}
+            onChange={(e: Event) => setCollection((e.target as HTMLSelectElement).value)}
             className="w-full p-2 border rounded"
           >
             {COLLECTIONS.map(c => (
@@ -488,14 +500,16 @@ export default function PlaygroundIsland(props: PlaygroundProps) {
 
         {/* Document ID Filter */}
         <div className="flex-1 min-w-[150px]">
-          <label className="block text-sm font-medium mb-1">
+          <label htmlFor="doc-id-filter" className="block text-sm font-medium mb-1">
             Filter by Doc ID (optional)
           </label>
           <input
+            id="doc-id-filter"
+            title="Filter by document ID"
             data-testid="doc-id-filter"
             type="text"
             value={docIdFilter}
-            onChange={(e) => setDocIdFilter((e.target as HTMLInputElement).value)}
+            onChange={(e: Event) => setDocIdFilter((e.target as HTMLInputElement).value)}
             placeholder="e.g., 12345"
             className="w-full p-2 border rounded"
           />
@@ -535,14 +549,15 @@ export default function PlaygroundIsland(props: PlaygroundProps) {
               ref={fileInputRef}
               type="file"
               accept="image/*"
+              aria-label="Upload image file"
               onChange={handleFileUpload}
               className="hidden"
             />
 
             <button
               data-testid="draw-toggle"
+              ref={(el: HTMLButtonElement | null) => { drawToggleRef.current = el; }}
               onClick={() => setIsDrawMode(!isDrawMode)}
-              aria-pressed={isDrawMode}
               className={`px-3 py-1 text-sm rounded ${
                 isDrawMode
                   ? 'bg-red-600 text-white'
@@ -567,11 +582,7 @@ export default function PlaygroundIsland(props: PlaygroundProps) {
           {/* Canvas Area */}
           <div
             ref={containerRef}
-            className="relative flex-1 bg-gray-200 overflow-hidden"
-            style={{
-              cursor: isDrawMode ? 'crosshair' : 'default',
-              touchAction: isDrawMode ? 'none' : 'auto'
-            }}
+            className={`relative flex-1 bg-gray-200 overflow-hidden ${isDrawMode ? 'cursor-crosshair touch-none' : 'cursor-default'}`}
             onMouseDown={handleMouseDown as any}
             onMouseMove={handleMouseMove as any}
             onMouseUp={handleMouseUp}
@@ -643,7 +654,7 @@ export default function PlaygroundIsland(props: PlaygroundProps) {
               {searchResults.length === 0 ? (
                 <p className="text-gray-500 text-sm">No results yet</p>
               ) : (
-                searchResults.map((r, i) => (
+                searchResults.map((r: SearchResult, i: number) => (
                   <div
                     key={i}
                     className="p-2 border rounded mb-2"
@@ -693,7 +704,7 @@ export default function PlaygroundIsland(props: PlaygroundProps) {
                   {JSON.stringify(payloads, null, 2)}
                 </pre>
               ) : (
-                payloads.map((p, i) => (
+                payloads.map((p: QdrantPayload, i: number) => (
                   <div
                     key={i}
                     className="p-2 bg-gray-50 rounded mb-2 font-mono text-xs"

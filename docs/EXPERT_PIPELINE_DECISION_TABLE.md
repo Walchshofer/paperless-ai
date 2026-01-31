@@ -70,6 +70,12 @@ Lower layers must never override higher layers.
 - No tools
 - No document mutation
 
+### Frontend: Expert Models availability
+- Expert domain models (Medical/Financial/Legal) are provided by the local Ollama sidecar and are only configurable when the active AI provider is **Ollama**.
+- The settings UI gates the Expert Models area to Ollama: if another provider is selected, the Expert Models panel is hidden/locked and the user is prompted to switch to Ollama to enable Expert Models.
+- Persistence: Expert model settings are saved to settings and mirrored to a client-side fallback (localStorage) to ensure UI persistence across provider tab toggles while preserving the server-side authoritative settings when present.
+- Accessibility: UI should announce Expert Models availability changes (aria-live) and surface clear affordances for keyboard/screen reader users.
+
 ---
 
 ## Context Pack (Canonical)

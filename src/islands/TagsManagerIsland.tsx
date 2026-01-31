@@ -2,21 +2,23 @@ import { h, Fragment } from 'preact';
 import { useState, useEffect, useCallback } from 'preact/hooks';
 import { TagsManagerSchema, type TagsManagerContract, type Tag } from '../ui/contracts/TagsManager.contract';
 
-function dispatchEventSafe(name: string, detail: any) {
+function dispatchEventSafe(name: string, detail?: unknown) {
   if (typeof document === 'undefined') return;
   if (typeof document.dispatchEvent !== 'function') return;
   const EventConstructor = (typeof window !== 'undefined' && window.CustomEvent) ? window.CustomEvent : CustomEvent;
-  document.dispatchEvent(new EventConstructor(name, { detail }));
+  document.dispatchEvent(new EventConstructor(name, { detail } as CustomEventInit<any>));
 }
 
 export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
-  const [currentTags, setCurrentTags] = useState<Tag[]>(props.currentTags || []);
-  const [suggestedTags, setSuggestedTags] = useState<Tag[]>(props.suggestedTags || []);
-  const [availableTags, setAvailableTags] = useState<Tag[]>(props.availableTags || []);
-  const [selectedTagId, setSelectedTagId] = useState<string>('');
+  // Validate props at runtime
+  const validated = TagsManagerSchema.parse(props);
+  const [currentTags, setCurrentTags] = useState(props.currentTags || [] as Tag[]);
+  const [suggestedTags, setSuggestedTags] = useState(props.suggestedTags || [] as Tag[]);
+  const [availableTags, setAvailableTags] = useState(props.availableTags || [] as Tag[]);
+  const [selectedTagId, setSelectedTagId] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [documentId, setDocumentId] = useState<number | null>(props.documentId ?? null);
+  const [saveStatus, setSaveStatus] = useState('idle' as 'idle' | 'success' | 'error');
+  const [documentId, setDocumentId] = useState(props.documentId ?? null as number | null);
 
   const resolveTags = useCallback((tags: Array<Tag | string | number>) => {
     if (!Array.isArray(tags)) return [];
@@ -26,7 +28,7 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
       }
       const tagName = String(tag);
       const match = availableTags.find(
-        t => t.name.toLowerCase() === tagName.toLowerCase()
+        (t: Tag) => t.name.toLowerCase() === tagName.toLowerCase()
       );
       return match || { id: -1 - idx, name: tagName };
     });
@@ -54,21 +56,21 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
   // Reconcile current/suggested tags when the available tags list changes
   useEffect(() => {
     if (availableTags.length === 0) return;
-    setCurrentTags(prev => resolveTags(prev as Array<Tag | string | number>));
-    setSuggestedTags(prev => resolveTags(prev as Array<Tag | string | number>));
+    setCurrentTags((prev: Array<Tag | string | number>) => resolveTags(prev));
+    setSuggestedTags((prev: Array<Tag | string | number>) => resolveTags(prev));
   }, [availableTags, resolveTags]);
 
   // Listen for AI analysis completion to receive tag suggestions
   useEffect(() => {
-    const onSuggestionsReceived = (e: any) => {
-      const detail = e?.detail || {};
+    const onSuggestionsReceived = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
       if (detail.suggestedTags) {
         setSuggestedTags(resolveTags(detail.suggestedTags));
       }
     };
 
-    const onAnalysisCompleted = (e: any) => {
-      const detail = e?.detail || {};
+    const onAnalysisCompleted = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
       if (detail.result?.tags) {
         setSuggestedTags(resolveTags(detail.result.tags));
       }
@@ -85,8 +87,8 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
 
   // Listen for document selection to hydrate current tags
   useEffect(() => {
-    const onDocumentSelected = (e: any) => {
-      const detail = e?.detail || {};
+    const onDocumentSelected = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
       if (detail.documentId !== undefined) {
         setDocumentId(detail.documentId ?? null);
       }
@@ -120,34 +122,34 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
 
   const handleAcceptSuggestion = useCallback((tag: Tag) => {
     // Add to current tags if not already present
-    if (!currentTags.find(t => t.id === tag.id || t.name === tag.name)) {
+    if (!currentTags.find((t: Tag) => t.id === tag.id || t.name === tag.name)) {
       const newCurrentTags = [...currentTags, tag];
       setCurrentTags(newCurrentTags);
       
       dispatchEventSafe('tags:updated', {
         type: 'tags:updated',
         documentId,
-        currentTags: newCurrentTags.map(t => t.id),
+        currentTags: newCurrentTags.map((t: Tag) => t.id),
         action: 'accept-suggestion',
       });
     }
     
     // Remove from suggestions
-    setSuggestedTags(prev => prev.filter(t => t.id !== tag.id && t.name !== tag.name));
+    setSuggestedTags((prev: Tag[]) => prev.filter((t: Tag) => t.id !== tag.id && t.name !== tag.name));
   }, [currentTags, props.documentId]);
 
   const handleDismissSuggestion = useCallback((tag: Tag) => {
-    setSuggestedTags(prev => prev.filter(t => t.id !== tag.id && t.name !== tag.name));
+    setSuggestedTags((prev: Tag[]) => prev.filter((t: Tag) => t.id !== tag.id && t.name !== tag.name));
   }, []);
 
   const handleRemoveTag = useCallback((tag: Tag) => {
-    const newCurrentTags = currentTags.filter(t => t.id !== tag.id);
+    const newCurrentTags = currentTags.filter((t: Tag) => t.id !== tag.id);
     setCurrentTags(newCurrentTags);
     
     dispatchEventSafe('tags:updated', {
       type: 'tags:updated',
       documentId,
-      currentTags: newCurrentTags.map(t => t.id),
+      currentTags: newCurrentTags.map((t: Tag) => t.id),
       action: 'remove',
     });
   }, [currentTags, documentId]);
@@ -155,10 +157,10 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
   const handleAddTag = useCallback(() => {
     if (!selectedTagId) return;
     
-    const tag = availableTags.find(t => t.id === parseInt(selectedTagId));
+    const tag = availableTags.find((t: Tag) => t.id === parseInt(selectedTagId));
     if (!tag) return;
     
-    if (!currentTags.find(t => t.id === tag.id)) {
+    if (!currentTags.find((t: Tag) => t.id === tag.id)) {
       const newCurrentTags = [...currentTags, tag];
       setCurrentTags(newCurrentTags);
       
@@ -180,7 +182,7 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
     setSaveStatus('idle');
     
     try {
-      const tagIds = currentTags.map(t => t.id).filter(id => id > 0);
+      const tagIds = currentTags.map((t: Tag) => t.id).filter((id: number) => id > 0);
       
       const res = await fetch('/manual/updateDocument', {
         method: 'POST',
@@ -212,7 +214,7 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
 
   // Filter available tags to exclude current ones
   const selectableTags = availableTags.filter(
-    at => !currentTags.find(ct => ct.id === at.id)
+    (at: Tag) => !currentTags.find((ct: Tag) => ct.id === at.id)
   );
 
   return (
@@ -224,7 +226,7 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
           {suggestedTags.length === 0 ? (
             <span className="tm-empty">No suggestions yet</span>
           ) : (
-            suggestedTags.map((tag, idx) => (
+            suggestedTags.map((tag: Tag, idx: number) => (
               <span
                 key={tag.id || idx}
                 className="tm-tag tm-tag-suggested"
@@ -279,7 +281,7 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
           {currentTags.length === 0 ? (
             <span className="tm-empty">No tags assigned</span>
           ) : (
-            currentTags.map((tag, idx) => (
+            currentTags.map((tag: Tag, idx: number) => (
               <span
                 key={tag.id}
                 className="tm-tag tm-tag-current"
@@ -309,11 +311,12 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
           <select
             className="tm-select"
             value={selectedTagId}
-            onChange={(e: any) => setSelectedTagId(e.target.value)}
+            onChange={(e: Event) => setSelectedTagId((e.target as HTMLSelectElement).value)}
             data-testid="new-tag-select"
+            aria-label="Select tag to add"
           >
             <option value="">Select a tag...</option>
-            {selectableTags.map(tag => (
+            {selectableTags.map((tag: Tag) => (
               <option key={tag.id} value={tag.id}>{tag.name}</option>
             ))}
           </select>
@@ -323,6 +326,7 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
             onClick={handleAddTag}
             disabled={!selectedTagId}
             data-testid="add-tag-btn"
+            aria-label="Add selected tag"
           >
             <i className="fas fa-plus" aria-hidden="true"></i>
           </button>

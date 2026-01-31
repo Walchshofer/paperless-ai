@@ -1,4 +1,11 @@
 try {
+  // Mock CSS modules for tests
+  require.extensions['.css'] = function(module, filename) {
+    module.exports = new Proxy({}, {
+      get: (target, prop) => prop
+    });
+  };
+
   require('ts-node').register({
     transpileOnly: true,
     skipProject: true,

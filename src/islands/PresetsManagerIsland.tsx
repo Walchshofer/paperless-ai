@@ -1,6 +1,6 @@
 import { h } from 'preact';
 import { useState, useEffect, useRef } from 'preact/hooks';
-import type { PresetsManagerSettings, PresetMetadata, PresetDiff } from '../ui/contracts/Settings.Presets.contract';
+import type { PresetsManagerSettings, PresetMetadata, PresetDiff, PresetDiffItem } from '../ui/contracts/Settings.Presets.contract';
 import { PresetsManagerSettingsSchema } from '../ui/contracts/Settings.Presets.contract';
 
 /**
@@ -13,15 +13,15 @@ export default function PresetsManagerIsland(props: Partial<PresetsManagerSettin
   const validated = PresetsManagerSettingsSchema.parse(props);
 
   const [isOpen, setIsOpen] = useState(validated.isOpen || false);
-  const [presets, setPresets] = useState<PresetMetadata[]>([]);
+  const [presets, setPresets] = useState([] as PresetMetadata[]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
-  const [presetDiff, setPresetDiff] = useState<PresetDiff | null>(null);
+  const [error, setError] = useState(null as string | null);
+  const [selectedPreset, setSelectedPreset] = useState(null as string | null);
+  const [presetDiff, setPresetDiff] = useState(null as PresetDiff | null);
   const [isApplying, setIsApplying] = useState(false);
   const [isImportMode, setIsImportMode] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState(null as File | null);
+  const fileInputRef = useRef(null as HTMLInputElement | null);
 
   // Fetch available presets when modal opens
   useEffect(() => {
@@ -314,6 +314,7 @@ export default function PresetsManagerIsland(props: Partial<PresetsManagerSettin
               onClick={handleClose}
               className="text-gray-400 hover:text-gray-600"
               data-testid="close-modal-button"
+              aria-label="Close"
             >
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -326,7 +327,7 @@ export default function PresetsManagerIsland(props: Partial<PresetsManagerSettin
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-800" data-testid="error-message">
-              {error.split('\n').map((line, index) => (
+              {error.split('\n').map((line: string, index: number) => (
                 <div key={index}>{line}</div>
               ))}
             </div>
@@ -341,7 +342,7 @@ export default function PresetsManagerIsland(props: Partial<PresetsManagerSettin
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {presets.map((preset) => (
+                  {presets.map((preset: PresetMetadata) => (
                     <button
                       key={preset.name}
                       onClick={() => handleSelectPreset(preset.name)}
@@ -388,7 +389,7 @@ export default function PresetsManagerIsland(props: Partial<PresetsManagerSettin
               </div>
 
               <div className="space-y-2 mb-6">
-                {presetDiff.changes.map((change, index) => (
+                {presetDiff.changes.map((change: PresetDiffItem, index: number) => (
                   <div
                     key={index}
                     className="p-3 bg-gray-50 border rounded"
@@ -449,6 +450,7 @@ export default function PresetsManagerIsland(props: Partial<PresetsManagerSettin
           accept=".env"
           onChange={handleFileSelect}
           className="hidden"
+          aria-hidden="true"
           data-testid="file-input"
         />
       </div>

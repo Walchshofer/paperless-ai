@@ -1,13 +1,43 @@
 import { h, Fragment } from 'preact';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'preact/hooks';
-import type { OverlayViewerContract } from '../ui/contracts/OverlayViewer.contract';
+import type { OverlayViewerContract, OverlayItem } from '../ui/contracts/OverlayViewer.contract';
+import styles from './OverlayViewerIsland.module.css';
+import { computeUnscaledFromRaw, clampTranslate as utilsClampTranslate } from './overlay-utils';
 
-let styles: Record<string, string> = {};
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  styles = require('./OverlayViewerIsland.module.css');
-} catch (e) {
-  // Fallback for SSR/tests
+// Types for document change events
+interface DocumentChangeDetail {
+  documentId?: number | null;
+  page?: number | null;
+  originalUrl?: string | null;
+  original_url?: string | null;
+  pageCount?: number | null;
+}
+
+// Types for visual search results
+interface VisualSearchResult {
+  document_id: number;
+  page: number;
+  score: number;
+  title?: string;
+  thumbnail?: string;
+}
+
+
+
+// Types for legend items
+interface LegendItem {
+  key: string;
+  label: string;
+  color: string;
+  isMandatory?: boolean;
+}
+
+// Types for normalized box input
+interface BoxInput {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
 }
 
 /**
@@ -38,6 +68,8 @@ interface OverlayViewerProps extends Partial<OverlayViewerContract> {
   overlayMode?: 'none' | 'document';
   showLegend?: boolean;
   allowSelection?: boolean;
+  mode?: 'view' | 'draw' | 'locate' | 'visual-search';
+  suggestions?: OverlayItem[];
 }
 
 // Minimum selection size (in pixels) to trigger search
@@ -54,6 +86,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     overlayMode = 'none',
     showLegend = false,
     allowSelection = true,
+    mode = 'visual-search',
+    suggestions = [],
   } = props;
 
   const containerRef = useRef(null as HTMLDivElement | null);
@@ -61,15 +95,15 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const imageRef = useRef(null as HTMLImageElement | null);
 
   // Allow dynamic updates from page-level events
-  const [docId, setDocId] = useState(initialDocumentId || null as number | null);
+  const [docId, setDocId] = useState<number | null>(initialDocumentId || null);
   const [page, setPage] = useState(initialPage);
-  const [originalUrl, setOriginalUrl] = useState(initialOriginalUrl || null as string | null);
-  const [pageCount, setPageCount] = useState((props && (props as any).pageCount) || null as number | null);
+  const [originalUrl, setOriginalUrl] = useState<string | null>(initialOriginalUrl || null);
+  const [pageCount, setPageCount] = useState<number | null>(props?.pageCount ?? null);
 
   // Listen for page/document change events from the page and update in-place
   useEffect(() => {
     const handler = (e: Event) => {
-      const d = (e as CustomEvent)?.detail || {};
+      const d = (e as CustomEvent<DocumentChangeDetail>)?.detail || {};
       if (d.documentId !== undefined && d.documentId !== null) setDocId(d.documentId);
       if (d.page !== undefined && d.page !== null) setPage(Number(d.page));
       // Accept either camelCase `originalUrl` or snake_case `original_url` from different emitters
@@ -90,11 +124,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     }
   }, [initialDocumentId]);
 
-  const overlayUtils = (typeof require !== 'undefined') ? require('./overlay-utils') : null;
-  const computeUnscaledFromRaw = overlayUtils ? overlayUtils.computeUnscaledFromRaw : (rawX: number, rawY: number, tx: number, ty: number, s: number) => ({ x: (rawX - tx) / s, y: (rawY - ty) / s });
-  try { if (typeof module !== 'undefined' && module && (module as any).exports) { (module as any).exports.computeUnscaledFromRaw = computeUnscaledFromRaw; } } catch (e) { /* ignore */ }
-
-  const normalizeOverlayBox = useCallback((box: any) => {
+  const normalizeOverlayBox = useCallback((box: BoxInput | null | undefined) => {
     if (!box) return null;
     const x = Number(box.x ?? 0);
     const y = Number(box.y ?? 0);
@@ -120,14 +150,14 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const [isDrawing, setIsDrawing] = useState(false);
   const isDrawingRef = useRef(false);
   const pointerActiveRef = useRef(false);
-  const [boxes, setBoxes] = useState([] as BoundingBox[]);
-  const [currentBox, setCurrentBox] = useState(null as BoundingBox | null);
-  const currentBoxRef = useRef(null as BoundingBox | null);
+  const [boxes, setBoxes] = useState<BoundingBox[]>([]);
+  const [currentBox, setCurrentBox] = useState<BoundingBox | null>(null);
+  const currentBoxRef = useRef<BoundingBox | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageError, setImageError] = useState(null as string | null);
-  const [warning, setWarning] = useState(null as string | null);
-  const [legend, setLegend] = useState([] as Array<{ key: string; label: string; color: string; isMandatory?: boolean }>);
-  const [overlayItems, setOverlayItems] = useState([] as Array<any>);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const [legend, setLegend] = useState<LegendItem[]>([]);
+  const [overlayItems, setOverlayItems] = useState<OverlayItem[]>([]);
   const [overlayLoading, setOverlayLoading] = useState(false);
   const [overlayError, setOverlayError] = useState<string | null>(null);
   const [mandatoryOnly, setMandatoryOnly] = useState(false);
@@ -135,7 +165,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const selectionEnabled = allowSelection !== false;
 
   // Zoom & Pan state
-  const viewportRef = useRef(null as HTMLDivElement | null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
   const scaleRef = useRef(1);
   const [translateX, setTranslateX] = useState(0);
@@ -151,26 +181,13 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
   // Visual Search / Split View state
   const [showResults, setShowResults] = useState(false);
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<VisualSearchResult[]>([]);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [resultsError, setResultsError] = useState<string | null>(null);
   const [splitPos, setSplitPos] = useState(60); // Percentage width of document viewer
   const [isResizing, setIsResizing] = useState(false);
   const [highlightedRegion, setHighlightedRegion] = useState<BoundingBox | null>(null);
-
-  useEffect(() => {
-    const handler = (e: any) => {
-      const { bbox, page: targetPage } = e.detail || {};
-      if (targetPage && targetPage !== page) setPage(targetPage);
-      if (bbox) {
-        setHighlightedRegion({ ...bbox, id: 'highlight' });
-        setTimeout(() => setHighlightedRegion(null), 5000);
-      }
-    };
-    window.addEventListener('overlay:highlight-region', handler as EventListener);
-    return () => window.removeEventListener('overlay:highlight-region', handler as EventListener);
-  }, [page]);
-
+  
   const MIN_SCALE = 0.5;
   const MAX_SCALE = 3;
   const SCALE_STEP = 0.1;
@@ -194,11 +211,10 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     const natH = img && img.naturalHeight ? img.naturalHeight : null;
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const utils = require('./overlay-utils');
-      const clamped = utils.clampTranslate(tx, ty, s, cw, ch, natW, natH, 'contain');
+      const clamped = utilsClampTranslate(tx, ty, s, cw, ch, natW, natH, 'contain');
       return { x: clamped.x, y: clamped.y };
-    } catch (e) {
+    } catch (_e: unknown) {
+      // Fallback logic if utils fail (though unlikely with import)
       const minX = Math.min(0, cw - cw * s);
       const maxX = 0;
       const minY = Math.min(0, ch - ch * s);
@@ -217,6 +233,46 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     setTranslateX(clamped.x);
     setTranslateY(clamped.y);
   }, [clampTranslate]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ bbox?: { x: number; y: number; width: number; height: number }; page?: number }>)?.detail || {};
+      const { bbox, page: targetPage } = detail;
+      if (targetPage && targetPage !== page) setPage(targetPage);
+      if (bbox) {
+        setHighlightedRegion({ ...bbox, id: 'highlight' });
+
+        // Zoom to region logic
+        const container = containerRef.current;
+        if (container) {
+          const cw = container.clientWidth;
+          const ch = container.clientHeight;
+          
+          const w = bbox.width;
+          const h = bbox.height;
+          // desired coverage: 0.6 (60% of viewport)
+          const desiredCoverage = 0.6;
+          // Avoid division by zero
+          const scaleX = w > 0 ? desiredCoverage / w : 1;
+          const scaleY = h > 0 ? desiredCoverage / h : 1;
+          const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min(scaleX, scaleY)));
+          
+          const cx = bbox.x + bbox.width / 2;
+          const cy = bbox.y + bbox.height / 2;
+          
+          const tx = (cw / 2) - (cx * cw * newScale);
+          const ty = (ch / 2) - (cy * ch * newScale);
+          
+          applyScale(newScale);
+          applyTranslate(tx, ty);
+        }
+
+        setTimeout(() => setHighlightedRegion(null), 5000);
+      }
+    };
+    window.addEventListener('overlay:highlight-region', handler as EventListener);
+    return () => window.removeEventListener('overlay:highlight-region', handler as EventListener);
+  }, [page, applyScale, applyTranslate]);
 
   const resetView = useCallback(() => {
     applyScale(1);
@@ -302,13 +358,13 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         const response = await fetch(`/api/visual-rag/overlays/${docId}?page=${page}`);
         if (!response.ok) throw new Error('Failed to load overlays');
         const data = await response.json();
-        const overlays = Array.isArray(data.overlays) ? data.overlays : [];
+        const overlays = (Array.isArray(data.overlays) ? data.overlays : []) as OverlayItem[];
         if (!cancelled) {
           setOverlayItems(overlays);
           const domain = overlays[0]?.domain || 'general';
           setOverlayDomain(String(domain).toLowerCase());
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!cancelled) {
           setOverlayError(err.message || 'Overlay load failed');
           setOverlayItems([]);
@@ -333,14 +389,15 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         if (cancelled) return;
         const anns = Array.isArray(data.annotations) ? data.annotations : [];
         document.dispatchEvent(new CustomEvent('annotations:loaded', { detail: { annotations: anns } }));
-      } catch (err) {
-        console.warn('Failed to load user annotations', err && err.message ? err.message : err);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn('Failed to load user annotations', msg);
       }
     };
     void loadUserAnnotations();
 
-    const saveListener = async (e: any) => {
-      const payload = e?.detail;
+    const saveListener = async (e: Event) => {
+      const payload = (e as CustomEvent)?.detail;
       if (!payload || !payload.documentId || !Array.isArray(payload.annotations)) return;
       try {
         const resp = await fetch('/manual/annotations', {
@@ -357,14 +414,15 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         if (cancelled) return;
         const created = Array.isArray(result.created) ? result.created : [];
         document.dispatchEvent(new CustomEvent('annotations:loaded', { detail: { annotations: created } }));
-      } catch (err) {
-        console.error('Annotation save failed', err && err.message ? err.message : err);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error('Annotation save failed', msg);
       }
     };
-    document.addEventListener('payload:ready', saveListener as EventListener);
+    document.addEventListener('payload:ready', saveListener as unknown as EventListener);
     return () => {
       cancelled = true;
-      document.removeEventListener('payload:ready', saveListener as EventListener);
+      document.removeEventListener('payload:ready', saveListener as unknown as EventListener);
     };
   }, [docId, page]);
 
@@ -388,8 +446,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   // Handle Visual Search requests
   useEffect(() => {
     const handler = async (e: Event) => {
-      const customEvent = e as CustomEvent;
-      const { imageBase64, collection } = customEvent.detail;
+      const customEvent = e as CustomEvent<{ imageBase64?: string; collection?: string } | undefined>;
+      const { imageBase64, collection } = customEvent?.detail || {};
       
       setResultsLoading(true);
       setResultsError(null);
@@ -410,15 +468,16 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         
         const data = await response.json();
         setResults(Array.isArray(data.results) ? data.results : []);
-      } catch (err: any) {
-        setResultsError(err.message || 'Visual search failed');
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setResultsError(msg || 'Visual search failed');
       } finally {
         setResultsLoading(false);
       }
     };
 
-    window.addEventListener('visual-search-requested', handler);
-    return () => window.removeEventListener('visual-search-requested', handler);
+    window.addEventListener('visual-search-requested', handler as unknown as EventListener);
+    return () => window.removeEventListener('visual-search-requested', handler as unknown as EventListener);
   }, []);
 
   const getRelativePosition = useCallback(
@@ -481,7 +540,9 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       const container = containerRef.current;
       const img = imageRef.current;
       if (!container || !img) return;
-      if (!imageLoaded && !imageError) return;
+      if (!imageLoaded && !imageError) {
+          return;
+      }
 
       try {
         const canvas = document.createElement('canvas');
@@ -527,7 +588,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         if (eventName === 'visual-search-requested' && onRegionSelected) {
           onRegionSelected(base64, box);
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.error('Failed to capture region:', err);
         setWarning('Failed to capture selection. Please try again.');
       }
@@ -577,8 +638,13 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     setBoxes((prev: BoundingBox[]) => [...prev, normalizedBox]);
     currentBoxRef.current = null;
     setCurrentBox(null);
-    captureRegion(normalizedBox, 'visual-search-requested');
-  }, [captureRegion, getRelativePosition]);
+    
+    if (mode === 'draw') {
+      captureRegion(normalizedBox, 'overlay:draw-complete');
+    } else {
+      captureRegion(normalizedBox, 'visual-search-requested');
+    }
+  }, [captureRegion, getRelativePosition, mode]);
 
   const removeBox = useCallback((boxId: string) => {
     setBoxes((prev: BoundingBox[]) => prev.filter((b: BoundingBox) => b.id !== boxId));
@@ -744,7 +810,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const visibleOverlays = useMemo(() => {
     if (!overlayItems || overlayItems.length === 0) return [];
     if (!mandatoryOnly) return overlayItems;
-    return overlayItems.filter((o: any) => o.isMandatory);
+    return overlayItems.filter((o: OverlayItem) => o.isMandatory);
   }, [overlayItems, mandatoryOnly]);
 
   useEffect(() => {
@@ -823,7 +889,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                 <input
                   type="checkbox"
                   checked={mandatoryOnly}
-                  onChange={(e: any) => setMandatoryOnly(e.target.checked)}
+                  onChange={(e: Event) => setMandatoryOnly((e.target as HTMLInputElement).checked)}
                 />
                 Mandatory only
               </label>
@@ -934,7 +1000,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                   data-testid="document-image"
                   draggable={false}
                   crossOrigin="anonymous"
-                  onDragStart={(e: any) => e.preventDefault()}
+                  onDragStart={(e: Event) => e.preventDefault()}
                 />
               ) : null}
 
@@ -959,7 +1025,23 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                 </div>
               )}
 
-              {overlayMode === 'document' && visibleOverlays.map((overlay: any, idx: number) => {
+              {suggestions.map((item, idx) => {
+                const box = normalizeOverlayBox(item.boundingBox);
+                if (!box) return null;
+                return (
+                  <div
+                    key={`ghost-${idx}`}
+                    data-testid="overlay-ghost-box"
+                    data-label={item.label}
+                    className={`${styles.overlayBox} [--box-left:${box.left}%] [--box-top:${box.top}%] [--box-width:${box.width}%] [--box-height:${box.height}%] border-dashed border-2 border-gray-400 bg-gray-100/20`}
+                    title={item.label || 'Suggestion'}
+                  >
+                    {item.label && <span className="absolute -top-5 left-0 text-xs bg-gray-200 text-gray-700 px-1 rounded">{item.label}</span>}
+                  </div>
+                );
+              })}
+
+              {overlayMode === 'document' && visibleOverlays.map((overlay: OverlayItem, idx: number) => {
                 const box = normalizeOverlayBox(overlay.boundingBox);
                 if (!box) return null;
                 const color = overlay.color || '#2563eb';
@@ -1016,8 +1098,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                     // OR we modify captureRegion to return the data and we navigate here.
                     // But captureRegion is void.
                     // Let's rely on a global listener in ManualWorkspaceIsland or just add a one-off listener here.
-                    const onSend = (e: any) => {
-                      const { imageBase64, bbox, page, documentId } = e.detail;
+                    const onSend = (e: Event) => {
+                      const { imageBase64, bbox, page, documentId } = (e as CustomEvent).detail || {};
                       const context = { type: 'visual', data: { imageBase64, bbox, page }, documentId };
                       window.location.href = `/chat?context=${encodeURIComponent(JSON.stringify(context))}`;
                     };
@@ -1089,7 +1171,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                     </div>
                  )}
                  
-                 {results.map((result, idx) => (
+                 {results.map((result: VisualSearchResult, idx: number) => (
                     <div
                        key={idx}
                        className="group border border-gray-200 rounded-lg overflow-hidden hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer bg-white"

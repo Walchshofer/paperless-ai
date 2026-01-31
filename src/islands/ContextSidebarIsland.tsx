@@ -1,6 +1,6 @@
 import { h } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
-import ManualEditorIsland from './ManualEditorIsland';
+import { useEffect, useState, useRef } from 'preact/hooks';
+import SmartMetadataIsland from './SmartMetadataIsland';
 import DocumentContentIsland from './DocumentContentIsland';
 import ChatWorkspaceIsland from './ChatWorkspaceIsland';
 
@@ -10,7 +10,18 @@ const STORAGE_KEY = 'paperless:context-sidebar.activeTab';
 
 export default function ContextSidebarIsland(props: any) {
   const initial = (typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem(STORAGE_KEY)) || props.activeTab || 'metadata';
-  const [activeTab, setActiveTab] = useState<TabKey>(initial as TabKey);
+  const [activeTab, setActiveTab] = useState(initial as TabKey);
+
+  // Refs for tab buttons so we can set string attributes for ARIA at runtime (axe-friendly)
+  const tabRefs = useRef({} as Record<TabKey, HTMLButtonElement | null>);
+
+  // Sync pressed state to DOM attributes (string) for accessibility
+  useEffect(() => {
+    tabs.forEach((t) => {
+      const el = tabRefs.current[t.key];
+      if (el) el.setAttribute('aria-pressed', String(activeTab === t.key));
+    });
+  }, [activeTab]);
 
   // Allow tests to override admin state via global for deterministic E2E checks
   const isAdmin = Boolean(props.isAdmin || (typeof window !== 'undefined' && (window as any).__TEST_IS_ADMIN === true));
@@ -55,8 +66,8 @@ export default function ContextSidebarIsland(props: any) {
           <button
             key={t.key}
             role="tab"
-            aria-pressed={activeTab === t.key}
             data-testid={t.testid}
+            ref={(el: HTMLButtonElement | null) => { tabRefs.current[t.key] = el; }}
             className={`flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium ${activeTab === t.key ? 'border-b-2 border-copper text-copper' : 'text-[#888]'}`}
             onClick={() => setActiveTab(t.key)}
           >
@@ -69,11 +80,10 @@ export default function ContextSidebarIsland(props: any) {
       <div className="p-4 overflow-auto flex-1">
         {activeTab === 'metadata' && (
           <div data-testid="tab-panel-metadata">
-            <ManualEditorIsland
+            <SmartMetadataIsland
               documentId={props.document?.id}
               metadata={props.document}
-              content={props.document?.content}
-              fields={props.visual?.fields}
+              customFields={props.document?.customFields || props.visual?.fields}
             />
           </div>
         )}

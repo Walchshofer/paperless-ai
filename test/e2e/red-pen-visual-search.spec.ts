@@ -90,8 +90,8 @@ test.describe('Red Pen Visual Search Flow', () => {
     // Set up event listener before drawing
     const eventPromise = page.evaluate(() => {
       return new Promise((resolve) => {
-        window.addEventListener('visual-search-requested', (e: any) => {
-          resolve(e.detail);
+        window.addEventListener('visual-search-requested', (e: Event) => {
+          resolve((e as CustomEvent).detail);
         });
         // Timeout after 10 seconds
         setTimeout(() => resolve(null), 10000);

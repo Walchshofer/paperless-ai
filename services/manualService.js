@@ -1,7 +1,6 @@
+const fs = require('fs');
+const os = require('os');
 const {
-    calculateTokens, 
-    calculateTotalPromptTokens, 
-    truncateToTokenLimit, 
     writePromptToFile,
     appendFilenameFormat
 } = require('./serviceUtils');
@@ -9,7 +8,6 @@ const axios = require('axios');
 const OpenAI = require('openai');
 const config = require('../config/config');
 const AzureOpenAI = require('openai').AzureOpenAI;
-const emptyVar = null;
 
 class ManualService {
     constructor() {
@@ -79,17 +77,17 @@ class ManualService {
         let jsonContent = response.choices[0].message.content;
         jsonContent = jsonContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         
-        const parsedResponse = JSON.parse(jsonContent);
+        let parsedResponse;
         try {
             parsedResponse = JSON.parse(jsonContent);
             fs.appendFile('./logs/response.txt', jsonContent, (err) => {
-                if (err) throw err;
+                if (err) console.error('Failed to write response log:', err);
             });
         } catch (error) {
             console.error('Failed to parse JSON response:', error);
             throw new Error('Invalid JSON response from API');
         }
-        
+
         if (!Array.isArray(parsedResponse.tags) || typeof parsedResponse.correspondent !== 'string') {
             throw new Error('Invalid response structure');
         }
@@ -127,17 +125,17 @@ class ManualService {
         let jsonContent = response.choices[0].message.content;
         jsonContent = jsonContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         
-        const parsedResponse = JSON.parse(jsonContent);
+        let parsedResponse;
         try {
             parsedResponse = JSON.parse(jsonContent);
             fs.appendFile('./logs/response.txt', jsonContent, (err) => {
-                if (err) throw err;
+                if (err) console.error('Failed to write response log:', err);
             });
         } catch (error) {
             console.error('Failed to parse JSON response:', error);
             throw new Error('Invalid JSON response from API');
         }
-        
+
         if (!Array.isArray(parsedResponse.tags) || typeof parsedResponse.correspondent !== 'string') {
             throw new Error('Invalid response structure');
         }

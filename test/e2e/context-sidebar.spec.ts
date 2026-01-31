@@ -35,7 +35,10 @@ test.describe('ContextSidebarIsland E2E', () => {
     // Initially metadata tab should be visible
     await expect(page.locator('[data-testid="tab-metadata"]')).toBeVisible();
     await expect(page.locator('[data-testid="tab-panel-metadata"]')).toBeVisible();
-    await expect(page.locator('[data-testid="manual-editor-island-root"]')).toBeVisible();
+    // SmartMetadata should mount in modern workspace; fall back to ManualEditor for older pages
+    const smRoot = page.locator('[data-testid="smart-metadata-root"]');
+    const manualRoot = page.locator('[data-testid="manual-editor-island-root"]');
+    await expect((await smRoot.count()) ? smRoot : manualRoot).toBeVisible();
 
     // Switch to Content
     await page.click('[data-testid="tab-content"]');

@@ -12,10 +12,11 @@ import { ExpertModelsSettingsSchema } from '../ui/contracts/Settings.ExpertModel
 export default function ExpertModelsIsland(props: Partial<ExpertModelsSettings>) {
   const validated = ExpertModelsSettingsSchema.parse(props);
 
-  const [activeTab, setActiveTab] = useState<'medical' | 'financial' | 'legal'>('medical');
+  type ExpertTab = 'medical' | 'financial' | 'legal';
+  const [activeTab, setActiveTab] = useState('medical' as ExpertTab);
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState(null as string | null);
 
   // Expert pipeline toggle
   const [expertPipelineEnabled, setExpertPipelineEnabled] = useState(validated.expertPipelineEnabled || true);
@@ -43,6 +44,27 @@ export default function ExpertModelsIsland(props: Partial<ExpertModelsSettings>)
       return () => clearTimeout(timer);
     }
   }, [saveMessage]);
+
+  // Hydrate from localStorage if present (client-side persistence fallback)
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem('expert-models-settings');
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (saved.medicalVision) setMedicalVision(saved.medicalVision);
+        if (saved.medicalAnalysis) setMedicalAnalysis(saved.medicalAnalysis);
+        if (saved.medicalRadiology) setMedicalRadiology(saved.medicalRadiology);
+        if (saved.financialAnalysis) setFinancialAnalysis(saved.financialAnalysis);
+        if (saved.financialReasoning) setFinancialReasoning(saved.financialReasoning);
+        if (saved.financialVision) setFinancialVision(saved.financialVision);
+        if (saved.financialVatExpert) setFinancialVatExpert(saved.financialVatExpert);
+        if (saved.legalVision) setLegalVision(saved.legalVision);
+        if (saved.legalAnalysis) setLegalAnalysis(saved.legalAnalysis);
+        if (saved.legalOrchestrator) setLegalOrchestrator(saved.legalOrchestrator);
+        if (typeof saved.expertPipelineEnabled === 'boolean') setExpertPipelineEnabled(Boolean(saved.expertPipelineEnabled));
+      }
+    } catch (err) { /* ignore */ }
+  }, []);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -149,7 +171,7 @@ export default function ExpertModelsIsland(props: Partial<ExpertModelsSettings>)
               id="expert-pipeline-toggle"
               type="checkbox"
               checked={expertPipelineEnabled}
-              onChange={(e) => {
+              onChange={(e: Event) => {
                 setExpertPipelineEnabled((e.target as HTMLInputElement).checked);
                 markDirty();
               }}
@@ -217,7 +239,7 @@ export default function ExpertModelsIsland(props: Partial<ExpertModelsSettings>)
                   id="medical-vision"
                   type="text"
                   value={medicalVision}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setMedicalVision((e.target as HTMLInputElement).value);
                     markDirty();
                   }}
@@ -236,7 +258,7 @@ export default function ExpertModelsIsland(props: Partial<ExpertModelsSettings>)
                   id="medical-analysis"
                   type="text"
                   value={medicalAnalysis}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setMedicalAnalysis((e.target as HTMLInputElement).value);
                     markDirty();
                   }}
@@ -255,7 +277,7 @@ export default function ExpertModelsIsland(props: Partial<ExpertModelsSettings>)
                   id="medical-radiology"
                   type="text"
                   value={medicalRadiology}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setMedicalRadiology((e.target as HTMLInputElement).value);
                     markDirty();
                   }}
@@ -284,7 +306,7 @@ export default function ExpertModelsIsland(props: Partial<ExpertModelsSettings>)
                   id="financial-analysis"
                   type="text"
                   value={financialAnalysis}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setFinancialAnalysis((e.target as HTMLInputElement).value);
                     markDirty();
                   }}
@@ -303,7 +325,7 @@ export default function ExpertModelsIsland(props: Partial<ExpertModelsSettings>)
                   id="financial-reasoning"
                   type="text"
                   value={financialReasoning}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setFinancialReasoning((e.target as HTMLInputElement).value);
                     markDirty();
                   }}
@@ -322,7 +344,7 @@ export default function ExpertModelsIsland(props: Partial<ExpertModelsSettings>)
                   id="financial-vision"
                   type="text"
                   value={financialVision}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setFinancialVision((e.target as HTMLInputElement).value);
                     markDirty();
                   }}
@@ -341,7 +363,7 @@ export default function ExpertModelsIsland(props: Partial<ExpertModelsSettings>)
                   id="financial-vat"
                   type="text"
                   value={financialVatExpert}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setFinancialVatExpert((e.target as HTMLInputElement).value);
                     markDirty();
                   }}
@@ -370,7 +392,7 @@ export default function ExpertModelsIsland(props: Partial<ExpertModelsSettings>)
                   id="legal-vision"
                   type="text"
                   value={legalVision}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setLegalVision((e.target as HTMLInputElement).value);
                     markDirty();
                   }}
@@ -389,7 +411,7 @@ export default function ExpertModelsIsland(props: Partial<ExpertModelsSettings>)
                   id="legal-analysis"
                   type="text"
                   value={legalAnalysis}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setLegalAnalysis((e.target as HTMLInputElement).value);
                     markDirty();
                   }}
@@ -408,7 +430,7 @@ export default function ExpertModelsIsland(props: Partial<ExpertModelsSettings>)
                   id="legal-orchestrator"
                   type="text"
                   value={legalOrchestrator}
-                  onChange={(e) => {
+                  onChange={(e: Event) => {
                     setLegalOrchestrator((e.target as HTMLInputElement).value);
                     markDirty();
                   }}

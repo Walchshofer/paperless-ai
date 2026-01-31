@@ -1,5 +1,5 @@
 import { h } from 'preact';
-import { useState, useMemo, useCallback } from 'preact/hooks';
+import { useState, useMemo, useCallback, useEffect } from 'preact/hooks';
 
 interface DocumentSummary {
   id: number;
@@ -21,7 +21,7 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
   const filteredDocuments = useMemo(() => {
     if (!searchTerm) return props.availableDocuments;
     const term = searchTerm.toLowerCase();
-    return props.availableDocuments.filter(doc => 
+    return props.availableDocuments.filter((doc: DocumentSummary) => 
       (doc.title || '').toLowerCase().includes(term) || 
       (doc.original_filename || '').toLowerCase().includes(term) ||
       String(doc.id).includes(term)
@@ -48,6 +48,29 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
       handleNavigate(props.availableDocuments[currentIndex + 1].id);
     }
   }, [currentIndex, props.availableDocuments, handleNavigate]);
+
+  // Listen for workspace-wide events to update a visual unsaved indicator
+  useEffect(() => {
+    const onDirty = (e: Event) => {
+      const d = (e as CustomEvent)?.detail || {};
+      if (d && (d.documentId === props.documentId || props.documentId == null)) {
+        const root = document.querySelector('[data-testid="document-context-bar-root"]');
+        if (root) root.setAttribute('data-status', 'unsaved');
+      }
+    };
+    const onSaved = (_e: Event) => {
+      const root = document.querySelector('[data-testid="document-context-bar-root"]');
+      if (root) root.setAttribute('data-status', 'saved');
+    };
+
+    window.addEventListener('workspace:dirty', onDirty as EventListener);
+    window.addEventListener('sync:success', onSaved as EventListener);
+
+    return () => {
+      window.removeEventListener('workspace:dirty', onDirty as EventListener);
+      window.removeEventListener('sync:success', onSaved as EventListener);
+    };
+  }, [props.documentId]);
 
   const getStatusBadge = () => {
     switch (props.status) {
@@ -99,7 +122,7 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
                     placeholder="Search documents..."
                     className="w-full pl-9 pr-4 py-2 bg-white border border-[#e5e0d8] rounded-lg text-sm focus:outline-none focus:border-[#b87333] transition-colors"
                     value={searchTerm}
-                    onInput={(e: any) => setSearchOpen(e.target.value)}
+                    onInput={(e: Event) => setSearchOpen((e.target as HTMLInputElement).value)}
                     autoFocus
                     data-testid="document-search-input"
                   />
@@ -107,7 +130,7 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
               </div>
               <div className="max-h-[400px] overflow-y-auto p-1">
                 {filteredDocuments.length > 0 ? (
-                  filteredDocuments.map(doc => (
+                  filteredDocuments.map((doc: DocumentSummary) => (
                     <button
                       key={doc.id}
                       onClick={() => handleNavigate(doc.id)}

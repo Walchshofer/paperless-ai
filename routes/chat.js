@@ -191,7 +191,7 @@ router.get('/chat/init', async (req, res) => {
       const ModelResolutionService = require('../services/ModelResolutionService');
       const ok = await ModelResolutionService.validateModel(provider, model);
       if (!ok) {
-        return res.status(400).json({ error: `Model \"${model}\" is not available for provider \"${provider}\"` });
+        return res.status(400).json({ error: `Model "${model}" is not available for provider "${provider}"` });
       }
     }
 
@@ -394,7 +394,7 @@ router.get('/chat/init/:documentId', async (req, res) => {
         const ModelResolutionService = require('../services/ModelResolutionService');
         const ok = await ModelResolutionService.validateModel(provider, model);
         if (!ok) {
-          return res.status(400).json({ error: `Model \"${model}\" is not available for provider \"${provider}\"` });
+          return res.status(400).json({ error: `Model "${model}" is not available for provider "${provider}"` });
         }
       }
 

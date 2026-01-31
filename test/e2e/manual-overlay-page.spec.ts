@@ -89,13 +89,13 @@ test('OverlayViewer updates page when manual preview page changes (smoke)', asyn
           </div>
           <div data-testid="overlay-container"></div>
         `;
-        const islandAnchor = document.querySelector('[data-island="overlay-viewer-island"]');
-        islandAnchor.appendChild(root);
+        const islandAnchor = document.querySelector('[data-island="overlay-viewer-island"]') as HTMLElement | null;
+        if (islandAnchor) islandAnchor.appendChild(root);
 
         // Attach a simple event listener to respond to overlay:document-changed events
         window.addEventListener('overlay:document-changed', (e) => {
-          const d = (e && e.detail) || {};
-          const resolvedOriginal = d.originalUrl || d.original_url || '';
+          const d = ((e as any) && (e as any).detail) || {};
+          const resolvedOriginal = d.originalUrl || d.original_url || ''; 
           const curRoot = document.querySelector('[data-testid="overlay-viewer-root"]');
           if (!curRoot) return;
           curRoot.setAttribute('data-original-url', resolvedOriginal || '');
@@ -108,25 +108,25 @@ test('OverlayViewer updates page when manual preview page changes (smoke)', asyn
             img.setAttribute('data-testid','document-image');
             img.setAttribute('draggable','false');
             img.setAttribute('crossorigin','anonymous');
-            img.style.maxWidth = '100%';
+            (img as HTMLImageElement).style.maxWidth = '100%';
             container.appendChild(img);
           }
-          if (resolvedOriginal) img.src = resolvedOriginal + (resolvedOriginal.includes('?') ? '&' : '?') + 'page=' + (d.page || 1);
-          else if (d.documentId) img.src = '/documents/' + d.documentId + '/download/original/?page=' + (d.page || 1);
+          if (resolvedOriginal) (img as HTMLImageElement).src = resolvedOriginal + (resolvedOriginal.includes('?') ? '&' : '?') + 'page=' + (d.page || 1);
+          else if (d.documentId) (img as HTMLImageElement).src = '/documents/' + d.documentId + '/download/original/?page=' + (d.page || 1);
         });
 
         // Attach click handlers for next/prev controls so synthetic toolbar is interactive in tests
         const nextBtn = root.querySelector('[data-testid="overlay-next-page"]');
         const prevBtn = root.querySelector('[data-testid="overlay-prev-page"]');
         if (nextBtn) nextBtn.addEventListener('click', () => {
-          const current = (root.querySelector('[data-testid="overlay-page-indicator"]') || root.querySelector('span')).textContent || 'Page 1';
-          const match = current.match(/Page\s+(\d+)/);
+          const current = (root.querySelector('[data-testid="overlay-page-indicator"]') || root.querySelector('span'))?.textContent || 'Page 1';
+          const match = (current as string).match(/Page\s+(\d+)/);
           const cur = match ? Number(match[1]) : 1;
           window.dispatchEvent(new CustomEvent('overlay:document-changed', { detail: { documentId: 42, page: cur + 1, originalUrl: root.getAttribute('data-original-url') || '/documents/42/download/original/' } }));
         });
         if (prevBtn) prevBtn.addEventListener('click', () => {
-          const current = (root.querySelector('[data-testid="overlay-page-indicator"]') || root.querySelector('span')).textContent || 'Page 1';
-          const match = current.match(/Page\s+(\d+)/);
+          const current = (root.querySelector('[data-testid="overlay-page-indicator"]') || root.querySelector('span'))?.textContent || 'Page 1';
+          const match = (current as string).match(/Page\s+(\d+)/);
           const cur = match ? Number(match[1]) : 1;
           window.dispatchEvent(new CustomEvent('overlay:document-changed', { detail: { documentId: 42, page: Math.max(1, cur - 1), originalUrl: root.getAttribute('data-original-url') || '/documents/42/download/original/' } }));
         });
@@ -143,15 +143,15 @@ test('OverlayViewer updates page when manual preview page changes (smoke)', asyn
   await page.evaluate(() => {
     (window as any).__overlay_events = [];
     window.addEventListener('overlay:document-changed', (e) => {
-      (window as any).__overlay_events.push(e && e.detail ? e.detail : null);
+      (window as any).__overlay_events.push((e as any) && (e as any).detail ? (e as any).detail : null);
     });
 
     // Test-only helper: if the overlay island does not render an image in the real app (integration gap),
     // attach a lightweight DOM handler to show a preview image and set a data attr so E2E can assert behavior.
     const root = document.querySelector('[data-testid="overlay-viewer-root"]');
-    if (root && !root.__e2e_overlay_helper_attached) {
+    if (root && !(root as any).__e2e_overlay_helper_attached) {
       window.addEventListener('overlay:document-changed', (e) => {
-        const d = (e && e.detail) || {};
+        const d = ((e as any) && (e as any).detail) || {};
         const resolvedOriginal = d.originalUrl || d.original_url || '';
         root.setAttribute('data-original-url', resolvedOriginal || '');
 
@@ -166,11 +166,11 @@ test('OverlayViewer updates page when manual preview page changes (smoke)', asyn
           img.setAttribute('data-testid','document-image');
           img.setAttribute('draggable','false');
           img.setAttribute('crossorigin','anonymous');
-          img.style.maxWidth = '100%';
+          (img as HTMLImageElement).style.maxWidth = '100%';
           container.appendChild(img);
         }
-        if (resolvedOriginal) img.src = resolvedOriginal + (resolvedOriginal.includes('?') ? '&' : '?') + 'page=' + (d.page || 1);
-        else if (d.documentId) img.src = '/documents/' + d.documentId + '/download/original/?page=' + (d.page || 1);
+if (resolvedOriginal) (img as HTMLImageElement).src = resolvedOriginal + (resolvedOriginal.includes('?') ? '&' : '?') + 'page=' + (d.page || 1);
+          else if (d.documentId) (img as HTMLImageElement).src = '/documents/' + d.documentId + '/download/original/?page=' + (d.page || 1);
       });
       (root as any).__e2e_overlay_helper_attached = true;
     }
@@ -266,7 +266,7 @@ test('OverlayViewer updates page when manual preview page changes (smoke)', asyn
     try {
       await nextBtn.click();
     } catch (e) {
-      await page.evaluate(() => { const el = document.querySelector('[data-testid="overlay-next-page"]'); if (el && typeof el.click === 'function') el.click(); });
+      await page.evaluate(() => { const el = document.querySelector('[data-testid="overlay-next-page"]'); if (el && typeof (el as any).click === 'function') (el as any).click(); });
     }
 
     const pageInd = page.locator('[data-testid="overlay-page-indicator"]');
@@ -283,7 +283,7 @@ test('OverlayViewer updates page when manual preview page changes (smoke)', asyn
     try {
       await prevBtn.click();
     } catch (e) {
-      await page.evaluate(() => { const el = document.querySelector('[data-testid="overlay-prev-page"]'); if (el && typeof el.click === 'function') el.click(); });
+      await page.evaluate(() => { const el = document.querySelector('[data-testid="overlay-prev-page"]'); if (el && typeof (el as any).click === 'function') (el as any).click(); });
     }
 
     if ((await pageInd.count()) > 0) {
