@@ -325,13 +325,13 @@ test.describe('Settings Phase 2 Integration Tests', () => {
 
     await page.evaluate(() => {
       document.addEventListener('settings:changed', () => {
-        (window as unknown as { logEvent?: (name: string) => void }).logEvent?.('settings:changed');
+        (window as unknown as { logEvent?: (_: string) => void }).logEvent?.('settings:changed');
       });
       document.addEventListener('settings:restart-required', () => {
-        (window as unknown as { logEvent?: (name: string) => void }).logEvent?.('settings:restart-required');
+        (window as unknown as { logEvent?: (_: string) => void }).logEvent?.('settings:restart-required');
       });
       document.addEventListener('settings:saved', () => {
-        (window as unknown as { logEvent?: (name: string) => void }).logEvent?.('settings:saved');
+        (window as unknown as { logEvent?: (_: string) => void }).logEvent?.('settings:saved');
       });
     });
 
