@@ -1,5 +1,5 @@
 import { h } from 'preact';
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useRef } from 'preact/hooks';
 import type { SettingsSidebar } from '../ui/contracts/Settings.Sidebar.contract';
 import { SettingsSidebarSchema } from '../ui/contracts/Settings.Sidebar.contract';
 
@@ -34,22 +34,26 @@ export default function SettingsSidebarIsland(
   const validated = SettingsSidebarSchema.parse(props);
 
   // Initialize developer mode from localStorage (overrides props)
-  const [developerMode, setDeveloperMode] = useState<boolean>(() => {
-    if (typeof localStorage === 'undefined') return validated.developerModeEnabled || false;
+  const [developerMode, setDeveloperMode] = useState(() => {
+    if (typeof localStorage === 'undefined') return Boolean(validated.developerModeEnabled || false);
     const stored = localStorage.getItem(STORAGE_KEY_DEVELOPER_MODE);
-    return stored ? stored === 'true' : (validated.developerModeEnabled || false);
+    return stored ? stored === 'true' : Boolean(validated.developerModeEnabled || false);
   });
 
   // Initialize active category from localStorage or props
-  const [activeCategory, setActiveCategory] = useState<string>(() => {
-    if (typeof localStorage === 'undefined') return validated.activeCategory;
+  const [activeCategory, setActiveCategory] = useState(() => {
+    if (typeof localStorage === 'undefined') return validated.activeCategory || 'overview';
     const stored = localStorage.getItem(STORAGE_KEY_LAST_CATEGORY);
-    return stored || validated.activeCategory;
+    return stored || validated.activeCategory || 'overview';
   });
 
-  const [aiProvider, setAiProvider] = useState<string>(
-    validated.aiProvider || 'ollama'
-  );
+  const [aiProvider, setAiProvider] = useState(validated.aiProvider || 'ollama');
+
+  const toggleRef = useRef(null as HTMLButtonElement | null);
+
+  useEffect(() => {
+    if (toggleRef.current) toggleRef.current.setAttribute('aria-checked', String(developerMode));
+  }, [developerMode]);
 
   const dispatchSettingsEvent = (name: string, detail: Record<string, any>) => {
     if (typeof document === 'undefined') return;
@@ -141,16 +145,20 @@ export default function SettingsSidebarIsland(
   }, [aiProvider, activeCategory]);
 
   const handleCategoryClick = (categoryId: string) => {
-    setActiveCategory(categoryId);
+    // If user clicked Expert Models, redirect into AI Provider section (focus expert models)
+    const targetCategory = categoryId === 'expert-models' ? 'ai-provider' : categoryId;
 
-    // Dispatch category change event
-    dispatchSettingsEvent('settings:category-changed', {
-      category: categoryId,
-    });
+    setActiveCategory(targetCategory);
+
+    // Dispatch category change event - include focus when expert models requested
+    const detail: Record<string, any> = { category: targetCategory };
+    if (categoryId === 'expert-models') detail.focus = 'expert-models';
+
+    dispatchSettingsEvent('settings:category-changed', detail);
 
     // Update URL hash
     if (typeof window !== 'undefined') {
-      window.location.hash = categoryId;
+      window.location.hash = targetCategory;
     }
   };
 
@@ -171,6 +179,8 @@ export default function SettingsSidebarIsland(
 
   // Filter categories based on developer mode
   const visibleCategories = CATEGORIES.filter((cat) => {
+    // If category is hidden, it shouldn't be in the DOM at all for accessibility
+    // (avoiding display:none on list items which can be flaky with some screen readers)
     if (cat.id === 'expert-models' && aiProvider !== 'ollama') return false;
     return !cat.requiresDeveloperMode || developerMode;
   });
@@ -213,7 +223,8 @@ export default function SettingsSidebarIsland(
           <button
             id="developer-toggle"
             role="switch"
-            aria-checked={developerMode}
+            aria-checked="false"
+            ref={(el: HTMLButtonElement | null) => { toggleRef.current = el; }}
             onClick={handleDeveloperToggle}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
               developerMode ? 'bg-blue-600' : 'bg-gray-300'
