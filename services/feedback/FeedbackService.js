@@ -29,7 +29,7 @@ function readEnvFallback(key) {
     if (process.env[key] !== undefined && process.env[key] !== '') return process.env[key];
     try {
         const envPath = path.join(process.cwd(), 'data', '.env');
-        /* istanbul ignore next */ 
+        // Non-fatal: env fallback file may not exist in some environments; handle gracefully
         if (!require('fs').existsSync(envPath)) return undefined;
         const content = require('fs').readFileSync(envPath, 'utf8');
         const lines = content.split(/\r?\n/);

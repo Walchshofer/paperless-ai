@@ -11,7 +11,7 @@ function dispatchEventSafe(name: string, detail?: unknown) {
 
 export default function ViewModeToggleIsland(props: Partial<ViewModeToggleContract>) {
   // Runtime validate props
-  const validated = ViewModeToggleSchema.parse(props);
+  const _validated = ViewModeToggleSchema.parse(props);
 
   const [mode, setMode] = useState((props.mode || 'text') as 'text' | 'visual');
   const [visualEnabled, setVisualEnabled] = useState(props.visualEnabled !== false);

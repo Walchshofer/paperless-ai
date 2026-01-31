@@ -1,4 +1,4 @@
-/* eslint-env mocha */
+
 const assert = require('assert');
 const { VisualQueryExecutor } = require('../../services/experts/VisualQueryExecutor');
 const { VisualQueryGenerator } = require('../../services/experts/VisualQueryGenerator');

@@ -1,4 +1,4 @@
-/* eslint-env mocha */
+
 const assert = require('assert');
 const http = require('http');
 const express = require('express');

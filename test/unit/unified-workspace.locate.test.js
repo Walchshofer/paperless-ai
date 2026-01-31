@@ -1,4 +1,4 @@
-/* eslint-env mocha */
+
 const assert = require('assert');
 const { render, cleanup } = require('@testing-library/preact');
 const { h } = require('preact');

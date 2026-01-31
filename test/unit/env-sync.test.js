@@ -16,7 +16,6 @@ describe('env sync', function () {
     let ran = false;
     // Debug: ensure we are targeting the expected destination (should be repo root /.env)
     // This log is temporary to diagnose CI shell differences
-    /* istanbul ignore next */
     process.stderr.write('[env-sync test] root=' + root + ' src=' + src + ' dst=' + dst + ' src_exists=' + fs.existsSync(src) + ' dst_exists_before=' + fs.existsSync(dst) + "\n");
     try {
       execSync(`bash ${syncScript}`, { cwd: root, stdio: 'pipe' });
@@ -73,7 +72,6 @@ describe('env sync', function () {
 
     // If the source docker-compose.env exists, we expect the generated .env to contain resolved project keys
     // Debugging info: emit the presence flags so test runs can be diagnosed in CI
-    /* istanbul ignore next */
     process.stderr.write(`[env-sync test] flags: src_exists=${fs.existsSync(src)} has_INDEX=${/INDEX_DIR/.test(contents)} has_MEDIA=${/MEDIA_DIR/.test(contents)} has_VISUAL_INDEX=${/VISUAL_RAG_INDEX_NAME/.test(contents) || /DEFAULT_INDEX_NAME/.test(contents)}\n`);
     if (fs.existsSync(src)) {
       // If the generated .env is missing any of the required keys (e.g., the sync

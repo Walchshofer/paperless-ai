@@ -673,21 +673,20 @@ class PasswordManager {
 
 // Initialize everything when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    /* eslint-disable no-unused-vars */
-    const tabManager = new TabManager();
+    // Intentionally keep instances to initialize behavior; prefix with underscore to acknowledge unused variables
+    const _tabManager = new TabManager();
     // ThemeManager is now handled by shared-utilities.js (if included)
     // But setup.ejs does not include shared-utilities.js yet.
     // Wait, I planned to add it.
-    const formManager = new FormManager();
-    const tagsManager = new TagsManager();
-    const promptTagsManager = new PromptTagsManager();
-    const promptManager = new PromptManager();
-    const passwordManager = new PasswordManager();
-    /* eslint-enable no-unused-vars */
+    const _formManager = new FormManager();
+    const _tagsManager = new TagsManager();
+    const _promptTagsManager = new PromptTagsManager();
+    const _promptManager = new PromptManager();
+    const _passwordManager = new PasswordManager();
 });
 
 // Initialize textarea newlines
-document.addEventListener('DOMContentLoaded', (event) => {
+document.addEventListener('DOMContentLoaded', (_event) => {
     const systemPromptTextarea = document.getElementById('systemPrompt');
     systemPromptTextarea.value = systemPromptTextarea.value.replace(/\\n/g, '\n');
 });
@@ -809,6 +808,9 @@ function removeCustomField(button) {
         }
     });
 }
+
+// Make function available to inline onclick handlers in EJS templates so it's not flagged as unused
+if (typeof window !== 'undefined') window.removeCustomField = removeCustomField;
 
 // Fix form submission
 document.addEventListener('DOMContentLoaded', function() {

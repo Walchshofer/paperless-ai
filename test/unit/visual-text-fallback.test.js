@@ -1,4 +1,4 @@
-/* eslint-env mocha */
+
 const assert = require('assert');
 const { ExpertPipelineExecutor } = require('../../services/experts/ExpertPipelineExecutor');
 

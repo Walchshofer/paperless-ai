@@ -31,7 +31,7 @@ function normalizeName(name) { return (name||'').toLowerCase().replace(/[_\s]+/g
 (async function main(){
   try {
     const registry = JSON.parse(fs.readFileSync(path.join(__dirname,'..','config','schemas','fieldRegistry.json'),'utf8'));
-    const fields = registry.fields || {};
+    const _fields = registry.fields || {};
 
     const monetaryTargets = ['invoice_amount','invoice_vat','invoice_net','total_gross','total_net','contract_value'];
 
@@ -69,7 +69,7 @@ function normalizeName(name) { return (name||'').toLowerCase().replace(/[_\s]+/g
       groups[k].push(f);
     }
 
-    for (const [k, list] of Object.entries(groups)) {
+    for (const [_k, list] of Object.entries(groups)) {
       if (list.length <= 1) continue;
       // sort by document_count desc (keep the one with documents), then by id asc
       list.sort((a,b) => (b.document_count - a.document_count) || (a.id - b.id));

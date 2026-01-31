@@ -72,7 +72,7 @@ interface BoundingBox {
   height: number;
 }
 
-interface OverlayViewerProps extends Partial<OverlayViewerContract> {
+export interface OverlayViewerProps extends Partial<OverlayViewerContract> {
   onRegionSelected?: (imageBase64: string, bbox: BoundingBox) => void;
   overlayMode?: 'none' | 'document';
   showLegend?: boolean;
@@ -347,7 +347,12 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           if (area > 20000000) {
             setWarning('Large document image detected. Rendering may be slow.');
           }
-        } catch (e) { /* ignore */ }
+        } catch (err: unknown) {
+          // Do not silently swallow — log for observability and continue
+          const msg = err instanceof Error ? err.message : String(err);
+          // Warn instead of throwing to avoid breaking image load
+          console.warn('[OverlayViewerIsland] Failed to compute image area for warning detection:', msg);
+        }
       }
       setImageLoaded(true);
     };
@@ -448,8 +453,13 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         if (!resp.ok) throw new Error('Legend not available');
         const data = await resp.json();
         if (!cancelled) setLegend(Array.isArray(data) ? data : []);
-      } catch (err) {
-        if (!cancelled) setLegend([]);
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : String(err);
+          // Log the legend fetch failure for debugging and metrics
+          console.warn('[OverlayViewerIsland] Failed to load legend:', msg);
+          setLegend([]);
+        }
       }
     };
     void loadLegend();

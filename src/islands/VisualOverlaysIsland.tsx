@@ -39,32 +39,14 @@ interface FetchError extends Error {
   code?: string;
 }
 
-// Simple in-memory cache with TTL (ms)
+
+
 const overlayCache: Map<string, { ts: number; data: Overlay[] }> = new Map();
 export const CACHE_TTL = 1000 * 60 * 5; // 5 minutes
 
-/**
- * ms - Simple millisecond parser/formatter fallback
- * In case the 'ms' library is missing from the bundle runtime
- */
-export function ms(val: string | number): number {
-  if (typeof val === 'number') return val;
-  const match = /^((?:\d+)?\.?\d+) *(ms|s|m|h|d|y)?$/i.exec(val);
-  if (!match) return 0;
-  const n = parseFloat(match[1]);
-  const type = (match[2] || 'ms').toLowerCase();
-  switch (type) {
-    case 'ms': return n;
-    case 's':  return n * 1000;
-    case 'm':  return n * 60000;
-    case 'h':  return n * 3600000;
-    case 'd':  return n * 86400000;
-    case 'y':  return n * 31557600000;
-    default:   return n;
-  }
-}
-
 // Debounce helper
+// ms helper implemented below (single canonical implementation).
+
 export function debounce<T extends unknown[]>(fn: (...args: T) => void, wait = 200): (...args: T) => void {
   let t: ReturnType<typeof setTimeout> | null = null;
   return (...args: T) => {
@@ -81,6 +63,32 @@ export function normalizeBoxToPixels(bbox: { x: number; y: number; width: number
     width: Math.round(bbox.width * containerWidth),
     height: Math.round(bbox.height * containerHeight),
   };
+}
+
+// Simple ms parser fallback used by tests. Accepts number or string inputs like '100', '100ms', '1s', '1m'.
+export function ms(value: string | number): number {
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new TypeError('Invalid ms value');
+    return Math.round(value);
+  }
+  if (typeof value !== 'string') throw new TypeError('Invalid ms value');
+  const v = value.trim().toLowerCase();
+  // plain number
+  const plainNumber = /^\d+$/.test(v);
+  if (plainNumber) return Math.round(Number(v));
+  // ms
+  const msMatch = v.match(/^([0-9]+(?:\.[0-9]+)?)ms$/);
+  if (msMatch) return Math.round(Number(msMatch[1]));
+  // seconds
+  const sMatch = v.match(/^([0-9]+(?:\.[0-9]+)?)s$/);
+  if (sMatch) return Math.round(Number(sMatch[1]) * 1000);
+  // minutes
+  const mMatch = v.match(/^([0-9]+(?:\.[0-9]+)?)m$/);
+  if (mMatch) return Math.round(Number(mMatch[1]) * 60 * 1000);
+  // fallback to Number parse if reasonable
+  const n = Number(v);
+  if (!Number.isNaN(n)) return Math.round(n);
+  throw new TypeError('Invalid ms value');
 }
 
 // Helper to extract visible image ids from IntersectionObserverEntry list (testable)

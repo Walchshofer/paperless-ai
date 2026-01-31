@@ -1,7 +1,7 @@
  
 'use strict';
 
-const path = require('path');
+const _path = require('path');
 
 const defaultOllamaApiUrl = 'http://host.docker.internal:11434';
 if (!process.env.OLLAMA_API_URL) {

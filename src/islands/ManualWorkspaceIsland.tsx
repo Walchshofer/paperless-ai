@@ -34,7 +34,7 @@ export default function ManualWorkspaceIsland(
   const [correspondent, setCorrespondent] = useState(props.correspondent || '');
   const [documentType, setDocumentType] = useState('');
   const [tags, setTags] = useState(props.tags || [] as Array<string | number>);
-  const [originalUrl, setOriginalUrl] = useState(props.originalUrl ?? null as string | null);
+  const [_originalUrl, setOriginalUrl] = useState(props.originalUrl ?? null as string | null);
   const [pageCount, setPageCount] = useState(props.pageCount ?? null as number | null);
   const [viewMode, setViewMode] = useState('text' as ViewMode);
   const [isLoading, setIsLoading] = useState(false);

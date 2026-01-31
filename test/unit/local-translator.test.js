@@ -1,4 +1,4 @@
-/* eslint-env mocha */
+
 const assert = require('assert');
 const LocalTranslator = require('../../services/experts/translation/LocalTranslator');
 

@@ -1,4 +1,4 @@
-/* eslint-env mocha */
+
 const assert = require('assert');
 
 const JsonRepairService = require('../../services/rag/JsonRepairService');

@@ -42,7 +42,7 @@ interface ChatInfo {
   [key: string]: unknown;
 }
 
-interface ContextSidebarProps {
+export interface ContextSidebarProps {
   activeTab?: TabKey;
   isAdmin?: boolean;
   document?: DocumentInfo;
@@ -78,8 +78,10 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
         const stored = window.localStorage.getItem(STORAGE_KEY);
         if (stored) setActiveTab(stored as TabKey);
       }
-    } catch (e) {
-      // localStorage may be disabled in some environments
+    } catch (err: unknown) {
+      // localStorage may be disabled in some environments (e.g., browser privacy mode)
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('[ContextSidebarIsland] Unable to read from localStorage:', msg);
     }
   }, []);
 
@@ -88,11 +90,19 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
       if (window && window.localStorage) {
         window.localStorage.setItem(STORAGE_KEY, activeTab);
       }
-    } catch (e) { /* ignore */ }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('[ContextSidebarIsland] Unable to write to localStorage:', msg);
+    }
   }, [activeTab]);
 
   useEffect(() => {
-    try { window.__context_sidebar_mounted = true; } catch (_e) { /* ignore */ }
+    try {
+      window.__context_sidebar_mounted = true;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('[ContextSidebarIsland] Failed to set __context_sidebar_mounted flag:', msg);
+    }
   }, []);
 
   const tabs: Array<{ key: TabKey; label: string; icon: string; testid: string }> = [

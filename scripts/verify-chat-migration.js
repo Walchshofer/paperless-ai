@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
 
-async function requireEnvOrExit(key) {
+async function _requireEnvOrExit(key) {
   const v = process.env[key];
   if (v && v !== '') return v;
   console.error(`Missing required env: ${key}`);

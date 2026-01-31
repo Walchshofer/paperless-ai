@@ -1,39 +1,36 @@
 import { h } from 'preact';
 import { render, fireEvent, screen, act, waitFor } from '@testing-library/preact';
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-// @ts-ignore
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import OverlayViewerIsland from '../../src/islands/OverlayViewerIsland';
 
 // Mock fetch
-global.fetch = vi.fn(() => Promise.resolve({
+const _mockFetchResponse: Response = {
   ok: true,
-  json: () => Promise.resolve({ annotations: [], overlays: [] }),
-  text: () => Promise.resolve('')
-} as any));
+  json: async () => ({ annotations: [], overlays: [] }) as unknown,
+  text: async () => '' as unknown,
+} as unknown as Response;
+global.fetch = vi.fn(() => Promise.resolve(_mockFetchResponse));
 
 // Mock Image to fire onload
 global.Image = class {
-  onload: any;
-  onerror: any;
+  onload: (() => void) | null = null;
+  onerror: ((err: unknown) => void) | null = null;
   naturalWidth = 1000;
   naturalHeight = 1000;
   private _src = '';
   set src(val: string) {
     this._src = val;
-    console.log('Mock Image src set', val);
     // Simulate async load
     setTimeout(() => {
-      console.log('Mock Image onload firing', !!this.onload);
       if (this.onload) this.onload();
     }, 50);
   }
   get src() { return this._src; }
-} as any;
+} as unknown as typeof Image;
 
 describe('OverlayViewerIsland (Red Pen Enhancements)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (global.fetch as any).mockClear();
   });
 
   it('zooms to region when overlay:highlight-region is received', async () => {
@@ -118,7 +115,6 @@ describe('OverlayViewerIsland (Red Pen Enhancements)', () => {
       label: 'Suggestion',
     }];
     
-    // @ts-ignore
     render(<OverlayViewerIsland documentId={1} suggestions={suggestions} />);
     
     const ghosts = screen.getAllByTestId('overlay-ghost-box');

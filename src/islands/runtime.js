@@ -712,7 +712,7 @@ const defaultRenderers = {
     // Note: Event wiring is handled in the post-mount setup in mountIslands() for JSDOM compatibility
   },
   'history-tabs-island': (el) => {
-    el.innerHTML = `\n      <div data-testid="history-tabs-root" data-hydrated="true">\n        <div role="tablist" aria-label="Document tabs" style="display:flex;gap:8px;margin-bottom:8px">\n          <button role="tab" data-testid="tab-text" aria-selected="true">Text</button>\n          <button role="tab" data-testid="tab-metadata" aria-selected="false">Metadata</button>\n          <button role="tab" data-testid="tab-similar" aria-selected="false">Similar</button>\n        </div>\n        <div data-panel="text" data-testid="panel-text">Text content unavailable</div>\n        <div data-panel="metadata" data-testid="panel-metadata" style="display:none">Metadata unavailable</div>\n        <div data-panel="similar" data-testid="panel-similar" style="display:none">\n          <div data-testid="gpu-initializing" style="display:none">GPU Initializing...</div>\n          <div data-testid="similar-results" style="display:none"></div>\n          <div data-testid="similar-empty">No similar results yet</div>\n        </div>\n      </div>\n    `;
+    el.innerHTML = `\n      <div data-testid="history-tabs-root" data-hydrated="true">\n        <div role="tablist" aria-label="Document tabs" style="display:flex;gap:8px;margin-bottom:8px">\n          <button role="tab" data-testid="tab-text" aria-selected="true">Text</button>\n          <button role="tab" data-testid="tab-metadata" aria-selected="false">Metadata</button>\n          <button role="tab" data-testid="tab-similar" aria-selected="false">Similar</button>\n        </div>\n        <div data-panel="text" data-testid="panel-text" aria-hidden="false">Text content unavailable</div>\n        <div data-panel="metadata" data-testid="panel-metadata" style="display:none" aria-hidden="true">Metadata unavailable</div>\n        <div data-panel="similar" data-testid="panel-similar" style="display:none" aria-hidden="true">\n          <div data-testid="gpu-initializing" style="display:none">GPU Initializing...</div>\n          <div data-testid="similar-results" style="display:none"></div>\n          <div data-testid="similar-empty">No similar results yet</div>\n        </div>\n      </div>\n    `;
   },
 
   'overlay-viewer-island': (el, props = {}) => {
@@ -978,6 +978,7 @@ function mountIslands(container = document) {
               panels.forEach((p,i)=>{ p.style.display = i===idx ? '' : 'none'; });
             }
             tabs.forEach((t,i)=>{ t.addEventListener('click', ()=> setActive(i)); t.addEventListener('keydown', (e)=>{ if(e.key==='ArrowLeft'){ setActive((i+tabs.length-1)%tabs.length); } if(e.key==='ArrowRight'){ setActive((i+1)%tabs.length); }}); });
+
             const save = root.querySelector('[data-testid="manual-save-btn"]');
             if (save) save.addEventListener('click', async ()=>{
               const propsRaw = (root.closest('[data-props]') && root.closest('[data-props]').getAttribute('data-props')) || '{}';
@@ -1004,6 +1005,7 @@ function mountIslands(container = document) {
                 content,
                 custom_fields,
               };
+
 
               // For the runtime fallback, we don't have initial values to diff against
               // so we just include all fields that have values
@@ -1105,6 +1107,7 @@ function mountIslands(container = document) {
               Object.entries(panels).forEach(([key, panel]) => {
                 if (!panel) return;
                 panel.style.display = key === id ? '' : 'none';
+                panel.setAttribute('aria-hidden', key === id ? 'false' : 'true');
               });
             };
             tabs.forEach((t) => {
@@ -1113,6 +1116,50 @@ function mountIslands(container = document) {
               t.addEventListener('click', () => setActive(tid));
             });
             setActive('text');
+
+            // Keyboard navigation for non-hydrated environments (JSDOM/test runtime)
+            // Supports ArrowLeft / ArrowRight and a deterministic test hook event `history-tabs:navigate`.
+            root.addEventListener('keydown', function (e) {
+              const key = (e && (e.key || e.keyCode || e.which));
+              const idx = tabs.findIndex(t => t.getAttribute('aria-selected') === 'true');
+              if (!tabs || tabs.length === 0) return;
+              if (key === 'ArrowRight' || key === 39) {
+                const next = tabs[(idx + 1) % tabs.length];
+                if (next) {
+                  const id = next.getAttribute('data-testid')?.replace('tab-', '');
+                  setActive(id);
+                  try { next.focus && next.focus(); } catch(e){}
+                }
+              } else if (key === 'ArrowLeft' || key === 37) {
+                const prev = tabs[(idx - 1 + tabs.length) % tabs.length];
+                if (prev) {
+                  const id = prev.getAttribute('data-testid')?.replace('tab-', '');
+                  setActive(id);
+                  try { prev.focus && prev.focus(); } catch(e){}
+                }
+              }
+            });
+
+            window.addEventListener('history-tabs:navigate', function (ev) {
+              const d = (ev && ev.detail) || {};
+              if (!d || !d.dir) return;
+              const idx = tabs.findIndex(t => t.getAttribute('aria-selected') === 'true');
+              if (d.dir === 'right') {
+                const next = tabs[(idx + 1) % tabs.length];
+                if (next) {
+                  const id = next.getAttribute('data-testid')?.replace('tab-', '');
+                  setActive(id);
+                  try { next.focus && next.focus(); } catch(e){}
+                }
+              } else if (d.dir === 'left') {
+                const prev = tabs[(idx - 1 + tabs.length) % tabs.length];
+                if (prev) {
+                  const id = prev.getAttribute('data-testid')?.replace('tab-', '');
+                  setActive(id);
+                  try { prev.focus && prev.focus(); } catch(e){}
+                }
+              }
+            });
 
             const gpuInit = root.querySelector('[data-testid="gpu-initializing"]');
             const resultsEl = root.querySelector('[data-testid="similar-results"]');

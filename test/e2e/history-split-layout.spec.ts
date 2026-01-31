@@ -151,6 +151,37 @@ test.describe('History Split Layout - Islands', () => {
     await expect(textTab).toHaveAttribute('aria-selected', 'true');
   });
 
+  test('keyboard navigation (ArrowRight/Left) moves focus and selects tabs', async ({ page }) => {
+    const response = await gotoHistory(page);
+
+    if (!response || response.status() >= 400) {
+      test.skip(true, `History page not available at ${HISTORY_URL}`);
+      return;
+    }
+
+    try {
+      await page.waitForSelector('[data-testid="history-tabs-root"]', { timeout: 5000 });
+    } catch {
+      test.skip(true, 'HistoryTabsIsland not hydrated - skipping keyboard test');
+      return;
+    }
+
+    const textTab = page.locator('[data-testid="tab-text"]');
+    const metadataTab = page.locator('[data-testid="tab-metadata"]');
+
+    await textTab.focus();
+    await page.keyboard.press('ArrowRight');
+
+    // Metadata tab should be selected and focused
+    await expect(metadataTab).toHaveAttribute('aria-selected', 'true');
+    await expect(metadataTab).toBeFocused();
+
+    // Press left to go back
+    await page.keyboard.press('ArrowLeft');
+    await expect(textTab).toHaveAttribute('aria-selected', 'true');
+    await expect(textTab).toBeFocused();
+  });
+
   test('visual-search-requested event triggers similar tab population', async ({ page }) => {
     const response = await gotoHistory(page);
 

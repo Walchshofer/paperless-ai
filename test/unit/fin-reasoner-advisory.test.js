@@ -1,4 +1,4 @@
-/* eslint-env mocha */
+
 /**
  * FIN_REASONER Advisory-Only Tests
  *

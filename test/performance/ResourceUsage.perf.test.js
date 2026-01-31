@@ -1,4 +1,4 @@
-/* eslint-env mocha */
+
 const assert = require('assert');
 const { VisualQueryGenerator } = require('../../services/experts/VisualQueryGenerator');
 const { PrometheusMetrics } = require('../../services/metrics/PrometheusMetrics');

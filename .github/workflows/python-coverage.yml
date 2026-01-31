@@ -35,7 +35,7 @@ jobs:
     name: Optional Serena E2E
     needs: coverage
     runs-on: ubuntu-latest
-    if: ${{ secrets.SERENA_E2E == 'true' }}
+    if: "${{ secrets.SERENA_E2E == 'true' }}"
 
     steps:
       - uses: actions/checkout@v4

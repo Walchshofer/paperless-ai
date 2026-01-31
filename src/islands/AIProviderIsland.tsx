@@ -130,7 +130,7 @@ export default function AIProviderIsland(props: AIProviderProps) {
     }, validated.autoSaveDebounceMs || 1000) as unknown as number;
   };
 
-    const handleSave = async (e: Event) => {
+    const handleSave = async () => {
     setIsSaving(true);
     setSaveMessage(null);
 
@@ -239,8 +239,8 @@ export default function AIProviderIsland(props: AIProviderProps) {
 
   // Listen for sidebar navigation focus (e.g., Expert Models shortcut)
   useEffect(() => {
-    const onNavigate = (e: Event) => {
-      const detail = (e as CustomEvent)?.detail || {};
+    const onNavigate = (_e: Event) => {
+      const detail = (_e as CustomEvent)?.detail || {};
       if (detail && detail.focus === 'expert-models') {
         setActiveTab('ollama');
         setTimeout(() => {

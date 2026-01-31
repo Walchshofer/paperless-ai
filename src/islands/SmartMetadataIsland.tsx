@@ -42,7 +42,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
   }) as { title: string; correspondent: string });
 
   const [localFields, setLocalFields] = useState(() => fields.map((f: SmartField) => ({ ...f })) as SmartField[]);
-  const [validationError, setValidationError] = useState(null as string | null);
+  const [_validationError, setValidationError] = useState(null as string | null);
 
   useEffect(() => {
     try { window.__smart_metadata_mounted = true; } catch (e) { /* ignore */ }

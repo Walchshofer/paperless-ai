@@ -1,4 +1,4 @@
-/* eslint-env mocha */
+
 /**
  * expert-pipeline.test.js
  * 

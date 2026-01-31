@@ -21,7 +21,7 @@ function dispatchEventSafe(name: string, detail?: unknown) {
 
 export default function ManualEditorIsland(props: Partial<ManualEditorContract>) {
   // Validate incoming props at runtime to avoid shape drift
-  const validated = ManualEditorSchema.parse(props);
+  const _validated = ManualEditorSchema.parse(props);
 
   const [active, setActive] = useState('metadata' as TabKeys);
   const [gpuState, setGpuState] = useState('idle' as GpuState);

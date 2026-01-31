@@ -1,4 +1,4 @@
-/* eslint-env mocha */
+
 const assert = require('assert');
 const { QdrantAdapter, COLLECTIONS } = require('../../services/visual-rag-client/QdrantAdapter');
 const HOST = process.env.QDRANT_HOST || 'localhost';

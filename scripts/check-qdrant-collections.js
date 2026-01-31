@@ -17,7 +17,7 @@
  *   1 - Checks failed
  */
 
-const { QdrantAdapter, COLLECTIONS } = require('../services/visual-rag-client/QdrantAdapter');
+const { QdrantAdapter, _COLLECTIONS } = require('../services/visual-rag-client/QdrantAdapter');
 
 async function main() {
     console.log('='.repeat(60));

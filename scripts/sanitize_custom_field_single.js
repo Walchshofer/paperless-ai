@@ -3,7 +3,7 @@
 // Requires PAPERLESS_API_URL and PAPERLESS_API_TOKEN in env
 
 const axios = require('axios');
-const path = require('path');
+const _path = require('path');
 const { normalizeCustomFieldValue } = require('../services/customFieldUtils');
 
 const PAPERLESS_API = process.env.PAPERLESS_API_URL || 'http://localhost:8000/api';

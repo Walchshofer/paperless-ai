@@ -1,4 +1,4 @@
-/* eslint-env mocha */
+
 /**
  * Validator-Driven Retry Integration Test
  *

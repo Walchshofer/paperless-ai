@@ -44,11 +44,11 @@ export default function PlaygroundIsland(props: PlaygroundProps) {
   const validated = PlaygroundSchema.parse(props);
 
   const {
-    mode,
+    mode: _mode,
     collection: initialCollection,
     gpuState: initialGpuState,
-    documentId,
-    filters: initialFilters,
+    documentId: _documentId,
+    filters: _initialFilters,
   } = validated;
   const { onSearch } = props; // callback not part of the Zod contract
 

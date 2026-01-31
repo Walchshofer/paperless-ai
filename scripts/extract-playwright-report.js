@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const zlib = require('zlib');
+const _zlib = require('zlib');
 const {execSync} = require('child_process');
 
 const indexPath = path.join(__dirname, '..', 'test-results', 'playwright-report', 'index.html');

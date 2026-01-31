@@ -1,5 +1,5 @@
 import { h } from 'preact';
-import { useState, useEffect, useRef } from 'preact/hooks';
+import { useState, useEffect } from 'preact/hooks';
 import type { ExpertModelsSettings } from '../ui/contracts/Settings.ExpertModels.contract';
 import { ExpertModelsSettingsSchema } from '../ui/contracts/Settings.ExpertModels.contract';
 
@@ -71,7 +71,7 @@ export default function ExpertModelsIsland(props: Partial<ExpertModelsSettings>)
     setSaveMessage(null);
 
     try {
-      const settings: Record<string, any> = {
+      const settings: Record<string, unknown> = {
         EXPERT_PIPELINE_ENABLED: expertPipelineEnabled ? 'yes' : 'no',
         // Medical models
         MEDICAL_VISION_MODEL: medicalVision,

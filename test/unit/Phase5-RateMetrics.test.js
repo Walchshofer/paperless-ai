@@ -1,4 +1,4 @@
-/* eslint-env mocha */
+
 const assert = require('assert');
 const client = require('prom-client');
 const { PrometheusMetrics } = require('../../services/metrics/PrometheusMetrics');

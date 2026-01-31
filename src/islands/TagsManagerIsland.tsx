@@ -11,7 +11,7 @@ function dispatchEventSafe(name: string, detail?: unknown) {
 
 export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
   // Validate props at runtime
-  const validated = TagsManagerSchema.parse(props);
+  const _validated = TagsManagerSchema.parse(props);
   const [currentTags, setCurrentTags] = useState(props.currentTags || [] as Tag[]);
   const [suggestedTags, setSuggestedTags] = useState(props.suggestedTags || [] as Tag[]);
   const [availableTags, setAvailableTags] = useState(props.availableTags || [] as Tag[]);
