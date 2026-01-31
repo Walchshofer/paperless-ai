@@ -70,6 +70,12 @@ const MAX_BACKOFF_MS = 5000;
 const HANDSHAKE_TIMEOUT_MS = 5000;
 const MAX_RETRIES = 10;
 
+declare global {
+  interface Window {
+    __visual_annotation_dirty?: boolean;
+  }
+}
+
 export default function VisualAnnotationIsland(props: Partial<VisualAnnotationContract>) {
   const [status, setStatus] = useState('idle' as GpuState);
   const [annotations, setAnnotations] = useState([] as Annotation[]);
@@ -376,7 +382,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
 
   // Mirror dirty state for coordinator to query
   useEffect(() => {
-    try { (window as any).__visual_annotation_dirty = annotations.length > 0; } catch (e) { /* ignore */ }
+    try { window.__visual_annotation_dirty = annotations.length > 0; } catch (_err) { /* ignore */ }
   }, [annotations]);
 
   // Save helper returns result so coordinator can react
@@ -459,7 +465,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
       document.dispatchEvent(new CustomEvent('payload:ready', { detail: payload }));
 
       // Success
-      try { (window as any).__visual_annotation_dirty = false; } catch (e) { /* ignore */ }
+      try { window.__visual_annotation_dirty = false; } catch (_err) { /* ignore */ }
       return { success: true };
     } catch (err: unknown) {
       const msg = (err && typeof err === 'object' && 'message' in err) ? (err as Error).message : String(err);
@@ -473,8 +479,11 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
 
   // Listen for workspace save requests and participate
   useEffect(() => {
-    async function onSaveRequest(e: any) {
-      const { saveId, documentId } = (e && (e as CustomEvent).detail) || {};
+    type SaveRequestDetail = { saveId?: string; documentId?: number | null };
+
+    async function onSaveRequest(e: Event) {
+      const detail = (e as CustomEvent<SaveRequestDetail>)?.detail || {};
+      const { saveId, documentId } = detail;
       if (String(documentId) !== String(props.documentId)) return;
       const participantId = 'visual-annotation';
       const willSave = annotations.length > 0;

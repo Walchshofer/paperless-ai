@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 
 /**
  * Alpha-9 Full Pipeline E2E Tests
@@ -13,7 +13,7 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
   const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 
   // Helper to handle login
-  async function handleLogin(page: any, targetUrl: string) {
+  async function handleLogin(page: Page, targetUrl: string) {
     const response = await page
       .goto(targetUrl, { waitUntil: 'load', timeout: 10000 })
       .catch(() => null);
@@ -71,7 +71,7 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     }
 
     // Track API request
-    let apiRequestPayload: any = null;
+    let apiRequestPayload: Record<string, unknown> | null = null;
     await page.route('**/api/visual-rag/search/visual', async (route) => {
       const request = route.request();
       apiRequestPayload = JSON.parse(request.postData() || '{}');

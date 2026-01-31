@@ -4,14 +4,16 @@ import { useEffect, useState } from 'preact/hooks';
 export default function SaveCoordinatorIsland(_props: { documentId?: number }) {
   const [active, setActive] = useState(false);
   const [progress, setProgress] = useState({ completed: 0, total: 0 });
-  const [status, setStatus] = useState<'idle'|'saving'|'success'|'failed'>('idle');
-  const [lastError, setLastError] = useState<string | null>(null);
+  // avoid generic type args on useState to satisfy TS in this environment
+  const [status, setStatus] = useState('idle' as 'idle'|'saving'|'success'|'failed');
+  const [lastError, setLastError] = useState(null as string | null);
 
   useEffect(() => {
     // import coordinator module and start it (module attaches listeners on window)
     // the coordinator module is pure-js and exposes a startCoordinator function
-    let coordinator: any = null;
+    let coordinator: { stop?: () => void; _activeSaves?: Record<string, unknown> } | null = null;
     try {
+      // use require so islands can be imported as CJS in runtime builds
       const mod = require('../lib/workspace-save-coordinator');
       coordinator = mod.startCoordinator();
     } catch (err) {
@@ -20,22 +22,29 @@ export default function SaveCoordinatorIsland(_props: { documentId?: number }) {
       return;
     }
 
-    function onBegin(e: any) {
+    type BeginDetail = { saveId?: string; documentId?: number | null; ts?: number; total?: number };
+    type ProgressDetail = { saveId?: string; documentId?: number | null; completed?: number; total?: number };
+    type FailedDetail = { saveId?: string; documentId?: number | null; errors?: unknown[] };
+
+    function onBegin(e: Event) {
+      const detail = (e as CustomEvent<BeginDetail>)?.detail || {};
       setActive(true);
       setStatus('saving');
-      setProgress({ completed: 0, total: e?.detail?.total || 0 });
+      setProgress({ completed: 0, total: detail.total || 0 });
     }
-    function onProgress(e: any) {
-      setProgress({ completed: e?.detail?.completed || 0, total: e?.detail?.total || 0 });
+    function onProgress(e: Event) {
+      const detail = (e as CustomEvent<ProgressDetail>)?.detail || {};
+      setProgress({ completed: detail.completed || 0, total: detail.total || 0 });
     }
-    function onComplete(_e: any) {
+    function onComplete(_e: Event) {
       setStatus('success');
       setActive(false);
       setTimeout(() => setStatus('idle'), 1500);
     }
-    function onFailed(e: any) {
+    function onFailed(e: Event) {
+      const detail = (e as CustomEvent<FailedDetail>)?.detail || {};
       setStatus('failed');
-      setLastError(JSON.stringify(e?.detail?.errors || {}));
+      setLastError(JSON.stringify(detail.errors || {}));
       setActive(false);
     }
 
@@ -56,16 +65,18 @@ export default function SaveCoordinatorIsland(_props: { documentId?: number }) {
   }, []);
 
   return (
-    <div data-testid="save-coordinator-root" aria-hidden={!active} className="">
+    <div data-testid="save-coordinator-root" className="">
       {active ? (
-        <div className="fixed bottom-6 right-6 bg-white border rounded-lg shadow p-3 z-50" data-testid="save-coordinator-overlay">
+        <div className="fixed bottom-6 right-6 bg-white border rounded-lg shadow p-3 z-50" data-testid="save-coordinator-overlay" aria-hidden="false">
           <div className="text-sm font-semibold">Saving progress</div>
           <div className="text-xs text-gray-500">{progress.completed}/{progress.total}</div>
           {status === 'failed' && (
             <div className="mt-2 text-xs text-red-600" role="alert" data-testid="save-coordinator-error">{lastError}</div>
           )}
         </div>
-      ) : null}
+      ) : (
+        <div aria-hidden="true" className="hidden" />
+      )}
     </div>
   );
 }

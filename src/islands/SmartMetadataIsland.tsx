@@ -32,7 +32,7 @@ function dispatchEventSafe(name: string, detail?: unknown): void {
   }
 }
 
-export default function SmartMetadataIsland(props: Partial<SmartMetadataContract & { documentId?: DocumentId }>) {
+export default function SmartMetadataIsland(props: Partial<SmartMetadataContract & { documentId?: DocumentId; saveDelayMs?: number }>) {
   const initial = props || {};
   const fields: SmartField[] = Array.isArray(initial.customFields) ? initial.customFields : [];
 
@@ -91,29 +91,35 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
 
   // Participant wiring: acknowledge save requests and attempt to save if dirty
   useEffect(() => {
-    function onSaveRequest(e: any) {
-      const { saveId, documentId } = (e && (e as CustomEvent).detail) || {};
+    type SaveRequestDetail = { saveId?: string; documentId?: number | null };
+
+    function onSaveRequest(e: Event) {
+      const detail = (e as CustomEvent<SaveRequestDetail>)?.detail || {};
+      const { saveId, documentId } = detail;
       if (String(documentId) !== String(props.documentId)) return;
       const participantId = 'smart-metadata';
-      const willSave = Boolean((window as any).__smart_metadata_dirty);
+      const willSave = Boolean(window.__smart_metadata_dirty);
+
       // Send ack
       dispatchEventSafe('workspace:save-ack', { saveId, participantId, willSave });
       if (!willSave) return;
-      const delay = (props as any).saveDelayMs || 100;
+
+      const delay = props.saveDelayMs ?? 100;
       setTimeout(() => {
         // Perform a local 'save' - assume success unless validation error present
         const success = true;
         if (success) {
-          try { (window as any).__smart_metadata_dirty = false; } catch (e) { /* ignore */ }
+          try { window.__smart_metadata_dirty = false; } catch (err) { /* ignore */ }
           dispatchEventSafe('workspace:save-partial-complete', { saveId, participantId, success: true });
         } else {
           dispatchEventSafe('workspace:save-partial-complete', { saveId, participantId, success: false, message: 'validation failed' });
         }
       }, delay);
     }
+
     window.addEventListener('workspace:save-request', onSaveRequest as EventListener);
     return () => window.removeEventListener('workspace:save-request', onSaveRequest as EventListener);
-  }, [props.documentId]);
+  }, [props.documentId, props.saveDelayMs]);
 
   return (
     <div data-testid="smart-metadata-root" className="flex flex-col gap-3">

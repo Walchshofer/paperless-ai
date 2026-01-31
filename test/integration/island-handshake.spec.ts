@@ -17,6 +17,16 @@ let dom: JSDOM;
 let window: Window & typeof globalThis;
 let document: Document;
 
+// Typed payload used in visual-search tests
+interface VisualSearchPayload {
+  imageBase64?: string;
+  collection?: string;
+  documentId?: number;
+  page?: number;
+  bbox?: { x: number; y: number; width: number; height: number };
+  filters?: Record<string, unknown>;
+}
+
 beforeEach(() => {
   dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
     url: 'http://localhost:3000',
@@ -104,10 +114,10 @@ describe('Event Bus - visual-search-requested', () => {
   });
 
   it('event includes filters when provided', () => {
-    let receivedPayload: any = null;
+    let receivedPayload: VisualSearchPayload | null = null;
 
     window.addEventListener('visual-search-requested', (e: Event) => {
-      receivedPayload = (e as CustomEvent).detail;
+      receivedPayload = (e as CustomEvent).detail as VisualSearchPayload;
     });
 
     const event = new window.CustomEvent('visual-search-requested', {
@@ -172,13 +182,13 @@ describe('Event Handler - HistoryTabs Simulation', () => {
   });
 
   it('handler parses payload correctly', () => {
-    let parsedData: any = null;
+    let parsedData: VisualSearchPayload | null = null;
 
     // Simulate HistoryTabs listener with parsing
     window.addEventListener('visual-search-requested', (e: Event) => {
-      const payload = (e as CustomEvent).detail || {};
+      const payload = (e as CustomEvent).detail || {} as VisualSearchPayload;
       const { imageBase64, collection, bbox, filters } = payload;
-      parsedData = { imageBase64, collection, bbox, filters };
+      parsedData = { imageBase64, collection, bbox, filters } as VisualSearchPayload;
     });
 
     const testPayload = {

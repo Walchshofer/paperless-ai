@@ -100,7 +100,7 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
       }
     };
 
-    const onSaveFailed = (e: Event) => {
+    const onSaveFailed = (_e: Event) => {
       // stop saving state and surface an error state (modal remains closed)
       setNavModal({ show: false, targetId: null, saving: false });
       window.removeEventListener('workspace:save-complete', onSaveComplete as EventListener);
@@ -269,7 +269,7 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
 
       {/* Navigation confirmation modal (in-page, accessible) */}
       {navModal.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" aria-hidden={!navModal.show}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" aria-hidden="false">
           <div className="absolute inset-0 bg-black opacity-50" aria-hidden="true"></div>
           <div role="dialog" aria-modal="true" aria-labelledby="nav-confirm-title" className="relative z-10 bg-white rounded-lg shadow-xl max-w-lg w-full p-6" data-testid="nav-confirm-modal">
             <h2 id="nav-confirm-title" className="text-lg font-semibold">You have unsaved changes</h2>

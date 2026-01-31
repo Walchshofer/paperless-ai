@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import { getHistoryDocId } from '../helpers/fixtures';
 
 /**
@@ -18,7 +18,7 @@ test.describe('Red Pen Visual Search Flow', () => {
   const HISTORY_DOC_ID = getHistoryDocId();
   const HISTORY_URL = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
 
-  async function gotoHistory(page: any) {
+  async function gotoHistory(page: Page) {
     const response = await page.goto(HISTORY_URL, {
       waitUntil: 'load',
       timeout: 10000

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 
 /**
  * E2E User Flow Test - Manual Route UI
@@ -14,7 +14,7 @@ import { test, expect } from '@playwright/test';
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 const MANUAL_URL = `${BASE_URL}/manual`;
 
-async function gotoManual(page: any) {
+async function gotoManual(page: Page) {
   const response = await page.goto(MANUAL_URL, {
     waitUntil: 'domcontentloaded',
     timeout: 15000
