@@ -47,7 +47,6 @@ jobs:
       - name: Load CI environment (secrets or fallback .env)
         shell: bash
         env:
-          # Explicitly map secrets to resolve "Context access might be invalid"
           SECRET_USER: ${{ secrets.POSTGRES_USER }}
           SECRET_PASS: ${{ secrets.POSTGRES_PASSWORD }}
           SECRET_DB: ${{ secrets.POSTGRES_DB }}
@@ -91,15 +90,12 @@ jobs:
         env:
           # Use the dynamic URL generated in the load step
           POSTGRES_URL: ${{ env.POSTGRES_URL }}
-        run: node scripts/check-db-schema.js || true
+        run: node scripts/check-db-schema.js
 
       - name: Run unit tests
         env:
           POSTGRES_URL: ${{ env.POSTGRES_URL }}
         run: npm test
-
-      - name: Run QdrantAdapter unit tests
-        run: npm test -- test/unit/qdrant-adapter.unit.test.js
 
       - name: Upload test artifacts
         if: failure()
