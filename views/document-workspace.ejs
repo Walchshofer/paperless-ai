@@ -31,10 +31,9 @@
                 grid-template-columns: 1fr;
             }
             .workspace-sidebar {
-                display: none; /* Mobile behavior: sidebar as overlay or separate tab */
+                display: none;
             }
         }
-        /* Archivist Atelier copper accents */
         .accent-copper { color: #b87333; }
         .bg-copper { background-color: #b87333; }
         .border-copper { border-color: #b87333; }
@@ -42,6 +41,9 @@
 </head>
 <body class="h-full bg-[#fdfaf6] text-[#2c2c2c]" data-page="document-workspace">
     <% var vm = typeof vm !== 'undefined' ? vm : {}; %>
+    <% var doc = vm.document || null; %>
+    <% var user = vm.user || {}; %>
+    <% var ui = vm.ui || {}; %>
     
     <div class="workspace-layout">
         <!-- Header -->
@@ -57,14 +59,14 @@
                     data-island="document-context-bar-island" 
                     data-testid="document-context-bar"
                     data-props="<%= JSON.stringify({ 
-                        documentId: vm.document?.id, 
-                        title: vm.document?.title,
-                        availableDocuments: vm.availableDocuments,
-                        status: vm.document?.status || 'saved'
+                        documentId: doc ? doc.id : null, 
+                        title: doc ? doc.title : null,
+                        availableDocuments: vm.availableDocuments || [],
+                        status: (doc && doc.status) ? doc.status : 'saved'
                     }) %>"
                 >
                     <h2 class="font-['Space_Grotesk'] font-medium truncate max-w-[300px]">
-                        <%= vm.document?.title || 'Select a document...' %>
+                        <%= (doc && doc.title) ? doc.title : 'Select a document...' %>
                     </h2>
                 </div>
             </div>
@@ -75,7 +77,7 @@
                 </button>
                 <div class="h-6 w-[1px] bg-[#e5e0d8] mx-2"></div>
                 <div class="flex items-center gap-2 text-sm text-[#555]">
-                    <span class="bg-[#f5f0e8] px-2 py-1 rounded font-mono text-xs"><%= vm.version %></span>
+                    <span class="bg-[#f5f0e8] px-2 py-1 rounded font-mono text-xs"><%= vm.version || '1.0.0' %></span>
                 </div>
             </div>
         </header>
@@ -84,21 +86,48 @@
         <div class="workspace-body">
             <!-- Viewer Area (1fr) -->
             <main class="relative bg-[#f5f0e8] overflow-hidden flex flex-col">
-                <!-- Workspace Island Root (Mount point for the whole internal interaction) -->
-                <div 
-                    data-island="unified-workspace-island"
-                    data-testid="unified-workspace-root"
+                <% if (doc && doc.id) { %>
+                <!-- Document Viewer with Overlay Support -->
+                <div
+                    data-island="overlay-viewer-island"
+                    data-testid="document-viewer"
                     class="h-full w-full"
-                    data-props="<%= JSON.stringify(vm) %>"
+                    data-props="<%= JSON.stringify({
+                        documentId: doc.id,
+                        page: 1,
+                        pageCount: doc.pageCount || 1,
+                        originalUrl: doc.originalUrl || null,
+                        mode: 'view',
+                        overlayMode: 'document',
+                        showLegend: false,
+                        allowSelection: true
+                    }) %>"
                 >
                     <!-- Fallback/Loading Shell -->
                     <div class="flex items-center justify-center h-full">
                         <div class="text-center">
                             <i class="fas fa-circle-notch fa-spin text-3xl text-copper mb-4"></i>
-                            <p class="font-['Space_Grotesk'] text-[#555]">Initializing Workspace...</p>
+                            <p class="font-['Space_Grotesk'] text-[#555]">Loading document...</p>
                         </div>
                     </div>
                 </div>
+                <% } else { %>
+                <!-- No Document Selected State -->
+                <div class="h-full w-full flex items-center justify-center">
+                    <div class="text-center p-8">
+                        <i class="fas fa-file-alt text-6xl text-[#e5e0d8] mb-4"></i>
+                        <h3 class="font-['Fraunces'] text-xl text-[#555] mb-2">No Document Selected</h3>
+                        <p class="font-['Space_Grotesk'] text-[#888]">Select a document from the dropdown above to view it here.</p>
+                    </div>
+                </div>
+                <% } %>
+                <!-- Hidden Unified Workspace Island for state management -->
+                <div
+                    data-island="unified-workspace-island"
+                    data-testid="unified-workspace-root"
+                    class="hidden"
+                    data-props="<%= JSON.stringify(vm) %>"
+                ></div>
             </main>
 
             <!-- Sidebar (400px) -->
@@ -108,19 +137,20 @@
                     data-testid="context-sidebar"
                     class="h-full flex flex-col"
                     data-props="<%= JSON.stringify({ 
-                        activeTab: vm.ui?.activeTab || 'metadata',
-                        document: vm.document,
-                        chat: vm.chat,
-                        visual: vm.visual,
-                        isAdmin: !!(vm.user && vm.user.isAdmin)
+                        activeTab: ui.activeTab || 'metadata',
+                        document: doc,
+                        chat: vm.chat || {},
+                        visual: vm.visual || { fields: [], overlayCount: 0 },
+                        isAdmin: !!user.isAdmin,
+                        availableDocuments: vm.availableDocuments || []
                     }) %>"
                 >
-                    <!-- Fallback Sidebar Tabs (SSr rendered for SEO/Fast paint) -->
+                    <!-- Fallback Sidebar Tabs -->
                     <div class="flex border-b border-[#e5e0d8] bg-[#fdfaf6]">
                         <button data-testid="tab-metadata" class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium border-b-2 border-copper text-copper">Metadata</button>
                         <button data-testid="tab-chat" class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium text-[#888]">Chat</button>
                         <button data-testid="tab-content" class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium text-[#888]">OCR</button>
-                        <% if (vm.user && vm.user.isAdmin) { %>
+                        <% if (user.isAdmin) { %>
                           <button data-testid="tab-debug" class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium text-[#888]">Debug</button>
                         <% } %>
                     </div>
@@ -142,11 +172,10 @@
         <i class="fas fa-bars text-xl"></i>
     </button>
 
-    <!-- Navigation Sidebar Overlay (Reusing existing sidebar logic) -->
+    <!-- Navigation Sidebar Overlay -->
     <div id="sidebarOverlay" class="sidebar-overlay"></div>
     <aside class="sidebar hidden">
-        <!-- Existing nav sidebar content for consistency -->
-        <%- include('partials/sidebar-nav', { active: 'document' }) %>
+        <%- include('partials/sidebar-nav', { active: 'workspace' }) %>
     </aside>
 
     <script src="/js/shared-utilities.js"></script>

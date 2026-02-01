@@ -1,6 +1,6 @@
 import { h } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
-import { SmartMetadataSchema, SmartMetadataContract, SmartField } from '../ui/contracts/SmartMetadata.contract';
+import { SmartMetadataSchema, SmartMetadataContract, SmartField, SmartTag } from '../ui/contracts/SmartMetadata.contract';
 
 // Strongly-typed global helpers used by tests/debug hooks
 declare global {
@@ -35,13 +35,17 @@ function dispatchEventSafe(name: string, detail?: unknown): void {
 export default function SmartMetadataIsland(props: Partial<SmartMetadataContract & { documentId?: DocumentId; saveDelayMs?: number }>) {
   const initial = props || {};
   const fields: SmartField[] = Array.isArray(initial.customFields) ? initial.customFields : [];
+  const initialTags: SmartTag[] = Array.isArray(initial.selectedTags) ? initial.selectedTags : [];
+  const availableTags: SmartTag[] = Array.isArray(initial.availableTags) ? initial.availableTags : [];
 
   const [localMetadata, setLocalMetadata] = useState(() => ({
     title: initial.metadata?.title || '',
     correspondent: initial.metadata?.correspondent || '',
-  }) as { title: string; correspondent: string });
+    createdDate: initial.metadata?.createdDate || '',
+  }) as { title: string; correspondent: string; createdDate: string });
 
   const [localFields, setLocalFields] = useState(() => fields.map((f: SmartField) => ({ ...f })) as SmartField[]);
+  const [localTags, setLocalTags] = useState(() => initialTags.map((t: SmartTag) => ({ ...t })) as SmartTag[]);
   const [validationError, setValidationError] = useState(null as string | null);
 
   useEffect(() => {
@@ -61,8 +65,8 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     dispatchEventSafe('workspace:dirty', { documentId: props.documentId ?? null } as WorkspaceDirtyDetail);
   };
 
-  const validateAndMarkDirty = (meta: { title: string; correspondent: string }, fields: SmartField[]) => {
-    const payload = { documentId: props.documentId ?? null, metadata: meta, customFields: fields };
+  const validateAndMarkDirty = (meta: { title: string; correspondent: string; createdDate: string }, fields: SmartField[], tags: SmartTag[]) => {
+    const payload = { documentId: props.documentId ?? null, metadata: meta, customFields: fields, selectedTags: tags };
     const res = SmartMetadataSchema.safeParse(payload);
     if (!res.success) {
       // expose first issue message
@@ -76,17 +80,33 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     return true;
   };
 
-  const onMetaChange = (key: 'title' | 'correspondent', val: string) => {
+  const onMetaChange = (key: 'title' | 'correspondent' | 'createdDate', val: string) => {
     // compute next state synchronously for validation
     const next = { ...localMetadata, [key]: val };
     setLocalMetadata(next);
-    validateAndMarkDirty(next, localFields);
+    validateAndMarkDirty(next, localFields, localTags);
+  };
+
+  const handleAddTag = (tagId: number): void => {
+    const tagToAdd = availableTags.find((t: SmartTag) => t.id === tagId);
+    if (!tagToAdd || localTags.some((t: SmartTag) => t.id === tagId)) return;
+    const nextTags = [...localTags, tagToAdd];
+    setLocalTags(nextTags);
+    validateAndMarkDirty(localMetadata, localFields, nextTags);
+    dispatchEventSafe('tags:updated', { documentId: props.documentId ?? null, tags: nextTags });
+  };
+
+  const handleRemoveTag = (tagId: number): void => {
+    const nextTags = localTags.filter((t: SmartTag) => t.id !== tagId);
+    setLocalTags(nextTags);
+    validateAndMarkDirty(localMetadata, localFields, nextTags);
+    dispatchEventSafe('tags:updated', { documentId: props.documentId ?? null, tags: nextTags });
   };
 
   const onFieldValueChange = (idx: number, val: string) => {
     const nextFields = localFields.map((f: SmartField, i: number) => (i === idx ? { ...f, value: val } : f));
     setLocalFields(nextFields);
-    validateAndMarkDirty(localMetadata, nextFields);
+    validateAndMarkDirty(localMetadata, nextFields, localTags);
   };
 
   // Participant wiring: acknowledge save requests and attempt to save if dirty
@@ -159,6 +179,68 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
           value={localMetadata.correspondent}
           onInput={(e: Event) => onMetaChange('correspondent', (e.target as HTMLInputElement).value)}
         />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label htmlFor="smart-date-input" className="text-xs text-[#666]">Created Date</label>
+        <input
+          id="smart-date-input"
+          type="date"
+          title="Document created date"
+          data-testid="smart-date-input"
+          className="w-full border border-[#e5e0d8] rounded-md px-3 py-2 text-sm"
+          value={localMetadata.createdDate}
+          onInput={(e: Event) => onMetaChange('createdDate', (e.target as HTMLInputElement).value)}
+        />
+      </div>
+
+      {/* Tags multi-select */}
+      <div className="flex flex-col gap-2" data-testid="tags-container">
+        <label className="text-xs text-[#666]">Tags</label>
+        <div className="flex flex-wrap gap-1 min-h-[32px]">
+          {localTags.length === 0 && (
+            <span className="text-xs text-[#888]">No tags selected</span>
+          )}
+          {localTags.map((tag: SmartTag) => (
+            <span
+              key={tag.id}
+              data-testid={`tag-chip-${tag.id}`}
+              className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs"
+              style={tag.color ? { backgroundColor: `${tag.color}20`, color: tag.color } : undefined}
+            >
+              {tag.name}
+              <button
+                type="button"
+                onClick={() => handleRemoveTag(tag.id)}
+                className="ml-1 hover:text-red-600"
+                title={`Remove ${tag.name}`}
+              >
+                <i className="fas fa-times text-[10px]"></i>
+              </button>
+            </span>
+          ))}
+        </div>
+        {availableTags.filter((t: SmartTag) => !localTags.some((lt: SmartTag) => lt.id === t.id)).length > 0 && (
+          <select
+            data-testid="add-tag-select"
+            className="w-full border border-[#e5e0d8] rounded-md px-3 py-2 text-sm"
+            onChange={(e: Event) => {
+              const val = parseInt((e.target as HTMLSelectElement).value, 10);
+              if (!isNaN(val)) {
+                handleAddTag(val);
+                (e.target as HTMLSelectElement).value = '';
+              }
+            }}
+            value=""
+          >
+            <option value="">Add a tag...</option>
+            {availableTags
+              .filter((t: SmartTag) => !localTags.some((lt: SmartTag) => lt.id === t.id))
+              .map((t: SmartTag) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+          </select>
+        )}
       </div>
 
       <div className="mt-2">

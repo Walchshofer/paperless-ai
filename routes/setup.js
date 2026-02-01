@@ -918,6 +918,7 @@ router.get('/api/dashboard/metrics', async (req, res) => {
     res.set('Cache-Control', 'no-store');
     return res.json({
       timestamp: data.lastUpdated,
+      processingStatus: data.processingStatus,
       metrics: {
         documentCount: data.paperless_data.documentCount,
         processedDocumentCount: data.paperless_data.processedDocumentCount,

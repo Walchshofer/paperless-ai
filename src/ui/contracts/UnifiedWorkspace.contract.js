@@ -62,9 +62,14 @@ const UnifiedWorkspaceSchema = z.object({
   }),
 
   ui: z.object({
-    activeTab: z.enum(['metadata', 'chat', 'ocr']).default('metadata'),
+    activeTab: z.enum(['metadata', 'content', 'chat', 'debug']).default('metadata'),
     sidebarCollapsed: z.boolean().default(false),
   }).default({}),
+
+  user: z.object({
+    username: z.string(),
+    isAdmin: z.boolean().default(false),
+  }).optional(),
 });
 
 module.exports = {

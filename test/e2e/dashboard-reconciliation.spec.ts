@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Dashboard Reconciliation', () => {
-  test.skip('should update UI when API returns newer data than inline snapshot', async ({ page }) => {
+  test('should update UI when API returns newer data than inline snapshot', async ({ page }) => {
     // 1. Navigate to dashboard to get initial state
     await page.goto('/dashboard');
     console.log('Current URL:', page.url());

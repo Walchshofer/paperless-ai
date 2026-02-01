@@ -92,8 +92,8 @@ This is the most complex page, featuring the "Visual RAG" capabilities.
     -   `DocumentOverlay`: Draws bounding boxes on top of the document image.
     -   `OrchestratorStatus`: Shows the real-time status of the AI pipeline (e.g., "Routing...", "Generating...").
 
-### 3. Dashboard (`views/dashboard.ejs` + `public/js/dashboard.js`)
-Displays system overview, recent documents, and stats.
+### 3. Dashboard (`views/dashboard.ejs` + `src/islands/DashboardChartsIsland.tsx`)
+Displays system overview, recent documents, and stats. Uses `DashboardChartsIsland` for reactive charts (Chart.js via Preact) and real-time task runner status updates.
 
 ## Component Reference (Vanilla JS & Preact Islands)
 
@@ -109,6 +109,7 @@ Displays system overview, recent documents, and stats.
 | **`DocumentContentIsland`** | Interactive document text viewer with search, highlighting, and export. | `<div data-island="document-content-island" ...>` |
 | **`ExportPanelIsland`** | Modal-based export utility for regions, text excerpts, and annotations. | `<div data-island="export-panel-island" ...>` |
 | **`VisualAnnotationIsland`** | Legacy or specific annotation tool for drawing regions with labels. | `<div data-island="visual-annotation-island" ...>` |
+| **`DashboardChartsIsland`** | Reactive Preact charts (Bar/Doughnut) and task runner status for the Dashboard. | `<div data-island="dashboard-charts-island" ...>` |
 
 ## New Features (Epic 4c9b7999)
 

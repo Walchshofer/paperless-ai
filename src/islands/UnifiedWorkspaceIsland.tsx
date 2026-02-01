@@ -222,6 +222,74 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
     };
   }, [props.document?.id]);
 
+  // Handle workspace:save-request events from DocumentContextBarIsland
+  useEffect(() => {
+    const handleSaveRequest = async (e: Event) => {
+      const detail = (e as CustomEvent<{ documentId?: number | string }>)?.detail || {};
+      const { documentId } = detail;
+      // Only handle if this workspace instance is showing the same document
+      if (String(documentId) !== String(props.document?.id)) return;
+
+      try {
+        // Call the save API
+        const response = await fetch('/manual/updateDocument', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            documentId,
+            // Include metadata from current state if available via global workspace state
+          }),
+        });
+
+        if (response.ok) {
+          window.dispatchEvent(new CustomEvent('workspace:save-complete', {
+            detail: { documentId, success: true }
+          }));
+        } else {
+          throw new Error('Save failed');
+        }
+      } catch (err) {
+        window.dispatchEvent(new CustomEvent('workspace:save-failed', {
+          detail: { documentId, error: (err as Error).message }
+        }));
+      }
+    };
+
+    window.addEventListener('workspace:save-request', handleSaveRequest as EventListener);
+    return () => window.removeEventListener('workspace:save-request', handleSaveRequest as EventListener);
+  }, [props.document?.id]);
+
+  // Handle workspace:reprocess-request events from DocumentContextBarIsland
+  useEffect(() => {
+    const handleReprocessRequest = async (e: Event) => {
+      const detail = (e as CustomEvent<{ documentId?: number | string }>)?.detail || {};
+      const { documentId } = detail;
+      // Only handle if this workspace instance is showing the same document
+      if (String(documentId) !== String(props.document?.id)) return;
+
+      try {
+        const response = await fetch(`/api/documents/${documentId}/reprocess`, {
+          method: 'POST',
+        });
+
+        if (response.ok) {
+          window.dispatchEvent(new CustomEvent('workspace:reprocess-complete', {
+            detail: { documentId, success: true }
+          }));
+        } else {
+          throw new Error('Reprocess failed');
+        }
+      } catch (err) {
+        window.dispatchEvent(new CustomEvent('workspace:reprocess-failed', {
+          detail: { documentId, error: (err as Error).message }
+        }));
+      }
+    };
+
+    window.addEventListener('workspace:reprocess-request', handleReprocessRequest as EventListener);
+    return () => window.removeEventListener('workspace:reprocess-request', handleReprocessRequest as EventListener);
+  }, [props.document?.id]);
+
   return (
     <div className="h-full w-full flex flex-col p-8">
       <div className="flex-1 border-2 border-dashed border-[#e5e0d8] rounded-lg flex items-center justify-center relative">

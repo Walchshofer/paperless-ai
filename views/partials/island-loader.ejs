@@ -1,8 +1,4 @@
-<% /* 
-  island-loader.ejs 
-  Safely initializes the island runtime with an error boundary.
-  Usage: <%- include('partials/island-loader', { bundles: ['/js/dist/extra.js'] }) %>
-*/ %>
+<% /* island-loader.ejs */ %>
 <% var bundles = typeof bundles !== 'undefined' ? bundles : []; %>
 <script type="module">
     async function initIslands() {

@@ -43,7 +43,7 @@ var require_FeedbackControlsIsland = __commonJS({
 var require_overlay_utils = __commonJS({
   "src/islands/overlay-utils.js"(exports, module) {
     "use strict";
-    function computeUnscaledFromRaw2(rawX, rawY, tx, ty, s3) {
+    function computeUnscaledFromRaw(rawX, rawY, tx, ty, s3) {
       return {
         x: (rawX - tx) / s3,
         y: (rawY - ty) / s3
@@ -85,7 +85,65 @@ var require_overlay_utils = __commonJS({
       const cy = Math.min(maxY, Math.max(minY, ty));
       return { x: cx, y: cy, contentW, contentH };
     }
-    module.exports = { computeUnscaledFromRaw: computeUnscaledFromRaw2, clampTranslate };
+    module.exports = { computeUnscaledFromRaw, clampTranslate };
+  }
+});
+
+// src/islands/OverlayViewerIsland.module.css
+var require_OverlayViewerIsland = __commonJS({
+  "src/islands/OverlayViewerIsland.module.css"(exports, module) {
+    module.exports = {
+      legendDot: "OverlayViewerIsland_legendDot",
+      documentPane: "OverlayViewerIsland_documentPane",
+      viewport: "OverlayViewerIsland_viewport",
+      overlayBox: "OverlayViewerIsland_overlayBox",
+      overlayLabel: "OverlayViewerIsland_overlayLabel",
+      highlightRegion: "OverlayViewerIsland_highlightRegion",
+      selectionBoxContainer: "OverlayViewerIsland_selectionBoxContainer",
+      resultsPanel: "OverlayViewerIsland_resultsPanel"
+    };
+  }
+});
+
+// src/lib/navigation-guard.js
+var require_navigation_guard = __commonJS({
+  "src/lib/navigation-guard.js"(exports, module) {
+    "use strict";
+    function isDocumentDirty(docId) {
+      try {
+        const wnd = typeof window !== "undefined" ? window : global.window;
+        const key = docId ? String(docId) : wnd && wnd.__currentDocumentId ? String(wnd.__currentDocumentId) : "";
+        if (!key) return false;
+        return Boolean(wnd.__workspaceState && wnd.__workspaceState[key] && wnd.__workspaceState[key].isDirty);
+      } catch (err) {
+        return false;
+      }
+    }
+    function confirmAndNavigate(href, docId) {
+      const dirty = isDocumentDirty(docId);
+      if (dirty) {
+        try {
+          if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+            window.dispatchEvent(new CustomEvent("navigation:request", { detail: { href, docId } }));
+          }
+        } catch (err) {
+          const confirmed = typeof window.confirm === "function" ? window.confirm("You have unsaved changes. Are you sure you want to leave and discard changes?") : false;
+          if (!confirmed) return false;
+          try {
+            window.location.href = href;
+          } catch (e3) {
+          }
+          return true;
+        }
+        return false;
+      }
+      try {
+        window.location.href = href;
+      } catch (err) {
+      }
+      return true;
+    }
+    module.exports = { isDocumentDirty, confirmAndNavigate };
   }
 });
 
@@ -156,13 +214,13 @@ function $() {
   $.__r = 0;
 }
 function I(n2, l3, u4, t3, i4, o3, r3, e3, f4, c3, s3) {
-  var a3, h3, y3, d3, w4, g4, _3, m3 = t3 && t3.__k || v, b3 = l3.length;
-  for (f4 = P(u4, l3, m3, f4, b3), a3 = 0; a3 < b3; a3++) null != (y3 = u4.__k[a3]) && (h3 = -1 == y3.__i ? p : m3[y3.__i] || p, y3.__i = a3, g4 = O(n2, y3, h3, i4, o3, r3, e3, f4, c3, s3), d3 = y3.__e, y3.ref && h3.ref != y3.ref && (h3.ref && B(h3.ref, null, y3), s3.push(y3.ref, y3.__c || d3, y3)), null == w4 && null != d3 && (w4 = d3), (_3 = !!(4 & y3.__u)) || h3.__k === y3.__k ? f4 = A(y3, f4, n2, _3) : "function" == typeof y3.type && void 0 !== g4 ? f4 = g4 : d3 && (f4 = d3.nextSibling), y3.__u &= -7);
+  var a3, h4, y3, d3, w4, g4, _3, m3 = t3 && t3.__k || v, b3 = l3.length;
+  for (f4 = P(u4, l3, m3, f4, b3), a3 = 0; a3 < b3; a3++) null != (y3 = u4.__k[a3]) && (h4 = -1 == y3.__i ? p : m3[y3.__i] || p, y3.__i = a3, g4 = O(n2, y3, h4, i4, o3, r3, e3, f4, c3, s3), d3 = y3.__e, y3.ref && h4.ref != y3.ref && (h4.ref && B(h4.ref, null, y3), s3.push(y3.ref, y3.__c || d3, y3)), null == w4 && null != d3 && (w4 = d3), (_3 = !!(4 & y3.__u)) || h4.__k === y3.__k ? f4 = A(y3, f4, n2, _3) : "function" == typeof y3.type && void 0 !== g4 ? f4 = g4 : d3 && (f4 = d3.nextSibling), y3.__u &= -7);
   return u4.__e = w4, f4;
 }
 function P(n2, l3, u4, t3, i4) {
-  var o3, r3, e3, f4, c3, s3 = u4.length, a3 = s3, h3 = 0;
-  for (n2.__k = new Array(i4), o3 = 0; o3 < i4; o3++) null != (r3 = l3[o3]) && "boolean" != typeof r3 && "function" != typeof r3 ? ("string" == typeof r3 || "number" == typeof r3 || "bigint" == typeof r3 || r3.constructor == String ? r3 = n2.__k[o3] = m(null, r3, null, null, null) : d(r3) ? r3 = n2.__k[o3] = m(k, { children: r3 }, null, null, null) : void 0 === r3.constructor && r3.__b > 0 ? r3 = n2.__k[o3] = m(r3.type, r3.props, r3.key, r3.ref ? r3.ref : null, r3.__v) : n2.__k[o3] = r3, f4 = o3 + h3, r3.__ = n2, r3.__b = n2.__b + 1, e3 = null, -1 != (c3 = r3.__i = L(r3, u4, f4, a3)) && (a3--, (e3 = u4[c3]) && (e3.__u |= 2)), null == e3 || null == e3.__v ? (-1 == c3 && (i4 > s3 ? h3-- : i4 < s3 && h3++), "function" != typeof r3.type && (r3.__u |= 4)) : c3 != f4 && (c3 == f4 - 1 ? h3-- : c3 == f4 + 1 ? h3++ : (c3 > f4 ? h3-- : h3++, r3.__u |= 4))) : n2.__k[o3] = null;
+  var o3, r3, e3, f4, c3, s3 = u4.length, a3 = s3, h4 = 0;
+  for (n2.__k = new Array(i4), o3 = 0; o3 < i4; o3++) null != (r3 = l3[o3]) && "boolean" != typeof r3 && "function" != typeof r3 ? ("string" == typeof r3 || "number" == typeof r3 || "bigint" == typeof r3 || r3.constructor == String ? r3 = n2.__k[o3] = m(null, r3, null, null, null) : d(r3) ? r3 = n2.__k[o3] = m(k, { children: r3 }, null, null, null) : void 0 === r3.constructor && r3.__b > 0 ? r3 = n2.__k[o3] = m(r3.type, r3.props, r3.key, r3.ref ? r3.ref : null, r3.__v) : n2.__k[o3] = r3, f4 = o3 + h4, r3.__ = n2, r3.__b = n2.__b + 1, e3 = null, -1 != (c3 = r3.__i = L(r3, u4, f4, a3)) && (a3--, (e3 = u4[c3]) && (e3.__u |= 2)), null == e3 || null == e3.__v ? (-1 == c3 && (i4 > s3 ? h4-- : i4 < s3 && h4++), "function" != typeof r3.type && (r3.__u |= 4)) : c3 != f4 && (c3 == f4 - 1 ? h4-- : c3 == f4 + 1 ? h4++ : (c3 > f4 ? h4-- : h4++, r3.__u |= 4))) : n2.__k[o3] = null;
   if (a3) for (o3 = 0; o3 < s3; o3++) null != (e3 = u4[o3]) && 0 == (2 & e3.__u) && (e3.__e == t3 && (t3 = S(e3)), D(e3, e3));
   return t3;
 }
@@ -223,30 +281,30 @@ function F(n2) {
   };
 }
 function O(n2, u4, t3, i4, o3, r3, e3, f4, c3, s3) {
-  var a3, h3, p3, v3, y3, _3, m3, b3, S2, C4, M3, $3, P4, A4, H3, L3, T4, j4 = u4.type;
+  var a3, h4, p3, v3, y3, _3, m3, b3, S2, C4, M3, $3, P4, A4, H3, L3, T4, j4 = u4.type;
   if (void 0 !== u4.constructor) return null;
   128 & t3.__u && (c3 = !!(32 & t3.__u), r3 = [f4 = u4.__e = t3.__e]), (a3 = l.__b) && a3(u4);
   n: if ("function" == typeof j4) try {
-    if (b3 = u4.props, S2 = "prototype" in j4 && j4.prototype.render, C4 = (a3 = j4.contextType) && i4[a3.__c], M3 = a3 ? C4 ? C4.props.value : a3.__ : i4, t3.__c ? m3 = (h3 = u4.__c = t3.__c).__ = h3.__E : (S2 ? u4.__c = h3 = new j4(b3, M3) : (u4.__c = h3 = new x(b3, M3), h3.constructor = j4, h3.render = E), C4 && C4.sub(h3), h3.state || (h3.state = {}), h3.__n = i4, p3 = h3.__d = true, h3.__h = [], h3._sb = []), S2 && null == h3.__s && (h3.__s = h3.state), S2 && null != j4.getDerivedStateFromProps && (h3.__s == h3.state && (h3.__s = w({}, h3.__s)), w(h3.__s, j4.getDerivedStateFromProps(b3, h3.__s))), v3 = h3.props, y3 = h3.state, h3.__v = u4, p3) S2 && null == j4.getDerivedStateFromProps && null != h3.componentWillMount && h3.componentWillMount(), S2 && null != h3.componentDidMount && h3.__h.push(h3.componentDidMount);
+    if (b3 = u4.props, S2 = "prototype" in j4 && j4.prototype.render, C4 = (a3 = j4.contextType) && i4[a3.__c], M3 = a3 ? C4 ? C4.props.value : a3.__ : i4, t3.__c ? m3 = (h4 = u4.__c = t3.__c).__ = h4.__E : (S2 ? u4.__c = h4 = new j4(b3, M3) : (u4.__c = h4 = new x(b3, M3), h4.constructor = j4, h4.render = E), C4 && C4.sub(h4), h4.state || (h4.state = {}), h4.__n = i4, p3 = h4.__d = true, h4.__h = [], h4._sb = []), S2 && null == h4.__s && (h4.__s = h4.state), S2 && null != j4.getDerivedStateFromProps && (h4.__s == h4.state && (h4.__s = w({}, h4.__s)), w(h4.__s, j4.getDerivedStateFromProps(b3, h4.__s))), v3 = h4.props, y3 = h4.state, h4.__v = u4, p3) S2 && null == j4.getDerivedStateFromProps && null != h4.componentWillMount && h4.componentWillMount(), S2 && null != h4.componentDidMount && h4.__h.push(h4.componentDidMount);
     else {
-      if (S2 && null == j4.getDerivedStateFromProps && b3 !== v3 && null != h3.componentWillReceiveProps && h3.componentWillReceiveProps(b3, M3), u4.__v == t3.__v || !h3.__e && null != h3.shouldComponentUpdate && false === h3.shouldComponentUpdate(b3, h3.__s, M3)) {
-        for (u4.__v != t3.__v && (h3.props = b3, h3.state = h3.__s, h3.__d = false), u4.__e = t3.__e, u4.__k = t3.__k, u4.__k.some(function(n3) {
+      if (S2 && null == j4.getDerivedStateFromProps && b3 !== v3 && null != h4.componentWillReceiveProps && h4.componentWillReceiveProps(b3, M3), u4.__v == t3.__v || !h4.__e && null != h4.shouldComponentUpdate && false === h4.shouldComponentUpdate(b3, h4.__s, M3)) {
+        for (u4.__v != t3.__v && (h4.props = b3, h4.state = h4.__s, h4.__d = false), u4.__e = t3.__e, u4.__k = t3.__k, u4.__k.some(function(n3) {
           n3 && (n3.__ = u4);
-        }), $3 = 0; $3 < h3._sb.length; $3++) h3.__h.push(h3._sb[$3]);
-        h3._sb = [], h3.__h.length && e3.push(h3);
+        }), $3 = 0; $3 < h4._sb.length; $3++) h4.__h.push(h4._sb[$3]);
+        h4._sb = [], h4.__h.length && e3.push(h4);
         break n;
       }
-      null != h3.componentWillUpdate && h3.componentWillUpdate(b3, h3.__s, M3), S2 && null != h3.componentDidUpdate && h3.__h.push(function() {
-        h3.componentDidUpdate(v3, y3, _3);
+      null != h4.componentWillUpdate && h4.componentWillUpdate(b3, h4.__s, M3), S2 && null != h4.componentDidUpdate && h4.__h.push(function() {
+        h4.componentDidUpdate(v3, y3, _3);
       });
     }
-    if (h3.context = M3, h3.props = b3, h3.__P = n2, h3.__e = false, P4 = l.__r, A4 = 0, S2) {
-      for (h3.state = h3.__s, h3.__d = false, P4 && P4(u4), a3 = h3.render(h3.props, h3.state, h3.context), H3 = 0; H3 < h3._sb.length; H3++) h3.__h.push(h3._sb[H3]);
-      h3._sb = [];
+    if (h4.context = M3, h4.props = b3, h4.__P = n2, h4.__e = false, P4 = l.__r, A4 = 0, S2) {
+      for (h4.state = h4.__s, h4.__d = false, P4 && P4(u4), a3 = h4.render(h4.props, h4.state, h4.context), H3 = 0; H3 < h4._sb.length; H3++) h4.__h.push(h4._sb[H3]);
+      h4._sb = [];
     } else do {
-      h3.__d = false, P4 && P4(u4), a3 = h3.render(h3.props, h3.state, h3.context), h3.state = h3.__s;
-    } while (h3.__d && ++A4 < 25);
-    h3.state = h3.__s, null != h3.getChildContext && (i4 = w(w({}, i4), h3.getChildContext())), S2 && !p3 && null != h3.getSnapshotBeforeUpdate && (_3 = h3.getSnapshotBeforeUpdate(v3, y3)), L3 = a3, null != a3 && a3.type === k && null == a3.key && (L3 = V(a3.props.children)), f4 = I(n2, d(L3) ? L3 : [L3], u4, t3, i4, o3, r3, e3, f4, c3, s3), h3.base = u4.__e, u4.__u &= -161, h3.__h.length && e3.push(h3), m3 && (h3.__E = h3.__ = null);
+      h4.__d = false, P4 && P4(u4), a3 = h4.render(h4.props, h4.state, h4.context), h4.state = h4.__s;
+    } while (h4.__d && ++A4 < 25);
+    h4.state = h4.__s, null != h4.getChildContext && (i4 = w(w({}, i4), h4.getChildContext())), S2 && !p3 && null != h4.getSnapshotBeforeUpdate && (_3 = h4.getSnapshotBeforeUpdate(v3, y3)), L3 = a3, null != a3 && a3.type === k && null == a3.key && (L3 = V(a3.props.children)), f4 = I(n2, d(L3) ? L3 : [L3], u4, t3, i4, o3, r3, e3, f4, c3, s3), h4.base = u4.__e, u4.__u &= -161, h4.__h.length && e3.push(h4), m3 && (h4.__E = h4.__ = null);
   } catch (n3) {
     if (u4.__v = null, c3 || null != r3) if (n3.then) {
       for (u4.__u |= c3 ? 160 : 128; f4 && 8 == f4.nodeType && f4.nextSibling; ) f4 = f4.nextSibling;
@@ -280,7 +338,7 @@ function V(n2) {
   return "object" != typeof n2 || null == n2 || n2.__b && n2.__b > 0 ? n2 : d(n2) ? n2.map(V) : w({}, n2);
 }
 function q(u4, t3, i4, o3, r3, e3, f4, c3, s3) {
-  var a3, h3, v3, y3, w4, _3, m3, b3 = i4.props || p, k4 = t3.props, x4 = t3.type;
+  var a3, h4, v3, y3, w4, _3, m3, b3 = i4.props || p, k4 = t3.props, x4 = t3.type;
   if ("svg" == x4 ? r3 = "http://www.w3.org/2000/svg" : "math" == x4 ? r3 = "http://www.w3.org/1998/Math/MathML" : r3 || (r3 = "http://www.w3.org/1999/xhtml"), null != e3) {
     for (a3 = 0; a3 < e3.length; a3++) if ((w4 = e3[a3]) && "setAttribute" in w4 == !!x4 && (x4 ? w4.localName == x4 : 3 == w4.nodeType)) {
       u4 = w4, e3[a3] = null;
@@ -300,8 +358,8 @@ function q(u4, t3, i4, o3, r3, e3, f4, c3, s3) {
       if ("value" == a3 && "defaultValue" in k4 || "checked" == a3 && "defaultChecked" in k4) continue;
       j(u4, a3, null, w4, r3);
     }
-    for (a3 in k4) w4 = k4[a3], "children" == a3 ? y3 = w4 : "dangerouslySetInnerHTML" == a3 ? h3 = w4 : "value" == a3 ? _3 = w4 : "checked" == a3 ? m3 = w4 : c3 && "function" != typeof w4 || b3[a3] === w4 || j(u4, a3, w4, b3[a3], r3);
-    if (h3) c3 || v3 && (h3.__html == v3.__html || h3.__html == u4.innerHTML) || (u4.innerHTML = h3.__html), t3.__k = [];
+    for (a3 in k4) w4 = k4[a3], "children" == a3 ? y3 = w4 : "dangerouslySetInnerHTML" == a3 ? h4 = w4 : "value" == a3 ? _3 = w4 : "checked" == a3 ? m3 = w4 : c3 && "function" != typeof w4 || b3[a3] === w4 || j(u4, a3, w4, b3[a3], r3);
+    if (h4) c3 || v3 && (h4.__html == v3.__html || h4.__html == u4.innerHTML) || (u4.innerHTML = h4.__html), t3.__k = [];
     else if (v3 && (u4.innerHTML = ""), I("template" == t3.type ? u4.content : u4, d(y3) ? y3 : [y3], t3, i4, o3, "foreignObject" == x4 ? "http://www.w3.org/1999/xhtml" : r3, e3, f4, e3 ? e3[0] : i4.__k && S(i4, 0), c3, s3), null != e3) for (a3 = e3.length; a3--; ) g(e3[a3]);
     c3 || (a3 = "value", "progress" == x4 && null == _3 ? u4.removeAttribute("value") : null != _3 && (_3 !== u4[a3] || "progress" == x4 && !_3 || "option" == x4 && _3 != b3[a3]) && j(u4, a3, _3, b3[a3], r3), a3 = "checked", null != m3 && m3 != u4[a3] && j(u4, a3, m3, b3[a3], r3));
   }
@@ -612,7 +670,7 @@ function VisualAnnotationIsland(props) {
         }));
         console.debug && console.debug("VisualAnnotationIsland init annotations", mapped);
         setAnnotations(mapped);
-      } catch (err) {
+      } catch (_err) {
       }
     }
   }, [props.annotations]);
@@ -847,6 +905,12 @@ function VisualAnnotationIsland(props) {
   const [isSaving, setIsSaving] = d2(false);
   const [saveError, setSaveError] = d2("");
   const [needsAuth, setNeedsAuth] = d2(false);
+  y2(() => {
+    try {
+      window.__visual_annotation_dirty = annotations.length > 0;
+    } catch (_err) {
+    }
+  }, [annotations]);
   const handleSave = async () => {
     setIsSaving(true);
     setSaveError("");
@@ -865,30 +929,46 @@ function VisualAnnotationIsland(props) {
         setSaveError("Authentication required to save annotations");
         setNeedsAuth(true);
         setIsSaving(false);
-        return;
+        return { success: false, message: "auth required" };
       }
       if (!resp.ok) throw new Error(`Save failed (${resp.status})`);
       const json = await resp.json();
       const created = Array.isArray(json.created) ? json.created : [];
       const findMatch = (local, c3) => {
-        const cb = c3.bbox || c3;
-        const cx = Number(cb.x ?? (Array.isArray(cb) ? cb[1] : 0));
-        const cy = Number(cb.y ?? (Array.isArray(cb) ? cb[0] : 0));
-        const cwidth = Number(cb.width ?? (Array.isArray(cb) ? cb[3] - cb[1] : 0));
-        const cheight = Number(cb.height ?? (Array.isArray(cb) ? cb[2] - cb[0] : 0));
+        const cb = c3.bbox || { x: 0, y: 0, width: 0, height: 0 };
+        let cx, cy, cwidth, cheight;
+        if (Array.isArray(cb)) {
+          cx = Number(cb[1] ?? 0);
+          cy = Number(cb[0] ?? 0);
+          cwidth = Number((cb[3] ?? 0) - (cb[1] ?? 0));
+          cheight = Number((cb[2] ?? 0) - (cb[0] ?? 0));
+        } else {
+          cx = Number(cb.x ?? 0);
+          cy = Number(cb.y ?? 0);
+          cwidth = Number(cb.width ?? 0);
+          cheight = Number(cb.height ?? 0);
+        }
         return Math.abs(local.x - cx) < 1e-3 && Math.abs(local.y - cy) < 1e-3 && Math.abs(local.width - cwidth) < 1e-3 && Math.abs(local.height - cheight) < 1e-3;
       };
       const newAnns = annotations.map((local) => {
         const found = created.find((c3) => findMatch(local, c3));
         if (found) {
+          const foundBbox = found.bbox;
+          let bboxX, bboxY, bboxWidth, bboxHeight;
+          if (foundBbox && !Array.isArray(foundBbox)) {
+            bboxX = foundBbox.x;
+            bboxY = foundBbox.y;
+            bboxWidth = foundBbox.width;
+            bboxHeight = foundBbox.height;
+          }
           return {
             id: found.id,
             label: local.label,
             note: local.note,
-            x: Number(found.bbox?.x ?? local.x),
-            y: Number(found.bbox?.y ?? local.y),
-            width: Number(found.bbox?.width ?? local.width),
-            height: Number(found.bbox?.height ?? local.height),
+            x: Number(bboxX ?? local.x),
+            y: Number(bboxY ?? local.y),
+            width: Number(bboxWidth ?? local.width),
+            height: Number(bboxHeight ?? local.height),
             confirmed: true,
             context: found.context || local.context
           };
@@ -897,14 +977,35 @@ function VisualAnnotationIsland(props) {
       });
       setAnnotations(newAnns);
       document.dispatchEvent(new CustomEvent("payload:ready", { detail: payload }));
+      try {
+        window.__visual_annotation_dirty = false;
+      } catch (_err) {
+      }
+      return { success: true };
     } catch (err) {
       const msg = err && typeof err === "object" && "message" in err ? err.message : String(err);
       console.error("Failed to save annotations:", msg);
       setSaveError(msg || "Failed to save annotations");
+      return { success: false, message: String(msg) };
     } finally {
       setIsSaving(false);
     }
   };
+  y2(() => {
+    async function onSaveRequest(e3) {
+      const detail = e3?.detail || {};
+      const { saveId, documentId } = detail;
+      if (String(documentId) !== String(props.documentId)) return;
+      const participantId = "visual-annotation";
+      const willSave = annotations.length > 0;
+      window.dispatchEvent(new CustomEvent("workspace:save-ack", { detail: { saveId, participantId, willSave } }));
+      if (!willSave) return;
+      const result = await handleSave();
+      window.dispatchEvent(new CustomEvent("workspace:save-partial-complete", { detail: { saveId, participantId, success: Boolean(result.success), message: result.message } }));
+    }
+    window.addEventListener("workspace:save-request", onSaveRequest);
+    return () => window.removeEventListener("workspace:save-request", onSaveRequest);
+  }, [annotations, props.documentId]);
   const handleRetry = q2(() => {
     setStatus("idle");
     setRetryCount(0);
@@ -5622,12 +5723,13 @@ var ImageSchema = external_exports.object({
   height: external_exports.number().int().positive().optional(),
   thumbnailSrc: external_exports.string().optional()
 });
+var MetadataValueSchema = external_exports.union([external_exports.string(), external_exports.number(), external_exports.boolean(), external_exports.null(), external_exports.array(external_exports.string())]);
 var OverlaySchema = external_exports.object({
   id: external_exports.string(),
   bbox: BoundingBoxNormalizedSchema,
   label: external_exports.string().optional(),
   score: external_exports.number().optional(),
-  metadata: external_exports.record(external_exports.any()).optional()
+  metadata: external_exports.record(MetadataValueSchema).optional()
 });
 var ImagesSchema = external_exports.array(ImageSchema);
 var OverlaysByImageSchema = external_exports.record(external_exports.array(OverlaySchema));
@@ -5683,7 +5785,7 @@ function dispatchEventSafe2(name, detail) {
   document.dispatchEvent(new CustomEvent(name, { detail }));
 }
 function ManualEditorIsland(props) {
-  const validated = ManualEditorSchema.parse(props);
+  const _validated = ManualEditorSchema.parse(props);
   const [active, setActive] = d2("metadata");
   const [gpuState, setGpuState] = d2("idle");
   const [syncState, setSyncState] = d2("idle");
@@ -5941,8 +6043,9 @@ function ManualEditorIsland(props) {
       }
     } catch (err) {
       setSyncState("error");
-      setSyncError(err.message || "Sync failed");
-      dispatchEventSafe2("sync:failed", { documentId, error: err.message });
+      const errorMessage = err instanceof Error ? err.message : "Sync failed";
+      setSyncError(errorMessage);
+      dispatchEventSafe2("sync:failed", { documentId, error: errorMessage });
     }
   }, [documentId, props.page, title, correspondent, documentType, content, fields, initialValues]);
   const runAiAnalysis = q2(async () => {
@@ -5961,7 +6064,8 @@ function ManualEditorIsland(props) {
       const data = await res.json();
       setAiResponse(data);
     } catch (err) {
-      setAiResponse({ error: err.message });
+      const errorMessage = err instanceof Error ? err.message : "Analysis failed";
+      setAiResponse({ error: errorMessage });
     } finally {
       setAiLoading(false);
     }
@@ -6469,20 +6573,31 @@ function ManualEditorIsland(props) {
 }
 
 // src/ui/contracts/SmartMetadata.contract.ts
+var SmartFieldValueSchema = external_exports.union([external_exports.string(), external_exports.number(), external_exports.boolean(), external_exports.array(external_exports.string())]);
 var SmartFieldSchema = external_exports.object({
   id: external_exports.union([external_exports.string(), external_exports.number()]),
   label: external_exports.string().optional(),
-  value: external_exports.any().optional(),
+  value: SmartFieldValueSchema.optional(),
   overlayId: external_exports.string().nullable().optional(),
   pageNumber: external_exports.number().nullable().optional()
+});
+var SmartTagSchema = external_exports.object({
+  id: external_exports.number().int(),
+  name: external_exports.string(),
+  color: external_exports.string().optional()
 });
 var SmartMetadataSchema = external_exports.object({
   documentId: external_exports.number().int().nullable().optional(),
   metadata: external_exports.object({
     title: external_exports.string().optional(),
-    correspondent: external_exports.string().optional()
+    correspondent: external_exports.string().optional(),
+    createdDate: external_exports.string().optional()
+    // ISO date string (YYYY-MM-DD)
   }).passthrough().optional(),
-  customFields: external_exports.array(SmartFieldSchema).optional()
+  customFields: external_exports.array(SmartFieldSchema).optional(),
+  // Tags support
+  selectedTags: external_exports.array(SmartTagSchema).optional().default([]),
+  availableTags: external_exports.array(SmartTagSchema).optional().default([])
 });
 
 // src/islands/SmartMetadataIsland.tsx
@@ -6503,11 +6618,15 @@ function dispatchEventSafe3(name, detail) {
 function SmartMetadataIsland(props) {
   const initial = props || {};
   const fields = Array.isArray(initial.customFields) ? initial.customFields : [];
+  const initialTags = Array.isArray(initial.selectedTags) ? initial.selectedTags : [];
+  const availableTags = Array.isArray(initial.availableTags) ? initial.availableTags : [];
   const [localMetadata, setLocalMetadata] = d2(() => ({
     title: initial.metadata?.title || "",
-    correspondent: initial.metadata?.correspondent || ""
+    correspondent: initial.metadata?.correspondent || "",
+    createdDate: initial.metadata?.createdDate || ""
   }));
   const [localFields, setLocalFields] = d2(() => fields.map((f4) => ({ ...f4 })));
+  const [localTags, setLocalTags] = d2(() => initialTags.map((t3) => ({ ...t3 })));
   const [validationError, setValidationError] = d2(null);
   y2(() => {
     try {
@@ -6528,8 +6647,8 @@ function SmartMetadataIsland(props) {
     }
     dispatchEventSafe3("workspace:dirty", { documentId: props.documentId ?? null });
   };
-  const validateAndMarkDirty = (meta, fields2) => {
-    const payload = { documentId: props.documentId ?? null, metadata: meta, customFields: fields2 };
+  const validateAndMarkDirty = (meta, fields2, tags) => {
+    const payload = { documentId: props.documentId ?? null, metadata: meta, customFields: fields2, selectedTags: tags };
     const res = SmartMetadataSchema.safeParse(payload);
     if (!res.success) {
       const msg = res.error?.issues?.[0]?.message || "Validation failed";
@@ -6543,14 +6662,66 @@ function SmartMetadataIsland(props) {
   const onMetaChange = (key, val) => {
     const next = { ...localMetadata, [key]: val };
     setLocalMetadata(next);
-    validateAndMarkDirty(next, localFields);
+    validateAndMarkDirty(next, localFields, localTags);
+  };
+  const handleAddTag = (tagId) => {
+    const tagToAdd = availableTags.find((t3) => t3.id === tagId);
+    if (!tagToAdd || localTags.some((t3) => t3.id === tagId)) return;
+    const nextTags = [...localTags, tagToAdd];
+    setLocalTags(nextTags);
+    validateAndMarkDirty(localMetadata, localFields, nextTags);
+    dispatchEventSafe3("tags:updated", { documentId: props.documentId ?? null, tags: nextTags });
+  };
+  const handleRemoveTag = (tagId) => {
+    const nextTags = localTags.filter((t3) => t3.id !== tagId);
+    setLocalTags(nextTags);
+    validateAndMarkDirty(localMetadata, localFields, nextTags);
+    dispatchEventSafe3("tags:updated", { documentId: props.documentId ?? null, tags: nextTags });
   };
   const onFieldValueChange = (idx, val) => {
     const nextFields = localFields.map((f4, i4) => i4 === idx ? { ...f4, value: val } : f4);
     setLocalFields(nextFields);
-    validateAndMarkDirty(localMetadata, nextFields);
+    validateAndMarkDirty(localMetadata, nextFields, localTags);
   };
+  y2(() => {
+    function onSaveRequest(e3) {
+      const detail = e3?.detail || {};
+      const { saveId, documentId } = detail;
+      if (String(documentId) !== String(props.documentId)) return;
+      const participantId = "smart-metadata";
+      const willSave = Boolean(window.__smart_metadata_dirty);
+      dispatchEventSafe3("workspace:save-ack", { saveId, participantId, willSave });
+      if (!willSave) return;
+      const delay = props.saveDelayMs ?? 100;
+      setTimeout(() => {
+        const success = validationError === null;
+        if (success) {
+          try {
+            window.__smart_metadata_dirty = false;
+          } catch (err) {
+          }
+          dispatchEventSafe3("workspace:save-partial-complete", { saveId, participantId, success: true });
+        } else {
+          dispatchEventSafe3("workspace:save-partial-complete", { saveId, participantId, success: false, message: validationError || "validation failed" });
+        }
+      }, delay);
+    }
+    window.addEventListener("workspace:save-request", onSaveRequest);
+    return () => window.removeEventListener("workspace:save-request", onSaveRequest);
+  }, [props.documentId, props.saveDelayMs, validationError]);
   return /* @__PURE__ */ u3("div", { "data-testid": "smart-metadata-root", className: "flex flex-col gap-3", children: [
+    validationError && /* @__PURE__ */ u3(
+      "div",
+      {
+        "data-testid": "validation-error",
+        className: "flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-sm text-red-700",
+        role: "alert",
+        children: [
+          /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-circle text-red-500" }),
+          /* @__PURE__ */ u3("span", { children: validationError })
+        ]
+      }
+    ),
     /* @__PURE__ */ u3("div", { className: "flex flex-col gap-2", children: [
       /* @__PURE__ */ u3("label", { htmlFor: "smart-title-input", className: "text-xs text-[#666]", children: "Title" }),
       /* @__PURE__ */ u3(
@@ -6578,6 +6749,68 @@ function SmartMetadataIsland(props) {
           className: "w-full border border-[#e5e0d8] rounded-md px-3 py-2 text-sm",
           value: localMetadata.correspondent,
           onInput: (e3) => onMetaChange("correspondent", e3.target.value)
+        }
+      )
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "flex flex-col gap-2", children: [
+      /* @__PURE__ */ u3("label", { htmlFor: "smart-date-input", className: "text-xs text-[#666]", children: "Created Date" }),
+      /* @__PURE__ */ u3(
+        "input",
+        {
+          id: "smart-date-input",
+          type: "date",
+          title: "Document created date",
+          "data-testid": "smart-date-input",
+          className: "w-full border border-[#e5e0d8] rounded-md px-3 py-2 text-sm",
+          value: localMetadata.createdDate,
+          onInput: (e3) => onMetaChange("createdDate", e3.target.value)
+        }
+      )
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "flex flex-col gap-2", "data-testid": "tags-container", children: [
+      /* @__PURE__ */ u3("label", { className: "text-xs text-[#666]", children: "Tags" }),
+      /* @__PURE__ */ u3("div", { className: "flex flex-wrap gap-1 min-h-[32px]", children: [
+        localTags.length === 0 && /* @__PURE__ */ u3("span", { className: "text-xs text-[#888]", children: "No tags selected" }),
+        localTags.map((tag) => /* @__PURE__ */ u3(
+          "span",
+          {
+            "data-testid": `tag-chip-${tag.id}`,
+            className: "inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs",
+            style: tag.color ? { backgroundColor: `${tag.color}20`, color: tag.color } : void 0,
+            children: [
+              tag.name,
+              /* @__PURE__ */ u3(
+                "button",
+                {
+                  type: "button",
+                  onClick: () => handleRemoveTag(tag.id),
+                  className: "ml-1 hover:text-red-600",
+                  title: `Remove ${tag.name}`,
+                  children: /* @__PURE__ */ u3("i", { className: "fas fa-times text-[10px]" })
+                }
+              )
+            ]
+          },
+          tag.id
+        ))
+      ] }),
+      availableTags.filter((t3) => !localTags.some((lt) => lt.id === t3.id)).length > 0 && /* @__PURE__ */ u3(
+        "select",
+        {
+          "data-testid": "add-tag-select",
+          className: "w-full border border-[#e5e0d8] rounded-md px-3 py-2 text-sm",
+          onChange: (e3) => {
+            const val = parseInt(e3.target.value, 10);
+            if (!isNaN(val)) {
+              handleAddTag(val);
+              e3.target.value = "";
+            }
+          },
+          value: "",
+          children: [
+            /* @__PURE__ */ u3("option", { value: "", children: "Add a tag..." }),
+            availableTags.filter((t3) => !localTags.some((lt) => lt.id === t3.id)).map((t3) => /* @__PURE__ */ u3("option", { value: t3.id, children: t3.name }, t3.id))
+          ]
         }
       )
     ] }),
@@ -6697,30 +6930,11 @@ function HistoryTabsIsland(props) {
       const nextIndex = (currentIndex + 1) % tabs.length;
       const next = tabs[nextIndex];
       setActiveTab(next);
-      setTimeout(() => document.getElementById(`tab-${next}`)?.focus(), 0);
     } else if (e3.key === "ArrowLeft") {
       const prevIndex = (currentIndex - 1 + tabs.length) % tabs.length;
       const prev = tabs[prevIndex];
       setActiveTab(prev);
-      setTimeout(() => document.getElementById(`tab-${prev}`)?.focus(), 0);
     }
-  }, [activeTab]);
-  y2(() => {
-    const tabs = ["text", "metadata", "similar"];
-    tabs.forEach((t3) => {
-      const tabEl = document.getElementById(`tab-${t3}`);
-      const panelEl = document.getElementById(`panel-${t3}`);
-      if (tabEl) {
-        tabEl.setAttribute("aria-selected", activeTab === t3 ? "true" : "false");
-      }
-      if (panelEl) {
-        if (activeTab === t3) {
-          panelEl.removeAttribute("aria-hidden");
-        } else {
-          panelEl.setAttribute("aria-hidden", "true");
-        }
-      }
-    });
   }, [activeTab]);
   y2(() => {
     const handleVisualSearchRequest = async (event) => {
@@ -6813,7 +7027,7 @@ function HistoryTabsIsland(props) {
   const removeFilter = (type, id) => {
     if (type === "correspondent") {
       setActiveFilters((prev) => {
-        const { correspondentId, ...rest } = prev;
+        const { correspondentId: _correspondentId, ...rest } = prev;
         return rest;
       });
     } else if (type === "tag" && id !== void 0) {
@@ -6826,6 +7040,53 @@ function HistoryTabsIsland(props) {
   const clearAllFilters = () => {
     setActiveFilters({});
   };
+  y2(() => {
+    const keys = ["text", "metadata", "similar"];
+    keys.forEach((k4) => {
+      const tab = document.getElementById(`tab-${k4}`);
+      const panel = document.getElementById(`panel-${k4}`);
+      if (tab) tab.setAttribute("aria-selected", activeTab === k4 ? "true" : "false");
+      if (panel) panel.setAttribute("aria-hidden", activeTab !== k4 ? "true" : "false");
+    });
+  }, [activeTab]);
+  y2(() => {
+    const el = document.querySelector(`[data-testid="tab-${activeTab}"]`);
+    if (el) el.focus();
+  }, [activeTab]);
+  const tablistRef = A2(null);
+  y2(() => {
+    const el = tablistRef.current;
+    if (!el) return;
+    const handler = (e3) => {
+      if (e3.key !== "ArrowRight" && e3.key !== "ArrowLeft") return;
+      const focused = document.activeElement;
+      if (!focused) return;
+      if (focused.getAttribute("role") !== "tab") return;
+      const tabs = ["text", "metadata", "similar"];
+      const currentIndex = tabs.indexOf(activeTab);
+      if (e3.key === "ArrowRight") {
+        const next = tabs[(currentIndex + 1) % tabs.length];
+        setActiveTab(next);
+      } else if (e3.key === "ArrowLeft") {
+        const prev = tabs[(currentIndex - 1 + tabs.length) % tabs.length];
+        setActiveTab(prev);
+      }
+    };
+    el.addEventListener("keydown", handler);
+    return () => el.removeEventListener("keydown", handler);
+  }, [activeTab]);
+  y2(() => {
+    const testHandler = (e3) => {
+      const d3 = e3?.detail || {};
+      if (!d3 || !d3.dir) return;
+      const tabs = ["text", "metadata", "similar"];
+      const currentIndex = tabs.indexOf(activeTab);
+      if (d3.dir === "right") setActiveTab(tabs[(currentIndex + 1) % tabs.length]);
+      if (d3.dir === "left") setActiveTab(tabs[(currentIndex - 1 + tabs.length) % tabs.length]);
+    };
+    window.addEventListener("history-tabs:navigate", testHandler);
+    return () => window.removeEventListener("history-tabs:navigate", testHandler);
+  }, [activeTab]);
   const FilterBadge = ({
     label,
     onRemove
@@ -6849,6 +7110,10 @@ function HistoryTabsIsland(props) {
         "aria-label": "Document tabs",
         "aria-orientation": "horizontal",
         className: "flex border-b border-gray-200",
+        onKeyDown: handleKeyDown,
+        ref: (el) => {
+          tablistRef.current = el;
+        },
         children: [
           /* @__PURE__ */ u3(
             "button",
@@ -6856,7 +7121,6 @@ function HistoryTabsIsland(props) {
               type: "button",
               id: `tab-text`,
               role: "tab",
-              "aria-selected": "true",
               "aria-controls": `panel-text`,
               tabIndex: activeTab === "text" ? 0 : -1,
               "data-testid": `tab-text`,
@@ -6875,7 +7139,6 @@ function HistoryTabsIsland(props) {
               type: "button",
               id: `tab-metadata`,
               role: "tab",
-              "aria-selected": "false",
               "aria-controls": `panel-metadata`,
               tabIndex: activeTab === "metadata" ? 0 : -1,
               "data-testid": `tab-metadata`,
@@ -6894,7 +7157,6 @@ function HistoryTabsIsland(props) {
               type: "button",
               id: `tab-similar`,
               role: "tab",
-              "aria-selected": "false",
               "aria-controls": `panel-similar`,
               tabIndex: activeTab === "similar" ? 0 : -1,
               "data-testid": `tab-similar`,
@@ -6946,7 +7208,6 @@ function HistoryTabsIsland(props) {
           id: "panel-text",
           "aria-labelledby": "tab-text",
           "data-testid": "panel-text",
-          "aria-hidden": "false",
           tabIndex: activeTab === "text" ? 0 : -1,
           className: activeTab === "text" ? "" : "hidden",
           children: /* @__PURE__ */ u3("div", { className: "prose prose-sm max-w-none", children: content ? /* @__PURE__ */ u3("pre", { className: "whitespace-pre-wrap text-sm text-gray-700", children: content }) : /* @__PURE__ */ u3("p", { className: "text-gray-500 italic", children: "No text content available" }) })
@@ -6959,7 +7220,6 @@ function HistoryTabsIsland(props) {
           id: "panel-metadata",
           "aria-labelledby": "tab-metadata",
           "data-testid": "panel-metadata",
-          "aria-hidden": "true",
           tabIndex: activeTab === "metadata" ? 0 : -1,
           className: activeTab === "metadata" ? "" : "hidden",
           children: /* @__PURE__ */ u3("dl", { className: "space-y-3", children: [
@@ -7022,7 +7282,6 @@ function HistoryTabsIsland(props) {
           id: "panel-similar",
           "aria-labelledby": "tab-similar",
           "data-testid": "panel-similar",
-          "aria-hidden": "true",
           tabIndex: activeTab === "similar" ? 0 : -1,
           className: activeTab === "similar" ? "" : "hidden",
           children: [
@@ -7102,10 +7361,7 @@ function HistoryTabsIsland(props) {
                           (result.score * 100).toFixed(1),
                           "%"
                         ] }),
-                        /* @__PURE__ */ u3("div", { className: "w-24 h-1.5 bg-gray-200 rounded-full mt-1", children: (() => {
-                          const pct = Math.round(result.score * 100);
-                          return /* @__PURE__ */ u3("div", { className: "h-full bg-green-500 rounded-full", style: { width: `${pct}%` } });
-                        })() })
+                        /* @__PURE__ */ u3("div", { className: "w-24 h-1.5 bg-gray-200 rounded-full mt-1 overflow-hidden", children: /* @__PURE__ */ u3("progress", { className: "similar-progress w-full h-full", value: Math.round(result.score * 100), max: 100, "aria-label": `Similarity ${Math.round(result.score * 100)}%` }) })
                       ] })
                     ] })
                   ]
@@ -7132,20 +7388,13 @@ function HistoryTabsIsland(props) {
   ] });
 }
 
-// src/islands/OverlayViewerIsland.module.css
-var OverlayViewerIsland_default = {
-  legendDot: "OverlayViewerIsland_legendDot",
-  documentPane: "OverlayViewerIsland_documentPane",
-  viewport: "OverlayViewerIsland_viewport",
-  overlayBox: "OverlayViewerIsland_overlayBox",
-  overlayLabel: "OverlayViewerIsland_overlayLabel",
-  highlightRegion: "OverlayViewerIsland_highlightRegion",
-  selectionBoxContainer: "OverlayViewerIsland_selectionBoxContainer",
-  resultsPanel: "OverlayViewerIsland_resultsPanel"
-};
-
 // src/islands/OverlayViewerIsland.tsx
 var import_overlay_utils = __toESM(require_overlay_utils());
+var styles2 = {};
+try {
+  styles2 = require_OverlayViewerIsland();
+} catch (_e) {
+}
 var MIN_SELECTION_SIZE = 20;
 var MIN_SIZE_FRACTION = 0.01;
 function OverlayViewerIsland(props) {
@@ -7163,17 +7412,17 @@ function OverlayViewerIsland(props) {
   const containerRef = A2(null);
   const canvasRef = A2(null);
   const imageRef = A2(null);
-  const [docId, setDocId] = d2(initialDocumentId || null);
+  const [docId, setDocId] = d2(initialDocumentId ?? null);
   const [page, setPage] = d2(initialPage);
-  const [originalUrl, setOriginalUrl] = d2(initialOriginalUrl || null);
+  const [originalUrl, setOriginalUrl] = d2(initialOriginalUrl ?? null);
   const [pageCount, setPageCount] = d2(props?.pageCount ?? null);
   y2(() => {
     const handler = (e3) => {
       const d3 = e3?.detail || {};
       if (d3.documentId !== void 0 && d3.documentId !== null) setDocId(d3.documentId);
       if (d3.page !== void 0 && d3.page !== null) setPage(Number(d3.page));
-      if (Object.prototype.hasOwnProperty.call(d3, "originalUrl")) setOriginalUrl(d3.originalUrl || null);
-      else if (Object.prototype.hasOwnProperty.call(d3, "original_url")) setOriginalUrl(d3.original_url || null);
+      if (Object.prototype.hasOwnProperty.call(d3, "originalUrl")) setOriginalUrl(d3.originalUrl ?? null);
+      else if (Object.prototype.hasOwnProperty.call(d3, "original_url")) setOriginalUrl(d3.original_url ?? null);
       if (Object.prototype.hasOwnProperty.call(d3, "pageCount")) setPageCount(d3.pageCount === null ? null : Number(d3.pageCount));
     };
     window.addEventListener("overlay:document-changed", handler);
@@ -7286,10 +7535,10 @@ function OverlayViewerIsland(props) {
           const cw = container.clientWidth;
           const ch = container.clientHeight;
           const w4 = bbox.width;
-          const h3 = bbox.height;
+          const h4 = bbox.height;
           const desiredCoverage = 0.6;
           const scaleX = w4 > 0 ? desiredCoverage / w4 : 1;
-          const scaleY = h3 > 0 ? desiredCoverage / h3 : 1;
+          const scaleY = h4 > 0 ? desiredCoverage / h4 : 1;
           const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min(scaleX, scaleY)));
           const cx = bbox.x + bbox.width / 2;
           const cy = bbox.y + bbox.height / 2;
@@ -7352,7 +7601,9 @@ function OverlayViewerIsland(props) {
           if (area > 2e7) {
             setWarning("Large document image detected. Rendering may be slow.");
           }
-        } catch (e3) {
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn("[OverlayViewerIsland] Failed to compute image area for warning detection:", msg);
         }
       }
       setImageLoaded(true);
@@ -7383,7 +7634,8 @@ function OverlayViewerIsland(props) {
         }
       } catch (err) {
         if (!cancelled) {
-          setOverlayError((err instanceof Error ? err.message : String(err)) || "Overlay load failed");
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          setOverlayError(errorMessage || "Overlay load failed");
           setOverlayItems([]);
         }
       } finally {
@@ -7452,7 +7704,11 @@ function OverlayViewerIsland(props) {
         const data = await resp.json();
         if (!cancelled) setLegend(Array.isArray(data) ? data : []);
       } catch (err) {
-        if (!cancelled) setLegend([]);
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn("[OverlayViewerIsland] Failed to load legend:", msg);
+          setLegend([]);
+        }
       }
     };
     void loadLegend();
@@ -7593,7 +7849,8 @@ function OverlayViewerIsland(props) {
           onRegionSelected(base64, box);
         }
       } catch (err) {
-        console.error("Failed to capture region:", err);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        console.error("Failed to capture region:", errorMessage);
         setWarning("Failed to capture selection. Please try again.");
       }
     },
@@ -7891,7 +8148,7 @@ function OverlayViewerIsland(props) {
             ] })
           ] }),
           showLegend && legend.length > 0 && /* @__PURE__ */ u3("div", { "data-testid": "overlay-legend", className: "flex flex-wrap items-center gap-2 text-xs text-gray-600", children: legend.map((item) => /* @__PURE__ */ u3("div", { className: "flex items-center gap-1", children: [
-            /* @__PURE__ */ u3("span", { className: `${OverlayViewerIsland_default.legendDot} [--dot-color:${item.color}]`, "aria-hidden": "true" }),
+            /* @__PURE__ */ u3("span", { className: `${styles2.legendDot} [--dot-color:${item.color}]`, "aria-hidden": "true" }),
             /* @__PURE__ */ u3("span", { children: item.label })
           ] }, item.key)) }),
           /* @__PURE__ */ u3("div", { className: "flex items-center gap-2 px-2", children: [
@@ -7957,7 +8214,7 @@ function OverlayViewerIsland(props) {
           /* @__PURE__ */ u3(
             "div",
             {
-              className: `${OverlayViewerIsland_default.documentPane} ${showResults ? `[--pane-width:${splitPos}%]` : `[--pane-width:100%]`}`,
+              className: `${styles2.documentPane} ${showResults ? `[--pane-width:${splitPos}%]` : `[--pane-width:100%]`}`,
               children: /* @__PURE__ */ u3(
                 "div",
                 {
@@ -7987,7 +8244,7 @@ function OverlayViewerIsland(props) {
                       {
                         ref: viewportRef,
                         "data-testid": "overlay-viewport",
-                        className: `${OverlayViewerIsland_default.viewport} [--viewport-transform:translate(${translateX}px, ${translateY}px) scale(${scale})]`,
+                        className: `${styles2.viewport} [--viewport-transform:translate(${translateX}px, ${translateY}px) scale(${scale})]`,
                         children: [
                           imageUrl && !imageError ? /* @__PURE__ */ u3(
                             "img",
@@ -8015,7 +8272,7 @@ function OverlayViewerIsland(props) {
                               {
                                 "data-testid": "overlay-ghost-box",
                                 "data-label": item.label,
-                                className: `${OverlayViewerIsland_default.overlayBox} [--box-left:${box.left}%] [--box-top:${box.top}%] [--box-width:${box.width}%] [--box-height:${box.height}%] border-dashed border-2 border-gray-400 bg-gray-100/20`,
+                                className: `${styles2.overlayBox} [--box-left:${box.left}%] [--box-top:${box.top}%] [--box-width:${box.width}%] [--box-height:${box.height}%] border-dashed border-2 border-gray-400 bg-gray-100/20`,
                                 title: item.label || "Suggestion",
                                 children: item.label && /* @__PURE__ */ u3("span", { className: "absolute -top-5 left-0 text-xs bg-gray-200 text-gray-700 px-1 rounded", children: item.label })
                               },
@@ -8030,8 +8287,8 @@ function OverlayViewerIsland(props) {
                               "div",
                               {
                                 "data-testid": "overlay-box",
-                                className: `${OverlayViewerIsland_default.overlayBox} [--box-left:${box.left}%] [--box-top:${box.top}%] [--box-width:${box.width}%] [--box-height:${box.height}%] [--box-color:${color}] [--box-bg:${color}22]`,
-                                children: /* @__PURE__ */ u3("span", { className: `${OverlayViewerIsland_default.overlayLabel} [--box-color:${color}]`, children: overlay.label || "Overlay" })
+                                className: `${styles2.overlayBox} [--box-left:${box.left}%] [--box-top:${box.top}%] [--box-width:${box.width}%] [--box-height:${box.height}%] [--box-color:${color}] [--box-bg:${color}22]`,
+                                children: /* @__PURE__ */ u3("span", { className: `${styles2.overlayLabel} [--box-color:${color}]`, children: overlay.label || "Overlay" })
                               },
                               overlay.id || `${overlay.label}-${idx}`
                             );
@@ -8041,13 +8298,13 @@ function OverlayViewerIsland(props) {
                             "div",
                             {
                               "data-testid": "overlay-highlight-region",
-                              className: `${OverlayViewerIsland_default.highlightRegion} animate-pulse [--region-left:${highlightedRegion.x * 100}%] [--region-top:${highlightedRegion.y * 100}%] [--region-width:${highlightedRegion.width * 100}%] [--region-height:${highlightedRegion.height * 100}%]`
+                              className: `${styles2.highlightRegion} animate-pulse [--region-left:${highlightedRegion.x * 100}%] [--region-top:${highlightedRegion.y * 100}%] [--region-width:${highlightedRegion.width * 100}%] [--region-height:${highlightedRegion.height * 100}%]`
                             }
                           )
                         ]
                       }
                     ),
-                    boxes.map((box, idx) => /* @__PURE__ */ u3("div", { className: `${OverlayViewerIsland_default.selectionBoxContainer} [--sel-left:${box.x}px] [--sel-top:${box.y - 24}px]`, children: [
+                    boxes.map((box, idx) => /* @__PURE__ */ u3("div", { className: `${styles2.selectionBoxContainer} [--sel-left:${box.x}px] [--sel-top:${box.y - 24}px]`, children: [
                       /* @__PURE__ */ u3("span", { className: "px-1.5 py-0.5 bg-red-600 text-white text-xs rounded", children: [
                         "Region ",
                         idx + 1
@@ -8115,7 +8372,7 @@ function OverlayViewerIsland(props) {
           showResults && /* @__PURE__ */ u3(
             "div",
             {
-              className: `${OverlayViewerIsland_default.resultsPanel} [--panel-width:${100 - splitPos}%]`,
+              className: `${styles2.resultsPanel} [--panel-width:${100 - splitPos}%]`,
               "data-testid": "visual-search-results-panel",
               children: [
                 /* @__PURE__ */ u3("div", { className: "p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50", children: [
@@ -8348,8 +8605,8 @@ function VisualOverlaysIsland(props) {
         const x4 = (ov.bbox?.x || 0) * 100;
         const y3 = (ov.bbox?.y || 0) * 100;
         const w4 = (ov.bbox?.width || 0) * 100;
-        const h3 = (ov.bbox?.height || 0) * 100;
-        return /* @__PURE__ */ u3("rect", { "data-testid": `overlay-marker-${ov.id || index}`, x: `${x4}%`, y: `${y3}%`, width: `${w4}%`, height: `${h3}%`, fill: "none", stroke: "rgba(34,197,94,0.9)", "stroke-width": "2" }, ov.id || index);
+        const h4 = (ov.bbox?.height || 0) * 100;
+        return /* @__PURE__ */ u3("rect", { "data-testid": `overlay-marker-${ov.id || index}`, x: `${x4}%`, y: `${y3}%`, width: `${w4}%`, height: `${h4}%`, fill: "none", stroke: "rgba(34,197,94,0.9)", "stroke-width": "2" }, ov.id || index);
       }) }),
       loadingMap[img.id] ? /* @__PURE__ */ u3("div", { "data-testid": `overlay-loading-${img.id}`, "aria-hidden": "true", children: "Loading overlays..." }) : null,
       errorMap2[img.id] ? /* @__PURE__ */ u3("div", { "data-testid": `overlay-error-${img.id}`, "aria-hidden": "true", children: errorMap2[img.id] }) : null
@@ -8383,12 +8640,13 @@ var SidecarStatusSchema = external_exports.object({
   lastCheck: external_exports.number().optional(),
   error: external_exports.string().optional()
 });
+var PrimitiveOrStringArray = external_exports.union([external_exports.string(), external_exports.number(), external_exports.boolean(), external_exports.null(), external_exports.array(external_exports.string())]);
 var SearchResultSchema = external_exports.object({
   docId: external_exports.number().int(),
   score: external_exports.number(),
   pageNum: external_exports.number().int().optional(),
   thumbnailUrl: external_exports.string().optional(),
-  metadata: external_exports.record(external_exports.any()).optional()
+  metadata: external_exports.record(PrimitiveOrStringArray).optional()
 });
 var QdrantPayloadSchema = external_exports.object({
   doc_id: external_exports.number().int(),
@@ -8397,7 +8655,7 @@ var QdrantPayloadSchema = external_exports.object({
   created_date: external_exports.string().optional(),
   modified_date: external_exports.string().optional(),
   page_num: external_exports.number().int().optional(),
-  custom_fields: external_exports.record(external_exports.any()).optional()
+  custom_fields: external_exports.record(PrimitiveOrStringArray).optional()
 });
 var FilterOptionsSchema = external_exports.object({
   doc_id: external_exports.number().int().optional(),
@@ -8472,11 +8730,11 @@ var MIN_BOX_SIZE = 20;
 function PlaygroundIsland(props) {
   const validated = PlaygroundSchema.parse(props);
   const {
-    mode,
+    mode: _mode,
     collection: initialCollection,
     gpuState: initialGpuState,
-    documentId,
-    filters: initialFilters
+    documentId: _documentId,
+    filters: _initialFilters
   } = validated;
   const { onSearch } = props;
   const [collection, setCollection] = d2(initialCollection);
@@ -8723,13 +8981,16 @@ function PlaygroundIsland(props) {
       const elapsed = Date.now() - startTime;
       setSearchResults(data.results || []);
       setLatency(elapsed);
-      const extractedPayloads = (data.results || []).map((r3) => ({
-        doc_id: r3.docId,
-        correspondent_id: r3.metadata?.correspondent_id,
-        tag_ids: r3.metadata?.tag_ids,
-        created_date: r3.metadata?.created_date,
-        page_num: r3.pageNum
-      }));
+      const extractedPayloads = (data.results || []).map((r3) => {
+        const meta = r3.metadata;
+        return {
+          doc_id: r3.docId,
+          correspondent_id: meta?.correspondent_id,
+          tag_ids: meta?.tag_ids,
+          created_date: meta?.created_date,
+          page_num: r3.pageNum
+        };
+      });
       setPayloads(extractedPayloads);
       window.dispatchEvent(new CustomEvent("playground:results-received", {
         detail: { results: data.results, executionTimeMs: elapsed }
@@ -10085,15 +10346,15 @@ function usePresence(present) {
     prevAnimationNameRef.current = state === "mounted" ? currentAnimationName : "none";
   }, [state]);
   useLayoutEffect2(() => {
-    const styles2 = stylesRef.current;
+    const styles3 = stylesRef.current;
     const wasPresent = prevPresentRef.current;
     const hasPresentChanged = wasPresent !== present;
     if (hasPresentChanged) {
       const prevAnimationName = prevAnimationNameRef.current;
-      const currentAnimationName = getAnimationName(styles2);
+      const currentAnimationName = getAnimationName(styles3);
       if (present) {
         send("MOUNT");
-      } else if (currentAnimationName === "none" || styles2?.display === "none") {
+      } else if (currentAnimationName === "none" || styles3?.display === "none") {
         send("UNMOUNT");
       } else {
         const isAnimating = prevAnimationName !== currentAnimationName;
@@ -10152,8 +10413,8 @@ function usePresence(present) {
     }, [])
   };
 }
-function getAnimationName(styles2) {
-  return styles2?.animationName || "none";
+function getAnimationName(styles3) {
+  return styles3?.animationName || "none";
 }
 function getElementRef2(element) {
   let getter = Object.getOwnPropertyDescriptor(element.props, "ref")?.get;
@@ -11109,13 +11370,13 @@ var stylesheetSingleton = function() {
 // node_modules/react-style-singleton/dist/es2015/hook.js
 var styleHookSingleton = function() {
   var sheet = stylesheetSingleton();
-  return function(styles2, isDynamic) {
+  return function(styles3, isDynamic) {
     y2(function() {
-      sheet.add(styles2);
+      sheet.add(styles3);
       return function() {
         sheet.remove();
       };
-    }, [styles2 && isDynamic]);
+    }, [styles3 && isDynamic]);
   };
 };
 
@@ -11123,8 +11384,8 @@ var styleHookSingleton = function() {
 var styleSingleton = function() {
   var useStyle = styleHookSingleton();
   var Sheet = function(_a) {
-    var styles2 = _a.styles, dynamic = _a.dynamic;
-    useStyle(styles2, dynamic);
+    var styles3 = _a.styles, dynamic = _a.dynamic;
+    useStyle(styles3, dynamic);
     return null;
   };
   return Sheet;
@@ -11232,11 +11493,11 @@ var elementCanBeScrolled = function(node, overflow) {
   if (!(node instanceof Element)) {
     return false;
   }
-  var styles2 = window.getComputedStyle(node);
+  var styles3 = window.getComputedStyle(node);
   return (
     // not-not-scrollable
-    styles2[overflow] !== "hidden" && // contains scroll inside self
-    !(styles2.overflowY === styles2.overflowX && !alwaysContainsScroll(node) && styles2[overflow] === "visible")
+    styles3[overflow] !== "hidden" && // contains scroll inside self
+    !(styles3.overflowY === styles3.overflowX && !alwaysContainsScroll(node) && styles3[overflow] === "visible")
   );
 };
 var elementCouldBeVScrolled = function(node) {
@@ -13246,21 +13507,21 @@ function AIProviderIsland(props) {
   const [ollamaApiUrl, setOllamaApiUrl] = d2(validated.ollama?.apiUrl || "http://localhost:11434");
   const [ollamaModel, setOllamaModel] = d2(validated.ollama?.model || "sauerkraut-llama3.1:8b");
   const [ollamaVisionModel, setOllamaVisionModel] = d2(validated.ollama?.visionModel || "qwen3-vl:8b");
-  const [ollamaPlannerModel] = d2("");
-  const [ollamaRouterModel] = d2(validated.ollama?.routerModel || "");
-  const [ollamaOrchestratorModel] = d2(validated.ollama?.orchestratorModel || "");
-  const [ollamaVisionKeepAlive] = d2(validated.ollama?.visionKeepAlive || "5m");
-  const [ollamaTextKeepAlive] = d2(validated.ollama?.textKeepAlive || "2m");
-  const [ollamaRouterKeepAlive] = d2(validated.ollama?.routerKeepAlive || "5m");
+  const [ollamaPlannerModel, setOllamaPlannerModel] = d2(validated.ollama?.plannerModel || "");
+  const [ollamaRouterModel, setOllamaRouterModel] = d2(validated.ollama?.routerModel || "");
+  const [ollamaOrchestratorModel, setOllamaOrchestratorModel] = d2(validated.ollama?.orchestratorModel || "");
+  const [ollamaVisionKeepAlive, setOllamaVisionKeepAlive] = d2(validated.ollama?.visionKeepAlive || "5m");
+  const [ollamaTextKeepAlive, setOllamaTextKeepAlive] = d2(validated.ollama?.textKeepAlive || "2m");
+  const [ollamaRouterKeepAlive, setOllamaRouterKeepAlive] = d2(validated.ollama?.routerKeepAlive || "5m");
   const [ollamaTextContextWindow, setOllamaTextContextWindow] = d2(validated.ollama?.limits?.text?.contextWindow || 128e3);
   const [ollamaTextMaxTokens, setOllamaTextMaxTokens] = d2(validated.ollama?.limits?.text?.maxResponseTokens || 4096);
-  const [ollamaVisionContextWindow] = d2(validated.ollama?.limits?.vision?.contextWindow || 128e3);
-  const [ollamaVisionMaxTokens] = d2(validated.ollama?.limits?.vision?.maxResponseTokens || 2048);
-  const [ollamaPlannerContextWindow] = d2(validated.ollama?.limits?.planner?.contextWindow || 128e3);
-  const [ollamaPlannerMaxTokens] = d2(validated.ollama?.limits?.planner?.maxResponseTokens || 700);
-  const [ollamaExpertContextWindow] = d2(validated.ollama?.limits?.expert?.contextWindow || 128e3);
-  const [ollamaExpertMaxTokens] = d2(validated.ollama?.limits?.expert?.maxResponseTokens || 4096);
-  const [ollamaImageTokenOverhead] = d2(validated.ollama?.limits?.imageTokenOverhead || 1024);
+  const [ollamaVisionContextWindow, setOllamaVisionContextWindow] = d2(validated.ollama?.limits?.vision?.contextWindow || 128e3);
+  const [ollamaVisionMaxTokens, setOllamaVisionMaxTokens] = d2(validated.ollama?.limits?.vision?.maxResponseTokens || 2048);
+  const [ollamaPlannerContextWindow, setOllamaPlannerContextWindow] = d2(validated.ollama?.limits?.planner?.contextWindow || 128e3);
+  const [ollamaPlannerMaxTokens, setOllamaPlannerMaxTokens] = d2(validated.ollama?.limits?.planner?.maxResponseTokens || 700);
+  const [ollamaExpertContextWindow, setOllamaExpertContextWindow] = d2(validated.ollama?.limits?.expert?.contextWindow || 128e3);
+  const [ollamaExpertMaxTokens, setOllamaExpertMaxTokens] = d2(validated.ollama?.limits?.expert?.maxResponseTokens || 4096);
+  const [ollamaImageTokenOverhead, setOllamaImageTokenOverhead] = d2(validated.ollama?.limits?.imageTokenOverhead || 1024);
   const [customApiUrl, setCustomApiUrl] = d2(validated.custom?.apiUrl || "");
   const [customApiKey, setCustomApiKey] = d2(validated.custom?.apiKey || "");
   const [customModel, setCustomModel] = d2(validated.custom?.model || "");
@@ -13320,7 +13581,7 @@ function AIProviderIsland(props) {
       flushAutoSave();
     }, validated.autoSaveDebounceMs || 1e3);
   };
-  const handleSave = async (e3) => {
+  const handleSave = async () => {
     setIsSaving(true);
     setSaveMessage(null);
     try {
@@ -13413,8 +13674,8 @@ function AIProviderIsland(props) {
     return () => clearTimeout(t3);
   }, [provider]);
   y2(() => {
-    const onNavigate = (e3) => {
-      const detail = e3?.detail || {};
+    const onNavigate = (_e) => {
+      const detail = _e?.detail || {};
       if (detail && detail.focus === "expert-models") {
         setActiveTab("ollama");
         setTimeout(() => {
@@ -14053,7 +14314,7 @@ function DeveloperSettingsIsland(props) {
   const [duplicateDetection, setDuplicateDetection] = d2(validated.featureFlags?.duplicateDetectionEnabled ?? true);
   const [ocrCheckpoint, setOcrCheckpoint] = d2(validated.featureFlags?.ocrCheckpointEnabled ?? true);
   const [summaryFallback, setSummaryFallback] = d2(validated.featureFlags?.summaryFallbackEnabled ?? true);
-  const [disableAutoProcessing, setDisableAutoProcessing] = d2(validated.environmentVariables?.disableAutomaticProcessing || "no");
+  const [disableAutoProcessing] = d2(validated.environmentVariables?.disableAutomaticProcessing || "no");
   const [scanInterval, setScanInterval] = d2(validated.environmentVariables?.scanInterval || "*/30 * * * *");
   const [tokenLimit, setTokenLimit] = d2(validated.environmentVariables?.tokenLimit || 128e3);
   const [responseTokens, setResponseTokens] = d2(validated.environmentVariables?.responseTokens || 4096);
@@ -14838,10 +15099,11 @@ var PresetMetadataSchema = external_exports.object({
   category: external_exports.enum(["development", "production", "medical", "financial", "legal", "custom"]).optional(),
   icon: external_exports.string().optional()
 });
+var PresetValueSchema = external_exports.union([external_exports.string(), external_exports.number(), external_exports.boolean(), external_exports.array(external_exports.string()), external_exports.null()]);
 var PresetDiffItemSchema = external_exports.object({
   key: external_exports.string(),
-  currentValue: external_exports.any().optional(),
-  newValue: external_exports.any(),
+  currentValue: PresetValueSchema.optional(),
+  newValue: PresetValueSchema,
   category: external_exports.string().optional()
 });
 var PresetDiffSchema = external_exports.object({
@@ -15402,7 +15664,7 @@ function dispatchEventSafe4(name, detail) {
   document.dispatchEvent(new EventConstructor(name, { detail }));
 }
 function ViewModeToggleIsland(props) {
-  const validated = ViewModeToggleSchema.parse(props);
+  const _validated = ViewModeToggleSchema.parse(props);
   const [mode, setMode] = d2(props.mode || "text");
   const [visualEnabled, setVisualEnabled] = d2(props.visualEnabled !== false);
   y2(() => {
@@ -15550,7 +15812,7 @@ function dispatchEventSafe5(name, detail) {
   document.dispatchEvent(new EventConstructor(name, { detail }));
 }
 function TagsManagerIsland(props) {
-  const validated = TagsManagerSchema.parse(props);
+  const _validated = TagsManagerSchema.parse(props);
   const [currentTags, setCurrentTags] = d2(props.currentTags || []);
   const [suggestedTags, setSuggestedTags] = d2(props.suggestedTags || []);
   const [availableTags, setAvailableTags] = d2(props.availableTags || []);
@@ -15997,7 +16259,7 @@ function dispatchEventSafe6(name, detail) {
   document.dispatchEvent(new EventConstructor(name, { detail }));
 }
 function AIAnalysisIsland(props) {
-  const validated = AIAnalysisSchema.parse(props);
+  AIAnalysisSchema.parse(props);
   const [isAnalyzing, setIsAnalyzing] = d2(false);
   const [analysisType, setAnalysisType] = d2(null);
   const [gpuState, setGpuState] = d2(props.gpuState || "idle");
@@ -16053,7 +16315,7 @@ function AIAnalysisIsland(props) {
   y2(() => {
     try {
       window.__ai_analysis_island_mounted = true;
-    } catch (e3) {
+    } catch (_e) {
     }
   }, []);
   y2(() => {
@@ -16064,12 +16326,13 @@ function AIAnalysisIsland(props) {
   }, [statusMessage]);
   const toManualFields = q2((doc, fallbackDomain = "AI") => {
     if (!doc || typeof doc !== "object") return [];
-    const customFields = doc?.custom_fields;
+    const docRecord = doc;
+    const customFields = docRecord.custom_fields;
     if (!customFields || typeof customFields !== "object") return [];
     return Object.entries(customFields).map(([label, value]) => ({
       label,
       value: value != null ? String(value) : "",
-      domain: doc?.domain || fallbackDomain,
+      domain: typeof docRecord.domain === "string" ? docRecord.domain : fallbackDomain,
       confidence: 1
     }));
   }, []);
@@ -16130,7 +16393,7 @@ function AIAnalysisIsland(props) {
       setStatusMessage("Analysis completed successfully");
     } catch (err) {
       console.error("Analysis error:", err);
-      setStatusMessage(`Error: ${err.message}`);
+      setStatusMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsAnalyzing(false);
       setAnalysisType(null);
@@ -16193,7 +16456,7 @@ function AIAnalysisIsland(props) {
       setStatusMessage(`Visual analysis complete! Domain: ${data.result?.domain || "general"}, Overlays: ${data.overlayCount || 0}`);
     } catch (err) {
       console.error("Visual analysis error:", err);
-      setStatusMessage(`Error: ${err.message}`);
+      setStatusMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsAnalyzing(false);
       setAnalysisType(null);
@@ -16486,7 +16749,8 @@ function ChatWorkspaceIsland(props) {
       const data = await resp.json();
       return { ok: true, data };
     } catch (err) {
-      return { ok: false, error: err?.message || String(err) };
+      const message = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: message };
     }
   };
   y2(() => {
@@ -16571,7 +16835,8 @@ function ChatWorkspaceIsland(props) {
         setSelectedModel(groups[0].models[0].model);
       }
     } catch (error) {
-      setModelLoadError(error.message || String(error));
+      const message = error instanceof Error ? error.message : String(error);
+      setModelLoadError(message);
       setModelOptions([]);
       setSelectedModel(props.ollamaDefaultModel ?? null);
     } finally {
@@ -16626,7 +16891,8 @@ function ChatWorkspaceIsland(props) {
       if (data.textRagStatus) setLocalTextRagStatus(data.textRagStatus);
       await loadDocumentPreview(documentId);
     } catch (error) {
-      setStreamError(error.message || "Failed to initialize chat");
+      const message = error instanceof Error ? error.message : String(error);
+      setStreamError(message || "Failed to initialize chat");
     } finally {
       setStatusMessage(null);
     }
@@ -16701,7 +16967,7 @@ function ChatWorkspaceIsland(props) {
           if (!line.startsWith("data: ")) continue;
           const payload = line.slice(6).trim();
           if (!payload || payload === "[DONE]") continue;
-          let parsed = null;
+          let parsed = { content: void 0 };
           try {
             parsed = JSON.parse(payload);
           } catch (err) {
@@ -16721,7 +16987,8 @@ function ChatWorkspaceIsland(props) {
         }
       }
     } catch (error) {
-      setStreamError(error.message || "Failed to stream response");
+      const message = error instanceof Error ? error.message : String(error);
+      setStreamError(message || "Failed to stream response");
     } finally {
       setIsStreaming(false);
     }
@@ -16985,7 +17252,6 @@ function HistoryManagerIsland(props) {
   const initialQuery = validated.initialQuery;
   const [query, setQuery] = d2(initialQuery);
   const [rows, setRows] = d2([]);
-  const [total, setTotal] = d2(0);
   const [filteredTotal, setFilteredTotal] = d2(0);
   const [loading, setLoading] = d2(false);
   const [error, setError] = d2(null);
@@ -17019,7 +17285,6 @@ function HistoryManagerIsland(props) {
       if (!response.ok) throw new Error("Failed to load history");
       const data = await response.json();
       setRows(Array.isArray(data.data) ? data.data : []);
-      setTotal(data.recordsTotal || 0);
       setFilteredTotal(data.recordsFiltered || 0);
       setSelected(/* @__PURE__ */ new Set());
     } catch (err) {
@@ -17101,7 +17366,7 @@ function HistoryManagerIsland(props) {
       setConfirmMode(null);
       await loadHistory();
     } catch (err) {
-      setError(err.message || "Reset failed");
+      setError(err instanceof Error ? err.message : "Reset failed");
     }
   };
   const resetAll = async () => {
@@ -17111,7 +17376,7 @@ function HistoryManagerIsland(props) {
       setConfirmMode(null);
       await loadHistory();
     } catch (err) {
-      setError(err.message || "Reset failed");
+      setError(err instanceof Error ? err.message : "Reset failed");
     }
   };
   const reanalyzeDocument = async (docId) => {
@@ -17121,7 +17386,7 @@ function HistoryManagerIsland(props) {
       });
       if (!response.ok) throw new Error("Re-analysis failed");
     } catch (err) {
-      setError(err.message || "Re-analysis failed");
+      setError(err instanceof Error ? err.message : "Re-analysis failed");
     }
   };
   const openVisualModal = async (docId) => {
@@ -17349,7 +17614,7 @@ function HistoryManagerIsland(props) {
                 /* @__PURE__ */ u3(
                   "a",
                   {
-                    href: `/history/doc/${row.document_id}`,
+                    href: `/workspace/doc/${row.document_id}`,
                     className: "sg-link",
                     "data-testid": `history-view-${row.document_id}`,
                     children: "View"
@@ -17368,7 +17633,7 @@ function HistoryManagerIsland(props) {
                 /* @__PURE__ */ u3(
                   "a",
                   {
-                    href: `/chat?open=${row.document_id}`,
+                    href: `/workspace/doc/${row.document_id}`,
                     className: "sg-link",
                     "data-testid": `history-chat-${row.document_id}`,
                     children: "Chat"
@@ -17390,8 +17655,9 @@ function HistoryManagerIsland(props) {
                     type: "button",
                     className: "sg-link",
                     onClick: () => {
-                      if (window.feedbackForm) {
-                        window.feedbackForm.show({
+                      const win = window;
+                      if (win.feedbackForm) {
+                        win.feedbackForm.show({
                           documentId: row.document_id
                         });
                       }
@@ -17498,7 +17764,7 @@ function ManualWorkspaceIsland(props) {
   const [correspondent, setCorrespondent] = d2(props.correspondent || "");
   const [documentType, setDocumentType] = d2("");
   const [tags, setTags] = d2(props.tags || []);
-  const [originalUrl, setOriginalUrl] = d2(props.originalUrl ?? null);
+  const [_originalUrl, setOriginalUrl] = d2(props.originalUrl ?? null);
   const [pageCount, setPageCount] = d2(props.pageCount ?? null);
   const [viewMode, setViewMode] = d2("text");
   const [isLoading, setIsLoading] = d2(false);
@@ -17563,7 +17829,7 @@ function ManualWorkspaceIsland(props) {
   const updateCorrespondentDisplay = q2((value) => {
     if (!correspondentInfoRef.current || !correspondentNameRef.current) return;
     if (value) {
-      correspondentNameRef.current.textContent = value.name || value;
+      correspondentNameRef.current.textContent = typeof value === "object" ? value.name || "" : value;
       correspondentInfoRef.current.classList.remove("hidden");
     } else {
       correspondentInfoRef.current.classList.add("hidden");
@@ -17572,7 +17838,7 @@ function ManualWorkspaceIsland(props) {
   const updateTitleDisplay = q2((value) => {
     if (!titleInfoRef.current || !titleNameRef.current) return;
     if (value) {
-      titleNameRef.current.textContent = value.name || value;
+      titleNameRef.current.textContent = typeof value === "object" ? value.name || "" : value;
       titleInfoRef.current.classList.remove("hidden");
     } else {
       titleInfoRef.current.classList.add("hidden");
@@ -17686,7 +17952,7 @@ function ManualWorkspaceIsland(props) {
         dispatchDocumentFields(data.visualFields, data.id);
       } else if (data.customFields && data.customFields.length > 0) {
         const fields = data.customFields.map((cf) => ({
-          label: cf.field?.name || `Field ${cf.field}`,
+          label: cf.field && typeof cf.field === "object" && cf.field.name ? cf.field.name : `Field ${cf.field}`,
           value: cf.value || "",
           domain: "PAPERLESS",
           confidence: 1
@@ -17719,9 +17985,10 @@ function ManualWorkspaceIsland(props) {
       });
       setStatus({ tone: "success", text: "Document preview loaded." });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
       setStatus({
         tone: "error",
-        text: `Error loading document: ${error.message || "Unknown error"}`
+        text: `Error loading document: ${errorMessage}`
       });
     } finally {
       setIsLoading(false);
@@ -17742,9 +18009,10 @@ function ManualWorkspaceIsland(props) {
       const docs = await response.json();
       setDocuments(Array.isArray(docs) ? docs : []);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
       setStatus({
         tone: "error",
-        text: `Error loading documents: ${error.message || "Unknown error"}`
+        text: `Error loading documents: ${errorMessage}`
       });
     }
   }, [fetchWithTimeout]);
@@ -17967,7 +18235,7 @@ function DocumentContentIsland(props) {
         }
       } catch (err) {
         const msg = err && typeof err === "object" && "message" in err ? err.message : String(err);
-        setRegexError(msg);
+        setRegexError(typeof msg === "string" ? msg : String(msg));
         setMatches([]);
       }
     }, 300);
@@ -18127,6 +18395,9 @@ function DocumentContentIsland(props) {
 }
 
 // src/islands/UnifiedWorkspaceIsland.tsx
+function getWorkspaceWindow() {
+  return window;
+}
 function dispatchEventSafe8(name, detail) {
   try {
     const _doc = typeof document !== "undefined" ? document : typeof window !== "undefined" && window.document ? window.document : null;
@@ -18142,10 +18413,11 @@ function UnifiedWorkspaceIsland(props) {
   const [isDirty2, setIsDirty] = d2(false);
   y2(() => {
     const handler = (e3) => {
+      const wnd = getWorkspaceWindow();
       const detail = e3?.detail || {};
       const fieldId = detail.fieldId || detail.field_id || detail.id;
       try {
-        window.__last_metadata_locate = { fieldId, handled: false };
+        wnd.__last_metadata_locate = { fieldId, handled: false };
       } catch (err) {
       }
       if (!fieldId) return;
@@ -18157,31 +18429,31 @@ function UnifiedWorkspaceIsland(props) {
         if (ov.bbox) return ov.bbox;
         if (ov.box) return ov.box;
         if (Array.isArray(ov.bbox_array)) {
-          const [x4, y3, w4, h3] = ov.bbox_array;
-          return { x: x4, y: y3, width: w4, height: h3 };
+          const [x4, y3, w4, h4] = ov.bbox_array;
+          return { x: x4, y: y3, width: w4, height: h4 };
         }
         return null;
       };
-      let found = vfields.find((f4) => f4.id === fieldId || f4.name === fieldId || f4.label === fieldId || f4.paperlessMapping === fieldId);
+      const found = vfields.find((f4) => f4.id === fieldId || f4.name === fieldId || f4.label === fieldId || f4.paperlessMapping === fieldId);
       if (found && (found.bbox || found.overlay || found.overlayId || found.overlay_bbox)) {
         const bbox = found.bbox || found.overlay?.bbox || found.overlay_bbox || null;
         const page = found.pageNumber || found.page || 1;
         if (bbox) {
           window.dispatchEvent(new CustomEvent("overlay:highlight-region", { detail: { bbox, page } }));
           try {
-            window.__last_metadata_locate = { fieldId, handled: true, bbox, page };
+            wnd.__last_metadata_locate = { fieldId, handled: true, bbox, page };
           } catch (err) {
           }
           return;
         }
         if (found.overlayId) {
           const overlay = overlays.find((o3) => o3.id === found.overlayId || o3.overlayId === found.overlayId);
-          const bbox2 = getBboxFromOverlay(overlay);
+          const bbox2 = getBboxFromOverlay(overlay || null);
           const page2 = overlay?.pageNumber || overlay?.page || found.pageNumber || 1;
           if (bbox2) {
             window.dispatchEvent(new CustomEvent("overlay:highlight-region", { detail: { bbox: bbox2, page: page2 } }));
             try {
-              window.__last_metadata_locate = { fieldId, handled: true, bbox: bbox2, page: page2 };
+              wnd.__last_metadata_locate = { fieldId, handled: true, bbox: bbox2, page: page2 };
             } catch (err) {
             }
             return;
@@ -18195,7 +18467,7 @@ function UnifiedWorkspaceIsland(props) {
         if (bbox) {
           window.dispatchEvent(new CustomEvent("overlay:highlight-region", { detail: { bbox, page } }));
           try {
-            window.__last_metadata_locate = { fieldId, handled: true, bbox, page };
+            wnd.__last_metadata_locate = { fieldId, handled: true, bbox, page };
           } catch (err) {
           }
           return;
@@ -18208,14 +18480,14 @@ function UnifiedWorkspaceIsland(props) {
         if (bbox) {
           window.dispatchEvent(new CustomEvent("overlay:highlight-region", { detail: { bbox, page } }));
           try {
-            window.__last_metadata_locate = { fieldId, handled: true, bbox, page };
+            wnd.__last_metadata_locate = { fieldId, handled: true, bbox, page };
           } catch (err) {
           }
           return;
         }
       }
       try {
-        window.__last_metadata_locate = { fieldId, handled: false };
+        wnd.__last_metadata_locate = { fieldId, handled: false };
       } catch (err) {
       }
       console.warn("[UnifiedWorkspaceIsland] metadata:locate-field: could not resolve fieldId to overlay bbox", fieldId);
@@ -18224,33 +18496,36 @@ function UnifiedWorkspaceIsland(props) {
     return () => window.removeEventListener("metadata:locate-field", handler);
   }, [props.visual]);
   y2(() => {
-    window.__workspaceState = window.__workspaceState || {};
+    const wnd = getWorkspaceWindow();
+    wnd.__workspaceState = wnd.__workspaceState || {};
     const onDirty = (e3) => {
-      const documentId = e3?.detail?.documentId ?? props.documentId ?? null;
+      const documentId = e3?.detail?.documentId ?? (props.document?.id ?? null);
       if (!documentId) return;
-      const state = window.__workspaceState;
-      state[documentId] = state[documentId] || {};
-      state[documentId].isDirty = true;
-      state[documentId].lastDirtyAt = Date.now();
-      window.__workspaceState = state;
-      if (props.documentId && Number(props.documentId) === Number(documentId)) setIsDirty(true);
+      const state = wnd.__workspaceState || {};
+      const docKey = String(documentId);
+      state[docKey] = state[docKey] || {};
+      state[docKey].isDirty = true;
+      state[docKey].lastDirtyAt = Date.now();
+      wnd.__workspaceState = state;
+      if ((props.document?.id ?? null) && Number(props.document?.id) === Number(documentId)) setIsDirty(true);
       try {
-        window.__last_workspace_state_change = { documentId, isDirty: true };
+        wnd.__last_workspace_state_change = { documentId, isDirty: true };
       } catch (err) {
       }
       dispatchEventSafe8("workspace:state-change", { documentId, isDirty: true });
     };
     const onSaved = (e3) => {
-      const documentId = e3?.detail?.documentId ?? props.documentId ?? null;
+      const documentId = e3?.detail?.documentId ?? (props.document?.id ?? null);
       if (!documentId) return;
-      const state = window.__workspaceState;
-      state[documentId] = state[documentId] || {};
-      state[documentId].isDirty = false;
-      state[documentId].lastSavedAt = Date.now();
-      window.__workspaceState = state;
-      if (props.documentId && Number(props.documentId) === Number(documentId)) setIsDirty(false);
+      const state = wnd.__workspaceState || {};
+      const docKey = String(documentId);
+      state[docKey] = state[docKey] || {};
+      state[docKey].isDirty = false;
+      state[docKey].lastSavedAt = Date.now();
+      wnd.__workspaceState = state;
+      if ((props.document?.id ?? null) && Number(props.document?.id) === Number(documentId)) setIsDirty(false);
       try {
-        window.__last_workspace_state_change = { documentId, isDirty: false };
+        wnd.__last_workspace_state_change = { documentId, isDirty: false };
       } catch (err) {
       }
       dispatchEventSafe8("workspace:state-change", { documentId, isDirty: false });
@@ -18258,25 +18533,344 @@ function UnifiedWorkspaceIsland(props) {
     window.addEventListener("workspace:dirty", onDirty);
     window.addEventListener("sync:success", onSaved);
     try {
-      const initDirty = window.__workspaceState?.[props.documentId]?.isDirty || false;
+      const docId = props.document?.id ? String(props.document?.id) : "";
+      const initDirty = docId ? wnd.__workspaceState?.[docId]?.isDirty : false;
       setIsDirty(Boolean(initDirty));
     } catch (err) {
     }
+    const beforeUnloadHandler = (e3) => {
+      try {
+        const docKey = props.document?.id ? String(props.document?.id) : "";
+        const wnd2 = window;
+        const state = wnd2.__workspaceState || {};
+        const dirty = docKey ? state[docKey]?.isDirty : false;
+        if (dirty) {
+          e3.preventDefault();
+          e3.returnValue = "";
+          return "";
+        }
+      } catch (err) {
+      }
+      return void 0;
+    };
+    window.addEventListener("beforeunload", beforeUnloadHandler);
     return () => {
       window.removeEventListener("workspace:dirty", onDirty);
       window.removeEventListener("sync:success", onSaved);
+      window.removeEventListener("beforeunload", beforeUnloadHandler);
     };
-  }, [props.documentId]);
+  }, [props.document?.id]);
+  y2(() => {
+    const handleSaveRequest = async (e3) => {
+      const detail = e3?.detail || {};
+      const { documentId } = detail;
+      if (String(documentId) !== String(props.document?.id)) return;
+      try {
+        const response = await fetch("/manual/updateDocument", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            documentId
+            // Include metadata from current state if available via global workspace state
+          })
+        });
+        if (response.ok) {
+          window.dispatchEvent(new CustomEvent("workspace:save-complete", {
+            detail: { documentId, success: true }
+          }));
+        } else {
+          throw new Error("Save failed");
+        }
+      } catch (err) {
+        window.dispatchEvent(new CustomEvent("workspace:save-failed", {
+          detail: { documentId, error: err.message }
+        }));
+      }
+    };
+    window.addEventListener("workspace:save-request", handleSaveRequest);
+    return () => window.removeEventListener("workspace:save-request", handleSaveRequest);
+  }, [props.document?.id]);
+  y2(() => {
+    const handleReprocessRequest = async (e3) => {
+      const detail = e3?.detail || {};
+      const { documentId } = detail;
+      if (String(documentId) !== String(props.document?.id)) return;
+      try {
+        const response = await fetch(`/api/documents/${documentId}/reprocess`, {
+          method: "POST"
+        });
+        if (response.ok) {
+          window.dispatchEvent(new CustomEvent("workspace:reprocess-complete", {
+            detail: { documentId, success: true }
+          }));
+        } else {
+          throw new Error("Reprocess failed");
+        }
+      } catch (err) {
+        window.dispatchEvent(new CustomEvent("workspace:reprocess-failed", {
+          detail: { documentId, error: err.message }
+        }));
+      }
+    };
+    window.addEventListener("workspace:reprocess-request", handleReprocessRequest);
+    return () => window.removeEventListener("workspace:reprocess-request", handleReprocessRequest);
+  }, [props.document?.id]);
   return /* @__PURE__ */ u3("div", { className: "h-full w-full flex flex-col p-8", children: /* @__PURE__ */ u3("div", { className: "flex-1 border-2 border-dashed border-[#e5e0d8] rounded-lg flex items-center justify-center relative", children: [
     /* @__PURE__ */ u3("p", { className: "font-['Space_Grotesk'] text-[#888]", children: "Document Viewer Area Placeholder" }),
-    props.documentId ? /* @__PURE__ */ u3("div", { "data-testid": "workspace-state-badge", "data-state": isDirty2 ? "unsaved" : "clean", className: "absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-semibold bg-white border", children: isDirty2 ? "Unsaved Changes" : "Saved" }) : null
+    props.document?.id ? /* @__PURE__ */ u3("div", { "data-testid": "workspace-state-badge", "data-state": isDirty2 ? "unsaved" : "clean", className: "absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-semibold bg-white border", children: isDirty2 ? "Unsaved Changes" : "Saved" }) : null
+  ] }) });
+}
+
+// src/islands/DashboardChartsIsland.tsx
+var useDashboardMetrics = (initialData) => {
+  const [metrics, setMetrics] = d2(initialData);
+  const [loading, setLoading] = d2(false);
+  const [error, setError] = d2(null);
+  y2(() => {
+    if (!metrics && window.dashboardData) {
+      setMetrics(window.dashboardData);
+    }
+    const fetchMetrics = async () => {
+      try {
+        const response = await fetch("/api/dashboard/metrics");
+        if (!response.ok) throw new Error("Failed to fetch metrics");
+        const data = await response.json();
+        const mappedMetrics = {
+          lastUpdated: data.lastUpdated,
+          documentCount: data.paperless_data?.documentCount || 0,
+          processedCount: data.paperless_data?.processedDocumentCount || 0,
+          tokenDistribution: data.paperless_data?.tokenDistribution || [],
+          documentTypes: data.paperless_data?.documentTypes || [],
+          processingStatus: data.processingStatus
+        };
+        setMetrics(mappedMetrics);
+        setError(null);
+      } catch (err) {
+        console.error("Failed to poll dashboard metrics:", err);
+        setError("Failed to update dashboard data");
+      }
+    };
+    const intervalId = setInterval(fetchMetrics, 5e3);
+    return () => clearInterval(intervalId);
+  }, []);
+  return { metrics, loading, error };
+};
+var TaskRunnerStatus = ({ metrics }) => {
+  if (!metrics) return null;
+  const { processingStatus, processedCount, documentCount } = metrics;
+  const isProcessing = processingStatus?.isProcessing || false;
+  const processedToday = processingStatus?.processedToday || 0;
+  const pendingCount = Math.max(0, documentCount - processedCount);
+  const totalDocs = documentCount || 1;
+  const progressPercent = Math.min(100, Math.round(processedCount / totalDocs * 100));
+  const formatTime = (isoString) => {
+    if (!isoString) return "Never";
+    const date = new Date(isoString);
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+  return /* @__PURE__ */ u3("div", { className: "material-card col-span-2", children: [
+    /* @__PURE__ */ u3("div", { className: "flex items-center justify-between mb-4", children: [
+      /* @__PURE__ */ u3("h3", { className: "card-title mb-0", children: "Task Runner Status" }),
+      /* @__PURE__ */ u3("span", { className: "text-sm text-gray-500", children: [
+        "Last updated: ",
+        new Date(metrics.lastUpdated).toLocaleTimeString()
+      ] })
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "bg-white rounded-xl border border-gray-100 p-6 mb-4", children: isProcessing ? /* @__PURE__ */ u3("div", { className: "flex items-center gap-4", children: [
+      /* @__PURE__ */ u3("div", { className: "relative", children: [
+        /* @__PURE__ */ u3("div", { className: "w-12 h-12 rounded-full border-4 border-blue-100 border-t-blue-500 animate-spin" }),
+        /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center", children: /* @__PURE__ */ u3("i", { className: "fas fa-file text-blue-500 text-sm" }) })
+      ] }),
+      /* @__PURE__ */ u3("div", { className: "flex-1", children: [
+        /* @__PURE__ */ u3("div", { className: "flex items-center gap-2 mb-1", children: [
+          /* @__PURE__ */ u3("span", { className: "font-medium", children: "Processing Document" }),
+          processingStatus?.currentlyProcessing?.documentId && /* @__PURE__ */ u3("span", { className: "text-sm bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full", children: [
+            "#",
+            processingStatus.currentlyProcessing.documentId
+          ] })
+        ] }),
+        /* @__PURE__ */ u3("div", { className: "text-sm text-gray-600 truncate max-w-md", children: processingStatus?.currentlyProcessing?.title || "Unknown Document" })
+      ] })
+    ] }) : /* @__PURE__ */ u3("div", { className: "flex items-center gap-4", children: [
+      /* @__PURE__ */ u3("div", { className: "w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center", children: /* @__PURE__ */ u3("i", { className: "fas fa-check text-gray-400" }) }),
+      /* @__PURE__ */ u3("div", { children: [
+        /* @__PURE__ */ u3("div", { className: "font-medium", children: "System Idle" }),
+        /* @__PURE__ */ u3("div", { className: "text-sm text-gray-600", children: "Waiting for new documents" })
+      ] })
+    ] }) }),
+    /* @__PURE__ */ u3("div", { className: "mb-4", children: [
+      /* @__PURE__ */ u3("div", { className: "flex justify-between text-sm mb-1", children: [
+        /* @__PURE__ */ u3("span", { className: "text-gray-600", children: "Total Progress" }),
+        /* @__PURE__ */ u3("span", { className: "font-medium", children: [
+          progressPercent,
+          "% (",
+          processedCount,
+          " / ",
+          documentCount,
+          ")"
+        ] })
+      ] }),
+      /* @__PURE__ */ u3("div", { className: "w-full bg-gray-100 rounded-full h-2.5", children: /* @__PURE__ */ u3("div", { className: "bg-blue-500 h-2.5 rounded-full transition-all duration-500", style: { width: `${progressPercent}%` } }) })
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "grid grid-cols-3 gap-4", children: [
+      /* @__PURE__ */ u3("div", { className: "bg-white rounded-xl border border-gray-100 p-4", children: [
+        /* @__PURE__ */ u3("div", { className: "text-sm text-gray-600 mb-1", children: "Processed Today" }),
+        /* @__PURE__ */ u3("div", { className: "flex items-end gap-2", children: [
+          /* @__PURE__ */ u3("span", { className: "text-2xl font-bold", children: processedToday }),
+          /* @__PURE__ */ u3("span", { className: "text-sm text-gray-500 mb-1", children: "docs" })
+        ] })
+      ] }),
+      /* @__PURE__ */ u3("div", { className: "bg-white rounded-xl border border-gray-100 p-4", children: [
+        /* @__PURE__ */ u3("div", { className: "text-sm text-gray-600 mb-1", children: "Pending" }),
+        /* @__PURE__ */ u3("div", { className: "flex items-end gap-2", children: [
+          /* @__PURE__ */ u3("span", { className: "text-2xl font-bold", children: pendingCount }),
+          /* @__PURE__ */ u3("span", { className: "text-sm text-gray-500 mb-1", children: "docs" })
+        ] })
+      ] }),
+      /* @__PURE__ */ u3("div", { className: "bg-white rounded-xl border border-gray-100 p-4", children: [
+        /* @__PURE__ */ u3("div", { className: "text-sm text-gray-600 mb-1", children: "Last Processed" }),
+        /* @__PURE__ */ u3("div", { className: "text-sm font-medium pt-2", children: processingStatus?.lastProcessed ? formatTime(processingStatus.lastProcessed.processed_at) : "No recent data" })
+      ] })
+    ] })
+  ] });
+};
+var ChartCanvas = ({ id, type, data, options }) => {
+  const canvasRef = A2(null);
+  const chartInstance = A2(null);
+  y2(() => {
+    if (!canvasRef.current) return;
+    const ctx = canvasRef.current.getContext("2d");
+    if (!ctx) return;
+    if (chartInstance.current) {
+      chartInstance.current.destroy();
+    }
+    if (typeof window.Chart !== "undefined") {
+      chartInstance.current = new window.Chart(ctx, {
+        type,
+        data,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          ...options
+        }
+      });
+    }
+    return () => {
+      if (chartInstance.current) {
+        chartInstance.current.destroy();
+        chartInstance.current = null;
+      }
+    };
+  }, [JSON.stringify(data)]);
+  return /* @__PURE__ */ u3("div", { className: "chart-container relative", style: { position: "relative", height: "300px" }, children: [
+    /* @__PURE__ */ u3("canvas", { ref: canvasRef, id }),
+    (!data || !data.datasets || data.datasets[0].data.length === 0 || data.datasets[0].data.every((v3) => v3 === 0)) && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center bg-gray-50/50 rounded-lg", children: /* @__PURE__ */ u3("span", { className: "text-sm text-gray-500", children: "No data available" }) })
+  ] });
+};
+function DashboardChartsIsland({ initialData }) {
+  const { metrics } = useDashboardMetrics(initialData);
+  if (!metrics) {
+    return /* @__PURE__ */ u3("div", { className: "p-4 text-center text-gray-500", children: "Loading dashboard metrics..." });
+  }
+  const tokenLabels = metrics.tokenDistribution.map((d3) => d3.range);
+  const tokenCounts = metrics.tokenDistribution.map((d3) => d3.count);
+  const tokenChartData = {
+    labels: tokenLabels,
+    datasets: [{
+      label: "Documents",
+      data: tokenCounts,
+      backgroundColor: "#3b82f6",
+      // blue-500
+      borderRadius: 4
+    }]
+  };
+  const tokenOptions = {
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        mode: "index",
+        intersect: false
+      }
+    },
+    scales: {
+      y: { beginAtZero: true, grid: { display: true, drawBorder: false } },
+      x: { grid: { display: false } }
+    }
+  };
+  const docTypeLabels = metrics.documentTypes.map((d3) => d3.type);
+  const docTypeCounts = metrics.documentTypes.map((d3) => d3.count);
+  const docTypeColors = [
+    "#3b82f6",
+    "#8b5cf6",
+    "#ec4899",
+    "#f43f5e",
+    "#f97316",
+    "#eab308",
+    "#22c55e",
+    "#14b8a6",
+    "#06b6d4",
+    "#6366f1"
+  ];
+  const docTypeChartData = {
+    labels: docTypeLabels,
+    datasets: [{
+      data: docTypeCounts,
+      backgroundColor: docTypeColors.slice(0, docTypeCounts.length),
+      borderWidth: 0,
+      spacing: 2
+    }]
+  };
+  const docTypeOptions = {
+    cutout: "60%",
+    plugins: {
+      legend: { position: "right", labels: { boxWidth: 12, usePointStyle: true } }
+    }
+  };
+  return /* @__PURE__ */ u3(k, { children: /* @__PURE__ */ u3("div", { className: "card-grid mt-6", children: [
+    /* @__PURE__ */ u3(TaskRunnerStatus, { metrics }),
+    /* @__PURE__ */ u3("div", { className: "material-card", children: [
+      /* @__PURE__ */ u3("h3", { className: "card-title", children: "Token Usage Distribution" }),
+      /* @__PURE__ */ u3(
+        ChartCanvas,
+        {
+          id: "tokenDistributionChart",
+          type: "bar",
+          data: tokenChartData,
+          options: tokenOptions
+        }
+      )
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "material-card", children: [
+      /* @__PURE__ */ u3("h3", { className: "card-title", children: "Document Type Distribution" }),
+      /* @__PURE__ */ u3(
+        ChartCanvas,
+        {
+          id: "documentTypesChart",
+          type: "doughnut",
+          data: docTypeChartData,
+          options: docTypeOptions
+        }
+      )
+    ] })
   ] }) });
 }
 
 // src/islands/DocumentContextBarIsland.tsx
+var { isDocumentDirty: _isDocumentDirty } = require_navigation_guard();
 function DocumentContextBarIsland(props) {
-  const [isDropdownOpen, setIsDropdownOpen] = d2(false);
+  const [currentDocumentId, setCurrentDocumentId] = d2(props.documentId);
+  const [currentTitle, setCurrentTitle] = d2(props.title);
+  const [isDropdownOpen, setIsDropdownOpen] = d2(() => props.documentId == null);
   const [searchTerm, setSearchOpen] = d2("");
+  const [isLoading, setIsLoading] = d2(false);
+  y2(() => {
+    setCurrentDocumentId(props.documentId);
+    setCurrentTitle(props.title);
+  }, [props.documentId, props.title]);
+  y2(() => {
+    if (currentDocumentId == null) setIsDropdownOpen(true);
+    else setIsDropdownOpen(false);
+  }, [currentDocumentId]);
   const filteredDocuments = T2(() => {
     if (!searchTerm) return props.availableDocuments;
     const term = searchTerm.toLowerCase();
@@ -18285,12 +18879,60 @@ function DocumentContextBarIsland(props) {
     );
   }, [props.availableDocuments, searchTerm]);
   const currentIndex = T2(() => {
-    if (!props.documentId) return -1;
-    return props.availableDocuments.findIndex((doc) => doc.id === props.documentId);
-  }, [props.availableDocuments, props.documentId]);
-  const handleNavigate = q2((id) => {
-    window.location.href = `/document/${id}`;
+    if (!currentDocumentId) return -1;
+    return props.availableDocuments.findIndex((doc) => doc.id === currentDocumentId);
+  }, [props.availableDocuments, currentDocumentId]);
+  const isDocumentDirty = q2((docId) => {
+    return _isDocumentDirty(docId ?? currentDocumentId ?? null);
+  }, [currentDocumentId]);
+  const [navModal, setNavModal] = d2({ show: false, targetId: null, saving: false });
+  const navSaveRef = A2(null);
+  const loadDocumentInline = q2(async (id) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/workspace/api/doc/${id}`);
+      if (!response.ok) {
+        console.warn("[DocumentContextBar] API fetch failed, falling back to navigation");
+        window.location.href = `/workspace/doc/${id}`;
+        return;
+      }
+      const docData = await response.json();
+      setCurrentDocumentId(id);
+      setCurrentTitle(docData.title || null);
+      try {
+        window.history.pushState({ documentId: id }, "", `/workspace/doc/${id}`);
+      } catch (err) {
+      }
+      window.dispatchEvent(new CustomEvent("overlay:document-changed", {
+        detail: {
+          documentId: id,
+          page: 1,
+          originalUrl: docData.originalUrl || null,
+          pageCount: docData.pageCount || 1
+        }
+      }));
+      window.dispatchEvent(new CustomEvent("workspace:document-switched", {
+        detail: {
+          documentId: id,
+          document: docData
+        }
+      }));
+      setIsDropdownOpen(false);
+    } catch (err) {
+      console.error("[DocumentContextBar] Error loading document:", err);
+      window.location.href = `/workspace/doc/${id}`;
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+  const handleNavigate = q2((id) => {
+    const dirty = isDocumentDirty(currentDocumentId);
+    if (dirty) {
+      setNavModal({ show: true, targetId: id, saving: false });
+      return;
+    }
+    loadDocumentInline(id);
+  }, [isDocumentDirty, currentDocumentId, loadDocumentInline]);
   const handlePrev = q2(() => {
     if (currentIndex > 0) {
       handleNavigate(props.availableDocuments[currentIndex - 1].id);
@@ -18302,9 +18944,134 @@ function DocumentContextBarIsland(props) {
     }
   }, [currentIndex, props.availableDocuments, handleNavigate]);
   y2(() => {
+    if (navModal.show && navSaveRef.current) {
+      try {
+        navSaveRef.current.focus();
+      } catch (err) {
+      }
+    }
+  }, [navModal.show]);
+  const handleModalCancel = q2(() => {
+    setNavModal({ show: false, targetId: null, saving: false });
+  }, []);
+  const handleModalDiscard = q2(() => {
+    const id = navModal.targetId;
+    setNavModal({ show: false, targetId: null, saving: false });
+    if (id) loadDocumentInline(id);
+  }, [navModal.targetId, loadDocumentInline]);
+  const handleModalSave = q2(() => {
+    setNavModal((s3) => ({ ...s3, saving: true }));
+    const onSaveComplete = (e3) => {
+      const detail = e3?.detail || {};
+      const savedDocId = detail.documentId ?? currentDocumentId;
+      if (String(savedDocId) === String(currentDocumentId)) {
+        const id = navModal.targetId;
+        setNavModal({ show: false, targetId: null, saving: false });
+        if (id) loadDocumentInline(id);
+        window.removeEventListener("workspace:save-complete", onSaveComplete);
+        window.removeEventListener("workspace:save-failed", onSaveFailed);
+      }
+    };
+    const onSaveFailed = (_e) => {
+      setNavModal({ show: false, targetId: null, saving: false });
+      window.removeEventListener("workspace:save-complete", onSaveComplete);
+      window.removeEventListener("workspace:save-failed", onSaveFailed);
+    };
+    window.addEventListener("workspace:save-complete", onSaveComplete);
+    window.addEventListener("workspace:save-failed", onSaveFailed);
+    try {
+      window.dispatchEvent(new CustomEvent("workspace:save-request", { detail: { documentId: currentDocumentId } }));
+    } catch (err) {
+    }
+    setTimeout(() => {
+      setNavModal((s3) => s3.saving ? { ...s3, saving: false } : s3);
+    }, 3e4);
+  }, [navModal.targetId, currentDocumentId, loadDocumentInline]);
+  const [isSaving, setIsSaving] = d2(false);
+  const [isReprocessing, setIsReprocessing] = d2(false);
+  const handleSave = q2(() => {
+    if (isSaving) return;
+    setIsSaving(true);
+    const onSaveComplete = (e3) => {
+      const detail = e3?.detail || {};
+      const savedDocId = detail.documentId ?? currentDocumentId;
+      console.log("DEBUG: onSaveComplete", savedDocId, currentDocumentId, navModal ? navModal.targetId : "no-modal");
+      if (String(savedDocId) === String(currentDocumentId)) {
+        setIsSaving(false);
+        const root = document.querySelector('[data-testid="document-context-bar-root"]');
+        if (root) root.setAttribute("data-status", "saved");
+        window.removeEventListener("workspace:save-complete", onSaveComplete);
+        window.removeEventListener("workspace:save-failed", onSaveFailed);
+      }
+    };
+    const onSaveFailed = (e3) => {
+      const detail = e3?.detail || {};
+      const failedDocId = detail.documentId ?? currentDocumentId;
+      if (String(failedDocId) === String(currentDocumentId)) {
+        setIsSaving(false);
+        const root = document.querySelector('[data-testid="document-context-bar-root"]');
+        if (root) root.setAttribute("data-status", "error");
+        window.removeEventListener("workspace:save-complete", onSaveComplete);
+        window.removeEventListener("workspace:save-failed", onSaveFailed);
+      }
+    };
+    window.addEventListener("workspace:save-complete", onSaveComplete);
+    window.addEventListener("workspace:save-failed", onSaveFailed);
+    try {
+      window.dispatchEvent(new CustomEvent("workspace:save-request", { detail: { documentId: currentDocumentId } }));
+    } catch (err) {
+    }
+    setTimeout(() => {
+      setIsSaving((current) => {
+        if (current) {
+          window.removeEventListener("workspace:save-complete", onSaveComplete);
+          window.removeEventListener("workspace:save-failed", onSaveFailed);
+        }
+        return false;
+      });
+    }, 3e4);
+  }, [currentDocumentId, isSaving]);
+  const handleReprocess = q2(() => {
+    if (isReprocessing) return;
+    setIsReprocessing(true);
+    const onReprocessComplete = (e3) => {
+      const detail = e3?.detail || {};
+      const processedDocId = detail.documentId ?? currentDocumentId;
+      if (String(processedDocId) === String(currentDocumentId)) {
+        setIsReprocessing(false);
+        window.removeEventListener("workspace:reprocess-complete", onReprocessComplete);
+        window.removeEventListener("workspace:reprocess-failed", onReprocessFailed);
+      }
+    };
+    const onReprocessFailed = (e3) => {
+      const detail = e3?.detail || {};
+      const failedDocId = detail.documentId ?? currentDocumentId;
+      if (String(failedDocId) === String(currentDocumentId)) {
+        setIsReprocessing(false);
+        window.removeEventListener("workspace:reprocess-complete", onReprocessComplete);
+        window.removeEventListener("workspace:reprocess-failed", onReprocessFailed);
+      }
+    };
+    window.addEventListener("workspace:reprocess-complete", onReprocessComplete);
+    window.addEventListener("workspace:reprocess-failed", onReprocessFailed);
+    try {
+      window.dispatchEvent(new CustomEvent("workspace:reprocess-request", { detail: { documentId: currentDocumentId } }));
+    } catch (err) {
+    }
+    setTimeout(() => {
+      setIsReprocessing((current) => {
+        if (current) {
+          window.removeEventListener("workspace:reprocess-complete", onReprocessComplete);
+          window.removeEventListener("workspace:reprocess-failed", onReprocessFailed);
+        }
+        return false;
+      });
+    }, 6e4);
+  }, [currentDocumentId, isReprocessing]);
+  y2(() => {
     const onDirty = (e3) => {
       const d3 = e3?.detail || {};
-      if (d3 && (d3.documentId === props.documentId || props.documentId == null)) {
+      if (d3 && (d3.documentId === currentDocumentId || currentDocumentId == null)) {
         const root = document.querySelector('[data-testid="document-context-bar-root"]');
         if (root) root.setAttribute("data-status", "unsaved");
       }
@@ -18314,12 +19081,14 @@ function DocumentContextBarIsland(props) {
       if (root) root.setAttribute("data-status", "saved");
     };
     window.addEventListener("workspace:dirty", onDirty);
+    window.addEventListener("workspace:save-complete", onSaved);
     window.addEventListener("sync:success", onSaved);
     return () => {
       window.removeEventListener("workspace:dirty", onDirty);
+      window.removeEventListener("workspace:save-complete", onSaved);
       window.removeEventListener("sync:success", onSaved);
     };
-  }, [props.documentId]);
+  }, [currentDocumentId]);
   const getStatusBadge = () => {
     switch (props.status) {
       case "processing":
@@ -18366,7 +19135,8 @@ function DocumentContextBarIsland(props) {
             className: "flex items-center gap-2 px-4 py-1.5 hover:bg-white rounded-md transition-colors min-w-[200px] justify-between group",
             "data-testid": "document-selector-trigger",
             children: [
-              /* @__PURE__ */ u3("span", { className: "font-['Space_Grotesk'] font-medium truncate max-w-[240px]", children: props.title || "Select Document" }),
+              /* @__PURE__ */ u3("span", { className: "font-['Space_Grotesk'] font-medium truncate max-w-[240px]", children: currentTitle || "Select Document" }),
+              isLoading && /* @__PURE__ */ u3("i", { class: "fas fa-circle-notch fa-spin text-xs text-[#b87333] ml-2" }),
               /* @__PURE__ */ u3("i", { class: `fas fa-chevron-down text-xs transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}` })
             ]
           }
@@ -18391,10 +19161,10 @@ function DocumentContextBarIsland(props) {
             "button",
             {
               onClick: () => handleNavigate(doc.id),
-              className: `w-full text-left px-4 py-3 rounded-lg flex flex-col gap-0.5 hover:bg-[#fdfaf6] transition-colors group ${doc.id === props.documentId ? "bg-[#fdfaf6]" : ""}`,
+              className: `w-full text-left px-4 py-3 rounded-lg flex flex-col gap-0.5 hover:bg-[#fdfaf6] transition-colors group ${doc.id === currentDocumentId ? "bg-[#fdfaf6]" : ""}`,
               "data-testid": `document-option-${doc.id}`,
               children: [
-                /* @__PURE__ */ u3("span", { className: `text-sm font-medium truncate ${doc.id === props.documentId ? "text-[#b87333]" : "text-[#2c2c2c]"}`, children: doc.title || doc.original_filename }),
+                /* @__PURE__ */ u3("span", { className: `text-sm font-medium truncate ${doc.id === currentDocumentId ? "text-[#b87333]" : "text-[#2c2c2c]"}`, children: doc.title || doc.original_filename }),
                 /* @__PURE__ */ u3("span", { className: "text-[10px] text-[#888] font-mono", children: [
                   "#",
                   doc.id
@@ -18424,22 +19194,26 @@ function DocumentContextBarIsland(props) {
         /* @__PURE__ */ u3(
           "button",
           {
-            className: "px-4 py-1.5 text-sm font-medium text-[#555] hover:bg-[#f5f0e8] rounded-lg transition-colors flex items-center gap-2 border border-[#e5e0d8]",
+            onClick: handleReprocess,
+            disabled: isReprocessing,
+            className: "px-4 py-1.5 text-sm font-medium text-[#555] hover:bg-[#f5f0e8] rounded-lg transition-colors flex items-center gap-2 border border-[#e5e0d8] disabled:opacity-50 disabled:cursor-not-allowed",
             "data-testid": "reprocess-btn",
             children: [
-              /* @__PURE__ */ u3("i", { class: "fas fa-redo-alt text-xs" }),
-              "Reprocess"
+              /* @__PURE__ */ u3("i", { class: `fas ${isReprocessing ? "fa-circle-notch fa-spin" : "fa-redo-alt"} text-xs` }),
+              isReprocessing ? "Reprocessing..." : "Reprocess"
             ]
           }
         ),
         /* @__PURE__ */ u3(
           "button",
           {
-            className: "px-4 py-1.5 text-sm font-medium text-white bg-[#b87333] hover:bg-[#a06028] rounded-lg shadow-sm transition-colors flex items-center gap-2 border border-[#905020]",
+            onClick: handleSave,
+            disabled: isSaving,
+            className: "px-4 py-1.5 text-sm font-medium text-white bg-[#b87333] hover:bg-[#a06028] rounded-lg shadow-sm transition-colors flex items-center gap-2 border border-[#905020] disabled:opacity-50 disabled:cursor-not-allowed",
             "data-testid": "save-all-btn",
             children: [
-              /* @__PURE__ */ u3("i", { class: "fas fa-save text-xs" }),
-              "Save Changes"
+              /* @__PURE__ */ u3("i", { class: `fas ${isSaving ? "fa-circle-notch fa-spin" : "fa-save"} text-xs` }),
+              isSaving ? "Saving..." : "Save Changes"
             ]
           }
         )
@@ -18451,7 +19225,48 @@ function DocumentContextBarIsland(props) {
         className: "fixed inset-0 z-40 bg-transparent",
         onClick: () => setIsDropdownOpen(false)
       }
-    )
+    ),
+    navModal.show && /* @__PURE__ */ u3("div", { className: "fixed inset-0 z-50 flex items-center justify-center", "aria-hidden": "false", children: [
+      /* @__PURE__ */ u3("div", { className: "absolute inset-0 bg-black opacity-50", "aria-hidden": "true" }),
+      /* @__PURE__ */ u3("div", { role: "dialog", "aria-modal": "true", "aria-labelledby": "nav-confirm-title", className: "relative z-10 bg-white rounded-lg shadow-xl max-w-lg w-full p-6", "data-testid": "nav-confirm-modal", children: [
+        /* @__PURE__ */ u3("h2", { id: "nav-confirm-title", className: "text-lg font-semibold", children: "You have unsaved changes" }),
+        /* @__PURE__ */ u3("p", { className: "mt-2 text-sm text-gray-600", children: "Save your changes to keep them, or discard them to continue navigating. You can also cancel to stay on this page." }),
+        /* @__PURE__ */ u3("div", { className: "mt-6 flex items-center gap-3 justify-end", children: [
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              "data-testid": "nav-confirm-cancel",
+              className: "px-4 py-2 rounded-md border border-gray-200 bg-white text-sm",
+              onClick: handleModalCancel,
+              "aria-label": "Cancel and stay on this page",
+              children: "Cancel"
+            }
+          ),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              "data-testid": "nav-confirm-discard",
+              className: "px-4 py-2 rounded-md border border-red-200 bg-white text-sm text-red-700",
+              onClick: handleModalDiscard,
+              "aria-label": "Discard changes and navigate",
+              children: "Discard Changes and Leave"
+            }
+          ),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              "data-testid": "nav-confirm-save",
+              ref: navSaveRef,
+              className: "px-4 py-2 rounded-md bg-[#b87333] text-white text-sm",
+              onClick: handleModalSave,
+              "aria-label": "Save changes and navigate",
+              disabled: navModal.saving,
+              children: navModal.saving ? "Saving\u2026" : "Save and Leave"
+            }
+          )
+        ] })
+      ] })
+    ] })
   ] });
 }
 
@@ -18477,7 +19292,9 @@ function ContextSidebarIsland(props) {
         const stored = window.localStorage.getItem(STORAGE_KEY);
         if (stored) setActiveTab(stored);
       }
-    } catch (e3) {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn("[ContextSidebarIsland] Unable to read from localStorage:", msg);
     }
   }, []);
   y2(() => {
@@ -18485,13 +19302,17 @@ function ContextSidebarIsland(props) {
       if (window && window.localStorage) {
         window.localStorage.setItem(STORAGE_KEY, activeTab);
       }
-    } catch (e3) {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn("[ContextSidebarIsland] Unable to write to localStorage:", msg);
     }
   }, [activeTab]);
   y2(() => {
     try {
       window.__context_sidebar_mounted = true;
-    } catch (e3) {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn("[ContextSidebarIsland] Failed to set __context_sidebar_mounted flag:", msg);
     }
   }, []);
   const tabs = [
@@ -18552,36 +19373,39 @@ function ContextSidebarIsland(props) {
 }
 
 // src/islands/runtime.browser.tsx
-var registry = {
-  "visual-annotation-island": VisualAnnotationIsland,
-  "feedback-controls-island": FeedbackControlsIsland,
-  "manual-editor-island": ManualEditorIsland,
-  "history-tabs-island": HistoryTabsIsland,
-  "overlay-viewer-island": OverlayViewerIsland,
-  "visual-overlays-island": VisualOverlaysIsland,
-  "playground-island": PlaygroundIsland,
-  "shadcn-compat": ShadcnCompat,
-  "overview-dashboard-island": OverviewDashboardIsland,
-  "settings-sidebar-island": SettingsSidebarIsland,
-  "connection-settings-island": ConnectionSettingsIsland,
-  "ai-provider-island": AIProviderIsland,
-  "expert-models-island": ExpertModelsIsland,
-  "restart-banner-island": RestartBannerIsland,
-  "developer-settings-island": DeveloperSettingsIsland,
-  "presets-manager-island": PresetsManagerIsland,
-  "export-panel-island": ExportPanelIsland,
-  "view-mode-toggle-island": ViewModeToggleIsland,
-  "tags-manager-island": TagsManagerIsland,
-  "ai-analysis-island": AIAnalysisIsland,
-  "chat-workspace-island": ChatWorkspaceIsland,
-  "history-manager-island": HistoryManagerIsland,
-  "manual-workspace-island": ManualWorkspaceIsland,
-  "document-content-island": DocumentContentIsland,
-  "smart-metadata-island": SmartMetadataIsland,
-  "unified-workspace-island": UnifiedWorkspaceIsland,
-  "document-context-bar-island": DocumentContextBarIsland,
-  "context-sidebar-island": ContextSidebarIsland
-};
+var registry = {};
+function registerIsland(name, component) {
+  registry[name] = component;
+}
+registerIsland("visual-annotation-island", VisualAnnotationIsland);
+registerIsland("feedback-controls-island", FeedbackControlsIsland);
+registerIsland("manual-editor-island", ManualEditorIsland);
+registerIsland("history-tabs-island", HistoryTabsIsland);
+registerIsland("overlay-viewer-island", OverlayViewerIsland);
+registerIsland("visual-overlays-island", VisualOverlaysIsland);
+registerIsland("playground-island", PlaygroundIsland);
+registerIsland("shadcn-compat", ShadcnCompat);
+registerIsland("overview-dashboard-island", OverviewDashboardIsland);
+registerIsland("settings-sidebar-island", SettingsSidebarIsland);
+registerIsland("connection-settings-island", ConnectionSettingsIsland);
+registerIsland("ai-provider-island", AIProviderIsland);
+registerIsland("expert-models-island", ExpertModelsIsland);
+registerIsland("restart-banner-island", RestartBannerIsland);
+registerIsland("developer-settings-island", DeveloperSettingsIsland);
+registerIsland("presets-manager-island", PresetsManagerIsland);
+registerIsland("export-panel-island", ExportPanelIsland);
+registerIsland("view-mode-toggle-island", ViewModeToggleIsland);
+registerIsland("tags-manager-island", TagsManagerIsland);
+registerIsland("ai-analysis-island", AIAnalysisIsland);
+registerIsland("chat-workspace-island", ChatWorkspaceIsland);
+registerIsland("history-manager-island", HistoryManagerIsland);
+registerIsland("manual-workspace-island", ManualWorkspaceIsland);
+registerIsland("document-content-island", DocumentContentIsland);
+registerIsland("smart-metadata-island", SmartMetadataIsland);
+registerIsland("unified-workspace-island", UnifiedWorkspaceIsland);
+registerIsland("dashboard-charts-island", DashboardChartsIsland);
+registerIsland("document-context-bar-island", DocumentContextBarIsland);
+registerIsland("context-sidebar-island", ContextSidebarIsland);
 function parseProps(el) {
   const raw = el.getAttribute("data-props") || "{}";
   try {
@@ -18590,9 +19414,6 @@ function parseProps(el) {
     console.warn("island-runtime: failed to parse props", err);
     return null;
   }
-}
-function registerIsland(name, component) {
-  registry[name] = component;
 }
 function mountIslands(container = document) {
   if (typeof window !== "undefined") {
@@ -18621,14 +19442,15 @@ function mountIslands(container = document) {
   });
 }
 if (typeof window !== "undefined") {
-  window.mountIslands = mountIslands;
-  window.islandRuntime = {
+  const w4 = window;
+  w4.mountIslands = mountIslands;
+  w4.islandRuntime = {
     mountIslands,
     registerIsland,
     _registry: registry
   };
   const autoMount = () => {
-    if (window.__islandRuntimeMounted) return;
+    if (w4.__islandRuntimeMounted) return;
     if (document.querySelector("[data-island]")) {
       mountIslands(document);
     }

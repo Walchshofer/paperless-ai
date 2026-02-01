@@ -1,5 +1,23 @@
 const assert = require('assert');
-require('ts-node').register({ transpileOnly: true, compilerOptions: { module: 'CommonJS', jsx: 'react-jsx', jsxImportSource: 'preact' } });
+// Fix: ensure globals are set for tests that don't go through mocha's require chain correctly
+if (typeof global.window === 'undefined') {
+  const jsdom = require('jsdom');
+  const dom = new jsdom.JSDOM('<!doctype html><html><body></body></html>', { 
+    url: 'http://localhost',
+    pretendToBeVisual: true 
+  });
+  global.window = dom.window;
+  global.document = dom.window.document;
+  global.navigator = dom.window.navigator;
+  global.HTMLElement = dom.window.HTMLElement;
+  global.Node = dom.window.Node;
+  global.CustomEvent = dom.window.CustomEvent;
+  // Ensure confirm exists
+  if (!global.window.confirm) {
+    global.window.confirm = () => true;
+  }
+}
+
 const { h } = require('preact');
 const { render } = require('@testing-library/preact');
 const DocumentContextBarIsland = require('../../src/islands/DocumentContextBarIsland.tsx').default;
@@ -7,26 +25,34 @@ const DocumentContextBarIsland = require('../../src/islands/DocumentContextBarIs
 describe('DocumentContextBarIsland - navigation blocking when dirty', () => {
   let originalConfirm;
   beforeEach(() => {
-    global.window = global.window || {};
     // reset workspace state
-    global.window.__workspaceState = {};
+    if (!global.window.__workspaceState) global.window.__workspaceState = {};
+    else Object.keys(global.window.__workspaceState).forEach(k => delete global.window.__workspaceState[k]);
+    
     originalConfirm = global.window.confirm;
   });
 
   afterEach(() => {
     global.window.confirm = originalConfirm;
-    delete global.window.__workspaceState;
   });
 
   it('opens modal and cancels navigation when user clicks Cancel', () => {
-    const props = { documentId: 1, title: 'Doc1', availableDocuments: [{ id: 1, title: 'Doc1' }, { id: 2, title: 'Doc2' }] };
+    const props = { 
+      documentId: 1, 
+      title: 'Doc1', 
+      availableDocuments: [{ id: 1, title: 'Doc1' }, { id: 2, title: 'Doc2' }] 
+    };
     const { container, getByTestId } = render(h(DocumentContextBarIsland, props));
 
     // Mark doc 1 as dirty
-    global.window.__workspaceState = { '1': { isDirty: true } };
+    global.window.__workspaceState['1'] = { isDirty: true };
 
     // Spy on location change
     try { global.window.location = { href: '' }; } catch (e) {}
+
+    // Open the selector dropdown explicitly so options are present
+    const trigger = container.querySelector('[data-testid="document-selector-trigger"]');
+    trigger.click();
 
     const btn = container.querySelector('[data-testid="document-option-2"]');
     assert.ok(btn, 'document option should exist');
@@ -43,14 +69,22 @@ describe('DocumentContextBarIsland - navigation blocking when dirty', () => {
   });
 
   it('discards changes and navigates when Discard is clicked', () => {
-    const props = { documentId: 1, title: 'Doc1', availableDocuments: [{ id: 1, title: 'Doc1' }, { id: 2, title: 'Doc2' }] };
+    const props = { 
+      documentId: 1, 
+      title: 'Doc1', 
+      availableDocuments: [{ id: 1, title: 'Doc1' }, { id: 2, title: 'Doc2' }] 
+    };
     const { container, getByTestId } = render(h(DocumentContextBarIsland, props));
 
     // Mark doc 1 as dirty
-    global.window.__workspaceState = { '1': { isDirty: true } };
+    global.window.__workspaceState['1'] = { isDirty: true };
 
     // Spy on location change
     try { global.window.location = { href: '' }; } catch (e) {}
+
+    // Open selector dropdown
+    const trigger = container.querySelector('[data-testid="document-selector-trigger"]');
+    trigger.click();
 
     const btn = container.querySelector('[data-testid="document-option-2"]');
     btn.click();
@@ -62,11 +96,15 @@ describe('DocumentContextBarIsland - navigation blocking when dirty', () => {
   });
 
   it('saves before navigating when Save is clicked', (done) => {
-    const props = { documentId: 1, title: 'Doc1', availableDocuments: [{ id: 1, title: 'Doc1' }, { id: 2, title: 'Doc2' }] };
+    const props = { 
+      documentId: 1, 
+      title: 'Doc1', 
+      availableDocuments: [{ id: 1, title: 'Doc1' }, { id: 2, title: 'Doc2' }] 
+    };
     const { container, getByTestId } = render(h(DocumentContextBarIsland, props));
 
     // Mark doc 1 as dirty
-    global.window.__workspaceState = { '1': { isDirty: true } };
+    global.window.__workspaceState['1'] = { isDirty: true };
 
     // Spy on location change
     try { global.window.location = { href: '' }; } catch (e) {}
@@ -83,6 +121,10 @@ describe('DocumentContextBarIsland - navigation blocking when dirty', () => {
     }
     window.addEventListener('workspace:save-request', onSaveReq);
 
+    // Open selector dropdown
+    const trigger = container.querySelector('[data-testid="document-selector-trigger"]');
+    trigger.click();
+
     const btn = container.querySelector('[data-testid="document-option-2"]');
     btn.click();
 
@@ -90,10 +132,27 @@ describe('DocumentContextBarIsland - navigation blocking when dirty', () => {
     assert.ok(saveBtn, 'save button should exist');
     saveBtn.click();
 
-    // Give a tick for sync:success handler to run and navigate
+    // Give a tick for handlers to run
     setTimeout(() => {
       assert.strictEqual(global.window.location.href, '/document/2');
       done();
-    }, 0);
+    }, 10);
+  });
+
+  it('forces selector open when documentId is null', () => {
+    const props = { 
+      documentId: null, 
+      title: null, 
+      availableDocuments: [{ id: 1, title: 'Doc1' }] 
+    };
+    const { getByTestId } = render(h(DocumentContextBarIsland, props));
+    
+    // Selector should be open (dropdown visible)
+    const dropdown = getByTestId('document-selector-dropdown');
+    assert.ok(dropdown, 'Dropdown should be open by default when documentId is null');
+    
+    // Should show search input
+    const searchInput = getByTestId('document-search-input');
+    assert.ok(searchInput, 'Search input should be visible');
   });
 });

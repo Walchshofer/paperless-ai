@@ -1,0 +1,24 @@
+<% if (locals.showLegacyBanner !== false && !locals.legacyBannerDismissed) { %>
+<div class="bg-amber-50 border-b border-amber-200 px-4 py-3"
+     data-testid="legacy-route-banner"
+     id="legacy-route-banner">
+  <div class="max-w-7xl mx-auto flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <i class="fas fa-exclamation-triangle text-amber-600"></i>
+      <span class="text-amber-800 text-sm">
+        <strong>This page is deprecated.</strong>
+        Please use the new <a href="/workspace" class="underline font-medium hover:text-amber-900">Unified Document Workspace</a>.
+      </span>
+    </div>
+    <button onclick="dismissLegacyBanner()" class="text-amber-600 hover:text-amber-800 p-1" title="Dismiss banner">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+</div>
+<script>
+function dismissLegacyBanner() {
+  document.getElementById('legacy-route-banner').style.display = 'none';
+  document.cookie = 'legacy_banner_dismissed=1; path=/; max-age=2592000'; // 30 days
+}
+</script>
+<% } %>

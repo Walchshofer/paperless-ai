@@ -490,7 +490,7 @@ export default function HistoryManagerIsland(
                   <td>
                     <div className="sg-row-actions">
                       <a
-                        href={`/history/doc/${row.document_id}`}
+                        href={`/workspace/doc/${row.document_id}`}
                         className="sg-link"
                         data-testid={`history-view-${row.document_id}`}
                       >
@@ -505,7 +505,7 @@ export default function HistoryManagerIsland(
                         Visual
                       </button>
                       <a
-                        href={`/chat?open=${row.document_id}`}
+                        href={`/workspace/doc/${row.document_id}`}
                         className="sg-link"
                         data-testid={`history-chat-${row.document_id}`}
                       >

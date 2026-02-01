@@ -14,44 +14,113 @@ export interface DocumentContextBarProps {
   status?: 'saved' | 'unsaved' | 'processing' | 'error';
 }
 
+const { isDocumentDirty: _isDocumentDirty } = require('../lib/navigation-guard');
+
 export default function DocumentContextBarIsland(props: DocumentContextBarProps) {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  // Local state to track the current document (allows inline switching without full page reload)
+  const [currentDocumentId, setCurrentDocumentId] = useState<number | null>(props.documentId);
+  const [currentTitle, setCurrentTitle] = useState<string | null>(props.title);
+  // Open selector by default when no document is selected (prominent CTA)
+  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(() => (props.documentId == null));
   const [searchTerm, setSearchOpen] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Update local state when props change (e.g., on initial load or URL-based navigation)
+  useEffect(() => {
+    setCurrentDocumentId(props.documentId);
+    setCurrentTitle(props.title);
+  }, [props.documentId, props.title]);
+
+  // Keep dropdown open if there is no selected document; close when a document becomes selected
+  useEffect(() => {
+    if (currentDocumentId == null) setIsDropdownOpen(true);
+    else setIsDropdownOpen(false);
+  }, [currentDocumentId]);
 
   const filteredDocuments = useMemo(() => {
     if (!searchTerm) return props.availableDocuments;
     const term = searchTerm.toLowerCase();
-    return props.availableDocuments.filter((doc: DocumentSummary) => 
-      (doc.title || '').toLowerCase().includes(term) || 
+    return props.availableDocuments.filter((doc: DocumentSummary) =>
+      (doc.title || '').toLowerCase().includes(term) ||
       (doc.original_filename || '').toLowerCase().includes(term) ||
       String(doc.id).includes(term)
     );
   }, [props.availableDocuments, searchTerm]);
 
   const currentIndex = useMemo(() => {
-    if (!props.documentId) return -1;
-    return props.availableDocuments.findIndex(doc => doc.id === props.documentId);
-  }, [props.availableDocuments, props.documentId]);
+    if (!currentDocumentId) return -1;
+    return props.availableDocuments.findIndex(doc => doc.id === currentDocumentId);
+  }, [props.availableDocuments, currentDocumentId]);
 
   // Use navigation helper for detecting dirty state only; modal UI handles confirmation.
-  const { isDocumentDirty: _isDocumentDirty } = require('../lib/navigation-guard');
   const isDocumentDirty = useCallback((docId?: number | null) => {
-    return _isDocumentDirty(docId ?? props.documentId ?? null);
-  }, [props.documentId]);
+    return _isDocumentDirty(docId ?? currentDocumentId ?? null);
+  }, [currentDocumentId]);
 
   interface NavModal { show: boolean; targetId: number | null; saving: boolean }
   const [navModal, setNavModal] = useState({ show: false, targetId: null as number | null, saving: false } as NavModal);
   // useRef generic typing can be finicky across TS configs; cast instead
   const navSaveRef = useRef(null as unknown as HTMLButtonElement | null);
 
+  // Load document inline without full page navigation
+  const loadDocumentInline = useCallback(async (id: number) => {
+    setIsLoading(true);
+    try {
+      // Fetch document data from API
+      const response = await fetch(`/workspace/api/doc/${id}`);
+      if (!response.ok) {
+        // Fallback to full page navigation if API fails
+        console.warn('[DocumentContextBar] API fetch failed, falling back to navigation');
+        window.location.href = `/workspace/doc/${id}`;
+        return;
+      }
+      const docData = await response.json();
+
+      // Update local state
+      setCurrentDocumentId(id);
+      setCurrentTitle(docData.title || null);
+
+      // Update URL without full page reload
+      try {
+        window.history.pushState({ documentId: id }, '', `/workspace/doc/${id}`);
+      } catch (err) { /* ignore in tests */ }
+
+      // Dispatch event for OverlayViewerIsland to update the document viewer
+      window.dispatchEvent(new CustomEvent('overlay:document-changed', {
+        detail: {
+          documentId: id,
+          page: 1,
+          originalUrl: docData.originalUrl || null,
+          pageCount: docData.pageCount || 1
+        }
+      }));
+
+      // Dispatch event for sidebar/context panels to update
+      window.dispatchEvent(new CustomEvent('workspace:document-switched', {
+        detail: {
+          documentId: id,
+          document: docData
+        }
+      }));
+
+      setIsDropdownOpen(false);
+    } catch (err) {
+      console.error('[DocumentContextBar] Error loading document:', err);
+      // Fallback to full page navigation
+      window.location.href = `/workspace/doc/${id}`;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const handleNavigate = useCallback((id: number) => {
-    const dirty = isDocumentDirty(props.documentId);
+    const dirty = isDocumentDirty(currentDocumentId);
     if (dirty) {
       setNavModal({ show: true, targetId: id, saving: false });
       return;
     }
-    try { window.location.href = `/document/${id}`; } catch (err) { /* ignore in tests */ }
-  }, [isDocumentDirty, props.documentId]);
+    loadDocumentInline(id);
+  }, [isDocumentDirty, currentDocumentId, loadDocumentInline]);
 
   const handlePrev = useCallback(() => {
     if (currentIndex > 0) {
@@ -79,22 +148,18 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
   const handleModalDiscard = useCallback(() => {
     const id = navModal.targetId;
     setNavModal({ show: false, targetId: null, saving: false });
-    if (id) try { window.location.href = `/document/${id}`; } catch (err) { /* ignore */ }
-  }, [navModal.targetId]);
+    if (id) loadDocumentInline(id);
+  }, [navModal.targetId, loadDocumentInline]);
 
   const handleModalSave = useCallback(() => {
     setNavModal((s: NavModal) => ({ ...s, saving: true }));
-    try {
-      window.dispatchEvent(new CustomEvent('workspace:save-request', { detail: { documentId: props.documentId } }));
-    } catch (err) { /* ignore */ }
-
     const onSaveComplete = (e: Event) => {
       const detail = (e as CustomEvent)?.detail || {};
-      const savedDocId = detail.documentId ?? props.documentId;
-      if (String(savedDocId) === String(props.documentId)) {
+      const savedDocId = detail.documentId ?? currentDocumentId;
+      if (String(savedDocId) === String(currentDocumentId)) {
         const id = navModal.targetId;
         setNavModal({ show: false, targetId: null, saving: false });
-        try { if (id) window.location.href = `/document/${id}`; } catch (err) { /* ignore */ }
+        if (id) loadDocumentInline(id);
         window.removeEventListener('workspace:save-complete', onSaveComplete as EventListener);
         window.removeEventListener('workspace:save-failed', onSaveFailed as EventListener);
       }
@@ -110,11 +175,15 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
     window.addEventListener('workspace:save-complete', onSaveComplete as EventListener);
     window.addEventListener('workspace:save-failed', onSaveFailed as EventListener);
 
+    try {
+      window.dispatchEvent(new CustomEvent('workspace:save-request', { detail: { documentId: currentDocumentId } }));
+    } catch (err) { /* ignore */ }
+
     // Timeout fallback: if save doesn't complete in 30s, stop showing saving state
     setTimeout(() => {
       setNavModal((s: NavModal) => (s.saving ? { ...s, saving: false } : s));
     }, 30000);
-  }, [navModal.targetId, props.documentId]);
+  }, [navModal.targetId, currentDocumentId, loadDocumentInline]);
 
   // State for standalone save/reprocess operations
   const [isSaving, setIsSaving] = useState(false);
@@ -125,14 +194,11 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
     if (isSaving) return;
     setIsSaving(true);
 
-    try {
-      window.dispatchEvent(new CustomEvent('workspace:save-request', { detail: { documentId: props.documentId } }));
-    } catch (err) { /* ignore */ }
-
     const onSaveComplete = (e: Event) => {
       const detail = (e as CustomEvent)?.detail || {};
-      const savedDocId = detail.documentId ?? props.documentId;
-      if (String(savedDocId) === String(props.documentId)) {
+      const savedDocId = detail.documentId ?? currentDocumentId;
+      console.log('DEBUG: onSaveComplete', savedDocId, currentDocumentId, navModal ? navModal.targetId : 'no-modal');
+      if (String(savedDocId) === String(currentDocumentId)) {
         setIsSaving(false);
         // Update status badge to saved
         const root = document.querySelector('[data-testid="document-context-bar-root"]');
@@ -144,8 +210,8 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
 
     const onSaveFailed = (e: Event) => {
       const detail = (e as CustomEvent)?.detail || {};
-      const failedDocId = detail.documentId ?? props.documentId;
-      if (String(failedDocId) === String(props.documentId)) {
+      const failedDocId = detail.documentId ?? currentDocumentId;
+      if (String(failedDocId) === String(currentDocumentId)) {
         setIsSaving(false);
         // Update status badge to error
         const root = document.querySelector('[data-testid="document-context-bar-root"]');
@@ -158,6 +224,10 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
     window.addEventListener('workspace:save-complete', onSaveComplete as EventListener);
     window.addEventListener('workspace:save-failed', onSaveFailed as EventListener);
 
+    try {
+      window.dispatchEvent(new CustomEvent('workspace:save-request', { detail: { documentId: currentDocumentId } }));
+    } catch (err) { /* ignore */ }
+
     // Timeout fallback: if save doesn't complete in 30s, stop showing saving state
     setTimeout(() => {
       setIsSaving((current) => {
@@ -168,21 +238,17 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
         return false;
       });
     }, 30000);
-  }, [props.documentId, isSaving]);
+  }, [currentDocumentId, isSaving]);
 
   // Handle Reprocess button click
   const handleReprocess = useCallback(() => {
     if (isReprocessing) return;
     setIsReprocessing(true);
 
-    try {
-      window.dispatchEvent(new CustomEvent('workspace:reprocess-request', { detail: { documentId: props.documentId } }));
-    } catch (err) { /* ignore */ }
-
     const onReprocessComplete = (e: Event) => {
       const detail = (e as CustomEvent)?.detail || {};
-      const processedDocId = detail.documentId ?? props.documentId;
-      if (String(processedDocId) === String(props.documentId)) {
+      const processedDocId = detail.documentId ?? currentDocumentId;
+      if (String(processedDocId) === String(currentDocumentId)) {
         setIsReprocessing(false);
         window.removeEventListener('workspace:reprocess-complete', onReprocessComplete as EventListener);
         window.removeEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
@@ -191,8 +257,8 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
 
     const onReprocessFailed = (e: Event) => {
       const detail = (e as CustomEvent)?.detail || {};
-      const failedDocId = detail.documentId ?? props.documentId;
-      if (String(failedDocId) === String(props.documentId)) {
+      const failedDocId = detail.documentId ?? currentDocumentId;
+      if (String(failedDocId) === String(currentDocumentId)) {
         setIsReprocessing(false);
         window.removeEventListener('workspace:reprocess-complete', onReprocessComplete as EventListener);
         window.removeEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
@@ -201,6 +267,10 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
 
     window.addEventListener('workspace:reprocess-complete', onReprocessComplete as EventListener);
     window.addEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
+
+    try {
+      window.dispatchEvent(new CustomEvent('workspace:reprocess-request', { detail: { documentId: currentDocumentId } }));
+    } catch (err) { /* ignore */ }
 
     // Timeout fallback: if reprocess doesn't complete in 60s, stop showing processing state
     setTimeout(() => {
@@ -212,13 +282,13 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
         return false;
       });
     }, 60000);
-  }, [props.documentId, isReprocessing]);
+  }, [currentDocumentId, isReprocessing]);
 
   // Listen for workspace-wide events to update a visual unsaved indicator
   useEffect(() => {
     const onDirty = (e: Event) => {
       const d = (e as CustomEvent)?.detail || {};
-      if (d && (d.documentId === props.documentId || props.documentId == null)) {
+      if (d && (d.documentId === currentDocumentId || currentDocumentId == null)) {
         const root = document.querySelector('[data-testid="document-context-bar-root"]');
         if (root) root.setAttribute('data-status', 'unsaved');
       }
@@ -237,7 +307,7 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
       window.removeEventListener('workspace:save-complete', onSaved as EventListener);
       window.removeEventListener('sync:success', onSaved as EventListener);
     };
-  }, [props.documentId]);
+  }, [currentDocumentId]);
 
   const getStatusBadge = () => {
     switch (props.status) {
@@ -274,8 +344,9 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
             data-testid="document-selector-trigger"
           >
             <span className="font-['Space_Grotesk'] font-medium truncate max-w-[240px]">
-              {props.title || 'Select Document'}
+              {currentTitle || 'Select Document'}
             </span>
+            {isLoading && <i class="fas fa-circle-notch fa-spin text-xs text-[#b87333] ml-2"></i>}
             <i class={`fas fa-chevron-down text-xs transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`}></i>
           </button>
 
@@ -301,10 +372,10 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
                     <button
                       key={doc.id}
                       onClick={() => handleNavigate(doc.id)}
-                      className={`w-full text-left px-4 py-3 rounded-lg flex flex-col gap-0.5 hover:bg-[#fdfaf6] transition-colors group ${doc.id === props.documentId ? 'bg-[#fdfaf6]' : ''}`}
+                      className={`w-full text-left px-4 py-3 rounded-lg flex flex-col gap-0.5 hover:bg-[#fdfaf6] transition-colors group ${doc.id === currentDocumentId ? 'bg-[#fdfaf6]' : ''}`}
                       data-testid={`document-option-${doc.id}`}
                     >
-                      <span className={`text-sm font-medium truncate ${doc.id === props.documentId ? 'text-[#b87333]' : 'text-[#2c2c2c]'}`}>
+                      <span className={`text-sm font-medium truncate ${doc.id === currentDocumentId ? 'text-[#b87333]' : 'text-[#2c2c2c]'}`}>
                         {doc.title || doc.original_filename}
                       </span>
                       <span className="text-[10px] text-[#888] font-mono">#{doc.id}</span>

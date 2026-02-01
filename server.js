@@ -16,7 +16,8 @@ const processingRoutes = require('./routes/processing');
 const systemRoutes = require('./routes/system');
 const settingsRoutes = require('./routes/settings');
 const manualRoutes = require('./routes/manual');
-const documentRoutes = require('./routes/document');
+const documentRoutes = require('./routes/workspace');
+const legacyRedirectMiddleware = require('./middleware/legacy-redirect');
 const duplicateDetector = require('./services/DuplicateDetector');
 const healthMetricsService = require('./services/HealthMetricsService');
 const PatternDetectionEngine = require('./services/PatternDetectionEngine');
@@ -629,13 +630,17 @@ async function scanDocuments() {
 // Routes
 app.use('/', authRoutes);
 app.use('/', documentsRoutes);
+
+// Legacy route deprecation middleware (Phase A: banner, B: soft redirect, C: hard redirect)
+app.use(legacyRedirectMiddleware);
+
 app.use('/', chatRoutes);
 app.use('/', historyRoutes);
 app.use('/', processingRoutes);
 app.use('/', systemRoutes);
 app.use('/', settingsRoutes);
 app.use('/', manualRoutes);
-app.use('/', documentRoutes);
+app.use('/workspace', documentRoutes);
 app.use('/', setupRoutes);
 const ragRoutes = require('./routes/rag');
 const feedbackRoutes = require('./routes/api/feedback');

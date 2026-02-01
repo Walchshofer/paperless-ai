@@ -39,6 +39,8 @@ A persistent “Guided Rail” that narrates the next best action (select docume
   - HistoryManagerIsland: filters, pagination, select-all, reanalyze/reset actions, overlay preview modal
   - OverlayViewerIsland (composed inside modal)
 
+> Note: The unified workspace now loads without a pre-selected document by default. The `DocumentContextBarIsland` provides a prominent document selector at the top of the workspace; legacy behavior (auto-opening the most recent document) is still available via `/document?latest=1` for compatibility. (See route: `routes/document.js`).
+
 ## vm contract shape (fields only, grouped)
 ### Manual vm
 - manual: { documentId, metadata, content, fields, originalUrl, pageCount }

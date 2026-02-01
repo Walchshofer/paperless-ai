@@ -32,4 +32,16 @@ describe('DocumentContextBarIsland - reacts to workspace events', function () {
     assert.ok(container, 'root exists');
     assert.strictEqual(container.getAttribute('data-status'), 'unsaved');
   });
+
+  it('opens the selector dropdown by default when there is no selected document', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    render(h(DocumentContextBar, { documentId: null, title: null, availableDocuments: [{ id: 1, title: 'Doc 1' }] }), root);
+
+    // Wait a tick for mount/effects to run
+    await new Promise((r) => setTimeout(r, 20));
+
+    const dropdown = root.querySelector('[data-testid="document-selector-dropdown"]');
+    assert.ok(dropdown, 'document selector dropdown should be open when no document is selected');
+  });
 });

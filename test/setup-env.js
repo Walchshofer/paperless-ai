@@ -63,10 +63,8 @@ try {
                             getContextAttributes: () => ({})
                         };
                         try {
-                            // Overwrite even if JS-DOM already has a function that throws
                             window.HTMLCanvasElement.prototype.getContext = function() { return fakeCtx; };
                         } catch (assignErr) {
-                            // Some environments may have non-writable prototype properties — fall back to defineProperty
                             Object.defineProperty(window.HTMLCanvasElement.prototype, 'getContext', {
                                 value: function() { return fakeCtx; },
                                 configurable: true,
@@ -83,7 +81,20 @@ try {
         }
     }
     jsdom.JSDOM = JSDOMWithCanvasStub;
-    console.log('[test/setup-env] Patched JSDOM to inject canvas.getContext stub');
+    
+    // Explicitly set up global environment if not present
+    if (typeof global.window === 'undefined') {
+        const dom = new jsdom.JSDOM('<!doctype html><html><body></body></html>', {
+            url: 'http://localhost'
+        });
+        global.window = dom.window;
+        global.document = dom.window.document;
+        global.navigator = dom.window.navigator;
+        global.HTMLElement = dom.window.HTMLElement;
+        global.Node = dom.window.Node;
+    }
+    
+    console.log('[test/setup-env] Patched and initialized JSDOM globals');
 } catch (e) {
     console.warn('[test/setup-env] Could not patch JSDOM for canvas stub:', e && e.message);
 }

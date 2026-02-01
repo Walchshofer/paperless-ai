@@ -29,7 +29,11 @@ export const SmartMetadataSchema = z.object({
     .passthrough()
     .optional(),
   customFields: z.array(SmartFieldSchema).optional(),
+  // Tags support
+  selectedTags: z.array(SmartTagSchema).optional().default([]),
+  availableTags: z.array(SmartTagSchema).optional().default([]),
 });
 
 export type SmartField = z.infer<typeof SmartFieldSchema>;
+export type SmartTag = z.infer<typeof SmartTagSchema>;
 export type SmartMetadataContract = z.infer<typeof SmartMetadataSchema>;

@@ -1,11 +1,33 @@
 const express = require('express');
 const router = express.Router();
+const jwt = require('jsonwebtoken');
 const paperlessService = require('../services/paperlessService.js');
 const documentModel = require('../services/documentModel.js');
 const configFile = require('../config/config.js');
 const {
   HistoryDocumentVmSchema,
 } = require('../src/ui/contracts/HistoryDocument.contract.js');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
+// Middleware to ensure user is authenticated
+const authenticate = async (req, res, next) => {
+  const token = req.cookies.jwt || req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.redirect('/login');
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    res.clearCookie('jwt');
+    return res.redirect('/login');
+  }
+};
+
+// Apply authentication to all history routes
+router.use(authenticate);
 
 /**
  * @swagger

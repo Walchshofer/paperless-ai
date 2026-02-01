@@ -1,5 +1,23 @@
 # UI Contracts (Test hooks & Events) 🔧
 
+## Dashboard Charts Island (Reactive Metrics)
+
+- Island anchor: `data-island="dashboard-charts-island"`
+- Task Runner Status:
+  - Container: `.material-card` containing "Task Runner Status"
+  - Active Processing: `#processingContainer` (visible when `metrics.processingStatus.isProcessing` is true)
+  - Idle State: `#idleContainer` (visible when idle)
+  - Stats: `processedToday` (text content), `pendingCount` (text content)
+- Charts:
+  - Token Distribution: `canvas#tokenDistributionChart`
+  - Document Types: `canvas#documentTypesChart`
+
+### Events
+- **Internal Polling**: The island polls `/api/dashboard/metrics` every 5 seconds.
+- **Hydration**: Accepts `initialData` prop from `window.dashboardData` snapshot.
+
+---
+
 ## Overlay Viewer Island (⚠️ important for tests and integration)
 
 - Island anchor: `data-island="overlay-viewer-island"` — used to mount the island.

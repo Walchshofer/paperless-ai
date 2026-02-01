@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com/3.4.16"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.0/css/all.min.css">
     <link rel="stylesheet" href="css/dashboard.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
 </head>
 <body class="h-full" data-page="<%= vm.page || 'dashboard' %>">
     <button id="themeToggle" data-testid="theme-toggle" class="theme-toggle">
@@ -21,77 +20,7 @@
         <!-- Sidebar -->
         <div id="sidebarOverlay" class="sidebar-overlay"></div>
         <aside class="sidebar">
-            <div class="sidebar-header">
-                    <img src="/favicon.ico" class="no-invert" alt="Paperless AI Logo" style="height: 60px;">
-                <h1 class="brand-title">Paperless-AI<small style="display: block;"><%= vm.version %></small></h1>
-            </div>
-
-            <nav class="sidebar-nav">
-                <ul>
-                    <li>
-                        <a href="/dashboard" class="sidebar-link active">
-                            <i class="fas fa-home"></i>
-                            <span>Dashboard</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/manual" class="sidebar-link">
-                            <i class="fas fa-file-alt"></i>
-                            <span>Manual</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/chat" class="sidebar-link">
-                            <i class="fa-solid fa-comment"></i>
-                            <span>Chat</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/rag" class="sidebar-link">
-                            <i class="fa-solid fa-comment"></i>
-                            <span>RAG Chat</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/playground" class="sidebar-link">
-                            <i class="fa-solid fa-flask-vial"></i>
-                            <span>Playground</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/history" class="sidebar-link">
-                            <i class="fa-solid fa-clock-rotate-left"></i>
-                            <span>History</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/settings" class="sidebar-link">
-                            <i class="fas fa-cog"></i>
-                            <span>Settings</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/logout" class="sidebar-link">
-                            <i class="fa-solid fa-right-from-bracket"></i>
-                            <span>Logout</span>
-                        </a>
-                    </li>
-                </ul>
-                <a href="https://github.com/clusterzx/paperless-ai" 
-                    class="github-button" 
-                    style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);">
-                    <span class="star-button">
-                        <svg class="star-icon" height="16" width="16" viewBox="0 0 16 16">
-                            <path d="M8 .25a.75.75 0 01.673.418l1.882 3.815 4.21.612a.75.75 0 01.416 1.279l-3.046 2.97.719 4.192a.75.75 0 01-1.088.791L8 12.347l-3.766 1.98a.75.75 0 01-1.088-.79l.72-4.194L.818 6.374a.75.75 0 01.416-1.28l4.21-.611L7.327.668A.75.75 0 018 .25z"></path>
-                        </svg>
-                        Star
-                    </span>
-                    <span id="starCount" class="star-count">1.2k</span>
-                </a>
-                <p style="position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #555; text-align: center;">
-                    Please support us on GitHub
-                </p>
-            </nav>
+            <%- include('partials/sidebar-nav', { active: 'dashboard' }) %>
         </aside>
 
         <!-- Main Content -->
@@ -187,50 +116,7 @@
                         </div>
                     </div>
 
-                    <!-- Document Chart -->
-                    <div class="material-card col-span-2">
-                        <h3 class="card-title">Document Processing Status</h3>
-                        <div class="flex items-center">
-                            <div class="w-1/2">
-                                <canvas id="documentChart" height="200"></canvas>
-                            </div>
-                            <div class="w-1/2 pl-6">
-                                <div class="stats-legend">
-                                    <div class="stat-item">
-                                        <div class="flex items-center justify-between">
-                                            <div class="flex items-center">
-                                                <div class="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
-                                                <span>Local Processed</span>
-                                            </div>
-                                            <span class="font-semibold"><%= vm.paperless_data.processedDocumentCount %></span>
-                                        </div>
-                                    </div>
-                                    <div class="stat-item mt-4">
-                                        <div class="flex items-center justify-between">
-                                            <div class="flex items-center">
-                                                <div class="w-3 h-3 rounded-full bg-gray-200 mr-2"></div>
-                                                <span>Pending Processing</span>
-                                            </div>
-                                            <span class="font-semibold"><%= Math.max(0, vm.paperless_data.documentCount - vm.paperless_data.processedDocumentCount) %></span>
-                                        </div>
-                                    </div>
-                                    <div class="total-stats mt-6 pt-4 border-t flex items-center justify-between">
-                                        <div>
-                                            <div class="text-sm text-gray-600">Paperless-ngx Total</div>
-                                            <div class="text-2xl font-bold"><%= vm.paperless_data.documentCount %></div>
-                                        </div>
-                                        <div class="text-right">
-                                            <div class="text-[10px] text-gray-500 uppercase font-bold mb-1">Queue Status</div>
-                                            <div class="flex items-center justify-end">
-                                                <span class="w-2 h-2 rounded-full <%= vm.processingStatus.isProcessing ? 'bg-blue-500 animate-pulse' : 'bg-gray-300' %> mr-2"></span>
-                                                <span class="text-xs font-medium"><%= vm.processingStatus.isProcessing ? 'Processing' : 'Idle' %></span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    
                     
                     <!-- Statistics & Activity Card -->
                     <div class="material-card">
@@ -346,175 +232,14 @@
                         </div>
                     </div>
                 </div>
-                <div class="card-grid mt-6">
-                    <!-- Task Runner Status -->
-                    <div class="material-card col-span-2">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="card-title mb-0">Task Runner Status</h3>
-                            <span id="statusLastUpdated" class="text-sm text-gray-500"></span>
-                        </div>
-
-                        <!-- Active Processing Card -->
-                        <div class="bg-white rounded-xl border border-gray-100 p-6 mb-4">
-                            <div id="processingContainer" class="hidden">
-                                <div class="flex items-center gap-4">
-                                    <!-- Spinner -->
-                                    <div class="relative">
-                                        <div class="w-12 h-12 rounded-full border-4 border-blue-100 border-t-blue-500 animate-spin"></div>
-                                        <div class="absolute inset-0 flex items-center justify-center">
-                                            <i class="fas fa-file text-blue-500 text-sm"></i>
-                                        </div>
-                                    </div>
-                                    <!-- Document Info -->
-                                    <div class="flex-1">
-                                        <div class="flex items-center gap-2 mb-1">
-                                            <span class="font-medium">Processing Document</span>
-                                            <span id="currentDocId" class="text-sm bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full"></span>
-                                        </div>
-                                        <div id="currentDocTitle" class="text-sm text-gray-600 truncate"></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div id="idleContainer" class="flex items-center gap-4">
-                                <div class="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center">
-                                    <i class="fas fa-check text-gray-400"></i>
-                                </div>
-                                <div>
-                                    <div class="font-medium">System Idle</div>
-                                    <div class="text-sm text-gray-600">Waiting for new documents</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Stats Grid -->
-                        <div class="grid grid-cols-2 gap-4">
-                            <!-- Today's Stats -->
-                            <div class="bg-white rounded-xl border border-gray-100 p-4">
-                                <div class="text-sm text-gray-600 mb-1">Processed Today</div>
-                                <div class="flex items-end gap-2">
-                                    <span id="processedToday" class="text-2xl font-bold">0</span>
-                                    <span class="text-sm text-gray-500 mb-1">documents</span>
-                                </div>
-                            </div>
-
-                            <!-- Last Processed -->
-                            <div class="bg-white rounded-xl border border-gray-100 p-4">
-                                <div class="text-sm text-gray-600 mb-1">Last Processed</div>
-                                <div id="lastProcessed" class="text-sm font-medium"></div>
-                            </div>
-                        </div>
-                    </div>
-                
-                    <!-- Token Distribution Chart -->
-                    <div class="material-card">
-                        <h3 class="card-title">Token Usage Distribution</h3>
-                        <div class="chart-container relative" style="position: relative;">
-                            <canvas id="tokenDistribution"></canvas>
-                            <div id="tokenDistributionEmpty" class="hidden absolute inset-0 flex items-center justify-center bg-gray-50/50 rounded-lg" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: none; align-items: center; justify-center: center;">
-                                <span class="text-sm text-gray-500">No token data yet - process documents to see metrics</span>
-                            </div>
-                        </div>
-                    </div>
-                
-                    <!-- Document Types Chart -->
-                    <div class="material-card">
-                        <h3 class="card-title">Document Type Distribution</h3>
-                        <div class="chart-container relative" style="position: relative;">
-                            <canvas id="documentTypes"></canvas>
-                            <div id="documentTypesEmpty" class="hidden absolute inset-0 flex items-center justify-center bg-gray-50/50 rounded-lg" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: none; align-items: center; justify-center: center;">
-                                <span class="text-sm text-gray-500">No document types yet - process documents to see distribution</span>
-                            </div>
+                <div data-island="dashboard-charts-island"></div>
                         </div>
                     </div>
                 </div>
         </main>
     </div>
     <script src="/js/shared-utilities.js"></script>
-    <script>
-        function formatTimeAgo(dateString) {
-            const date = new Date(dateString + 'Z');
-            const now = new Date();
-            const seconds = Math.floor((now - date) / 1000);
-
-            if (seconds < 5) {
-                return 'just now';
-            } else if (seconds < 60) {
-                return `${seconds} seconds ago`;
-            } else if (seconds < 3600) {
-                const minutes = Math.floor(seconds / 60);
-                return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-            } else if (seconds < 86400) {
-                const hours = Math.floor(seconds / 3600);
-                return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-            } else {
-                const days = Math.floor(seconds / 86400);
-                return `${days} day${days > 1 ? 's' : ''} ago`;
-            }
-        }
-
-        function updateProcessingStatus() {
-            fetch('/api/processing-status')
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Processing status data:', data);
-                    
-                    const processingContainer = document.getElementById('processingContainer');
-                    const idleContainer = document.getElementById('idleContainer');
-                    
-                    if (data.currentlyProcessing) {
-                        // Show processing state
-                        processingContainer.classList.remove('hidden');
-                        idleContainer.classList.add('hidden');
-
-                        // disable scanButton if processing
-                        document.getElementById('scanButton').disabled = true;
-                                                
-                        // Update document info
-                        document.getElementById('currentDocId').textContent = `#${data.currentlyProcessing.documentId}`;
-                        // Trim title to 50 characters and add ... if longer
-                        data.currentlyProcessing.title = data.currentlyProcessing.title.length > 50
-                            ? data.currentlyProcessing.title.slice(0, 90) + '...'
-                            : data.currentlyProcessing.title;
-                        document.getElementById('currentDocTitle').textContent = data.currentlyProcessing.title;
-                        
-                        // Show "Processing..."
-                        document.getElementById('lastProcessed').innerHTML = `
-                            <span class="text-blue-600">
-                                <i class="fas fa-spinner fa-spin"></i> Processing...
-                            </span>`;
-                    } else {
-                        // Show idle state
-                        processingContainer.classList.add('hidden');
-                        idleContainer.classList.remove('hidden');
-                        // enable scanButton if idle
-                        document.getElementById('scanButton').disabled = false;
-                        if (data.lastProcessed) {
-                            const timeAgo = formatTimeAgo(data.lastProcessed.processed_at);
-                            console.log('Last processed:', data.lastProcessed.processed_at);
-                            console.log('Formatted time:', timeAgo);
-                            document.getElementById('lastProcessed').textContent = timeAgo;
-                        } else {
-                            document.getElementById('lastProcessed').textContent = 'No documents processed yet';
-                        }
-                    }
-                    
-                    // Update stats
-                    document.getElementById('processedToday').textContent = data.processedToday;
-                    
-                    // Update timestamp
-                    document.getElementById('statusLastUpdated').textContent = 
-                        `Last updated: ${new Date().toLocaleTimeString()}`;
-                })
-                .catch(error => console.error('Error fetching processing status:', error));
-        }
-
-        // Update status every 3 seconds
-        setInterval(updateProcessingStatus, 3000);
-
-        // Initial update
-        updateProcessingStatus();
-    </script>
+    
 
     <script>
         // Inline server-provided dashboard snapshot used by client-side charts
@@ -523,7 +248,8 @@
             documentCount: <%= vm.paperless_data.documentCount %> || 0,
             processedCount: <%= vm.paperless_data.processedDocumentCount %> || 0,
             tokenDistribution: <%- JSON.stringify(vm.paperless_data.tokenDistribution || []) %>,
-            documentTypes: <%- JSON.stringify(vm.paperless_data.documentTypes || []) %>
+            documentTypes: <%- JSON.stringify(vm.paperless_data.documentTypes || []) %>,
+            processingStatus: <%- JSON.stringify(vm.processingStatus || {}) %>
         };
     </script>
     <script src="js/dashboard.js"></script>
