@@ -15,7 +15,7 @@ export const SettingsSchema = z.object({
   PROMPT_TAGS: z.array(z.string()).optional(),
   PAPERLESS_AI_VERSION: z.string().optional(),
   // allow extra keys for backward/forward compatibility
-}).catchall(z.any());
+}).catchall(z.unknown());
 
 export const SettingsPageVmSchema = z.object({
   page: z.literal('settings'),

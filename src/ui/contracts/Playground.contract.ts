@@ -51,7 +51,7 @@ export const SearchResultSchema = z.object({
   score: z.number(),
   pageNum: z.number().int().optional(),
   thumbnailUrl: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.unknown()).optional(),
 });
 
 // Qdrant payload schema (for inspector)
@@ -62,7 +62,7 @@ export const QdrantPayloadSchema = z.object({
   created_date: z.string().optional(),
   modified_date: z.string().optional(),
   page_num: z.number().int().optional(),
-  custom_fields: z.record(z.any()).optional(),
+  custom_fields: z.record(z.unknown()).optional(),
 });
 
 // Filter options schema

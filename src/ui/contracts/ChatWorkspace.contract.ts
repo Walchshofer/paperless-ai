@@ -8,7 +8,7 @@ export const ChatDocumentSchema = z.object({
 
 export const ModelConfigSchema = z.object({
   providers: z.record(z.array(z.string())).optional().default({}),
-  expertModels: z.any().optional().default([]),
+  expertModels: z.array(z.unknown()).optional().default([]),
   currentProvider: z.string().optional()
 });
 

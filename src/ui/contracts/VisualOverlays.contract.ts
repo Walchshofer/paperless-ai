@@ -20,7 +20,7 @@ export const OverlaySchema = z.object({
   bbox: BoundingBoxNormalizedSchema,
   label: z.string().optional(),
   score: z.number().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.unknown()).optional(),
 });
 
 export const ImagesSchema = z.array(ImageSchema);

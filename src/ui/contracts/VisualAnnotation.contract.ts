@@ -41,7 +41,7 @@ export const AnnotationSchema = z.object({
     // Document type ID for filtering
     documentTypeId: z.number().int().nullable().optional(),
     // Free-form metadata to be mirrored into visual_overlays.payload.metadata
-    metadata: z.record(z.any()).optional(),
+    metadata: z.record(z.unknown()).optional(),
   }).optional(),
 });
 

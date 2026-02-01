@@ -17,8 +17,8 @@ export const PresetMetadataSchema = z.object({
 
 export const PresetDiffItemSchema = z.object({
   key: z.string(),
-  currentValue: z.any().optional(),
-  newValue: z.any(),
+  currentValue: z.unknown().optional(),
+  newValue: z.unknown(),
   category: z.string().optional(),
 });
 

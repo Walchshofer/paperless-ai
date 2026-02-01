@@ -70,11 +70,13 @@ type IslandPropsMap = {
   'context-sidebar-island': ContextSidebarProps;
 };
 
-// Runtime component shape (single, auditable cast in registerIsland)
-// NOTE: using `any` here is a pragmatic boundary between the typed IslandPropsMap
-// and the heterogeneous runtime. Keep this auditable and minimal.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type IslandComponent = (props: any) => any;
+import type { ComponentType } from 'preact';
+
+// Runtime component shape (using ComponentType for clearer props typing)
+// Use ComponentType<unknown> as a conservative default for heterogeneous islands.
+// We also tighten registerIsland below to enforce per-island prop types.
+
+type IslandComponent = ComponentType<unknown>;
 
 type IslandRegistry = Record<string, IslandComponent>;
 const registry: IslandRegistry = {};
@@ -82,9 +84,9 @@ const registry: IslandRegistry = {};
 // Typed registration helper: registers an island and enforces the props type at compile time
 export function registerIsland<K extends keyof IslandPropsMap>(
   name: K,
-  component: IslandComponent,
+  component: ComponentType<IslandPropsMap[K]>,
 ) {
-  registry[name as string] = component;
+  registry[name as string] = component as ComponentType<unknown>;
 }
 
 // Register known islands explicitly (use the helper to make registrations discoverable)
