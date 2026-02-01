@@ -42,7 +42,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
   }) as { title: string; correspondent: string });
 
   const [localFields, setLocalFields] = useState(() => fields.map((f: SmartField) => ({ ...f })) as SmartField[]);
-  const [_validationError, setValidationError] = useState(null as string | null);
+  const [validationError, setValidationError] = useState(null as string | null);
 
   useEffect(() => {
     try { window.__smart_metadata_mounted = true; } catch (e) { /* ignore */ }
@@ -106,23 +106,35 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
 
       const delay = props.saveDelayMs ?? 100;
       setTimeout(() => {
-        // Perform a local 'save' - assume success unless validation error present
-        const success = true;
+        // Perform a local 'save' - check validation state before reporting success
+        const success = validationError === null;
         if (success) {
           try { window.__smart_metadata_dirty = false; } catch (err) { /* ignore */ }
           dispatchEventSafe('workspace:save-partial-complete', { saveId, participantId, success: true });
         } else {
-          dispatchEventSafe('workspace:save-partial-complete', { saveId, participantId, success: false, message: 'validation failed' });
+          dispatchEventSafe('workspace:save-partial-complete', { saveId, participantId, success: false, message: validationError || 'validation failed' });
         }
       }, delay);
     }
 
     window.addEventListener('workspace:save-request', onSaveRequest as EventListener);
     return () => window.removeEventListener('workspace:save-request', onSaveRequest as EventListener);
-  }, [props.documentId, props.saveDelayMs]);
+  }, [props.documentId, props.saveDelayMs, validationError]);
 
   return (
     <div data-testid="smart-metadata-root" className="flex flex-col gap-3">
+      {/* Validation error display */}
+      {validationError && (
+        <div
+          data-testid="validation-error"
+          className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-sm text-red-700"
+          role="alert"
+        >
+          <i className="fas fa-exclamation-circle text-red-500"></i>
+          <span>{validationError}</span>
+        </div>
+      )}
+
       <div className="flex flex-col gap-2">
         <label htmlFor="smart-title-input" className="text-xs text-[#666]">Title</label>
         <input

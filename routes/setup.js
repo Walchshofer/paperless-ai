@@ -12,6 +12,7 @@ const _logger = require('../services/logger');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const { expertRegistry } = require('../services/experts/ExpertRegistry');
 const config = require('../config/config.js');
+const dashboardService = require('../src/services/dashboardService.js');
 // Load runtime env persisted by setup (renamed to data/runtime.env)
 require('dotenv').config({ path: '../data/runtime.env' });
 
@@ -216,8 +217,10 @@ router.use(async (req, res, next) => {
   const token = req.cookies.jwt || req.headers.authorization?.split(' ')[1];
   const apiKey = req.headers['x-api-key'];
 
-  // Public route check
-  const isPublic = PUBLIC_ROUTES.some(route => req.path.startsWith(route));
+  // Public route check - use originalUrl when available to be robust across mounts
+  const pathToCheck = req.originalUrl || req.path || '';
+
+  const isPublic = PUBLIC_ROUTES.some(route => pathToCheck.startsWith(route));
   if (isPublic) {
     return next();
   }
@@ -228,6 +231,10 @@ router.use(async (req, res, next) => {
   } else {
     // Fallback to JWT authentication
     if (!token) {
+      // For API requests, return JSON 401 instead of redirecting to /login
+      if (req.originalUrl && req.originalUrl.startsWith('/api')) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
       return res.redirect('/login');
     }
 
@@ -236,6 +243,10 @@ router.use(async (req, res, next) => {
       req.user = decoded;
     } catch {
       res.clearCookie('jwt');
+      // Return JSON 403 for API clients when token verification fails
+      if (req.originalUrl && req.originalUrl.startsWith('/api')) {
+        return res.status(403).json({ message: 'Invalid or expired token' });
+      }
       return res.redirect('/login');
     }
   }
@@ -801,12 +812,10 @@ router.get('/api/tagsCount', async (req, res) => {
  *               $ref: '#/components/schemas/Error'
  */
 router.get('/dashboard', async (req, res) => {
-  // Defensive dashboard loading: per-service try/catch with sensible fallbacks
   try {
-    const errors = [];
     console.log(`[DASHBOARD] Loading metrics at: ${new Date().toISOString()}`);
 
-    // Step 1: Extract authenticated user from JWT cookie
+    // Extract authenticated user from JWT cookie
     let decoded = null;
     try {
       const token = req.cookies.jwt || req.headers.authorization?.split(' ')[1];
@@ -817,7 +826,6 @@ router.get('/dashboard', async (req, res) => {
       console.warn('[DASHBOARD] Invalid JWT token, falling back to guest info');
     }
 
-    // Current user info
     const user = {
       id: decoded?.id || null,
       username: decoded?.username || 'elfman',
@@ -825,176 +833,19 @@ router.get('/dashboard', async (req, res) => {
       lastLogin: new Date().toISOString()
     };
 
-    let tagCount = 0;
-    try {
-      tagCount = await paperlessService.getTagCount();
-      if (typeof tagCount !== 'number') tagCount = 0;
-    } catch (err) {
-      console.error('[ERROR] getTagCount failed - paperless-ngx may be offline:', err.message);
-      errors.push('tagCount');
-      tagCount = 0;
-    }
-
-    let correspondentCount = 0;
-    try {
-      correspondentCount = await paperlessService.getCorrespondentCount();
-      if (typeof correspondentCount !== 'number') correspondentCount = 0;
-    } catch (err) {
-      console.error('[ERROR] getCorrespondentCount failed - paperless-ngx may be offline:', err.message);
-      errors.push('correspondentCount');
-      correspondentCount = 0;
-    }
-
-    let documentCount = 0;
-    try {
-      documentCount = await paperlessService.getDocumentCount();
-      if (typeof documentCount !== 'number') documentCount = 0;
-      console.log('[DASHBOARD] paperless-ngx document count:', documentCount);
-    } catch (err) {
-      console.error('[ERROR] getDocumentCount failed - paperless-ngx may be offline:', err.message);
-      errors.push('documentCount');
-      documentCount = 0;
-    }
-
-    let processedDocumentCount = 0;
-    try {
-      processedDocumentCount = await documentModel.getProcessedDocumentsCount();
-      if (typeof processedDocumentCount !== 'number') processedDocumentCount = 0;
-      console.log('[DASHBOARD] Local SQLite processed count:', processedDocumentCount);
-    } catch (err) {
-      console.error('[ERROR] getProcessedDocumentsCount failed:', err.message);
-      errors.push('processedDocumentCount');
-      processedDocumentCount = 0;
-    }
-
-    let metrics = [];
-    try {
-      metrics = await documentModel.getMetrics();
-      if (!Array.isArray(metrics)) metrics = [];
-    } catch (err) {
-      console.error('[ERROR] getMetrics failed:', err.message);
-      errors.push('metrics');
-      metrics = [];
-    }
-
-    let processingTimeStats = {};
-    try {
-      processingTimeStats = await documentModel.getProcessingTimeStats();
-      if (!processingTimeStats) processingTimeStats = {};
-    } catch (err) {
-      console.error('[ERROR] getProcessingTimeStats failed:', err.message);
-      errors.push('processingTimeStats');
-      processingTimeStats = {};
-    }
-
-    let tokenDistribution = [];
-    try {
-      tokenDistribution = await documentModel.getTokenDistribution();
-      if (!Array.isArray(tokenDistribution) || tokenDistribution.length === 0) {
-        tokenDistribution = [{ range: 'No data', count: 0 }];
-      }
-    } catch (err) {
-      console.error('[ERROR] getTokenDistribution failed:', err.message);
-      errors.push('tokenDistribution');
-      tokenDistribution = [{ range: 'No data', count: 0 }];
-    }
-
-    let documentTypes = [];
-    try {
-      documentTypes = await documentModel.getDocumentTypeStats();
-      if (!Array.isArray(documentTypes) || documentTypes.length === 0) {
-        documentTypes = [{ type: 'No data', count: 0 }];
-      }
-    } catch (err) {
-      console.error('[ERROR] getDocumentTypeStats failed:', err.message);
-      errors.push('documentTypes');
-      documentTypes = [{ type: 'No data', count: 0 }];
-    }
-
-    let processingStatus = { isProcessing: false, processedToday: 0 };
-    try {
-      processingStatus = await documentModel.getCurrentProcessingStatus();
-    } catch (err) {
-      console.error('[ERROR] getCurrentProcessingStatus failed:', err.message);
-      errors.push('processingStatus');
-    }
-
-    let recentActivity = [];
-    try {
-      recentActivity = await documentModel.getPaginatedHistory(5, 0, user.username);
-    } catch (err) {
-      console.error('[ERROR] getPaginatedHistory failed:', err.message);
-      errors.push('recentActivity');
-    }
-
-    const averagePromptTokens = metrics.length > 0 ? Math.round(metrics.reduce((acc, cur) => acc + (cur.promptTokens || 0), 0) / metrics.length) : 0;
-    const averageCompletionTokens = metrics.length > 0 ? Math.round(metrics.reduce((acc, cur) => acc + (cur.completionTokens || 0), 0) / metrics.length) : 0;
-    const averageTotalTokens = metrics.length > 0 ? Math.round(metrics.reduce((acc, cur) => acc + (cur.totalTokens || 0), 0) / metrics.length) : 0;
-    const tokensOverall = metrics.length > 0 ? metrics.reduce((acc, cur) => acc + (cur.totalTokens || 0), 0) : 0;
-
-    const version = configFile.PAPERLESS_AI_VERSION || ' ';
-
-    // Step 3: Improve health indicators with detailed checks
-    const paperlessHealth = await paperlessService.checkHealth();
-    const dbHealth = await documentModel.checkDatabaseHealth();
-    
-    // Check AI service health
-    let aiHealth = 'offline';
-    try {
-      const fullConfig = await setupService.loadConfig();
-      if (fullConfig && (fullConfig.AI_PROVIDER || fullConfig.OPENAI_API_KEY || fullConfig.OLLAMA_API_URL)) {
-        aiHealth = 'online';
-      }
-    } catch (err) {
-      aiHealth = 'error';
-    }
-
-    const health = {
-      paperless: paperlessHealth.healthy ? 'online' : 'offline',
-      local_db: dbHealth.healthy ? 'online' : 'offline',
-      ai_service: aiHealth
-    };
-    
-    // Adjust paperless health based on 96 count as requested in plan
-    if (paperlessHealth.healthy && paperlessHealth.documentCount !== 96) {
-      // health.paperless = 'degraded'; 
-    }
-
-    const vm = {
-      user,
-      paperless_data: {
-        tagCount,
-        correspondentCount,
-        documentCount: paperlessHealth.documentCount || documentCount, 
-        processedDocumentCount: dbHealth.documentCount || processedDocumentCount,
-        processingTimeStats,
-        tokenDistribution,
-        documentTypes
-      },
-      openai_data: {
-        averagePromptTokens,
-        averageCompletionTokens,
-        averageTotalTokens,
-        tokensOverall
-      },
-      processingStatus,
-      recentActivity,
-      health,
-      version,
-      page: 'dashboard'
-    };
+    const vm = await dashboardService.getMetrics(user);
+    vm.page = 'dashboard';
 
     console.log('[DASHBOARD] Metrics loaded successfully:', { 
       documentCount: vm.paperless_data.documentCount, 
       processedDocumentCount: vm.paperless_data.processedDocumentCount,
-      tagCount,
-      correspondentCount 
+      tagCount: vm.paperless_data.tagCount,
+      correspondentCount: vm.paperless_data.correspondentCount
     });
 
-    if (errors.length > 0) {
-      const friendly = 'Some dashboard data could not be loaded. Please check server logs for details.';
-      // Render dashboard with partial data and a user-friendly error message
-      return res.render('dashboard', { vm, error: friendly });
+    if (vm.errors.length > 0) {
+       const friendly = 'Some dashboard data could not be loaded. Please check server logs for details.';
+       return res.render('dashboard', { vm, error: friendly });
     }
 
     return res.render('dashboard', { 
@@ -1007,6 +858,7 @@ router.get('/dashboard', async (req, res) => {
       recentActivity: vm.recentActivity,
       version: vm.version
     });
+
   } catch (err) {
     console.error('[ERROR] loading dashboard route:', err);
     // On catastrophic failure, render a friendly error state with safe defaults
@@ -1061,28 +913,22 @@ router.get('/dashboard', async (req, res) => {
  */
 router.get('/api/dashboard/metrics', async (req, res) => {
   try {
-    const paperlessHealth = await paperlessService.checkHealth();
-    const dbHealth = await documentModel.checkDatabaseHealth();
-    
-    const tagCount = await paperlessService.getTagCount().catch(() => 0);
-    const correspondentCount = await paperlessService.getCorrespondentCount().catch(() => 0);
-    const tokenDistribution = await documentModel.getTokenDistribution().catch(() => []);
-    const documentTypes = await documentModel.getDocumentTypeStats().catch(() => []);
+    const data = await dashboardService.getMetrics();
     
     res.set('Cache-Control', 'no-store');
     return res.json({
-      timestamp: new Date().toISOString(),
+      timestamp: data.lastUpdated,
       metrics: {
-        documentCount: paperlessHealth.documentCount || 0,
-        processedDocumentCount: dbHealth.documentCount || 0,
-        tagCount,
-        correspondentCount,
-        tokenDistribution: tokenDistribution.length > 0 ? tokenDistribution : [{ range: 'No data', count: 0 }],
-        documentTypes: documentTypes.length > 0 ? documentTypes : [{ type: 'No data', count: 0 }]
+        documentCount: data.paperless_data.documentCount,
+        processedDocumentCount: data.paperless_data.processedDocumentCount,
+        tagCount: data.paperless_data.tagCount,
+        correspondentCount: data.paperless_data.correspondentCount,
+        tokenDistribution: data.paperless_data.tokenDistribution,
+        documentTypes: data.paperless_data.documentTypes
       },
       health: {
-        paperless: paperlessHealth.healthy ? 'online' : 'offline',
-        local_db: dbHealth.healthy ? 'online' : 'offline'
+        paperless: data.health.paperless,
+        local_db: data.health.local_db
       }
     });
   } catch (err) {

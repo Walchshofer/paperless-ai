@@ -55,9 +55,9 @@ const _txtLogger = new Logger({
 });
 
 const app = express();
-app.set('trust proxy', process.env.TRUST_PROXY === 'true');
-let runningTask = false; 
 
+app.set('trust proxy', process.env.TRUST_PROXY === 'true');
+let runningTask = false;
 
 const corsOptions = {
   origin: true,
@@ -86,6 +86,7 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
 // Expose Prometheus metrics early to avoid being shadowed by static routes
 app.get('/metrics', allowInternalNetwork, async (_req, res) => {
   try {
@@ -101,6 +102,11 @@ app.get('/metrics', allowInternalNetwork, async (_req, res) => {
     res.status(500).send('');
   }
 });
+
+// Mount Visual RAG API routes early (after body parser, before auth middleware).
+// These are public API endpoints that don't require authentication.
+const visualRagRoutes = require('./routes/api/visual-rag');
+app.use('/api/visual-rag', visualRagRoutes);
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(cookieParser());
@@ -632,18 +638,17 @@ app.use('/', manualRoutes);
 app.use('/', documentRoutes);
 app.use('/', setupRoutes);
 const ragRoutes = require('./routes/rag');
-const visualRagRoutes = require('./routes/api/visual-rag');
 const feedbackRoutes = require('./routes/api/feedback');
 const settingsApiRoutes = require('./routes/api/settings');
-
-// Mount Visual RAG routes (always enabled - provides hybrid search)
-app.use('/api/visual-rag', visualRagRoutes);
 
 // Mount Feedback routes (always enabled - user feedback collection)
 app.use('/api/feedback', feedbackRoutes);
 
 // Mount Settings API routes (for islands)
 app.use('/api/settings', settingsApiRoutes);
+
+// Note: Visual RAG routes are mounted early (after body parser) at line ~109
+// to ensure they're accessible before auth middleware runs
 
 // Mount RAG routes if enabled
 if (process.env.RAG_SERVICE_ENABLED === 'true') {

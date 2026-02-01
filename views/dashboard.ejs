@@ -516,6 +516,16 @@
         updateProcessingStatus();
     </script>
 
+    <script>
+        // Inline server-provided dashboard snapshot used by client-side charts
+        window.dashboardData = {
+            lastUpdated: '<%= vm.lastUpdated %>',
+            documentCount: <%= vm.paperless_data.documentCount %> || 0,
+            processedCount: <%= vm.paperless_data.processedDocumentCount %> || 0,
+            tokenDistribution: <%- JSON.stringify(vm.paperless_data.tokenDistribution || []) %>,
+            documentTypes: <%- JSON.stringify(vm.paperless_data.documentTypes || []) %>
+        };
+    </script>
     <script src="js/dashboard.js"></script>
 </body>
-</html>
+</html> 

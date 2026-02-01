@@ -26,6 +26,15 @@ const {
 // Import client for direct testing
 const { VisualSearchClient, ErrorTypes, VALID_COLLECTIONS } = require('../../services/visual-rag-client/VisualSearchClient');
 
+// Test helper: call the visual search endpoint via supertest to exercise full middleware stack
+async function callVisualSearch(payload = {}, headers = {}) {
+    const res = await request(app)
+        .post('/api/visual-rag/search/visual')
+        .set(headers)
+        .send(payload);
+    return { status: res.status, headers: res.headers, body: res.body };
+}
+
 describe('Alpha-9 Visual Search API', function () {
     this.timeout(30000);
 
@@ -59,14 +68,11 @@ describe('Alpha-9 Visual Search API', function () {
     describe('Contract Validation', function () {
 
         it('should accept valid image and return structured response', async function () {
-            const res = await request(app)
-                .post('/api/visual-rag/search/visual')
-                .send({
-                    image: MINIMAL_PNG_BASE64,
-                    collection: 'visual_pages',
-                    k: 5
-                })
-                .expect('Content-Type', /json/);
+            const res = await callVisualSearch({
+                image: MINIMAL_PNG_BASE64,
+                collection: 'visual_pages',
+                k: 5
+            });
 
             // May return 200 or 503 depending on sidecar availability
             if (res.status === 200) {
@@ -80,52 +86,43 @@ describe('Alpha-9 Visual Search API', function () {
         });
 
         it('should return 400 for missing image', async function () {
-            const res = await request(app)
-                .post('/api/visual-rag/search/visual')
-                .send({
-                    collection: 'visual_pages',
-                    k: 5
-                })
-                .expect(400);
+            const res = await callVisualSearch({
+                collection: 'visual_pages',
+                k: 5
+            });
 
+            assert.strictEqual(res.status, 400);
             assert.strictEqual(res.body.success, false);
             assert.ok(res.body.error, 'error message should be present');
         });
 
         it('should return 400 for empty image', async function () {
-            const res = await request(app)
-                .post('/api/visual-rag/search/visual')
-                .send({
-                    image: EMPTY_IMAGE,
-                    collection: 'visual_pages'
-                })
-                .expect(400);
+            const res = await callVisualSearch({
+                image: EMPTY_IMAGE,
+                collection: 'visual_pages'
+            });
 
+            assert.strictEqual(res.status, 400);
             assert.strictEqual(res.body.success, false);
         });
 
         it('should return 400 for invalid collection name', async function () {
-            const res = await request(app)
-                .post('/api/visual-rag/search/visual')
-                .send({
-                    image: MINIMAL_PNG_BASE64,
-                    collection: 'invalid_collection'
-                })
-                .expect(400);
+            const res = await callVisualSearch({
+                image: MINIMAL_PNG_BASE64,
+                collection: 'invalid_collection'
+            });
 
+            assert.strictEqual(res.status, 400);
             assert.strictEqual(res.body.success, false);
             assert.ok(res.body.error.includes('collection'), 'error should mention collection');
         });
 
         it('should include X-Request-Id in response headers', async function () {
             const requestId = 'test-req-12345';
-            const res = await request(app)
-                .post('/api/visual-rag/search/visual')
-                .set('X-Request-Id', requestId)
-                .send({
-                    image: MINIMAL_PNG_BASE64,
-                    collection: 'visual_pages'
-                });
+            const res = await callVisualSearch({
+                image: MINIMAL_PNG_BASE64,
+                collection: 'visual_pages'
+            }, { 'x-request-id': requestId });
 
             assert.ok(res.headers['x-request-id'], 'X-Request-Id should be in response');
         });
@@ -138,12 +135,10 @@ describe('Alpha-9 Visual Search API', function () {
     describe('Collection Routing', function () {
 
         it('should default to visual_pages collection', async function () {
-            const res = await request(app)
-                .post('/api/visual-rag/search/visual')
-                .send({
-                    image: MINIMAL_PNG_BASE64
-                    // No collection specified
-                });
+            const res = await callVisualSearch({
+                image: MINIMAL_PNG_BASE64
+                // No collection specified
+            });
 
             if (res.status === 200) {
                 assert.strictEqual(res.body.collectionUsed, 'visual_pages');
@@ -151,12 +146,10 @@ describe('Alpha-9 Visual Search API', function () {
         });
 
         it('should route to visual_pages when specified', async function () {
-            const res = await request(app)
-                .post('/api/visual-rag/search/visual')
-                .send({
-                    image: MINIMAL_PNG_BASE64,
-                    collection: 'visual_pages'
-                });
+            const res = await callVisualSearch({
+                image: MINIMAL_PNG_BASE64,
+                collection: 'visual_pages'
+            });
 
             if (res.status === 200) {
                 assert.strictEqual(res.body.collectionUsed, 'visual_pages');
@@ -164,12 +157,10 @@ describe('Alpha-9 Visual Search API', function () {
         });
 
         it('should route to visual_overlays when specified', async function () {
-            const res = await request(app)
-                .post('/api/visual-rag/search/visual')
-                .send({
-                    image: MINIMAL_PNG_BASE64,
-                    collection: 'visual_overlays'
-                });
+            const res = await callVisualSearch({
+                image: MINIMAL_PNG_BASE64,
+                collection: 'visual_overlays'
+            });
 
             if (res.status === 200) {
                 assert.strictEqual(res.body.collectionUsed, 'visual_overlays');
@@ -188,61 +179,51 @@ describe('Alpha-9 Visual Search API', function () {
     describe('Expert Filtering', function () {
 
         it('should accept doc_id filter', async function () {
-            const res = await request(app)
-                .post('/api/visual-rag/search/visual')
-                .send({
-                    image: MINIMAL_PNG_BASE64,
-                    filters: { doc_id: 123 }
-                });
+            const res = await callVisualSearch({
+                image: MINIMAL_PNG_BASE64,
+                filters: { doc_id: 123 }
+            });
 
             // Filter acceptance is validated (not filtered results in mock)
             assert.ok(res.status === 200 || res.status === 503);
         });
 
         it('should accept tag_ids filter', async function () {
-            const res = await request(app)
-                .post('/api/visual-rag/search/visual')
-                .send({
-                    image: MINIMAL_PNG_BASE64,
-                    filters: { tag_ids: [1, 3, 7] }
-                });
+            const res = await callVisualSearch({
+                image: MINIMAL_PNG_BASE64,
+                filters: { tag_ids: [1, 3, 7] }
+            });
 
             assert.ok(res.status === 200 || res.status === 503);
         });
 
         it('should accept correspondent_id filter', async function () {
-            const res = await request(app)
-                .post('/api/visual-rag/search/visual')
-                .send({
-                    image: MINIMAL_PNG_BASE64,
-                    filters: { correspondent_id: 5 }
-                });
+            const res = await callVisualSearch({
+                image: MINIMAL_PNG_BASE64,
+                filters: { correspondent_id: 5 }
+            });
 
             assert.ok(res.status === 200 || res.status === 503);
         });
 
         it('should accept combined filters', async function () {
-            const res = await request(app)
-                .post('/api/visual-rag/search/visual')
-                .send({
-                    image: MINIMAL_PNG_BASE64,
-                    filters: {
-                        doc_id: 123,
-                        tag_ids: [1, 3],
-                        correspondent_id: 5
-                    }
-                });
+            const res = await callVisualSearch({
+                image: MINIMAL_PNG_BASE64,
+                filters: {
+                    doc_id: 123,
+                    tag_ids: [1, 3],
+                    correspondent_id: 5
+                }
+            });
 
             assert.ok(res.status === 200 || res.status === 503);
         });
 
         it('should handle empty filters object', async function () {
-            const res = await request(app)
-                .post('/api/visual-rag/search/visual')
-                .send({
-                    image: MINIMAL_PNG_BASE64,
-                    filters: {}
-                });
+            const res = await callVisualSearch({
+                image: MINIMAL_PNG_BASE64,
+                filters: {}
+            });
 
             assert.ok(res.status === 200 || res.status === 503);
         });
@@ -255,12 +236,10 @@ describe('Alpha-9 Visual Search API', function () {
     describe('MaxSim Score Validation', function () {
 
         it('should return MaxSim scores in results', async function () {
-            const res = await request(app)
-                .post('/api/visual-rag/search/visual')
-                .send({
-                    image: MINIMAL_PNG_BASE64,
-                    k: 5
-                });
+            const res = await callVisualSearch({
+                image: MINIMAL_PNG_BASE64,
+                k: 5
+            });
 
             if (res.status === 200 && res.body.results.length > 0) {
                 const firstResult = res.body.results[0];
@@ -276,12 +255,10 @@ describe('Alpha-9 Visual Search API', function () {
         });
 
         it('should include maxsim_score_mean in response', async function () {
-            const res = await request(app)
-                .post('/api/visual-rag/search/visual')
-                .send({
-                    image: MINIMAL_PNG_BASE64,
-                    k: 5
-                });
+            const res = await callVisualSearch({
+                image: MINIMAL_PNG_BASE64,
+                k: 5
+            });
 
             if (res.status === 200 && res.body.results.length > 0) {
                 assert.ok(
@@ -437,35 +414,82 @@ describe('Alpha-9 Visual Search API', function () {
 });
 
 // =========================================================================
-// API Route Integration Tests
+// API Route Integration Tests (exercises full middleware stack via supertest)
 // =========================================================================
 describe('Visual RAG API Route Integration', function () {
     this.timeout(10000);
 
     it('POST /api/visual-rag/search/visual should be accessible', async function () {
-        const res = await request(app)
-            .post('/api/visual-rag/search/visual')
-            .send({
-                image: MINIMAL_PNG_BASE64
-            });
+        const res = await callVisualSearch({ image: MINIMAL_PNG_BASE64 });
 
-        // Should get a response (not 404)
+        // Should get a response (not 404 or 302 redirect)
         assert.ok(
             [200, 400, 500, 503].includes(res.status),
             `Expected valid status, got ${res.status}`
         );
     });
 
+    it('should return JSON Content-Type', async function () {
+        const res = await callVisualSearch({ image: MINIMAL_PNG_BASE64 });
+
+        // Verify Content-Type is JSON (not text/html or text/plain)
+        assert.ok(
+            res.headers['content-type'] && res.headers['content-type'].includes('application/json'),
+            `Expected JSON Content-Type, got ${res.headers['content-type']}`
+        );
+    });
+
+    it('should include CORS headers', async function () {
+        const res = await callVisualSearch({ image: MINIMAL_PNG_BASE64 });
+
+        // Verify CORS headers are present
+        assert.ok(
+            res.headers['access-control-allow-origin'],
+            'Access-Control-Allow-Origin header should be present'
+        );
+    });
+
     it('should handle k parameter', async function () {
-        const res = await request(app)
-            .post('/api/visual-rag/search/visual')
-            .send({
-                image: MINIMAL_PNG_BASE64,
-                k: 10
-            });
+        const res = await callVisualSearch({ image: MINIMAL_PNG_BASE64, k: 10 });
 
         // Should accept k parameter without error
-        assert.ok(res.status !== 400 || !res.body.error?.includes('k'));
+        assert.ok(res.status !== 400 || !(res.body && res.body.error && res.body.error.includes('k')));
+    });
+
+    it('should propagate X-Request-Id header', async function () {
+        const requestId = `test-${Date.now()}`;
+        const res = await callVisualSearch(
+            { image: MINIMAL_PNG_BASE64 },
+            { 'x-request-id': requestId }
+        );
+
+        // Verify request ID is echoed back
+        assert.strictEqual(res.headers['x-request-id'], requestId);
+    });
+
+    it('should handle body parsing for large payloads', async function () {
+        // Create a moderately large base64 payload (~100KB)
+        const largeImage = Buffer.alloc(100 * 1024).toString('base64');
+        const res = await callVisualSearch({ image: largeImage });
+
+        // Should not fail due to body parsing limits
+        assert.ok(
+            [200, 400, 500, 503].includes(res.status),
+            `Expected valid status for large payload, got ${res.status}`
+        );
+    });
+
+    it('should not redirect API requests to login', async function () {
+        // This test verifies that API routes don't trigger auth redirects
+        const res = await callVisualSearch({ image: MINIMAL_PNG_BASE64 });
+
+        // Status should never be 302 (redirect)
+        assert.notStrictEqual(res.status, 302, 'API should not redirect to login');
+
+        // If auth fails, should return 401 JSON, not redirect
+        if (res.status === 401) {
+            assert.ok(res.body.message, 'Auth failure should return JSON error');
+        }
     });
 
 });

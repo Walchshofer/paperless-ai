@@ -5,6 +5,8 @@
  * Sets up required environment variables and database schema for integration tests
  */
 
+// Ensure test runner mode is visible to runtime and enable Guidance by default
+process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 // Default to enabling Guidance to prevent JSON truncation issues.
 process.env.GUIDANCE_ENABLED = process.env.GUIDANCE_ENABLED || 'true';
 process.env.GUIDANCE_SERVICE_ENABLED = process.env.GUIDANCE_SERVICE_ENABLED || 'no';
@@ -84,6 +86,31 @@ try {
     console.log('[test/setup-env] Patched JSDOM to inject canvas.getContext stub');
 } catch (e) {
     console.warn('[test/setup-env] Could not patch JSDOM for canvas stub:', e && e.message);
+}
+
+// Polyfill JSDOM CustomEvent for tests that dispatch CustomEvent (fixes VisualAnnotation tests)
+try {
+    if (typeof global !== 'undefined' && typeof global.CustomEvent === 'undefined') {
+        function CustomEvent(event, params) {
+            params = params || { bubbles: false, cancelable: false, detail: null };
+            var evt = (typeof document !== 'undefined' && document.createEvent) ? document.createEvent('CustomEvent') : null;
+            if (evt && evt.initCustomEvent) {
+                evt.initCustomEvent(event, params.bubbles, params.cancelable, params.detail);
+            } else if (typeof window !== 'undefined') {
+                evt = new window.Event(event, params);
+                evt.detail = params.detail;
+            } else {
+                evt = { type: event, detail: params.detail, bubbles: params.bubbles, cancelable: params.cancelable };
+            }
+            return evt;
+        }
+        CustomEvent.prototype = (typeof window !== 'undefined' && window.Event) ? window.Event.prototype : Object.prototype;
+        global.CustomEvent = CustomEvent;
+        if (typeof window !== 'undefined') window.CustomEvent = CustomEvent;
+        console.log('[test/setup-env] Patched CustomEvent for JSDOM');
+    }
+} catch (err) {
+    console.warn('[test/setup-env] CustomEvent patch failed:', err && err.message);
 }
 
 if (process.env.RAG_SERVICE_ENABLED === 'true') {

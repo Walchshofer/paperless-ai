@@ -11,12 +11,20 @@ export const SmartFieldSchema = z.object({
   pageNumber: z.number().nullable().optional(),
 });
 
+// Tag schema for multi-select tags
+export const SmartTagSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  color: z.string().optional(),
+});
+
 export const SmartMetadataSchema = z.object({
   documentId: z.number().int().nullable().optional(),
   metadata: z
     .object({
       title: z.string().optional(),
       correspondent: z.string().optional(),
+      createdDate: z.string().optional(), // ISO date string (YYYY-MM-DD)
     })
     .passthrough()
     .optional(),

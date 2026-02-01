@@ -11,6 +11,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const authenticate = async (req, res, next) => {
   const token = req.cookies.jwt || req.headers.authorization?.split(' ')[1];
   if (!token) {
+    try { console.error('[AUTH_REDIRECT] document.authenticate no token, redirecting to /login', { path: req.originalUrl, stack: new Error().stack.split('\n').slice(2,8).join('\n') }); } catch (e) {}
     return res.redirect('/login');
   }
   try {
@@ -19,11 +20,14 @@ const authenticate = async (req, res, next) => {
     next();
   } catch (err) {
     res.clearCookie('jwt');
+    try { console.error('[AUTH_REDIRECT] document.authenticate verify failed, redirecting to /login', { path: req.originalUrl, err: err && err.message, stack: new Error().stack.split('\n').slice(2,8).join('\n') }); } catch (e) {}
     return res.redirect('/login');
   }
 };
 
-router.use(authenticate);
+// Only apply authentication middleware to document-specific routes to avoid
+// unintentionally protecting API endpoints mounted under different routers.
+router.use('/document', authenticate);
 
 
 // Visual RAG integration

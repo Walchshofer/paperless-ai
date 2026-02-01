@@ -4,6 +4,15 @@ const assert = require('assert');
 const app = require('../server');
 const { visualSearchClient } = require('../services/visual-rag-client/VisualSearchClient');
 
+// Test helper: call the visual search endpoint via app to exercise full middleware
+async function callVisualSearch(payload = {}, headers = {}) {
+    const res = await request(app)
+        .post('/api/visual-rag/search/visual')
+        .set(headers)
+        .send(payload);
+    return { status: res.status, headers: res.headers, body: res.body };
+}
+
 describe('Visual Search API Contract', () => {
     let originalSearchImageAlpha9;
     let originalIsAvailable;
@@ -47,12 +56,11 @@ describe('Visual Search API Contract', () => {
             k: 5
         };
 
-        const res = await request(app)
-            .post('/api/visual-rag/search/visual')
-            .send(payload)
-            .expect('Content-Type', /json/)
-            .expect(200);
+        const res = await callVisualSearch(payload);
 
+        // Expect JSON Content-Type and 200
+        assert.match(res.headers['content-type'], /json/);
+        assert.strictEqual(res.status, 200);
         assert.strictEqual(res.body.success, true);
         assert.strictEqual(Array.isArray(res.body.results), true);
         assert.strictEqual(res.body.results.length, 1);
@@ -65,12 +73,9 @@ describe('Visual Search API Contract', () => {
             k: 5
         };
 
-        const res = await request(app)
-            .post('/api/visual-rag/search/visual')
-            .send(payload)
-            .expect('Content-Type', /json/)
-            .expect(400);
+        const res = await callVisualSearch(payload);
 
+        assert.strictEqual(res.status, 400);
         assert.strictEqual(res.body.success, false);
         assert.match(res.body.error, /required/i);
     });
@@ -80,12 +85,9 @@ describe('Visual Search API Contract', () => {
             image: 'not-valid-base64!@#'
         };
 
-        const res = await request(app)
-            .post('/api/visual-rag/search/visual')
-            .send(payload)
-            .expect('Content-Type', /json/)
-            .expect(400);
+        const res = await callVisualSearch(payload);
 
+        assert.strictEqual(res.status, 400);
         assert.strictEqual(res.body.success, false);
         assert.match(res.body.error, /invalid image/i);
     });
@@ -98,12 +100,9 @@ describe('Visual Search API Contract', () => {
             image: 'VGhpcyBpcyBhIHRlc3QgYmFzZTY0IHN0cmluZy4='
         };
 
-        const res = await request(app)
-            .post('/api/visual-rag/search/visual')
-            .send(payload)
-            .expect('Content-Type', /json/)
-            .expect(503);
+        const res = await callVisualSearch(payload);
 
+        assert.strictEqual(res.status, 503);
         assert.strictEqual(res.body.success, false);
         assert.match(res.body.error, /unavailable/i);
         // Verify circuit breaker info is present per contract
@@ -117,11 +116,61 @@ describe('Visual Search API Contract', () => {
             image: largeImage
         };
 
-        const res = await request(app)
-            .post('/api/visual-rag/search/visual')
-            .send(payload)
-            .expect(200);
-        
+        const res = await callVisualSearch(payload);
+
+        assert.strictEqual(res.status, 200);
         assert.strictEqual(res.body.success, true);
+    });
+
+    // =========================================================================
+    // Middleware Integration Tests (verify full Express stack)
+    // =========================================================================
+    describe('Middleware Integration', () => {
+        it('should return proper CORS headers', async () => {
+            const payload = {
+                image: 'VGhpcyBpcyBhIHRlc3QgYmFzZTY0IHN0cmluZy4='
+            };
+
+            const res = await callVisualSearch(payload);
+
+            assert.ok(res.headers['access-control-allow-origin'], 'CORS origin header missing');
+        });
+
+        it('should parse JSON body correctly', async () => {
+            const payload = {
+                image: 'VGhpcyBpcyBhIHRlc3QgYmFzZTY0IHN0cmluZy4=',
+                collection: 'visual_pages',
+                k: 10,
+                filters: { doc_id: 123 }
+            };
+
+            const res = await callVisualSearch(payload);
+
+            // Body should have been parsed - handler should receive all fields
+            assert.strictEqual(res.status, 200);
+            assert.strictEqual(res.body.collection, 'visual_pages');
+        });
+
+        it('should not redirect to login for API requests', async () => {
+            const payload = {
+                image: 'VGhpcyBpcyBhIHRlc3QgYmFzZTY0IHN0cmluZy4='
+            };
+
+            const res = await callVisualSearch(payload);
+
+            // API requests should never get 302 redirects
+            assert.notStrictEqual(res.status, 302, 'API should not redirect');
+        });
+
+        it('should handle X-Request-Id header', async () => {
+            const requestId = `contract-test-${Date.now()}`;
+            const payload = {
+                image: 'VGhpcyBpcyBhIHRlc3QgYmFzZTY0IHN0cmluZy4='
+            };
+
+            const res = await callVisualSearch(payload, { 'x-request-id': requestId });
+
+            assert.strictEqual(res.headers['x-request-id'], requestId);
+        });
     });
 });

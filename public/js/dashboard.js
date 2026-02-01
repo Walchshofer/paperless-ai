@@ -1,19 +1,73 @@
 // Chart Initialization
 class ChartManager {
     constructor() {
+        this.chart = null;
+        this.pollInterval = 30000; // 30s default
         this.initializeDocumentChart();
+        // Start polling for updates
+        this.startPolling();
     }
 
-    initializeDocumentChart() {
-        if (!window.dashboardData) return;
-        
-        const { documentCount, processedCount } = window.dashboardData;
-        const unprocessedCount = Math.max(0, documentCount - processedCount);
+    async fetchMetrics() {
+        try {
+            const resp = await fetch('/api/dashboard/metrics');
+            if (!resp.ok) throw new Error('Failed to fetch metrics');
+            return await resp.json();
+        } catch (err) {
+            console.warn('[ChartManager] fetchMetrics failed', err);
+            return null;
+        }
+    }
+
+    async initializeDocumentChart() {
+        // 1. Immediately render using window.dashboardData (snapshot)
+        const localData = window.dashboardData || null;
+        if (localData) {
+            const { documentCount, processedCount } = localData;
+            this.renderOrUpdateChart(processedCount, Math.max(0, documentCount - processedCount));
+        }
+
+        // 2. Fetch API to check for newer data
+        await this.reconcileMetrics(localData);
+    }
+
+    async reconcileMetrics(localData) {
+        const apiResponse = await this.fetchMetrics();
+        if (!apiResponse || !apiResponse.metrics) return;
+
+        const apiTimestamp = new Date(apiResponse.timestamp).getTime();
+        const localTimestamp = localData && localData.lastUpdated ? new Date(localData.lastUpdated).getTime() : 0;
+
+        // If API is newer (or we had no local data), update
+        if (!localData || apiTimestamp > localTimestamp) {
+            console.log('[ChartManager] Syncing dashboard with newer API data:', apiResponse.timestamp);
+            const { documentCount, processedDocumentCount } = apiResponse.metrics;
+            this.renderOrUpdateChart(processedDocumentCount, Math.max(0, documentCount - processedDocumentCount));
+            
+            // Update local snapshot
+            window.dashboardData = {
+                ...(window.dashboardData || {}),
+                lastUpdated: apiResponse.timestamp,
+                documentCount,
+                processedCount: processedDocumentCount
+            };
+        }
+    }
+
+    renderOrUpdateChart(processedCount, unprocessedCount) {
         const canvas = document.getElementById('documentChart');
         if (!canvas) return;
 
+        // If chart exists, update it
+        if (this.chart) {
+            this.chart.data.datasets[0].data = [processedCount, unprocessedCount];
+            this.chart.update();
+            return;
+        }
+
+        // Create new chart
         const ctx = canvas.getContext('2d');
-        new Chart(ctx, {
+        this.chart = new Chart(ctx, {
             type: 'doughnut',
             data: {
                 labels: ['Local Processed', 'Pending'],
@@ -32,15 +86,13 @@ class ChartManager {
                 maintainAspectRatio: false,
                 cutout: '70%',
                 plugins: {
-                    legend: {
-                        display: false
-                    },
+                    legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            label: function(context) {
-                                const value = context.raw;
-                                const total = processedCount + unprocessedCount;
-                                const percentage = ((value / total) * 100).toFixed(1);
+                            label: (context) => {
+                                const value = Number(context.raw || 0);
+                                const total = context.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
                                 return `${value} (${percentage}%)`;
                             }
                         }
@@ -49,7 +101,21 @@ class ChartManager {
             }
         });
     }
+
+    async pollAndUpdate() {
+        // Poll logic now reuses reconciliation
+        await this.reconcileMetrics(window.dashboardData);
+    }
+
+    startPolling() {
+        this.pollTimer = setInterval(() => this.pollAndUpdate(), this.pollInterval);
+    }
+
+    stopPolling() {
+        if (this.pollTimer) clearInterval(this.pollTimer);
+    }
 }
+
 
 // Modal Management
 class ModalManager {

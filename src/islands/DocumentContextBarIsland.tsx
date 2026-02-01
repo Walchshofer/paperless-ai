@@ -7,7 +7,7 @@ interface DocumentSummary {
   original_filename?: string;
 }
 
-interface DocumentContextBarProps {
+export interface DocumentContextBarProps {
   documentId: number | null;
   title: string | null;
   availableDocuments: DocumentSummary[];
@@ -115,6 +115,104 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
       setNavModal((s: NavModal) => (s.saving ? { ...s, saving: false } : s));
     }, 30000);
   }, [navModal.targetId, props.documentId]);
+
+  // State for standalone save/reprocess operations
+  const [isSaving, setIsSaving] = useState(false);
+  const [isReprocessing, setIsReprocessing] = useState(false);
+
+  // Handle standalone Save button click (not part of navigation flow)
+  const handleSave = useCallback(() => {
+    if (isSaving) return;
+    setIsSaving(true);
+
+    try {
+      window.dispatchEvent(new CustomEvent('workspace:save-request', { detail: { documentId: props.documentId } }));
+    } catch (err) { /* ignore */ }
+
+    const onSaveComplete = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      const savedDocId = detail.documentId ?? props.documentId;
+      if (String(savedDocId) === String(props.documentId)) {
+        setIsSaving(false);
+        // Update status badge to saved
+        const root = document.querySelector('[data-testid="document-context-bar-root"]');
+        if (root) root.setAttribute('data-status', 'saved');
+        window.removeEventListener('workspace:save-complete', onSaveComplete as EventListener);
+        window.removeEventListener('workspace:save-failed', onSaveFailed as EventListener);
+      }
+    };
+
+    const onSaveFailed = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      const failedDocId = detail.documentId ?? props.documentId;
+      if (String(failedDocId) === String(props.documentId)) {
+        setIsSaving(false);
+        // Update status badge to error
+        const root = document.querySelector('[data-testid="document-context-bar-root"]');
+        if (root) root.setAttribute('data-status', 'error');
+        window.removeEventListener('workspace:save-complete', onSaveComplete as EventListener);
+        window.removeEventListener('workspace:save-failed', onSaveFailed as EventListener);
+      }
+    };
+
+    window.addEventListener('workspace:save-complete', onSaveComplete as EventListener);
+    window.addEventListener('workspace:save-failed', onSaveFailed as EventListener);
+
+    // Timeout fallback: if save doesn't complete in 30s, stop showing saving state
+    setTimeout(() => {
+      setIsSaving((current) => {
+        if (current) {
+          window.removeEventListener('workspace:save-complete', onSaveComplete as EventListener);
+          window.removeEventListener('workspace:save-failed', onSaveFailed as EventListener);
+        }
+        return false;
+      });
+    }, 30000);
+  }, [props.documentId, isSaving]);
+
+  // Handle Reprocess button click
+  const handleReprocess = useCallback(() => {
+    if (isReprocessing) return;
+    setIsReprocessing(true);
+
+    try {
+      window.dispatchEvent(new CustomEvent('workspace:reprocess-request', { detail: { documentId: props.documentId } }));
+    } catch (err) { /* ignore */ }
+
+    const onReprocessComplete = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      const processedDocId = detail.documentId ?? props.documentId;
+      if (String(processedDocId) === String(props.documentId)) {
+        setIsReprocessing(false);
+        window.removeEventListener('workspace:reprocess-complete', onReprocessComplete as EventListener);
+        window.removeEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
+      }
+    };
+
+    const onReprocessFailed = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      const failedDocId = detail.documentId ?? props.documentId;
+      if (String(failedDocId) === String(props.documentId)) {
+        setIsReprocessing(false);
+        window.removeEventListener('workspace:reprocess-complete', onReprocessComplete as EventListener);
+        window.removeEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
+      }
+    };
+
+    window.addEventListener('workspace:reprocess-complete', onReprocessComplete as EventListener);
+    window.addEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
+
+    // Timeout fallback: if reprocess doesn't complete in 60s, stop showing processing state
+    setTimeout(() => {
+      setIsReprocessing((current) => {
+        if (current) {
+          window.removeEventListener('workspace:reprocess-complete', onReprocessComplete as EventListener);
+          window.removeEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
+        }
+        return false;
+      });
+    }, 60000);
+  }, [props.documentId, isReprocessing]);
 
   // Listen for workspace-wide events to update a visual unsaved indicator
   useEffect(() => {
@@ -242,19 +340,23 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
         <div className="h-6 w-[1px] bg-[#e5e0d8] mx-1 hidden sm:block"></div>
 
         <div className="flex items-center gap-2">
-          <button 
-            className="px-4 py-1.5 text-sm font-medium text-[#555] hover:bg-[#f5f0e8] rounded-lg transition-colors flex items-center gap-2 border border-[#e5e0d8]"
+          <button
+            onClick={handleReprocess}
+            disabled={isReprocessing}
+            className="px-4 py-1.5 text-sm font-medium text-[#555] hover:bg-[#f5f0e8] rounded-lg transition-colors flex items-center gap-2 border border-[#e5e0d8] disabled:opacity-50 disabled:cursor-not-allowed"
             data-testid="reprocess-btn"
           >
-            <i class="fas fa-redo-alt text-xs"></i>
-            Reprocess
+            <i class={`fas ${isReprocessing ? 'fa-circle-notch fa-spin' : 'fa-redo-alt'} text-xs`}></i>
+            {isReprocessing ? 'Reprocessing...' : 'Reprocess'}
           </button>
-          <button 
-            className="px-4 py-1.5 text-sm font-medium text-white bg-[#b87333] hover:bg-[#a06028] rounded-lg shadow-sm transition-colors flex items-center gap-2 border border-[#905020]"
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="px-4 py-1.5 text-sm font-medium text-white bg-[#b87333] hover:bg-[#a06028] rounded-lg shadow-sm transition-colors flex items-center gap-2 border border-[#905020] disabled:opacity-50 disabled:cursor-not-allowed"
             data-testid="save-all-btn"
           >
-            <i class="fas fa-save text-xs"></i>
-            Save Changes
+            <i class={`fas ${isSaving ? 'fa-circle-notch fa-spin' : 'fa-save'} text-xs`}></i>
+            {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>

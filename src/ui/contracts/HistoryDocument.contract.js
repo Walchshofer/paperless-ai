@@ -29,8 +29,8 @@ const HistoryDocumentVmSchema = z.object({
   paperlessUrl: z.string(),
   original_url: z.string().nullable(),
   page_count: z.coerce.number().int().min(1),
-  images: z.array(z.unknown()),
-  overlaysByImage: z.record(z.unknown()),
+  images: z.array(z.object({ id: z.string(), originalSrc: z.string().optional(), thumbnailSrc: z.string().optional() })),
+  overlaysByImage: z.record(z.array(z.object({ id: z.string(), bbox: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }), label: z.string().optional(), score: z.number().optional() }))),
 });
 
 module.exports = {
