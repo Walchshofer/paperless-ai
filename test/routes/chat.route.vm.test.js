@@ -1,7 +1,7 @@
 require('ts-node').register({ transpileOnly: true, compilerOptions: { module: 'CommonJS' } });
 const assert = require('assert');
-const path = require('path');
-const ejs = require('ejs');
+const _path = require('path');
+const _ejs = require('ejs');
 const chatRouter = require('../../routes/chat.js');
 const { ChatWorkspaceSchema } = require('../../src/ui/contracts/ChatWorkspace.contract.ts');
 

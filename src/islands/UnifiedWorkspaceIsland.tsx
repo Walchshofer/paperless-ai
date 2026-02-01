@@ -1,5 +1,6 @@
 import { h } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
+import type { UnifiedWorkspaceContract } from '../ui/contracts/UnifiedWorkspace.contract';
 
 // Extend the Window interface to include workspace-related global state
 interface WorkspaceWindowExtension {
@@ -29,15 +30,15 @@ interface OverlayRecord {
   bbox_array?: [number, number, number, number];
   pageNumber?: number;
   page?: number;
-  paperlessMapping?: string;
-  paperless_mapping?: string;
+  paperlessMapping?: string | null;
+  paperless_mapping?: string | null;
 }
 
 interface FieldRecord {
   id?: string;
   name?: string;
   label?: string;
-  paperlessMapping?: string;
+  paperlessMapping?: string | null;
   bbox?: OverlayBbox;
   overlay?: { bbox?: OverlayBbox };
   overlay_bbox?: OverlayBbox;
@@ -46,15 +47,7 @@ interface FieldRecord {
   page?: number;
 }
 
-interface UnifiedWorkspaceIslandProps {
-  documentId?: number;
-  visual?: {
-    overlays?: OverlayRecord[];
-    overlayItems?: OverlayRecord[];
-    items?: OverlayRecord[];
-    fields?: FieldRecord[];
-  };
-}
+export type UnifiedWorkspaceIslandProps = Partial<UnifiedWorkspaceContract>;
 
 function dispatchEventSafe(name: string, detail?: unknown) {
   try {
@@ -158,7 +151,7 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
     wnd.__workspaceState = wnd.__workspaceState || {};
 
     const onDirty = (e: CustomEvent<{ documentId?: number | string }>) => {
-      const documentId = e?.detail?.documentId ?? props.documentId ?? null;
+      const documentId = e?.detail?.documentId ?? (props.document?.id ?? null);
       if (!documentId) return;
       const state = wnd.__workspaceState || {};
       const docKey = String(documentId);
@@ -168,14 +161,14 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
       wnd.__workspaceState = state;
 
       // If this island is showing the same document, update local UI
-      if (props.documentId && Number(props.documentId) === Number(documentId)) setIsDirty(true);
+      if ((props.document?.id ?? null) && Number(props.document?.id) === Number(documentId)) setIsDirty(true);
 
       try { wnd.__last_workspace_state_change = { documentId, isDirty: true }; } catch (err) { /* ignore */ }
       dispatchEventSafe('workspace:state-change', { documentId, isDirty: true });
     };
 
     const onSaved = (e: CustomEvent<{ documentId?: number | string }>) => {
-      const documentId = e?.detail?.documentId ?? props.documentId ?? null;
+      const documentId = e?.detail?.documentId ?? (props.document?.id ?? null);
       if (!documentId) return;
       const state = wnd.__workspaceState || {};
       const docKey = String(documentId);
@@ -184,7 +177,7 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
       state[docKey].lastSavedAt = Date.now();
       wnd.__workspaceState = state;
 
-      if (props.documentId && Number(props.documentId) === Number(documentId)) setIsDirty(false);
+      if ((props.document?.id ?? null) && Number(props.document?.id) === Number(documentId)) setIsDirty(false);
 
       try { wnd.__last_workspace_state_change = { documentId, isDirty: false }; } catch (err) { /* ignore */ }
       dispatchEventSafe('workspace:state-change', { documentId, isDirty: false });
@@ -195,22 +188,45 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
 
     // initialize local isDirty from global state
     try {
-      const docId = props.documentId ? String(props.documentId) : '';
+      const docId = props.document?.id ? String(props.document?.id) : '';
       const initDirty = docId ? wnd.__workspaceState?.[docId]?.isDirty : false;
       setIsDirty(Boolean(initDirty));
     } catch (err) { /* ignore */ }
 
+    // Warn on browser unload when dirty
+    const beforeUnloadHandler = (e: BeforeUnloadEvent) => {
+      try {
+        const docKey = props.document?.id ? String(props.document?.id) : '';
+        const wnd = window as unknown as { __workspaceState?: Record<string, { isDirty?: boolean }> };
+        const state = wnd.__workspaceState || {};
+        const dirty = docKey ? state[docKey]?.isDirty : false;
+        if (dirty) {
+          // Standard way to trigger a browser prompt
+          e.preventDefault();
+          // Some browsers require returnValue to be set
+          (e as BeforeUnloadEvent).returnValue = '';
+          return '';
+        }
+      } catch (err) {
+        // ignore
+      }
+      return undefined;
+    };
+
+    window.addEventListener('beforeunload', beforeUnloadHandler as EventListener);
+
     return () => {
       window.removeEventListener('workspace:dirty', onDirty as EventListener);
       window.removeEventListener('sync:success', onSaved as EventListener);
+      window.removeEventListener('beforeunload', beforeUnloadHandler as EventListener);
     };
-  }, [props.documentId]);
+  }, [props.document?.id]);
 
   return (
     <div className="h-full w-full flex flex-col p-8">
       <div className="flex-1 border-2 border-dashed border-[#e5e0d8] rounded-lg flex items-center justify-center relative">
         <p className="font-['Space_Grotesk'] text-[#888]">Document Viewer Area Placeholder</p>
-        {props.documentId ? (
+        {props.document?.id ? (
           <div data-testid="workspace-state-badge" data-state={isDirty ? 'unsaved' : 'clean'} className="absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-semibold bg-white border">
             {isDirty ? 'Unsaved Changes' : 'Saved'}
           </div>

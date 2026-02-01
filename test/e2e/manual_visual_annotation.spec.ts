@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 // Basic E2E skeleton: assert island mount and interactive element presence
 test.describe('Manual - Visual Annotation island', () => {
-  test('mounts visual annotation island and shows draw controls', async ({ page, baseURL }) => {
+  test('mounts visual annotation island and shows draw controls', async ({ page }) => {
     const base = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
     const url = `${base}/manual`;
 
@@ -29,8 +29,9 @@ test.describe('Manual - Visual Annotation island', () => {
       try {
         // Use DOMContentLoaded to avoid hanging on slow external subresources (e.g. external API calls)
         resp2 = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-      } catch (e:any) {
-        console.log('DEBUG: manual goto failed:', (e as any).message);
+      } catch (e: unknown) {
+        const msg = typeof e === 'object' && e !== null && 'message' in e ? (e as { message?: string }).message : String(e);
+        console.log('DEBUG: manual goto failed:', msg);
         resp2 = null;
       }
       console.log('DEBUG: manual after login response', resp2 ? resp2.status() : 'no response', resp2 ? resp2.url() : '');
@@ -43,12 +44,13 @@ test.describe('Manual - Visual Annotation island', () => {
               const r = await fetch(u, { credentials: 'same-origin' });
               return { status: r.status };
             } catch (err) {
-              return { error: (err as any).message };
+              return { error: (typeof err === 'object' && err !== null && 'message' in err) ? (err as { message: string }).message : String(err) };
             }
           }, url);
           console.log('DEBUG: in-page fetch result', fetchStatus);
-        } catch (e:any) {
-          console.log('DEBUG: in-page fetch failed', (e as any).message);
+        } catch (e: unknown) {
+          const msg = typeof e === 'object' && e !== null && 'message' in e ? (e as { message?: string }).message : String(e);
+          console.log('DEBUG: in-page fetch failed', msg);
         }
 
         test.skip(true, `Manual page not available at ${url} after login - skipping E2E skeleton`);

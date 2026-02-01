@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 const { waitForIsland } = require('../helpers/island-waits');
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL || process.env.PAPERLESS_BASE_URL || 'http://localhost:3000';
@@ -17,13 +17,13 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe('DeveloperSettingsIsland E2E Tests', () => {
-  const clickToggle = async (page: any, id: string) => {
+  const clickToggle = async (page: Page, id: string) => {
     const input = page.locator(`[data-testid="${id}"]`);
     const visible = input.locator('xpath=following-sibling::*[1]');
     try {
       await visible.click({ timeout: 3000 });
-    } catch (e) {
-      await page.evaluate((tid: any) => {
+    } catch (_e) {
+      await page.evaluate((tid: string) => {
         const el = document.querySelector(`[data-testid="${tid}"]`) as HTMLInputElement | null;
         if (el) {
           el.checked = !el.checked;
@@ -250,10 +250,10 @@ test.describe('DeveloperSettingsIsland E2E Tests', () => {
 
     await page.evaluate(() => {
       document.addEventListener('settings:restart-required', () => {
-        (window as any).logEvent('settings:restart-required');
+        (window as unknown as { logEvent?: (_s: string) => void }).logEvent?.('settings:restart-required');
       });
       document.addEventListener('settings:saved', () => {
-        (window as any).logEvent('settings:saved');
+        (window as unknown as { logEvent?: (_s: string) => void }).logEvent?.('settings:saved');
       });
     });
 

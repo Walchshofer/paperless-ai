@@ -111,7 +111,7 @@ describe('island runtime - Visual Annotation', function () {
     const canvas = root.querySelector('[data-testid="annotation-canvas"]');
     const drawToggle = root.querySelector('[data-testid="draw-toggle"]');
     const saveBtn = root.querySelector('[data-testid="save-annotations"]');
-    const overlay = root.querySelector('[data-testid="annotation-overlay"]');
+    const _overlay = root.querySelector('[data-testid="annotation-overlay"]');
 
     // stub getBoundingClientRect for deterministic coords
     canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 400, height: 200 });
@@ -343,7 +343,7 @@ describe('island runtime - Visual Annotation', function () {
         assert.ok(String(errEl.textContent).includes('Authentication required'));
 
         // Listen for auth event
-        function onAuth(e) {
+        function onAuth() {
           document.removeEventListener('auth:required', onAuth);
           global.fetch = origFetch;
           done();

@@ -45,13 +45,16 @@ export const SidecarStatusSchema = z.object({
   error: z.string().optional(),
 });
 
+// Lightweight value types used across playground metadata/payloads
+const PrimitiveOrStringArray = z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.string())]);
+
 // Search result schema
 export const SearchResultSchema = z.object({
   docId: z.number().int(),
   score: z.number(),
   pageNum: z.number().int().optional(),
   thumbnailUrl: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(PrimitiveOrStringArray).optional(),
 });
 
 // Qdrant payload schema (for inspector)
@@ -62,7 +65,7 @@ export const QdrantPayloadSchema = z.object({
   created_date: z.string().optional(),
   modified_date: z.string().optional(),
   page_num: z.number().int().optional(),
-  custom_fields: z.record(z.any()).optional(),
+  custom_fields: z.record(PrimitiveOrStringArray).optional(),
 });
 
 // Filter options schema

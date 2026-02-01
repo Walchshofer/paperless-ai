@@ -11,7 +11,7 @@ describe('OverlayViewerIsland - overlay:highlight-region handling', () => {
 
   it('renders highlight region when event dispatched', async () => {
     const props = { documentId: 1, page: 1, overlayMode: 'document' };
-    const { container, queryByTestId } = render(h(OverlayViewerIsland, props));
+    const { container: _container, queryByTestId } = render(h(OverlayViewerIsland, props));
 
     const bbox = { x: 0.15, y: 0.2, width: 0.1, height: 0.05 };
     window.dispatchEvent(new CustomEvent('overlay:highlight-region', { detail: { bbox, page: 1 } }));

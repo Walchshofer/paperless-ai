@@ -17,7 +17,7 @@ const DashboardVmSchema = z.object({
     correspondentCount: z.number().int().nonnegative().default(0),
     documentCount: z.number().int().nonnegative().default(0),
     processedDocumentCount: z.number().int().nonnegative().default(0),
-    processingTimeStats: z.array(z.unknown()).default([]),
+    processingTimeStats: z.array(z.object({ step: z.string(), ms: z.number().int().nonnegative() })).default([]),
     tokenDistribution: z.array(TokenDistributionItemSchema).default([]),
     documentTypes: z.array(DocumentTypeItemSchema).default([]),
   }),

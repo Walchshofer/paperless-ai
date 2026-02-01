@@ -8,7 +8,7 @@ const ManualDocumentSchema = z.object({
 
 const ModelConfigSchema = z.object({
   providers: z.record(z.array(z.string())).optional().default({}),
-  expertModels: z.any().optional().default([]),
+  expertModels: z.array(z.object({ model: z.string(), label: z.string().optional(), category: z.string().optional() })).optional().default([]),
   currentProvider: z.string().optional()
 });
 
@@ -51,7 +51,7 @@ const UnifiedWorkspaceSchema = z.object({
   visual: z.object({
     fields: z.array(z.object({
       label: z.string(),
-      value: z.any(),
+      value: z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.string())]),
       domain: z.string(),
       confidence: z.coerce.number(),
       paperlessMapping: z.string().nullable().optional(),

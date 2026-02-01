@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 
 /**
  * E2E User Flow Test - Manual Route UI
@@ -14,7 +14,7 @@ import { test, expect } from '@playwright/test';
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 const MANUAL_URL = `${BASE_URL}/manual`;
 
-async function gotoManual(page: any) {
+async function gotoManual(page: Page) {
   const response = await page.goto(MANUAL_URL, {
     waitUntil: 'domcontentloaded',
     timeout: 15000
@@ -183,7 +183,7 @@ test.describe('Manual Route UI - Complete User Flow', () => {
 
     // Should show checking/preparing state
     await page.waitForTimeout(500);
-    const modalVisible = await gpuErrorModal.count() > 0;
+    const _modalVisible = await gpuErrorModal.count() > 0;
     // After retry, either modal hides or shows preparing
     // We just verify the retry action triggered
   });
@@ -276,8 +276,8 @@ test.describe('Cross-Island Event Communication', () => {
 
       const detail = await eventPromise;
       expect(detail).toBeTruthy();
-      if (detail) {
-        expect((detail as any).component).toBe('tags');
+      if (detail && typeof detail === 'object' && 'component' in (detail as object)) {
+        expect((detail as unknown as Record<string, unknown>).component).toBe('tags');
       }
     } else {
       test.skip(true, 'Feedback controls not present');
@@ -314,8 +314,9 @@ test.describe('Cross-Island Event Communication', () => {
 
     const detail = await eventPromise;
     expect(detail).toBeTruthy();
-    if (detail) {
-      expect((detail as any).metadata?.title).toBe('Event Test Title');
+    if (detail && typeof detail === 'object' && 'metadata' in (detail as object)) {
+      const md = (detail as unknown as Record<string, unknown>).metadata as Record<string, unknown> | undefined;
+      if (md && typeof md.title === 'string') expect(md.title).toBe('Event Test Title');
     }
   });
 });

@@ -1,5 +1,5 @@
 import { h } from 'preact';
-import { useState, useMemo, useCallback, useEffect } from 'preact/hooks';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'preact/hooks';
 
 interface DocumentSummary {
   id: number;
@@ -7,7 +7,7 @@ interface DocumentSummary {
   original_filename?: string;
 }
 
-interface DocumentContextBarProps {
+export interface DocumentContextBarProps {
   documentId: number | null;
   title: string | null;
   availableDocuments: DocumentSummary[];
@@ -33,9 +33,25 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
     return props.availableDocuments.findIndex(doc => doc.id === props.documentId);
   }, [props.availableDocuments, props.documentId]);
 
+  // Use navigation helper for detecting dirty state only; modal UI handles confirmation.
+  const { isDocumentDirty: _isDocumentDirty } = require('../lib/navigation-guard');
+  const isDocumentDirty = useCallback((docId?: number | null) => {
+    return _isDocumentDirty(docId ?? props.documentId ?? null);
+  }, [props.documentId]);
+
+  interface NavModal { show: boolean; targetId: number | null; saving: boolean }
+  const [navModal, setNavModal] = useState({ show: false, targetId: null as number | null, saving: false } as NavModal);
+  // useRef generic typing can be finicky across TS configs; cast instead
+  const navSaveRef = useRef(null as unknown as HTMLButtonElement | null);
+
   const handleNavigate = useCallback((id: number) => {
-    window.location.href = `/document/${id}`;
-  }, []);
+    const dirty = isDocumentDirty(props.documentId);
+    if (dirty) {
+      setNavModal({ show: true, targetId: id, saving: false });
+      return;
+    }
+    try { window.location.href = `/document/${id}`; } catch (err) { /* ignore in tests */ }
+  }, [isDocumentDirty, props.documentId]);
 
   const handlePrev = useCallback(() => {
     if (currentIndex > 0) {
@@ -48,6 +64,155 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
       handleNavigate(props.availableDocuments[currentIndex + 1].id);
     }
   }, [currentIndex, props.availableDocuments, handleNavigate]);
+
+  useEffect(() => {
+    if (navModal.show && navSaveRef.current) {
+      // Focus the primary action for keyboard users when modal opens
+      try { navSaveRef.current.focus(); } catch (err) { /* ignore */ }
+    }
+  }, [navModal.show]);
+
+  const handleModalCancel = useCallback(() => {
+    setNavModal({ show: false, targetId: null, saving: false });
+  }, []);
+
+  const handleModalDiscard = useCallback(() => {
+    const id = navModal.targetId;
+    setNavModal({ show: false, targetId: null, saving: false });
+    if (id) try { window.location.href = `/document/${id}`; } catch (err) { /* ignore */ }
+  }, [navModal.targetId]);
+
+  const handleModalSave = useCallback(() => {
+    setNavModal((s: NavModal) => ({ ...s, saving: true }));
+    try {
+      window.dispatchEvent(new CustomEvent('workspace:save-request', { detail: { documentId: props.documentId } }));
+    } catch (err) { /* ignore */ }
+
+    const onSaveComplete = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      const savedDocId = detail.documentId ?? props.documentId;
+      if (String(savedDocId) === String(props.documentId)) {
+        const id = navModal.targetId;
+        setNavModal({ show: false, targetId: null, saving: false });
+        try { if (id) window.location.href = `/document/${id}`; } catch (err) { /* ignore */ }
+        window.removeEventListener('workspace:save-complete', onSaveComplete as EventListener);
+        window.removeEventListener('workspace:save-failed', onSaveFailed as EventListener);
+      }
+    };
+
+    const onSaveFailed = (_e: Event) => {
+      // stop saving state and surface an error state (modal remains closed)
+      setNavModal({ show: false, targetId: null, saving: false });
+      window.removeEventListener('workspace:save-complete', onSaveComplete as EventListener);
+      window.removeEventListener('workspace:save-failed', onSaveFailed as EventListener);
+    };
+
+    window.addEventListener('workspace:save-complete', onSaveComplete as EventListener);
+    window.addEventListener('workspace:save-failed', onSaveFailed as EventListener);
+
+    // Timeout fallback: if save doesn't complete in 30s, stop showing saving state
+    setTimeout(() => {
+      setNavModal((s: NavModal) => (s.saving ? { ...s, saving: false } : s));
+    }, 30000);
+  }, [navModal.targetId, props.documentId]);
+
+  // State for standalone save/reprocess operations
+  const [isSaving, setIsSaving] = useState(false);
+  const [isReprocessing, setIsReprocessing] = useState(false);
+
+  // Handle standalone Save button click (not part of navigation flow)
+  const handleSave = useCallback(() => {
+    if (isSaving) return;
+    setIsSaving(true);
+
+    try {
+      window.dispatchEvent(new CustomEvent('workspace:save-request', { detail: { documentId: props.documentId } }));
+    } catch (err) { /* ignore */ }
+
+    const onSaveComplete = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      const savedDocId = detail.documentId ?? props.documentId;
+      if (String(savedDocId) === String(props.documentId)) {
+        setIsSaving(false);
+        // Update status badge to saved
+        const root = document.querySelector('[data-testid="document-context-bar-root"]');
+        if (root) root.setAttribute('data-status', 'saved');
+        window.removeEventListener('workspace:save-complete', onSaveComplete as EventListener);
+        window.removeEventListener('workspace:save-failed', onSaveFailed as EventListener);
+      }
+    };
+
+    const onSaveFailed = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      const failedDocId = detail.documentId ?? props.documentId;
+      if (String(failedDocId) === String(props.documentId)) {
+        setIsSaving(false);
+        // Update status badge to error
+        const root = document.querySelector('[data-testid="document-context-bar-root"]');
+        if (root) root.setAttribute('data-status', 'error');
+        window.removeEventListener('workspace:save-complete', onSaveComplete as EventListener);
+        window.removeEventListener('workspace:save-failed', onSaveFailed as EventListener);
+      }
+    };
+
+    window.addEventListener('workspace:save-complete', onSaveComplete as EventListener);
+    window.addEventListener('workspace:save-failed', onSaveFailed as EventListener);
+
+    // Timeout fallback: if save doesn't complete in 30s, stop showing saving state
+    setTimeout(() => {
+      setIsSaving((current) => {
+        if (current) {
+          window.removeEventListener('workspace:save-complete', onSaveComplete as EventListener);
+          window.removeEventListener('workspace:save-failed', onSaveFailed as EventListener);
+        }
+        return false;
+      });
+    }, 30000);
+  }, [props.documentId, isSaving]);
+
+  // Handle Reprocess button click
+  const handleReprocess = useCallback(() => {
+    if (isReprocessing) return;
+    setIsReprocessing(true);
+
+    try {
+      window.dispatchEvent(new CustomEvent('workspace:reprocess-request', { detail: { documentId: props.documentId } }));
+    } catch (err) { /* ignore */ }
+
+    const onReprocessComplete = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      const processedDocId = detail.documentId ?? props.documentId;
+      if (String(processedDocId) === String(props.documentId)) {
+        setIsReprocessing(false);
+        window.removeEventListener('workspace:reprocess-complete', onReprocessComplete as EventListener);
+        window.removeEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
+      }
+    };
+
+    const onReprocessFailed = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      const failedDocId = detail.documentId ?? props.documentId;
+      if (String(failedDocId) === String(props.documentId)) {
+        setIsReprocessing(false);
+        window.removeEventListener('workspace:reprocess-complete', onReprocessComplete as EventListener);
+        window.removeEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
+      }
+    };
+
+    window.addEventListener('workspace:reprocess-complete', onReprocessComplete as EventListener);
+    window.addEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
+
+    // Timeout fallback: if reprocess doesn't complete in 60s, stop showing processing state
+    setTimeout(() => {
+      setIsReprocessing((current) => {
+        if (current) {
+          window.removeEventListener('workspace:reprocess-complete', onReprocessComplete as EventListener);
+          window.removeEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
+        }
+        return false;
+      });
+    }, 60000);
+  }, [props.documentId, isReprocessing]);
 
   // Listen for workspace-wide events to update a visual unsaved indicator
   useEffect(() => {
@@ -64,10 +229,12 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
     };
 
     window.addEventListener('workspace:dirty', onDirty as EventListener);
+    window.addEventListener('workspace:save-complete', onSaved as EventListener);
     window.addEventListener('sync:success', onSaved as EventListener);
 
     return () => {
       window.removeEventListener('workspace:dirty', onDirty as EventListener);
+      window.removeEventListener('workspace:save-complete', onSaved as EventListener);
       window.removeEventListener('sync:success', onSaved as EventListener);
     };
   }, [props.documentId]);
@@ -173,19 +340,23 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
         <div className="h-6 w-[1px] bg-[#e5e0d8] mx-1 hidden sm:block"></div>
 
         <div className="flex items-center gap-2">
-          <button 
-            className="px-4 py-1.5 text-sm font-medium text-[#555] hover:bg-[#f5f0e8] rounded-lg transition-colors flex items-center gap-2 border border-[#e5e0d8]"
+          <button
+            onClick={handleReprocess}
+            disabled={isReprocessing}
+            className="px-4 py-1.5 text-sm font-medium text-[#555] hover:bg-[#f5f0e8] rounded-lg transition-colors flex items-center gap-2 border border-[#e5e0d8] disabled:opacity-50 disabled:cursor-not-allowed"
             data-testid="reprocess-btn"
           >
-            <i class="fas fa-redo-alt text-xs"></i>
-            Reprocess
+            <i class={`fas ${isReprocessing ? 'fa-circle-notch fa-spin' : 'fa-redo-alt'} text-xs`}></i>
+            {isReprocessing ? 'Reprocessing...' : 'Reprocess'}
           </button>
-          <button 
-            className="px-4 py-1.5 text-sm font-medium text-white bg-[#b87333] hover:bg-[#a06028] rounded-lg shadow-sm transition-colors flex items-center gap-2 border border-[#905020]"
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="px-4 py-1.5 text-sm font-medium text-white bg-[#b87333] hover:bg-[#a06028] rounded-lg shadow-sm transition-colors flex items-center gap-2 border border-[#905020] disabled:opacity-50 disabled:cursor-not-allowed"
             data-testid="save-all-btn"
           >
-            <i class="fas fa-save text-xs"></i>
-            Save Changes
+            <i class={`fas ${isSaving ? 'fa-circle-notch fa-spin' : 'fa-save'} text-xs`}></i>
+            {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>
@@ -196,6 +367,48 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
           className="fixed inset-0 z-40 bg-transparent" 
           onClick={() => setIsDropdownOpen(false)}
         ></div>
+      )}
+
+      {/* Navigation confirmation modal (in-page, accessible) */}
+      {navModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" aria-hidden="false">
+          <div className="absolute inset-0 bg-black opacity-50" aria-hidden="true"></div>
+          <div role="dialog" aria-modal="true" aria-labelledby="nav-confirm-title" className="relative z-10 bg-white rounded-lg shadow-xl max-w-lg w-full p-6" data-testid="nav-confirm-modal">
+            <h2 id="nav-confirm-title" className="text-lg font-semibold">You have unsaved changes</h2>
+            <p className="mt-2 text-sm text-gray-600">Save your changes to keep them, or discard them to continue navigating. You can also cancel to stay on this page.</p>
+
+            <div className="mt-6 flex items-center gap-3 justify-end">
+              <button
+                data-testid="nav-confirm-cancel"
+                className="px-4 py-2 rounded-md border border-gray-200 bg-white text-sm"
+                onClick={handleModalCancel}
+                aria-label="Cancel and stay on this page"
+              >
+                Cancel
+              </button>
+
+              <button
+                data-testid="nav-confirm-discard"
+                className="px-4 py-2 rounded-md border border-red-200 bg-white text-sm text-red-700"
+                onClick={handleModalDiscard}
+                aria-label="Discard changes and navigate"
+              >
+                Discard Changes and Leave
+              </button>
+
+              <button
+                data-testid="nav-confirm-save"
+                ref={navSaveRef}
+                className="px-4 py-2 rounded-md bg-[#b87333] text-white text-sm"
+                onClick={handleModalSave}
+                aria-label="Save changes and navigate"
+                disabled={navModal.saving}
+              >
+                {navModal.saving ? 'Saving…' : 'Save and Leave'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -3,7 +3,15 @@ const assert = require('assert');
 
 require('ts-node').register({
   transpileOnly: true,
-  compilerOptions: { module: 'CommonJS', jsx: 'react-jsx', jsxImportSource: 'preact' }
+  skipProject: true,
+  compilerOptions: {
+    module: 'CommonJS',
+    jsx: 'react-jsx',
+    jsxImportSource: 'preact',
+    moduleResolution: 'node',
+    allowSyntheticDefaultImports: true,
+    esModuleInterop: true
+  }
 });
 
 const { h, render } = require('preact');

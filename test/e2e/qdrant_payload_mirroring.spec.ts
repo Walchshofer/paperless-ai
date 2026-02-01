@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { pollForFeedbackEvent, queryDb } from '../helpers/db-poll';
+import { queryDb } from '../helpers/db-poll';
 import { getTestDocId } from '../helpers/fixtures';
 import {
   pollForQdrantPoints,
@@ -21,7 +21,6 @@ const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
 const TEST_DOC_ID = getTestDocId();
 
 test.describe('Qdrant Payload Mirroring Verification', () => {
-  const testRequestId = `e2e-qdrant-${Date.now()}`;
 
   test.beforeAll(async () => {
     // Check if Qdrant is available
@@ -97,7 +96,12 @@ test.describe('Qdrant Payload Mirroring Verification', () => {
     expect(points.length).toBeGreaterThan(0);
 
     // Find the point for our annotation
-    let point = points.find((p: any) => p.payload?.metadata?.request_id === annotationRequestId);
+    let point = points.find((p: unknown) => {
+      const pr = p as Record<string, unknown>;
+      const payload = pr['payload'] as Record<string, unknown> | undefined;
+      const metadata = payload && (payload['metadata'] as Record<string, unknown> | undefined);
+      return metadata && metadata['request_id'] === annotationRequestId;
+    });
 
     // Retry searching a few times in case mirroring is slightly delayed
     if (!point) {
@@ -105,7 +109,12 @@ test.describe('Qdrant Payload Mirroring Verification', () => {
         await new Promise(r => setTimeout(r, 1000));
         try {
           const more = await getPointsByDocId(TEST_DOC_ID);
-          point = more.find((p: any) => p.payload?.metadata?.request_id === annotationRequestId);
+          point = more.find((p: unknown) => {
+            const pr = p as Record<string, unknown>;
+            const payload = pr['payload'] as Record<string, unknown> | undefined;
+            const metadata = payload && (payload['metadata'] as Record<string, unknown> | undefined);
+            return metadata && metadata['request_id'] === annotationRequestId;
+          });
         } catch (err) {
           // ignore and retry
         }
@@ -276,9 +285,12 @@ test.describe('Qdrant Payload Mirroring Verification', () => {
     }
 
     // Find matching point
-    const qdrantPoint = qdrantPoints.find((p: any) =>
-      p.payload?.metadata?.request_id === matchRequestId
-    );
+    const qdrantPoint = qdrantPoints.find((p: unknown) => {
+      const pr = p as Record<string, unknown>;
+      const payload = pr['payload'] as Record<string, unknown> | undefined;
+      const metadata = payload && (payload['metadata'] as Record<string, unknown> | undefined);
+      return metadata && metadata['request_id'] === matchRequestId;
+    });
 
     if (!qdrantPoint) {
       console.log('No matching Qdrant point found - may be deferred');
@@ -286,10 +298,10 @@ test.describe('Qdrant Payload Mirroring Verification', () => {
     }
 
     // Verify payload mirroring
-    const result = verifyPayloadMirroring(pgRow, qdrantPoint);
+    const result = verifyPayloadMirroring(pgRow, qdrantPoint) as Record<string, unknown>;
 
-    if (!(result as any).match) {
-      console.log('Payload mismatches:', (result as any).mismatches);
+    if (!result.match) {
+      console.log('Payload mismatches:', result.mismatches);
     }
 
     // Note: exact matching depends on implementation
@@ -342,10 +354,12 @@ test.describe('Qdrant Payload Mirroring Verification', () => {
       return;
     }
 
-    const point = points.find((p: any) =>
-      p.payload?.metadata?.request_id === bboxRequestId ||
-      p.payload?.label === 'BBox Test'
-    );
+    const point = points.find((p: unknown) => {
+      const pr = p as Record<string, unknown>;
+      const payload = pr['payload'] as Record<string, unknown> | undefined;
+      const metadata = payload && (payload['metadata'] as Record<string, unknown> | undefined);
+      return (metadata && metadata['request_id'] === bboxRequestId) || (payload && payload['label'] === 'BBox Test');
+    });
 
     if (!point) {
       console.log('BBox test point not found');

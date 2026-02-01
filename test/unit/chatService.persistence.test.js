@@ -11,8 +11,8 @@ describe('ChatService persistence integration (unit)', function() {
 
     // stub PaperlessService
     const doc = { id: 42, title: 'Test Doc', original_filename: 'test.txt', mime_type: 'text/plain' };
-    PaperlessService.getDocument = async (id) => doc;
-    PaperlessService.getDocumentContent = async (id) => 'Document contents here';
+    PaperlessService.getDocument = async (_id) => doc;
+    PaperlessService.getDocumentContent = async (_id) => 'Document contents here';
 
     // stub repository methods
     let gotSessionArg = null;
@@ -42,19 +42,19 @@ describe('ChatService persistence integration (unit)', function() {
     config.chatPersistence = 'yes';
 
     const doc = { id: 42, title: 'Test Doc', original_filename: 'test.txt', mime_type: 'text/plain' };
-    PaperlessService.getDocument = async (id) => doc;
-    PaperlessService.getDocumentContent = async (id) => 'Document contents here';
+    PaperlessService.getDocument = async (_id) => doc;
+    PaperlessService.getDocumentContent = async (_id) => 'Document contents here';
 
     let gotSessionArg = null;
     let appended = [];
     // Simulate existing history present in DB
     chatRepository.getOrCreateSession = async (documentId) => { gotSessionArg = documentId; return 'sess-456'; };
-    chatRepository.getMessages = async (sessionId) => {
+    chatRepository.getMessages = async (_sessionId) => {
       return [
         { id: 'm1', role: 'system', content: 'persisted system', metadata: null, message_index: 0, created_at: new Date().toISOString() },
         { id: 'm2', role: 'user', content: 'persisted user', metadata: null, message_index: 1, created_at: new Date().toISOString() }
       ];
-    };
+    }; 
     chatRepository.appendMessage = async (sessionId, role, content, metadata) => { appended.push({ sessionId, role, content, metadata }); return { id: 'm3' }; };
 
     chatService.setChatRepository(chatRepository);

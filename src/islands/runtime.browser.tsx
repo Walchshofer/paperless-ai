@@ -29,10 +29,34 @@ import ManualWorkspaceIsland from './ManualWorkspaceIsland';
 import DocumentContentIsland from './DocumentContentIsland';
 import UnifiedWorkspaceIsland from './UnifiedWorkspaceIsland';
 import DocumentContextBarIsland from './DocumentContextBarIsland';
+import type { DocumentContextBarProps } from './DocumentContextBarIsland';
 import ContextSidebarIsland from './ContextSidebarIsland';
 import type { HistoryTabsProps } from './HistoryTabsIsland';
 import type { OverlayViewerProps } from './OverlayViewerIsland';
 import type { ContextSidebarProps } from './ContextSidebarIsland';
+import type { VisualAnnotationContract } from '../ui/contracts/VisualAnnotation.contract';
+import type { FeedbackControlsContract } from '../ui/contracts/FeedbackControls.contract';
+import type { ManualEditorContract } from '../ui/contracts/ManualEditor.contract';
+import type { Images, OverlaysByImage } from '../ui/contracts/VisualOverlays.contract';
+import type { PlaygroundContract } from '../ui/contracts/Playground.contract';
+import type { OverviewDashboard } from '../ui/contracts/Settings.Overview.contract';
+import type { SettingsSidebar } from '../ui/contracts/Settings.Sidebar.contract';
+import type { ConnectionSettings } from '../ui/contracts/Settings.Connection.contract';
+import type { AIProviderSettings } from '../ui/contracts/Settings.AIProvider.contract';
+import type { ExpertModelsSettings } from '../ui/contracts/Settings.ExpertModels.contract';
+import type { RestartBannerSettings } from '../ui/contracts/Settings.RestartBanner.contract';
+import type { DeveloperSettings } from '../ui/contracts/Settings.Developer.contract';
+import type { PresetsManagerSettings } from '../ui/contracts/Settings.Presets.contract';
+import type { ExportPanelContract } from '../ui/contracts/ExportPanel.contract';
+import type { ViewModeToggleContract } from '../ui/contracts/ViewModeToggle.contract';
+import type { TagsManagerContract } from '../ui/contracts/TagsManager.contract';
+import type { AIAnalysisContract } from '../ui/contracts/AIAnalysis.contract';
+import type { ChatWorkspaceContract } from '../ui/contracts/ChatWorkspace.contract';
+import type { HistoryManagerContract } from '../ui/contracts/HistoryManager.contract';
+import type { ManualWorkspaceContract } from '../ui/contracts/ManualWorkspace.contract';
+import type { DocumentContentContract } from '../ui/contracts/DocumentContent.contract';
+import type { UnifiedWorkspaceContract } from '../ui/contracts/UnifiedWorkspace.contract';
+import type { SmartMetadataContract } from '../ui/contracts/SmartMetadata.contract';
 
 // The registry is intentionally permissive because islands accept many different prop shapes.
 // Using `any` here is a pragmatic choice to allow heterogeneous island component types.
@@ -40,41 +64,40 @@ import type { ContextSidebarProps } from './ContextSidebarIsland';
 // Explicit island props map — list every island here so registrations are explicit and discoverable.
 // Use `unknown` as a conservative default; gradually replace entries with precise types.
 type IslandPropsMap = {
-  'visual-annotation-island': unknown;
-  'feedback-controls-island': unknown;
-  'manual-editor-island': unknown;
+  'visual-annotation-island': Partial<VisualAnnotationContract>;
+  'feedback-controls-island': Partial<FeedbackControlsContract>;
+  'manual-editor-island': Partial<ManualEditorContract>;
   'history-tabs-island': HistoryTabsProps;
   'overlay-viewer-island': OverlayViewerProps;
-  'visual-overlays-island': unknown;
-  'playground-island': unknown;
-  'shadcn-compat': unknown;
-  'overview-dashboard-island': unknown;
-  'settings-sidebar-island': unknown;
-  'connection-settings-island': unknown;
-  'ai-provider-island': unknown;
-  'expert-models-island': unknown;
-  'restart-banner-island': unknown;
-  'developer-settings-island': unknown;
-  'presets-manager-island': unknown;
-  'export-panel-island': unknown;
-  'view-mode-toggle-island': unknown;
-  'tags-manager-island': unknown;
-  'ai-analysis-island': unknown;
-  'chat-workspace-island': unknown;
-  'history-manager-island': unknown;
-  'manual-workspace-island': unknown;
-  'document-content-island': unknown;
-  'smart-metadata-island': unknown;
-  'unified-workspace-island': unknown;
-  'document-context-bar-island': unknown;
+  'visual-overlays-island': { documentId?: number | null; images?: Images; overlaysByImage?: OverlaysByImage };
+  'playground-island': Partial<PlaygroundContract>;
+  'shadcn-compat': {};
+  'overview-dashboard-island': Partial<OverviewDashboard>;
+  'settings-sidebar-island': Partial<SettingsSidebar>;
+  'connection-settings-island': Partial<ConnectionSettings>;
+  'ai-provider-island': Partial<AIProviderSettings>;
+  'expert-models-island': Partial<ExpertModelsSettings>;
+  'restart-banner-island': Partial<RestartBannerSettings>;
+  'developer-settings-island': Partial<DeveloperSettings>;
+  'presets-manager-island': Partial<PresetsManagerSettings>;
+  'export-panel-island': Partial<ExportPanelContract>;
+  'view-mode-toggle-island': Partial<ViewModeToggleContract>;
+  'tags-manager-island': Partial<TagsManagerContract>;
+  'ai-analysis-island': Partial<AIAnalysisContract>;
+  'chat-workspace-island': Partial<ChatWorkspaceContract>;
+  'history-manager-island': Partial<HistoryManagerContract>;
+  'manual-workspace-island': Partial<ManualWorkspaceContract>;
+  'document-content-island': Partial<DocumentContentContract>;
+  'smart-metadata-island': Partial<SmartMetadataContract> & { documentId?: number | null; saveDelayMs?: number };
+  'unified-workspace-island': Partial<UnifiedWorkspaceContract>;
+  'document-context-bar-island': DocumentContextBarProps;
   'context-sidebar-island': ContextSidebarProps;
 };
 
-// Runtime component shape (single, auditable cast in registerIsland)
-// NOTE: using `any` here is a pragmatic boundary between the typed IslandPropsMap
-// and the heterogeneous runtime. Keep this auditable and minimal.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type IslandComponent = (props: any) => any;
+// Runtime component shape (using a lightweight functional type for islands)
+// Use a generic functional signature so we can enforce per-island props at compile time without importing Preact internals.
+
+type IslandComponent<P = unknown> = (props: P) => unknown;
 
 type IslandRegistry = Record<string, IslandComponent>;
 const registry: IslandRegistry = {};
@@ -82,9 +105,9 @@ const registry: IslandRegistry = {};
 // Typed registration helper: registers an island and enforces the props type at compile time
 export function registerIsland<K extends keyof IslandPropsMap>(
   name: K,
-  component: IslandComponent,
+  component: IslandComponent<IslandPropsMap[K]>,
 ) {
-  registry[name as string] = component;
+  registry[name as string] = component as IslandComponent<unknown>;
 }
 
 // Register known islands explicitly (use the helper to make registrations discoverable)

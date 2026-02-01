@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import fetch from 'node-fetch';
+import { Buffer } from 'buffer';
 import { getTestDocId, loadFixtureData } from '../helpers/fixtures';
 import { pollForQdrantPoints, collectionExists, QDRANT_URL, COLLECTION_NAME } from '../helpers/qdrant-poll';
 
@@ -78,8 +79,9 @@ test.describe('Reingest Verification', () => {
     let points;
     try {
       points = await pollForQdrantPoints(TEST_DOC_ID, { timeoutMs: 20000, intervalMs: 500, minCount: 1 });
-    } catch (err) {
-      console.log('Timed out waiting for Qdrant points:', (err as any).message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.log('Timed out waiting for Qdrant points:', msg);
       test.skip(true, 'Qdrant points not found - sidecar may be initializing');
       return;
     }
@@ -101,8 +103,9 @@ test.describe('Reingest Verification', () => {
       if (!delResp.ok) {
         console.warn('Failed to delete Qdrant points for cleanup:', delResp.statusText);
       }
-    } catch (err) {
-      console.warn('Cleanup deletion failed:', (err as any).message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('Cleanup deletion failed:', msg);
     }
   });
 });

@@ -1,5 +1,8 @@
 const { z } = require('zod');
 
+// Primitive value union used for lightweight metadata and payloads
+const PrimitiveValue = z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.string())]);
+
 // Runtime Zod schemas (keep in sync with src/ui/contracts/*.ts)
 const AnnotationSchema = z.object({
   label: z.string().min(1),
@@ -17,7 +20,7 @@ const AnnotationSchema = z.object({
     tagIds: z.array(z.number().int()).optional(),
     page: z.number().int().nonnegative().optional(),
     documentTypeId: z.number().int().nullable().optional(),
-    metadata: z.record(z.any()).optional(),
+    metadata: z.record(PrimitiveValue).optional(),
   }).optional(),
 });
 
@@ -74,9 +77,9 @@ const PayloadReadyEventSchema = z.object({
   type: z.literal('payload:ready'),
   documentId: z.union([z.string(), z.number().int()]).nullable().optional(),
   page: z.number().int().nonnegative().nullable().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(PrimitiveValue).optional(),
   content: z.string().optional(),
-  fields: z.array(z.object({ name: z.string(), value: z.any() })).optional(),
+  fields: z.array(z.object({ name: z.string(), value: PrimitiveValue })).optional(),
   annotations: z.array(AnnotationSchema).optional(),
 });
 
@@ -91,7 +94,7 @@ const SyncFailedEventSchema = z.object({
 const SettingsChangedEventSchema = z.object({
   type: z.literal('settings:changed'),
   category: z.enum(['connection', 'ai-provider', 'expert-models', 'advanced', 'developer']),
-  settings: z.record(z.any()),
+  settings: z.record(PrimitiveValue),
   requiresRestart: z.boolean().optional().default(false),
 });
 
@@ -111,7 +114,7 @@ const RestartRequiredEventSchema = z.object({
 const PresetLoadedEventSchema = z.object({
   type: z.literal('preset:loaded'),
   presetName: z.string(),
-  changedSettings: z.record(z.any()).optional(),
+  changedSettings: z.record(PrimitiveValue).optional(),
 });
 
 const DeveloperToggledEventSchema = z.object({
@@ -326,10 +329,10 @@ const PlaygroundSchema = z.object({
 const UnifiedWorkspaceSchema = z.object({
   documentId: z.union([z.string().min(1), z.number().int().positive()]).nullable().optional(),
   visual: z.object({
-    overlays: z.array(z.any()).optional(),
-    overlayItems: z.array(z.any()).optional(),
-    items: z.array(z.any()).optional(),
-    fields: z.array(z.any()).optional(),
+    overlays: z.array(OverlayItemSchema).optional(),
+    overlayItems: z.array(OverlayItemSchema).optional(),
+    items: z.array(OverlayItemSchema).optional(),
+    fields: z.array(FieldSchema).optional(),
   }).optional(),
 }).optional();
 
@@ -345,10 +348,10 @@ const DocumentContextBarSchema = z.object({
 const ContextSidebarSchema = z.object({
   activeTab: z.enum(['metadata','content','chat','debug']).optional(),
   isAdmin: z.boolean().optional(),
-  document: z.record(z.any()).optional(),
+  document: MetadataSchema.optional(),
   availableDocuments: z.array(z.object({ id: z.number().int() })).optional().default([]),
-  chat: z.record(z.any()).optional(),
-  visual: z.record(z.any()).optional(),
+  chat: ChatWorkspaceSchema.optional(),
+  visual: z.object({ overlays: z.array(OverlayItemSchema).optional(), overlayItems: z.array(OverlayItemSchema).optional(), items: z.array(OverlayItemSchema).optional(), fields: z.array(FieldSchema).optional() }).optional(),
 }).optional();
 
 // Overview Dashboard Schema (minimal runtime shape)

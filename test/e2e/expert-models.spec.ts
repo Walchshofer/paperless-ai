@@ -341,13 +341,13 @@ test.describe('ExpertModelsIsland smoke test', () => {
 
     await page.evaluate(() => {
       document.addEventListener('settings:changed', () => {
-        (window as any).logEvent('settings:changed');
+        (window as unknown as { logEvent?: (_s: string) => void }).logEvent?.('settings:changed');
       });
       document.addEventListener('settings:restart-required', () => {
-        (window as any).logEvent('settings:restart-required');
+        (window as unknown as { logEvent?: (_s: string) => void }).logEvent?.('settings:restart-required');
       });
       document.addEventListener('settings:saved', () => {
-        (window as any).logEvent('settings:saved');
+        (window as unknown as { logEvent?: (_s: string) => void }).logEvent?.('settings:saved');
       });
     });
 

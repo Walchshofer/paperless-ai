@@ -205,7 +205,8 @@ router.post('/search', async (req, res) => {
  *       503:
  *         description: Sidecar unavailable or initializing
  */
-router.post('/search/visual', async (req, res) => {
+async function handleVisualSearch(req, res) {
+    console.log('[VisualSearch] handler invoked for', req && req.originalUrl);
     const { visualSearchClient, ErrorTypes } = require('../../services/visual-rag-client/VisualSearchClient');
     const { metricsCollector } = require('../../services/metrics/PrometheusMetrics');
 
@@ -386,7 +387,13 @@ router.post('/search/visual', async (req, res) => {
         });
         res.status(500).json({ success: false, error: error.message });
     }
-});
+}
+
+// Attach the handler to the router and export it for early app-level mounting
+router.post('/search/visual', handleVisualSearch);
+
+module.exports = router;
+module.exports.handleVisualSearch = handleVisualSearch;
 
 /**
  * @swagger

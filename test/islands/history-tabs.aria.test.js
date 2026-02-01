@@ -69,7 +69,7 @@ describe('island runtime - HistoryTabs ARIA and focus', function () {
 
 
     // Dispatch ArrowRight on the tablist to reliably trigger the tab handler
-    const tablist = anchor.querySelector('[role="tablist"]');
+    const _tablist = anchor.querySelector('[role="tablist"]');
     // Use the deterministic test hook instead of keyboard events in JSDOM
     window.dispatchEvent(new window.CustomEvent('history-tabs:navigate', { detail: { dir: 'right' } }));
 

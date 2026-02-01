@@ -4,8 +4,9 @@ test.describe('OverlayViewer keyboard shortcuts (E2E)', () => {
   test('press + / - / 0 to zoom and Space to toggle pan and ArrowRight to nudge', async ({ page }) => {
     try {
       await page.goto('/manual');
-    } catch (e) {
-      test.skip(true, 'Backend not reachable for E2E run: ' + ((e as any) && (e as any).message));
+    } catch (e: unknown) {
+      const msg = typeof e === 'object' && e !== null && 'message' in e ? (e as { message?: string }).message : String(e);
+      test.skip(true, 'Backend not reachable for E2E run: ' + msg);
       return;
     }
 

@@ -11,7 +11,7 @@ describe('Global error handler', () => {
 
   it('returns 500 for thrown errors and renders friendly message', async () => {
     // install a temporary route that throws
-    app.get('/__test/error', (req, res) => {
+    app.get('/__test/error', (_req, _res) => {
       throw new Error('test error');
     });
 
@@ -21,7 +21,7 @@ describe('Global error handler', () => {
   });
 
   it('returns JSON for API errors', async () => {
-    app.get('/api/__test/error', (req, res) => {
+    app.get('/api/__test/error', (_req, _res) => {
       throw new Error('api error');
     });
 

@@ -5,7 +5,7 @@ const { ChatRepository } = require('../../services/repositories/chatRepository')
 function makeFakePool({ selectSessionExists = false, maxIdx = 1 } = {}) {
   return {
     connect: async () => ({
-      query: async (sql, params) => {
+      query: async (sql, _params) => {
         // Simulate behavior based on SQL
         if (sql.includes('SELECT id FROM chat_sessions')) {
           return { rows: selectSessionExists ? [{ id: 'existing-session-uuid' }] : [] };

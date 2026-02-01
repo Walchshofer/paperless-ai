@@ -70,6 +70,12 @@ const MAX_BACKOFF_MS = 5000;
 const HANDSHAKE_TIMEOUT_MS = 5000;
 const MAX_RETRIES = 10;
 
+declare global {
+  interface Window {
+    __visual_annotation_dirty?: boolean;
+  }
+}
+
 export default function VisualAnnotationIsland(props: Partial<VisualAnnotationContract>) {
   const [status, setStatus] = useState('idle' as GpuState);
   const [annotations, setAnnotations] = useState([] as Annotation[]);
@@ -374,7 +380,13 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
   const [saveError, setSaveError] = useState('');
   const [needsAuth, setNeedsAuth] = useState(false);
 
-  const handleSave = async () => {
+  // Mirror dirty state for coordinator to query
+  useEffect(() => {
+    try { window.__visual_annotation_dirty = annotations.length > 0; } catch (_err) { /* ignore */ }
+  }, [annotations]);
+
+  // Save helper returns result so coordinator can react
+  const handleSave = async (): Promise<{ success: boolean; message?: string }> => {
     setIsSaving(true);
     setSaveError('');
     const payload = {
@@ -394,7 +406,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
         setSaveError('Authentication required to save annotations');
         setNeedsAuth(true);
         setIsSaving(false);
-        return;
+        return { success: false, message: 'auth required' };
       }
 
       if (!resp.ok) throw new Error(`Save failed (${resp.status})`);
@@ -451,14 +463,39 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
 
       // keep legacy event for other islands
       document.dispatchEvent(new CustomEvent('payload:ready', { detail: payload }));
+
+      // Success
+      try { window.__visual_annotation_dirty = false; } catch (_err) { /* ignore */ }
+      return { success: true };
     } catch (err: unknown) {
       const msg = (err && typeof err === 'object' && 'message' in err) ? (err as Error).message : String(err);
       console.error('Failed to save annotations:', msg);
       setSaveError(msg || 'Failed to save annotations');
+      return { success: false, message: String(msg) };
     } finally {
       setIsSaving(false);
     }
   };
+
+  // Listen for workspace save requests and participate
+  useEffect(() => {
+    type SaveRequestDetail = { saveId?: string; documentId?: number | null };
+
+    async function onSaveRequest(e: Event) {
+      const detail = (e as CustomEvent<SaveRequestDetail>)?.detail || {};
+      const { saveId, documentId } = detail;
+      if (String(documentId) !== String(props.documentId)) return;
+      const participantId = 'visual-annotation';
+      const willSave = annotations.length > 0;
+      window.dispatchEvent(new CustomEvent('workspace:save-ack', { detail: { saveId, participantId, willSave } }));
+      if (!willSave) return;
+      const result = await handleSave();
+      window.dispatchEvent(new CustomEvent('workspace:save-partial-complete', { detail: { saveId, participantId, success: Boolean(result.success), message: result.message } }));
+    }
+
+    window.addEventListener('workspace:save-request', onSaveRequest as EventListener);
+    return () => window.removeEventListener('workspace:save-request', onSaveRequest as EventListener);
+  }, [annotations, props.documentId]);
 
   // Retry handler for error state - increments nonce to trigger useEffect re-run
   const handleRetry = useCallback(() => {

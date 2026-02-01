@@ -314,11 +314,11 @@ describe('Concurrent Search Test', function () {
 
     it('respects rate limiting', async function () {
         const MAX_CONCURRENT = 5;
-        let rejected = 0;
+        let _rejected = 0;
 
-        const simulateSearch = async (id) => {
+        const simulateSearch = async (_id) => {
             if (metricsCollector.metrics.concurrentRequests >= MAX_CONCURRENT) {
-                rejected++;
+                _rejected++;
                 return;
             }
             metricsCollector.incrementConcurrentRequests();

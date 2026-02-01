@@ -1,8 +1,8 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page, BrowserContext, Locator } from '@playwright/test';
 import jwt from 'jsonwebtoken';
 
 // Helpers
-async function ensureLoggedInAs(page: any, ctx: any, base: any, userId = 1, username = 'testuser') {
+async function ensureLoggedInAs(page: Page, ctx: BrowserContext, base: string, userId = 1, username = 'testuser') {
   const secret = process.env.JWT_SECRET || 'your-secret-key';
   const token = jwt.sign({ id: userId, username }, secret);
   // clear existing cookies and set jwt cookie for the test domain
@@ -11,7 +11,7 @@ async function ensureLoggedInAs(page: any, ctx: any, base: any, userId = 1, user
   await ctx.addCookies([{ name: 'jwt', value: token, domain: url.hostname, path: '/' }]);
 }
 
-async function selectFirstDocument(page: any) {
+async function selectFirstDocument(page: Page): Promise<number> {
   // Wait for document select to be populated and choose the first real option
   const select = page.locator('[data-testid="manual-document-select"]');
   await expect(select).toBeVisible({ timeout: 10000 });
@@ -34,7 +34,7 @@ async function selectFirstDocument(page: any) {
 }
 
 // Draw a box on the annotation canvas. coords are relative percentages of width/height
-async function drawBoxOnCanvas(page: any, canvasLocator: any, startPct: [number, number], endPct: [number, number]) {
+async function drawBoxOnCanvas(page: Page, canvasLocator: Locator, startPct: [number, number], endPct: [number, number]) {
   const box = await canvasLocator.boundingBox();
   if (!box) throw new Error('Canvas bounding box not found');
   const sx = box.x + box.width * startPct[0];
@@ -56,7 +56,7 @@ test.describe('Manual - Annotation persistence & per-user isolation', () => {
 
     // open manual and select a document
     await page.goto(`${base}/manual`, { waitUntil: 'load' });
-    const docId = await selectFirstDocument(page);
+    const _docId = await selectFirstDocument(page);
 
     // ensure annotation island is mounted
     await page.waitForSelector('[data-testid="visual-annotation-island-root"]', { timeout: 10000 });
@@ -124,7 +124,7 @@ test.describe('Manual - Annotation persistence & per-user isolation', () => {
     // Save as user A (id=500)
     await ensureLoggedInAs(page, context, base, 500, 'userA');
     await page.goto(`${base}/manual`, { waitUntil: 'load' });
-    const docId = await selectFirstDocument(page);
+    const _docId = await selectFirstDocument(page);
 
     await page.waitForSelector('[data-testid="visual-annotation-island-root"]', { timeout: 10000 });
     await page.locator('[data-testid="draw-toggle"]').click();

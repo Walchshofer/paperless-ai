@@ -1,9 +1,9 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
 const SETTINGS_URL = `${BASE_URL}/settings`;
 
-async function gotoPage(page: any, url: string) {
+async function gotoPage(page: Page, url: string) {
   const response = await page.goto(url, {
     waitUntil: 'domcontentloaded',
     timeout: 15000
@@ -26,8 +26,9 @@ test.describe('Settings scaffolding smoke', () => {
     let response;
     try {
       response = await gotoPage(page, SETTINGS_URL);
-    } catch (err) {
-      test.skip(true, `Skipping because auth or environment not ready: ${(err as any).message}`);
+    } catch (err: unknown) {
+      const msg = typeof err === 'object' && err !== null && 'message' in err ? (err as { message?: string }).message : String(err);
+      test.skip(true, `Skipping because auth or environment not ready: ${msg}`);
       return;
     }
 

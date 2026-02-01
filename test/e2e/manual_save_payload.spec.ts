@@ -53,16 +53,21 @@ test.describe('Manual - ManualEditor island', () => {
 
     // Attach listener to capture payload:ready
     await page.evaluate(() => {
-      (window as any).__lastPayload = null;
-      document.addEventListener('payload:ready', (e:any) => { (window as any).__lastPayload = e.detail; });
+      const w = window as unknown as { __lastPayload?: unknown };
+      w.__lastPayload = null;
+      document.addEventListener('payload:ready', (e: Event) => {
+        const evt = e as unknown as { detail?: unknown };
+        const w2 = window as unknown as { __lastPayload?: unknown };
+        w2.__lastPayload = evt.detail ?? null;
+      });
     });
 
     await saveBtn.click();
     console.log('DEBUG: clicked save');
 
     // Wait for payload to be set by the island
-    await page.waitForFunction(() => (window as any).__lastPayload !== null, {}, { timeout: 5000 });
-    const payload = await page.evaluate(() => (window as any).__lastPayload);
+    await page.waitForFunction(() => (window as unknown as { __lastPayload?: unknown }).__lastPayload !== null, {}, { timeout: 5000 });
+    const payload = await page.evaluate(() => (window as unknown as { __lastPayload?: unknown }).__lastPayload);
     expect(payload).toBeTruthy();
     expect(payload.metadata.title).toBe('My Test Document');
     expect(payload.content).toBe('This is the document content.');

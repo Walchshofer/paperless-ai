@@ -17,7 +17,7 @@
 
 const axios = require('axios');
 const path = require('path');
-const fs = require('fs').promises;
+const _fs = require('fs').promises;
 
 // Load config
 const config = require('../../config/config');

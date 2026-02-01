@@ -9,8 +9,8 @@ test('island runtime - Settings scaffolding (P1.3) mounts overview, sidebar and 
   const { document } = window;
   // Expose to runtime which expects global.document/window in some paths
   // (the test harness will clean up after process exit)
-  (global as any).document = document;
-  (global as any).window = window;
+  (global as unknown as Record<string, unknown>).document = document;
+  (global as unknown as Record<string, unknown>).window = window;
 
   try {
     const overview = document.createElement('div');
@@ -40,7 +40,8 @@ test('island runtime - Settings scaffolding (P1.3) mounts overview, sidebar and 
     expect(sRoot).toBeTruthy();
     expect(bRoot).toBeTruthy();
   } finally {
-    delete (global as any).document;
-    delete (global as any).window;
+    const g = global as unknown as Record<string, unknown>;
+    delete g.document;
+    delete g.window;
   }
 });

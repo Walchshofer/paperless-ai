@@ -20,7 +20,7 @@ declare global {
 interface SmartFieldLike {
   id: string | number;
   label?: string;
-  value?: unknown;
+  value?: string | number | boolean | string[];
   overlayId?: string | null;
   pageNumber?: number | null;
 }

@@ -14,11 +14,11 @@
  */
 
 import { h } from 'preact';
-import type { ComponentChildren } from 'preact';
+import type { ComponentChildren, JSX } from 'preact';
 
 /** Common props type for Radix mock components */
 interface MockRadixProps extends Record<string, unknown> {
-  children?: any; // Fallback to any to resolve TS2709 namespace error in specific build environments
+  children?: any;
   checked?: boolean;
   'aria-selected'?: boolean;
   'aria-expanded'?: boolean;

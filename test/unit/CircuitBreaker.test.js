@@ -104,7 +104,7 @@ describe('CircuitBreaker', function() {
             };
 
             // Next call should attempt recovery (transition to HALF_OPEN, then back to OPEN on failure)
-            const result = await breaker.execute(failingOperation);
+            await breaker.execute(failingOperation);
             assert.strictEqual(transitionedToHalfOpen, true, 'Should have transitioned to HALF_OPEN to test recovery');
             assert.strictEqual(breaker.getState(), CircuitState.OPEN, 'Should return to OPEN after failed recovery test');
         });

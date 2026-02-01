@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import { getHistoryDocId } from '../helpers/fixtures';
 
 /**
@@ -18,7 +18,7 @@ test.describe('Red Pen Visual Search Flow', () => {
   const HISTORY_DOC_ID = getHistoryDocId();
   const HISTORY_URL = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
 
-  async function gotoHistory(page: any) {
+  async function gotoHistory(page: Page) {
     const response = await page.goto(HISTORY_URL, {
       waitUntil: 'load',
       timeout: 10000
@@ -127,10 +127,11 @@ test.describe('Red Pen Visual Search Flow', () => {
     const eventDetail = await eventPromise;
 
     // Verify event was dispatched with correct structure
-    if (eventDetail) {
-      expect((eventDetail as any).imageBase64).toBeTruthy();
-      expect((eventDetail as any).collection).toBe('visual_pages');
-      expect((eventDetail as any).bbox).toBeDefined();
+    if (eventDetail && typeof eventDetail === 'object') {
+      const ed = eventDetail as Record<string, unknown>;
+      expect(ed.imageBase64).toBeTruthy();
+      expect(ed.collection).toBe('visual_pages');
+      expect(ed.bbox).toBeDefined();
     }
   });
 

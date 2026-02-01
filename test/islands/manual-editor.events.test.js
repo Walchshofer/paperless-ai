@@ -1,7 +1,7 @@
 const { JSDOM } = require('jsdom');
 const assert = require('assert');
 
-const tsNodeService = require('ts-node').register({
+const _tsNodeService = require('ts-node').register({
   transpileOnly: true,
   compilerOptions: {
     module: 'CommonJS',

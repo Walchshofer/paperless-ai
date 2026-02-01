@@ -82,13 +82,18 @@ test('Manual page: enumerate elements and verify Manual Editor fields populated'
   // Wait for the doc option to be present (select by label for robustness)
   await page.waitForSelector('#documentSelect option:has-text("Test Doc")', { state: 'attached', timeout: 10000 });
   // Ensure islands have been mounted before we trigger document selection (avoid race where island runtime resets inputs)
-  await page.waitForFunction(() => window.__islandRuntimeMounted === true, { timeout: 3000 }).catch(() => null);
+  await page.waitForFunction(() => (window as unknown as { __islandRuntimeMounted?: boolean }).__islandRuntimeMounted === true, { timeout: 3000 }).catch(() => null);
 
   // Attach a debug listener to capture manual:metadata-updated events
   await page.evaluate(() => {
-    (window as any).__manual_metadata_events = [];
-    window.addEventListener('manual:metadata-updated', (e) => {
-      (window as any).__manual_metadata_events.push((e as any) && (e as any).detail ? (e as any).detail : null);
+    const w = window as unknown as { __manual_metadata_events?: unknown[] };
+    w.__manual_metadata_events = w.__manual_metadata_events || [];
+    window.addEventListener('manual:metadata-updated', (e: Event) => {
+      const evt = e as unknown as { detail?: unknown };
+      const payload = evt.detail ?? null;
+      const w2 = window as unknown as { __manual_metadata_events?: unknown[] };
+      w2.__manual_metadata_events = w2.__manual_metadata_events || [];
+      w2.__manual_metadata_events.push(payload);
     });
   });
 
@@ -108,8 +113,8 @@ test('Manual page: enumerate elements and verify Manual Editor fields populated'
     selectOuter: document.getElementById('documentSelect') ? (document.getElementById('documentSelect') as HTMLElement).outerHTML : null,
     selectValue: document.getElementById('documentSelect') ? (document.getElementById('documentSelect') as HTMLSelectElement).value : null,
     previewText: document.getElementById('contentPreview') ? document.getElementById('contentPreview')?.textContent : null,
-    islandRuntimeMounted: (window as any).__islandRuntimeMounted || false,
-    manualMetadataEvents: (window as any).__manual_metadata_events || [],
+    islandRuntimeMounted: (window as unknown as { __islandRuntimeMounted?: boolean }).__islandRuntimeMounted || false,
+    manualMetadataEvents: (window as unknown as { __manual_metadata_events?: unknown[] }).__manual_metadata_events || [],
     manualEditorHydrated: document.querySelector('[data-testid="manual-editor-island-root"]') ? document.querySelector('[data-testid="manual-editor-island-root"]')?.getAttribute('data-hydrated') : null
   }));
   console.log('[e2e-debug] post-select debug', debugState);
@@ -117,7 +122,7 @@ test('Manual page: enumerate elements and verify Manual Editor fields populated'
   // Test that dispatch via manual:metadata-updated is observable from our listener (debug sanity check)
   const injectedEvents = await page.evaluate(() => {
     window.dispatchEvent(new CustomEvent('manual:metadata-updated', { detail: { title: 'Injected', content: 'Injected content' } }));
-    return (window as any).__manual_metadata_events || [];
+    return (window as unknown as { __manual_metadata_events?: unknown[] }).__manual_metadata_events || [];
   });
   console.log('[e2e-debug] manual_metadata_events after injected event:', injectedEvents);
 
@@ -175,7 +180,7 @@ test('Manual page: enumerate elements and verify Manual Editor fields populated'
     await page.screenshot({ path: screenshotPath, fullPage: true });
 
     const enumeration = await page.evaluate(() => {
-      const elements: any[] = [];
+      const elements: unknown[] = [];
       document.querySelectorAll('*').forEach(el => {
         const node = {
           tag: el.tagName.toLowerCase(),
@@ -193,8 +198,9 @@ test('Manual page: enumerate elements and verify Manual Editor fields populated'
     const jsonPath = path.join(outDir, 'manual-route-enum.json');
     fs.writeFileSync(jsonPath, JSON.stringify({ url: page.url(), timestamp: new Date().toISOString(), enumeration }, null, 2));
     console.log('[e2e-artifact] screenshot saved:', screenshotPath, 'json saved:', jsonPath);
-  } catch (e) {
-    console.warn('[e2e-artifact] could not write artifacts:', (e as any) && (e as any).message);
+  } catch (e: unknown) {
+    const msg = typeof e === 'object' && e !== null && 'message' in e ? (e as { message?: string }).message : String(e);
+    console.warn('[e2e-artifact] could not write artifacts:', msg);
   }
 
   // Assert expectations and surface findings clearly
