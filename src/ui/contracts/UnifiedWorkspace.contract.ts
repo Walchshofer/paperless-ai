@@ -44,7 +44,7 @@ export const UnifiedWorkspaceSchema = z.object({
   visual: z.object({
     fields: z.array(z.object({
       label: z.string(),
-      value: z.unknown(),
+      value: z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.string())]),
       domain: z.string(),
       confidence: z.number(),
       paperlessMapping: z.string().nullable(),

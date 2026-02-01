@@ -15,10 +15,12 @@ export const PresetMetadataSchema = z.object({
   icon: z.string().optional(),
 });
 
+const PresetValueSchema = z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]);
+
 export const PresetDiffItemSchema = z.object({
   key: z.string(),
-  currentValue: z.unknown().optional(),
-  newValue: z.unknown(),
+  currentValue: PresetValueSchema.optional(),
+  newValue: PresetValueSchema,
   category: z.string().optional(),
 });
 
