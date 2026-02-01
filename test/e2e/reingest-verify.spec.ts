@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import fetch from 'node-fetch';
+import { Buffer } from 'buffer';
 import { getTestDocId, loadFixtureData } from '../helpers/fixtures';
 import { pollForQdrantPoints, collectionExists, QDRANT_URL, COLLECTION_NAME } from '../helpers/qdrant-poll';
 
@@ -58,7 +59,7 @@ test.describe('Reingest Verification', () => {
       return;
     }
 
-    const arrayBuf = await resp.arrayBuffer();
+    const arrayBuf = await (resp as any).arrayBuffer();
     const pdfBase64 = Buffer.from(new Uint8Array(arrayBuf)).toString('base64');
 
     // Send PDF to Visual-RAG index endpoint

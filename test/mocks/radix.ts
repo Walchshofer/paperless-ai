@@ -14,11 +14,11 @@
  */
 
 import { h } from 'preact';
-import type { ComponentChildren } from 'preact';
+import type { ComponentChildren, JSX } from 'preact';
 
 /** Common props type for Radix mock components */
 interface MockRadixProps extends Record<string, unknown> {
-  children?: ComponentChildren; // prefer concrete ComponentChildren type for Preact
+  children?: any;
   checked?: boolean;
   'aria-selected'?: boolean;
   'aria-expanded'?: boolean;

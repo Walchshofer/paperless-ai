@@ -34,6 +34,12 @@ type TestGlobals = {
   CustomEvent?: typeof CustomEvent;
 };
 
+declare global {
+  interface Window {
+    CustomEvent: { new(type: string, init?: CustomEventInit): CustomEvent };
+  }
+}
+
 beforeEach(() => {
   dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
     url: 'http://localhost:3000',
@@ -97,9 +103,10 @@ describe('Event Bus - visual-search-requested', () => {
 
     expect(receivedPayload).not.toBeNull();
     if (receivedPayload) {
-      expect(receivedPayload.imageBase64).toBe(testBase64);
-      expect(typeof receivedPayload.imageBase64).toBe('string');
-      expect(receivedPayload.imageBase64.length).toBeGreaterThan(10);
+      const payload = receivedPayload as VisualSearchPayload;
+      expect(payload.imageBase64).toBe(testBase64);
+      expect(typeof payload.imageBase64).toBe('string');
+      expect(payload.imageBase64!.length).toBeGreaterThan(10);
     }
   });
 
@@ -120,7 +127,8 @@ describe('Event Bus - visual-search-requested', () => {
     window.dispatchEvent(event);
 
     if (receivedPayload) {
-      expect(receivedPayload.collection).toBe('visual_overlays');
+      const payload = receivedPayload as VisualSearchPayload;
+      expect(payload.collection).toBe('visual_overlays');
     }
   });
 
@@ -144,7 +152,8 @@ describe('Event Bus - visual-search-requested', () => {
 
     window.dispatchEvent(event);
 
-    const filters = receivedPayload?.filters as Record<string, unknown> | undefined;
+    const payload = receivedPayload as VisualSearchPayload | null;
+    const filters = payload?.filters as Record<string, unknown> | undefined;
     expect(filters).toBeDefined();
     if (filters) {
       expect(filters['correspondent_id']).toBe(5);
@@ -171,12 +180,13 @@ describe('Event Bus - visual-search-requested', () => {
 
     window.dispatchEvent(event);
 
-    if (receivedPayload && receivedPayload.bbox) {
-      expect(receivedPayload.bbox).toEqual(bbox);
-      expect(receivedPayload.bbox.x).toBe(0.1);
-      expect(receivedPayload.bbox.y).toBe(0.2);
-      expect(receivedPayload.bbox.width).toBe(0.5);
-      expect(receivedPayload.bbox.height).toBe(0.6);
+    if (receivedPayload && (receivedPayload as VisualSearchPayload).bbox) {
+      const payload = receivedPayload as VisualSearchPayload;
+      expect(payload.bbox).toEqual(bbox);
+      expect(payload.bbox!.x).toBe(0.1);
+      expect(payload.bbox!.y).toBe(0.2);
+      expect(payload.bbox!.width).toBe(0.5);
+      expect(payload.bbox!.height).toBe(0.6);
     }
   });
 });
