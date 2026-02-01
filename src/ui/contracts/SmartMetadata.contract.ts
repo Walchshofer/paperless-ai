@@ -1,9 +1,12 @@
 import { z } from 'zod';
 
+// Smart metadata field values are typically scalar (string/number/boolean) or small arrays of strings
+export const SmartFieldValueSchema = z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]);
+
 export const SmartFieldSchema = z.object({
   id: z.union([z.string(), z.number()]),
   label: z.string().optional(),
-  value: z.unknown().optional(),
+  value: SmartFieldValueSchema.optional(),
   overlayId: z.string().nullable().optional(),
   pageNumber: z.number().nullable().optional(),
 });
