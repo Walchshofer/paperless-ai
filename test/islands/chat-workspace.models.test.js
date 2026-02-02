@@ -97,17 +97,94 @@ describe('ChatWorkspaceIsland - model placeholders', function () {
     const modelSelect = root.querySelector('[data-testid="chat-model-select"]');
     assert.ok(modelSelect, 'model select should render');
 
-    // Should contain an option for gpt-4 and gpt-oss
+    // Should contain an option for gpt-4 (current provider is openai)
+    // but should NOT contain ollama model (filtered out)
     assert.ok(modelSelect.querySelector('option[value="gpt-4"]'), 'openai model present');
-    assert.ok(modelSelect.querySelector('option[value="gpt-oss:latest"]'), 'ollama model present');
 
-    // Expert models group should contain fino1-8b
+    // Expert models group should contain fino1-8b (expert models shown for all providers)
     assert.ok(modelSelect.querySelector('option[value="fino1-8b"]'), 'expert model present');
 
     // Text-RAG badge should show as unavailable
     const badge = root.querySelector('[data-testid="chat-text-rag-status"]');
     assert.ok(badge, 'text-rag status badge should render');
     assert.ok(String(badge.textContent).includes('Unavailable') || String(badge.textContent).includes('unavailable'), 'badge should indicate unavailability');
+  });
+
+  it('filters models by active provider - ollama', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    const modelConfig = {
+      providers: {
+        openai: ['gpt-4', 'gpt-3.5-turbo'],
+        ollama: ['llama3.1:8b', 'mistral:7b'],
+        anthropic: ['claude-3-sonnet']
+      },
+      expertModels: [{ model: 'medllama3:8b', label: 'Medical' }],
+      currentProvider: 'ollama'
+    };
+
+    render(h(ChatWorkspaceIsland, { aiProvider: 'ollama', modelConfig }), root);
+    await new Promise((r) => setTimeout(r, 80));
+
+    const modelSelect = root.querySelector('[data-testid="chat-model-select"]');
+    assert.ok(modelSelect, 'model select should render');
+
+    // Ollama models should be present
+    assert.ok(modelSelect.querySelector('option[value="llama3.1:8b"]'), 'ollama model llama3.1:8b present');
+    assert.ok(modelSelect.querySelector('option[value="mistral:7b"]'), 'ollama model mistral:7b present');
+
+    // OpenAI models should NOT be present (filtered out)
+    assert.ok(!modelSelect.querySelector('option[value="gpt-4"]'), 'openai model gpt-4 should be filtered out');
+    assert.ok(!modelSelect.querySelector('option[value="gpt-3.5-turbo"]'), 'openai model gpt-3.5-turbo should be filtered out');
+
+    // Anthropic models should NOT be present (filtered out)
+    assert.ok(!modelSelect.querySelector('option[value="claude-3-sonnet"]'), 'anthropic model should be filtered out');
+
+    // Expert models should always be present
+    assert.ok(modelSelect.querySelector('option[value="medllama3:8b"]'), 'expert model should be present');
+  });
+
+  it('displays provider indicator with current provider', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    const modelConfig = {
+      providers: { openai: ['gpt-4'] },
+      currentProvider: 'openai'
+    };
+
+    render(h(ChatWorkspaceIsland, { aiProvider: 'openai', modelConfig }), root);
+    await new Promise((r) => setTimeout(r, 80));
+
+    const providerIndicator = root.querySelector('[data-testid="chat-provider-indicator"]');
+    assert.ok(providerIndicator, 'provider indicator should render');
+    assert.ok(String(providerIndicator.textContent).includes('openai'), 'provider indicator shows openai');
+  });
+
+  it('shows empty state message with provider name when no models available', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    const modelConfig = {
+      providers: { anthropic: ['claude-3'] },  // Only anthropic models
+      currentProvider: 'openai'  // But openai is selected
+    };
+
+    render(h(ChatWorkspaceIsland, { aiProvider: 'openai', modelConfig }), root);
+    await new Promise((r) => setTimeout(r, 80));
+
+    const modelSelect = root.querySelector('[data-testid="chat-model-select"]');
+    assert.ok(modelSelect, 'model select should render');
+
+    // Should show "No models available for openai"
+    const emptyOption = modelSelect.querySelector('option[value=""]');
+    assert.ok(emptyOption, 'empty option should exist');
+    assert.ok(
+      String(emptyOption.textContent).includes('No models available') &&
+      String(emptyOption.textContent).includes('openai'),
+      'empty option shows provider-specific message'
+    );
   });
 
   it('hydrates persisted history returned from /chat/init', async () => {

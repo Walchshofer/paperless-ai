@@ -119,6 +119,49 @@ export default function ChatWorkspaceIsland(
 
   const aiProvider = props.aiProvider || 'ollama';
 
+  // Filter models by current provider
+  const filteredModelOptions = useMemo(() => {
+    const currentProvider = props.modelConfig?.currentProvider || aiProvider || 'ollama';
+
+    if (!modelOptions || modelOptions.length === 0) return [];
+
+    // Filter groups that match the current provider
+    return modelOptions.filter((group: OllamaModelGroup) => {
+      const groupLabel = group.label.toLowerCase();
+      const providerName = currentProvider.toLowerCase();
+
+      // Match provider name in group label
+      // e.g., "Ollama models" matches "ollama"
+      // "Expert models" is provider-agnostic, always show
+      // "Installed models" show for all providers
+      return (
+        groupLabel.includes(providerName) ||
+        groupLabel.includes('expert') ||
+        groupLabel.includes('installed') ||
+        groupLabel.includes('configured')
+      );
+    });
+  }, [modelOptions, props.modelConfig?.currentProvider, aiProvider]);
+
+  // Update selected model when provider changes
+  useEffect(() => {
+    const currentProvider = props.modelConfig?.currentProvider || aiProvider;
+
+    // Check if current selected model is valid for new provider
+    const isModelValid = filteredModelOptions.some((group: OllamaModelGroup) =>
+      group.models.some((m: { model: string }) => m.model === selectedModel)
+    );
+
+    if (!isModelValid && filteredModelOptions.length > 0) {
+      // Auto-select first available model for new provider
+      const firstModel = filteredModelOptions[0]?.models[0]?.model;
+      if (firstModel) {
+        setSelectedModel(firstModel);
+        console.log(`[Chat] Provider changed to ${currentProvider}, auto-selected model: ${firstModel}`);
+      }
+    }
+  }, [props.modelConfig?.currentProvider, aiProvider, filteredModelOptions, selectedModel]);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -553,6 +596,14 @@ export default function ChatWorkspaceIsland(
           </div>
 
           <div className="flex-1 min-w-[220px]">
+            {/* Provider Indicator */}
+            <div className="mb-2 flex items-center gap-2 text-xs text-[#666]" data-testid="chat-provider-indicator">
+              <span className="font-medium">Provider:</span>
+              <span className="px-2 py-1 bg-[#f5f0e8] rounded-md font-mono">
+                {props.modelConfig?.currentProvider || aiProvider || 'ollama'}
+              </span>
+            </div>
+
             <label className="sg-label" htmlFor="chat-model-select">
               Model
             </label>
@@ -603,10 +654,10 @@ export default function ChatWorkspaceIsland(
                       }
                     }}
                   >
-                    {modelOptions.length === 0 && (
-                      <option value="">No models returned</option>
+                    {filteredModelOptions.length === 0 && (
+                      <option value="">No models available for {props.modelConfig?.currentProvider || aiProvider}</option>
                     )}
-                    {modelOptions.map((group: OllamaModelGroup) => (
+                    {filteredModelOptions.map((group: OllamaModelGroup) => (
                       <optgroup label={group.label} key={group.label}>
                         {group.models.map((model: { label: string; model: string; placeholder?: boolean }) => (
                           <option value={model.model} key={model.model}>
