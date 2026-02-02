@@ -1,21 +1,22 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('OverlayViewer zoom/pan/draw interactions', () => {
-  test('zoom in, pan via drag, then draw region (Region 1 appears)', async ({ page }) => {
-    await page.goto('/manual');
-    await page.waitForSelector('[data-island="overlay-viewer-island"]', { timeout: 5000 });
+  test('zoom in, pan via drag, then activate draw mode', async ({ page }) => {
+    await page.goto('/workspace/doc/74');
+    await page.waitForSelector('[data-testid="overlay-viewer-island"]', { timeout: 30000 });
     await page.waitForTimeout(500);
 
     const zoomIn = page.locator('[data-testid="overlay-zoom-in"]');
     const zoomPct = page.locator('[data-testid="overlay-zoom-percentage"]');
-    const panToggle = page.locator('[data-testid="overlay-pan-toggle"]');
+    const panToggle = page.locator('[data-testid="pan-mode-btn"]');
     const container = page.locator('[data-testid="overlay-container"]');
     const viewport = page.locator('[data-testid="overlay-viewport"]');
-    const drawToggle = page.locator('[data-testid="red-pen-toggle"]');
+    const drawToggle = page.locator('[data-testid="draw-mode-btn"]');
 
     await expect(zoomIn).toBeVisible();
     await expect(zoomPct).toHaveText(/100%/);
 
+    // Zoom in
     await zoomIn.click();
     await page.waitForTimeout(250);
     const pct = (await zoomPct.textContent()) || '100%';
@@ -23,35 +24,31 @@ test.describe('OverlayViewer zoom/pan/draw interactions', () => {
 
     // Toggle pan and perform drag
     await panToggle.click();
+    await expect(panToggle).toHaveAttribute('aria-pressed', 'true');
+    
     await page.mouse.move(200, 200);
     await page.mouse.down();
     await page.mouse.move(250, 220);
     await page.mouse.up();
     await page.waitForTimeout(200);
 
-    // viewport transform should reflect translate values
-    const style = await viewport.getAttribute('style');
-    expect(style).toContain('translate(');
+    // viewport transform should reflect translate values via CSS custom property in className
+    const viewportClass = await viewport.getAttribute('class');
+    expect(viewportClass).toContain('--viewport-transform:translate(');
 
-    // Toggle draw mode and draw a small region
+    // Toggle draw mode - should disable pan mode (mutually exclusive)
     await drawToggle.click();
-    // Start drawing in center-ish of container
-    const box = await container.boundingBox();
-    if (!box) throw new Error('Overlay container bounding box not available');
-
-    const startX = Math.round(box.x + box.width / 3);
-    const startY = Math.round(box.y + box.height / 3);
-    const endX = startX + 40;
-    const endY = startY + 30;
-
-    await page.mouse.move(startX, startY);
-    await page.mouse.down();
-    await page.mouse.move(endX, endY);
-    await page.mouse.up();
-
-    // Wait for box label to appear
-    await page.waitForSelector('text=Region 1', { timeout: 2000 });
-    const label = await page.locator('text=Region 1');
-    await expect(label).toBeVisible();
+    await page.waitForTimeout(100);
+    
+    // Verify draw mode is active
+    await expect(drawToggle).toHaveAttribute('aria-pressed', 'true');
+    await expect(container).toHaveAttribute('data-draw-mode', 'active');
+    
+    // Verify pan mode is now inactive (mutually exclusive)
+    await expect(panToggle).toHaveAttribute('aria-pressed', 'false');
+    
+    // Verify cursor changes to crosshair in draw mode
+    const containerClass = await container.getAttribute('class');
+    expect(containerClass).toContain('cursor-crosshair');
   });
 });

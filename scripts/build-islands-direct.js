@@ -65,7 +65,8 @@ const entries = {
   'visual-overlays': 'src/islands/VisualOverlaysIsland.tsx',
   'tags-manager': 'src/islands/TagsManagerIsland.tsx',
   'ai-analysis': 'src/islands/AIAnalysisIsland.tsx',
-  'export-panel': 'src/islands/ExportPanelIsland.tsx'
+  'export-panel': 'src/islands/ExportPanelIsland.tsx',
+  'resizable-layout': 'src/islands/ResizableLayoutIsland.tsx'
 };
 
 const commonArgs = [

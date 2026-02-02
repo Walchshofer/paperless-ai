@@ -371,8 +371,12 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     const next = !panMode;
     setPanMode(next);
     if (next) {
+      // Disable draw mode when activating pan mode (mutually exclusive)
       drawModeRef.current = false;
       setIsDrawMode(false);
+      if (drawModeButtonRef.current) {
+        drawModeButtonRef.current.setAttribute('aria-pressed', 'false');
+      }
     }
   }, [panMode]);
 
@@ -821,7 +825,13 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     const next = !drawModeRef.current;
     drawModeRef.current = next;
     setIsDrawMode(next);
-    if (!next) {
+    if (next) {
+      // Disable pan mode when activating draw mode (mutually exclusive)
+      setPanMode(false);
+      if (panModeButtonRef.current) {
+        panModeButtonRef.current.setAttribute('aria-pressed', 'false');
+      }
+    } else {
       isDrawingRef.current = false;
       currentBoxRef.current = null;
       setIsDrawing(false);
@@ -831,6 +841,13 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
   useEffect(() => {
     drawModeRef.current = isDrawMode;
+  }, [isDrawMode]);
+
+  // Dispatch event when draw mode changes to synchronize with sidebar
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('overlay:draw-mode-changed', {
+      detail: { drawMode: isDrawMode }
+    }));
   }, [isDrawMode]);
 
   // Reflect button pressed state as literal strings for axe accessibility
@@ -902,6 +919,27 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       else if (e.key === '-') { zoomOut(); e.preventDefault(); }
       else if (e.key === '0' || e.key.toLowerCase() === 'r') { resetView(); e.preventDefault(); }
       else if (e.code === 'Space') { togglePanMode(); e.preventDefault(); }
+      // 'D' key - Toggle draw mode
+      else if (e.key === 'd' || e.key === 'D') {
+        if (selectionEnabled) {
+          toggleDrawMode();
+          e.preventDefault();
+        }
+      }
+      // Escape - Exit draw mode and clear current selection
+      else if (e.key === 'Escape') {
+        if (isDrawMode) {
+          drawModeRef.current = false;
+          isDrawingRef.current = false;
+          currentBoxRef.current = null;
+          setIsDrawMode(false);
+          setIsDrawing(false);
+          setCurrentBox(null);
+          // Notify listeners that draw mode was cancelled
+          window.dispatchEvent(new CustomEvent('overlay:draw-cancelled'));
+          e.preventDefault();
+        }
+      }
       else if (e.key.startsWith('Arrow') && panMode) {
         const step = 20;
         if (e.key === 'ArrowLeft') applyTranslate(translateRef.current.x + step, translateRef.current.y);
@@ -913,7 +951,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [zoomIn, zoomOut, resetView, togglePanMode, panMode, applyTranslate]);
+  }, [zoomIn, zoomOut, resetView, togglePanMode, toggleDrawMode, panMode, isDrawMode, selectionEnabled, applyTranslate]);
 
   const handlePointerDown = useCallback((e: PointerEvent) => {
     if (panMode) {
@@ -1008,27 +1046,49 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       className="h-full flex flex-col overflow-hidden"
     >
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2 p-2 border-b border-gray-200 bg-white z-10">
-        {selectionEnabled && (
+      <div className="flex flex-wrap items-center gap-2 p-2 border-b border-gray-200 bg-white z-10" data-testid="overlay-toolbar">
+        {/* Pan/Draw Mode Toggle Group */}
+        <div className="flex items-center gap-1 border-r border-gray-200 pr-2">
           <button
-            data-testid="red-pen-toggle"
-            onClick={toggleDrawMode}
-            ref={drawModeButtonRef}
+            data-testid="pan-mode-btn"
+            aria-label="Pan Mode"
+            onClick={togglePanMode}
+            ref={panModeButtonRef}
+            title="Pan Mode (Space)"
             className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-              isDrawMode
-                ? 'bg-red-600 text-white'
+              panMode
+                ? 'bg-[#b87333] text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            <i className={`fas fa-pen mr-1.5 ${isDrawMode ? 'animate-pulse' : ''}`}></i>
-            {isDrawMode ? 'Drawing Mode' : 'Draw Mode'}
+            <i className="fas fa-hand-paper mr-1.5"></i>
+            Pan
           </button>
-        )} 
+
+          {selectionEnabled && (
+            <button
+              data-testid="draw-mode-btn"
+              aria-label="Draw Mode"
+              onClick={toggleDrawMode}
+              ref={drawModeButtonRef}
+              title="Draw Mode (D)"
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                isDrawMode
+                  ? 'bg-[#b87333] text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <i className={`fas fa-draw-polygon mr-1.5 ${isDrawMode ? 'animate-pulse' : ''}`}></i>
+              Draw
+            </button>
+          )}
+        </div>
 
         {selectionEnabled && boxes.length > 0 && (
           <button
             data-testid="clear-boxes"
             onClick={clearAllBoxes}
+            title="Clear all drawn boxes"
             className="px-3 py-1.5 text-sm text-gray-600 hover:text-red-600"
           >
             <i className="fas fa-trash-alt mr-1"></i>
@@ -1069,12 +1129,11 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           </div>
         )}
 
-        <div className="flex items-center gap-2 px-2">
-          <button aria-label="Zoom out" data-testid="overlay-zoom-out" onClick={zoomOut} className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">-</button>
+        <div className="flex items-center gap-2 px-2 border-l border-gray-200">
+          <button aria-label="Zoom out" data-testid="overlay-zoom-out" onClick={zoomOut} title="Zoom Out (-)" className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">-</button>
           <span data-testid="overlay-zoom-percentage" className="text-xs text-gray-500 w-8 text-center">{Math.round(scale * 100)}%</span>
-          <button aria-label="Zoom in" data-testid="overlay-zoom-in" onClick={zoomIn} className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">+</button>
-          <button aria-label="Reset zoom" data-testid="overlay-zoom-reset" onClick={resetView} className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">Reset</button>
-          <button data-testid="overlay-pan-toggle" onClick={togglePanMode} ref={panModeButtonRef} className={`px-2 py-1 rounded hover:bg-gray-200 ${panMode ? 'bg-gray-300' : 'bg-gray-100'}`}>Pan</button>
+          <button aria-label="Zoom in" data-testid="overlay-zoom-in" onClick={zoomIn} title="Zoom In (+)" className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">+</button>
+          <button aria-label="Reset zoom" data-testid="overlay-zoom-reset" onClick={resetView} title="Reset View (R or 0)" className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">Reset</button>
         </div>
         
         {showResults && (
@@ -1134,7 +1193,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           <div
             ref={containerRef}
             data-testid="overlay-container"
-            className={`relative flex-1 overflow-hidden ${panMode ? (panActiveRef.current ? 'cursor-grabbing' : 'cursor-grab') : (isDrawMode ? 'cursor-crosshair' : 'cursor-default')} ${isDrawMode ? 'touch-none' : 'touch-auto'}`}
+            data-draw-mode={isDrawMode ? 'active' : 'inactive'}
+            className={`relative flex-1 overflow-hidden ${panMode ? (panActiveRef.current ? 'cursor-grabbing' : 'cursor-grab') : (isDrawMode ? 'cursor-crosshair' : 'cursor-default')} ${isDrawMode ? 'touch-none ring-2 ring-inset ring-[#b87333]/50' : 'touch-auto'}`}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}

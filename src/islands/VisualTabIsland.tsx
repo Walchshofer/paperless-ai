@@ -245,6 +245,27 @@ export default function VisualTabIsland(props: VisualTabProps) {
     return () => window.removeEventListener('overlay:draw-cancelled', handleCancelDraw);
   }, []);
 
+  // Sync draw mode state from toolbar changes
+  useEffect(() => {
+    const handleDrawModeChanged = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      const { drawMode } = detail;
+      
+      // Only sync if draw mode is being deactivated from toolbar
+      // If activating, keep our activeFieldId context
+      if (drawMode === false) {
+        setIsDrawMode(false);
+        setActiveFieldId(null);
+      } else if (drawMode === true && !activeFieldId) {
+        // Toolbar activated draw mode without a field context
+        setIsDrawMode(true);
+      }
+    };
+
+    window.addEventListener('overlay:draw-mode-changed', handleDrawModeChanged as EventListener);
+    return () => window.removeEventListener('overlay:draw-mode-changed', handleDrawModeChanged as EventListener);
+  }, [activeFieldId]);
+
   const missingFields = fields.filter((f: VisualField) => !f.isMapped);
   const mappedFields = fields.filter((f: VisualField) => f.isMapped);
 

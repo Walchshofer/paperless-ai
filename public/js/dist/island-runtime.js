@@ -7607,6 +7607,9 @@ function OverlayViewerIsland(props) {
     if (next) {
       drawModeRef.current = false;
       setIsDrawMode(false);
+      if (drawModeButtonRef.current) {
+        drawModeButtonRef.current.setAttribute("aria-pressed", "false");
+      }
     }
   }, [panMode]);
   const normalizedUrl = T2(() => {
@@ -7999,7 +8002,12 @@ function OverlayViewerIsland(props) {
     const next = !drawModeRef.current;
     drawModeRef.current = next;
     setIsDrawMode(next);
-    if (!next) {
+    if (next) {
+      setPanMode(false);
+      if (panModeButtonRef.current) {
+        panModeButtonRef.current.setAttribute("aria-pressed", "false");
+      }
+    } else {
       isDrawingRef.current = false;
       currentBoxRef.current = null;
       setIsDrawing(false);
@@ -8008,6 +8016,11 @@ function OverlayViewerIsland(props) {
   }, []);
   y2(() => {
     drawModeRef.current = isDrawMode;
+  }, [isDrawMode]);
+  y2(() => {
+    window.dispatchEvent(new CustomEvent("overlay:draw-mode-changed", {
+      detail: { drawMode: isDrawMode }
+    }));
   }, [isDrawMode]);
   y2(() => {
     if (drawModeButtonRef.current) {
@@ -8079,6 +8092,22 @@ function OverlayViewerIsland(props) {
       } else if (e3.code === "Space") {
         togglePanMode();
         e3.preventDefault();
+      } else if (e3.key === "d" || e3.key === "D") {
+        if (selectionEnabled) {
+          toggleDrawMode();
+          e3.preventDefault();
+        }
+      } else if (e3.key === "Escape") {
+        if (isDrawMode) {
+          drawModeRef.current = false;
+          isDrawingRef.current = false;
+          currentBoxRef.current = null;
+          setIsDrawMode(false);
+          setIsDrawing(false);
+          setCurrentBox(null);
+          window.dispatchEvent(new CustomEvent("overlay:draw-cancelled"));
+          e3.preventDefault();
+        }
       } else if (e3.key.startsWith("Arrow") && panMode) {
         const step = 20;
         if (e3.key === "ArrowLeft") applyTranslate(translateRef.current.x + step, translateRef.current.y);
@@ -8090,7 +8119,7 @@ function OverlayViewerIsland(props) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [zoomIn, zoomOut, resetView, togglePanMode, panMode, applyTranslate]);
+  }, [zoomIn, zoomOut, resetView, togglePanMode, toggleDrawMode, panMode, isDrawMode, selectionEnabled, applyTranslate]);
   const handlePointerDown = q2((e3) => {
     if (panMode) {
       panActiveRef.current = true;
@@ -8183,25 +8212,45 @@ function OverlayViewerIsland(props) {
       "data-original-url": originalUrl || "",
       className: "h-full flex flex-col overflow-hidden",
       children: [
-        /* @__PURE__ */ u3("div", { className: "flex flex-wrap items-center gap-2 p-2 border-b border-gray-200 bg-white z-10", children: [
-          selectionEnabled && /* @__PURE__ */ u3(
-            "button",
-            {
-              "data-testid": "red-pen-toggle",
-              onClick: toggleDrawMode,
-              ref: drawModeButtonRef,
-              className: `px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${isDrawMode ? "bg-red-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`,
-              children: [
-                /* @__PURE__ */ u3("i", { className: `fas fa-pen mr-1.5 ${isDrawMode ? "animate-pulse" : ""}` }),
-                isDrawMode ? "Drawing Mode" : "Draw Mode"
-              ]
-            }
-          ),
+        /* @__PURE__ */ u3("div", { className: "flex flex-wrap items-center gap-2 p-2 border-b border-gray-200 bg-white z-10", "data-testid": "overlay-toolbar", children: [
+          /* @__PURE__ */ u3("div", { className: "flex items-center gap-1 border-r border-gray-200 pr-2", children: [
+            /* @__PURE__ */ u3(
+              "button",
+              {
+                "data-testid": "pan-mode-btn",
+                "aria-label": "Pan Mode",
+                onClick: togglePanMode,
+                ref: panModeButtonRef,
+                title: "Pan Mode (Space)",
+                className: `px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${panMode ? "bg-[#b87333] text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`,
+                children: [
+                  /* @__PURE__ */ u3("i", { className: "fas fa-hand-paper mr-1.5" }),
+                  "Pan"
+                ]
+              }
+            ),
+            selectionEnabled && /* @__PURE__ */ u3(
+              "button",
+              {
+                "data-testid": "draw-mode-btn",
+                "aria-label": "Draw Mode",
+                onClick: toggleDrawMode,
+                ref: drawModeButtonRef,
+                title: "Draw Mode (D)",
+                className: `px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${isDrawMode ? "bg-[#b87333] text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`,
+                children: [
+                  /* @__PURE__ */ u3("i", { className: `fas fa-draw-polygon mr-1.5 ${isDrawMode ? "animate-pulse" : ""}` }),
+                  "Draw"
+                ]
+              }
+            )
+          ] }),
           selectionEnabled && boxes.length > 0 && /* @__PURE__ */ u3(
             "button",
             {
               "data-testid": "clear-boxes",
               onClick: clearAllBoxes,
+              title: "Clear all drawn boxes",
               className: "px-3 py-1.5 text-sm text-gray-600 hover:text-red-600",
               children: [
                 /* @__PURE__ */ u3("i", { className: "fas fa-trash-alt mr-1" }),
@@ -8234,15 +8283,14 @@ function OverlayViewerIsland(props) {
             /* @__PURE__ */ u3("span", { className: `${styles2.legendDot} [--dot-color:${item.color}]`, "aria-hidden": "true" }),
             /* @__PURE__ */ u3("span", { children: item.label })
           ] }, item.key)) }),
-          /* @__PURE__ */ u3("div", { className: "flex items-center gap-2 px-2", children: [
-            /* @__PURE__ */ u3("button", { "aria-label": "Zoom out", "data-testid": "overlay-zoom-out", onClick: zoomOut, className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "-" }),
+          /* @__PURE__ */ u3("div", { className: "flex items-center gap-2 px-2 border-l border-gray-200", children: [
+            /* @__PURE__ */ u3("button", { "aria-label": "Zoom out", "data-testid": "overlay-zoom-out", onClick: zoomOut, title: "Zoom Out (-)", className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "-" }),
             /* @__PURE__ */ u3("span", { "data-testid": "overlay-zoom-percentage", className: "text-xs text-gray-500 w-8 text-center", children: [
               Math.round(scale * 100),
               "%"
             ] }),
-            /* @__PURE__ */ u3("button", { "aria-label": "Zoom in", "data-testid": "overlay-zoom-in", onClick: zoomIn, className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "+" }),
-            /* @__PURE__ */ u3("button", { "aria-label": "Reset zoom", "data-testid": "overlay-zoom-reset", onClick: resetView, className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "Reset" }),
-            /* @__PURE__ */ u3("button", { "data-testid": "overlay-pan-toggle", onClick: togglePanMode, ref: panModeButtonRef, className: `px-2 py-1 rounded hover:bg-gray-200 ${panMode ? "bg-gray-300" : "bg-gray-100"}`, children: "Pan" })
+            /* @__PURE__ */ u3("button", { "aria-label": "Zoom in", "data-testid": "overlay-zoom-in", onClick: zoomIn, title: "Zoom In (+)", className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "+" }),
+            /* @__PURE__ */ u3("button", { "aria-label": "Reset zoom", "data-testid": "overlay-zoom-reset", onClick: resetView, title: "Reset View (R or 0)", className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "Reset" })
           ] }),
           showResults && /* @__PURE__ */ u3("button", { onClick: () => setShowResults(false), className: "px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs ml-2 hover:bg-blue-200", children: [
             /* @__PURE__ */ u3("i", { className: "fas fa-columns mr-1" }),
@@ -8303,7 +8351,8 @@ function OverlayViewerIsland(props) {
                 {
                   ref: containerRef,
                   "data-testid": "overlay-container",
-                  className: `relative flex-1 overflow-hidden ${panMode ? panActiveRef.current ? "cursor-grabbing" : "cursor-grab" : isDrawMode ? "cursor-crosshair" : "cursor-default"} ${isDrawMode ? "touch-none" : "touch-auto"}`,
+                  "data-draw-mode": isDrawMode ? "active" : "inactive",
+                  className: `relative flex-1 overflow-hidden ${panMode ? panActiveRef.current ? "cursor-grabbing" : "cursor-grab" : isDrawMode ? "cursor-crosshair" : "cursor-default"} ${isDrawMode ? "touch-none ring-2 ring-inset ring-[#b87333]/50" : "touch-auto"}`,
                   onPointerDown: handlePointerDown,
                   onPointerMove: handlePointerMove,
                   onPointerUp: handlePointerUp,
@@ -16728,6 +16777,7 @@ function AIAnalysisIsland(props) {
 }
 
 // src/islands/ChatWorkspaceIsland.tsx
+var CHAT_MODE_STORAGE_KEY = "paperless-ai-chat-mode";
 var safeMarkdown = (text) => {
   const marked = window.marked;
   if (marked && typeof marked.parse === "function") {
@@ -16771,7 +16821,25 @@ function ChatWorkspaceIsland(props) {
   );
   const [isModelLoading, setIsModelLoading] = d2(false);
   const [modelLoadError, setModelLoadError] = d2(null);
-  const [chatMode, setChatMode] = d2("rag");
+  const getInitialChatMode = () => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem(CHAT_MODE_STORAGE_KEY);
+      if (stored === "rag" || stored === "visual-rag" || stored === "document") {
+        if (stored === "document" && !props.openDocumentId) {
+          return "rag";
+        }
+        return stored;
+      }
+    }
+    return "rag";
+  };
+  const [chatMode, setChatModeInternal] = d2(getInitialChatMode);
+  const setChatMode = (mode) => {
+    setChatModeInternal(mode);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(CHAT_MODE_STORAGE_KEY, mode);
+    }
+  };
   const [isDocumentLoaded, setIsDocumentLoaded] = d2(Boolean(props.openDocumentId));
   const [visualRagAvailable, setVisualRagAvailable] = d2(false);
   const [visualRagStatus, setVisualRagStatus] = d2("checking");
@@ -17461,32 +17529,53 @@ function ChatWorkspaceIsland(props) {
                       msg.role === "assistant" && msg.searchMode && /* @__PURE__ */ u3("div", { className: "mt-2 text-xs text-[#888]", children: msg.searchMode === "hybrid" ? "\u{1F3A8} Hybrid search" : "\u{1F4DD} Text fallback" }),
                       msg.role === "assistant" && msg.sources && msg.sources.length > 0 && /* @__PURE__ */ u3("div", { className: "mt-3 pt-3 border-t border-[#e5e0d8]", "data-testid": "chat-sources-visual", children: [
                         /* @__PURE__ */ u3("div", { className: "text-xs font-medium text-[#888] mb-2", children: "Sources:" }),
-                        /* @__PURE__ */ u3("div", { className: "space-y-2", children: msg.sources.map((source, sidx) => /* @__PURE__ */ u3("div", { className: "flex items-center gap-2", children: [
-                          /* @__PURE__ */ u3(
+                        /* @__PURE__ */ u3("div", { className: "space-y-2", children: msg.sources.map((source, sidx) => /* @__PURE__ */ u3("div", { className: "flex items-start gap-3", children: [
+                          source.thumbnailUrl && /* @__PURE__ */ u3(
                             "a",
                             {
-                              href: `/workspace/doc/${source.documentId}`,
-                              className: "text-xs text-[#b87333] hover:underline",
+                              href: `/workspace/doc/${source.documentId}${source.page ? `?page=${source.page}` : ""}`,
                               target: "_blank",
                               rel: "noopener noreferrer",
-                              "data-testid": `chat-source-visual-${sidx}`,
-                              children: [
-                                "\u{1F4C4} ",
-                                source.title || `Document #${source.documentId}`,
-                                source.page ? ` (p${source.page})` : ""
-                              ]
+                              className: "flex-shrink-0",
+                              "data-testid": `chat-source-thumbnail-${sidx}`,
+                              children: /* @__PURE__ */ u3(
+                                "img",
+                                {
+                                  src: source.thumbnailUrl,
+                                  alt: `Page ${source.page || 1} thumbnail`,
+                                  className: "w-12 h-16 object-cover rounded border border-[#e5e0d8] hover:border-[#b87333] transition-colors",
+                                  loading: "lazy"
+                                }
+                              )
                             }
                           ),
-                          (source.visualScore !== void 0 || source.textScore !== void 0) && /* @__PURE__ */ u3("span", { className: "text-xs text-[#999]", children: [
-                            source.visualScore !== void 0 && /* @__PURE__ */ u3("span", { className: "mr-2", children: [
-                              "Visual: ",
-                              Math.round(source.visualScore * 100),
-                              "%"
-                            ] }),
-                            source.textScore !== void 0 && /* @__PURE__ */ u3("span", { children: [
-                              "Text: ",
-                              Math.round(source.textScore * 100),
-                              "%"
+                          /* @__PURE__ */ u3("div", { className: "flex flex-col gap-1", children: [
+                            /* @__PURE__ */ u3(
+                              "a",
+                              {
+                                href: `/workspace/doc/${source.documentId}`,
+                                className: "text-xs text-[#b87333] hover:underline",
+                                target: "_blank",
+                                rel: "noopener noreferrer",
+                                "data-testid": `chat-source-visual-${sidx}`,
+                                children: [
+                                  "\u{1F4C4} ",
+                                  source.title || `Document #${source.documentId}`,
+                                  source.page ? ` (p${source.page})` : ""
+                                ]
+                              }
+                            ),
+                            (source.visualScore !== void 0 || source.textScore !== void 0) && /* @__PURE__ */ u3("span", { className: "text-xs text-[#999]", children: [
+                              source.visualScore !== void 0 && /* @__PURE__ */ u3("span", { className: "mr-2", children: [
+                                "Visual: ",
+                                Math.round(source.visualScore * 100),
+                                "%"
+                              ] }),
+                              source.textScore !== void 0 && /* @__PURE__ */ u3("span", { children: [
+                                "Text: ",
+                                Math.round(source.textScore * 100),
+                                "%"
+                              ] })
                             ] })
                           ] })
                         ] }, sidx)) })
@@ -18931,6 +19020,31 @@ function UnifiedWorkspaceIsland(props) {
     return () => window.removeEventListener("metadata:locate-field", handler);
   }, [props.visual]);
   y2(() => {
+    const feedbackHandler = async (e3) => {
+      const detail = e3?.detail || {};
+      const fieldId = detail.fieldId;
+      const vote = detail.vote;
+      const documentId = props.document?.id ?? null;
+      if (!fieldId || !vote || !documentId) return;
+      try {
+        const resp = await fetch("/api/feedback/field-vote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ documentId, fieldId, vote })
+        });
+        if (resp.ok) {
+          window.dispatchEvent(new CustomEvent("feedback:sent", { detail: { documentId, fieldId, vote } }));
+        } else {
+          window.dispatchEvent(new CustomEvent("feedback:failed", { detail: { documentId, fieldId, vote, status: resp.status } }));
+        }
+      } catch (err) {
+        window.dispatchEvent(new CustomEvent("feedback:failed", { detail: { documentId, fieldId, vote, error: err.message } }));
+      }
+    };
+    window.addEventListener("feedback:vote", feedbackHandler);
+    return () => window.removeEventListener("feedback:vote", feedbackHandler);
+  }, [props.document?.id]);
+  y2(() => {
     const wnd = getWorkspaceWindow();
     wnd.__workspaceState = wnd.__workspaceState || {};
     const onDirty = (e3) => {
@@ -19948,6 +20062,20 @@ function VisualTabIsland(props) {
     window.addEventListener("overlay:draw-cancelled", handleCancelDraw);
     return () => window.removeEventListener("overlay:draw-cancelled", handleCancelDraw);
   }, []);
+  y2(() => {
+    const handleDrawModeChanged = (e3) => {
+      const detail = e3?.detail || {};
+      const { drawMode } = detail;
+      if (drawMode === false) {
+        setIsDrawMode(false);
+        setActiveFieldId(null);
+      } else if (drawMode === true && !activeFieldId) {
+        setIsDrawMode(true);
+      }
+    };
+    window.addEventListener("overlay:draw-mode-changed", handleDrawModeChanged);
+    return () => window.removeEventListener("overlay:draw-mode-changed", handleDrawModeChanged);
+  }, [activeFieldId]);
   const missingFields = fields.filter((f4) => !f4.isMapped);
   const mappedFields = fields.filter((f4) => f4.isMapped);
   if (!props.documentId) {

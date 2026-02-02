@@ -9,8 +9,14 @@ class RagService {
   }
 
   _isExplicitlyDisabled() {
-    return process.env.RAG_SERVICE_ENABLED &&
-      process.env.RAG_SERVICE_ENABLED !== 'true';
+    const val = (process.env.RAG_SERVICE_ENABLED || '').toLowerCase();
+    // Accept 'yes', 'true', '1' as enabled; 'no', 'false', '0' as disabled
+    const enabledValues = ['yes', 'true', '1'];
+    const disabledValues = ['no', 'false', '0'];
+    if (disabledValues.includes(val)) return true;
+    if (enabledValues.includes(val)) return false;
+    // Default: not explicitly disabled if env var is missing or unrecognized
+    return false;
   }
 
   _assertEnabled() {
