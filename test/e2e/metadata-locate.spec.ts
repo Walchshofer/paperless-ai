@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-const fixtures = require('./helpers/fixtures');
-const { waitForIsland } = require('./helpers/island-waits');
+const fixtures = require('../helpers/fixtures');
+const { waitForIsland } = require('../helpers/island-waits');
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL || process.env.PAPERLESS_BASE_URL || 'http://localhost:3000';
 

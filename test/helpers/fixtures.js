@@ -48,6 +48,20 @@ function resolvePaperlessConfig() {
     apiUrl = apiUrl.slice(0, -1);
   }
 
+  // Handle Docker-to-Host mapping for E2E tests running on Windows host
+  if (apiUrl) {
+    try {
+      const url = new URL(apiUrl);
+      if (url.hostname === 'webserver' || url.hostname === 'paperless-ai' || url.hostname === 'paperless_ai') {
+        const oldHost = url.hostname;
+        url.hostname = 'localhost';
+        console.warn(`[e2e:fixtures] Mapping ${oldHost} to localhost for API access: ${url.toString()}`);
+        apiUrl = url.toString();
+        if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+      }
+    } catch (e) { /* ignore parse errors */ }
+  }
+
   if (!apiUrl || !apiToken) {
     throw new Error(
       'Missing PAPERLESS_API_URL or PAPERLESS_API_TOKEN for E2E fixtures.'

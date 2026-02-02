@@ -5,13 +5,29 @@ const { chromium } = require('@playwright/test');
 const { queryDb } = require('../helpers/db-poll');
 const { ensureE2EFixtures } = require('../helpers/fixtures');
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
-const VISUAL_RAG_URL = process.env.VISUAL_RAG_URL || 'http://127.0.0.1:8001';
-const QDRANT_URL = process.env.QDRANT_URL || 'http://127.0.0.1:6333';
-const METRICS_URL = process.env.PROMETHEUS_METRICS_URL ||
-  'http://127.0.0.1:9091/metrics';
+const BASE_URL = sanitizeUrl(process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000');
+const VISUAL_RAG_URL = sanitizeUrl(process.env.VISUAL_RAG_URL || 'http://127.0.0.1:8001');
+const QDRANT_URL = sanitizeUrl(process.env.QDRANT_URL || 'http://127.0.0.1:6333');
+const METRICS_URL = sanitizeUrl(process.env.PROMETHEUS_METRICS_URL ||
+  'http://127.0.0.1:9091/metrics');
 const STORAGE_STATE_PATH = process.env.PLAYWRIGHT_STORAGE_STATE ||
   'test/.auth/storageState.json';
+
+/**
+ * Maps docker-internal hostnames to localhost for host-based test execution
+ */
+function sanitizeUrl(url) {
+  if (!url) return url;
+  try {
+    const parsed = new URL(url);
+    const dockerHosts = ['webserver', 'paperless_ai', 'paperless-ai', 'visual-rag', 'guidance-service', 'text-rag', 'db', 'paperless_db', 'qdrant'];
+    if (dockerHosts.includes(parsed.hostname)) {
+      parsed.hostname = 'localhost';
+      return parsed.toString().replace(/\/$/, '');
+    }
+  } catch (e) { /* ignore */ }
+  return url;
+}
 
 const truthy = (value) => ['1', 'true', 'yes'].includes(
   String(value || '').toLowerCase()

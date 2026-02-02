@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 
 // --- Types & Interfaces ---
 
-interface DashboardMetrics {
+export interface DashboardMetrics {
   lastUpdated: string;
   documentCount: number;
   processedCount: number;
@@ -22,24 +22,25 @@ interface DashboardMetrics {
   };
 }
 
-interface ChartProps {
-  data: any;
-  title: string;
-  type: 'bar' | 'doughnut';
-  canvasId: string;
+// ChartProps interface removed - not currently used
+
+// Extend Window for dashboard data hydration
+interface WindowWithDashboard extends Window {
+  dashboardData?: DashboardMetrics;
 }
 
 // --- Hook: useDashboardMetrics ---
 
-const useDashboardMetrics = (initialData: DashboardMetrics | null) => {
-  const [metrics, setMetrics] = useState(initialData as DashboardMetrics | null);
+const useDashboardMetrics = (initialData: DashboardMetrics | null | undefined) => {
+  const [metrics, setMetrics] = useState((initialData ?? null) as DashboardMetrics | null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null as string | null);
 
   useEffect(() => {
     // If no initial data, try to hydrate from window
-    if (!metrics && (window as any).dashboardData) {
-      setMetrics((window as any).dashboardData);
+    const win = window as WindowWithDashboard;
+    if (!metrics && win.dashboardData) {
+      setMetrics(win.dashboardData);
     }
 
     const fetchMetrics = async () => {
@@ -158,7 +159,7 @@ const TaskRunnerStatus = ({ metrics }: { metrics: DashboardMetrics }) => {
            <span className="font-medium">{progressPercent}% ({processedCount} / {documentCount})</span>
         </div>
         <div className="w-full bg-gray-100 rounded-full h-2.5">
-           <div className="bg-blue-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }}></div>
+           <div className="progress-bar-fill bg-blue-500 h-2.5 rounded-full" style={{ '--progress-width': `${progressPercent}%` }}></div>
         </div>
       </div>
 
@@ -193,9 +194,32 @@ const TaskRunnerStatus = ({ metrics }: { metrics: DashboardMetrics }) => {
 
 // --- Component: ChartCanvas ---
 
-const ChartCanvas = ({ id, type, data, options }: { id: string, type: string, data: any, options?: any }) => {
+// Chart.js types for the canvas component
+interface ChartData {
+  labels: string[];
+  datasets: Array<{
+    label?: string;
+    data: number[];
+    backgroundColor?: string | string[];
+    borderColor?: string | string[];
+    borderWidth?: number;
+  }>;
+}
+
+interface ChartOptions {
+  responsive?: boolean;
+  maintainAspectRatio?: boolean;
+  plugins?: Record<string, unknown>;
+  scales?: Record<string, unknown>;
+}
+
+interface ChartInstance {
+  destroy: () => void;
+}
+
+const ChartCanvas = ({ id, type, data, options }: { id: string, type: string, data: ChartData, options?: ChartOptions }) => {
   const canvasRef = useRef(null as HTMLCanvasElement | null);
-  const chartInstance = useRef(null as any);
+  const chartInstance = useRef(null as ChartInstance | null);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -230,7 +254,7 @@ const ChartCanvas = ({ id, type, data, options }: { id: string, type: string, da
   }, [JSON.stringify(data)]); // Re-create when data changes
 
   return (
-    <div className="chart-container relative" style={{ position: 'relative', height: '300px' }}>
+    <div className="chart-container dynamic-height-chart relative" style={{ '--chart-height': '300px' }}>
       <canvas ref={canvasRef} id={id}></canvas>
       {(!data || !data.datasets || data.datasets[0].data.length === 0 || data.datasets[0].data.every((v: number) => v === 0)) && (
          <div className="absolute inset-0 flex items-center justify-center bg-gray-50/50 rounded-lg">
@@ -243,7 +267,7 @@ const ChartCanvas = ({ id, type, data, options }: { id: string, type: string, da
 
 // --- Main Island Component ---
 
-export default function DashboardChartsIsland({ initialData }: { initialData?: any }) {
+export default function DashboardChartsIsland({ initialData }: { initialData?: DashboardMetrics | null }) {
   // Use the hook to manage state
   const { metrics } = useDashboardMetrics(initialData);
 

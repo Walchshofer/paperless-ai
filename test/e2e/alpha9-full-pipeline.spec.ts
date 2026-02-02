@@ -133,15 +133,17 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     }
 
     expect(apiRequestPayload).not.toBeNull();
+    const payload = apiRequestPayload!;
+    if (!payload) return;
 
     // 5. Verify Base64 payload valid
-    expect(apiRequestPayload.image).toBeTruthy();
-    expect(typeof apiRequestPayload.image).toBe('string');
+    expect(payload.image).toBeTruthy();
+    expect(typeof payload.image).toBe('string');
     // Base64 should be at least a few characters
-    expect(apiRequestPayload.image.length).toBeGreaterThan(10);
+    expect((payload.image as string).length).toBeGreaterThan(10);
 
     // 6. Verify collection routing
-    expect(apiRequestPayload.collection || 'visual_pages').toBe('visual_pages');
+    expect(payload.collection || 'visual_pages').toBe('visual_pages');
 
     // 7. Verify Similar tab renders results
     await page.waitForSelector('[data-testid="similar-results"]', {
@@ -219,10 +221,10 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     await page.waitForTimeout(500);
 
     // Verify collection in request
-    expect(requestPayload?.collection || 'visual_pages').toBe('visual_pages');
+    expect((requestPayload as Record<string, unknown> | null)?.collection || 'visual_pages').toBe('visual_pages');
 
     // Verify response indicates visual_pages collection
-    expect(responseData.collectionUsed).toBe('visual_pages');
+    expect((responseData as Record<string, unknown> | null)?.collectionUsed).toBe('visual_pages');
   });
 
   test('Filter propagation: correspondent_id included in API request', async ({
@@ -296,7 +298,8 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
 
     // Verify request was made
     expect(requestPayload).not.toBeNull();
-    expect(requestPayload.image).toBeTruthy();
+    if (!requestPayload) return;
+    expect((requestPayload as Record<string, unknown>).image).toBeTruthy();
   });
 
   test('End-to-end timing: measure pipeline latency', async ({ page }) => {

@@ -27,53 +27,6 @@ test.describe('ExpertModelsIsland smoke test', () => {
   });
 
   test('island mounts and displays all tabs', async ({ page }) => {
-
-  test('expert models persist across provider toggle', async ({ page }) => {
-    // Navigate to AI Provider and ensure Ollama selected
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
-    await waitForIsland(page, 'ai-provider-island', 10000);
-
-    const providerSelect = page.locator('[data-testid="provider-select"]');
-    if ((await providerSelect.count()) > 0) {
-      await providerSelect.selectOption('ollama');
-      await page.evaluate(() => {
-        const el = document.getElementById('provider') as HTMLSelectElement | null;
-        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-    }
-
-    // Wait for Expert Models island
-    await waitForIsland(page, 'expert-models-island', 10000);
-
-    // Fill fields and save
-    await page.fill('[data-testid="medical-vision-input"]', 'persist-med');
-    await page.fill('[data-testid="financial-analysis-input"]', 'persist-fin');
-
-    // Intercept save and respond success
-    await page.route('**/settings/apply', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
-    });
-
-    await page.locator('[data-testid="expert-models-root"] [data-testid="save-button"]').click();
-    await page.waitForTimeout(200);
-
-    // Ensure values persisted to localStorage
-    const saved = await page.evaluate(() => localStorage.getItem('expert-models-settings'));
-    expect(saved).not.toBeNull();
-    const parsed = JSON.parse(saved as string);
-    expect(parsed.medicalVision).toBe('persist-med');
-
-    // Switch provider away and back
-    await providerSelect.selectOption('openai');
-    await page.evaluate(() => { const el = document.getElementById('provider') as HTMLSelectElement | null; if (el) el.dispatchEvent(new Event('change', { bubbles: true })); });
-
-    // Switch back to Ollama and confirm Expert Models again
-    await providerSelect.selectOption('ollama');
-    await page.evaluate(() => { const el = document.getElementById('provider') as HTMLSelectElement | null; if (el) el.dispatchEvent(new Event('change', { bubbles: true })); });
-
-    await waitForIsland(page, 'expert-models-island', 10000);
-    await expect(page.locator('[data-testid="medical-vision-input"]')).toHaveValue('persist-med');
-  });
     const consoleErrors: string[] = [];
     page.on('console', (msg) => {
       if (msg.type() === 'error') consoleErrors.push(msg.text());
@@ -115,7 +68,7 @@ test.describe('ExpertModelsIsland smoke test', () => {
     await expect(page.locator('[data-testid="tab-legal"]')).toBeVisible();
 
     // Verify save button is present (scope to expert models root)
-    await expect(page.locator('[data-testid="expert-models-root"] [data-testid="save-button"]')).toBeVisible();
+    await expect(page.locator('[data-testid="expert-models-root"] [data-testid="expert-models-save-button"]')).toBeVisible();
 
     // Take screenshot
     await page.screenshot({
@@ -126,6 +79,53 @@ test.describe('ExpertModelsIsland smoke test', () => {
     // Assert no console errors (ignore known GitHub fetch noise)
     const filteredConsoleErrors = consoleErrors.filter(msg => !/Failed to fetch stars|api\.github\.com|Failed to load resource: the server responded with a status of 403/.test(msg));
     expect(filteredConsoleErrors, 'no console errors during mount (excluding known GitHub noise)').toEqual([]);
+  });
+
+  test('expert models persist across provider toggle', async ({ page }) => {
+    // Navigate to AI Provider and ensure Ollama selected
+    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
+    await waitForIsland(page, 'ai-provider-island', 10000);
+
+    const providerSelect = page.locator('[data-testid="provider-select"]');
+    if ((await providerSelect.count()) > 0) {
+      await providerSelect.selectOption('ollama');
+      await page.evaluate(() => {
+        const el = document.getElementById('provider') as HTMLSelectElement | null;
+        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }
+
+    // Wait for Expert Models island
+    await waitForIsland(page, 'expert-models-island', 10000);
+
+    // Fill fields and save
+    await page.fill('[data-testid="medical-vision-input"]', 'persist-med');
+    await page.fill('[data-testid="financial-analysis-input"]', 'persist-fin');
+
+    // Intercept save and respond success
+    await page.route('**/settings/apply', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+    });
+
+    await page.locator('[data-testid="expert-models-root"] [data-testid="expert-models-save-button"]').click();
+    await page.waitForTimeout(200);
+
+    // Ensure values persisted to localStorage
+    const saved = await page.evaluate(() => localStorage.getItem('expert-models-settings'));
+    expect(saved).not.toBeNull();
+    const parsed = JSON.parse(saved as string);
+    expect(parsed.medicalVision).toBe('persist-med');
+
+    // Switch provider away and back
+    await providerSelect.selectOption('openai');
+    await page.evaluate(() => { const el = document.getElementById('provider') as HTMLSelectElement | null; if (el) el.dispatchEvent(new Event('change', { bubbles: true })); });
+
+    // Switch back to Ollama and confirm Expert Models again
+    await providerSelect.selectOption('ollama');
+    await page.evaluate(() => { const el = document.getElementById('provider') as HTMLSelectElement | null; if (el) el.dispatchEvent(new Event('change', { bubbles: true })); });
+
+    await waitForIsland(page, 'expert-models-island', 10000);
+    await expect(page.locator('[data-testid="medical-vision-input"]')).toHaveValue('persist-med');
   });
 
   test('tab navigation switches content correctly', async ({ page }) => {
@@ -185,7 +185,7 @@ test.describe('ExpertModelsIsland smoke test', () => {
     await expect(toggle).toBeChecked();
 
     // Save button should be disabled (not dirty) - scope to expert models root
-    await expect(page.locator('[data-testid="expert-models-root"] [data-testid="save-button"]')).toBeDisabled();
+    await expect(page.locator('[data-testid="expert-models-root"] [data-testid="expert-models-save-button"]')).toBeDisabled();
 
     // Toggle off using JS to avoid pointer interception by decorative elements
     await page.evaluate(() => {
@@ -198,7 +198,7 @@ test.describe('ExpertModelsIsland smoke test', () => {
 
     // Save button should be enabled (dirty)
     await page.waitForTimeout(100);
-    await expect(page.locator('[data-testid="expert-models-root"] [data-testid="save-button"]')).toBeEnabled();
+    await expect(page.locator('[data-testid="expert-models-root"] [data-testid="expert-models-save-button"]')).toBeEnabled();
 
     // Take screenshot
     await page.screenshot({
@@ -235,7 +235,7 @@ test.describe('ExpertModelsIsland smoke test', () => {
 
     // Save button should be enabled (dirty)
     await page.waitForTimeout(100);
-    await expect(page.locator('[data-testid="expert-models-root"] [data-testid="save-button"]')).toBeEnabled();
+    await expect(page.locator('[data-testid="expert-models-root"] [data-testid="expert-models-save-button"]')).toBeEnabled();
 
     // Take screenshot
     await page.screenshot({
@@ -274,7 +274,7 @@ test.describe('ExpertModelsIsland smoke test', () => {
 
     // Save button should be enabled (dirty)
     await page.waitForTimeout(100);
-    await expect(page.locator('[data-testid="expert-models-root"] [data-testid="save-button"]')).toBeEnabled();
+    await expect(page.locator('[data-testid="expert-models-root"] [data-testid="expert-models-save-button"]')).toBeEnabled();
 
     // Take screenshot
     await page.screenshot({
@@ -311,7 +311,7 @@ test.describe('ExpertModelsIsland smoke test', () => {
 
     // Save button should be enabled (dirty)
     await page.waitForTimeout(100);
-    await expect(page.locator('[data-testid="expert-models-root"] [data-testid="save-button"]')).toBeEnabled();
+    await expect(page.locator('[data-testid="expert-models-root"] [data-testid="expert-models-save-button"]')).toBeEnabled();
 
     // Take screenshot
     await page.screenshot({
@@ -369,7 +369,7 @@ test.describe('ExpertModelsIsland smoke test', () => {
     await page.waitForTimeout(100);
 
     // Click save button (scope to expert models root)
-    const saveButton = page.locator('[data-testid="expert-models-root"] [data-testid="save-button"]');
+    const saveButton = page.locator('[data-testid="expert-models-root"] [data-testid="expert-models-save-button"]');
     await saveButton.click();
 
     // Verify loading state
@@ -413,14 +413,14 @@ test.describe('ExpertModelsIsland smoke test', () => {
     await waitForIsland(page, 'expert-models-island', 10000);
 
     // Initially, save button should be disabled (not dirty)
-    await expect(page.locator('[data-testid="expert-models-root"] [data-testid="save-button"]')).toBeDisabled();
+    await expect(page.locator('[data-testid="expert-models-root"] [data-testid="expert-models-save-button"]')).toBeDisabled();
 
     // Make form dirty
     await page.fill('[data-testid="medical-vision-input"]', 'llava-med-modified');
     await page.waitForTimeout(100);
 
     // Now save button should be enabled
-    await expect(page.locator('[data-testid="expert-models-root"] [data-testid="save-button"]')).toBeEnabled();
+    await expect(page.locator('[data-testid="expert-models-root"] [data-testid="expert-models-save-button"]')).toBeEnabled();
   });
 
   test('all three tabs maintain independent state', async ({ page }) => {

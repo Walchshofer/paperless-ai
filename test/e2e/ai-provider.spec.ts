@@ -39,7 +39,7 @@ test.describe('AIProviderIsland smoke test', () => {
     await expect(page.locator('[data-testid="tab-azure"]')).toBeVisible();
 
     // Verify a visible save button is present inside this island
-    await expect(page.locator('[data-testid="ai-provider-root"] [data-testid="save-button"]:visible')).toBeVisible();
+    await expect(page.locator('[data-testid="ai-provider-root"] [data-testid="ai-provider-save-button"]:visible')).toBeVisible();
 
     // Take screenshot
     await page.screenshot({
@@ -103,7 +103,7 @@ test.describe('AIProviderIsland smoke test', () => {
     await expect(providerSelect).toHaveValue('ollama');
 
     // Save button state can vary depending on initial configuration; ensure changes enable the visible save button in this island
-    const visibleSaveBtn = page.locator('[data-testid="ai-provider-root"] [data-testid="save-button"]:visible');
+    const visibleSaveBtn = page.locator('[data-testid="ai-provider-root"] [data-testid="ai-provider-save-button"]:visible');
 
     // After changing provider, save button should be enabled (dirty state)
     await providerSelect.selectOption('azure');
@@ -133,7 +133,7 @@ test.describe('AIProviderIsland smoke test', () => {
     await expect(apiKeyInput).toHaveValue('sk-test-key-123');
 
     // Save button should be enabled (dirty state) - target visible save button in this island
-    const visibleSaveBtnOpenAI = page.locator('[data-testid="ai-provider-root"] [data-testid="save-button"]:visible');
+    const visibleSaveBtnOpenAI = page.locator('[data-testid="ai-provider-root"] [data-testid="ai-provider-save-button"]:visible');
     await page.waitForTimeout(100);
     await expect(visibleSaveBtnOpenAI).toBeEnabled();
 
@@ -169,7 +169,7 @@ test.describe('AIProviderIsland smoke test', () => {
 
     // Save button should be enabled (dirty state)
     await page.waitForTimeout(100);
-    await expect(page.locator('[data-testid="ai-provider-root"] [data-testid="save-button"]:visible')).toBeEnabled();
+    await expect(page.locator('[data-testid="ai-provider-root"] [data-testid="ai-provider-save-button"]:visible')).toBeEnabled();
 
     // Take screenshot
     await page.screenshot({
@@ -228,7 +228,7 @@ test.describe('AIProviderIsland smoke test', () => {
 
     // Save button should be enabled (scope to this island's visible save button)
     await page.waitForTimeout(100);
-    await expect(page.locator('[data-testid="ai-provider-root"] [data-testid="save-button"]:visible')).toBeEnabled();
+    await expect(page.locator('[data-testid="ai-provider-root"] [data-testid="ai-provider-save-button"]:visible')).toBeEnabled();
 
     // Take screenshot
     await page.screenshot({
@@ -258,7 +258,7 @@ test.describe('AIProviderIsland smoke test', () => {
 
     // Save button should be enabled (scope to this island's visible save button)
     await page.waitForTimeout(100);
-    await expect(page.locator('[data-testid="ai-provider-root"] [data-testid="save-button"]:visible')).toBeEnabled();
+    await expect(page.locator('[data-testid="ai-provider-root"] [data-testid="ai-provider-save-button"]:visible')).toBeEnabled();
 
     // Take screenshot
     await page.screenshot({
@@ -307,7 +307,7 @@ test.describe('AIProviderIsland smoke test', () => {
     await page.waitForTimeout(100);
 
     // Click save button
-    const saveButton = page.locator('[data-testid="ai-provider-root"] [data-testid="save-button"]');
+    const saveButton = page.locator('[data-testid="ai-provider-root"] [data-testid="ai-provider-save-button"]');
     await saveButton.click();
 
     // Verify loading state
@@ -346,6 +346,6 @@ test.describe('AIProviderIsland smoke test', () => {
     await page.waitForTimeout(100);
 
     // Now save button should be enabled (scope to island)
-    await expect(page.locator('[data-testid="ai-provider-root"] [data-testid="save-button"]:visible')).toBeEnabled();
+    await expect(page.locator('[data-testid="ai-provider-root"] [data-testid="ai-provider-save-button"]:visible')).toBeEnabled();
   });
 });

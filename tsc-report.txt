@@ -1,0 +1,68 @@
+src/islands/DashboardChartsIsland.tsx(272,43): error TS2345: Argument of type 'DashboardMetrics | null | undefined' is not assignable to parameter of type 'DashboardMetrics | null'.
+  Type 'undefined' is not assignable to type 'DashboardMetrics | null'.
+src/islands/DocumentContextBarIsland.tsx(21,53): error TS2347: Untyped function calls may not accept type arguments.
+src/islands/DocumentContextBarIsland.tsx(22,43): error TS2347: Untyped function calls may not accept type arguments.
+src/islands/DocumentContextBarIsland.tsx(24,47): error TS2347: Untyped function calls may not accept type arguments.
+src/islands/DocumentContextBarIsland.tsx(62,22): error TS2347: Untyped function calls may not accept type arguments.
+src/islands/runtime.browser.tsx(142,43): error TS2345: Argument of type '({ initialData }: { initialData?: DashboardMetrics | null | undefined; }) => any' is not assignable to parameter of type 'IslandComponent<{ initialData?: unknown; }>'.
+  Types of parameters '__0' and 'props' are incompatible.
+    Type '{ initialData?: unknown; }' is not assignable to type '{ initialData?: DashboardMetrics | null | undefined; }'.
+      Types of property 'initialData' are incompatible.
+        Type 'unknown' is not assignable to type 'DashboardMetrics | null | undefined'.
+test/e2e/alpha9-full-pipeline.spec.ts(138,12): error TS18047: 'apiRequestPayload' is possibly 'null'.
+test/e2e/alpha9-full-pipeline.spec.ts(139,19): error TS18047: 'apiRequestPayload' is possibly 'null'.
+test/e2e/alpha9-full-pipeline.spec.ts(141,12): error TS18047: 'apiRequestPayload' is possibly 'null'.
+test/e2e/alpha9-full-pipeline.spec.ts(144,12): error TS18047: 'apiRequestPayload' is possibly 'null'.
+test/e2e/alpha9-full-pipeline.spec.ts(222,28): error TS2339: Property 'collection' does not exist on type 'never'.
+test/e2e/alpha9-full-pipeline.spec.ts(225,12): error TS18047: 'responseData' is possibly 'null'.
+test/e2e/alpha9-full-pipeline.spec.ts(299,12): error TS18046: 'requestPayload' is of type 'unknown'.
+test/e2e/dashboard-reconciliation.spec.ts(12,58): error TS2339: Property 'dashboardData' does not exist on type 'Window & typeof globalThis'.
+test/e2e/dashboard-reconciliation.spec.ts(62,49): error TS2339: Property 'dashboardData' does not exist on type 'Window & typeof globalThis'.
+test/e2e/dashboard-reconciliation.spec.ts(66,49): error TS2339: Property 'dashboardData' does not exist on type 'Window & typeof globalThis'.
+test/e2e/feedback.flow.spec.ts(49,12): error TS18047: 'row' is possibly 'null'.
+test/e2e/feedback.flow.spec.ts(50,12): error TS18047: 'row' is possibly 'null'.
+test/e2e/feedback.flow.spec.ts(53,23): error TS18047: 'row' is possibly 'null'.
+test/e2e/feedback.flow.spec.ts(55,83): error TS18046: 'corrected' is of type 'unknown'.
+test/e2e/feedback.flow.spec.ts(59,21): error TS18047: 'row' is possibly 'null'.
+test/e2e/feedback.flow.spec.ts(60,20): error TS2339: Property 'request_id' does not exist on type '{}'.
+test/e2e/feedback.flow.spec.ts(60,42): error TS2339: Property 'requestId' does not exist on type '{}'.
+test/e2e/feedback.flow.spec.ts(60,63): error TS2339: Property 'requestId' does not exist on type '{}'.
+test/e2e/feedback.flow.spec.ts(63,32): error TS18047: 'row' is possibly 'null'.
+test/e2e/feedback.flow.spec.ts(63,32): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'unknown' is not assignable to parameter of type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'unknown' is not assignable to parameter of type 'string | number'.
+test/e2e/manual-live-enumeration.spec.ts(180,34): error TS18046: 'island' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(180,57): error TS18046: 'island' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(180,84): error TS18046: 'island' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(180,111): error TS18046: 'island' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(184,59): error TS18046: 'b' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(184,82): error TS18046: 'b' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(185,59): error TS18046: 'b' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(185,82): error TS18046: 'b' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(189,39): error TS18046: 'btn' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(189,66): error TS18046: 'btn' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(189,96): error TS18046: 'btn' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(189,118): error TS18046: 'btn' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(194,39): error TS18046: 'btn' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(194,66): error TS18046: 'btn' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(194,96): error TS18046: 'btn' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(194,118): error TS18046: 'btn' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(198,57): error TS18046: 'i' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(198,84): error TS18046: 'i' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(199,57): error TS18046: 'i' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(199,84): error TS18046: 'i' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(206,37): error TS18046: 'sel' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(206,55): error TS18046: 'sel' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(206,79): error TS18046: 'sel' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(211,35): error TS18046: 'el' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(211,45): error TS18046: 'el' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(211,64): error TS18046: 'el' is of type 'unknown'.
+test/e2e/manual-live-enumeration.spec.ts(300,42): error TS18046: 'i' is of type 'unknown'.
+test/e2e/manual_save_payload.spec.ts(72,12): error TS18046: 'payload' is of type 'unknown'.
+test/e2e/manual_save_payload.spec.ts(73,12): error TS18046: 'payload' is of type 'unknown'.
+test/e2e/manual_save_payload.spec.ts(74,12): error TS18046: 'payload' is of type 'unknown'.
+test/e2e/manual_save_payload.spec.ts(75,12): error TS18046: 'payload' is of type 'unknown'.
+test/setup.ts(5,3): error TS2322: Type 'Mock<[], CanvasRenderingContext2D>' is not assignable to type '{ (contextId: "2d", options?: CanvasRenderingContext2DSettings | undefined): CanvasRenderingContext2D | null; (contextId: "bitmaprenderer", options?: ImageBitmapRenderingContextSettings | undefined): ImageBitmapRenderingContext | null; (contextId: "webgl", options?: WebGLContextAttributes | undefined): WebGLRenderin...'.
+  Property 'transferFromImageBitmap' is missing in type 'CanvasRenderingContext2D' but required in type 'ImageBitmapRenderingContext'.

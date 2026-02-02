@@ -437,10 +437,10 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         console.error('Annotation save failed', msg);
       }
     };
-    document.addEventListener('payload:ready', saveListener as unknown as EventListener);
+    document.addEventListener('payload:ready', saveListener as EventListener);
     return () => {
       cancelled = true;
-      document.removeEventListener('payload:ready', saveListener as unknown as EventListener);
+      document.removeEventListener('payload:ready', saveListener as EventListener);
     };
   }, [docId, page]);
 
@@ -499,8 +499,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       }
     };
 
-    window.addEventListener('visual-search-requested', handler as unknown as EventListener);
-    return () => window.removeEventListener('visual-search-requested', handler as unknown as EventListener);
+    window.addEventListener('visual-search-requested', handler as EventListener);
+    return () => window.removeEventListener('visual-search-requested', handler as EventListener);
   }, []);
 
   const getRelativePosition = useCallback(
@@ -998,18 +998,18 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             ref={containerRef}
             data-testid="overlay-container"
             className={`relative flex-1 overflow-hidden ${panMode ? (panActiveRef.current ? 'cursor-grabbing' : 'cursor-grab') : (isDrawMode ? 'cursor-crosshair' : 'cursor-default')} ${isDrawMode ? 'touch-none' : 'touch-auto'}`}
-            onPointerDown={handlePointerDown as unknown as ((e: PointerEvent) => void)}
-            onPointerMove={handlePointerMove as unknown as ((e: PointerEvent) => void)}
-            onPointerUp={handlePointerUp as unknown as ((e: PointerEvent) => void)}
-            onPointerCancel={handlePointerCancel as unknown as ((e: PointerEvent) => void)}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerCancel}
             onPointerLeave={() => { if (isDrawingRef.current) handleMouseUp(); }}
-            onMouseDown={handleMouseDownFallback as unknown as ((e: MouseEvent | TouchEvent) => void)}
-            onMouseMove={handleMouseMoveFallback as unknown as ((e: MouseEvent | TouchEvent) => void)}
-            onMouseUp={handleMouseUpFallback as unknown as ((e: MouseEvent | TouchEvent) => void)}
+            onMouseDown={handleMouseDownFallback as (e: MouseEvent) => void}
+            onMouseMove={handleMouseMoveFallback as (e: MouseEvent) => void}
+            onMouseUp={handleMouseUpFallback as (e: MouseEvent) => void}
             onMouseLeave={() => { if (pointerActiveRef.current) return; if (isDrawingRef.current) handleMouseUp(); }}
-            onTouchStart={handleMouseDownFallback as unknown as ((e: TouchEvent) => void)}
-            onTouchMove={handleMouseMoveFallback as unknown as ((e: TouchEvent) => void)}
-            onTouchEnd={handleMouseUpFallback as unknown as ((e: TouchEvent) => void)}
+            onTouchStart={handleMouseDownFallback as (e: TouchEvent) => void}
+            onTouchMove={handleMouseMoveFallback as (e: TouchEvent) => void}
+            onTouchEnd={handleMouseUpFallback as (e: TouchEvent) => void}
           >
             <div
               ref={viewportRef}
@@ -1021,7 +1021,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                   ref={imageRef}
                   alt={`Document ${docId} page ${page}`}
                   className={`w-full h-full object-contain pointer-events-none select-none ${imageLoaded ? 'block' : 'hidden'}`}
-                  data-testid="document-image"
+                  data-testid="overlay-document-image"
                   draggable={false}
                   crossOrigin="anonymous"
                   onDragStart={(e: Event) => e.preventDefault()}

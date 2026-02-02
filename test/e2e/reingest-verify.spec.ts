@@ -59,7 +59,7 @@ test.describe('Reingest Verification', () => {
       return;
     }
 
-    const arrayBuf = await (resp as any).arrayBuffer();
+    const arrayBuf = await (resp.body() as unknown as Promise<ArrayBuffer>);
     const pdfBase64 = Buffer.from(new Uint8Array(arrayBuf)).toString('base64');
 
     // Send PDF to Visual-RAG index endpoint

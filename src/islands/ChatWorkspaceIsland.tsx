@@ -32,12 +32,10 @@ interface MarkedLib {
   parse: (text: string) => string;
 }
 
-interface WindowWithMarked extends Window {
-  marked?: MarkedLib;
-}
+// WindowWithMarked interface used inline in safeMarkdown
 
 const safeMarkdown = (text: string) => {
-  const marked = (window as unknown as WindowWithMarked).marked;
+  const marked = (window as Window & { marked?: MarkedLib }).marked;
   if (marked && typeof marked.parse === 'function') {
     return marked.parse(text);
   }
@@ -54,12 +52,10 @@ interface HljsLib {
   highlightBlock: (block: HTMLElement) => void;
 }
 
-interface WindowWithHljs extends Window {
-  hljs?: HljsLib;
-}
+// WindowWithHljs interface used inline in highlightBlocks
 
 const highlightBlocks = (container: HTMLElement | null) => {
-  const hljs = (window as unknown as WindowWithHljs).hljs;
+  const hljs = (window as Window & { hljs?: HljsLib }).hljs;
   if (!container || !hljs) return;
   const blocks = container.querySelectorAll('pre code');
   blocks.forEach((block) => {

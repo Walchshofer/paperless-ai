@@ -67,8 +67,9 @@ test.describe('Manual - ManualEditor island', () => {
 
     // Wait for payload to be set by the island
     await page.waitForFunction(() => (window as unknown as { __lastPayload?: unknown }).__lastPayload !== null, {}, { timeout: 5000 });
-    const payload = await page.evaluate(() => (window as unknown as { __lastPayload?: unknown }).__lastPayload);
+    const payload = await page.evaluate(() => (window as unknown as { __lastPayload?: unknown }).__lastPayload) as { metadata: { title: string }; content: string; fields: Array<{ name: string; value: string }> } | null;
     expect(payload).toBeTruthy();
+    if (!payload) return;
     expect(payload.metadata.title).toBe('My Test Document');
     expect(payload.content).toBe('This is the document content.');
     expect(payload.fields).toHaveLength(1);

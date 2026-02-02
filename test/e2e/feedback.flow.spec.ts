@@ -46,21 +46,22 @@ test.describe('Feedback Flow E2E', () => {
 
     // Field assertions
     expect(row).toBeTruthy();
+    if (!row) return; // TypeScript narrowing
     expect(row.doc_id).toBe(docId);
     expect(row.event_type).toBe('correction');
 
     // corrected_value JSONB must contain the correspondent name
-    const corrected = row.corrected_value;
+    const corrected = row.corrected_value as Record<string, unknown> | string;
     expect(corrected).toBeTruthy();
-    const corrName = typeof corrected === 'string' ? JSON.parse(corrected).name : corrected.name;
+    const corrName = typeof corrected === 'string' ? JSON.parse(corrected).name : (corrected as Record<string, unknown>).name;
     expect(corrName).toBe(correctedCorrespondent.name);
 
     // request_id should be present in context and match the header we set
-    const context = row.context || {};
-    expect(context.request_id || context.requestId || context.requestId).toBe(requestId);
+    const context = (row.context || {}) as Record<string, unknown>;
+    expect(context.request_id || context.requestId).toBe(requestId);
 
     // created_at within the test window (allow small skew)
-    const createdAt = new Date(row.created_at).getTime();
+    const createdAt = new Date(row.created_at as string).getTime();
     expect(createdAt).toBeGreaterThanOrEqual(beforeTs - 1000);
     expect(createdAt).toBeLessThanOrEqual(Date.now() + 1000);
 

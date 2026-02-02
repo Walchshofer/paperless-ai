@@ -6775,8 +6775,8 @@ function SmartMetadataIsland(props) {
           "span",
           {
             "data-testid": `tag-chip-${tag.id}`,
-            className: "inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs",
-            style: tag.color ? { backgroundColor: `${tag.color}20`, color: tag.color } : void 0,
+            className: "tag-chip inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs",
+            style: tag.color ? { "--tag-color": tag.color } : void 0,
             children: [
               tag.name,
               /* @__PURE__ */ u3(
@@ -6794,25 +6794,29 @@ function SmartMetadataIsland(props) {
           tag.id
         ))
       ] }),
-      availableTags.filter((t3) => !localTags.some((lt) => lt.id === t3.id)).length > 0 && /* @__PURE__ */ u3(
-        "select",
-        {
-          "data-testid": "add-tag-select",
-          className: "w-full border border-[#e5e0d8] rounded-md px-3 py-2 text-sm",
-          onChange: (e3) => {
-            const val = parseInt(e3.target.value, 10);
-            if (!isNaN(val)) {
-              handleAddTag(val);
-              e3.target.value = "";
-            }
-          },
-          value: "",
-          children: [
-            /* @__PURE__ */ u3("option", { value: "", children: "Add a tag..." }),
-            availableTags.filter((t3) => !localTags.some((lt) => lt.id === t3.id)).map((t3) => /* @__PURE__ */ u3("option", { value: t3.id, children: t3.name }, t3.id))
-          ]
-        }
-      )
+      availableTags.filter((t3) => !localTags.some((lt) => lt.id === t3.id)).length > 0 && /* @__PURE__ */ u3("div", { className: "flex flex-col gap-1", children: [
+        /* @__PURE__ */ u3("label", { htmlFor: "add-tag-select", className: "sr-only", children: "Add a tag" }),
+        /* @__PURE__ */ u3(
+          "select",
+          {
+            id: "add-tag-select",
+            "data-testid": "add-tag-select",
+            className: "w-full border border-[#e5e0d8] rounded-md px-3 py-2 text-sm",
+            onChange: (e3) => {
+              const val = parseInt(e3.target.value, 10);
+              if (!isNaN(val)) {
+                handleAddTag(val);
+                e3.target.value = "";
+              }
+            },
+            value: "",
+            children: [
+              /* @__PURE__ */ u3("option", { value: "", children: "Add a tag..." }),
+              availableTags.filter((t3) => !localTags.some((lt) => lt.id === t3.id)).map((t3) => /* @__PURE__ */ u3("option", { value: t3.id, children: t3.name }, t3.id))
+            ]
+          }
+        )
+      ] })
     ] }),
     /* @__PURE__ */ u3("div", { className: "mt-2", children: [
       /* @__PURE__ */ u3("div", { className: "text-sm font-medium mb-2", children: "Custom Fields" }),
@@ -6943,15 +6947,9 @@ function HistoryTabsIsland(props) {
         await performVisualSearch(imageBase64, collection);
       }
     };
-    window.addEventListener(
-      "visual-search-requested",
-      handleVisualSearchRequest
-    );
+    window.addEventListener("visual-search-requested", handleVisualSearchRequest);
     return () => {
-      window.removeEventListener(
-        "visual-search-requested",
-        handleVisualSearchRequest
-      );
+      window.removeEventListener("visual-search-requested", handleVisualSearchRequest);
     };
   }, [documentId, activeFilters]);
   const performVisualSearch = async (imageBase64, collection = "visual_pages") => {
@@ -8252,7 +8250,7 @@ function OverlayViewerIsland(props) {
                               ref: imageRef,
                               alt: `Document ${docId} page ${page}`,
                               className: `w-full h-full object-contain pointer-events-none select-none ${imageLoaded ? "block" : "hidden"}`,
-                              "data-testid": "document-image",
+                              "data-testid": "overlay-document-image",
                               draggable: false,
                               crossOrigin: "anonymous",
                               onDragStart: (e3) => e3.preventDefault()
@@ -13478,7 +13476,7 @@ function ExpertModelsIsland(props) {
           onClick: handleSave,
           disabled: !isDirty2 || isSaving,
           className: "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed",
-          "data-testid": "save-button",
+          "data-testid": "expert-models-save-button",
           children: isSaving ? "Saving..." : "Save Settings"
         }
       ),
@@ -14106,7 +14104,7 @@ function AIProviderIsland(props) {
           onClick: handleSave,
           disabled: !isDirty2 || isSaving,
           className: "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed",
-          "data-testid": "save-button",
+          "data-testid": "ai-provider-save-button",
           children: isSaving ? "Saving..." : "Save Settings"
         }
       ),
@@ -18541,7 +18539,7 @@ function UnifiedWorkspaceIsland(props) {
     const beforeUnloadHandler = (e3) => {
       try {
         const docKey = props.document?.id ? String(props.document?.id) : "";
-        const wnd2 = window;
+        const wnd2 = getWorkspaceWindow();
         const state = wnd2.__workspaceState || {};
         const dirty = docKey ? state[docKey]?.isDirty : false;
         if (dirty) {
@@ -18615,9 +18613,9 @@ function UnifiedWorkspaceIsland(props) {
     window.addEventListener("workspace:reprocess-request", handleReprocessRequest);
     return () => window.removeEventListener("workspace:reprocess-request", handleReprocessRequest);
   }, [props.document?.id]);
-  return /* @__PURE__ */ u3("div", { className: "h-full w-full flex flex-col p-8", children: /* @__PURE__ */ u3("div", { className: "flex-1 border-2 border-dashed border-[#e5e0d8] rounded-lg flex items-center justify-center relative", children: [
+  return /* @__PURE__ */ u3("div", { className: "h-full w-full flex flex-col p-8", "data-hydrated": "true", children: /* @__PURE__ */ u3("div", { className: "flex-1 border-2 border-dashed border-[#e5e0d8] rounded-lg flex items-center justify-center relative", children: [
     /* @__PURE__ */ u3("p", { className: "font-['Space_Grotesk'] text-[#888]", children: "Document Viewer Area Placeholder" }),
-    props.document?.id ? /* @__PURE__ */ u3("div", { "data-testid": "workspace-state-badge", "data-state": isDirty2 ? "unsaved" : "clean", className: "absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-semibold bg-white border", children: isDirty2 ? "Unsaved Changes" : "Saved" }) : null
+    props.document?.id ? /* @__PURE__ */ u3("div", { "data-testid": "workspace-state-badge", "data-state": isDirty2 ? "unsaved" : "clean", className: "absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-semibold bg-white border", "aria-live": "polite", "aria-atomic": "true", children: isDirty2 ? "Unsaved Changes" : "Saved" }) : null
   ] }) });
 }
 
@@ -18710,7 +18708,7 @@ var TaskRunnerStatus = ({ metrics }) => {
           ")"
         ] })
       ] }),
-      /* @__PURE__ */ u3("div", { className: "w-full bg-gray-100 rounded-full h-2.5", children: /* @__PURE__ */ u3("div", { className: "bg-blue-500 h-2.5 rounded-full transition-all duration-500", style: { width: `${progressPercent}%` } }) })
+      /* @__PURE__ */ u3("div", { className: "w-full bg-gray-100 rounded-full h-2.5", children: /* @__PURE__ */ u3("div", { className: "progress-bar-fill bg-blue-500 h-2.5 rounded-full", style: { "--progress-width": `${progressPercent}%` } }) })
     ] }),
     /* @__PURE__ */ u3("div", { className: "grid grid-cols-3 gap-4", children: [
       /* @__PURE__ */ u3("div", { className: "bg-white rounded-xl border border-gray-100 p-4", children: [
@@ -18762,7 +18760,7 @@ var ChartCanvas = ({ id, type, data, options }) => {
       }
     };
   }, [JSON.stringify(data)]);
-  return /* @__PURE__ */ u3("div", { className: "chart-container relative", style: { position: "relative", height: "300px" }, children: [
+  return /* @__PURE__ */ u3("div", { className: "chart-container dynamic-height-chart relative", style: { "--chart-height": "300px" }, children: [
     /* @__PURE__ */ u3("canvas", { ref: canvasRef, id }),
     (!data || !data.datasets || data.datasets[0].data.length === 0 || data.datasets[0].data.every((v3) => v3 === 0)) && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center bg-gray-50/50 rounded-lg", children: /* @__PURE__ */ u3("span", { className: "text-sm text-gray-500", children: "No data available" }) })
   ] });
@@ -19134,6 +19132,8 @@ function DocumentContextBarIsland(props) {
             onClick: () => setIsDropdownOpen(!isDropdownOpen),
             className: "flex items-center gap-2 px-4 py-1.5 hover:bg-white rounded-md transition-colors min-w-[200px] justify-between group",
             "data-testid": "document-selector-trigger",
+            "aria-expanded": isDropdownOpen,
+            "aria-haspopup": "listbox",
             children: [
               /* @__PURE__ */ u3("span", { className: "font-['Space_Grotesk'] font-medium truncate max-w-[240px]", children: currentTitle || "Select Document" }),
               isLoading && /* @__PURE__ */ u3("i", { class: "fas fa-circle-notch fa-spin text-xs text-[#b87333] ml-2" }),
@@ -19141,7 +19141,7 @@ function DocumentContextBarIsland(props) {
             ]
           }
         ),
-        isDropdownOpen && /* @__PURE__ */ u3("div", { className: "absolute top-full left-0 mt-2 w-[320px] bg-white border border-[#e5e0d8] rounded-xl shadow-xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200", "data-testid": "document-selector-dropdown", children: [
+        isDropdownOpen && /* @__PURE__ */ u3("div", { className: "absolute top-full left-0 mt-2 w-[320px] bg-white border border-[#e5e0d8] rounded-xl shadow-xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200", "data-testid": "document-selector-dropdown", role: "listbox", "aria-label": "Select document", children: [
           /* @__PURE__ */ u3("div", { className: "p-3 border-b border-[#f5f0e8] bg-[#fdfaf6]", children: /* @__PURE__ */ u3("div", { className: "relative", children: [
             /* @__PURE__ */ u3("i", { class: "fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa] text-xs" }),
             /* @__PURE__ */ u3(
@@ -19163,6 +19163,8 @@ function DocumentContextBarIsland(props) {
               onClick: () => handleNavigate(doc.id),
               className: `w-full text-left px-4 py-3 rounded-lg flex flex-col gap-0.5 hover:bg-[#fdfaf6] transition-colors group ${doc.id === currentDocumentId ? "bg-[#fdfaf6]" : ""}`,
               "data-testid": `document-option-${doc.id}`,
+              role: "option",
+              "aria-selected": doc.id === currentDocumentId,
               children: [
                 /* @__PURE__ */ u3("span", { className: `text-sm font-medium truncate ${doc.id === currentDocumentId ? "text-[#b87333]" : "text-[#2c2c2c]"}`, children: doc.title || doc.original_filename }),
                 /* @__PURE__ */ u3("span", { className: "text-[10px] text-[#888] font-mono", children: [

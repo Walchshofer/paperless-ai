@@ -36,7 +36,7 @@ type TestGlobals = {
 
 declare global {
   interface Window {
-    CustomEvent: { new(type: string, init?: CustomEventInit): CustomEvent };
+    CustomEvent: { new(_type: string, _init?: CustomEventInit): CustomEvent };
   }
 }
 

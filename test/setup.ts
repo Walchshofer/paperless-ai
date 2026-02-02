@@ -2,7 +2,8 @@ import { vi } from 'vitest';
 
 // Mock Canvas API for JSDOM to prevent "Not implemented" errors
 if (typeof HTMLCanvasElement !== 'undefined') {
-  HTMLCanvasElement.prototype.getContext = vi.fn(() => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  HTMLCanvasElement.prototype.getContext = vi.fn((): any => {
     return {
       fillRect: vi.fn(),
       clearRect: vi.fn(),

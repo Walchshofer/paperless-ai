@@ -205,8 +205,8 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
             <span
               key={tag.id}
               data-testid={`tag-chip-${tag.id}`}
-              className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs"
-              style={tag.color ? { backgroundColor: `${tag.color}20`, color: tag.color } : undefined}
+              className="tag-chip inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs"
+              style={tag.color ? { '--tag-color': tag.color } : undefined}
             >
               {tag.name}
               <button
@@ -221,25 +221,29 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
           ))}
         </div>
         {availableTags.filter((t: SmartTag) => !localTags.some((lt: SmartTag) => lt.id === t.id)).length > 0 && (
-          <select
-            data-testid="add-tag-select"
-            className="w-full border border-[#e5e0d8] rounded-md px-3 py-2 text-sm"
-            onChange={(e: Event) => {
-              const val = parseInt((e.target as HTMLSelectElement).value, 10);
-              if (!isNaN(val)) {
-                handleAddTag(val);
-                (e.target as HTMLSelectElement).value = '';
-              }
-            }}
-            value=""
-          >
-            <option value="">Add a tag...</option>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="add-tag-select" className="sr-only">Add a tag</label>
+            <select
+              id="add-tag-select"
+              data-testid="add-tag-select"
+              className="w-full border border-[#e5e0d8] rounded-md px-3 py-2 text-sm"
+              onChange={(e: Event) => {
+                const val = parseInt((e.target as HTMLSelectElement).value, 10);
+                if (!isNaN(val)) {
+                  handleAddTag(val);
+                  (e.target as HTMLSelectElement).value = '';
+                }
+              }}
+              value=""
+            >
+              <option value="">Add a tag...</option>
             {availableTags
               .filter((t: SmartTag) => !localTags.some((lt: SmartTag) => lt.id === t.id))
               .map((t: SmartTag) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
-          </select>
+            </select>
+          </div>
         )}
       </div>
 

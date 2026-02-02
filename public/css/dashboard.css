@@ -383,6 +383,22 @@ body {
                 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
+.tag-chip {
+    --tag-color: #3b82f6;
+    background-color: color-mix(in srgb, var(--tag-color) 12.5%, transparent) !important;
+    color: var(--tag-color) !important;
+    border: 1px solid color-mix(in srgb, var(--tag-color) 25%, transparent);
+}
+
+.progress-bar-fill {
+    width: var(--progress-width, 0%);
+    transition: width 0.5s ease;
+}
+
+.dynamic-height-chart {
+    height: var(--chart-height, 300px);
+}
+
 .card-title {
     font-size: 1.25rem;
     font-weight: bold;

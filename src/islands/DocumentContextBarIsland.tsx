@@ -18,10 +18,10 @@ const { isDocumentDirty: _isDocumentDirty } = require('../lib/navigation-guard')
 
 export default function DocumentContextBarIsland(props: DocumentContextBarProps) {
   // Local state to track the current document (allows inline switching without full page reload)
-  const [currentDocumentId, setCurrentDocumentId] = useState<number | null>(props.documentId);
-  const [currentTitle, setCurrentTitle] = useState<string | null>(props.title);
+  const [currentDocumentId, setCurrentDocumentId] = useState(props.documentId as number | null);
+  const [currentTitle, setCurrentTitle] = useState(props.title as string | null);
   // Open selector by default when no document is selected (prominent CTA)
-  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(() => (props.documentId == null));
+  const [isDropdownOpen, setIsDropdownOpen] = useState(() => (props.documentId == null));
   const [searchTerm, setSearchOpen] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -58,9 +58,8 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
   }, [currentDocumentId]);
 
   interface NavModal { show: boolean; targetId: number | null; saving: boolean }
-  const [navModal, setNavModal] = useState({ show: false, targetId: null as number | null, saving: false } as NavModal);
-  // useRef generic typing can be finicky across TS configs; cast instead
-  const navSaveRef = useRef(null as unknown as HTMLButtonElement | null);
+  const [navModal, setNavModal] = useState({ show: false, targetId: null, saving: false } as NavModal);
+  const navSaveRef = useRef(null as HTMLButtonElement | null);
 
   // Load document inline without full page navigation
   const loadDocumentInline = useCallback(async (id: number) => {
@@ -230,7 +229,7 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
 
     // Timeout fallback: if save doesn't complete in 30s, stop showing saving state
     setTimeout(() => {
-      setIsSaving((current) => {
+      setIsSaving((current: boolean) => {
         if (current) {
           window.removeEventListener('workspace:save-complete', onSaveComplete as EventListener);
           window.removeEventListener('workspace:save-failed', onSaveFailed as EventListener);
@@ -274,7 +273,7 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
 
     // Timeout fallback: if reprocess doesn't complete in 60s, stop showing processing state
     setTimeout(() => {
-      setIsReprocessing((current) => {
+      setIsReprocessing((current: boolean) => {
         if (current) {
           window.removeEventListener('workspace:reprocess-complete', onReprocessComplete as EventListener);
           window.removeEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
@@ -338,10 +337,12 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
         </button>
 
         <div className="relative">
-          <button 
+          <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             className="flex items-center gap-2 px-4 py-1.5 hover:bg-white rounded-md transition-colors min-w-[200px] justify-between group"
             data-testid="document-selector-trigger"
+            aria-expanded={isDropdownOpen}
+            aria-haspopup="listbox"
           >
             <span className="font-['Space_Grotesk'] font-medium truncate max-w-[240px]">
               {currentTitle || 'Select Document'}
@@ -351,7 +352,7 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
           </button>
 
           {isDropdownOpen && (
-            <div className="absolute top-full left-0 mt-2 w-[320px] bg-white border border-[#e5e0d8] rounded-xl shadow-xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200" data-testid="document-selector-dropdown">
+            <div className="absolute top-full left-0 mt-2 w-[320px] bg-white border border-[#e5e0d8] rounded-xl shadow-xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200" data-testid="document-selector-dropdown" role="listbox" aria-label="Select document">
               <div className="p-3 border-b border-[#f5f0e8] bg-[#fdfaf6]">
                 <div className="relative">
                   <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa] text-xs"></i>
@@ -374,6 +375,8 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
                       onClick={() => handleNavigate(doc.id)}
                       className={`w-full text-left px-4 py-3 rounded-lg flex flex-col gap-0.5 hover:bg-[#fdfaf6] transition-colors group ${doc.id === currentDocumentId ? 'bg-[#fdfaf6]' : ''}`}
                       data-testid={`document-option-${doc.id}`}
+                      role="option"
+                      aria-selected={doc.id === currentDocumentId}
                     >
                       <span className={`text-sm font-medium truncate ${doc.id === currentDocumentId ? 'text-[#b87333]' : 'text-[#2c2c2c]'}`}>
                         {doc.title || doc.original_filename}

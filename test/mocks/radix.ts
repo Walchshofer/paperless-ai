@@ -14,11 +14,13 @@
  */
 
 import { h } from 'preact';
-import type { ComponentChildren, JSX } from 'preact';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyChildren = any;
 
 /** Common props type for Radix mock components */
 interface MockRadixProps extends Record<string, unknown> {
-  children?: any;
+  children?: AnyChildren;
   checked?: boolean;
   'aria-selected'?: boolean;
   'aria-expanded'?: boolean;

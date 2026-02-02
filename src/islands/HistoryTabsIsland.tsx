@@ -42,7 +42,7 @@ export interface HistoryTabsProps extends Partial<HistoryTabsContract> {
 }
 
 export default function HistoryTabsIsland(props: HistoryTabsProps) {
-  const validated = HistoryTabsSchema.parse(props as unknown);
+  const validated = HistoryTabsSchema.parse(props);
   const { documentId, content, metadata } = validated;
 
   const [activeTab, setActiveTab] = useState('text' as TabId);
@@ -71,23 +71,17 @@ export default function HistoryTabsIsland(props: HistoryTabsProps) {
 
   // Listen for visual search events
   useEffect(() => {
-    const handleVisualSearchRequest = async (event: CustomEvent) => {
-      const { imageBase64, collection = 'visual_pages' } = event.detail || {};
+    const handleVisualSearchRequest = (async (event: Event) => {
+      const { imageBase64, collection = 'visual_pages' } = (event as CustomEvent).detail || {};
       if (imageBase64 && documentId) {
         await performVisualSearch(imageBase64, collection);
       }
-    };
+    }) as EventListener;
 
-    window.addEventListener(
-      'visual-search-requested',
-      handleVisualSearchRequest as unknown as EventListener
-    );
+    window.addEventListener('visual-search-requested', handleVisualSearchRequest);
 
     return () => {
-      window.removeEventListener(
-        'visual-search-requested',
-        handleVisualSearchRequest as unknown as EventListener
-      );
+      window.removeEventListener('visual-search-requested', handleVisualSearchRequest);
     };
   }, [documentId, activeFilters]);
 

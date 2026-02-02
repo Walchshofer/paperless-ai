@@ -96,7 +96,7 @@ test.describe('Legacy Route Retirement', () => {
     // These tests require LEGACY_REDIRECT_PHASE=B environment variable
     // They should be run with the appropriate server configuration
 
-    test.skip('anonymous users soft-redirected from /manual', async ({ page, request }) => {
+    test.skip('anonymous users soft-redirected from /manual', async ({ page: _page, request }) => {
       // This test would require server restart with LEGACY_REDIRECT_PHASE=B
       // For now, we verify the middleware logic exists and is wired correctly
 

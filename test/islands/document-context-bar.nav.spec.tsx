@@ -17,9 +17,8 @@ describe('DocumentContextBarIsland - navigation blocking when dirty', () => {
     window.__workspaceState = {};
     originalConfirm = window.confirm;
     // Mock window.location assign
-    // @ts-ignore
-    delete window.location;
-    window.location = { href: '' } as any;
+    delete (window as unknown as { location?: Location }).location;
+    (window as unknown as { location: { href: string } }).location = { href: '' };
   });
 
   afterEach(() => {
@@ -99,7 +98,7 @@ describe('DocumentContextBarIsland - navigation blocking when dirty', () => {
     }
 
     // Mock dispatchEvent to capture the event
-    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    const _dispatchSpy = vi.spyOn(window, 'dispatchEvent');
 
     // Listen for save request event simulation
     window.addEventListener('workspace:save-request', (e: Event) => {

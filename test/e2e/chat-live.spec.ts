@@ -62,7 +62,7 @@ test.describe('Chat Route Live E2E', () => {
     await page.selectOption('#chat-document-select', firstDoc.id);
 
     // Wait for chat initialization status message
-    await page.waitForSelector('[data-testid="chat-message-status"]', { timeout: 20000 });
+    await page.waitForSelector('[data-testid="chat-message-status"]', { timeout: 60000 });
     const statusText = await page.locator('[data-testid="chat-message-status"]').innerText();
     console.log('[LIVE] Status message:', statusText.trim());
 

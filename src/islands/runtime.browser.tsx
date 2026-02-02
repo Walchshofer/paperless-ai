@@ -29,6 +29,7 @@ import ManualWorkspaceIsland from './ManualWorkspaceIsland';
 import DocumentContentIsland from './DocumentContentIsland';
 import UnifiedWorkspaceIsland from './UnifiedWorkspaceIsland';
 import DashboardChartsIsland from './DashboardChartsIsland';
+import type { DashboardMetrics } from './DashboardChartsIsland';
 import DocumentContextBarIsland from './DocumentContextBarIsland';
 import type { DocumentContextBarProps } from './DocumentContextBarIsland';
 import ContextSidebarIsland from './ContextSidebarIsland';
@@ -91,7 +92,7 @@ type IslandPropsMap = {
   'document-content-island': Partial<DocumentContentContract>;
   'smart-metadata-island': Partial<SmartMetadataContract> & { documentId?: number | null; saveDelayMs?: number };
   'unified-workspace-island': Partial<UnifiedWorkspaceContract>;
-  'dashboard-charts-island': { initialData?: unknown };
+  'dashboard-charts-island': { initialData?: DashboardMetrics | null | undefined };
   'document-context-bar-island': DocumentContextBarProps;
   'context-sidebar-island': ContextSidebarProps;
 };

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test } from '@playwright/test';
 
 const BASE = 'http://localhost:3000';
 const USERNAME = 'elfman';
