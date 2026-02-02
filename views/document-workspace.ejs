@@ -13,9 +13,9 @@
     <style>
         :root {
             --header-height: 64px;
-            --sidebar-width: 400px;
-            --sidebar-min-width: 300px;
-            --sidebar-max-width: 600px;
+            --sidebar-width: 480px;
+            --sidebar-min-width: 320px;
+            --sidebar-max-width: 700px;
         }
         .workspace-layout {
             display: grid;
@@ -52,6 +52,13 @@
         .resize-handle:focus-visible {
             outline: 2px solid #b87333;
             outline-offset: 2px;
+        }
+        
+        /* Workspace sidebar constraints */
+        .workspace-sidebar {
+            min-width: var(--sidebar-min-width);
+            max-width: var(--sidebar-max-width);
+            width: var(--sidebar-width);
         }
     </style>
 </head>
@@ -141,9 +148,9 @@
                 data-testid="sidebar-resize-container"
                 class="resize-handle-container absolute top-0 bottom-0 w-0 z-30"
                 data-props="<%= JSON.stringify({
-                    minWidth: 300,
-                    maxWidth: 600,
-                    defaultWidth: 400,
+                    minWidth: 320,
+                    maxWidth: 700,
+                    defaultWidth: 480,
                     storageKey: 'paperless-sidebar-width'
                 }) %>"
             ></div>
@@ -165,11 +172,27 @@
                 >
                     <!-- Fallback Sidebar Tabs -->
                     <div class="flex border-b border-[#e5e0d8] bg-[#fdfaf6]">
-                        <button data-testid="tab-metadata" class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium border-b-2 border-copper text-copper">Metadata</button>
-                        <button data-testid="tab-chat" class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium text-[#888]">Chat</button>
-                        <button data-testid="tab-content" class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium text-[#888]">OCR</button>
+                        <button data-testid="tab-metadata" class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium border-b-2 border-copper text-copper" title="AI-assisted metadata editing with smart suggestions">
+                            <i class="fas fa-wand-magic-sparkles mr-2"></i>
+                            <span class="hidden sm:inline">Smart Metadata</span>
+                        </button>
+                        <button data-testid="tab-content" class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium text-[#888]" title="View Tesseract OCR extracted text (read-only)">
+                            <i class="fas fa-file-lines mr-2"></i>
+                            <span class="hidden sm:inline">OCR Text</span>
+                        </button>
+                        <button data-testid="tab-chat" class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium text-[#888]" title="Chat with AI about documents using RAG or document-specific context">
+                            <i class="fas fa-comments mr-2"></i>
+                            <span class="hidden sm:inline">Chat</span>
+                        </button>
+                        <button data-testid="tab-visual" class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium text-[#888]" title="Label fields and perform visual search">
+                            <i class="fas fa-draw-polygon mr-2"></i>
+                            <span class="hidden sm:inline">Visual</span>
+                        </button>
                         <% if (user.isAdmin) { %>
-                          <button data-testid="tab-debug" class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium text-[#888]">Debug</button>
+                          <button data-testid="tab-debug" class="flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium text-[#888]" title="Developer debugging information">
+                              <i class="fas fa-bug mr-2"></i>
+                              <span class="hidden sm:inline">Debug</span>
+                          </button>
                         <% } %>
                     </div>
                     <div class="p-6">

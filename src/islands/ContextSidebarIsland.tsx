@@ -120,11 +120,20 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
     }
   }, []);
 
+  // Tab tooltips for accessibility and UX clarity
+  const tabTooltips: Record<TabKey, string> = {
+    metadata: 'AI-assisted metadata editing with smart suggestions',
+    content: 'View Tesseract OCR extracted text (read-only)',
+    chat: 'Chat with AI about documents using RAG or document-specific context',
+    visual: 'Label fields and perform visual search',
+    debug: 'Developer debugging information'
+  };
+
   const tabs: Array<{ key: TabKey; label: string; icon: string; testid: string }> = [
-    { key: 'metadata', label: 'Metadata', icon: 'fa-list', testid: 'tab-metadata' },
-    { key: 'content', label: 'Content', icon: 'fa-file-text', testid: 'tab-content' },
+    { key: 'metadata', label: 'Smart Metadata', icon: 'fa-wand-magic-sparkles', testid: 'tab-metadata' },
+    { key: 'content', label: 'OCR Text', icon: 'fa-file-lines', testid: 'tab-content' },
     { key: 'chat', label: 'Chat', icon: 'fa-comments', testid: 'tab-chat' },
-    { key: 'visual', label: 'Visual', icon: 'fa-eye', testid: 'tab-visual' },
+    { key: 'visual', label: 'Visual', icon: 'fa-draw-polygon', testid: 'tab-visual' },
   ];
 
   if (isAdmin) {
@@ -140,6 +149,7 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
             id={`tab-${t.key}`}
             role="tab"
             aria-controls={`panel-${t.key}`}
+            title={tabTooltips[t.key]}
             data-testid={t.testid}
             ref={(el: HTMLButtonElement | null) => { tabRefs.current[t.key] = el; }}
             className={`flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium ${activeTab === t.key ? 'border-b-2 border-copper text-copper' : 'text-[#888]'}`}
@@ -167,6 +177,12 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
       <div className="p-4 overflow-auto flex-1">
         {activeTab === 'metadata' && (
           <div role="tabpanel" id="panel-metadata" aria-labelledby="tab-metadata" data-testid="tab-panel-metadata">
+            <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg" data-testid="panel-header-metadata">
+              <p className="text-sm text-purple-800">
+                <i className="fas fa-wand-magic-sparkles mr-2"></i>
+                AI-powered metadata extraction and suggestions
+              </p>
+            </div>
             <SmartMetadataIsland
               documentId={props.document?.id}
               metadata={props.document}
@@ -177,6 +193,12 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
 
         {activeTab === 'content' && (
           <div role="tabpanel" id="panel-content" aria-labelledby="tab-content" data-testid="tab-panel-content">
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg" data-testid="panel-header-content">
+              <p className="text-sm text-blue-800">
+                <i className="fas fa-file-lines mr-2"></i>
+                Tesseract OCR extracted text (read-only)
+              </p>
+            </div>
             <DocumentContentIsland documentId={props.document?.id} content={props.document?.content || ''} />
           </div>
         )}
@@ -189,6 +211,12 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
 
         {activeTab === 'visual' && (
           <div role="tabpanel" id="panel-visual" aria-labelledby="tab-visual" data-testid="tab-panel-visual">
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg" data-testid="panel-header-visual">
+              <p className="text-sm text-amber-800">
+                <i className="fas fa-draw-polygon mr-2"></i>
+                Visual field overlay labeling and search
+              </p>
+            </div>
             <VisualTabIsland
               documentId={props.document?.id}
               fields={props.visual?.fields}
