@@ -19,10 +19,14 @@ type ChatMessage = {
     confidence?: number;
     visualScore?: number;
     textScore?: number;
+    thumbnailUrl?: string;
   }>;
   isError?: boolean;
   searchMode?: 'rag' | 'hybrid' | 'text-fallback';
 };
+
+// LocalStorage key for persisting chat mode
+const CHAT_MODE_STORAGE_KEY = 'paperless-ai-chat-mode';
 
 type ChatDoc = {
   id: number;
@@ -110,8 +114,30 @@ export default function ChatWorkspaceIsland(
   const [isModelLoading, setIsModelLoading] = useState(false);
   const [modelLoadError, setModelLoadError] = useState(null as string | null);
 
-  // Three Chat Mode state
-  const [chatMode, setChatMode] = useState('rag' as ChatMode);
+  // Three Chat Mode state - initialize from localStorage if available
+  const getInitialChatMode = (): ChatMode => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(CHAT_MODE_STORAGE_KEY);
+      if (stored === 'rag' || stored === 'visual-rag' || stored === 'document') {
+        // Don't restore 'document' mode if no document is loaded
+        if (stored === 'document' && !props.openDocumentId) {
+          return 'rag';
+        }
+        return stored;
+      }
+    }
+    return 'rag';
+  };
+  const [chatMode, setChatModeInternal] = useState(getInitialChatMode);
+  
+  // Wrapper to persist chat mode to localStorage
+  const setChatMode = (mode: ChatMode) => {
+    setChatModeInternal(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(CHAT_MODE_STORAGE_KEY, mode);
+    }
+  };
+  
   const [isDocumentLoaded, setIsDocumentLoaded] = useState(Boolean(props.openDocumentId));
   const [visualRagAvailable, setVisualRagAvailable] = useState(false);
   const [visualRagStatus, setVisualRagStatus] = useState('checking' as 'checking' | 'available' | 'unavailable' | 'initializing');
@@ -1034,28 +1060,47 @@ export default function ChatWorkspaceIsland(
                           <div className="text-xs font-medium text-[#888] mb-2">Sources:</div>
                           <div className="space-y-2">
                             {msg.sources.map((source, sidx) => (
-                              <div key={sidx} className="flex items-center gap-2">
-                                <a
-                                  href={`/workspace/doc/${source.documentId}`}
-                                  className="text-xs text-[#b87333] hover:underline"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  data-testid={`chat-source-visual-${sidx}`}
-                                >
-                                  📄 {source.title || `Document #${source.documentId}`}
-                                  {source.page ? ` (p${source.page})` : ''}
-                                </a>
-                                {/* Show visual and text scores if available */}
-                                {(source.visualScore !== undefined || source.textScore !== undefined) && (
-                                  <span className="text-xs text-[#999]">
-                                    {source.visualScore !== undefined && (
-                                      <span className="mr-2">Visual: {Math.round(source.visualScore * 100)}%</span>
-                                    )}
-                                    {source.textScore !== undefined && (
-                                      <span>Text: {Math.round(source.textScore * 100)}%</span>
-                                    )}
-                                  </span>
+                              <div key={sidx} className="flex items-start gap-3">
+                                {/* Thumbnail if available */}
+                                {source.thumbnailUrl && (
+                                  <a
+                                    href={`/workspace/doc/${source.documentId}${source.page ? `?page=${source.page}` : ''}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex-shrink-0"
+                                    data-testid={`chat-source-thumbnail-${sidx}`}
+                                  >
+                                    <img
+                                      src={source.thumbnailUrl}
+                                      alt={`Page ${source.page || 1} thumbnail`}
+                                      className="w-12 h-16 object-cover rounded border border-[#e5e0d8] hover:border-[#b87333] transition-colors"
+                                      loading="lazy"
+                                    />
+                                  </a>
                                 )}
+                                <div className="flex flex-col gap-1">
+                                  <a
+                                    href={`/workspace/doc/${source.documentId}`}
+                                    className="text-xs text-[#b87333] hover:underline"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    data-testid={`chat-source-visual-${sidx}`}
+                                  >
+                                    📄 {source.title || `Document #${source.documentId}`}
+                                    {source.page ? ` (p${source.page})` : ''}
+                                  </a>
+                                  {/* Show visual and text scores if available */}
+                                  {(source.visualScore !== undefined || source.textScore !== undefined) && (
+                                    <span className="text-xs text-[#999]">
+                                      {source.visualScore !== undefined && (
+                                        <span className="mr-2">Visual: {Math.round(source.visualScore * 100)}%</span>
+                                      )}
+                                      {source.textScore !== undefined && (
+                                        <span>Text: {Math.round(source.textScore * 100)}%</span>
+                                      )}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             ))}
                           </div>

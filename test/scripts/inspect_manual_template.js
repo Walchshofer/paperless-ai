@@ -3,22 +3,18 @@ const path = require('path');
 const ejs = require('ejs');
 
 (async () => {
-  const tplPath = path.resolve(__dirname, '../../views/document-workspace.ejs');
+  const tplPath = path.resolve(__dirname, '../../views/manual.ejs');
   const tpl = fs.readFileSync(tplPath, 'utf8');
 
   const vm = {
-    document: {
-      id: 42,
-      title: 'Test Doc',
-      pageCount: 1,
-      originalUrl: null
-    },
-    visual: {
+    manual: {
+      documentId: 42,
       images: [{ id: 'img-1', originalSrc: 'https://example.com/1.png', width: 600, height: 400 }],
       overlaysByImage: { 'img-1': [{ id: 'ov-1', bbox: { x: 0.1, y: 0.1, width: 0.2, height: 0.2 }, label: 'test' }] }
     },
     version: 'test'
   };
+
   const html = await ejs.render(tpl, { vm }, { async: true, filename: tplPath });
   console.log('--- Full island fragment (excerpt) ---');
   const match = html.match(/<div[^>]*data-island="overlay-viewer-island"[^>]*data-props="([^"]+)"/);

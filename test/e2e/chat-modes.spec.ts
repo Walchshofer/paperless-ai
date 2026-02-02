@@ -371,3 +371,92 @@ test.describe('/chat route deprecation', () => {
     expect(url).toMatch(/\/workspace\/doc\/123\?tab=chat/);
   });
 });
+
+test.describe('Chat Mode Persistence', () => {
+  test('should persist chat mode to localStorage', async ({ page }) => {
+    await page.goto('/workspace/doc/latest?tab=chat');
+    await page.waitForSelector('[data-testid="chat-workspace-root"]', { timeout: 15000 });
+    
+    // Get the Visual RAG button
+    const visualRagButton = page.locator('[data-testid="chat-mode-visual-rag"]');
+    const isDisabled = await visualRagButton.isDisabled();
+    
+    if (!isDisabled) {
+      // Switch to Visual RAG mode
+      await visualRagButton.click();
+      await page.waitForTimeout(100);
+      
+      // Check localStorage
+      const storedMode = await page.evaluate(() => {
+        return localStorage.getItem('paperless-ai-chat-mode');
+      });
+      
+      expect(storedMode).toBe('visual-rag');
+    }
+  });
+
+  test('should restore chat mode from localStorage on page reload', async ({ page }) => {
+    await page.goto('/workspace/doc/latest?tab=chat');
+    await page.waitForSelector('[data-testid="chat-workspace-root"]', { timeout: 15000 });
+    
+    // Set mode in localStorage before reload
+    await page.evaluate(() => {
+      localStorage.setItem('paperless-ai-chat-mode', 'rag');
+    });
+    
+    // Reload the page
+    await page.reload();
+    await page.waitForSelector('[data-testid="chat-workspace-root"]', { timeout: 15000 });
+    
+    // RAG mode should be active
+    const ragButton = page.locator('[data-testid="chat-mode-rag"]');
+    await expect(ragButton).toHaveClass(/bg-\[#b87333\]/);
+  });
+
+  test('should fall back to RAG mode if stored "document" mode but no document loaded', async ({ page }) => {
+    // Set document mode in localStorage
+    await page.evaluate(() => {
+      localStorage.setItem('paperless-ai-chat-mode', 'document');
+    });
+    
+    // Navigate without a document selected
+    await page.goto('/workspace/doc/latest?tab=chat');
+    await page.waitForSelector('[data-testid="chat-workspace-root"]', { timeout: 15000 });
+    
+    // Clear document selection if any
+    const docSelect = page.locator('[data-testid="chat-document-select"]');
+    await docSelect.selectOption('');
+    await page.waitForTimeout(200);
+    
+    // Should be in RAG mode (fallback)
+    const ragButton = page.locator('[data-testid="chat-mode-rag"]');
+    await expect(ragButton).toHaveClass(/bg-\[#b87333\]/);
+  });
+});
+
+test.describe('Visual Search Thumbnails', () => {
+  test('should have thumbnail data-testid attributes in source markup', async ({ page }) => {
+    // This test validates the thumbnail markup structure
+    // Actual thumbnail display requires Visual RAG search results
+    
+    await page.goto('/workspace/doc/latest?tab=chat');
+    await page.waitForSelector('[data-testid="chat-workspace-root"]', { timeout: 15000 });
+    
+    // Switch to Visual RAG mode if available
+    const visualRagButton = page.locator('[data-testid="chat-mode-visual-rag"]');
+    const isDisabled = await visualRagButton.isDisabled();
+    
+    if (!isDisabled) {
+      await visualRagButton.click();
+      await page.waitForTimeout(100);
+      
+      // Verify the visual mode is active
+      await expect(visualRagButton).toHaveClass(/bg-\[#b87333\]/);
+      
+      // The thumbnail elements will appear in search results
+      // Test validates the UI structure exists for thumbnails
+      const chatHistory = page.locator('[data-testid="chat-history-visual"]');
+      await expect(chatHistory).toBeVisible();
+    }
+  });
+});

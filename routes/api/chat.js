@@ -363,15 +363,20 @@ ${context || 'No relevant documents found.'}`;
       response = result.response || result;
     }
 
-    // Format sources for response with visual scores
-    const sources = searchResults.map(r => ({
-      documentId: r.doc_id || r.documentId,
-      title: r.title || `Document #${r.doc_id || r.documentId}`,
-      page: r.page || 1,
-      confidence: r.score || r.confidence || 0.5,
-      visualScore: r.visualScore,
-      textScore: r.textScore
-    }));
+    // Format sources for response with visual scores and thumbnails
+    const sources = searchResults.map(r => {
+      const docId = r.doc_id || r.documentId;
+      return {
+        documentId: docId,
+        title: r.title || `Document #${docId}`,
+        page: r.page || 1,
+        confidence: r.score || r.confidence || 0.5,
+        visualScore: r.visualScore,
+        textScore: r.textScore,
+        // Include thumbnail URL for visual results
+        thumbnailUrl: docId ? `/documents/${docId}/thumbnail` : undefined
+      };
+    });
 
     res.json({
       response: typeof response === 'string' ? response : JSON.stringify(response),

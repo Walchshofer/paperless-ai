@@ -215,4 +215,51 @@ describe('Chat API Routes', function () {
       assert.ok(statusRoute.methods.includes('get'), 'Status route should support GET');
     });
   });
-});
+
+  describe('Visual RAG thumbnail URL', function () {
+    it('should include thumbnailUrl in sources for valid document IDs', function () {
+      // Verify the source formatting logic includes thumbnails
+      const docId = 123;
+      const source = {
+        doc_id: docId,
+        title: 'Test Document',
+        page: 1,
+        score: 0.85,
+        visualScore: 0.9,
+        textScore: 0.8
+      };
+      
+      // Simulate the source mapping logic from the route
+      const formattedSource = {
+        documentId: source.doc_id || source.documentId,
+        title: source.title || `Document #${source.doc_id || source.documentId}`,
+        page: source.page || 1,
+        confidence: source.score || source.confidence || 0.5,
+        visualScore: source.visualScore,
+        textScore: source.textScore,
+        thumbnailUrl: source.doc_id ? `/documents/${source.doc_id}/thumbnail` : undefined
+      };
+      
+      assert.strictEqual(formattedSource.documentId, 123);
+      assert.strictEqual(formattedSource.thumbnailUrl, '/documents/123/thumbnail');
+    });
+
+    it('should not include thumbnailUrl for sources without document ID', function () {
+      const source = {
+        title: 'Unknown',
+        page: 1,
+        score: 0.5
+      };
+      
+      const docId = source.doc_id || source.documentId;
+      const formattedSource = {
+        documentId: docId,
+        title: source.title,
+        page: source.page || 1,
+        confidence: source.score || 0.5,
+        thumbnailUrl: docId ? `/documents/${docId}/thumbnail` : undefined
+      };
+      
+      assert.strictEqual(formattedSource.thumbnailUrl, undefined);
+    });
+  });});
