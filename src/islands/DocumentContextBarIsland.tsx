@@ -188,6 +188,46 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
   const [isSaving, setIsSaving] = useState(false);
   const [isReprocessing, setIsReprocessing] = useState(false);
 
+  // Notification state for reprocess feedback
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+
+  // Listen for reprocess completion/failure events to show notifications
+  useEffect(() => {
+    const onReprocessComplete = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      if (String(detail.documentId) === String(currentDocumentId)) {
+        const classification = detail.classification || 'processed';
+        setNotification({
+          type: 'success',
+          message: `Document reprocessed successfully! Classification: ${classification}`
+        });
+        setTimeout(() => setNotification(null), 5000);
+      }
+    };
+
+    const onReprocessFailed = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      if (String(detail.documentId) === String(currentDocumentId)) {
+        setNotification({
+          type: 'error',
+          message: `Reprocessing failed: ${detail.error || 'Unknown error'}`
+        });
+        setTimeout(() => setNotification(null), 8000);
+      }
+    };
+
+    window.addEventListener('workspace:reprocess-complete', onReprocessComplete as EventListener);
+    window.addEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
+
+    return () => {
+      window.removeEventListener('workspace:reprocess-complete', onReprocessComplete as EventListener);
+      window.removeEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
+    };
+  }, [currentDocumentId]);
+
   // Handle standalone Save button click (not part of navigation flow)
   const handleSave = useCallback(() => {
     if (isSaving) return;
@@ -482,6 +522,32 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
                 {navModal.saving ? 'Saving…' : 'Save and Leave'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reprocess notification toast */}
+      {notification && (
+        <div
+          className={`fixed top-20 right-6 px-4 py-3 rounded-lg shadow-lg z-50 ${
+            notification.type === 'success'
+              ? 'bg-green-50 border border-green-200 text-green-800'
+              : 'bg-red-50 border border-red-200 text-red-800'
+          }`}
+          data-testid="reprocess-notification"
+          role="alert"
+          aria-live="polite"
+        >
+          <div className="flex items-center gap-2">
+            <i className={`fas ${notification.type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
+            <span className="text-sm font-medium">{notification.message}</span>
+            <button
+              onClick={() => setNotification(null)}
+              className="ml-2 text-gray-500 hover:text-gray-700"
+              aria-label="Dismiss notification"
+            >
+              <i className="fas fa-times"></i>
+            </button>
           </div>
         </div>
       )}

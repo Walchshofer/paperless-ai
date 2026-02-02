@@ -268,18 +268,49 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
       if (String(documentId) !== String(props.document?.id)) return;
 
       try {
+        // Show processing state
+        window.dispatchEvent(new CustomEvent('workspace:reprocess-started', {
+          detail: { documentId }
+        }));
+
+        // Call the reprocess API
         const response = await fetch(`/api/documents/${documentId}/reprocess`, {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
         });
 
-        if (response.ok) {
-          window.dispatchEvent(new CustomEvent('workspace:reprocess-complete', {
-            detail: { documentId, success: true }
-          }));
-        } else {
-          throw new Error('Reprocess failed');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Reprocess failed');
         }
+
+        const result = await response.json();
+
+        // Dispatch success event with results
+        window.dispatchEvent(new CustomEvent('workspace:reprocess-complete', {
+          detail: {
+            documentId,
+            success: true,
+            classification: result.classification,
+            extractedFields: result.extractedFields,
+            smartTags: result.smartTags,
+            confidence: result.confidence,
+            stats: result.stats
+          }
+        }));
+
+        // Trigger metadata refresh for SmartMetadataIsland
+        window.dispatchEvent(new CustomEvent('metadata:refresh', {
+          detail: {
+            documentId,
+            fields: result.extractedFields,
+            tags: result.smartTags,
+            classification: result.classification
+          }
+        }));
+
       } catch (err) {
+        console.error('[UnifiedWorkspace] Reprocess failed:', err);
         window.dispatchEvent(new CustomEvent('workspace:reprocess-failed', {
           detail: { documentId, error: (err as Error).message }
         }));

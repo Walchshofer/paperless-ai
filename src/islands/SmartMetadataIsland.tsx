@@ -109,6 +109,50 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     validateAndMarkDirty(localMetadata, nextFields, localTags);
   };
 
+  // Listen for metadata refresh events from reprocessing
+  useEffect(() => {
+    interface MetadataRefreshDetail {
+      documentId?: DocumentId;
+      fields?: SmartField[];
+      tags?: SmartTag[];
+      classification?: string;
+    }
+
+    const handleMetadataRefresh = (e: Event) => {
+      const detail = (e as CustomEvent<MetadataRefreshDetail>)?.detail || {};
+      const { documentId, fields: newFields, tags: newTags } = detail;
+
+      // Only handle if this metadata instance is for the same document
+      if (String(documentId) !== String(props.documentId)) return;
+
+      // Update local fields with AI-extracted data
+      if (Array.isArray(newFields) && newFields.length > 0) {
+        const updatedFields = newFields.map((f: SmartField) => ({
+          ...f,
+          isAiGenerated: true,
+          confidence: f.confidence || 0.5
+        }));
+        setLocalFields(updatedFields);
+      }
+
+      // Update tags
+      if (Array.isArray(newTags) && newTags.length > 0) {
+        // Merge new tags with existing ones, avoiding duplicates
+        setLocalTags((prevTags: SmartTag[]) => {
+          const existingIds = new Set(prevTags.map((t: SmartTag) => t.id));
+          const tagsToAdd = newTags.filter((t: SmartTag) => !existingIds.has(t.id));
+          return [...prevTags, ...tagsToAdd];
+        });
+      }
+
+      // Mark as dirty to prompt save
+      markDirty();
+    };
+
+    window.addEventListener('metadata:refresh', handleMetadataRefresh as EventListener);
+    return () => window.removeEventListener('metadata:refresh', handleMetadataRefresh as EventListener);
+  }, [props.documentId]);
+
   // Participant wiring: acknowledge save requests and attempt to save if dirty
   useEffect(() => {
     type SaveRequestDetail = { saveId?: string; documentId?: number | null };
