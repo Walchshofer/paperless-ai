@@ -50,7 +50,8 @@ export default defineConfig({
         'visual-overlays': path.resolve(__dirname, 'src/islands/VisualOverlaysIsland.tsx'),
         'tags-manager': path.resolve(__dirname, 'src/islands/TagsManagerIsland.tsx'),
         'ai-analysis': path.resolve(__dirname, 'src/islands/AIAnalysisIsland.tsx'),
-        'export-panel': path.resolve(__dirname, 'src/islands/ExportPanelIsland.tsx')
+        'export-panel': path.resolve(__dirname, 'src/islands/ExportPanelIsland.tsx'),
+        'resizable-layout': path.resolve(__dirname, 'src/islands/ResizableLayoutIsland.tsx')
       },
       formats: ['es'],
       fileName: (format, entryName) => {

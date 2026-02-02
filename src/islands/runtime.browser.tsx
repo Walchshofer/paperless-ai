@@ -33,6 +33,8 @@ import type { DashboardMetrics } from './DashboardChartsIsland';
 import DocumentContextBarIsland from './DocumentContextBarIsland';
 import type { DocumentContextBarProps } from './DocumentContextBarIsland';
 import ContextSidebarIsland from './ContextSidebarIsland';
+import ResizableLayoutIsland from './ResizableLayoutIsland';
+import type { ResizableLayoutProps } from './ResizableLayoutIsland';
 import type { HistoryTabsProps } from './HistoryTabsIsland';
 import type { OverlayViewerProps } from './OverlayViewerIsland';
 import type { ContextSidebarProps } from './ContextSidebarIsland';
@@ -95,6 +97,7 @@ type IslandPropsMap = {
   'dashboard-charts-island': { initialData?: DashboardMetrics | null | undefined };
   'document-context-bar-island': DocumentContextBarProps;
   'context-sidebar-island': ContextSidebarProps;
+  'resizable-layout-island': ResizableLayoutProps;
 };
 
 // Runtime component shape (using a lightweight functional type for islands)
@@ -143,6 +146,7 @@ registerIsland('unified-workspace-island', UnifiedWorkspaceIsland);
 registerIsland('dashboard-charts-island', DashboardChartsIsland);
 registerIsland('document-context-bar-island', DocumentContextBarIsland);
 registerIsland('context-sidebar-island', ContextSidebarIsland);
+registerIsland('resizable-layout-island', ResizableLayoutIsland);
 
 function parseProps(el: Element): Record<string, unknown> | null {
   const raw = el.getAttribute('data-props') || '{}';

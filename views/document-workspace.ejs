@@ -14,6 +14,8 @@
         :root {
             --header-height: 64px;
             --sidebar-width: 400px;
+            --sidebar-min-width: 300px;
+            --sidebar-max-width: 600px;
         }
         .workspace-layout {
             display: grid;
@@ -25,6 +27,7 @@
             display: grid;
             grid-template-columns: 1fr var(--sidebar-width);
             overflow: hidden;
+            position: relative;
         }
         @media (max-width: 1024px) {
             .workspace-body {
@@ -33,10 +36,23 @@
             .workspace-sidebar {
                 display: none;
             }
+            .resize-handle-container {
+                display: none !important;
+            }
         }
         .accent-copper { color: #b87333; }
         .bg-copper { background-color: #b87333; }
         .border-copper { border-color: #b87333; }
+        
+        /* Resize handle hover effect */
+        .resize-handle:hover,
+        .resize-handle:focus-visible {
+            background-color: #b87333 !important;
+        }
+        .resize-handle:focus-visible {
+            outline: 2px solid #b87333;
+            outline-offset: 2px;
+        }
     </style>
 </head>
 <body class="h-full bg-[#fdfaf6] text-[#2c2c2c]" data-page="document-workspace">
@@ -119,6 +135,19 @@
                 ></div>
             </main>
 
+            <!-- Resize Handle (between viewer and sidebar) -->
+            <div
+                data-island="resizable-layout-island"
+                data-testid="sidebar-resize-container"
+                class="resize-handle-container absolute top-0 bottom-0 w-0 z-30"
+                data-props="<%= JSON.stringify({
+                    minWidth: 300,
+                    maxWidth: 600,
+                    defaultWidth: 400,
+                    storageKey: 'paperless-sidebar-width'
+                }) %>"
+            ></div>
+
             <!-- Sidebar (400px) -->
             <aside class="workspace-sidebar border-l border-[#e5e0d8] bg-white flex flex-col overflow-hidden z-10">
                 <div 
@@ -176,7 +205,8 @@
             '/js/dist/overlay-viewer.island.js',
             '/js/dist/document-content.island.js',
             '/js/dist/manual-editor.island.js',
-            '/js/dist/chat-workspace.island.js'
+            '/js/dist/chat-workspace.island.js',
+            '/js/dist/resizable-layout.island.js'
         ]
     }) %>
 </body>
