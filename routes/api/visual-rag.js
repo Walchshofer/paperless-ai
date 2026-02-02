@@ -17,6 +17,7 @@ const { getLegendForDomain, DOMAIN_FIELD_SPECS } = require('../../services/visua
 const logger = require('../../services/logger');
 const paperlessService = require('../../services/paperlessService');
 const config = require('../../config/config');
+const { authenticateApi, requireAdmin } = require('../../middleware/auth');
 
 const resolveRelativePdfPath = (doc, docId) => {
   const archiveFileName = doc.archive_file_name || doc.archive_filename || null;
@@ -115,7 +116,7 @@ const activeJobs = new Map();
  *       500:
  *         description: Search failed
  */
-router.post('/search', async (req, res) => {
+router.post('/search', authenticateApi, async (req, res) => {
     try {
         const {
             query,
@@ -390,7 +391,7 @@ async function handleVisualSearch(req, res) {
 }
 
 // Attach the handler to the router and export it for early app-level mounting
-router.post('/search/visual', handleVisualSearch);
+router.post('/search/visual', authenticateApi, handleVisualSearch);
 
 module.exports = router;
 module.exports.handleVisualSearch = handleVisualSearch;
@@ -440,7 +441,7 @@ router.get('/health', async (req, res) => {
  *       200:
  *         description: Ingestion statistics
  */
-router.get('/stats', (req, res) => {
+router.get('/stats', authenticateApi, requireAdmin, (req, res) => {
     const stats = ingestionManager.getStats();
     res.json(stats);
 });
@@ -481,7 +482,7 @@ router.get('/stats', (req, res) => {
  *       500:
  *         description: Server error
  */
-router.post('/feedback', async (req, res) => {
+router.post('/feedback', authenticateApi, async (req, res) => {
     const feedbackService = require('../../services/feedback/FeedbackService');
     const requestId = req.headers['x-request-id'] || `req-${Date.now()}`;
 
@@ -579,7 +580,7 @@ router.post('/feedback', async (req, res) => {
  *                 message:
  *                   type: string
  */
-router.post('/batch/start', async (req, res) => {
+router.post('/batch/start', authenticateApi, requireAdmin, async (req, res) => {
     try {
         const { filters = {}, options = {} } = req.body;
 
@@ -646,7 +647,7 @@ router.post('/batch/start', async (req, res) => {
  *       404:
  *         description: Job not found
  */
-router.get('/batch/:jobId/status', (req, res) => {
+router.get('/batch/:jobId/status', authenticateApi, (req, res) => {
     const job = activeJobs.get(req.params.jobId);
     if (!job) {
         return res.status(404).json({ error: 'Job not found' });
@@ -661,7 +662,7 @@ router.get('/batch/:jobId/status', (req, res) => {
  *     summary: Pause batch job
  *     tags: [Visual RAG, Batch]
  */
-router.post('/batch/:jobId/pause', (req, res) => {
+router.post('/batch/:jobId/pause', authenticateApi, requireAdmin, (req, res) => {
     const job = activeJobs.get(req.params.jobId);
     if (!job) {
         return res.status(404).json({ error: 'Job not found' });
@@ -677,7 +678,7 @@ router.post('/batch/:jobId/pause', (req, res) => {
  *     summary: Resume paused batch job
  *     tags: [Visual RAG, Batch]
  */
-router.post('/batch/:jobId/resume', (req, res) => {
+router.post('/batch/:jobId/resume', authenticateApi, requireAdmin, (req, res) => {
     const job = activeJobs.get(req.params.jobId);
     if (!job) {
         return res.status(404).json({ error: 'Job not found' });
@@ -693,7 +694,7 @@ router.post('/batch/:jobId/resume', (req, res) => {
  *     summary: Cancel batch job
  *     tags: [Visual RAG, Batch]
  */
-router.post('/batch/:jobId/cancel', (req, res) => {
+router.post('/batch/:jobId/cancel', authenticateApi, requireAdmin, (req, res) => {
     const job = activeJobs.get(req.params.jobId);
     if (!job) {
         return res.status(404).json({ error: 'Job not found' });
@@ -713,7 +714,7 @@ router.post('/batch/:jobId/cancel', (req, res) => {
  *       200:
  *         description: List of jobs
  */
-router.get('/batch/list', (req, res) => {
+router.get('/batch/list', authenticateApi, requireAdmin, (req, res) => {
     const jobs = Array.from(activeJobs.values()).map(job => ({
         jobId: job.jobId,
         status: job.status,
@@ -761,7 +762,7 @@ router.get('/batch/list', (req, res) => {
  *                 count:
  *                   type: integer
  */
-router.get('/overlays/:docId', async (req, res) => {
+router.get('/overlays/:docId', authenticateApi, async (req, res) => {
     try {
         const docId = parseInt(req.params.docId, 10);
         const { page } = req.query;
@@ -849,7 +850,7 @@ router.get('/overlays/:docId', async (req, res) => {
  *       404:
  *         description: Domain not found
  */
-router.get('/legend/:domain', (req, res) => {
+router.get('/legend/:domain', authenticateApi, (req, res) => {
     const domain = req.params.domain.toLowerCase();
     const legend = getLegendForDomain(domain);
 
@@ -871,7 +872,7 @@ router.get('/legend/:domain', (req, res) => {
  *       200:
  *         description: List of domains
  */
-router.get('/domains', (req, res) => {
+router.get('/domains', authenticateApi, (req, res) => {
     const domains = Object.keys(DOMAIN_FIELD_SPECS).map(key => ({
         key,
         name: DOMAIN_FIELD_SPECS[key].name,
@@ -910,7 +911,7 @@ router.get('/domains', (req, res) => {
  *       500:
  *         description: Ingestion failed
  */
-router.post('/ingest/:docId', async (req, res) => {
+router.post('/ingest/:docId', authenticateApi, requireAdmin, async (req, res) => {
     const docId = parseInt(req.params.docId, 10);
     const { force = false } = req.body || {};
 
@@ -980,7 +981,7 @@ router.post('/ingest/:docId', async (req, res) => {
 });
 
 // Render a normalized page image for overlay viewers.
-router.get('/normalized/:docId', async (req, res) => {
+router.get('/normalized/:docId', authenticateApi, async (req, res) => {
   try {
     const docId = Number.parseInt(req.params.docId, 10);
     const requestedPage = Number.parseInt(String(req.query.page || '1'), 10);

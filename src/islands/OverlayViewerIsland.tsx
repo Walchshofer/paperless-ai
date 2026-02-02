@@ -169,6 +169,12 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(null as string | null);
   const [warning, setWarning] = useState(null as string | null);
+  // Image loading state: 'loading' | 'loaded' | 'error'
+  const [imageLoadState, setImageLoadState] = useState('loading' as 'loading' | 'loaded' | 'error');
+  // Tracks which URL source is currently being tried: 'normalized' | 'original'
+  const [imageSource, setImageSource] = useState('normalized' as 'normalized' | 'original');
+  // Retry counter to force re-attempts
+  const [retryCount, setRetryCount] = useState(0);
   const [legend, setLegend] = useState([] as LegendItem[]);
   const [overlayItems, setOverlayItems] = useState([] as OverlayItem[]);
   const [overlayLoading, setOverlayLoading] = useState(false);
@@ -327,18 +333,63 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     }
   }, [panMode]);
 
-  const imageUrl = docId
-    ? (originalUrl
-        ? `${originalUrl}${originalUrl.includes('?') ? '&' : '?'}page=${page}`
-        : `/documents/${docId}/download/original/?page=${page}`)
-    : null;
+  // Compute the normalized URL (preferred source for Visual RAG)
+  const normalizedUrl = useMemo(() => {
+    if (!docId) return null;
+    return `/api/visual-rag/normalized/${docId}?page=${page}`;
+  }, [docId, page]);
 
+  // Compute the original URL (fallback source from Paperless)
+  const originalUrlWithPage = useMemo(() => {
+    if (!originalUrl) return null;
+    return `${originalUrl}${originalUrl.includes('?') ? '&' : '?'}page=${page}`;
+  }, [originalUrl, page]);
+
+  // Priority: normalized URL first, fallback to original URL based on imageSource state
+  const imageUrl = useMemo(() => {
+    if (!docId) return null;
+    
+    // Priority 1: Try normalized URL (preferred for Visual RAG)
+    if (imageSource === 'normalized' && normalizedUrl) {
+      return normalizedUrl;
+    }
+    
+    // Priority 2: Fallback to original URL (Paperless download)
+    if (imageSource === 'original' && originalUrlWithPage) {
+      return originalUrlWithPage;
+    }
+    
+    // If we're in original mode but have no originalUrl, use normalized anyway
+    if (normalizedUrl) {
+      return normalizedUrl;
+    }
+    
+    return null;
+  }, [docId, imageSource, normalizedUrl, originalUrlWithPage]);
+
+  // Reset to normalized source when document or page changes
   useEffect(() => {
-    if (!imageUrl) return;
+    setImageSource('normalized');
+    setImageLoadState('loading');
+    setRetryCount(0);
+  }, [docId, page]);
+
+  // Image loading effect with fallback mechanism
+  useEffect(() => {
+    if (!imageUrl) {
+      setImageLoadState('error');
+      setImageError('No image URL available');
+      setImageLoaded(false);
+      return;
+    }
+    
     setImageLoaded(false);
     setImageError(null);
+    setImageLoadState('loading');
+    
     const img = new Image();
     img.crossOrigin = 'anonymous';
+    
     img.onload = () => {
       if (imageRef.current) {
         imageRef.current.src = img.src;
@@ -355,10 +406,41 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         }
       }
       setImageLoaded(true);
+      setImageLoadState('loaded');
+      setImageError(null);
+      console.info(`[OverlayViewerIsland] Image loaded from ${imageSource} source: ${imageUrl}`);
     };
-    img.onerror = () => setImageError('Failed to load document image');
+    
+    img.onerror = () => {
+      console.warn(`[OverlayViewerIsland] Failed to load image from ${imageSource} source: ${imageUrl}`);
+      
+      // If normalized URL failed and we have an original URL, try that next
+      if (imageSource === 'normalized' && originalUrlWithPage) {
+        console.info('[OverlayViewerIsland] Falling back to original URL');
+        setImageSource('original');
+        // Don't set error state yet - let the fallback attempt
+        return;
+      }
+      
+      // All sources exhausted - show error
+      setImageError(`Failed to load document image from ${imageSource === 'normalized' ? 'visual-rag' : 'paperless'}`);
+      setImageLoadState('error');
+      setImageLoaded(false);
+    };
+    
     img.src = imageUrl;
-  }, [imageUrl]);
+    
+    return () => {
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [imageUrl, imageSource, originalUrlWithPage, retryCount]);
+
+  // Retry handler - resets to normalized and increments retry count
+  const handleRetry = useCallback(() => {
+    setImageSource('normalized');
+    setRetryCount((c: number) => c + 1);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1030,15 +1112,28 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
               {imageUrl && !imageLoaded && !imageError && (
                 <div className="absolute inset-0 flex items-center justify-center" data-testid="overlay-loading">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-copper mx-auto mb-2"></div>
+                    <p className="text-sm text-[#555] font-['Space_Grotesk']">Loading document...</p>
+                  </div>
                 </div>
               )}
 
               {imageError && (
                 <div className="absolute inset-0 flex items-center justify-center" data-testid="image-error">
-                  <div className="text-center text-gray-500">
-                    <i className="fas fa-exclamation-circle text-3xl mb-2"></i>
-                    <p className="text-sm">{imageError}</p>
+                  <div className="text-center max-w-md px-4">
+                    <i className="fas fa-exclamation-triangle text-3xl text-red-500 mb-4"></i>
+                    <p className="font-['Space_Grotesk'] text-[#555] mb-2">Failed to load document</p>
+                    <p className="text-sm text-[#888] mb-4">{imageError}</p>
+                    <button
+                      onClick={handleRetry}
+                      className="px-4 py-2 bg-copper text-white rounded-md hover:bg-copper/80 transition-colors font-['Space_Grotesk']"
+                      data-testid="image-retry-button"
+                      type="button"
+                    >
+                      <i className="fas fa-sync-alt mr-2"></i>
+                      Retry
+                    </button>
                   </div>
                 </div>
               )}

@@ -169,9 +169,25 @@ Failures are isolated per service and never cascade.
 - Guidance as optional optimization
 - Visual RAG as enrichment only
 
-$1
+---
 
-### User Isolation & Security
+### Authentication & Authorization
+
+The system implements JWT-based authentication with role-based access control.
+See `docs/AUTHENTICATION.md` for complete details.
+
+**User Roles (hierarchical):**
+- `admin` (level 100): Full system access, settings, configuration
+- `user` (level 50): Workspace, documents, chat, history
+- `viewer` (level 10): Read-only access, thumbnails
+
+**Route Protection:**
+- Public routes: `/login`, `/logout`, `/setup`, `/health`, `/api-docs`
+- Admin routes: `/settings`, `/debug`, `/api/settings/*`
+- User routes: `/document`, `/chat`, `/history`, `/manual`
+- All routes use centralized middleware from `middleware/auth.js`
+
+### User Isolation & Data Security
 
 The system enforces strict user isolation for document history and processing metadata.
 

@@ -4,15 +4,8 @@ const { waitForIsland } = require('../helpers/island-waits');
 
 test.describe('Manual Overlay - Live Integration', () => {
   test('OverlayViewer responds to real document changes', async ({ page }) => {
-    // 1. Get a real test document ID from fixtures
-    let testDocId: number;
-    try {
-      testDocId = getTestDocId();
-    } catch (e) {
-      console.warn('[e2e:live] No fixture found, skipping live overlay test');
-      test.skip();
-      return;
-    }
+    // 1. Get a real test document ID from fixtures - fails if fixtures not setup
+    const testDocId = getTestDocId();
 
     // 2. Navigate to manual page (requires auth, handled by global-setup)
     await page.goto('/manual');

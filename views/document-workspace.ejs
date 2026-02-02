@@ -86,17 +86,16 @@
         <div class="workspace-body">
             <!-- Viewer Area (1fr) -->
             <main class="relative bg-[#f5f0e8] overflow-hidden flex flex-col">
-                <% if (doc && doc.id) { %>
-                <!-- Document Viewer with Overlay Support -->
+                <!-- Document Viewer with Overlay Support - Always rendered to listen for document changes -->
                 <div
                     data-island="overlay-viewer-island"
                     data-testid="document-viewer"
                     class="h-full w-full"
                     data-props="<%= JSON.stringify({
-                        documentId: doc.id,
+                        documentId: doc ? doc.id : null,
                         page: 1,
-                        pageCount: doc.pageCount || 1,
-                        originalUrl: doc.originalUrl || null,
+                        pageCount: (doc && doc.pageCount) ? doc.pageCount : 1,
+                        originalUrl: (doc && doc.originalUrl) ? doc.originalUrl : null,
                         mode: 'view',
                         overlayMode: 'document',
                         showLegend: false,
@@ -111,16 +110,6 @@
                         </div>
                     </div>
                 </div>
-                <% } else { %>
-                <!-- No Document Selected State -->
-                <div class="h-full w-full flex items-center justify-center">
-                    <div class="text-center p-8">
-                        <i class="fas fa-file-alt text-6xl text-[#e5e0d8] mb-4"></i>
-                        <h3 class="font-['Fraunces'] text-xl text-[#555] mb-2">No Document Selected</h3>
-                        <p class="font-['Space_Grotesk'] text-[#888]">Select a document from the dropdown above to view it here.</p>
-                    </div>
-                </div>
-                <% } %>
                 <!-- Unified Workspace Island for state management and placeholders -->
                 <div
                     data-island="unified-workspace-island"

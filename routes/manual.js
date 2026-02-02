@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const paperlessService = require('../services/paperlessService.js');
 const configFile = require('../config/config.js');
+const { authenticate, authenticateApi } = require('../middleware/auth');
 
 // Visual RAG integration for overlay/field retrieval
 let visualOverlayRepository = null;
@@ -134,7 +135,7 @@ async function getDocumentTypeName(documentTypeId) {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/manual/preview/:id', async (req, res) => {
+router.get('/manual/preview/:id', authenticateApi, async (req, res) => {
   try {
     const documentId = req.params.id;
     console.log('Fetching content for document:', documentId);
@@ -280,7 +281,7 @@ router.get('/manual/preview/:id', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/manual', async (req, res) => {
+router.get('/manual', authenticate, async (req, res) => {
   const { open, page } = req.query;
   const version = configFile.PAPERLESS_AI_VERSION || ' ';
   const vm = {
@@ -344,7 +345,7 @@ router.get('/manual', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/manual/tags', async (req, res) => {
+router.get('/manual/tags', authenticateApi, async (req, res) => {
   const getTags = await paperlessService.getTags();
   res.json(getTags);
 });
@@ -389,7 +390,7 @@ router.get('/manual/tags', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/manual/documents', async (req, res) => {
+router.get('/manual/documents', authenticateApi, async (req, res) => {
   // Use unfiltered documents for UI dropdown - tag filtering is only for automatic processing
   const getDocuments = await paperlessService.getAllDocumentsUnfiltered();
   res.json(getDocuments);
@@ -399,7 +400,7 @@ router.get('/manual/documents', async (req, res) => {
 const annotationService = require('../services/AnnotationService');
 
 // POST /manual/annotations - save annotations payload { documentId, page, annotations: [{ bbox, label, note }] }
-router.post('/manual/annotations', async (req, res) => {
+router.post('/manual/annotations', authenticateApi, async (req, res) => {
   try {
     const userId = getUserIdFromReq(req);
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -422,7 +423,7 @@ router.post('/manual/annotations', async (req, res) => {
 });
 
 // GET /manual/annotations/:documentId?page=x
-router.get('/manual/annotations/:documentId', async (req, res) => {
+router.get('/manual/annotations/:documentId', authenticateApi, async (req, res) => {
   try {
     const userId = getUserIdFromReq(req);
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -468,7 +469,7 @@ router.put('/manual/annotations/:id', async (req, res) => {
 });
 
 // Export endpoints
-router.post('/manual/export/region', async (req, res) => {
+router.post('/manual/export/region', authenticateApi, async (req, res) => {
   try {
     const { imageBase64, format } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'Image data required' });
@@ -500,7 +501,7 @@ router.post('/manual/export/region', async (req, res) => {
   }
 });
 
-router.post('/manual/export/text', async (req, res) => {
+router.post('/manual/export/text', authenticateApi, async (req, res) => {
   try {
     const { text, format } = req.body;
     if (!text) return res.status(400).json({ error: 'Text content required' });
@@ -529,7 +530,7 @@ router.post('/manual/export/text', async (req, res) => {
   }
 });
 
-router.post('/manual/export/annotations', async (req, res) => {
+router.post('/manual/export/annotations', authenticateApi, async (req, res) => {
   try {
     const { annotations, documentId } = req.body;
     if (!annotations) return res.status(400).json({ error: 'Annotations required' });

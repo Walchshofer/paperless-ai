@@ -11,6 +11,7 @@ const logger = require('../../services/logger');
 const fs = require('fs').promises;
 const path = require('path');
 const axios = require('axios');
+const { authenticateApi, requireAdmin } = require('../../middleware/auth');
 
 // Environment file path
 const ENV_FILE_PATH = path.join(__dirname, '../../data/runtime.env');
@@ -19,7 +20,7 @@ const ENV_FILE_PATH = path.join(__dirname, '../../data/runtime.env');
  * GET /api/settings/config
  * Returns current configuration for islands hydration
  */
-router.get('/config', async (req, res) => {
+router.get('/config', authenticateApi, requireAdmin, async (req, res) => {
     try {
         // Read current env file
         let envContent = {};
@@ -73,7 +74,7 @@ router.get('/config', async (req, res) => {
  * POST /api/settings/test-connection
  * Test connection to Paperless-ngx API
  */
-router.post('/test-connection', async (req, res) => {
+router.post('/test-connection', authenticateApi, requireAdmin, async (req, res) => {
     try {
         const { paperlessApiUrl, paperlessApiToken, timeout = 10000 } = req.body;
 
@@ -122,7 +123,7 @@ router.post('/test-connection', async (req, res) => {
  * POST /api/settings/save
  * Save settings (partial update)
  */
-router.post('/save', express.json(), async (req, res) => {
+router.post('/save', express.json(), authenticateApi, requireAdmin, async (req, res) => {
     try {
         const updates = req.body;
 

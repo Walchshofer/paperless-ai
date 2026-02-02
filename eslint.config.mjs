@@ -19,6 +19,9 @@ export default [
       "public/js/vendor/**",
       "public/js/dist/**",
       "migrations/**",
+      // Auto-generated test reports (not source code)
+      "test-results/**",
+      "playwright-report/**",
     ],
   },
 

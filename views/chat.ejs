@@ -16,7 +16,6 @@
     <link rel="stylesheet" href="css/overlay-viewer.css">
 </head>
 <body class="h-full" data-page="<%= vm.page || 'chat' %>">
-    <%- include('partials/legacy-route-banner') %>
     <% /* Ensure `vm` exists to avoid ReferenceError in environments without view model */ %>
     <% var vm = typeof vm !== 'undefined' ? vm : {}; %>
     <% var chatProps = vm.chat || {}; %>

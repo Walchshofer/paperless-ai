@@ -352,7 +352,7 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
           </button>
 
           {isDropdownOpen && (
-            <div className="absolute top-full left-0 mt-2 w-[320px] bg-white border border-[#e5e0d8] rounded-xl shadow-xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200" data-testid="document-selector-dropdown" role="listbox" aria-label="Select document">
+            <div className="absolute top-full left-0 mt-2 w-[320px] bg-white border border-[#e5e0d8] rounded-xl shadow-xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200" data-testid="document-selector-dropdown">
               <div className="p-3 border-b border-[#f5f0e8] bg-[#fdfaf6]">
                 <div className="relative">
                   <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa] text-xs"></i>
@@ -364,10 +364,11 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
                     onInput={(e: Event) => setSearchOpen((e.target as HTMLInputElement).value)}
                     autoFocus
                     data-testid="document-search-input"
+                    aria-label="Search documents"
                   />
                 </div>
               </div>
-              <div className="max-h-[400px] overflow-y-auto p-1">
+              <div className="max-h-[400px] overflow-y-auto p-1" role="listbox" aria-label="Select document">
                 {filteredDocuments.length > 0 ? (
                   filteredDocuments.map((doc: DocumentSummary) => (
                     <button

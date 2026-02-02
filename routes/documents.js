@@ -5,6 +5,10 @@ const { pdfRenderer } = require('../services/visual-rag-client/PDFRenderer');
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../services/logger');
+const { authenticateApi, requireViewer, requireUser } = require('../middleware/auth');
+
+// All document routes require authentication
+router.use(authenticateApi);
 
 /**
  * @swagger
@@ -74,7 +78,7 @@ const logger = require('../services/logger');
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/sampleData/:id', async (req, res) => {
+router.get('/sampleData/:id', requireViewer, async (req, res) => {
   try {
     //get all correspondents from one document by id
     const document = await paperlessService.getDocument(req.params.id);
@@ -141,7 +145,7 @@ router.get('/sampleData/:id', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/thumb/:documentId', async (req, res) => {
+router.get('/thumb/:documentId', requireViewer, async (req, res) => {
   const cachePath = path.join('./public/images', `${req.params.documentId}.png`);
 
   try {
@@ -234,7 +238,7 @@ router.get('/thumb/:documentId', async (req, res) => {
  *       500:
  *         description: Server error
  */
-router.get('/api/document/:docId/render', async (req, res) => {
+router.get('/api/document/:docId/render', requireUser, async (req, res) => {
   const docId = parseInt(req.params.docId, 10);
   const page = parseInt(req.query.page || '1', 10);
   const dpi = parseInt(req.query.dpi || '300', 10);
@@ -307,7 +311,7 @@ router.get('/api/document/:docId/render', async (req, res) => {
  *       500:
  *         description: Server error
  */
-router.get('/api/document/:docId/page-count', async (req, res) => {
+router.get('/api/document/:docId/page-count', requireUser, async (req, res) => {
   const docId = parseInt(req.params.docId, 10);
 
   try {

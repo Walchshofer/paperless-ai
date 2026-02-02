@@ -13,6 +13,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const { expertRegistry } = require('../services/experts/ExpertRegistry');
 const config = require('../config/config.js');
 const dashboardService = require('../src/services/dashboardService.js');
+const { authenticate, authenticateApi, requireAdmin, ROLES } = require('../middleware/auth');
 // Load runtime env persisted by setup (renamed to data/runtime.env)
 require('dotenv').config({ path: '../data/runtime.env' });
 
@@ -269,22 +270,8 @@ router.use(async (req, res, next) => {
   next();
 });
 
-// Protected route middleware for API endpoints
-const protectApiRoute = (req, res, next) => {
-  const token = req.cookies.jwt || req.headers.authorization?.split(' ')[1];
-  
-  if (!token) {
-    return res.status(401).json({ message: 'Authentication required' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch {
-    return res.status(403).json({ message: 'Invalid or expired token' });
-  }
-};
+// Use centralized auth middleware (protectApiRoute is now from middleware/auth)
+const protectApiRoute = authenticateApi;
 
 // Documents view route
 /**
@@ -811,25 +798,16 @@ router.get('/api/tagsCount', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/dashboard', async (req, res) => {
+router.get('/dashboard', authenticate, async (req, res) => {
   try {
     console.log(`[DASHBOARD] Loading metrics at: ${new Date().toISOString()}`);
 
-    // Extract authenticated user from JWT cookie
-    let decoded = null;
-    try {
-      const token = req.cookies.jwt || req.headers.authorization?.split(' ')[1];
-      if (token) {
-        decoded = jwt.verify(token, JWT_SECRET);
-      }
-    } catch (err) {
-      console.warn('[DASHBOARD] Invalid JWT token, falling back to guest info');
-    }
-
+    // User is already authenticated via middleware
     const user = {
-      id: decoded?.id || null,
-      username: decoded?.username || 'elfman',
-      isAdmin: decoded?.isAdmin !== undefined ? decoded.isAdmin : true,
+      id: req.user?.id || null,
+      username: req.user?.username || 'anonymous',
+      isAdmin: req.user?.isAdmin || req.user?.role === ROLES.ADMIN || false,
+      role: req.user?.role || ROLES.USER,
       lastLogin: new Date().toISOString()
     };
 
@@ -1433,7 +1411,8 @@ router.post('/setup', express.json(), async (req, res) => {
     // Save configuration
     await setupService.saveConfig(config);
     const hashedPassword = await bcrypt.hash(password, 15);
-    await documentModel.addUser(username, hashedPassword);
+    // First user created during setup is always an admin
+    await documentModel.addUser(username, hashedPassword, 'admin', true);
 
     res.json({ 
       success: true,
@@ -1454,7 +1433,7 @@ router.post('/setup', express.json(), async (req, res) => {
   }
 });
 
-router.get('/api/rag-test', async (req, res) => {
+router.get('/api/rag-test', authenticateApi, requireAdmin, async (req, res) => {
   RAGService.initialize();
   try { 
     if(await RAGService.sendDocumentsToRAGService()){
@@ -1468,7 +1447,7 @@ router.get('/api/rag-test', async (req, res) => {
 }
 );
 
-router.get('/dashboard/doc/:id', async (req, res) => {
+router.get('/dashboard/doc/:id', authenticate, async (req, res) => {
   const docId = req.params.id;
   if (!docId) {
     return res.status(400).json({ error: 'Document ID is required' });

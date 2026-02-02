@@ -1,0 +1,143 @@
+npm warn "spec" is being parsed as a normal command line argument.
+npm warn Unknown cli config "--reporter". This will stop working in the next major version of npm.
+
+> paperless-ai@1.0.0 test
+> cross-env TS_NODE_COMPILER_OPTIONS="{\"module\":\"CommonJS\",\"jsx\":\"react-jsx\",\"jsxImportSource\":\"preact\",\"moduleResolution\":\"node\",\"allowSyntheticDefaultImports\":true,\"esModuleInterop\":true}" mocha --require test/ts-node-register.js --require test/setup-env.js test/**/*.{test,spec}.js --timeout 30000 --reporter spec --exit test/e2e/unified-workspace-navigation.spec.ts spec
+
+[test/ts-node-register] ts-node registered with preact JSX runtime
+[test/setup-env] Patched and initialized JSDOM globals
+[test] RAG Service disabled for this run.
+Loading .env from: C:\Users\pwalc\MyApps\paperless-ai\data\.env
+[WARN] PAPERLESS_OCR_LANGUAGES and PAPERLESS_OCR_LANGUAGE are both set; using PAPERLESS_OCR_LANGUAGES.
+Loaded restriction settings: {
+  RESTRICT_TO_EXISTING_TAGS: 'no',
+  RESTRICT_TO_EXISTING_CORRESPONDENTS: 'no',
+  RESTRICT_TO_EXISTING_DOCUMENT_TYPES: 'no'
+}
+Loaded environment variables: {
+  PAPERLESS_API_URL: 'http://webserver:8000/api',
+  PAPERLESS_API_TOKEN: '******',
+  LIMIT_FUNCTIONS: {
+    activateTagging: 'yes',
+    activateCorrespondents: 'yes',
+    activateDocumentType: 'yes',
+    activateTitle: 'yes',
+    activateCustomFields: 'yes'
+  },
+  AI_RESTRICTIONS: {
+    restrictToExistingTags: 'no',
+    restrictToExistingCorrespondents: 'no',
+    restrictToExistingDocumentTypes: 'no'
+  },
+  EXTERNAL_API: 'disabled'
+}
+[CONFIG] Environment variable resolution:
+  Database User: { key: 'POSTGRES_USER', source: 'POSTGRES_USER', value: '******' }
+  Database Password: {
+  key: 'POSTGRES_PASSWORD',
+  source: 'POSTGRES_PASSWORD',
+  value: '******'
+}
+  Database Name: { key: 'POSTGRES_DB', source: 'POSTGRES_DB', value: '******' }
+  Database Host: { key: 'POSTGRES_HOST', source: 'POSTGRES_HOST', value: '******' }
+  Database Port: { key: 'POSTGRES_PORT', source: 'POSTGRES_PORT', value: '******' }
+[CONFIG] Database configuration loaded: {
+  host: 'db',
+  port: 5432,
+  database: 'paperless',
+  user: 'elfman',
+  password: '******',
+  source: {
+    user: 'POSTGRES_USER',
+    password: 'POSTGRES_PASSWORD',
+    database: 'POSTGRES_DB',
+    host: 'POSTGRES_HOST'
+  }
+}
+[QdrantAdapter] Initialized client at http://127.0.0.1:6333 (client=1.16.2, checkCompatibility=true)
+{
+  event: 'circuit_breaker_initialized',
+  serviceName: 'qdrant-adapter',
+  config: {
+    failureThreshold: 5,
+    cooldownPeriod: 30000,
+    timeout: 10000,
+    hardTimeout: 1000,
+    maxRetries: 3,
+    backoffMultiplier: 2,
+    initialBackoff: 100
+  }
+}
+[QdrantAdapter] Initialized client at http://127.0.0.1:6333
+[test/setup-env] ts-node registered for TS/TSX transpilation
+[test] Environment configuration complete
+{
+  event: 'test_env_initialized',
+  models: {
+    router: 'qwen3-vl:8b',
+    medical_vision: 'qwen3-vl:8b',
+    medical_analysis: 'medtext-llama3',
+    financial_analysis: 'fino1-8b',
+    financial_reasoning: 'fino1-8b',
+    general: 'sauerkraut-llama3.1:8b',
+    orchestrator: 'nemotron-orchestrator:8b',
+    embedding: 'nomic-embed-text-v1.5'
+  },
+  services: {
+    guidance: { enabled: 'yes', service_enabled: 'yes' },
+    rag: { enabled: 'yes', url: 'http://webserver:8000' }
+  }
+}
+Warning: Cannot find any files matching pattern "spec"
+{
+  event: 'guidance_client_initialized',
+  baseUrl: 'http://guidance-service:8002',
+  enabled: 'yes',
+  model: 'sauerkraut-llama3.1:8b'
+}
+PromptRegistry initialized with 14 prompts
+{
+  event: 'circuit_breaker_initialized',
+  serviceName: 'visual-rag',
+  config: {
+    failureThreshold: 3,
+    cooldownPeriod: 30000,
+    timeout: 2000,
+    hardTimeout: 4000,
+    maxRetries: 3,
+    backoffMultiplier: 2,
+    initialBackoff: 100
+  }
+}
+ExpertRegistry initialized with 4 pipelines
+[INFO] Ollama Service initialized. Model: gpt-oss:latest, Timeout: 600000ms
+
+<--- Last few GCs --->
+
+[45352:000002226D609000]    21986 ms: Mark-Compact 1986.4 (2014.0) -> 1981.8 (2009.0) MB, pooled: 9 MB, 24.11 / 0.00 ms  (average mu = 0.957, current mu = 0.960) allocation failure; scavenge might not succeed
+[45352:000002226D609000]    22213 ms: Mark-Compact 2093.8 (2120.9) -> 2093.8 (2124.9) MB, pooled: 8 MB, 47.41 / 0.00 ms  (average mu = 0.913, current mu = 0.791) allocation failure; scavenge might not succeed
+
+
+<--- JS stacktrace --->
+
+FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory
+----- Native stack trace -----
+
+ 1: 00007FF71FC6711D node::SetCppgcReference+17725
+ 2: 00007FF71FBCA138 SSL_get_quiet_shutdown+92344
+ 3: 00007FF720750C51 v8::Isolate::ReportExternalAllocationLimitReached+65
+ 4: 00007FF72073D8D6 v8::Function::Experimental_IsNopFunction+2870
+ 5: 00007FF72058AA20 v8::internal::StrongRootAllocatorBase::StrongRootAllocatorBase+31456
+ 6: 00007FF720587A8A v8::internal::StrongRootAllocatorBase::StrongRootAllocatorBase+19274
+ 7: 00007FF72059D2E1 v8::Isolate::GetHeapProfiler+7793
+ 8: 00007FF72059DB88 v8::Isolate::GetHeapProfiler+10008
+ 9: 00007FF7205A8DF1 v8::Isolate::GetHeapProfiler+55681
+10: 00007FF7205B8B16 v8::Isolate::GetHeapProfiler+120486
+11: 00007FF7205BDA18 v8::Isolate::GetHeapProfiler+140712
+12: 00007FF7205B43BE v8::Isolate::GetHeapProfiler+102222
+13: 00007FF7205B441A v8::Isolate::GetHeapProfiler+102314
+14: 00007FF7204A9FFA v8::Context::GetIsolate+327514
+15: 00007FF7204A8559 v8::Context::GetIsolate+320697
+16: 00007FF7206F26A2 v8::SharedValueConveyor::SharedValueConveyor+269074
+17: 00007FF72080BF2E v8::PropertyDescriptor::writable+725774
+18: 00007FF6A104C6CB 

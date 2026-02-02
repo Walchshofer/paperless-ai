@@ -5,6 +5,7 @@ const logger = require('../services/logger');
 const { qdrantAdapter } = require('../services/visual-rag-client/QdrantAdapter');
 const axios = require('axios');
 const debugService = require('../services/debugService.js');
+const { authenticate, authenticateApi, requireAdmin, requireUser } = require('../middleware/auth');
 
 /**
  * @swagger
@@ -110,7 +111,7 @@ router.get('/health', async (req, res) => {
  *                   type: string
  *                   example: "Failed to fetch processing status"
  */
-router.get('/api/processing-status', async (req, res) => {
+router.get('/api/processing-status', authenticateApi, requireUser, async (req, res) => {
   try {
       const status = await documentModel.getCurrentProcessingStatus();
       res.json(status);
@@ -146,7 +147,7 @@ router.get('/api/processing-status', async (req, res) => {
  *                 backgroundSync:
  *                   type: object
  */
-router.get('/api/runtime/state', async (req, res) => {
+router.get('/api/runtime/state', authenticateApi, requireAdmin, async (req, res) => {
   try {
     const runtimeState = {
       circuitBreaker: {
@@ -290,7 +291,7 @@ router.get('/api/runtime/state', async (req, res) => {
  *                   type: string
  *                   example: "Error regenerating API key"
  */
-router.post('/api/key-regenerate', async (req, res) => {
+router.post('/api/key-regenerate', authenticateApi, requireAdmin, async (req, res) => {
   try {
     const fs = require('fs');
     const path = require('path');
@@ -362,7 +363,7 @@ router.post('/api/key-regenerate', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/debug', async (req, res) => {
+router.get('/debug', authenticate, requireAdmin, async (req, res) => {
   //const isConfigured = await setupService.isConfigured();
   //if (!isConfigured) {
   //   return res.status(503).json({
@@ -412,7 +413,7 @@ router.get('/debug', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/debug/tags', async (req, res) => {
+router.get('/debug/tags', authenticateApi, requireAdmin, async (req, res) => {
   const tags = await debugService.getTags();
   res.json(tags);
 });
@@ -456,7 +457,7 @@ router.get('/debug/tags', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/debug/documents', async (req, res) => {
+router.get('/debug/documents', authenticateApi, requireAdmin, async (req, res) => {
   const documents = await debugService.getDocuments();
   res.json(documents);
 });
@@ -500,7 +501,7 @@ router.get('/debug/documents', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/debug/correspondents', async (req, res) => {
+router.get('/debug/correspondents', authenticateApi, requireAdmin, async (req, res) => {
   const correspondents = await debugService.getCorrespondents();
   res.json(correspondents);
 });

@@ -11,7 +11,12 @@ const _mockFetchResponse: Response = {
 } as unknown as Response;
 global.fetch = vi.fn(() => Promise.resolve(_mockFetchResponse));
 
-// Mock Image to fire onload
+// Track loaded image URLs for testing
+let lastLoadedImageUrl: string | null = null;
+let shouldFailNormalized = false;
+let shouldFailAll = false;
+
+// Mock Image to fire onload or onerror based on test configuration
 global.Image = class {
   onload: (() => void) | null = null;
   onerror: ((err: unknown) => void) | null = null;
@@ -20,8 +25,20 @@ global.Image = class {
   private _src = '';
   set src(val: string) {
     this._src = val;
+    lastLoadedImageUrl = val;
     // Simulate async load
     setTimeout(() => {
+      // If shouldFailAll is set, fail all images
+      if (shouldFailAll) {
+        if (this.onerror) this.onerror(new Error('Image load failed'));
+        return;
+      }
+      // If shouldFailNormalized is set and this is a normalized URL, fail it
+      if (shouldFailNormalized && val.includes('/api/visual-rag/normalized/')) {
+        if (this.onerror) this.onerror(new Error('Normalized URL failed'));
+        return;
+      }
+      // Otherwise succeed
       if (this.onload) this.onload();
     }, 50);
   }
@@ -31,6 +48,9 @@ global.Image = class {
 describe('OverlayViewerIsland (Red Pen Enhancements)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    lastLoadedImageUrl = null;
+    shouldFailNormalized = false;
+    shouldFailAll = false;
   });
 
   it('zooms to region when overlay:highlight-region is received', async () => {
@@ -120,5 +140,128 @@ describe('OverlayViewerIsland (Red Pen Enhancements)', () => {
     const ghosts = screen.getAllByTestId('overlay-ghost-box');
     expect(ghosts.length).toBe(1);
     expect(ghosts[0].getAttribute('data-label')).toBe('Suggestion');
+  });
+});
+describe('OverlayViewerIsland (Image Loading Priority)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    lastLoadedImageUrl = null;
+    shouldFailNormalized = false;
+    shouldFailAll = false;
+  });
+
+  it('should prioritize normalized URL over original URL', async () => {
+    render(
+      <OverlayViewerIsland 
+        documentId={123}
+        originalUrl="http://paperless.local/documents/123/download/"
+      />
+    );
+    
+    // Wait for image to load
+    await waitFor(() => {
+      expect(lastLoadedImageUrl).toContain('/api/visual-rag/normalized/123');
+    });
+    
+    // Should NOT use the original URL when normalized works
+    expect(lastLoadedImageUrl).not.toContain('paperless.local');
+  });
+
+  it('should fallback to original URL when normalized URL fails', async () => {
+    shouldFailNormalized = true;
+    
+    render(
+      <OverlayViewerIsland 
+        documentId={456}
+        originalUrl="http://paperless.local/documents/456/download/"
+      />
+    );
+    
+    // First attempt should be normalized URL
+    await waitFor(() => {
+      expect(lastLoadedImageUrl).toContain('/api/visual-rag/normalized/456');
+    });
+    
+    // After failure, should fallback to original URL
+    await waitFor(() => {
+      expect(lastLoadedImageUrl).toContain('paperless.local');
+    }, { timeout: 2000 });
+  });
+
+  it('should show error state with retry button when all URLs fail', async () => {
+    shouldFailAll = true;
+    
+    render(
+      <OverlayViewerIsland 
+        documentId={789}
+      />
+    );
+    
+    // Wait for error state
+    await waitFor(() => {
+      expect(screen.getByTestId('image-error')).toBeTruthy();
+    }, { timeout: 2000 });
+    
+    // Should show retry button
+    const retryButton = screen.getByTestId('image-retry-button');
+    expect(retryButton).toBeTruthy();
+    expect(retryButton.textContent).toContain('Retry');
+  });
+
+  it('should show loading state while fetching image', async () => {
+    render(<OverlayViewerIsland documentId={111} />);
+    
+    // Loading state should be visible initially
+    const loading = screen.queryByTestId('overlay-loading');
+    expect(loading).toBeTruthy();
+    
+    // Wait for image to load
+    await waitFor(() => {
+      expect(screen.queryByTestId('overlay-loading')).toBeNull();
+    });
+  });
+
+  it('should include page number in normalized URL', async () => {
+    render(
+      <OverlayViewerIsland 
+        documentId={222}
+        page={3}
+      />
+    );
+    
+    await waitFor(() => {
+      expect(lastLoadedImageUrl).toContain('/api/visual-rag/normalized/222?page=3');
+    });
+  });
+
+  it('should handle retry after error', async () => {
+    shouldFailAll = true;
+    
+    const { rerender } = render(
+      <OverlayViewerIsland documentId={333} />
+    );
+    
+    // Wait for error state
+    await waitFor(() => {
+      expect(screen.getByTestId('image-error')).toBeTruthy();
+    }, { timeout: 2000 });
+    
+    // Reset failure flag and click retry
+    shouldFailAll = false;
+    const retryButton = screen.getByTestId('image-retry-button');
+    
+    await act(async () => {
+      fireEvent.click(retryButton);
+    });
+    
+    // Should attempt to load again
+    await waitFor(() => {
+      expect(lastLoadedImageUrl).toContain('/api/visual-rag/normalized/333');
+    });
+    
+    // Should eventually succeed
+    await waitFor(() => {
+      expect(screen.queryByTestId('image-error')).toBeNull();
+    });
   });
 });

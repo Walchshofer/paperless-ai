@@ -8,6 +8,7 @@ const config = require('../config/config.js');
 const logger = require('../services/logger');
 const fs = require('fs').promises;
 const path = require('path');
+const { authenticate, authenticateApi, requireAdmin } = require('../middleware/auth');
 // Load runtime env persisted by setup (renamed to data/runtime.env)
 require('dotenv').config({ path: '../data/runtime.env' });
 
@@ -124,7 +125,7 @@ const normalizeArray = (value) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/settings', async (req, res) => {
+router.get('/settings', authenticate, requireAdmin, async (req, res) => {
   let showErrorCheckSettings = false;
   const isConfigured = await setupService.isConfigured();
   if(!isConfigured && process.env.PAPERLESS_AI_INITIAL_SETUP === 'yes') {
@@ -498,7 +499,7 @@ router.get('/settings', async (req, res) => {
  *                   type: string
  *                   example: "Failed to update settings: Database error"
  */
-router.post('/settings', express.json(), async (req, res) => {
+router.post('/settings', express.json(), authenticateApi, requireAdmin, async (req, res) => {
   try {
     const {
       paperlessUrl,
@@ -947,7 +948,7 @@ router.post('/settings', express.json(), async (req, res) => {
  *       200:
  *         description: Presets retrieved successfully
  */
-router.get('/settings/presets', async (req, res) => {
+router.get('/settings/presets', authenticateApi, requireAdmin, async (req, res) => {
   try {
     const presetsDir = path.join(__dirname, '..', 'config', 'presets');
     const files = await fs.readdir(presetsDir);
@@ -1004,7 +1005,7 @@ router.get('/settings/presets', async (req, res) => {
  *                 type: boolean
  *                 description: If true, return diff without applying
  */
-router.post('/settings/presets/:name', async (req, res) => {
+router.post('/settings/presets/:name', authenticateApi, requireAdmin, async (req, res) => {
   try {
     const { name } = req.params;
     const { preview = false } = req.body;
@@ -1104,7 +1105,7 @@ router.post('/settings/presets/:name', async (req, res) => {
  *             schema:
  *               type: string
  */
-router.get('/settings/export', async (req, res) => {
+router.get('/settings/export', authenticateApi, requireAdmin, async (req, res) => {
   try {
     const envPath = path.join(__dirname, '..', 'data', '.env');
     let envContent = '';
@@ -1231,7 +1232,7 @@ router.get('/settings/export', async (req, res) => {
  *       200:
  *         description: Import successful or preview generated
  */
-router.post('/settings/import', async (req, res) => {
+router.post('/settings/import', authenticateApi, requireAdmin, async (req, res) => {
   try {
     // Check if file was uploaded
     if (!req.files || !req.files.file) {

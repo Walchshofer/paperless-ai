@@ -91,7 +91,26 @@ The application uses the following tags for categorization:
   - `BearerAuth` - JWT-based authentication for web app users
   - `ApiKeyAuth` - API key authentication for programmatic access
 
-### 4.2 Security Requirement Format
+### 4.2 Role-Based Access Control
+
+The system implements hierarchical role-based access control:
+
+| Role | Level | Typical Routes |
+|------|-------|----------------|
+| `admin` | 100 | `/settings`, `/debug`, `/api/settings/*` |
+| `user` | 50 | `/workspace`, `/chat`, `/history`, `/manual` |
+| `viewer` | 10 | `/thumb/*`, read-only access |
+
+Document the required role in the endpoint description:
+
+```javascript
+ *     description: |
+ *       **Required Role:** admin
+ *       
+ *       Updates system configuration settings.
+```
+
+### 4.3 Security Requirement Format
 
 Security requirements should be specified in the standard format:
 ```javascript
@@ -100,7 +119,7 @@ Security requirements should be specified in the standard format:
  *       - ApiKeyAuth: []
 ```
 
-### 4.3 Security Notices
+### 4.4 Security Notices
 
 - For endpoints that modify security settings (like key regeneration), include explicit security notices
 - Format these as bold text in the description using Markdown: `**Security Notice**: Important information.`

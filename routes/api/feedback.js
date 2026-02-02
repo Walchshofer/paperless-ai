@@ -11,9 +11,11 @@
 
 const express = require('express');
 const router = express.Router();
+const { authenticateApi, requireAdmin } = require('../../middleware/auth');
+const logger = require('../../services/logger');
 
-// Public: ingest a feedback event (correction, annotation, verification)
-router.post('/events', async (req, res) => {
+// User feedback routes require authentication
+router.post('/events', authenticateApi, async (req, res) => {
     try {
         const { doc_id, user_id, event_type, field_name, original_value, corrected_value, context } = req.body;
         if (!doc_id || !event_type) return res.status(400).json({ success: false, error: 'doc_id and event_type are required' });
@@ -36,7 +38,7 @@ router.post('/events', async (req, res) => {
 });
 
 // Internal: get pending feedback events for Bias Engine
-router.get('/pending', async (req, res) => {
+router.get('/pending', authenticateApi, requireAdmin, async (req, res) => {
     try {
         // TODO: protect with service auth
         const rows = await require('../../services/documentModel').getPendingFeedback();
@@ -48,7 +50,7 @@ router.get('/pending', async (req, res) => {
 });
 
 // Internal: mark events processed
-router.post('/process', async (req, res) => {
+router.post('/process', authenticateApi, requireAdmin, async (req, res) => {
     try {
         // TODO: protect with service auth
         const { ids } = req.body;
@@ -61,7 +63,6 @@ router.post('/process', async (req, res) => {
     }
 });
 const feedbackService = require('../../services/feedback/FeedbackService');
-const logger = require('../../services/logger');
 
 /**
  * @swagger
@@ -114,7 +115,7 @@ const logger = require('../../services/logger');
  *       500:
  *         description: Internal server error
  */
-router.post('/', async (req, res) => {
+router.post('/', authenticateApi, async (req, res) => {
     try {
         const { documentId, pipelineId, rating, accuracyScore, corrections, comments, metadata } = req.body;
 
@@ -199,7 +200,7 @@ router.post('/', async (req, res) => {
  *                     topCorrectionFields:
  *                       type: object
  */
-router.get('/analytics', async (req, res) => {
+router.get('/analytics', authenticateApi, requireAdmin, async (req, res) => {
     try {
         const analytics = await feedbackService.getAnalytics();
 
@@ -226,7 +227,7 @@ router.get('/analytics', async (req, res) => {
  * Body: { documentId: number, fieldId: string, vote: 'up'|'down' }
  * Requires authenticated user (req.user.username)
  */
-router.post('/field-vote', async (req, res) => {
+router.post('/field-vote', authenticateApi, async (req, res) => {
     try {
         const { documentId, fieldId, vote } = req.body;
 

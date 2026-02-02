@@ -9,28 +9,32 @@ test.describe('Unified Workspace - Navigation & Interactions', () => {
     test('navigate to workspace from Dashboard sidebar', async ({ page }) => {
       await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
 
-      // Find and click the Workspace link in sidebar
-      const workspaceLink = page.locator('a[href="/workspace"]').first();
+      // Use specific testid for workspace link in sidebar-nav
+      const workspaceLink = page.locator('[data-testid="nav-workspace"]');
       await expect(workspaceLink).toBeVisible();
 
+      // Click workspace link
       await workspaceLink.click();
-      await page.waitForURL('**/workspace/**', { timeout: 10000 });
+      // Wait for workspace URL (matches /workspace or /workspace/doc/123)
+      await page.waitForURL('**/workspace*', { timeout: 10000 });
 
       // Verify we're on the document workspace
-      await expect(page.locator('[data-page="document-workspace"]')).toBeVisible();
+      await expect(page.locator('[data-page="document-workspace"]').first()).toBeVisible();
     });
 
     test('navigate to workspace from History sidebar', async ({ page }) => {
       await page.goto(`${BASE}/history`, { waitUntil: 'networkidle' });
 
-      // Find and click the Workspace link in sidebar
-      const workspaceLink = page.locator('a[href="/workspace"]').first();
+      // Use specific testid for workspace link in sidebar-nav
+      const workspaceLink = page.locator('[data-testid="nav-workspace"]');
       await expect(workspaceLink).toBeVisible();
 
+      // Click workspace link
       await workspaceLink.click();
-      await page.waitForURL('**/workspace/**', { timeout: 10000 });
+      // Wait for workspace URL (matches /workspace or /workspace/doc/123)
+      await page.waitForURL('**/workspace*', { timeout: 10000 });
 
-      await expect(page.locator('[data-page="document-workspace"]')).toBeVisible();
+      await expect(page.locator('[data-page="document-workspace"]').first()).toBeVisible();
     });
 
     test('navigate to workspace from History document row', async ({ page }) => {
@@ -39,17 +43,15 @@ test.describe('Unified Workspace - Navigation & Interactions', () => {
       // Wait for history to load - check for the history table or document links
       await page.waitForSelector('table, [data-testid="history-manager-island"], a[href^="/workspace/"]', { timeout: 10000 });
 
-      // Find a document link (View button) - could be /workspace/ or /document/
+      // Find a document link (View button) - required for this test
       const viewLink = page.locator('a[href^="/workspace/"]').first();
 
-      // Skip if no documents in history
-      if (await viewLink.count() === 0) {
-        test.skip();
-        return;
-      }
+      // History should have documents - global setup ensures fixture doc exists
+      await expect(viewLink).toBeVisible({ timeout: 10000 });
 
       await viewLink.click();
-      await page.waitForURL('**/workspace/**', { timeout: 10000 });
+      // Wait for workspace URL (matches /workspace/doc/123)
+      await page.waitForURL('**/workspace*', { timeout: 10000 });
 
       await expect(page.locator('[data-page="document-workspace"]')).toBeVisible();
     });

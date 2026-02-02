@@ -198,32 +198,33 @@ async function ensureStorageState() {
   const page = await context.newPage();
 
   try {
-    const response = await page.goto(`${BASE_URL}/manual`, {
-      waitUntil: 'domcontentloaded',
-      timeout: 15000
-    }).catch(() => null);
+    // Go directly to login page (consistent with working workspace-visual.spec.ts approach)
+    await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle', timeout: 15000 });
 
-    const loginFormPresent = response && (
-      response.url().includes('/login') ||
-      await page.locator('form[action="/login"]').count() > 0
-    );
-
-    if (loginFormPresent) {
-      await page.goto(`${BASE_URL}/login`, { waitUntil: 'load' });
-      await page.fill('#username', user);
-      await page.fill('#password', pass);
-      await Promise.all([
-        page.waitForURL((url) => !url.toString().includes('/login'), {
-          waitUntil: 'domcontentloaded',
-          timeout: 15000
-        }),
-        page.click('button[type="submit"]')
-      ]);
+    // Check if redirected to setup page
+    if (page.url().includes('/setup')) {
+      console.log('[e2e] Redirected to setup page - navigating back to login');
+      await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle' });
     }
+
+    // Wait for login form elements
+    await page.waitForSelector('#username', { timeout: 10000 });
+    
+    // Fill credentials
+    await page.fill('#username', user);
+    await page.fill('#password', pass);
+    
+    // Submit using the specific login button (matching workspace-visual.spec.ts)
+    await page.click('[data-testid="login-submit-btn"]');
+    
+    // Wait for redirect away from login
+    await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 15000 });
 
     if (page.url().includes('/login')) {
       throw new Error('Login failed: still on /login after submit');
     }
+    
+    console.log(`[e2e] Login successful, redirected to: ${page.url()}`);
 
     // Non-invasive test-only safeguard: if an initial setup form or modal is present and blocking the manual page,
     // attempt to close it gracefully (click close buttons / send Escape) before falling back to removal.
@@ -308,5 +309,57 @@ module.exports = async () => {
 
   await ensureStorageState();
   await ensureE2EFixtures();
+  await seedHistoryForE2E();
 };
+
+async function seedHistoryForE2E() {
+  if (truthy(process.env.E2E_SKIP_HISTORY_SEED)) {
+    console.warn('[e2e] Skipping history seed (E2E_SKIP_HISTORY_SEED).');
+    return;
+  }
+
+  try {
+    const fixtureFile = path.join(process.cwd(), 'test', '.auth', 'fixtures.json');
+    if (!fs.existsSync(fixtureFile)) {
+      console.warn('[e2e] Fixture file not found, skipping history seed');
+      return;
+    }
+
+    const fixture = JSON.parse(fs.readFileSync(fixtureFile, 'utf8'));
+    const docId = fixture.docId;
+    const title = fixture.title || `Test Document ${docId}`;
+    const correspondent = fixture.correspondentId ? String(fixture.correspondentId) : 'Not assigned';
+    const tagIds = Array.isArray(fixture.tagIds) ? fixture.tagIds : [];
+    const username = 'elfman'; // Default test user
+
+    // Seed history via an internal endpoint (requires authentication token)
+    // This creates a history record for the test document
+    try {
+      const resp = await fetch(`${BASE_URL}/api/test/seed-history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentId: docId,
+          title,
+          correspondent,
+          tagIds,
+          username
+        })
+      });
+
+      if (resp.ok) {
+        console.log(`[e2e] Seeded history document ${docId} for user ${username}`);
+      } else {
+        const text = await resp.text().catch(() => '');
+        console.warn(`[e2e] Seed endpoint returned ${resp.status}: ${text}`);
+      }
+    } catch (err) {
+      // If seed endpoint doesn't exist, that's okay - just log a warning
+      console.warn('[e2e] History seed endpoint not available (this is optional):', err.message || err);
+    }
+  } catch (err) {
+    console.warn('[e2e] Failed to seed history data (non-fatal):', err.message || err);
+    // Continue anyway - history seed is optional
+  }
+}
 

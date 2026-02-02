@@ -14,6 +14,7 @@ const { DocumentProcessor } = require('../services/integration/DocumentProcessor
 const { pdfRenderer } = require('../services/visual-rag-client/PDFRenderer');
 const path = require('path');
 const axios = require('axios');
+const { authenticateApi, requireAdmin, requireUser } = require('../middleware/auth');
 
 // Global task lock
 let runningTask = false;
@@ -70,7 +71,7 @@ let _usePrompt = false;
  *                   type: string
  *                   example: "Error resetting documents"
  */
-router.post('/api/reset-all-documents', async (req, res) => {
+router.post('/api/reset-all-documents', authenticateApi, requireAdmin, async (req, res) => {
   try {
     await documentModel.deleteAllDocuments();
     res.json({ success: true });
@@ -155,7 +156,7 @@ router.post('/api/reset-all-documents', async (req, res) => {
  *                   type: string
  *                   example: "Error resetting documents"
  */
-router.post('/api/reset-documents', async (req, res) => {
+router.post('/api/reset-documents', authenticateApi, requireAdmin, async (req, res) => {
   try {
     const { ids } = req.body;
     if (!ids || !Array.isArray(ids)) {
@@ -222,7 +223,7 @@ router.post('/api/reset-documents', async (req, res) => {
  *                   type: string
  *                   example: "Error during document scan"
  */
-router.post('/api/scan/now', async (req, res) => {
+router.post('/api/scan/now', authenticateApi, requireAdmin, async (req, res) => {
 try {
     const isConfigured = await setupService.isConfigured();
     if (!isConfigured) {
@@ -887,7 +888,7 @@ async function processQueue(customPrompt) {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/api/webhook/document', async (req, res) => {
+router.post('/api/webhook/document', authenticateApi, async (req, res) => {
   try {
     const { url, prompt } = req.body;
     if (!url) {
@@ -929,7 +930,7 @@ router.post('/api/webhook/document', async (req, res) => {
   }
 });
 
-router.post('/manual/analyze', express.json(), async (req, res) => {
+router.post('/manual/analyze', express.json(), authenticateApi, requireUser, async (req, res) => {
   try {
     const { content, id } = req.body;
     let existingCorrespondentList = await paperlessService.listCorrespondentsNames();
@@ -1020,7 +1021,7 @@ router.post('/manual/analyze', express.json(), async (req, res) => {
  *       500:
  *         description: Server error or PDF rendering failed
  */
-router.post('/manual/analyze-visual', express.json(), async (req, res) => {
+router.post('/manual/analyze-visual', express.json(), authenticateApi, requireUser, async (req, res) => {
   try {
     const { docId } = req.body;
 
@@ -1211,7 +1212,7 @@ router.post('/manual/analyze-visual', express.json(), async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/manual/playground', express.json(), async (req, res) => {
+router.post('/manual/playground', express.json(), authenticateApi, requireUser, async (req, res) => {
   try {
     const { content, prompt, documentId } = req.body;
 
@@ -1337,7 +1338,7 @@ router.post('/manual/playground', express.json(), async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/manual/updateDocument', express.json(), async (req, res) => {
+router.post('/manual/updateDocument', express.json(), authenticateApi, requireUser, async (req, res) => {
   const crypto = require('crypto');
   const feedbackService = require('../services/feedback/FeedbackService');
   const { normalizeManualUpdatePayload } = require('../services/manualUpdateNormalizer');

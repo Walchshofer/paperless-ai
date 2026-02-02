@@ -41,11 +41,14 @@ source-of-truth.
 4. **ARCHITECTURE_OVERVIEW.md**  
    High-level system architecture, service boundaries, and responsibilities.
 
-5. **VALIDATION_AND_RETRY_POLICY.md**  
+5. **AUTHENTICATION.md**  
+   JWT-based authentication, user roles (admin, user, viewer), and route protection.
+
+6. **VALIDATION_AND_RETRY_POLICY.md**  
    Validator output semantics, severity levels, retry behavior, and terminal
    outcomes.
 
-6. **SCHEMA_EVOLUTION_GUIDE.md**  
+7. **SCHEMA_EVOLUTION_GUIDE.md**  
    Rules for changing schemas (router output, validation output, overlays,
    pipeline results) safely and compatibly.
 
@@ -53,17 +56,17 @@ source-of-truth.
 
 ## 🧪 Operations & Quality
 
-7. **OBSERVABILITY_AND_TELEMETRY.md**  
+8. **OBSERVABILITY_AND_TELEMETRY.md**  
    Logging, telemetry events, debugging workflow, and production diagnostics.
 
-8. **PROMPT_CHANGE_GUIDE.md**  
+9. **PROMPT_CHANGE_GUIDE.md**  
    Governance rules for modifying PromptRegistry prompts.
 
 ---
 
 ## ⚙️ Configuration Reference
 
-9. **ENVIRONMENT_VARIABLES.md**  
+10. **ENVIRONMENT_VARIABLES.md**  
    Reference list of environment variables.
 
    ⚠️ Note: This file does **not** define behavior.  

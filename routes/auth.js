@@ -137,7 +137,9 @@ router.post('/login', async (req, res) => {
       const token = jwt.sign(
         {
           id: user.id,
-          username: user.username
+          username: user.username,
+          role: user.role || 'user',
+          is_superuser: user.role === 'admin',
         },
         JWT_SECRET,
         { expiresIn: '24h' }
@@ -150,6 +152,7 @@ router.post('/login', async (req, res) => {
         maxAge: 24 * 60 * 60 * 1000
       });
 
+      console.log(`[LOGIN SUCCESS] User ${username} logged in with role ${user.role || 'user'}`);
       return res.redirect('/dashboard');
     }else{
       return res.render('login', { vm: { page: 'login' }, error: 'Invalid credentials' });

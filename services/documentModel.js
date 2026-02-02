@@ -86,12 +86,21 @@ createOriginalDocuments.run();
 const userTable = db.prepare(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY,
-    username TEXT,
-    password TEXT,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    role TEXT DEFAULT 'user',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
 userTable.run();
+
+// Migration: Add role column if it doesn't exist (for existing databases)
+try {
+  db.prepare(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'`).run();
+  console.log('[MIGRATION] Added role column to users table');
+} catch (e) {
+  // Column already exists, ignore
+}
 
 // Feedback events table (user corrections and annotations)
 const createFeedbackEvents = db.prepare(`
@@ -149,8 +158,12 @@ const insertHistory = db.prepare(`
 `);
 
 const insertUser = db.prepare(`
-  INSERT INTO users (username, password)
-  VALUES (?, ?)
+  INSERT INTO users (username, password, role)
+  VALUES (?, ?, ?)
+`);
+
+const updateUserRole = db.prepare(`
+  UPDATE users SET role = ? WHERE username = ?
 `);
 
 // Add these prepared statements with your other ones at the top
@@ -508,21 +521,56 @@ module.exports = {
     }
   },
 
-  async addUser(username, password) {
+  /**
+   * Add a new user to the database
+   * @param {string} username - Username
+   * @param {string} password - Hashed password
+   * @param {string} [role='user'] - User role (admin, user, viewer)
+   * @param {boolean} [replaceExisting=true] - Whether to delete existing users first
+   * @returns {Promise<boolean>} Success status
+   */
+  async addUser(username, password, role = 'user', replaceExisting = true) {
     try {
-      // Lösche alle vorhandenen Benutzer
-      const deleteResult = db.prepare('DELETE FROM users').run();
-      console.log(`[DEBUG] ${deleteResult.changes} existing users deleted`);
+      if (replaceExisting) {
+        // Lösche alle vorhandenen Benutzer (legacy behavior for setup)
+        const deleteResult = db.prepare('DELETE FROM users').run();
+        console.log(`[DEBUG] ${deleteResult.changes} existing users deleted`);
+      }
   
       // Füge den neuen Benutzer hinzu
-      const result = insertUser.run(username, password);
+      const result = insertUser.run(username, password, role);
       if (result.changes > 0) {
-        console.log(`[DEBUG] User ${username} added`);
+        console.log(`[DEBUG] User ${username} added with role ${role}`);
         return true;
       }
       return false;
     } catch (error) {
+      // Handle unique constraint violation
+      if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        console.log(`[DEBUG] User ${username} already exists`);
+        return false;
+      }
       console.error('[ERROR] adding user:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Update a user's role
+   * @param {string} username - Username to update
+   * @param {string} role - New role (admin, user, viewer)
+   * @returns {Promise<boolean>} Success status
+   */
+  async updateUserRole(username, role) {
+    try {
+      const result = updateUserRole.run(role, username);
+      if (result.changes > 0) {
+        console.log(`[DEBUG] User ${username} role updated to ${role}`);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('[ERROR] updating user role:', error);
       return false;
     }
   },

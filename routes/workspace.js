@@ -3,27 +3,8 @@ const router = express.Router();
 const paperlessService = require('../services/paperlessService.js');
 const documentModel = require('../services/documentModel.js');
 const configFile = require('../config/config.js');
-const jwt = require('jsonwebtoken');
 const { UnifiedWorkspaceSchema } = require('../src/ui/contracts/UnifiedWorkspace.contract.js');
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-
-// Middleware to ensure user is authenticated
-const authenticate = async (req, res, next) => {
-  const token = req.cookies.jwt || req.headers.authorization?.split(' ')[1];
-  if (!token) {
-    try { console.error('[AUTH_REDIRECT] document.authenticate no token, redirecting to /login', { path: req.originalUrl, stack: new Error().stack.split('\n').slice(2,8).join('\n') }); } catch (e) {}
-    return res.redirect('/login');
-  }
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (err) {
-    res.clearCookie('jwt');
-    try { console.error('[AUTH_REDIRECT] document.authenticate verify failed, redirecting to /login', { path: req.originalUrl, err: err && err.message, stack: new Error().stack.split('\n').slice(2,8).join('\n') }); } catch (e) {}
-    return res.redirect('/login');
-  }
-};
+const { authenticate } = require('../middleware/auth');
 
 // All workspace routes require authentication
 router.use(authenticate);

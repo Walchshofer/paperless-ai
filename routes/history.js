@@ -1,30 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
 const paperlessService = require('../services/paperlessService.js');
 const documentModel = require('../services/documentModel.js');
 const configFile = require('../config/config.js');
 const {
   HistoryDocumentVmSchema,
 } = require('../src/ui/contracts/HistoryDocument.contract.js');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-
-// Middleware to ensure user is authenticated
-const authenticate = async (req, res, next) => {
-  const token = req.cookies.jwt || req.headers.authorization?.split(' ')[1];
-  if (!token) {
-    return res.redirect('/login');
-  }
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (err) {
-    res.clearCookie('jwt');
-    return res.redirect('/login');
-  }
-};
+const { authenticate } = require('../middleware/auth');
 
 // Apply authentication to all history routes
 router.use(authenticate);
@@ -720,6 +702,45 @@ router.post('/api/history/reanalyze/:id', async (req, res) => {
   } catch (error) {
     console.error('[ERROR] re-analysing document:', error);
     return res.status(500).json({ error: 'Failed to queue document' });
+  }
+});
+
+/**
+ * TEST-ONLY ENDPOINT: Seed history data for E2E tests
+ * This endpoint is available only for seeding test fixtures and should not be used in production.
+ * @private
+ */
+router.post('/api/test/seed-history', async (req, res) => {
+  // Only allow in test/development mode
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ error: 'Not available in production' });
+  }
+
+  try {
+    const { documentId, title, correspondent, tagIds, username } = req.body;
+
+    if (!documentId || !username) {
+      return res.status(400).json({ error: 'documentId and username are required' });
+    }
+
+    // Add document to history
+    await documentModel.addToHistory(
+      documentId,
+      tagIds || [],
+      title || `Document ${documentId}`,
+      correspondent || 'Not assigned',
+      username
+    );
+
+    res.json({
+      success: true,
+      message: `Seeded history for document ${documentId}`,
+      documentId,
+      username
+    });
+  } catch (error) {
+    console.error('[ERROR] seeding history:', error);
+    res.status(500).json({ error: 'Failed to seed history data' });
   }
 });
 

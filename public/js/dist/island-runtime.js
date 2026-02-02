@@ -7584,7 +7584,7 @@ function OverlayViewerIsland(props) {
       setIsDrawMode(false);
     }
   }, [panMode]);
-  const imageUrl = docId ? originalUrl ? `${originalUrl}${originalUrl.includes("?") ? "&" : "?"}page=${page}` : `/documents/${docId}/download/original/?page=${page}` : null;
+  const imageUrl = docId ? originalUrl ? `${originalUrl}${originalUrl.includes("?") ? "&" : "?"}page=${page}` : `/api/visual-rag/normalized/${docId}?page=${page}` : null;
   y2(() => {
     if (!imageUrl) return;
     setImageLoaded(false);
@@ -18621,12 +18621,13 @@ function UnifiedWorkspaceIsland(props) {
 
 // src/islands/DashboardChartsIsland.tsx
 var useDashboardMetrics = (initialData) => {
-  const [metrics, setMetrics] = d2(initialData);
+  const [metrics, setMetrics] = d2(initialData ?? null);
   const [loading, setLoading] = d2(false);
   const [error, setError] = d2(null);
   y2(() => {
-    if (!metrics && window.dashboardData) {
-      setMetrics(window.dashboardData);
+    const win = window;
+    if (!metrics && win.dashboardData) {
+      setMetrics(win.dashboardData);
     }
     const fetchMetrics = async () => {
       try {
@@ -19141,7 +19142,7 @@ function DocumentContextBarIsland(props) {
             ]
           }
         ),
-        isDropdownOpen && /* @__PURE__ */ u3("div", { className: "absolute top-full left-0 mt-2 w-[320px] bg-white border border-[#e5e0d8] rounded-xl shadow-xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200", "data-testid": "document-selector-dropdown", role: "listbox", "aria-label": "Select document", children: [
+        isDropdownOpen && /* @__PURE__ */ u3("div", { className: "absolute top-full left-0 mt-2 w-[320px] bg-white border border-[#e5e0d8] rounded-xl shadow-xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200", "data-testid": "document-selector-dropdown", children: [
           /* @__PURE__ */ u3("div", { className: "p-3 border-b border-[#f5f0e8] bg-[#fdfaf6]", children: /* @__PURE__ */ u3("div", { className: "relative", children: [
             /* @__PURE__ */ u3("i", { class: "fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa] text-xs" }),
             /* @__PURE__ */ u3(
@@ -19153,11 +19154,12 @@ function DocumentContextBarIsland(props) {
                 value: searchTerm,
                 onInput: (e3) => setSearchOpen(e3.target.value),
                 autoFocus: true,
-                "data-testid": "document-search-input"
+                "data-testid": "document-search-input",
+                "aria-label": "Search documents"
               }
             )
           ] }) }),
-          /* @__PURE__ */ u3("div", { className: "max-h-[400px] overflow-y-auto p-1", children: filteredDocuments.length > 0 ? filteredDocuments.map((doc) => /* @__PURE__ */ u3(
+          /* @__PURE__ */ u3("div", { className: "max-h-[400px] overflow-y-auto p-1", role: "listbox", "aria-label": "Select document", children: filteredDocuments.length > 0 ? filteredDocuments.map((doc) => /* @__PURE__ */ u3(
             "button",
             {
               onClick: () => handleNavigate(doc.id),

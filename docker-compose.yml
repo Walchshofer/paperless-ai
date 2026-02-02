@@ -104,6 +104,8 @@ services:
       - TRUST_PROXY=${TRUST_PROXY:-true}
       - METRICS_INTERNAL_ONLY=${METRICS_INTERNAL_ONLY:-true}
       - METRICS_ALLOWED_CIDRS=127.0.0.1,::1,172.19.0.0/16,172.18.0.0/16,10.0.0.0/8 # Explicit local dev value
+    volumes:
+      - ../paperless-ngx/data/paperless-ai:/app/data
     networks:
       - monitoring
       - default

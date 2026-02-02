@@ -3,6 +3,7 @@ const router = express.Router();
 const paperlessService = require('../services/paperlessService.js');
 const ChatService = require('../services/chatService.js');
 const configFile = require('../config/config.js');
+const { authenticate, authenticateApi } = require('../middleware/auth');
 
 /**
  * @swagger
@@ -50,7 +51,7 @@ const configFile = require('../config/config.js');
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/chat', async (req, res) => {
+router.get('/chat', authenticate, async (req, res) => {
   try {
       const {open} = req.query;
       // Use unfiltered documents for UI dropdown - tag filtering is only for automatic processing
@@ -177,7 +178,7 @@ router.get('/chat', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/chat/init', async (req, res) => {
+router.get('/chat/init', authenticateApi, async (req, res) => {
   const documentId = req.query.documentId;
   const model = req.query.model ? String(req.query.model).trim() : null;
 
@@ -280,7 +281,7 @@ router.get('/chat/init', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/chat/message', async (req, res) => {
+router.post('/chat/message', authenticateApi, async (req, res) => {
   try {
     const { documentId, message, model, context } = req.body;
     if (!documentId || !message) {
@@ -380,7 +381,7 @@ router.post('/chat/message', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/chat/init/:documentId', async (req, res) => {
+router.get('/chat/init/:documentId', authenticateApi, async (req, res) => {
   try {
       const { documentId } = req.params;
       if (!documentId) {

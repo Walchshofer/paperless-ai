@@ -385,9 +385,15 @@ body {
 
 .tag-chip {
     --tag-color: #3b82f6;
-    background-color: color-mix(in srgb, var(--tag-color) 12.5%, transparent) !important;
-    color: var(--tag-color) !important;
-    border: 1px solid color-mix(in srgb, var(--tag-color) 25%, transparent);
+    /* Fallback for browsers without color-mix support */
+    background-color: rgba(59, 130, 246, 0.125);
+    color: var(--tag-color);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    /* Modern browsers with color-mix support */
+    @supports (background-color: color-mix(in srgb, red 50%, blue)) {
+        background-color: color-mix(in srgb, var(--tag-color) 12.5%, transparent);
+        border-color: color-mix(in srgb, var(--tag-color) 25%, transparent);
+    }
 }
 
 .progress-bar-fill {
@@ -488,6 +494,7 @@ body {
     right: 0;
     bottom: 0;
     background-color: rgba(0, 0, 0, 0.5);
+    -webkit-backdrop-filter: blur(4px);
     backdrop-filter: blur(4px);
 }
 
@@ -736,14 +743,12 @@ body {
         padding: 4rem 1rem 1rem 1rem;
         height: 100vh;
         overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
     }
 
     .sidebar {
         position: fixed;
         height: 100%;
         overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
     }
 
     .layout-container {
