@@ -646,6 +646,7 @@ const ragRoutes = require('./routes/rag');
 const feedbackRoutes = require('./routes/api/feedback');
 const settingsApiRoutes = require('./routes/api/settings');
 const documentsApiRoutes = require('./routes/api/documents');
+const visualOverlaysRoutes = require('./routes/api/visual-overlays');
 
 // Mount Feedback routes (always enabled - user feedback collection)
 app.use('/api/feedback', feedbackRoutes);
@@ -655,6 +656,9 @@ app.use('/api/settings', settingsApiRoutes);
 
 // Mount Documents API routes (reprocess endpoint for Expert Pipeline)
 app.use('/api/documents', documentsApiRoutes);
+
+// Mount Visual Overlays API routes (for Visual Tab island)
+app.use('/api/visual-overlays', visualOverlaysRoutes);
 
 // Note: Visual RAG routes are mounted early (after body parser) at line ~109
 // to ensure they're accessible before auth middleware runs

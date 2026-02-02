@@ -127,7 +127,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
 
       // Update local fields with AI-extracted data
       if (Array.isArray(newFields) && newFields.length > 0) {
-        const updatedFields = newFields.map((f: SmartField) => ({
+        const updatedFields = newFields.map((f: SmartField & { confidence?: number }) => ({
           ...f,
           isAiGenerated: true,
           confidence: f.confidence || 0.5

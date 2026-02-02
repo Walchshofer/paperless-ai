@@ -137,6 +137,7 @@ router.get('/doc/:id', async (req, res) => {
 
     // 7. Visual RAG Data
     let visualFields = [];
+    let formattedOverlays = [];
     let overlayCount = 0;
     if (visualOverlayRepository) {
       try {
@@ -152,6 +153,33 @@ router.get('/doc/:id', async (req, res) => {
             paperlessMapping: data.paperlessMapping || null,
             isMandatory: data.isMandatory || false,
             pageNumber: o.pageNumber || 1
+          };
+        });
+        // Format overlays for Visual Tab (with bbox)
+        formattedOverlays = overlays.map(o => {
+          const data = o.overlayData || {};
+          // Normalize bounding box format
+          let bbox = { x: 0, y: 0, width: 0, height: 0 };
+          if (data.boundingBox) {
+            bbox = data.boundingBox;
+          } else if (data.bbox) {
+            bbox = data.bbox;
+          } else if (data.box && Array.isArray(data.box)) {
+            // Legacy format: [ymin, xmin, ymax, xmax] in 0-1000 scale
+            const [ymin, xmin, ymax, xmax] = data.box;
+            bbox = {
+              x: xmin / 1000,
+              y: ymin / 1000,
+              width: (xmax - xmin) / 1000,
+              height: (ymax - ymin) / 1000
+            };
+          }
+          return {
+            id: String(o.id),
+            label: data.label || o.semanticLabel || 'Unknown',
+            pageNumber: o.pageNumber || data.pageNumber || 1,
+            confidence: data.confidence || o.confidence || 0.5,
+            bbox
           };
         });
       } catch (e) {
@@ -196,6 +224,7 @@ router.get('/doc/:id', async (req, res) => {
       },
       visual: {
         fields: visualFields,
+        overlays: formattedOverlays,
         overlayCount: overlayCount,
       },
       ui: {

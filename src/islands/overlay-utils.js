@@ -58,8 +58,5 @@ function clampTranslate(tx, ty, s, containerW, containerH, imageNatW, imageNatH,
   return { x: cx, y: cy, contentW, contentH };
 }
 
-// CommonJS exports (for Node/tests)
-module.exports = { computeUnscaledFromRaw, clampTranslate };
-
-// ESM exports (for Vite bundler)
+// ESM exports (for Vite bundler and modern imports)
 export { computeUnscaledFromRaw, clampTranslate };

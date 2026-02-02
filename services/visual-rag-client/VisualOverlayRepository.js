@@ -552,6 +552,33 @@ class VisualOverlayRepository {
         }
     }
 
+    /**
+     * Delete a single overlay by ID
+     * @param {number} overlayId - Overlay ID
+     * @returns {Promise<boolean>} True if overlay was deleted
+     */
+    async deleteById(overlayId) {
+        if (!this.pool) {
+            throw new Error('PostgreSQL not available');
+        }
+
+        const query = 'DELETE FROM visual_overlays WHERE id = $1';
+
+        try {
+            const result = await this.pool.query(query, [overlayId]);
+
+            logger.debug({
+                event: 'overlay_deleted_by_id',
+                overlayId,
+                deleted: result.rowCount > 0
+            });
+
+            return result.rowCount > 0;
+        } catch (deleteError) {
+            throw this._wrapError('Failed to delete overlay by id', deleteError);
+        }
+    }
+
     // =========================================================================
     // Read Operations
     // =========================================================================

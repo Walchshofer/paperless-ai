@@ -206,6 +206,10 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const [splitPos, setSplitPos] = useState(60); // Percentage width of document viewer
   const [isResizing, setIsResizing] = useState(false);
   const [highlightedRegion, setHighlightedRegion] = useState(null as BoundingBox | null);
+
+  // Draw context for Visual Tab integration (label-field or visual-search)
+  const [drawContext, setDrawContext] = useState(null as { fieldId?: string; purpose?: string } | null);
+  const drawContextRef = useRef(null as { fieldId?: string; purpose?: string } | null);
   
   const MIN_SCALE = 0.5;
   const MAX_SCALE = 3;
@@ -291,6 +295,45 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     window.addEventListener('overlay:highlight-region', handler as EventListener);
     return () => window.removeEventListener('overlay:highlight-region', handler as EventListener);
   }, [page, applyScale, applyTranslate]);
+
+  // Listen for draw mode activation from Visual Tab
+  useEffect(() => {
+    const handleActivateDrawMode = (e: Event) => {
+      const detail = (e as CustomEvent<{ fieldId?: string; purpose?: string }>)?.detail || {};
+      const { fieldId, purpose } = detail;
+
+      // Store context for when draw completes
+      const ctx = { fieldId, purpose };
+      setDrawContext(ctx);
+      drawContextRef.current = ctx;
+
+      // Activate draw mode
+      drawModeRef.current = true;
+      setIsDrawMode(true);
+
+      // Disable pan mode if active
+      setPanMode(false);
+    };
+
+    const handleCancelDraw = () => {
+      // Clear draw context and deactivate draw mode
+      setDrawContext(null);
+      drawContextRef.current = null;
+      drawModeRef.current = false;
+      setIsDrawMode(false);
+      isDrawingRef.current = false;
+      currentBoxRef.current = null;
+      setIsDrawing(false);
+      setCurrentBox(null);
+    };
+
+    window.addEventListener('overlay:activate-draw-mode', handleActivateDrawMode as EventListener);
+    window.addEventListener('overlay:draw-cancelled', handleCancelDraw);
+    return () => {
+      window.removeEventListener('overlay:activate-draw-mode', handleActivateDrawMode as EventListener);
+      window.removeEventListener('overlay:draw-cancelled', handleCancelDraw);
+    };
+  }, []);
 
   const resetView = useCallback(() => {
     applyScale(1);
@@ -672,6 +715,9 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         }
         const dataUrl = canvas.toDataURL('image/png');
         const base64 = dataUrl.split(',')[1];
+
+        // Include draw context from Visual Tab (fieldId, purpose)
+        const context = drawContextRef.current || {};
         
         const event = new CustomEvent(eventName, {
           detail: {
@@ -684,7 +730,10 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
               y: box.y / container.clientHeight,
               width: box.width / container.clientWidth,
               height: box.height / container.clientHeight
-            }
+            },
+            // Include draw context for Visual Tab integration
+            fieldId: context.fieldId,
+            purpose: context.purpose
           }
         });
         if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
@@ -692,6 +741,12 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         }
         if (eventName === 'visual-search-requested' && onRegionSelected) {
           onRegionSelected(base64, box);
+        }
+
+        // Clear draw context after dispatching
+        if (eventName === 'overlay:draw-complete') {
+          setDrawContext(null);
+          drawContextRef.current = null;
         }
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err);

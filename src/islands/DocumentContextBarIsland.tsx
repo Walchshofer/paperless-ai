@@ -189,10 +189,10 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
   const [isReprocessing, setIsReprocessing] = useState(false);
 
   // Notification state for reprocess feedback
-  const [notification, setNotification] = useState<{
+  const [notification, setNotification] = useState(null as {
     type: 'success' | 'error';
     message: string;
-  } | null>(null);
+  } | null);
 
   // Listen for reprocess completion/failure events to show notifications
   useEffect(() => {

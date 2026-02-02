@@ -3,8 +3,9 @@ import { useEffect, useState, useRef } from 'preact/hooks';
 import SmartMetadataIsland from './SmartMetadataIsland';
 import DocumentContentIsland from './DocumentContentIsland';
 import ChatWorkspaceIsland from './ChatWorkspaceIsland';
+import VisualTabIsland from './VisualTabIsland';
 
-type TabKey = 'metadata' | 'content' | 'chat' | 'debug';
+type TabKey = 'metadata' | 'content' | 'chat' | 'visual' | 'debug';
 
 const STORAGE_KEY = 'paperless:context-sidebar.activeTab';
 
@@ -35,7 +36,21 @@ interface DocumentInfo {
 }
 
 interface VisualInfo {
-  fields?: SmartFieldLike[];
+  fields?: Array<{
+    id: string;
+    label: string;
+    isMapped?: boolean;
+    overlayId?: string;
+    pageNumber?: number;
+    confidence?: number;
+  }>;
+  overlays?: Array<{
+    id: string;
+    label: string;
+    pageNumber: number;
+    confidence: number;
+    bbox: { x: number; y: number; width: number; height: number };
+  }>;
 }
 
 interface ChatInfo {
@@ -109,6 +124,7 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
     { key: 'metadata', label: 'Metadata', icon: 'fa-list', testid: 'tab-metadata' },
     { key: 'content', label: 'Content', icon: 'fa-file-text', testid: 'tab-content' },
     { key: 'chat', label: 'Chat', icon: 'fa-comments', testid: 'tab-chat' },
+    { key: 'visual', label: 'Visual', icon: 'fa-eye', testid: 'tab-visual' },
   ];
 
   if (isAdmin) {
@@ -168,6 +184,16 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
         {activeTab === 'chat' && (
           <div role="tabpanel" id="panel-chat" aria-labelledby="tab-chat" data-testid="tab-panel-chat">
             <ChatWorkspaceIsland documents={props.availableDocuments || []} openDocumentId={props.document?.id} {...props.chat} />
+          </div>
+        )}
+
+        {activeTab === 'visual' && (
+          <div role="tabpanel" id="panel-visual" aria-labelledby="tab-visual" data-testid="tab-panel-visual">
+            <VisualTabIsland
+              documentId={props.document?.id}
+              fields={props.visual?.fields}
+              overlays={props.visual?.overlays}
+            />
           </div>
         )}
 
