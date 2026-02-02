@@ -281,28 +281,9 @@ router.get('/manual/preview/:id', authenticateApi, async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/manual', authenticate, async (req, res) => {
-  const { open, page } = req.query;
-  const version = configFile.PAPERLESS_AI_VERSION || ' ';
-  const vm = {
-    version,
-    config: {
-      disableGithubFetch: process.env.DISABLE_GITHUB_FETCH || 'no',
-    },
-    manual: {
-      documentId: open ? Number(open) : null,
-      page: page ? Number(page) : 1,
-      metadata: {},
-      content: '',
-      fields: [],
-      originalUrl: null,
-      pageCount: null,
-      tags: [],
-    },
-  };
+// DELETED in Phase C: UI route '/manual' removed. Manual review functionality now lives in the Unified Document Workspace.
+// Legacy deprecation & redirect behavior is performed by `middleware/legacy-redirect.js` when running in Phase C.
 
-  res.render('manual', { vm });
-});
 
 /**
  * @swagger

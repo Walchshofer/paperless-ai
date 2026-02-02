@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import type { ChatWorkspaceContract } from '../ui/contracts/ChatWorkspace.contract';
 import OverlayViewerIsland from './OverlayViewerIsland';
 
+type ChatMode = 'rag' | 'visual-rag' | 'document';
 type ChatMessageRole = 'user' | 'assistant' | 'system' | 'status';
 
 type ChatMessage = {
@@ -11,6 +12,16 @@ type ChatMessage = {
   content: string;
   meta?: Record<string, unknown>;
   images?: string[];
+  sources?: Array<{
+    documentId: number;
+    title?: string;
+    page?: number;
+    confidence?: number;
+    visualScore?: number;
+    textScore?: number;
+  }>;
+  isError?: boolean;
+  searchMode?: 'rag' | 'hybrid' | 'text-fallback';
 };
 
 type ChatDoc = {
@@ -98,6 +109,12 @@ export default function ChatWorkspaceIsland(
   );
   const [isModelLoading, setIsModelLoading] = useState(false);
   const [modelLoadError, setModelLoadError] = useState(null as string | null);
+
+  // Three Chat Mode state
+  const [chatMode, setChatMode] = useState('rag' as ChatMode);
+  const [isDocumentLoaded, setIsDocumentLoaded] = useState(Boolean(props.openDocumentId));
+  const [visualRagAvailable, setVisualRagAvailable] = useState(false);
+  const [visualRagStatus, setVisualRagStatus] = useState('checking' as 'checking' | 'available' | 'unavailable' | 'initializing');
 
   const [guidedStep, setGuidedStep] = useState('Select a document to begin.');
   const [statusMessage, setStatusMessage] = useState(null as string | null);
@@ -198,6 +215,68 @@ export default function ChatWorkspaceIsland(
       setSelectedDocumentId(props.openDocumentId);
     }
   }, [props.openDocumentId]);
+
+  // Update isDocumentLoaded when document selection changes
+  useEffect(() => {
+    const hasDoc = Boolean(selectedDocumentId);
+    setIsDocumentLoaded(hasDoc);
+    
+    // If document unloaded, switch to RAG mode
+    if (!hasDoc && chatMode === 'document') {
+      setChatMode('rag');
+    }
+  }, [selectedDocumentId, chatMode]);
+
+  // Check Visual RAG sidecar availability
+  useEffect(() => {
+    const checkVisualRag = async () => {
+      try {
+        setVisualRagStatus('checking');
+        const response = await fetch('/api/visual-rag/health');
+        
+        if (response.ok) {
+          const data = await response.json();
+          // Check if the sidecar is ready (model loaded)
+          if (data.status === 'ok' || data.model_loaded) {
+            setVisualRagAvailable(true);
+            setVisualRagStatus('available');
+          } else if (data.initializing || data.status === 'initializing') {
+            setVisualRagAvailable(false);
+            setVisualRagStatus('initializing');
+          } else {
+            setVisualRagAvailable(false);
+            setVisualRagStatus('unavailable');
+          }
+        } else if (response.status === 503) {
+          // Sidecar is initializing (GPU warmup)
+          setVisualRagAvailable(false);
+          setVisualRagStatus('initializing');
+        } else {
+          setVisualRagAvailable(false);
+          setVisualRagStatus('unavailable');
+        }
+      } catch (error) {
+        console.warn('[Chat] Visual-RAG sidecar unavailable:', error);
+        setVisualRagAvailable(false);
+        setVisualRagStatus('unavailable');
+      }
+    };
+
+    // Initial check
+    checkVisualRag();
+
+    // Re-check every 30 seconds
+    const interval = setInterval(checkVisualRag, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // If Visual RAG becomes unavailable while in visual-rag mode, fall back to rag mode
+  useEffect(() => {
+    if (chatMode === 'visual-rag' && !visualRagAvailable && visualRagStatus !== 'checking') {
+      setChatMode('rag');
+    }
+  }, [visualRagAvailable, visualRagStatus, chatMode]);
 
   // Prefer server-provided modelConfig when available; otherwise fall back to Ollama-only discovery
   useEffect(() => {
@@ -452,7 +531,10 @@ export default function ChatWorkspaceIsland(
   }, [selectedDocumentId]);
 
   const sendMessage = useCallback(async () => {
-    if (!messageInput.trim() || !selectedDocumentId) return;
+    // In RAG/Visual-RAG mode, we don't need a document; in Document mode, we do
+    if (!messageInput.trim()) return;
+    if (chatMode === 'document' && !selectedDocumentId) return;
+    if (!selectedModel) return;
 
     const userMessage = messageInput.trim();
     setMessageInput('');
@@ -479,26 +561,70 @@ export default function ChatWorkspaceIsland(
     setIsStreaming(true);
 
     try {
-      const response = await fetch('/chat/message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      // Determine endpoint based on mode
+      const endpoint = chatMode === 'rag'
+        ? '/api/chat/rag'
+        : chatMode === 'visual-rag'
+        ? '/api/chat/visual-rag'
+        : '/chat/message';
+      
+      // Build request payload based on mode
+      let payload;
+      if (chatMode === 'rag' || chatMode === 'visual-rag') {
+        payload = {
+          message: userMessage,
+          model: selectedModel,
+          history: chatMessages.slice(-10).map((m: ChatMessage) => ({ role: m.role, content: m.content }))
+        };
+      } else {
+        // Document mode
+        payload = {
           documentId: selectedDocumentId,
           message: userMessage,
           model: selectedModel,
           context: chatContext.length > 0 ? chatContext.map((c: ChatContextItem) => ({
-             type: c.type,
-             page: c.data?.page,
-             excerpt: c.data?.text,
-             imageBase64: c.data?.imageBase64
+            type: c.type,
+            page: c.data?.page,
+            excerpt: c.data?.text,
+            imageBase64: c.data?.imageBase64
           })) : undefined
-        })
+        };
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
       
       if (chatContext.length > 0) setChatContext([]); // Clear context after sending
 
-      if (!response.ok || !response.body) {
-        throw new Error('Failed to send message');
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`Chat request failed: ${response.status} - ${errorText}`);
+      }
+
+      // Handle RAG and Visual-RAG modes (non-streaming JSON response)
+      if (chatMode === 'rag' || chatMode === 'visual-rag') {
+        const data = await response.json();
+        setChatMessages((prev: ChatMessage[]) =>
+          prev.map((msg: ChatMessage) =>
+            msg.id === assistantEntryId
+              ? { 
+                  ...msg, 
+                  content: data.response || data.answer || 'No response received',
+                  sources: data.sources || [],
+                  searchMode: data.mode // 'hybrid' or 'text-fallback'
+                }
+              : msg
+          )
+        );
+        return;
+      }
+
+      // Handle Document mode (streaming SSE response)
+      if (!response.body) {
+        throw new Error('No response body for streaming');
       }
 
       const reader = response.body.getReader();
@@ -550,7 +676,7 @@ export default function ChatWorkspaceIsland(
     } finally {
       setIsStreaming(false);
     }
-  }, [messageInput, selectedDocumentId, selectedModel]);
+  }, [messageInput, selectedDocumentId, selectedModel, chatMode, chatContext, chatMessages]);;
 
   const tabs = useMemo(() => (
     [
@@ -700,13 +826,287 @@ export default function ChatWorkspaceIsland(
 
         {activeTab === 'chat' && (
           <div className="sg-tab-panel">
-            {!selectedDocumentId && (
-              <div className="sg-empty" data-testid="chat-empty-state">
-                Select a document to start a conversation.
+            {/* Chat Mode Toggle */}
+            <div className="mb-4 flex flex-wrap items-center gap-3 p-3 bg-[#f5f0e8] rounded-lg border border-[#e5e0d8]" data-testid="chat-mode-toggle">
+              <span className="text-sm font-medium text-[#555]">Chat Mode:</span>
+              
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setChatMode('rag')}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                    chatMode === 'rag'
+                      ? 'bg-[#b87333] text-white'
+                      : 'bg-white text-[#555] border border-[#e5e0d8] hover:bg-[#fdfaf6]'
+                  }`}
+                  data-testid="chat-mode-rag"
+                  title="Text-only semantic search across all documents"
+                >
+                  📝 Text Search
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setChatMode('visual-rag')}
+                  disabled={!visualRagAvailable && visualRagStatus !== 'initializing'}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                    chatMode === 'visual-rag'
+                      ? 'bg-[#b87333] text-white'
+                      : 'bg-white text-[#555] border border-[#e5e0d8] hover:bg-[#fdfaf6]'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  data-testid="chat-mode-visual-rag"
+                  title={
+                    visualRagStatus === 'initializing'
+                      ? 'Visual-RAG sidecar initializing (GPU warmup)'
+                      : !visualRagAvailable
+                      ? 'Visual-RAG sidecar unavailable'
+                      : 'Hybrid text + visual search (tables, charts, images)'
+                  }
+                >
+                  🎨 Visual Search
+                  {visualRagStatus === 'initializing' && (
+                    <span className="ml-1 animate-pulse">⏳</span>
+                  )}
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setChatMode('document')}
+                  disabled={!isDocumentLoaded}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                    chatMode === 'document'
+                      ? 'bg-[#b87333] text-white'
+                      : 'bg-white text-[#555] border border-[#e5e0d8] hover:bg-[#fdfaf6]'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  data-testid="chat-mode-document"
+                  title={!isDocumentLoaded ? 'Load a document to use Document Chat' : 'Chat about the selected document'}
+                >
+                  📄 Document Chat
+                </button>
+              </div>
+              
+              {chatMode === 'document' && isDocumentLoaded && (
+                <span className="ml-auto text-xs text-[#888]" data-testid="chat-mode-doc-indicator">
+                  Chatting about: <strong>{selectedDocumentTitle || `Doc #${selectedDocumentId}`}</strong>
+                </span>
+              )}
+              
+              {chatMode === 'rag' && (
+                <span className="ml-auto text-xs text-[#888]" data-testid="chat-mode-rag-indicator">
+                  Searching documents by text content
+                </span>
+              )}
+
+              {chatMode === 'visual-rag' && (
+                <span className="ml-auto text-xs text-[#888]" data-testid="chat-mode-visual-indicator">
+                  {visualRagStatus === 'initializing' ? (
+                    <span className="text-orange-600">⏳ GPU warming up (~30s)...</span>
+                  ) : !visualRagAvailable ? (
+                    <span className="text-orange-600">⚠️ Visual-RAG unavailable - using text fallback</span>
+                  ) : (
+                    'Searching by visual content (tables, charts, images)'
+                  )}
+                </span>
+              )}
+            </div>
+
+            {/* RAG mode: always available */}
+            {chatMode === 'rag' && (
+              <div className="sg-chat-panel">
+                <div
+                  ref={chatHistoryRef}
+                  className="sg-chat-history"
+                  data-testid="chat-history"
+                >
+                  {chatMessages.length === 0 && (
+                    <div className="sg-empty" data-testid="chat-rag-empty">
+                      Ask a question to search across all your documents.
+                    </div>
+                  )}
+                  {chatMessages.map((msg: ChatMessage) => (
+                    <div
+                      key={msg.id}
+                      className={`sg-message sg-message--${msg.role} ${msg.isError ? 'sg-message--error' : ''}`}
+                      data-testid={`chat-message-${msg.role}`}
+                      ref={(el: HTMLDivElement | null) => {
+                        if (msg.role === 'assistant' && el) {
+                          highlightBlocks(el);
+                        }
+                      }}
+                    >
+                      <div dangerouslySetInnerHTML={{ __html: safeMarkdown(msg.content) }} />
+                      
+                      {/* Show sources for RAG responses */}
+                      {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-[#e5e0d8]" data-testid="chat-sources">
+                          <div className="text-xs font-medium text-[#888] mb-2">Sources:</div>
+                          <div className="space-y-1">
+                            {msg.sources.map((source, sidx) => (
+                              <a
+                                key={sidx}
+                                href={`/workspace/doc/${source.documentId}`}
+                                className="block text-xs text-[#b87333] hover:underline"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                data-testid={`chat-source-${sidx}`}
+                              >
+                                📄 {source.title || `Document #${source.documentId}`}
+                                {source.page ? ` (Page ${source.page})` : ''}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {streamError && (
+                    <div className="sg-message sg-message--error" data-testid="chat-error">
+                      {streamError}
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+
+                <div className="sg-chat-input">
+                  <textarea
+                    data-testid="chat-input"
+                    className="sg-textarea"
+                    placeholder='Ask questions across all documents... (e.g., "Find invoices over $1000")'
+                    value={messageInput}
+                    onInput={(e: Event) => setMessageInput((e.target as HTMLTextAreaElement).value)}
+                    onKeyDown={(e: KeyboardEvent) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (!isStreaming) void sendMessage();
+                      }
+                    }}
+                    rows={2}
+                  />
+                  <button
+                    data-testid="chat-send-button"
+                    type="button"
+                    className="sg-primary"
+                    disabled={!messageInput.trim() || isStreaming || !selectedModel}
+                    onClick={() => void sendMessage()}
+                  >
+                    {isStreaming ? 'Searching...' : 'Search'}
+                  </button>
+                </div>
               </div>
             )}
 
-            {selectedDocumentId && (
+            {/* Visual RAG mode: hybrid text + visual search */}
+            {chatMode === 'visual-rag' && (
+              <div className="sg-chat-panel">
+                <div
+                  ref={chatHistoryRef}
+                  className="sg-chat-history"
+                  data-testid="chat-history-visual"
+                >
+                  {chatMessages.length === 0 && (
+                    <div className="sg-empty" data-testid="chat-visual-empty">
+                      Search for visual content like tables, charts, and images across your documents.
+                    </div>
+                  )}
+                  {chatMessages.map((msg: ChatMessage) => (
+                    <div
+                      key={msg.id}
+                      className={`sg-message sg-message--${msg.role} ${msg.isError ? 'sg-message--error' : ''}`}
+                      data-testid={`chat-message-${msg.role}`}
+                      ref={(el: HTMLDivElement | null) => {
+                        if (msg.role === 'assistant' && el) {
+                          highlightBlocks(el);
+                        }
+                      }}
+                    >
+                      <div dangerouslySetInnerHTML={{ __html: safeMarkdown(msg.content) }} />
+                      
+                      {/* Show search mode indicator */}
+                      {msg.role === 'assistant' && msg.searchMode && (
+                        <div className="mt-2 text-xs text-[#888]">
+                          {msg.searchMode === 'hybrid' ? '🎨 Hybrid search' : '📝 Text fallback'}
+                        </div>
+                      )}
+                      
+                      {/* Show sources for Visual RAG responses */}
+                      {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-[#e5e0d8]" data-testid="chat-sources-visual">
+                          <div className="text-xs font-medium text-[#888] mb-2">Sources:</div>
+                          <div className="space-y-2">
+                            {msg.sources.map((source, sidx) => (
+                              <div key={sidx} className="flex items-center gap-2">
+                                <a
+                                  href={`/workspace/doc/${source.documentId}`}
+                                  className="text-xs text-[#b87333] hover:underline"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  data-testid={`chat-source-visual-${sidx}`}
+                                >
+                                  📄 {source.title || `Document #${source.documentId}`}
+                                  {source.page ? ` (p${source.page})` : ''}
+                                </a>
+                                {/* Show visual and text scores if available */}
+                                {(source.visualScore !== undefined || source.textScore !== undefined) && (
+                                  <span className="text-xs text-[#999]">
+                                    {source.visualScore !== undefined && (
+                                      <span className="mr-2">Visual: {Math.round(source.visualScore * 100)}%</span>
+                                    )}
+                                    {source.textScore !== undefined && (
+                                      <span>Text: {Math.round(source.textScore * 100)}%</span>
+                                    )}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {streamError && (
+                    <div className="sg-message sg-message--error" data-testid="chat-error-visual">
+                      {streamError}
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+
+                <div className="sg-chat-input">
+                  <textarea
+                    data-testid="chat-input-visual"
+                    className="sg-textarea"
+                    placeholder='Search by visual content... (e.g., "Find documents with tables" or "Show invoices with charts")'
+                    value={messageInput}
+                    onInput={(e: Event) => setMessageInput((e.target as HTMLTextAreaElement).value)}
+                    onKeyDown={(e: KeyboardEvent) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (!isStreaming) void sendMessage();
+                      }
+                    }}
+                    rows={2}
+                  />
+                  <button
+                    data-testid="chat-send-button-visual"
+                    type="button"
+                    className="sg-primary"
+                    disabled={!messageInput.trim() || isStreaming || !selectedModel}
+                    onClick={() => void sendMessage()}
+                  >
+                    {isStreaming ? 'Searching...' : 'Visual Search'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Document mode: requires selected document */}
+            {chatMode === 'document' && !selectedDocumentId && (
+              <div className="sg-empty" data-testid="chat-empty-state">
+                Select a document above to start a conversation.
+              </div>
+            )}
+
+            {chatMode === 'document' && selectedDocumentId && (
               <div className="sg-chat-panel">
                 <div
                   ref={chatHistoryRef}
@@ -744,7 +1144,7 @@ export default function ChatWorkspaceIsland(
                   <textarea
                     data-testid="chat-input"
                     className="sg-textarea"
-                    placeholder="Ask about the document..."
+                    placeholder='Ask questions about this document... (e.g., "What is the due date?")'
                     value={messageInput}
                     onInput={(e: Event) => setMessageInput((e.target as HTMLTextAreaElement).value)}
                     onKeyDown={(e: KeyboardEvent) => {

@@ -112,6 +112,9 @@ app.use('/api/visual-rag', visualRagRoutes);
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(cookieParser());
 
+// Legacy route deprecation middleware: mount early so it intercepts legacy UI accesses
+app.use(legacyRedirectMiddleware);
+
 // Swagger documentation route
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   swaggerOptions: {
@@ -631,8 +634,6 @@ async function scanDocuments() {
 app.use('/', authRoutes);
 app.use('/', documentsRoutes);
 
-// Legacy route deprecation middleware (Phase A: banner, B: soft redirect, C: hard redirect)
-app.use(legacyRedirectMiddleware);
 
 app.use('/', chatRoutes);
 app.use('/', historyRoutes);
@@ -647,6 +648,7 @@ const feedbackRoutes = require('./routes/api/feedback');
 const settingsApiRoutes = require('./routes/api/settings');
 const documentsApiRoutes = require('./routes/api/documents');
 const visualOverlaysRoutes = require('./routes/api/visual-overlays');
+const chatApiRoutes = require('./routes/api/chat');
 
 // Mount Feedback routes (always enabled - user feedback collection)
 app.use('/api/feedback', feedbackRoutes);
@@ -660,30 +662,16 @@ app.use('/api/documents', documentsApiRoutes);
 // Mount Visual Overlays API routes (for Visual Tab island)
 app.use('/api/visual-overlays', visualOverlaysRoutes);
 
+// Mount Chat API routes (dual mode: RAG and Document chat)
+app.use('/api/chat', chatApiRoutes);
+
 // Note: Visual RAG routes are mounted early (after body parser) at line ~109
 // to ensure they're accessible before auth middleware runs
 
 // Mount RAG routes if enabled
 if (process.env.RAG_SERVICE_ENABLED === 'true') {
   app.use('/api/rag', ragRoutes);
-  
-  // RAG UI route
-  app.get('/rag', async (req, res) => {
-    try {
-      const vm = {
-        documentId: null,
-        original_url: null,
-        page_count: 1,
-        images: [],
-        overlaysByImage: {},
-      };
-      const parsedVm = RagPageVmSchema.parse(vm);
-      res.render('rag', { vm: parsedVm });
-    } catch (error) {
-      console.error('Error rendering RAG UI:', error);
-      res.status(500).send('Error loading RAG interface');
-    }
-  });
+  // RAG UI route removed in Phase C (legacy UI retired). UI-level access is now provided via `/workspace`.
 }
 
 /**

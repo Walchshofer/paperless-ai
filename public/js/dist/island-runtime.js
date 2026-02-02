@@ -16771,6 +16771,10 @@ function ChatWorkspaceIsland(props) {
   );
   const [isModelLoading, setIsModelLoading] = d2(false);
   const [modelLoadError, setModelLoadError] = d2(null);
+  const [chatMode, setChatMode] = d2("rag");
+  const [isDocumentLoaded, setIsDocumentLoaded] = d2(Boolean(props.openDocumentId));
+  const [visualRagAvailable, setVisualRagAvailable] = d2(false);
+  const [visualRagStatus, setVisualRagStatus] = d2("checking");
   const [guidedStep, setGuidedStep] = d2("Select a document to begin.");
   const [statusMessage, setStatusMessage] = d2(null);
   const [chatContext, setChatContext] = d2([]);
@@ -16778,6 +16782,28 @@ function ChatWorkspaceIsland(props) {
   const chatHistoryRef = A2(null);
   const streamMessageIdRef = A2(null);
   const aiProvider = props.aiProvider || "ollama";
+  const filteredModelOptions = T2(() => {
+    const currentProvider = props.modelConfig?.currentProvider || aiProvider || "ollama";
+    if (!modelOptions || modelOptions.length === 0) return [];
+    return modelOptions.filter((group) => {
+      const groupLabel = group.label.toLowerCase();
+      const providerName = currentProvider.toLowerCase();
+      return groupLabel.includes(providerName) || groupLabel.includes("expert") || groupLabel.includes("installed") || groupLabel.includes("configured");
+    });
+  }, [modelOptions, props.modelConfig?.currentProvider, aiProvider]);
+  y2(() => {
+    const currentProvider = props.modelConfig?.currentProvider || aiProvider;
+    const isModelValid = filteredModelOptions.some(
+      (group) => group.models.some((m3) => m3.model === selectedModel)
+    );
+    if (!isModelValid && filteredModelOptions.length > 0) {
+      const firstModel = filteredModelOptions[0]?.models[0]?.model;
+      if (firstModel) {
+        setSelectedModel(firstModel);
+        console.log(`[Chat] Provider changed to ${currentProvider}, auto-selected model: ${firstModel}`);
+      }
+    }
+  }, [props.modelConfig?.currentProvider, aiProvider, filteredModelOptions, selectedModel]);
   y2(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -16808,6 +16834,52 @@ function ChatWorkspaceIsland(props) {
       setSelectedDocumentId(props.openDocumentId);
     }
   }, [props.openDocumentId]);
+  y2(() => {
+    const hasDoc = Boolean(selectedDocumentId);
+    setIsDocumentLoaded(hasDoc);
+    if (!hasDoc && chatMode === "document") {
+      setChatMode("rag");
+    }
+  }, [selectedDocumentId, chatMode]);
+  y2(() => {
+    const checkVisualRag = async () => {
+      try {
+        setVisualRagStatus("checking");
+        const response = await fetch("/api/visual-rag/health");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.status === "ok" || data.model_loaded) {
+            setVisualRagAvailable(true);
+            setVisualRagStatus("available");
+          } else if (data.initializing || data.status === "initializing") {
+            setVisualRagAvailable(false);
+            setVisualRagStatus("initializing");
+          } else {
+            setVisualRagAvailable(false);
+            setVisualRagStatus("unavailable");
+          }
+        } else if (response.status === 503) {
+          setVisualRagAvailable(false);
+          setVisualRagStatus("initializing");
+        } else {
+          setVisualRagAvailable(false);
+          setVisualRagStatus("unavailable");
+        }
+      } catch (error) {
+        console.warn("[Chat] Visual-RAG sidecar unavailable:", error);
+        setVisualRagAvailable(false);
+        setVisualRagStatus("unavailable");
+      }
+    };
+    checkVisualRag();
+    const interval = setInterval(checkVisualRag, 3e4);
+    return () => clearInterval(interval);
+  }, []);
+  y2(() => {
+    if (chatMode === "visual-rag" && !visualRagAvailable && visualRagStatus !== "checking") {
+      setChatMode("rag");
+    }
+  }, [visualRagAvailable, visualRagStatus, chatMode]);
   y2(() => {
     if (props.modelConfig && props.modelConfig.providers) {
       const providers = props.modelConfig.providers || {};
@@ -17013,7 +17085,9 @@ function ChatWorkspaceIsland(props) {
     }
   }, [selectedDocumentId]);
   const sendMessage = q2(async () => {
-    if (!messageInput.trim() || !selectedDocumentId) return;
+    if (!messageInput.trim()) return;
+    if (chatMode === "document" && !selectedDocumentId) return;
+    if (!selectedModel) return;
     const userMessage = messageInput.trim();
     setMessageInput("");
     setStreamError(null);
@@ -17035,10 +17109,16 @@ function ChatWorkspaceIsland(props) {
     ]);
     setIsStreaming(true);
     try {
-      const response = await fetch("/chat/message", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const endpoint = chatMode === "rag" ? "/api/chat/rag" : chatMode === "visual-rag" ? "/api/chat/visual-rag" : "/chat/message";
+      let payload;
+      if (chatMode === "rag" || chatMode === "visual-rag") {
+        payload = {
+          message: userMessage,
+          model: selectedModel,
+          history: chatMessages.slice(-10).map((m3) => ({ role: m3.role, content: m3.content }))
+        };
+      } else {
+        payload = {
           documentId: selectedDocumentId,
           message: userMessage,
           model: selectedModel,
@@ -17048,11 +17128,35 @@ function ChatWorkspaceIsland(props) {
             excerpt: c3.data?.text,
             imageBase64: c3.data?.imageBase64
           })) : void 0
-        })
+        };
+      }
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
       });
       if (chatContext.length > 0) setChatContext([]);
-      if (!response.ok || !response.body) {
-        throw new Error("Failed to send message");
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "Unknown error");
+        throw new Error(`Chat request failed: ${response.status} - ${errorText}`);
+      }
+      if (chatMode === "rag" || chatMode === "visual-rag") {
+        const data = await response.json();
+        setChatMessages(
+          (prev) => prev.map(
+            (msg) => msg.id === assistantEntryId ? {
+              ...msg,
+              content: data.response || data.answer || "No response received",
+              sources: data.sources || [],
+              searchMode: data.mode
+              // 'hybrid' or 'text-fallback'
+            } : msg
+          )
+        );
+        return;
+      }
+      if (!response.body) {
+        throw new Error("No response body for streaming");
       }
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -17065,13 +17169,13 @@ function ChatWorkspaceIsland(props) {
         buffer = lines.pop() || "";
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
-          const payload = line.slice(6).trim();
-          if (!payload || payload === "[DONE]") continue;
+          const payload2 = line.slice(6).trim();
+          if (!payload2 || payload2 === "[DONE]") continue;
           let parsed = { content: void 0 };
           try {
-            parsed = JSON.parse(payload);
+            parsed = JSON.parse(payload2);
           } catch (err) {
-            parsed = { content: payload };
+            parsed = { content: payload2 };
           }
           if (parsed.error) {
             setStreamError(parsed.error);
@@ -17092,7 +17196,8 @@ function ChatWorkspaceIsland(props) {
     } finally {
       setIsStreaming(false);
     }
-  }, [messageInput, selectedDocumentId, selectedModel]);
+  }, [messageInput, selectedDocumentId, selectedModel, chatMode, chatContext, chatMessages]);
+  ;
   const tabs = T2(() => [
     { id: "chat", label: "Chat" },
     { id: "document", label: "Document" },
@@ -17126,6 +17231,10 @@ function ChatWorkspaceIsland(props) {
         )
       ] }),
       /* @__PURE__ */ u3("div", { className: "flex-1 min-w-[220px]", children: [
+        /* @__PURE__ */ u3("div", { className: "mb-2 flex items-center gap-2 text-xs text-[#666]", "data-testid": "chat-provider-indicator", children: [
+          /* @__PURE__ */ u3("span", { className: "font-medium", children: "Provider:" }),
+          /* @__PURE__ */ u3("span", { className: "px-2 py-1 bg-[#f5f0e8] rounded-md font-mono", children: props.modelConfig?.currentProvider || aiProvider || "ollama" })
+        ] }),
         /* @__PURE__ */ u3("label", { className: "sg-label", htmlFor: "chat-model-select", children: "Model" }),
         isModelLoading ? /* @__PURE__ */ u3("div", { "data-testid": "chat-model-loading", className: "flex items-center gap-2", children: [
           /* @__PURE__ */ u3("div", { className: "animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600" }),
@@ -17172,8 +17281,11 @@ function ChatWorkspaceIsland(props) {
                   }
                 },
                 children: [
-                  modelOptions.length === 0 && /* @__PURE__ */ u3("option", { value: "", children: "No models returned" }),
-                  modelOptions.map((group) => /* @__PURE__ */ u3("optgroup", { label: group.label, children: group.models.map((model) => /* @__PURE__ */ u3("option", { value: model.model, children: model.label }, model.model)) }, group.label))
+                  filteredModelOptions.length === 0 && /* @__PURE__ */ u3("option", { value: "", children: [
+                    "No models available for ",
+                    props.modelConfig?.currentProvider || aiProvider
+                  ] }),
+                  filteredModelOptions.map((group) => /* @__PURE__ */ u3("optgroup", { label: group.label, children: group.models.map((model) => /* @__PURE__ */ u3("option", { value: model.model, children: model.label }, model.model)) }, group.label))
                 ]
               }
             ),
@@ -17196,8 +17308,231 @@ function ChatWorkspaceIsland(props) {
         tab.id
       )) }),
       activeTab === "chat" && /* @__PURE__ */ u3("div", { className: "sg-tab-panel", children: [
-        !selectedDocumentId && /* @__PURE__ */ u3("div", { className: "sg-empty", "data-testid": "chat-empty-state", children: "Select a document to start a conversation." }),
-        selectedDocumentId && /* @__PURE__ */ u3("div", { className: "sg-chat-panel", children: [
+        /* @__PURE__ */ u3("div", { className: "mb-4 flex flex-wrap items-center gap-3 p-3 bg-[#f5f0e8] rounded-lg border border-[#e5e0d8]", "data-testid": "chat-mode-toggle", children: [
+          /* @__PURE__ */ u3("span", { className: "text-sm font-medium text-[#555]", children: "Chat Mode:" }),
+          /* @__PURE__ */ u3("div", { className: "flex gap-2", children: [
+            /* @__PURE__ */ u3(
+              "button",
+              {
+                type: "button",
+                onClick: () => setChatMode("rag"),
+                className: `px-3 py-1.5 text-sm rounded-md transition-colors ${chatMode === "rag" ? "bg-[#b87333] text-white" : "bg-white text-[#555] border border-[#e5e0d8] hover:bg-[#fdfaf6]"}`,
+                "data-testid": "chat-mode-rag",
+                title: "Text-only semantic search across all documents",
+                children: "\u{1F4DD} Text Search"
+              }
+            ),
+            /* @__PURE__ */ u3(
+              "button",
+              {
+                type: "button",
+                onClick: () => setChatMode("visual-rag"),
+                disabled: !visualRagAvailable && visualRagStatus !== "initializing",
+                className: `px-3 py-1.5 text-sm rounded-md transition-colors ${chatMode === "visual-rag" ? "bg-[#b87333] text-white" : "bg-white text-[#555] border border-[#e5e0d8] hover:bg-[#fdfaf6]"} disabled:opacity-50 disabled:cursor-not-allowed`,
+                "data-testid": "chat-mode-visual-rag",
+                title: visualRagStatus === "initializing" ? "Visual-RAG sidecar initializing (GPU warmup)" : !visualRagAvailable ? "Visual-RAG sidecar unavailable" : "Hybrid text + visual search (tables, charts, images)",
+                children: [
+                  "\u{1F3A8} Visual Search",
+                  visualRagStatus === "initializing" && /* @__PURE__ */ u3("span", { className: "ml-1 animate-pulse", children: "\u23F3" })
+                ]
+              }
+            ),
+            /* @__PURE__ */ u3(
+              "button",
+              {
+                type: "button",
+                onClick: () => setChatMode("document"),
+                disabled: !isDocumentLoaded,
+                className: `px-3 py-1.5 text-sm rounded-md transition-colors ${chatMode === "document" ? "bg-[#b87333] text-white" : "bg-white text-[#555] border border-[#e5e0d8] hover:bg-[#fdfaf6]"} disabled:opacity-50 disabled:cursor-not-allowed`,
+                "data-testid": "chat-mode-document",
+                title: !isDocumentLoaded ? "Load a document to use Document Chat" : "Chat about the selected document",
+                children: "\u{1F4C4} Document Chat"
+              }
+            )
+          ] }),
+          chatMode === "document" && isDocumentLoaded && /* @__PURE__ */ u3("span", { className: "ml-auto text-xs text-[#888]", "data-testid": "chat-mode-doc-indicator", children: [
+            "Chatting about: ",
+            /* @__PURE__ */ u3("strong", { children: selectedDocumentTitle || `Doc #${selectedDocumentId}` })
+          ] }),
+          chatMode === "rag" && /* @__PURE__ */ u3("span", { className: "ml-auto text-xs text-[#888]", "data-testid": "chat-mode-rag-indicator", children: "Searching documents by text content" }),
+          chatMode === "visual-rag" && /* @__PURE__ */ u3("span", { className: "ml-auto text-xs text-[#888]", "data-testid": "chat-mode-visual-indicator", children: visualRagStatus === "initializing" ? /* @__PURE__ */ u3("span", { className: "text-orange-600", children: "\u23F3 GPU warming up (~30s)..." }) : !visualRagAvailable ? /* @__PURE__ */ u3("span", { className: "text-orange-600", children: "\u26A0\uFE0F Visual-RAG unavailable - using text fallback" }) : "Searching by visual content (tables, charts, images)" })
+        ] }),
+        chatMode === "rag" && /* @__PURE__ */ u3("div", { className: "sg-chat-panel", children: [
+          /* @__PURE__ */ u3(
+            "div",
+            {
+              ref: chatHistoryRef,
+              className: "sg-chat-history",
+              "data-testid": "chat-history",
+              children: [
+                chatMessages.length === 0 && /* @__PURE__ */ u3("div", { className: "sg-empty", "data-testid": "chat-rag-empty", children: "Ask a question to search across all your documents." }),
+                chatMessages.map((msg) => /* @__PURE__ */ u3(
+                  "div",
+                  {
+                    className: `sg-message sg-message--${msg.role} ${msg.isError ? "sg-message--error" : ""}`,
+                    "data-testid": `chat-message-${msg.role}`,
+                    ref: (el) => {
+                      if (msg.role === "assistant" && el) {
+                        highlightBlocks(el);
+                      }
+                    },
+                    children: [
+                      /* @__PURE__ */ u3("div", { dangerouslySetInnerHTML: { __html: safeMarkdown(msg.content) } }),
+                      msg.role === "assistant" && msg.sources && msg.sources.length > 0 && /* @__PURE__ */ u3("div", { className: "mt-3 pt-3 border-t border-[#e5e0d8]", "data-testid": "chat-sources", children: [
+                        /* @__PURE__ */ u3("div", { className: "text-xs font-medium text-[#888] mb-2", children: "Sources:" }),
+                        /* @__PURE__ */ u3("div", { className: "space-y-1", children: msg.sources.map((source, sidx) => /* @__PURE__ */ u3(
+                          "a",
+                          {
+                            href: `/workspace/doc/${source.documentId}`,
+                            className: "block text-xs text-[#b87333] hover:underline",
+                            target: "_blank",
+                            rel: "noopener noreferrer",
+                            "data-testid": `chat-source-${sidx}`,
+                            children: [
+                              "\u{1F4C4} ",
+                              source.title || `Document #${source.documentId}`,
+                              source.page ? ` (Page ${source.page})` : ""
+                            ]
+                          },
+                          sidx
+                        )) })
+                      ] })
+                    ]
+                  },
+                  msg.id
+                )),
+                streamError && /* @__PURE__ */ u3("div", { className: "sg-message sg-message--error", "data-testid": "chat-error", children: streamError }),
+                /* @__PURE__ */ u3("div", { ref: chatEndRef })
+              ]
+            }
+          ),
+          /* @__PURE__ */ u3("div", { className: "sg-chat-input", children: [
+            /* @__PURE__ */ u3(
+              "textarea",
+              {
+                "data-testid": "chat-input",
+                className: "sg-textarea",
+                placeholder: 'Ask questions across all documents... (e.g., "Find invoices over $1000")',
+                value: messageInput,
+                onInput: (e3) => setMessageInput(e3.target.value),
+                onKeyDown: (e3) => {
+                  if (e3.key === "Enter" && !e3.shiftKey) {
+                    e3.preventDefault();
+                    if (!isStreaming) void sendMessage();
+                  }
+                },
+                rows: 2
+              }
+            ),
+            /* @__PURE__ */ u3(
+              "button",
+              {
+                "data-testid": "chat-send-button",
+                type: "button",
+                className: "sg-primary",
+                disabled: !messageInput.trim() || isStreaming || !selectedModel,
+                onClick: () => void sendMessage(),
+                children: isStreaming ? "Searching..." : "Search"
+              }
+            )
+          ] })
+        ] }),
+        chatMode === "visual-rag" && /* @__PURE__ */ u3("div", { className: "sg-chat-panel", children: [
+          /* @__PURE__ */ u3(
+            "div",
+            {
+              ref: chatHistoryRef,
+              className: "sg-chat-history",
+              "data-testid": "chat-history-visual",
+              children: [
+                chatMessages.length === 0 && /* @__PURE__ */ u3("div", { className: "sg-empty", "data-testid": "chat-visual-empty", children: "Search for visual content like tables, charts, and images across your documents." }),
+                chatMessages.map((msg) => /* @__PURE__ */ u3(
+                  "div",
+                  {
+                    className: `sg-message sg-message--${msg.role} ${msg.isError ? "sg-message--error" : ""}`,
+                    "data-testid": `chat-message-${msg.role}`,
+                    ref: (el) => {
+                      if (msg.role === "assistant" && el) {
+                        highlightBlocks(el);
+                      }
+                    },
+                    children: [
+                      /* @__PURE__ */ u3("div", { dangerouslySetInnerHTML: { __html: safeMarkdown(msg.content) } }),
+                      msg.role === "assistant" && msg.searchMode && /* @__PURE__ */ u3("div", { className: "mt-2 text-xs text-[#888]", children: msg.searchMode === "hybrid" ? "\u{1F3A8} Hybrid search" : "\u{1F4DD} Text fallback" }),
+                      msg.role === "assistant" && msg.sources && msg.sources.length > 0 && /* @__PURE__ */ u3("div", { className: "mt-3 pt-3 border-t border-[#e5e0d8]", "data-testid": "chat-sources-visual", children: [
+                        /* @__PURE__ */ u3("div", { className: "text-xs font-medium text-[#888] mb-2", children: "Sources:" }),
+                        /* @__PURE__ */ u3("div", { className: "space-y-2", children: msg.sources.map((source, sidx) => /* @__PURE__ */ u3("div", { className: "flex items-center gap-2", children: [
+                          /* @__PURE__ */ u3(
+                            "a",
+                            {
+                              href: `/workspace/doc/${source.documentId}`,
+                              className: "text-xs text-[#b87333] hover:underline",
+                              target: "_blank",
+                              rel: "noopener noreferrer",
+                              "data-testid": `chat-source-visual-${sidx}`,
+                              children: [
+                                "\u{1F4C4} ",
+                                source.title || `Document #${source.documentId}`,
+                                source.page ? ` (p${source.page})` : ""
+                              ]
+                            }
+                          ),
+                          (source.visualScore !== void 0 || source.textScore !== void 0) && /* @__PURE__ */ u3("span", { className: "text-xs text-[#999]", children: [
+                            source.visualScore !== void 0 && /* @__PURE__ */ u3("span", { className: "mr-2", children: [
+                              "Visual: ",
+                              Math.round(source.visualScore * 100),
+                              "%"
+                            ] }),
+                            source.textScore !== void 0 && /* @__PURE__ */ u3("span", { children: [
+                              "Text: ",
+                              Math.round(source.textScore * 100),
+                              "%"
+                            ] })
+                          ] })
+                        ] }, sidx)) })
+                      ] })
+                    ]
+                  },
+                  msg.id
+                )),
+                streamError && /* @__PURE__ */ u3("div", { className: "sg-message sg-message--error", "data-testid": "chat-error-visual", children: streamError }),
+                /* @__PURE__ */ u3("div", { ref: chatEndRef })
+              ]
+            }
+          ),
+          /* @__PURE__ */ u3("div", { className: "sg-chat-input", children: [
+            /* @__PURE__ */ u3(
+              "textarea",
+              {
+                "data-testid": "chat-input-visual",
+                className: "sg-textarea",
+                placeholder: 'Search by visual content... (e.g., "Find documents with tables" or "Show invoices with charts")',
+                value: messageInput,
+                onInput: (e3) => setMessageInput(e3.target.value),
+                onKeyDown: (e3) => {
+                  if (e3.key === "Enter" && !e3.shiftKey) {
+                    e3.preventDefault();
+                    if (!isStreaming) void sendMessage();
+                  }
+                },
+                rows: 2
+              }
+            ),
+            /* @__PURE__ */ u3(
+              "button",
+              {
+                "data-testid": "chat-send-button-visual",
+                type: "button",
+                className: "sg-primary",
+                disabled: !messageInput.trim() || isStreaming || !selectedModel,
+                onClick: () => void sendMessage(),
+                children: isStreaming ? "Searching..." : "Visual Search"
+              }
+            )
+          ] })
+        ] }),
+        chatMode === "document" && !selectedDocumentId && /* @__PURE__ */ u3("div", { className: "sg-empty", "data-testid": "chat-empty-state", children: "Select a document above to start a conversation." }),
+        chatMode === "document" && selectedDocumentId && /* @__PURE__ */ u3("div", { className: "sg-chat-panel", children: [
           /* @__PURE__ */ u3(
             "div",
             {
@@ -17234,7 +17569,7 @@ function ChatWorkspaceIsland(props) {
               {
                 "data-testid": "chat-input",
                 className: "sg-textarea",
-                placeholder: "Ask about the document...",
+                placeholder: 'Ask questions about this document... (e.g., "What is the due date?")',
                 value: messageInput,
                 onInput: (e3) => setMessageInput(e3.target.value),
                 onKeyDown: (e3) => {
@@ -19865,11 +20200,18 @@ function ContextSidebarIsland(props) {
       console.warn("[ContextSidebarIsland] Failed to set __context_sidebar_mounted flag:", msg);
     }
   }, []);
+  const tabTooltips = {
+    metadata: "AI-assisted metadata editing with smart suggestions",
+    content: "View Tesseract OCR extracted text (read-only)",
+    chat: "Chat with AI about documents using RAG or document-specific context",
+    visual: "Label fields and perform visual search",
+    debug: "Developer debugging information"
+  };
   const tabs = [
-    { key: "metadata", label: "Metadata", icon: "fa-list", testid: "tab-metadata" },
-    { key: "content", label: "Content", icon: "fa-file-text", testid: "tab-content" },
+    { key: "metadata", label: "Smart Metadata", icon: "fa-wand-magic-sparkles", testid: "tab-metadata" },
+    { key: "content", label: "OCR Text", icon: "fa-file-lines", testid: "tab-content" },
     { key: "chat", label: "Chat", icon: "fa-comments", testid: "tab-chat" },
-    { key: "visual", label: "Visual", icon: "fa-eye", testid: "tab-visual" }
+    { key: "visual", label: "Visual", icon: "fa-draw-polygon", testid: "tab-visual" }
   ];
   if (isAdmin) {
     tabs.push({ key: "debug", label: "Debug", icon: "fa-bug", testid: "tab-debug" });
@@ -19881,6 +20223,7 @@ function ContextSidebarIsland(props) {
         id: `tab-${t3.key}`,
         role: "tab",
         "aria-controls": `panel-${t3.key}`,
+        title: tabTooltips[t3.key],
         "data-testid": t3.testid,
         ref: (el) => {
           tabRefs.current[t3.key] = el;
@@ -19908,24 +20251,42 @@ function ContextSidebarIsland(props) {
       t3.key
     )) }),
     /* @__PURE__ */ u3("div", { className: "p-4 overflow-auto flex-1", children: [
-      activeTab === "metadata" && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-metadata", "aria-labelledby": "tab-metadata", "data-testid": "tab-panel-metadata", children: /* @__PURE__ */ u3(
-        SmartMetadataIsland,
-        {
-          documentId: props.document?.id,
-          metadata: props.document,
-          customFields: props.document?.customFields || props.visual?.fields
-        }
-      ) }),
-      activeTab === "content" && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-content", "aria-labelledby": "tab-content", "data-testid": "tab-panel-content", children: /* @__PURE__ */ u3(DocumentContentIsland, { documentId: props.document?.id, content: props.document?.content || "" }) }),
+      activeTab === "metadata" && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-metadata", "aria-labelledby": "tab-metadata", "data-testid": "tab-panel-metadata", children: [
+        /* @__PURE__ */ u3("div", { className: "mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg", "data-testid": "panel-header-metadata", children: /* @__PURE__ */ u3("p", { className: "text-sm text-purple-800", children: [
+          /* @__PURE__ */ u3("i", { className: "fas fa-wand-magic-sparkles mr-2" }),
+          "AI-powered metadata extraction and suggestions"
+        ] }) }),
+        /* @__PURE__ */ u3(
+          SmartMetadataIsland,
+          {
+            documentId: props.document?.id,
+            metadata: props.document,
+            customFields: props.document?.customFields || props.visual?.fields
+          }
+        )
+      ] }),
+      activeTab === "content" && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-content", "aria-labelledby": "tab-content", "data-testid": "tab-panel-content", children: [
+        /* @__PURE__ */ u3("div", { className: "mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg", "data-testid": "panel-header-content", children: /* @__PURE__ */ u3("p", { className: "text-sm text-blue-800", children: [
+          /* @__PURE__ */ u3("i", { className: "fas fa-file-lines mr-2" }),
+          "Tesseract OCR extracted text (read-only)"
+        ] }) }),
+        /* @__PURE__ */ u3(DocumentContentIsland, { documentId: props.document?.id, content: props.document?.content || "" })
+      ] }),
       activeTab === "chat" && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-chat", "aria-labelledby": "tab-chat", "data-testid": "tab-panel-chat", children: /* @__PURE__ */ u3(ChatWorkspaceIsland, { documents: props.availableDocuments || [], openDocumentId: props.document?.id, ...props.chat }) }),
-      activeTab === "visual" && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-visual", "aria-labelledby": "tab-visual", "data-testid": "tab-panel-visual", children: /* @__PURE__ */ u3(
-        VisualTabIsland,
-        {
-          documentId: props.document?.id,
-          fields: props.visual?.fields,
-          overlays: props.visual?.overlays
-        }
-      ) }),
+      activeTab === "visual" && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-visual", "aria-labelledby": "tab-visual", "data-testid": "tab-panel-visual", children: [
+        /* @__PURE__ */ u3("div", { className: "mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg", "data-testid": "panel-header-visual", children: /* @__PURE__ */ u3("p", { className: "text-sm text-amber-800", children: [
+          /* @__PURE__ */ u3("i", { className: "fas fa-draw-polygon mr-2" }),
+          "Visual field overlay labeling and search"
+        ] }) }),
+        /* @__PURE__ */ u3(
+          VisualTabIsland,
+          {
+            documentId: props.document?.id,
+            fields: props.visual?.fields,
+            overlays: props.visual?.overlays
+          }
+        )
+      ] }),
       activeTab === "debug" && isAdmin && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-debug", "aria-labelledby": "tab-debug", "data-testid": "tab-panel-debug", children: /* @__PURE__ */ u3("pre", { className: "text-xs whitespace-pre-wrap text-gray-700", "data-testid": "debug-content", children: JSON.stringify({ document: props.document, chat: props.chat, visual: props.visual }, null, 2) }) })
     ] })
   ] });

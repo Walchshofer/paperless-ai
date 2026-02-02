@@ -20,6 +20,8 @@ function isLegacyRoute(path) {
   return LEGACY_ROUTES.some(r => path === r || path.startsWith(`${r}/`));
 }
 
+const { metricsCollector } = require('../services/metrics/PrometheusMetrics');
+
 /**
  * Legacy redirect middleware
  * @param {import('express').Request} req
@@ -34,7 +36,17 @@ function legacyRedirectMiddleware(req, res, next) {
     return next();
   }
 
-  // Log for metrics
+  // Log for metrics (console fallback)
+  try {
+    if (metricsCollector && typeof metricsCollector.recordLegacyRouteHit === 'function') {
+      const phase = process.env.LEGACY_REDIRECT_PHASE || 'A';
+      const userType = req.user ? 'authed' : 'anonymous';
+      metricsCollector.recordLegacyRouteHit(path, phase, userType);
+    }
+  } catch (err) {
+    console.debug('Failed to record legacy route hit metric', err?.message || err);
+  }
+
   console.log(JSON.stringify({
     event: 'legacy_route_access',
     path,
@@ -45,13 +57,14 @@ function legacyRedirectMiddleware(req, res, next) {
 
   // Phase check via env var
   const phase = process.env.LEGACY_REDIRECT_PHASE || 'A';
+  const target = process.env.LEGACY_REDIRECT_TARGET || '/workspace';
 
   if (phase === 'C') {
     // Hard redirect (301)
-    return res.redirect(301, '/workspace');
+    return res.redirect(301, target);
   } else if (phase === 'B' && !req.user) {
     // Soft redirect for anonymous (302)
-    return res.redirect(302, '/workspace');
+    return res.redirect(302, target);
   }
 
   // Phase A: Continue to legacy route (with banner)

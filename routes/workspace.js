@@ -44,6 +44,11 @@ try {
 router.get('/doc/:id', async (req, res) => {
   try {
     const username = req.user.username;
+    
+    // Support ?tab= query parameter for deep-linking to specific tabs
+    const validTabs = ['metadata', 'content', 'chat', 'visual', 'debug'];
+    const requestedTab = req.query.tab;
+    const activeTab = validTabs.includes(requestedTab) ? requestedTab : 'metadata';
 
     // Handle "latest" as a special case - redirect to most recent document
     if (req.params.id === 'latest') {
@@ -228,7 +233,7 @@ router.get('/doc/:id', async (req, res) => {
         overlayCount: overlayCount,
       },
       ui: {
-        activeTab: 'metadata',
+        activeTab: activeTab,
         sidebarCollapsed: false,
       },
       user: {

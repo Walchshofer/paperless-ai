@@ -51,47 +51,44 @@ const { authenticate, authenticateApi } = require('../middleware/auth');
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/chat', authenticate, async (req, res) => {
-  try {
-      const {open} = req.query;
-      // Use unfiltered documents for UI dropdown - tag filtering is only for automatic processing
-      const documents = await paperlessService.getAllDocumentsUnfiltered();
-      const version = configFile.PAPERLESS_AI_VERSION || ' ';
+/**
+ * @swagger
+ * /chat:
+ *   get:
+ *     summary: "[DEPRECATED] Redirects to Unified Workspace"
+ *     description: |
+ *       **DEPRECATED**: This route has been retired. Chat functionality has been
+ *       consolidated into the Unified Workspace sidebar.
+ *       
+ *       Redirects to `/workspace/doc/latest` or `/workspace/doc/{id}` if `open` query param provided.
+ *     tags:
+ *       - Navigation
+ *       - Chat
+ *       - Deprecated
+ *     parameters:
+ *       - in: query
+ *         name: open
+ *         schema:
+ *           type: string
+ *         description: ID of document to open (preserved in redirect)
+ *         required: false
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       302:
+ *         description: Redirects to Unified Workspace
+ *         headers:
+ *           Location:
+ *             schema:
+ *               type: string
+ *             description: Redirect URL to workspace
+ *       401:
+ *         description: Authentication required
+ */
+// DELETED in Phase C: UI route '/chat' removed. Chat functionality is now in the Unified Document Workspace sidebar.
+// The legacy redirect behavior is handled by `middleware/legacy-redirect.js` which performs the hard redirect when
+// `LEGACY_REDIRECT_PHASE` is set to 'C'.
 
-      // Provide model discovery information to the UI so it can render provider-aware model lists
-      const ModelResolutionService = require('../services/ModelResolutionService');
-      const modelProviders = await ModelResolutionService.getAllModels();
-      const expertModels = ModelResolutionService.getExpertModels();
-      const modelConfig = {
-        providers: modelProviders,
-        expertModels,
-        currentProvider: configFile.aiProvider || process.env.AI_PROVIDER || 'ollama'
-      };
-
-      // Text-RAG circuit breaker status from ChatService
-      const chatService = require('../services/chatService.js');
-      const textRagStatus = chatService.getTextRagStatus ? chatService.getTextRagStatus() : { available: false, circuitBreakerState: 'UNKNOWN' };
-
-      const vm = {
-        version,
-        config: {
-          disableGithubFetch: process.env.DISABLE_GITHUB_FETCH || 'no'
-        },
-        chat: {
-          openDocumentId: open ? Number(open) : null,
-          documents,
-          aiProvider: configFile.aiProvider,
-          ollamaDefaultModel: configFile.ollama?.model || null,
-          modelConfig,
-          textRagStatus
-        }
-      };
-      res.render('chat', { vm });
-  } catch (error) {
-    console.error('[ERRO] loading documents:', error);
-    res.status(500).send('Error loading documents');
-  }
-});
 
 /**
  * @swagger

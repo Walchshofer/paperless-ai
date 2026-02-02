@@ -1,0 +1,28 @@
+<div role="status" aria-live="polite" class="legacy-banner bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4" data-testid="legacy-route-banner">
+  <div class="flex items-start">
+    <div class="flex-1">
+      <p class="text-sm text-yellow-800">This route is <strong>deprecated</strong> in favor of the <strong>Unified Document Workspace</strong>. Use <a href="/workspace" class="underline">/workspace</a> to access the new experience.</p>
+    </div>
+    <div class="ml-4">
+      <button aria-label="Dismiss deprecation banner" data-testid="legacy-banner-dismiss-btn" class="px-3 py-1 bg-white border rounded text-sm">Dismiss</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      try {
+        var btn = document.querySelector('[data-testid="legacy-banner-dismiss-btn"]');
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+          // Set cookie for 1 year
+          document.cookie = 'legacy_banner_dismissed=1; path=/; max-age=' + (60 * 60 * 24 * 365);
+          var banner = document.querySelector('[data-testid="legacy-route-banner"]');
+          if (banner) banner.style.display = 'none';
+        });
+      } catch (e) {
+        // noop
+        console.debug('legacy banner attach failed', e && e.message);
+      }
+    })();
+  </script>
+</div>

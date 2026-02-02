@@ -87,6 +87,13 @@ class PrometheusMetrics {
             ['element_type'],
             [50, 100, 200, 500, 1000, 2000, 5000]
         );
+
+        // Legacy route deprecation metric
+        this.legacyRouteHitsTotal = this._getOrCreateCounter(
+            'legacy_route_hits_total',
+            'Total hits to legacy routes during deprecation rollout.',
+            ['route', 'phase', 'user_type']
+        );
         this.circuitBreakerState = this._getOrCreateGauge(
             'circuit_breaker_state',
             'Circuit breaker state (0=CLOSED, 1=OPEN, 2=HALF_OPEN).',
@@ -376,6 +383,22 @@ class PrometheusMetrics {
         this._safeRun(() => {
             this.visualQueriesExecutedTotal.labels(docType, type).inc();
         }, 'visual_queries_executed_total');
+    }
+
+    /**
+     * Record a legacy route hit for deprecation telemetry.
+     * @param {string} route
+     * @param {string} phase
+     * @param {string} userType
+     */
+    recordLegacyRouteHit(route, phase, userType = 'anonymous') {
+        if (!this.enabled) return;
+        const r = route || 'unknown';
+        const p = phase || 'A';
+        const u = userType || 'anonymous';
+        this._safeRun(() => {
+            this.legacyRouteHitsTotal.labels(r, p, u).inc();
+        }, 'legacy_route_hits_total');
     }
 
     observeVisualElementDetectionLatency(elementType, durationMs) {

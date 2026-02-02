@@ -144,6 +144,38 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
     return () => window.removeEventListener('metadata:locate-field', handler as EventListener);
   }, [props.visual]);
 
+  // Listen for feedback votes from SmartMetadataIsland and persist immediately
+  useEffect(() => {
+    const feedbackHandler = async (e: Event) => {
+      const detail = (e as CustomEvent<{ fieldId?: string | number; vote?: 'up' | 'down' }>)?.detail || {};
+      const fieldId = detail.fieldId as string | number | undefined;
+      const vote = detail.vote as 'up' | 'down' | undefined;
+      const documentId = props.document?.id ?? null;
+      if (!fieldId || !vote || !documentId) return;
+
+      try {
+        // Fire-and-forget; server will validate and require auth
+        const resp = await fetch('/api/feedback/field-vote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ documentId, fieldId, vote })
+        });
+
+        if (resp.ok) {
+          window.dispatchEvent(new CustomEvent('feedback:sent', { detail: { documentId, fieldId, vote } }));
+        } else {
+          window.dispatchEvent(new CustomEvent('feedback:failed', { detail: { documentId, fieldId, vote, status: resp.status } }));
+        }
+      } catch (err) {
+        // Network error - emit internal failure event for diagnostics
+        window.dispatchEvent(new CustomEvent('feedback:failed', { detail: { documentId, fieldId, vote, error: (err as Error).message } }));
+      }
+    };
+
+    window.addEventListener('feedback:vote', feedbackHandler as EventListener);
+    return () => window.removeEventListener('feedback:vote', feedbackHandler as EventListener);
+  }, [props.document?.id]);
+
   // Central workspace dirty-state management
   useEffect(() => {
     const wnd = getWorkspaceWindow();
