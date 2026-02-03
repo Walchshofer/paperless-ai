@@ -165,7 +165,7 @@ router.get('/manual/preview/:id', authenticateApi, async (req, res) => {
     let correspondentName = null;
     if (document.correspondent) {
       try {
-        correspondentName = await paperlessService.getCorrespondentName(document.correspondent);
+        correspondentName = await paperlessService.getCorrespondentNameById(document.correspondent);
       } catch (e) {
         console.warn('Could not fetch correspondent name:', e.message);
       }

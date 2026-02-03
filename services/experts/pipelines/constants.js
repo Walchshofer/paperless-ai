@@ -10,6 +10,7 @@
 const StageType = Object.freeze({
     CLASSIFICATION: 'classification',    // Initial document routing
     VISUAL_ANALYSIS: 'visual_analysis',  // Image/visual processing
+    PRE_VISION_NORMALIZATION: 'pre_vision_normalization',  // Stage 3: Document image normalization
     TEXT_EXTRACTION: 'text_extraction',  // Text content extraction
     ENTITY_RECOGNITION: 'entity_recognition', // NER for domain entities
     REASONING: 'reasoning',              // Domain-specific inference

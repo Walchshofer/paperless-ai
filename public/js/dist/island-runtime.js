@@ -7648,27 +7648,118 @@ function OverlayViewerIsland(props) {
     setImageLoaded(false);
     setImageError(null);
     setImageLoadState("loading");
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      if (imageRef.current) {
-        imageRef.current.src = img.src;
-        try {
-          const area = (img.naturalWidth || 0) * (img.naturalHeight || 0);
-          if (area > 2e7) {
-            setWarning("Large document image detected. Rendering may be slow.");
+    let cancelled = false;
+    let objectUrl = null;
+    const loadImage = async () => {
+      try {
+        const response = await fetch(imageUrl, {
+          credentials: "include",
+          headers: {
+            "Accept": "image/*"
           }
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.warn("[OverlayViewerIsland] Failed to compute image area for warning detection:", msg);
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
+        const blob = await response.blob();
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+          if (cancelled) {
+            URL.revokeObjectURL(objectUrl);
+            return;
+          }
+          if (imageRef.current) {
+            imageRef.current.src = objectUrl;
+            try {
+              const area = (img.naturalWidth || 0) * (img.naturalHeight || 0);
+              if (area > 2e7) {
+                setWarning("Large document image detected. Rendering may be slow.");
+              }
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              console.warn("[OverlayViewerIsland] Failed to compute image area for warning detection:", msg);
+            }
+            const applyAutoFit = () => {
+              const container = containerRef.current;
+              if (container && img.naturalWidth > 0 && img.naturalHeight > 0) {
+                const containerWidth = container.clientWidth;
+                if (containerWidth > 0) {
+                  const fitScale = Math.min(
+                    MAX_SCALE,
+                    Math.max(MIN_SCALE, containerWidth / img.naturalWidth)
+                  );
+                  let contentTop = 0;
+                  try {
+                    const canvas = document.createElement("canvas");
+                    const ctx = canvas.getContext("2d");
+                    if (ctx) {
+                      const sampleScale = Math.min(1, 300 / img.naturalHeight);
+                      canvas.width = Math.floor(img.naturalWidth * sampleScale);
+                      canvas.height = Math.floor(img.naturalHeight * sampleScale);
+                      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                      const data = imageData.data;
+                      const darkThreshold = 200;
+                      const minDarkPixelsPerRow = Math.max(3, Math.floor(canvas.width * 0.05));
+                      for (let y3 = 0; y3 < canvas.height; y3++) {
+                        let darkCount = 0;
+                        for (let x4 = 0; x4 < canvas.width; x4++) {
+                          const idx = (y3 * canvas.width + x4) * 4;
+                          const r3 = data[idx], g4 = data[idx + 1], b3 = data[idx + 2];
+                          const luminance = 0.299 * r3 + 0.587 * g4 + 0.114 * b3;
+                          if (luminance < darkThreshold) {
+                            darkCount++;
+                            if (darkCount >= minDarkPixelsPerRow) {
+                              contentTop = y3 / sampleScale;
+                              contentTop = Math.max(0, contentTop - img.naturalHeight * 0.01);
+                              break;
+                            }
+                          }
+                        }
+                        if (contentTop > 0) break;
+                      }
+                    }
+                  } catch (e3) {
+                    console.warn("[OverlayViewerIsland] Content detection failed:", e3);
+                  }
+                  console.info("[OverlayViewerIsland] Auto-fit applied:", {
+                    containerWidth,
+                    imgWidth: img.naturalWidth,
+                    imgHeight: img.naturalHeight,
+                    fitScale: Math.round(fitScale * 100) + "%",
+                    contentTop: Math.round(contentTop)
+                  });
+                  scaleRef.current = fitScale;
+                  setScale(fitScale);
+                  const scrollY = -contentTop * fitScale;
+                  translateRef.current = { x: 0, y: scrollY };
+                  setTranslateX(0);
+                  setTranslateY(scrollY);
+                }
+              }
+            };
+            requestAnimationFrame(() => requestAnimationFrame(applyAutoFit));
+          }
+          setImageLoaded(true);
+          setImageLoadState("loaded");
+          setImageError(null);
+          console.info(`[OverlayViewerIsland] Image loaded from ${imageSource} source: ${imageUrl}`);
+        };
+        img.onerror = () => {
+          if (cancelled) return;
+          URL.revokeObjectURL(objectUrl);
+          handleImageError();
+        };
+        img.src = objectUrl;
+      } catch (err) {
+        if (cancelled) return;
+        console.warn(`[OverlayViewerIsland] Fetch failed for ${imageSource} source:`, err);
+        handleImageError();
       }
-      setImageLoaded(true);
-      setImageLoadState("loaded");
-      setImageError(null);
-      console.info(`[OverlayViewerIsland] Image loaded from ${imageSource} source: ${imageUrl}`);
     };
-    img.onerror = () => {
+    const handleImageError = () => {
       console.warn(`[OverlayViewerIsland] Failed to load image from ${imageSource} source: ${imageUrl}`);
       if (imageSource === "normalized" && originalUrlWithPage) {
         console.info("[OverlayViewerIsland] Falling back to original URL");
@@ -7679,10 +7770,12 @@ function OverlayViewerIsland(props) {
       setImageLoadState("error");
       setImageLoaded(false);
     };
-    img.src = imageUrl;
+    loadImage();
     return () => {
-      img.onload = null;
-      img.onerror = null;
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
     };
   }, [imageUrl, imageSource, originalUrlWithPage, retryCount]);
   const handleRetry = q2(() => {
@@ -8383,7 +8476,7 @@ function OverlayViewerIsland(props) {
                             {
                               ref: imageRef,
                               alt: `Document ${docId} page ${page}`,
-                              className: `w-full h-full object-contain pointer-events-none select-none ${imageLoaded ? "block" : "hidden"}`,
+                              className: `w-full h-full object-contain object-left-top pointer-events-none select-none ${imageLoaded ? "block" : "hidden"}`,
                               "data-testid": "overlay-document-image",
                               draggable: false,
                               crossOrigin: "anonymous",
@@ -20558,7 +20651,7 @@ function ResizableLayoutIsland(props) {
       ref: handleRef,
       className: `
         resize-handle
-        absolute top-0 bottom-0 w-1.5
+        fixed top-[var(--header-height,64px)] bottom-0 w-1.5
         bg-[#e5e0d8] hover:bg-copper
         transition-colors cursor-col-resize
         flex items-center justify-center

@@ -87,6 +87,8 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// Cookie parser MUST be mounted before any routes that need req.cookies
+app.use(cookieParser());
 
 // Expose Prometheus metrics early to avoid being shadowed by static routes
 app.get('/metrics', allowInternalNetwork, async (_req, res) => {
@@ -105,12 +107,19 @@ app.get('/metrics', allowInternalNetwork, async (_req, res) => {
 });
 
 // Mount Visual RAG API routes early (after body parser, before auth middleware).
-// These are public API endpoints that don't require authentication.
+// Note: authenticateApi middleware on these routes now works because cookieParser is above.
 const visualRagRoutes = require('./routes/api/visual-rag');
 app.use('/api/visual-rag', visualRagRoutes);
 
+// Mount Normalized Image Serving API (serves persisted normalized images)
+const normalizedRoutes = require('./routes/api/normalized');
+app.use('/api/normalized', normalizedRoutes);
+
+// Mount Normalization Management API (batch jobs and triggers)
+const normalizationRoutes = require('./routes/api/normalization');
+app.use('/api/normalization', normalizationRoutes);
+
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(cookieParser());
 
 // Legacy route deprecation middleware: mount early so it intercepts legacy UI accesses
 app.use(legacyRedirectMiddleware);

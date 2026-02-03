@@ -15,6 +15,50 @@ class PaperlessService {
     this.lastTagRefresh = 0;
     this.lastCustomFieldRefresh = 0;
     this.CACHE_LIFETIME = 3000; // 3 Sekunden
+    this.lastAuthCheck = 0;
+    this.AUTH_CHECK_INTERVAL = 60000; // Re-validate auth every 60 seconds
+  }
+
+  /**
+   * Validate response is not HTML/JSON error (auth failure)
+   * @private
+   */
+  _validateBinaryResponse(buffer, context = '') {
+    if (!buffer || buffer.length === 0) {
+      return { valid: false, reason: 'empty_buffer' };
+    }
+
+    // Check for HTML response (login page)
+    const header = buffer.slice(0, 15).toString('utf8').toLowerCase();
+    if (header.includes('<!doctype') || header.includes('<html')) {
+      logger.warn(`[PAPERLESS] Received HTML instead of binary data${context ? ' for ' + context : ''} - likely auth failure`);
+      return { valid: false, reason: 'html_response' };
+    }
+
+    // Check for JSON error response
+    if (buffer[0] === 0x7B) { // '{' character
+      try {
+        const text = buffer.toString('utf8');
+        const json = JSON.parse(text);
+        if (json.error || json.detail) {
+          logger.warn(`[PAPERLESS] Received JSON error${context ? ' for ' + context : ''}: ${json.error || json.detail}`);
+          return { valid: false, reason: 'json_error', error: json };
+        }
+      } catch (e) {
+        // Not JSON, continue
+      }
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Reset client to force re-initialization (useful after auth failures)
+   */
+  resetClient() {
+    logger.info('[PAPERLESS] Resetting client connection');
+    this.client = null;
+    this.lastAuthCheck = 0;
   }
 
   initialize() {
@@ -47,7 +91,7 @@ class PaperlessService {
     }
   }
 
-  async downloadDocument(documentId) {
+  async downloadDocument(documentId, retryCount = 0) {
     this.initialize();
     if (!this.client) {
       logger.warn('[PAPERLESS] Client not initialized for download');
@@ -64,12 +108,33 @@ class PaperlessService {
         return null;
       }
 
-      return Buffer.isBuffer(response.data) ? response.data : Buffer.from(response.data);
+      const buffer = Buffer.isBuffer(response.data) ? response.data : Buffer.from(response.data);
+      
+      // Validate response is actually binary data, not HTML/JSON error
+      const validation = this._validateBinaryResponse(buffer, `document ${documentId}`);
+      if (!validation.valid) {
+        if (validation.reason === 'html_response' && retryCount === 0) {
+          // Auth likely expired, reset client and retry once
+          logger.info(`[PAPERLESS] Auth failure detected for document ${documentId}, resetting client and retrying`);
+          this.resetClient();
+          return this.downloadDocument(documentId, retryCount + 1);
+        }
+        logger.error(`[PAPERLESS] Invalid response for document ${documentId}: ${validation.reason}`);
+        return null;
+      }
+
+      return buffer;
     } catch (error) {
       console.error(`[PAPERLESS] Error downloading document ${documentId}:`, error.message);
       if (error.response) {
         console.log('[PAPERLESS] status:', error.response.status);
         console.log('[PAPERLESS] headers:', error.response.headers);
+        
+        // If 401/403, reset client for next attempt
+        if (error.response.status === 401 || error.response.status === 403) {
+          logger.warn('[PAPERLESS] Authentication error, resetting client');
+          this.resetClient();
+        }
       }
       return null;
     }
@@ -1872,7 +1937,7 @@ async getOrCreateDocumentType(name) {
     }
   }
 
-  async downloadOriginalDocument(documentId) {
+  async downloadOriginalDocument(documentId, retryCount = 0) {
     this.initialize();
     if (!this.client) {
       logger.warn('[PAPERLESS] Client not initialized for original download');
@@ -1890,6 +1955,20 @@ async getOrCreateDocumentType(name) {
       }
 
       const buf = Buffer.isBuffer(response.data) ? response.data : Buffer.from(response.data);
+      
+      // First validate response is not HTML/JSON error (auth failure)
+      const validation = this._validateBinaryResponse(buf, `original document ${documentId}`);
+      if (!validation.valid) {
+        if (validation.reason === 'html_response' && retryCount === 0) {
+          // Auth likely expired, reset client and retry once
+          logger.info(`[PAPERLESS] Auth failure detected for original document ${documentId}, resetting client and retrying`);
+          this.resetClient();
+          return this.downloadOriginalDocument(documentId, retryCount + 1);
+        }
+        logger.error(`[PAPERLESS] Invalid response for original document ${documentId}: ${validation.reason}`);
+        return null;
+      }
+      
       // Quick validation: ensure the original download looks like a PDF. If not, fall back
       // to the standard download endpoint to avoid feeding HTML/JSON into PDF tools.
       try {
@@ -1921,6 +2000,12 @@ async getOrCreateDocumentType(name) {
       if (error.response) {
         console.log('[PAPERLESS] status:', error.response.status);
         console.log('[PAPERLESS] headers:', error.response.headers);
+        
+        // If 401/403, reset client for next attempt
+        if (error.response.status === 401 || error.response.status === 403) {
+          logger.warn('[PAPERLESS] Authentication error, resetting client');
+          this.resetClient();
+        }
       }
       return null;
     }

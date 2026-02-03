@@ -215,7 +215,9 @@ router.get('/doc/:id', async (req, res) => {
         currentPage: 1,
         mimeType: document.mime_type,
         originalUrl: paperlessBaseUrl ? `${paperlessBaseUrl}/documents/${document.id}/download/original/` : null,
-        normalizedUrl: `/api/visual-rag/normalized/${document.id}`,
+        persistedNormalizedUrl: document.custom_fields?.ai_normalized_url || null,
+        normalizationStatus: document.custom_fields?.ai_normalization_status || 'pending',
+        normalizedUrl: document.custom_fields?.ai_normalized_url || `/api/normalized/${document.id}/1`,
         status: 'saved',
       },
       availableDocuments: availableDocs.map(d => ({
@@ -355,7 +357,9 @@ router.get('/api/doc/:id', async (req, res) => {
       pageCount: document.page_count || 1,
       mimeType: document.mime_type,
       originalUrl: paperlessBaseUrl ? `${paperlessBaseUrl}/documents/${document.id}/download/original/` : null,
-      normalizedUrl: `/api/visual-rag/normalized/${document.id}`,
+      persistedNormalizedUrl: document.custom_fields?.ai_normalized_url || null,
+      normalizationStatus: document.custom_fields?.ai_normalization_status || 'pending',
+      normalizedUrl: document.custom_fields?.ai_normalized_url || `/api/normalized/${document.id}/1`,
     });
 
   } catch (error) {

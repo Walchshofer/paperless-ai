@@ -79,6 +79,9 @@ export interface OverlayViewerProps extends Partial<OverlayViewerContract> {
   allowSelection?: boolean;
   mode?: 'view' | 'draw' | 'locate' | 'visual-search';
   suggestions?: OverlayItem[];
+  // Normalization support
+  persistedNormalizedUrl?: string;
+  normalizationStatus?: 'pending' | 'processing' | 'completed' | 'failed' | 'skipped';
 }
 
 // Minimum selection size (in pixels) to trigger search
@@ -97,6 +100,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     allowSelection = true,
     mode = 'visual-search',
     suggestions = [],
+    persistedNormalizedUrl,
+    normalizationStatus,
   } = props;
 
   const containerRef = useRef(null as HTMLDivElement | null);
@@ -381,10 +386,18 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   }, [panMode]);
 
   // Compute the normalized URL (preferred source for Visual RAG)
+  // Prefer persisted normalized URL (files stored on disk), fallback to on-demand rendering
   const normalizedUrl = useMemo(() => {
     if (!docId) return null;
+    
+    // Priority 1: Use persisted normalized URL if available (completed normalization)
+    if (persistedNormalizedUrl) {
+      return `${persistedNormalizedUrl}?page=${page}`;
+    }
+    
+    // Priority 2: Fallback to dynamic normalization (rendered on-demand)
     return `/api/visual-rag/normalized/${docId}?page=${page}`;
-  }, [docId, page]);
+  }, [docId, page, persistedNormalizedUrl]);
 
   // Compute the original URL (fallback source from Paperless)
   const originalUrlWithPage = useMemo(() => {
@@ -422,6 +435,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   }, [docId, page]);
 
   // Image loading effect with fallback mechanism
+  // Uses fetch with credentials to ensure auth cookies are sent
   useEffect(() => {
     if (!imageUrl) {
       setImageLoadState('error');
@@ -434,38 +448,159 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     setImageError(null);
     setImageLoadState('loading');
     
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
+    let cancelled = false;
+    let objectUrl: string | null = null;
     
-    img.onload = () => {
-      if (imageRef.current) {
-        imageRef.current.src = img.src;
-        try {
-          const area = (img.naturalWidth || 0) * (img.naturalHeight || 0);
-          if (area > 20000000) {
-            setWarning('Large document image detected. Rendering may be slow.');
+    const loadImage = async () => {
+      try {
+        // Use fetch with credentials to include auth cookies
+        const response = await fetch(imageUrl, {
+          credentials: 'include',
+          headers: {
+            'Accept': 'image/*'
           }
-        } catch (err: unknown) {
-          // Do not silently swallow — log for observability and continue
-          const msg = err instanceof Error ? err.message : String(err);
-          // Warn instead of throwing to avoid breaking image load
-          console.warn('[OverlayViewerIsland] Failed to compute image area for warning detection:', msg);
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
+        
+        const blob = await response.blob();
+        if (cancelled) return;
+        
+        objectUrl = URL.createObjectURL(blob);
+        
+        // Load into Image to get dimensions and validate
+        const img = new Image();
+        
+        img.onload = () => {
+          if (cancelled) {
+            URL.revokeObjectURL(objectUrl!);
+            return;
+          }
+          
+          if (imageRef.current) {
+            imageRef.current.src = objectUrl!;
+            try {
+              const area = (img.naturalWidth || 0) * (img.naturalHeight || 0);
+              if (area > 20000000) {
+                setWarning('Large document image detected. Rendering may be slow.');
+              }
+            } catch (err: unknown) {
+              const msg = err instanceof Error ? err.message : String(err);
+              console.warn('[OverlayViewerIsland] Failed to compute image area for warning detection:', msg);
+            }
+            
+            // Auto-fit to width after layout completes
+            // Use double-RAF to ensure both layout pass and paint are complete
+            const applyAutoFit = () => {
+              const container = containerRef.current;
+              if (container && img.naturalWidth > 0 && img.naturalHeight > 0) {
+                const containerWidth = container.clientWidth;
+                
+                // Only apply if container has rendered (width > 0)
+                if (containerWidth > 0) {
+                  // Fit to width to maximize horizontal space for reading (L→R)
+                  const fitScale = Math.min(
+                    MAX_SCALE,
+                    Math.max(MIN_SCALE, containerWidth / img.naturalWidth)
+                  );
+                  
+                  // Detect main content area to auto-scroll past whitespace/margins
+                  // Uses density detection: requires multiple dark pixels per row
+                  let contentTop = 0;
+                  try {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                      // Sample at reduced resolution for performance
+                      const sampleScale = Math.min(1, 300 / img.naturalHeight);
+                      canvas.width = Math.floor(img.naturalWidth * sampleScale);
+                      canvas.height = Math.floor(img.naturalHeight * sampleScale);
+                      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                      
+                      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                      const data = imageData.data;
+                      const darkThreshold = 200; // Consider pixel "dark" below this
+                      const minDarkPixelsPerRow = Math.max(3, Math.floor(canvas.width * 0.05)); // 5% of row width
+                      
+                      // Scan from top to find first row with substantial dark content
+                      for (let y = 0; y < canvas.height; y++) {
+                        let darkCount = 0;
+                        for (let x = 0; x < canvas.width; x++) {
+                          const idx = (y * canvas.width + x) * 4;
+                          const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+                          // Use perceived luminance for better detection
+                          const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+                          if (luminance < darkThreshold) {
+                            darkCount++;
+                            if (darkCount >= minDarkPixelsPerRow) {
+                              // Found row with significant dark content
+                              contentTop = (y / sampleScale);
+                              // Add margin above detected content (about 1% of image height)
+                              contentTop = Math.max(0, contentTop - img.naturalHeight * 0.01);
+                              break;
+                            }
+                          }
+                        }
+                        if (contentTop > 0) break;
+                      }
+                    }
+                  } catch (e) {
+                    console.warn('[OverlayViewerIsland] Content detection failed:', e);
+                  }
+                  
+                  console.info('[OverlayViewerIsland] Auto-fit applied:', {
+                    containerWidth,
+                    imgWidth: img.naturalWidth,
+                    imgHeight: img.naturalHeight,
+                    fitScale: Math.round(fitScale * 100) + '%',
+                    contentTop: Math.round(contentTop)
+                  });
+                  
+                  // Apply scale and scroll to content
+                  scaleRef.current = fitScale;
+                  setScale(fitScale);
+                  // Negative translateY scrolls "up" (shows content that was below)
+                  const scrollY = -contentTop * fitScale;
+                  translateRef.current = { x: 0, y: scrollY };
+                  setTranslateX(0);
+                  setTranslateY(scrollY);
+                }
+              }
+            };
+            
+            // Double requestAnimationFrame ensures layout is complete
+            requestAnimationFrame(() => requestAnimationFrame(applyAutoFit));
+          }
+          setImageLoaded(true);
+          setImageLoadState('loaded');
+          setImageError(null);
+          console.info(`[OverlayViewerIsland] Image loaded from ${imageSource} source: ${imageUrl}`);
+        };
+        
+        img.onerror = () => {
+          if (cancelled) return;
+          URL.revokeObjectURL(objectUrl!);
+          handleImageError();
+        };
+        
+        img.src = objectUrl;
+        
+      } catch (err) {
+        if (cancelled) return;
+        console.warn(`[OverlayViewerIsland] Fetch failed for ${imageSource} source:`, err);
+        handleImageError();
       }
-      setImageLoaded(true);
-      setImageLoadState('loaded');
-      setImageError(null);
-      console.info(`[OverlayViewerIsland] Image loaded from ${imageSource} source: ${imageUrl}`);
     };
     
-    img.onerror = () => {
+    const handleImageError = () => {
       console.warn(`[OverlayViewerIsland] Failed to load image from ${imageSource} source: ${imageUrl}`);
       
       // If normalized URL failed and we have an original URL, try that next
       if (imageSource === 'normalized' && originalUrlWithPage) {
         console.info('[OverlayViewerIsland] Falling back to original URL');
         setImageSource('original');
-        // Don't set error state yet - let the fallback attempt
         return;
       }
       
@@ -475,11 +610,13 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       setImageLoaded(false);
     };
     
-    img.src = imageUrl;
+    loadImage();
     
     return () => {
-      img.onload = null;
-      img.onerror = null;
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
     };
   }, [imageUrl, imageSource, originalUrlWithPage, retryCount]);
 
@@ -1174,6 +1311,42 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         </div>
       </div>
 
+      {/* Normalization Status Indicator - positioned under toolbar */}
+      {normalizationStatus && (
+        <div 
+          data-testid="normalization-status-indicator"
+          className="flex items-center gap-2 px-3 py-1.5 text-xs border-b border-gray-100 bg-gray-50"
+        >
+          <span className="font-medium text-gray-500">Source:</span>
+          {normalizationStatus === 'completed' ? (
+            <span className="inline-flex items-center gap-1.5 text-green-700">
+              <i className="fas fa-check-circle"></i>
+              <span>Persisted (Normalized)</span>
+            </span>
+          ) : normalizationStatus === 'processing' ? (
+            <span className="inline-flex items-center gap-1.5 text-amber-600">
+              <i className="fas fa-spinner fa-spin"></i>
+              <span>Normalizing...</span>
+            </span>
+          ) : normalizationStatus === 'failed' ? (
+            <span className="inline-flex items-center gap-1.5 text-red-600">
+              <i className="fas fa-exclamation-triangle"></i>
+              <span>Normalization Failed (using original)</span>
+            </span>
+          ) : normalizationStatus === 'skipped' ? (
+            <span className="inline-flex items-center gap-1.5 text-gray-500">
+              <i className="fas fa-forward"></i>
+              <span>Skipped (using original)</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-gray-500">
+              <i className="fas fa-clock"></i>
+              <span>On-demand Render</span>
+            </span>
+          )}
+        </div>
+      )}
+
       {warning && (
         <div
           className="mx-2 my-1 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700"
@@ -1217,7 +1390,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                 <img
                   ref={imageRef}
                   alt={`Document ${docId} page ${page}`}
-                  className={`w-full h-full object-contain pointer-events-none select-none ${imageLoaded ? 'block' : 'hidden'}`}
+                  className={`w-full h-full object-contain object-left-top pointer-events-none select-none ${imageLoaded ? 'block' : 'hidden'}`}
                   data-testid="overlay-document-image"
                   draggable={false}
                   crossOrigin="anonymous"

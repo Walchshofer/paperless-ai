@@ -1,0 +1,15 @@
+# Mock Normalization Template
+
+This is a mock template for testing PreVisionNormalizer.
+
+## Instructions
+Analyze the document image and determine if it needs rotation or cropping.
+
+## Expected Output
+Return a JSON object with the following fields:
+- rotate: 0, 90, 180, or 270
+- needs_crop: boolean
+- crop_box: [x1, y1, x2, y2] or null
+- target_dpi: number
+- confidence: 0.0 to 1.0
+- reasoning: string

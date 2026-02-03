@@ -170,6 +170,72 @@ Artifact: `artifacts/conversion_reconciliation_result.json` (contains lists of c
 
 ---
 
+## Document Normalization Custom Fields 📐
+
+These fields track the automatic document normalization pipeline status and results.
+Normalization includes rotation correction, cropping, and rescaling for optimal OCR/vision processing.
+
+### Fields
+
+| Field Name | Type | Description |
+|------------|------|-------------|
+| `ai_normalized_url` | URL | URL to the persisted normalized document image (first page). Format: `/api/normalized/{docId}/1` |
+| `ai_normalization_status` | String (enum) | Normalization pipeline status |
+| `ai_normalization_meta` | String (JSON) | JSON metadata with geometry analysis, actions applied, and timestamps |
+
+### Status Values
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Document queued for normalization |
+| `processing` | Normalization in progress |
+| `completed` | Successfully normalized and persisted |
+| `failed` | Normalization failed (check meta for error) |
+| `skipped` | Normalization skipped (e.g., already optimal, unsupported format) |
+
+### Metadata Schema
+
+The `ai_normalization_meta` field contains a JSON object with the following structure:
+
+```json
+{
+  "timestamp": "2026-02-03T12:00:00.000Z",
+  "pageCount": 4,
+  "pages": [
+    { "page": 1, "size": 245678 },
+    { "page": 2, "size": 198432 }
+  ],
+  "geometry": {
+    "rotation": 90,
+    "crop": { "top": 10, "left": 5, "bottom": 20, "right": 8 },
+    "scale": 1.0
+  },
+  "actions_applied": ["rotate", "crop"],
+  "source": "PreVisionNormalizer"
+}
+```
+
+### Migration
+
+To create these fields, run:
+
+```bash
+node migrations/create-normalization-custom-fields.js
+```
+
+The migration script handles "already exists" errors gracefully and can be run multiple times safely.
+
+### Storage Location
+
+Normalized images are stored at:
+- Container path: `/app/data/normalized/{docId}/page_{n}.png`
+- Uses existing `/app/data` volume mount (no new volume required)
+
+### Related Files
+
+- Migration: `migrations/create-normalization-custom-fields.js`
+- Store Service: `services/normalization/NormalizationStore.js`
+- Plan: `docs/AUTOMATIC_NORMALIZATION_PLAN.md`
 
 ---
 

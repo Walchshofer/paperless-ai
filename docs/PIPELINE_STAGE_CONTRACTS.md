@@ -92,24 +92,61 @@ Plan pipeline execution.
 
 ### Purpose
 Correct image geometry prior to OCR or visual analysis.
+Automatically persists normalized images for improved document quality.
 
 ### Inputs
-- Page images
-- Router quality signals
+- Document ID (from context)
+- Page images (fetched by PreVisionNormalizer)
+- Optional stage configuration (`normalizationOptions`)
 
 ### Outputs
-- Normalization actions (rotate, crop, scale)
+- `context.normalizationResult`: Full normalization result including:
+  - `success`: boolean
+  - `document_id`: number
+  - `normalized_pages`: Array of normalized page data
+  - `metadata`: Object containing:
+    - `actions_applied`: Array of transformation actions
+    - `changes_detected`: boolean
+    - `geometry`: Object with detected rotation, crop box, etc.
+    - `warnings`: Array of warning messages (if any)
+
+### Behavior
+1. **Skip Logic**:
+   - Already normalized documents (checked via NormalizationStore)
+   - Returns `{ status: 'skipped', reason: 'already_normalized' }`
+
+2. **Execution Flow**:
+   - Update status to `processing`
+   - Call PreVisionNormalizer.analyzeAndNormalize()
+   - If changes detected:
+     - Persist normalized images via NormalizationStore
+     - Update Paperless custom fields
+     - Set status to `completed`
+   - If no changes:
+     - Set status to `skipped`
+
+3. **Persistence**:
+   - Images stored to `/app/data/normalized/{docId}/page_{n}.png`
+   - Custom fields updated:
+     - `ai_normalization_status`: 'completed' | 'skipped' | 'failed'
+     - `ai_normalized_url`: URL to first page
+     - `ai_normalization_meta`: JSON metadata
+
+4. **Error Handling**:
+   - **Non-fatal**: Pipeline continues on Stage 3 errors
+   - Status updated to `failed`
+   - Error logged and added to context
 
 ### Allowed
 - Geometry analysis
-- Image transformation
-- Conditional re-ingestion
+- Image transformation (rotate, crop, scale)
+- Conditional persistence based on changes detected
 
 ### Forbidden
 - OCR
 - Extraction
-- Multiple re-runs
-- Execution without `has_images === true`
+- Multiple re-runs (enforced by skip logic)
+- Aborting pipeline on error (Stage 3 is non-fatal)
 
 ---
 

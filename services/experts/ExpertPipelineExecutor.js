@@ -38,6 +38,11 @@ const { guidanceClient, getFallbackPromptId } = require('../guidance');
 // Import ParallelOcrExecutor for Phase 2: Parallel OCR Execution
 const { ParallelOcrExecutor } = require('./ParallelOcrExecutor');
 
+// Import normalization components for Stage 3
+const { PreVisionNormalizer } = require('./normalization/PreVisionNormalizer');
+const { NormalizationStore } = require('../normalization/NormalizationStore');
+const { normalizationTotal, normalizationLatency } = require('../metrics/normalizationMetrics');
+
 // Import utility modules (via centralized index)
 const {
   normalizeLanguageHint,
@@ -115,6 +120,12 @@ class ExpertPipelineExecutor {
       options.parallelOcr || {},
       options.metricsCollector || null
     );
+
+    // Normalization components (Stage 3)
+    this.normalizationStore = options.normalizationStore || new NormalizationStore();
+    this.preVisionNormalizer = options.preVisionNormalizer || new PreVisionNormalizer({
+      ollamaService: this.ollamaService
+    });
   }
 
   /**
@@ -352,6 +363,11 @@ class ExpertPipelineExecutor {
     // Validation stages (no LLM call)
     if (stage.type === StageType.VALIDATION) {
       return this._executeValidationStage(stage, context, stageStart);
+    }
+
+    // Pre-Vision Normalization (Stage 3)
+    if (stage.type === StageType.PRE_VISION_NORMALIZATION) {
+      return this._executeStage3_PreVisionNormalization(stage, context, stageStart);
     }
 
     // Parallel OCR stages (Phase 2)
@@ -813,6 +829,187 @@ class ExpertPipelineExecutor {
       output: validationResult,
       abort: false
     };
+  }
+
+  /**
+   * Execute Stage 3: Pre-Vision Normalization
+   * 
+   * Automatically normalize document images before OCR/visual analysis.
+   * Integrates with NormalizationStore for persistence.
+   * 
+   * Guards:
+   * - ai_normalization_status !== 'completed' (skip already-normalized)
+   * 
+   * Actions:
+   * - Analyze geometry via PreVisionNormalizer
+   * - Persist normalized images via NormalizationStore
+   * - Update Paperless custom fields
+   * 
+   * Non-fatal: Pipeline continues on error
+   * 
+   * @param {Object} stage - Stage configuration
+   * @param {ExecutionContext} context - Execution context
+   * @param {number} stageStart - Stage start timestamp
+   * @returns {Promise<Object>} Execution result
+   */
+  async _executeStage3_PreVisionNormalization(stage, context, stageStart) {
+    const docId = context.document.id;
+
+    logger.debug({
+      event: 'stage3_normalization_start',
+      stageId: stage.id,
+      documentId: docId
+    });
+
+    try {
+      // Guard: Check if already normalized (prevent re-normalization)
+      const isAlreadyNormalized = await this.normalizationStore.isNormalized(docId);
+      if (isAlreadyNormalized) {
+        const timing = Date.now() - stageStart;
+        context.skipStage(stage.id, 'Already normalized');
+        this._recordStageLatency(stage, timing);
+
+        logger.debug({
+          event: 'stage3_normalization_skipped',
+          documentId: docId,
+          reason: 'already_normalized'
+        });
+
+        return {
+          status: 'skipped',
+          output: { reason: 'already_normalized' },
+          abort: false
+        };
+      }
+
+      // Update status to 'processing' (atomic state transition)
+      await this.normalizationStore.updatePaperlessMetadata(
+        docId,
+        'processing',
+        null,
+        {
+          stage: 'pipeline_stage_3',
+          timestamp: new Date().toISOString()
+        }
+      );
+
+      logger.info({
+        event: 'stage3_normalization_processing',
+        documentId: docId
+      });
+
+      // Execute normalization analysis and transformation
+      const analysisStart = Date.now();
+      const normalizationResult = await this.preVisionNormalizer.analyzeAndNormalize(
+        docId,
+        stage.normalizationOptions || {}
+      );
+      const analysisLatency = (Date.now() - analysisStart) / 1000;
+
+      // Record analysis + transformation latency
+      normalizationLatency.labels({ stage: 'analysis' }).observe(analysisLatency);
+
+      // Check if geometry changes were detected
+      if (normalizationResult.metadata?.changes_detected === true) {
+        // Persist normalized images to disk and update metadata
+        await this.normalizationStore.store(docId, normalizationResult.normalized_pages, {
+          actions: normalizationResult.metadata.actions_applied || [],
+          geometry: normalizationResult.metadata.geometry || {},
+          timestamp: new Date().toISOString(),
+          source: 'pipeline_stage_3'
+        });
+
+        // Record success metric
+        normalizationTotal.labels({
+          status: 'success',
+          trigger: 'pipeline'
+        }).inc();
+
+        logger.info({
+          event: 'stage3_normalization_completed',
+          documentId: docId,
+          changesDetected: true,
+          actionsApplied: normalizationResult.metadata.actions_applied?.length || 0,
+          pageCount: normalizationResult.normalized_pages?.length || 0
+        });
+
+        // store() already sets status to 'completed'
+      } else {
+        // No changes detected - mark as skipped
+        logger.info({
+          event: 'stage3_normalization_skipped',
+          documentId: docId,
+          reason: 'no_changes_detected'
+        });
+
+        await this.normalizationStore.updatePaperlessMetadata(
+          docId,
+          'skipped',
+          null,
+          {
+            reason: 'no_changes_detected',
+            timestamp: new Date().toISOString()
+          }
+        );
+      }
+
+      // Store result in context for downstream stages
+      const timing = Date.now() - stageStart;
+      context.setStageOutput(stage.outputKey || 'normalizationResult', normalizationResult, timing);
+      this._recordStageLatency(stage, timing);
+
+      return {
+        status: 'success',
+        output: normalizationResult,
+        abort: false
+      };
+    } catch (error) {
+      // Record failure metric
+      normalizationTotal.labels({
+        status: 'failed',
+        trigger: 'pipeline'
+      }).inc();
+
+      // Non-fatal error handling: log and continue pipeline
+      logger.error({
+        event: 'stage3_normalization_error',
+        documentId: docId,
+        error: error.message,
+        stack: error.stack
+      });
+
+      // Update status to 'failed'
+      try {
+        await this.normalizationStore.updatePaperlessMetadata(
+          docId,
+          'failed',
+          null,
+          {
+            error: error.message,
+            timestamp: new Date().toISOString()
+          }
+        );
+      } catch (statusUpdateError) {
+        logger.error({
+          event: 'stage3_status_update_error',
+          documentId: docId,
+          error: statusUpdateError.message
+        });
+      }
+
+      // Add error to context but don't abort pipeline
+      context.addError(stage.id, error);
+
+      const timing = Date.now() - stageStart;
+      this._recordStageLatency(stage, timing);
+
+      // Return non-fatal error (pipeline continues)
+      return {
+        status: 'error',
+        error,
+        abort: false
+      };
+    }
   }
 
   /**

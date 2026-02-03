@@ -21,6 +21,8 @@ export const UnifiedWorkspaceSchema = z.object({
     mimeType: z.string().nullable(),
     originalUrl: z.string().nullable(),
     normalizedUrl: z.string().nullable(),
+    persistedNormalizedUrl: z.string().nullable(),
+    normalizationStatus: z.enum(['pending', 'processing', 'completed', 'failed', 'skipped']).nullable(),
   }).nullable(),
 
   // User context (for permissioned UI like Debug tab)

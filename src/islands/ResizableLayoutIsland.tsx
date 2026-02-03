@@ -201,7 +201,7 @@ export default function ResizableLayoutIsland(props: ResizableLayoutProps) {
       ref={handleRef}
       className={`
         resize-handle
-        absolute top-0 bottom-0 w-1.5
+        fixed top-[var(--header-height,64px)] bottom-0 w-1.5
         bg-[#e5e0d8] hover:bg-copper
         transition-colors cursor-col-resize
         flex items-center justify-center

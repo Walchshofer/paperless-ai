@@ -122,7 +122,9 @@
                         mode: 'view',
                         overlayMode: 'document',
                         showLegend: false,
-                        allowSelection: true
+                        allowSelection: true,
+                        persistedNormalizedUrl: (doc && doc.persistedNormalizedUrl) ? doc.persistedNormalizedUrl : null,
+                        normalizationStatus: (doc && doc.normalizationStatus) ? doc.normalizationStatus : null
                     }) %>"
                 >
                     <!-- Fallback/Loading Shell -->
@@ -146,7 +148,7 @@
             <div
                 data-island="resizable-layout-island"
                 data-testid="sidebar-resize-container"
-                class="resize-handle-container absolute top-0 bottom-0 w-0 z-30"
+                class="resize-handle-container absolute top-0 bottom-0 right-0 w-0 z-30"
                 data-props="<%= JSON.stringify({
                     minWidth: 320,
                     maxWidth: 700,

@@ -232,6 +232,49 @@ For implementation and processing details, see the Byaldi / MultiModal indexing 
 
 ---
 
+## Document Normalization
+
+Automatic document normalization improves OCR accuracy and visual RAG quality by correcting rotation, cropping borders, and rescaling images before processing. Normalization happens automatically during Expert Pipeline Stage 3 and persists results to disk.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENABLE_AUTO_NORMALIZATION` | `true` | Enable automatic normalization in Expert Pipeline Stage 3. Set to `false` to disable. |
+| `NORMALIZED_IMAGES_DIR` | `/app/data/normalized` | Storage directory for normalized images (container path). Files stored as `{docId}/page_{n}.png`. |
+| `NORMALIZATION_BATCH_LIMIT` | `50` | Maximum documents per batch job run. Controls concurrency for backlog processing. |
+| `NORMALIZATION_VISION_MODEL` | `qwen3-vl:8b` | Vision model used for geometry analysis (rotation, crop detection). |
+| `NORMALIZATION_ANALYSIS_DPI` | `300` | DPI for rendering pages during normalization analysis. Higher values improve accuracy but increase memory usage. |
+| `NORMALIZATION_TARGET_DPI` | `300` | Target DPI for normalized output images. |
+| `NORMALIZATION_MIN_CONFIDENCE` | `0.5` | Minimum confidence threshold (0-1) for applying transformations. |
+
+**Related Custom Fields** (see `docs/EXPERT_PIPELINE_CUSTOM_FIELDS.md`):
+- `ai_normalized_url` - URL to persisted normalized image
+- `ai_normalization_status` - Status: `pending|processing|completed|failed|skipped`
+- `ai_normalization_meta` - JSON metadata with geometry analysis and applied actions
+
+**API Endpoints**:
+- `GET /api/normalized/:docId/:page` - Serve persisted normalized images (with fallback to on-demand)
+- `GET /api/normalization/health` - Health check and statistics
+- `POST /api/normalization/trigger` - Manually trigger normalization
+- `POST /api/normalization/batch` - Run batch normalization job
+
+**Storage Layout**:
+```
+/app/data/normalized/
+├── 123/
+│   ├── page_1.png
+│   ├── page_2.png
+│   └── ...
+└── 456/
+    └── page_1.png
+```
+
+**For more details**, see:
+- Implementation plan: `docs/AUTOMATIC_NORMALIZATION_PLAN.md`
+- Pipeline contract: `docs/PIPELINE_STAGE_CONTRACTS.md` (Stage 3)
+- Custom fields: `docs/EXPERT_PIPELINE_CUSTOM_FIELDS.md`
+
+---
+
 ## Advanced (Code-Level) Environment Variables
 Below are the advanced variables (section 20 in `docker-compose.env`) with recommended values and short rationale. These are intended for operators and infra engineers — change carefully and prefer using secrets managers for sensitive values.
 

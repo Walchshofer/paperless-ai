@@ -16,8 +16,8 @@ test.describe('Workspace Reprocess E2E', () => {
     // Note: This assumes document 74 exists in the test environment
     await page.goto('/workspace/doc/74');
 
-    // Wait for the page to load
-    await page.waitForSelector('[data-page="workspace"]', { timeout: 10000 });
+    // Wait for the page to load - use correct data-page attribute
+    await page.waitForSelector('[data-page="document-workspace"]', { timeout: 10000 });
   });
 
   test('should show Reprocess button in context bar', async ({ page }) => {
