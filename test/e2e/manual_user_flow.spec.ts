@@ -38,7 +38,7 @@ test.describe('Manual Route UI - Complete User Flow', () => {
 
   test('complete user flow: annotation, feedback, save', async ({ page }) => {
     // 1. Verify Manual page loaded
-    await expect(page).toHaveURL(/\/manual/);
+    await expect(page).toHaveURL(/\/workspace/);
 
     // 2. Check for Visual Annotation Island
     const vaiRoot = page.locator('[data-testid="visual-annotation-island-root"]');

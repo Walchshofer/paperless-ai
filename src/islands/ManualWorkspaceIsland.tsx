@@ -265,7 +265,7 @@ export default function ManualWorkspaceIsland(
     setIsLoading(true);
 
     try {
-      const response = await fetchWithTimeout(`/manual/preview/${docId}`);
+      const response = await fetchWithTimeout(`/workspace/api/doc/${docId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch document content');
       }
@@ -354,7 +354,7 @@ export default function ManualWorkspaceIsland(
   const refreshDocuments = useCallback(async () => {
     setStatus(null);
     try {
-      const response = await fetchWithTimeout('/manual/documents');
+      const response = await fetchWithTimeout('/workspace/api/documents');
       if (!response.ok) throw new Error('Failed to fetch documents');
       const docs = await response.json();
       setDocuments(Array.isArray(docs) ? docs : []);

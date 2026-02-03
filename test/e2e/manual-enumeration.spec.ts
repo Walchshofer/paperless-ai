@@ -10,12 +10,12 @@ const tinyPng = Buffer.from(tinyPngBase64, 'base64');
 
 test('Manual page: enumerate elements and verify Manual Editor fields populated', async ({ page }) => {
   // Stub documents list
-  await page.route('**/manual/documents', (route) => {
+  await page.route('**/workspace/api/documents', (route) => {
     route.fulfill({ status: 200, body: JSON.stringify([{ id: 42, title: 'Test Doc' }]), headers: { 'Content-Type': 'application/json' } });
   });
 
   // Stub preview for document 42 with visualFields to populate ManualEditor
-  await page.route('**/manual/preview/42', (route) => {
+  await page.route('**/workspace/api/doc/42', (route) => {
     route.fulfill({
       status: 200,
       body: JSON.stringify({ id: 42, content: 'Page 1 content', title: 'Test Doc', tags: [], pageCount: 1, original_url: '/documents/42/download/original/' , visualFields: [{ label: 'Invoice Number', value: 'INV-123', domain: 'INVOICE', confidence: 0.98 }] }),
@@ -24,9 +24,9 @@ test('Manual page: enumerate elements and verify Manual Editor fields populated'
   });
 
   // Also provide a permissive preview route for variants like trailing slash
-  await page.route('**/manual/preview/**', (route) => {
+  await page.route('**/workspace/api/doc/**', (route) => {
     const url = route.request().url();
-    if (url.includes('/manual/preview/42')) {
+    if (url.includes('/workspace/api/doc/42')) {
       route.fulfill({
         status: 200,
         body: JSON.stringify({ id: 42, content: 'Page 1 content', title: 'Test Doc', tags: [], pageCount: 1, original_url: '/documents/42/download/original/' , visualFields: [{ label: 'Invoice Number', value: 'INV-123', domain: 'INVOICE', confidence: 0.98 }] }),
@@ -101,9 +101,9 @@ test('Manual page: enumerate elements and verify Manual Editor fields populated'
   await page.selectOption('#documentSelect', { label: 'Test Doc' });
 
   // Wait for the preview request to be made and honored by our stub (fallback to request wait)
-  await page.waitForResponse((resp) => resp.url().includes('/manual/preview/42') && resp.status() === 200, { timeout: 2000 }).catch(() => null);
+  await page.waitForResponse((resp) => resp.url().includes('/workspace/api/doc/42') && resp.status() === 200, { timeout: 2000 }).catch(() => null);
   // Also wait for the request itself as evidence the page attempted the fetch (debug)
-  await page.waitForRequest((req) => req.url().includes('/manual/preview/42'), { timeout: 2000 }).catch(() => null);
+  await page.waitForRequest((req) => req.url().includes('/workspace/api/doc/42'), { timeout: 2000 }).catch(() => null);
 
   // Allow a small delay for DOM updates
   await page.waitForTimeout(200);

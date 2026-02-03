@@ -4,6 +4,9 @@ const paperlessService = require('../services/paperlessService.js');
 const documentModel = require('../services/documentModel.js');
 const configFile = require('../config/config.js');
 const { UnifiedWorkspaceSchema } = require('../src/ui/contracts/UnifiedWorkspace.contract.js');
+const {
+  buildPaperlessDocumentUrl
+} = require('../services/utils/paperlessUrl');
 const { authenticate } = require('../middleware/auth');
 
 // All workspace routes require authentication
@@ -193,10 +196,6 @@ router.get('/doc/:id', async (req, res) => {
     }
 
     // 8. Build VM
-    const paperlessBaseUrl = process.env.PAPERLESS_API_URL
-      ? process.env.PAPERLESS_API_URL.replace(/\/api$/, '')
-      : '';
-
     const vm = {
       version: configFile.PAPERLESS_AI_VERSION || '1.0.0',
       config: {
@@ -214,7 +213,10 @@ router.get('/doc/:id', async (req, res) => {
         pageCount: document.page_count || 1,
         currentPage: 1,
         mimeType: document.mime_type,
-        originalUrl: paperlessBaseUrl ? `${paperlessBaseUrl}/documents/${document.id}/download/original/` : null,
+        originalUrl: buildPaperlessDocumentUrl(
+          document.id,
+          '/download/original/'
+        ),
         persistedNormalizedUrl: document.custom_fields?.ai_normalized_url || null,
         normalizationStatus: document.custom_fields?.ai_normalization_status || 'pending',
         normalizedUrl: document.custom_fields?.ai_normalized_url || `/api/normalized/${document.id}/1`,
@@ -342,10 +344,6 @@ router.get('/api/doc/:id', async (req, res) => {
     }
 
     // Build response
-    const paperlessBaseUrl = process.env.PAPERLESS_API_URL
-      ? process.env.PAPERLESS_API_URL.replace(/\/api$/, '')
-      : '';
-
     res.json({
       id: document.id,
       title: document.title,
@@ -356,7 +354,10 @@ router.get('/api/doc/:id', async (req, res) => {
       tags: tagNames,
       pageCount: document.page_count || 1,
       mimeType: document.mime_type,
-      originalUrl: paperlessBaseUrl ? `${paperlessBaseUrl}/documents/${document.id}/download/original/` : null,
+      originalUrl: buildPaperlessDocumentUrl(
+        document.id,
+        '/download/original/'
+      ),
       persistedNormalizedUrl: document.custom_fields?.ai_normalized_url || null,
       normalizationStatus: document.custom_fields?.ai_normalization_status || 'pending',
       normalizedUrl: document.custom_fields?.ai_normalized_url || `/api/normalized/${document.id}/1`,
@@ -365,6 +366,56 @@ router.get('/api/doc/:id', async (req, res) => {
   } catch (error) {
     console.error('[API] Error fetching document:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * @swagger
+ * /workspace/api/tags:
+ *   get:
+ *     summary: Get all tags from Paperless
+ *     description: Returns all available tags for document tagging
+ *     tags:
+ *       - API
+ *       - Documents
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Tags retrieved successfully
+ */
+router.get('/api/tags', async (req, res) => {
+  try {
+    const tags = await paperlessService.getTags();
+    res.json(tags);
+  } catch (error) {
+    console.error('[API] Error fetching tags:', error);
+    res.status(500).json({ error: 'Failed to fetch tags' });
+  }
+});
+
+/**
+ * @swagger
+ * /workspace/api/documents:
+ *   get:
+ *     summary: Get all documents from Paperless
+ *     description: Returns all available documents (unfiltered)
+ *     tags:
+ *       - API
+ *       - Documents
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Documents retrieved successfully
+ */
+router.get('/api/documents', async (req, res) => {
+  try {
+    const documents = await paperlessService.getAllDocumentsUnfiltered();
+    res.json(documents);
+  } catch (error) {
+    console.error('[API] Error fetching documents:', error);
+    res.status(500).json({ error: 'Failed to fetch documents' });
   }
 });
 

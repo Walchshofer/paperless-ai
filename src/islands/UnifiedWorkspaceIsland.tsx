@@ -264,7 +264,7 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
 
       try {
         // Call the save API
-        const response = await fetch('/manual/updateDocument', {
+        const response = await fetch('/api/processing/update-document', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

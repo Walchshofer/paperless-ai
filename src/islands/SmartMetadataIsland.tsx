@@ -38,6 +38,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
   const initialTags: SmartTag[] = Array.isArray(initial.selectedTags) ? initial.selectedTags : [];
   const availableTags: SmartTag[] = Array.isArray(initial.availableTags) ? initial.availableTags : [];
 
+  const [currentDocumentId, setCurrentDocumentId] = useState(props.documentId ?? null);
   const [localMetadata, setLocalMetadata] = useState(() => ({
     title: initial.metadata?.title || '',
     correspondent: initial.metadata?.correspondent || '',
@@ -52,6 +53,31 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     try { window.__smart_metadata_mounted = true; } catch (e) { /* ignore */ }
   }, []);
 
+  // Listen for document changes from the main workspace document dropdown
+  useEffect(() => {
+    const handleDocumentSwitched = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      const { documentId, document } = detail;
+      
+      if (documentId != null && documentId !== currentDocumentId) {
+        setCurrentDocumentId(documentId);
+        // Reset metadata for new document
+        setLocalMetadata({
+          title: document?.title || '',
+          correspondent: document?.correspondent || '',
+          createdDate: document?.createdDate || ''
+        });
+        setLocalFields([]);
+        setLocalTags([]);
+        setValidationError(null);
+        console.log(`[SmartMetadata] Document switched to ${documentId}`);
+      }
+    };
+
+    window.addEventListener('workspace:document-switched', handleDocumentSwitched as EventListener);
+    return () => window.removeEventListener('workspace:document-switched', handleDocumentSwitched as EventListener);
+  }, [currentDocumentId]);
+
   const onLocate = (fieldId: string | number): void => {
     dispatchEventSafe('metadata:locate-field', { fieldId } as MetadataLocateDetail);
   };
@@ -62,11 +88,11 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
 
   const markDirty = (): void => {
     try { window.__smart_metadata_dirty = true; } catch (e) { /* ignore */ }
-    dispatchEventSafe('workspace:dirty', { documentId: props.documentId ?? null } as WorkspaceDirtyDetail);
+    dispatchEventSafe('workspace:dirty', { documentId: currentDocumentId } as WorkspaceDirtyDetail);
   };
 
   const validateAndMarkDirty = (meta: { title: string; correspondent: string; createdDate: string }, fields: SmartField[], tags: SmartTag[]) => {
-    const payload = { documentId: props.documentId ?? null, metadata: meta, customFields: fields, selectedTags: tags };
+    const payload = { documentId: currentDocumentId, metadata: meta, customFields: fields, selectedTags: tags };
     const res = SmartMetadataSchema.safeParse(payload);
     if (!res.success) {
       // expose first issue message
@@ -93,14 +119,14 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     const nextTags = [...localTags, tagToAdd];
     setLocalTags(nextTags);
     validateAndMarkDirty(localMetadata, localFields, nextTags);
-    dispatchEventSafe('tags:updated', { documentId: props.documentId ?? null, tags: nextTags });
+    dispatchEventSafe('tags:updated', { documentId: currentDocumentId, tags: nextTags });
   };
 
   const handleRemoveTag = (tagId: number): void => {
     const nextTags = localTags.filter((t: SmartTag) => t.id !== tagId);
     setLocalTags(nextTags);
     validateAndMarkDirty(localMetadata, localFields, nextTags);
-    dispatchEventSafe('tags:updated', { documentId: props.documentId ?? null, tags: nextTags });
+    dispatchEventSafe('tags:updated', { documentId: currentDocumentId, tags: nextTags });
   };
 
   const onFieldValueChange = (idx: number, val: string) => {
@@ -123,7 +149,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
       const { documentId, fields: newFields, tags: newTags } = detail;
 
       // Only handle if this metadata instance is for the same document
-      if (String(documentId) !== String(props.documentId)) return;
+      if (String(documentId) !== String(currentDocumentId)) return;
 
       // Update local fields with AI-extracted data
       if (Array.isArray(newFields) && newFields.length > 0) {
@@ -151,7 +177,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
 
     window.addEventListener('metadata:refresh', handleMetadataRefresh as EventListener);
     return () => window.removeEventListener('metadata:refresh', handleMetadataRefresh as EventListener);
-  }, [props.documentId]);
+  }, [currentDocumentId]);
 
   // Participant wiring: acknowledge save requests and attempt to save if dirty
   useEffect(() => {
@@ -160,7 +186,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     function onSaveRequest(e: Event) {
       const detail = (e as CustomEvent<SaveRequestDetail>)?.detail || {};
       const { saveId, documentId } = detail;
-      if (String(documentId) !== String(props.documentId)) return;
+      if (String(documentId) !== String(currentDocumentId)) return;
       const participantId = 'smart-metadata';
       const willSave = Boolean(window.__smart_metadata_dirty);
 
@@ -183,7 +209,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
 
     window.addEventListener('workspace:save-request', onSaveRequest as EventListener);
     return () => window.removeEventListener('workspace:save-request', onSaveRequest as EventListener);
-  }, [props.documentId, props.saveDelayMs, validationError]);
+  }, [currentDocumentId, props.saveDelayMs, validationError]);
 
   return (
     <div data-testid="smart-metadata-root" className="flex flex-col gap-3">

@@ -304,6 +304,23 @@ export default function ChatWorkspaceIsland(
     }
   }, [visualRagAvailable, visualRagStatus, chatMode]);
 
+  // Listen for document changes from the main workspace document dropdown
+  useEffect(() => {
+    const handleDocumentSwitched = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      const { documentId, document } = detail;
+      
+      if (documentId != null) {
+        setSelectedDocumentId(Number(documentId));
+        setSelectedDocumentTitle(document?.title || '');
+        console.log(`[Chat] Document switched to ${documentId}: ${document?.title || 'Untitled'}`);
+      }
+    };
+
+    window.addEventListener('workspace:document-switched', handleDocumentSwitched as EventListener);
+    return () => window.removeEventListener('workspace:document-switched', handleDocumentSwitched as EventListener);
+  }, []);
+
   // Prefer server-provided modelConfig when available; otherwise fall back to Ollama-only discovery
   useEffect(() => {
     if (props.modelConfig && props.modelConfig.providers) {
@@ -477,7 +494,7 @@ export default function ChatWorkspaceIsland(
 
   const loadDocumentPreview = useCallback(async (documentId: number) => {
     try {
-      const response = await fetch(`/manual/preview/${documentId}`);
+      const response = await fetch(`/workspace/api/doc/${documentId}`);
       if (!response.ok) throw new Error('Preview unavailable');
       const data = await response.json();
       setDocPreview({
@@ -725,26 +742,18 @@ export default function ChatWorkspaceIsland(
       <div className="material-card sg-card">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex-1 min-w-[220px]">
-            <label className="sg-label" htmlFor="chat-document-select">
+            <label className="sg-label">
               Document
             </label>
-            <select
-              id="chat-document-select"
-              data-testid="chat-document-select"
-              className="sg-select"
-              value={selectedDocumentId ?? ''}
-              onChange={(e: Event) => {
-                const value = (e.target as HTMLSelectElement).value;
-                setSelectedDocumentId(value ? Number(value) : null);
-              }}
-            >
-              <option value="">Choose a document...</option>
-              {documents.map((doc) => (
-                <option key={doc.id} value={doc.id}>
-                  {doc.title || doc.original_filename || `Document ${doc.id}`}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2 px-3 py-2 bg-[#fdfaf6] border border-[#e5e0d8] rounded-lg" data-testid="chat-document-title">
+              <i className="fas fa-file-alt text-[#b87333]"></i>
+              <span className="font-['Space_Grotesk'] font-medium text-[#2c2c2c]">
+                {selectedDocumentId 
+                  ? (selectedDocumentTitle || documents.find(d => d.id === selectedDocumentId)?.title || `Document #${selectedDocumentId}`)
+                  : 'No document selected'
+                }
+              </span>
+            </div>
           </div>
 
           <div className="flex-1 min-w-[220px]">
@@ -1171,7 +1180,7 @@ export default function ChatWorkspaceIsland(
                       dangerouslySetInnerHTML={{
                         __html: msg.role === 'assistant'
                           ? safeMarkdown(msg.content).replace(/\[visual:(\d+)\/(\d+)\/(.*?)\]/g, (match: string, docId: string, pg: string, bbox: string) => {
-                              return `<a href="/manual?open=${docId}&page=${pg}&highlight=${encodeURIComponent(bbox)}" class="text-blue-600 hover:underline inline-flex items-center gap-1" title="View in Manual Mode"><i class="fas fa-search"></i> Visual Reference (Page ${pg})</a>`;
+                              return `<a href="/workspace/doc/${docId}?tab=visual&page=${pg}" class="text-blue-600 hover:underline inline-flex items-center gap-1" title="View in Workspace"><i class="fas fa-search"></i> Visual Reference (Page ${pg})</a>`;
                             })
                           : msg.content
                       }}

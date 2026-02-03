@@ -610,7 +610,7 @@ function VisualAnnotationIsland(props) {
       if (!props.documentId) return;
       try {
         const pageQuery = props.page !== void 0 && props.page !== null ? `?page=${props.page}` : "";
-        const resp = await fetch(`/manual/annotations/${props.documentId}${pageQuery}`, { headers: { "X-Request-Id": `load-annotations-${Date.now()}` } });
+        const resp = await fetch(`/api/annotations/${props.documentId}${pageQuery}`, { headers: { "X-Request-Id": `load-annotations-${Date.now()}` } });
         if (aborted) return;
         if (resp.status === 401) {
           console.warn("Annotations: authentication required to load annotations");
@@ -850,7 +850,7 @@ function VisualAnnotationIsland(props) {
       annotations: annotations.map((a3) => ({ bbox: { x: a3.x, y: a3.y, width: a3.width, height: a3.height }, label: a3.label, note: a3.note }))
     };
     try {
-      const resp = await fetch("/manual/annotations", {
+      const resp = await fetch("/api/annotations", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Request-Id": `save-annotations-${Date.now()}` },
         body: JSON.stringify(payload)
@@ -921,11 +921,24 @@ function VisualAnnotationIsland(props) {
       setIsSaving(false);
     }
   };
+  const handleExportAnnotations = q2(() => {
+    if (annotations.length === 0 || !documentId) return;
+    const event = new CustomEvent("export:annotations-requested", {
+      detail: {
+        documentId,
+        annotations,
+        format: "json"
+      }
+    });
+    if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+      window.dispatchEvent(event);
+    }
+  }, [annotations, documentId]);
   y2(() => {
     async function onSaveRequest(e3) {
       const detail = e3?.detail || {};
-      const { saveId, documentId } = detail;
-      if (String(documentId) !== String(props.documentId)) return;
+      const { saveId, documentId: documentId2 } = detail;
+      if (String(documentId2) !== String(props.documentId)) return;
       const participantId = "visual-annotation";
       const willSave = annotations.length > 0;
       window.dispatchEvent(new CustomEvent("workspace:save-ack", { detail: { saveId, participantId, willSave } }));
@@ -1009,6 +1022,22 @@ function VisualAnnotationIsland(props) {
           className: "vai-btn vai-btn-primary",
           disabled: status !== "ready" || annotations.length === 0 || isSaving,
           children: isSaving ? "Saving..." : "Save Annotations"
+        }
+      ),
+      /* @__PURE__ */ u3(
+        "button",
+        {
+          "data-testid": "export-annotations",
+          onClick: handleExportAnnotations,
+          className: "vai-btn",
+          disabled: status !== "ready" || annotations.length === 0,
+          title: "Export all annotations as JSON",
+          children: [
+            /* @__PURE__ */ u3("i", { className: "fas fa-download mr-1" }),
+            "Export (",
+            annotations.length,
+            ")"
+          ]
         }
       ),
       saveError && /* @__PURE__ */ u3("div", { className: "flex items-center gap-2 ml-2", children: [
@@ -1098,7 +1127,7 @@ function VisualAnnotationIsland(props) {
                 setAnnotations(newAnns);
                 try {
                   if (newAnns[i4].id) {
-                    await fetch(`/manual/annotations/${newAnns[i4].id}`, {
+                    await fetch(`/api/annotations/${newAnns[i4].id}`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ label: val })
@@ -1144,7 +1173,7 @@ function VisualAnnotationIsland(props) {
                 const annToRemove = annotations[i4];
                 if (annToRemove && annToRemove.id) {
                   try {
-                    const resp = await fetch(`/manual/annotations/${annToRemove.id}`, { method: "DELETE" });
+                    const resp = await fetch(`/api/annotations/${annToRemove.id}`, { method: "DELETE" });
                     if (!resp.ok) throw new Error("delete failed");
                     setAnnotations(annotations.filter((_3, idx) => idx !== i4));
                   } catch (err) {
@@ -5720,7 +5749,7 @@ function ManualEditorIsland(props) {
   const [gpuState, setGpuState] = d2("idle");
   const [syncState, setSyncState] = d2("idle");
   const [syncError, setSyncError] = d2("");
-  const [documentId, setDocumentId] = d2(props.documentId || null);
+  const [documentId2, setDocumentId] = d2(props.documentId || null);
   const normalizeFields = (contractFields) => {
     if (!contractFields || contractFields.length === 0) {
       return [{ name: "", value: "" }];
@@ -5934,7 +5963,7 @@ function ManualEditorIsland(props) {
       }
     }
     const payload = {
-      documentId: documentId ?? null,
+      documentId: documentId2 ?? null,
       document_updates,
       feedback_events,
       transactional: true
@@ -5946,7 +5975,7 @@ function ManualEditorIsland(props) {
     };
     const eventDetail = {
       type: "payload:ready",
-      documentId: documentId ?? null,
+      documentId: documentId2 ?? null,
       page,
       metadata,
       content,
@@ -5955,7 +5984,7 @@ function ManualEditorIsland(props) {
     };
     dispatchEventSafe2("payload:ready", eventDetail);
     try {
-      const res = await fetch("/manual/updateDocument", {
+      const res = await fetch("/api/processing/update-document", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -5966,7 +5995,7 @@ function ManualEditorIsland(props) {
       if (res.ok) {
         const result = await res.json().catch(() => ({}));
         setSyncState("synced");
-        dispatchEventSafe2("sync:success", { documentId, ...result });
+        dispatchEventSafe2("sync:success", { documentId: documentId2, ...result });
       } else {
         const errorData = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
         throw new Error(errorData.message || `Sync failed with status ${res.status}`);
@@ -5975,20 +6004,20 @@ function ManualEditorIsland(props) {
       setSyncState("error");
       const errorMessage = err instanceof Error ? err.message : "Sync failed";
       setSyncError(errorMessage);
-      dispatchEventSafe2("sync:failed", { documentId, error: errorMessage });
+      dispatchEventSafe2("sync:failed", { documentId: documentId2, error: errorMessage });
     }
-  }, [documentId, props.page, title, correspondent, documentType, content, fields, initialValues]);
+  }, [documentId2, props.page, title, correspondent, documentType, content, fields, initialValues]);
   const runAiAnalysis = q2(async () => {
     if (gpuState !== "ready") return;
     setAiLoading(true);
     setAiResponse(null);
     try {
-      const res = await fetch("/manual/analyze", {
+      const res = await fetch("/api/processing/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           content: content.substring(0, 5e4),
-          id: documentId
+          id: documentId2
         })
       });
       const data = await res.json();
@@ -5999,7 +6028,7 @@ function ManualEditorIsland(props) {
     } finally {
       setAiLoading(false);
     }
-  }, [gpuState, content, documentId]);
+  }, [gpuState, content, documentId2]);
   return /* @__PURE__ */ u3("div", { "data-testid": "manual-editor-island-root", "data-hydrated": "true", className: "mei-root", children: [
     syncState !== "idle" && /* @__PURE__ */ u3(
       "div",
@@ -6550,6 +6579,7 @@ function SmartMetadataIsland(props) {
   const fields = Array.isArray(initial.customFields) ? initial.customFields : [];
   const initialTags = Array.isArray(initial.selectedTags) ? initial.selectedTags : [];
   const availableTags = Array.isArray(initial.availableTags) ? initial.availableTags : [];
+  const [currentDocumentId, setCurrentDocumentId] = d2(props.documentId ?? null);
   const [localMetadata, setLocalMetadata] = d2(() => ({
     title: initial.metadata?.title || "",
     correspondent: initial.metadata?.correspondent || "",
@@ -6564,6 +6594,26 @@ function SmartMetadataIsland(props) {
     } catch (e3) {
     }
   }, []);
+  y2(() => {
+    const handleDocumentSwitched = (e3) => {
+      const detail = e3?.detail || {};
+      const { documentId: documentId2, document: document2 } = detail;
+      if (documentId2 != null && documentId2 !== currentDocumentId) {
+        setCurrentDocumentId(documentId2);
+        setLocalMetadata({
+          title: document2?.title || "",
+          correspondent: document2?.correspondent || "",
+          createdDate: document2?.createdDate || ""
+        });
+        setLocalFields([]);
+        setLocalTags([]);
+        setValidationError(null);
+        console.log(`[SmartMetadata] Document switched to ${documentId2}`);
+      }
+    };
+    window.addEventListener("workspace:document-switched", handleDocumentSwitched);
+    return () => window.removeEventListener("workspace:document-switched", handleDocumentSwitched);
+  }, [currentDocumentId]);
   const onLocate = (fieldId) => {
     dispatchEventSafe3("metadata:locate-field", { fieldId });
   };
@@ -6575,10 +6625,10 @@ function SmartMetadataIsland(props) {
       window.__smart_metadata_dirty = true;
     } catch (e3) {
     }
-    dispatchEventSafe3("workspace:dirty", { documentId: props.documentId ?? null });
+    dispatchEventSafe3("workspace:dirty", { documentId: currentDocumentId });
   };
   const validateAndMarkDirty = (meta, fields2, tags) => {
-    const payload = { documentId: props.documentId ?? null, metadata: meta, customFields: fields2, selectedTags: tags };
+    const payload = { documentId: currentDocumentId, metadata: meta, customFields: fields2, selectedTags: tags };
     const res = SmartMetadataSchema.safeParse(payload);
     if (!res.success) {
       const msg = res.error?.issues?.[0]?.message || "Validation failed";
@@ -6600,13 +6650,13 @@ function SmartMetadataIsland(props) {
     const nextTags = [...localTags, tagToAdd];
     setLocalTags(nextTags);
     validateAndMarkDirty(localMetadata, localFields, nextTags);
-    dispatchEventSafe3("tags:updated", { documentId: props.documentId ?? null, tags: nextTags });
+    dispatchEventSafe3("tags:updated", { documentId: currentDocumentId, tags: nextTags });
   };
   const handleRemoveTag = (tagId) => {
     const nextTags = localTags.filter((t3) => t3.id !== tagId);
     setLocalTags(nextTags);
     validateAndMarkDirty(localMetadata, localFields, nextTags);
-    dispatchEventSafe3("tags:updated", { documentId: props.documentId ?? null, tags: nextTags });
+    dispatchEventSafe3("tags:updated", { documentId: currentDocumentId, tags: nextTags });
   };
   const onFieldValueChange = (idx, val) => {
     const nextFields = localFields.map((f4, i4) => i4 === idx ? { ...f4, value: val } : f4);
@@ -6616,8 +6666,8 @@ function SmartMetadataIsland(props) {
   y2(() => {
     const handleMetadataRefresh = (e3) => {
       const detail = e3?.detail || {};
-      const { documentId, fields: newFields, tags: newTags } = detail;
-      if (String(documentId) !== String(props.documentId)) return;
+      const { documentId: documentId2, fields: newFields, tags: newTags } = detail;
+      if (String(documentId2) !== String(currentDocumentId)) return;
       if (Array.isArray(newFields) && newFields.length > 0) {
         const updatedFields = newFields.map((f4) => ({
           ...f4,
@@ -6637,12 +6687,12 @@ function SmartMetadataIsland(props) {
     };
     window.addEventListener("metadata:refresh", handleMetadataRefresh);
     return () => window.removeEventListener("metadata:refresh", handleMetadataRefresh);
-  }, [props.documentId]);
+  }, [currentDocumentId]);
   y2(() => {
     function onSaveRequest(e3) {
       const detail = e3?.detail || {};
-      const { saveId, documentId } = detail;
-      if (String(documentId) !== String(props.documentId)) return;
+      const { saveId, documentId: documentId2 } = detail;
+      if (String(documentId2) !== String(currentDocumentId)) return;
       const participantId = "smart-metadata";
       const willSave = Boolean(window.__smart_metadata_dirty);
       dispatchEventSafe3("workspace:save-ack", { saveId, participantId, willSave });
@@ -6663,7 +6713,7 @@ function SmartMetadataIsland(props) {
     }
     window.addEventListener("workspace:save-request", onSaveRequest);
     return () => window.removeEventListener("workspace:save-request", onSaveRequest);
-  }, [props.documentId, props.saveDelayMs, validationError]);
+  }, [currentDocumentId, props.saveDelayMs, validationError]);
   return /* @__PURE__ */ u3("div", { "data-testid": "smart-metadata-root", className: "flex flex-col gap-3", children: [
     validationError && /* @__PURE__ */ u3(
       "div",
@@ -6874,7 +6924,7 @@ var SearchResponseSchema = external_exports.object({
 // src/islands/HistoryTabsIsland.tsx
 function HistoryTabsIsland(props) {
   const validated = HistoryTabsSchema.parse(props);
-  const { documentId, content, metadata } = validated;
+  const { documentId: documentId2, content, metadata } = validated;
   const [activeTab, setActiveTab] = d2("text");
   const [isSearching, setIsSearching] = d2(false);
   const [isInitializing, setIsInitializing] = d2(false);
@@ -6898,7 +6948,7 @@ function HistoryTabsIsland(props) {
   y2(() => {
     const handleVisualSearchRequest = async (event) => {
       const { imageBase64, collection = "visual_pages" } = event.detail || {};
-      if (imageBase64 && documentId) {
+      if (imageBase64 && documentId2) {
         await performVisualSearch(imageBase64, collection);
       }
     };
@@ -6906,7 +6956,7 @@ function HistoryTabsIsland(props) {
     return () => {
       window.removeEventListener("visual-search-requested", handleVisualSearchRequest);
     };
-  }, [documentId, activeFilters]);
+  }, [documentId2, activeFilters]);
   const performVisualSearch = async (imageBase64, collection = "visual_pages") => {
     setActiveTab("similar");
     setIsSearching(true);
@@ -6924,7 +6974,7 @@ function HistoryTabsIsland(props) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Request-Id": `history-${documentId}-${Date.now()}`
+          "X-Request-Id": `history-${documentId2}-${Date.now()}`
         },
         body: JSON.stringify({
           image: imageBase64,
@@ -7397,7 +7447,9 @@ function OverlayViewerIsland(props) {
     showLegend = false,
     allowSelection = true,
     mode = "visual-search",
-    suggestions = []
+    suggestions = [],
+    persistedNormalizedUrl,
+    normalizationStatus
   } = props;
   const containerRef = A2(null);
   const canvasRef = A2(null);
@@ -7483,6 +7535,8 @@ function OverlayViewerIsland(props) {
   const [highlightedRegion, setHighlightedRegion] = d2(null);
   const [drawContext, setDrawContext] = d2(null);
   const drawContextRef = A2(null);
+  const [selectedRegion, setSelectedRegion] = d2(null);
+  const [showExportBtn, setShowExportBtn] = d2(false);
   const MIN_SCALE = 0.5;
   const MAX_SCALE = 3;
   const SCALE_STEP = 0.1;
@@ -7614,8 +7668,11 @@ function OverlayViewerIsland(props) {
   }, [panMode]);
   const normalizedUrl = T2(() => {
     if (!docId) return null;
+    if (persistedNormalizedUrl) {
+      return `${persistedNormalizedUrl}?page=${page}`;
+    }
     return `/api/visual-rag/normalized/${docId}?page=${page}`;
-  }, [docId, page]);
+  }, [docId, page, persistedNormalizedUrl]);
   const originalUrlWithPage = T2(() => {
     if (!originalUrl) return null;
     return `${originalUrl}${originalUrl.includes("?") ? "&" : "?"}page=${page}`;
@@ -7824,7 +7881,7 @@ function OverlayViewerIsland(props) {
     const loadUserAnnotations = async () => {
       if (!docId) return;
       try {
-        const resp = await fetch(`/manual/annotations/${docId}?page=${page}`);
+        const resp = await fetch(`/api/annotations/${docId}?page=${page}`);
         if (!resp.ok) return;
         const data = await resp.json();
         if (cancelled) return;
@@ -7840,7 +7897,7 @@ function OverlayViewerIsland(props) {
       const payload = e3?.detail;
       if (!payload || !payload.documentId || !Array.isArray(payload.annotations)) return;
       try {
-        const resp = await fetch("/manual/annotations", {
+        const resp = await fetch("/api/annotations", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
@@ -8035,6 +8092,60 @@ function OverlayViewerIsland(props) {
     },
     [docId, page, imageLoaded, imageError, onRegionSelected]
   );
+  const handleExportRegion = q2(
+    async (format) => {
+      if (!selectedRegion || !docId) return;
+      const container = containerRef.current;
+      const img = imageRef.current;
+      if (!container || !img) return;
+      try {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        const naturalWidth = img.naturalWidth || container.clientWidth;
+        const naturalHeight = img.naturalHeight || container.clientHeight;
+        const scaleX = naturalWidth / container.clientWidth;
+        const scaleY = naturalHeight / container.clientHeight;
+        const srcX = selectedRegion.x * scaleX;
+        const srcY = selectedRegion.y * scaleY;
+        const srcWidth = selectedRegion.width * scaleX;
+        const srcHeight = selectedRegion.height * scaleY;
+        canvas.width = srcWidth;
+        canvas.height = srcHeight;
+        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+          ctx.drawImage(img, srcX, srcY, srcWidth, srcHeight, 0, 0, srcWidth, srcHeight);
+        } else {
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        const dataUrl = canvas.toDataURL("image/png");
+        const event = new CustomEvent("export:region-requested", {
+          detail: {
+            documentId: docId,
+            page,
+            format,
+            imageData: dataUrl,
+            bbox: {
+              x: selectedRegion.x / container.clientWidth,
+              y: selectedRegion.y / container.clientHeight,
+              width: selectedRegion.width / container.clientWidth,
+              height: selectedRegion.height / container.clientHeight
+            }
+          }
+        });
+        if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+          window.dispatchEvent(event);
+        }
+        setSelectedRegion(null);
+        setShowExportBtn(false);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        console.error("Failed to export region:", errorMessage);
+        setWarning("Failed to export selection. Please try again.");
+      }
+    },
+    [selectedRegion, docId, page]
+  );
   const handleMouseUp = q2((e3) => {
     if (!isDrawingRef.current || !currentBoxRef.current) return;
     if (e3) {
@@ -8077,12 +8188,15 @@ function OverlayViewerIsland(props) {
     setBoxes((prev) => [...prev, normalizedBox]);
     currentBoxRef.current = null;
     setCurrentBox(null);
+    setSelectedRegion(normalizedBox);
+    setShowExportBtn(true);
     if (mode === "draw") {
       captureRegion(normalizedBox, "overlay:draw-complete");
     } else {
       captureRegion(normalizedBox, "visual-search-requested");
     }
   }, [captureRegion, getRelativePosition, mode]);
+  ;
   const removeBox = q2((boxId) => {
     setBoxes((prev) => prev.filter((b3) => b3.id !== boxId));
   }, []);
@@ -8423,6 +8537,32 @@ function OverlayViewerIsland(props) {
             )
           ] })
         ] }),
+        normalizationStatus && /* @__PURE__ */ u3(
+          "div",
+          {
+            "data-testid": "normalization-status-indicator",
+            className: "flex items-center gap-2 px-3 py-1.5 text-xs border-b border-gray-100 bg-gray-50",
+            children: [
+              /* @__PURE__ */ u3("span", { className: "font-medium text-gray-500", children: "Source:" }),
+              normalizationStatus === "completed" ? /* @__PURE__ */ u3("span", { className: "inline-flex items-center gap-1.5 text-green-700", children: [
+                /* @__PURE__ */ u3("i", { className: "fas fa-check-circle" }),
+                /* @__PURE__ */ u3("span", { children: "Persisted (Normalized)" })
+              ] }) : normalizationStatus === "processing" ? /* @__PURE__ */ u3("span", { className: "inline-flex items-center gap-1.5 text-amber-600", children: [
+                /* @__PURE__ */ u3("i", { className: "fas fa-spinner fa-spin" }),
+                /* @__PURE__ */ u3("span", { children: "Normalizing..." })
+              ] }) : normalizationStatus === "failed" ? /* @__PURE__ */ u3("span", { className: "inline-flex items-center gap-1.5 text-red-600", children: [
+                /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-triangle" }),
+                /* @__PURE__ */ u3("span", { children: "Normalization Failed (using original)" })
+              ] }) : normalizationStatus === "skipped" ? /* @__PURE__ */ u3("span", { className: "inline-flex items-center gap-1.5 text-gray-500", children: [
+                /* @__PURE__ */ u3("i", { className: "fas fa-forward" }),
+                /* @__PURE__ */ u3("span", { children: "Skipped (using original)" })
+              ] }) : /* @__PURE__ */ u3("span", { className: "inline-flex items-center gap-1.5 text-gray-500", children: [
+                /* @__PURE__ */ u3("i", { className: "fas fa-clock" }),
+                /* @__PURE__ */ u3("span", { children: "On-demand Render" })
+              ] })
+            ]
+          }
+        ),
         warning && /* @__PURE__ */ u3(
           "div",
           {
@@ -8575,8 +8715,8 @@ function OverlayViewerIsland(props) {
                           onClick: () => {
                             captureRegion(box, "manual:send-to-chat");
                             const onSend = (e3) => {
-                              const { imageBase64, bbox, page: page2, documentId } = e3.detail || {};
-                              const context = { type: "visual", data: { imageBase64, bbox, page: page2 }, documentId };
+                              const { imageBase64, bbox, page: page2, documentId: documentId2 } = e3.detail || {};
+                              const context = { type: "visual", data: { imageBase64, bbox, page: page2 }, documentId: documentId2 };
                               window.location.href = `/chat?context=${encodeURIComponent(JSON.stringify(context))}`;
                             };
                             window.addEventListener("manual:send-to-chat", onSend, { once: true });
@@ -8677,7 +8817,59 @@ function OverlayViewerIsland(props) {
               ]
             }
           )
-        ] })
+        ] }),
+        showExportBtn && selectedRegion && /* @__PURE__ */ u3(
+          "div",
+          {
+            "data-testid": "export-region-overlay",
+            className: "absolute bg-white border-2 border-[#b87333] rounded-lg shadow-lg p-2 flex flex-col gap-2 z-50",
+            style: {
+              left: `${selectedRegion.x + selectedRegion.width / 2 - 60}px`,
+              top: `${selectedRegion.y - 60}px`
+            },
+            children: [
+              /* @__PURE__ */ u3("div", { className: "text-xs font-semibold text-gray-700 mb-1", children: "Export Selection" }),
+              /* @__PURE__ */ u3("div", { className: "flex gap-2", children: [
+                /* @__PURE__ */ u3(
+                  "button",
+                  {
+                    "data-testid": "export-png-btn",
+                    onClick: () => handleExportRegion("png"),
+                    className: "px-3 py-1.5 text-sm bg-[#b87333] text-white rounded hover:bg-[#a56729] transition-colors",
+                    children: [
+                      /* @__PURE__ */ u3("i", { className: "fas fa-image mr-1" }),
+                      "PNG"
+                    ]
+                  }
+                ),
+                /* @__PURE__ */ u3(
+                  "button",
+                  {
+                    "data-testid": "export-pdf-btn",
+                    onClick: () => handleExportRegion("pdf"),
+                    className: "px-3 py-1.5 text-sm bg-[#b87333] text-white rounded hover:bg-[#a56729] transition-colors",
+                    children: [
+                      /* @__PURE__ */ u3("i", { className: "fas fa-file-pdf mr-1" }),
+                      "PDF"
+                    ]
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ u3(
+                "button",
+                {
+                  "data-testid": "export-cancel-btn",
+                  onClick: () => {
+                    setSelectedRegion(null);
+                    setShowExportBtn(false);
+                  },
+                  className: "text-xs text-gray-500 hover:text-gray-700 transition-colors",
+                  children: "Cancel"
+                }
+              )
+            ]
+          }
+        )
       ]
     }
   );
@@ -15712,6 +15904,7 @@ function ExportPanelIsland(props) {
   const [data, setData] = d2(null);
   const [format, setFormat] = d2("png");
   const [loading, setLoading] = d2(false);
+  const [error, setError] = d2(null);
   y2(() => {
     const onRegion = (e3) => {
       setData(e3.detail?.imageBase64);
@@ -15742,17 +15935,18 @@ function ExportPanelIsland(props) {
   }, []);
   const handleExport = async () => {
     setLoading(true);
+    setError(null);
     try {
       let endpoint = "";
       let body = {};
       if (exportType === "region") {
-        endpoint = "/manual/export/region";
+        endpoint = "/api/export/region";
         body = { imageBase64: data, format };
       } else if (exportType === "text") {
-        endpoint = "/manual/export/text";
+        endpoint = "/api/export/text";
         body = { text: data, format };
       } else if (exportType === "annotations") {
-        endpoint = "/manual/export/annotations";
+        endpoint = "/api/export/annotations";
         body = { annotations: data, documentId: props.documentId };
       }
       const response = await fetch(endpoint, {
@@ -15781,7 +15975,8 @@ function ExportPanelIsland(props) {
       setShowModal(false);
     } catch (e3) {
       console.error("Export error", e3);
-      alert("Export failed. Please try again.");
+      const errorMsg = e3 instanceof Error ? e3.message : "Export failed. Please try again.";
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -15803,9 +15998,18 @@ function ExportPanelIsland(props) {
   };
   if (!showModal) return null;
   return /* @__PURE__ */ u3("div", { className: "fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm", children: /* @__PURE__ */ u3("div", { className: "bg-white rounded-lg shadow-xl p-6 w-full max-w-md", children: [
-    /* @__PURE__ */ u3("h2", { className: "text-xl font-bold mb-4 capitalize", children: [
+    /* @__PURE__ */ u3("h2", { className: "text-xl font-bold mb-4 capitalize flex items-center gap-2", children: [
+      /* @__PURE__ */ u3("i", { className: `fas ${exportType === "region" ? "fa-image" : exportType === "text" ? "fa-file-alt" : "fa-list"}` }),
       "Export ",
       exportType
+    ] }),
+    loading && /* @__PURE__ */ u3("div", { className: "mb-4 p-3 bg-blue-50 border border-blue-200 rounded flex items-center gap-2", children: [
+      /* @__PURE__ */ u3("i", { className: "fas fa-spinner fa-spin text-blue-600" }),
+      /* @__PURE__ */ u3("span", { className: "text-sm text-blue-700", children: "Exporting..." })
+    ] }),
+    error && /* @__PURE__ */ u3("div", { className: "mb-4 p-3 bg-red-50 border border-red-200 rounded flex items-center gap-2", children: [
+      /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-circle text-red-600" }),
+      /* @__PURE__ */ u3("span", { className: "text-sm text-red-700", children: error })
     ] }),
     /* @__PURE__ */ u3("div", { className: "mb-4", children: [
       /* @__PURE__ */ u3("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "Format" }),
@@ -15815,7 +16019,8 @@ function ExportPanelIsland(props) {
             "button",
             {
               onClick: () => setFormat("png"),
-              className: `px-3 py-2 border rounded ${format === "png" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
+              disabled: loading,
+              className: `px-3 py-2 border rounded transition-colors ${format === "png" ? "bg-[#b87333] border-[#b87333] text-white" : "bg-white hover:bg-gray-50"} disabled:opacity-50`,
               children: "PNG"
             }
           ),
@@ -15823,7 +16028,8 @@ function ExportPanelIsland(props) {
             "button",
             {
               onClick: () => setFormat("pdf"),
-              className: `px-3 py-2 border rounded ${format === "pdf" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
+              disabled: loading,
+              className: `px-3 py-2 border rounded transition-colors ${format === "pdf" ? "bg-[#b87333] border-[#b87333] text-white" : "bg-white hover:bg-gray-50"} disabled:opacity-50`,
               children: "PDF"
             }
           )
@@ -15833,7 +16039,8 @@ function ExportPanelIsland(props) {
             "button",
             {
               onClick: () => setFormat("txt"),
-              className: `px-3 py-2 border rounded ${format === "txt" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
+              disabled: loading,
+              className: `px-3 py-2 border rounded transition-colors ${format === "txt" ? "bg-[#b87333] border-[#b87333] text-white" : "bg-white hover:bg-gray-50"} disabled:opacity-50`,
               children: "TXT"
             }
           ),
@@ -15841,7 +16048,8 @@ function ExportPanelIsland(props) {
             "button",
             {
               onClick: () => setFormat("pdf"),
-              className: `px-3 py-2 border rounded ${format === "pdf" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
+              disabled: loading,
+              className: `px-3 py-2 border rounded transition-colors ${format === "pdf" ? "bg-[#b87333] border-[#b87333] text-white" : "bg-white hover:bg-gray-50"} disabled:opacity-50`,
               children: "PDF"
             }
           )
@@ -15850,7 +16058,8 @@ function ExportPanelIsland(props) {
           "button",
           {
             onClick: () => setFormat("json"),
-            className: `px-3 py-2 border rounded ${format === "json" ? "bg-blue-50 border-blue-500 text-blue-700" : "bg-white"}`,
+            disabled: loading,
+            className: `px-3 py-2 border rounded transition-colors ${format === "json" ? "bg-[#b87333] border-[#b87333] text-white" : "bg-white hover:bg-gray-50"} disabled:opacity-50`,
             children: "JSON"
           }
         )
@@ -15861,7 +16070,8 @@ function ExportPanelIsland(props) {
         "button",
         {
           onClick: () => setShowModal(false),
-          className: "px-4 py-2 text-gray-600 hover:bg-gray-100 rounded",
+          disabled: loading,
+          className: "px-4 py-2 text-gray-600 hover:bg-gray-100 rounded transition-colors disabled:opacity-50",
           children: "Cancel"
         }
       ),
@@ -15869,8 +16079,12 @@ function ExportPanelIsland(props) {
         "button",
         {
           onClick: handleCopy,
-          className: "px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50",
-          children: "Copy"
+          disabled: loading,
+          className: "px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50 transition-colors disabled:opacity-50",
+          children: [
+            /* @__PURE__ */ u3("i", { className: "fas fa-copy mr-1" }),
+            "Copy"
+          ]
         }
       ),
       /* @__PURE__ */ u3(
@@ -15878,8 +16092,14 @@ function ExportPanelIsland(props) {
         {
           onClick: handleExport,
           disabled: loading,
-          className: "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50",
-          children: loading ? "Exporting..." : "Download"
+          className: "px-4 py-2 bg-[#b87333] text-white rounded hover:bg-[#a56729] transition-colors disabled:opacity-50 flex items-center gap-2",
+          children: loading ? /* @__PURE__ */ u3(k, { children: [
+            /* @__PURE__ */ u3("i", { className: "fas fa-spinner fa-spin" }),
+            /* @__PURE__ */ u3("span", { children: "Exporting..." })
+          ] }) : /* @__PURE__ */ u3(k, { children: [
+            /* @__PURE__ */ u3("i", { className: "fas fa-download" }),
+            /* @__PURE__ */ u3("span", { children: "Download" })
+          ] })
         }
       )
     ] })
@@ -16061,7 +16281,7 @@ function TagsManagerIsland(props) {
   const [selectedTagId, setSelectedTagId] = d2("");
   const [isSaving, setIsSaving] = d2(false);
   const [saveStatus, setSaveStatus] = d2("idle");
-  const [documentId, setDocumentId] = d2(props.documentId ?? null);
+  const [documentId2, setDocumentId] = d2(props.documentId ?? null);
   const resolveTags = q2((tags) => {
     if (!Array.isArray(tags)) return [];
     return tags.map((tag, idx) => {
@@ -16078,7 +16298,7 @@ function TagsManagerIsland(props) {
   y2(() => {
     const fetchTags = async () => {
       try {
-        const res = await fetch("/manual/tags");
+        const res = await fetch("/workspace/api/tags");
         if (res.ok) {
           const tags = await res.json();
           setAvailableTags(tags);
@@ -16153,7 +16373,7 @@ function TagsManagerIsland(props) {
       setCurrentTags(newCurrentTags);
       dispatchEventSafe5("tags:updated", {
         type: "tags:updated",
-        documentId,
+        documentId: documentId2,
         currentTags: newCurrentTags.map((t3) => t3.id),
         action: "accept-suggestion"
       });
@@ -16168,11 +16388,11 @@ function TagsManagerIsland(props) {
     setCurrentTags(newCurrentTags);
     dispatchEventSafe5("tags:updated", {
       type: "tags:updated",
-      documentId,
+      documentId: documentId2,
       currentTags: newCurrentTags.map((t3) => t3.id),
       action: "remove"
     });
-  }, [currentTags, documentId]);
+  }, [currentTags, documentId2]);
   const handleAddTag = q2(() => {
     if (!selectedTagId) return;
     const tag = availableTags.find((t3) => t3.id === parseInt(selectedTagId));
@@ -16182,24 +16402,24 @@ function TagsManagerIsland(props) {
       setCurrentTags(newCurrentTags);
       dispatchEventSafe5("tags:updated", {
         type: "tags:updated",
-        documentId,
+        documentId: documentId2,
         currentTags: newCurrentTags.map((t3) => t3.id),
         action: "add"
       });
     }
     setSelectedTagId("");
-  }, [selectedTagId, availableTags, currentTags, documentId]);
+  }, [selectedTagId, availableTags, currentTags, documentId2]);
   const handleSaveTags = q2(async () => {
-    if (!documentId) return;
+    if (!documentId2) return;
     setIsSaving(true);
     setSaveStatus("idle");
     try {
       const tagIds = currentTags.map((t3) => t3.id).filter((id) => id > 0);
-      const res = await fetch("/manual/updateDocument", {
+      const res = await fetch("/api/processing/update-document", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          documentId,
+          documentId: documentId2,
           tags: tagIds
         })
       });
@@ -16207,7 +16427,7 @@ function TagsManagerIsland(props) {
         setSaveStatus("success");
         dispatchEventSafe5("tags:updated", {
           type: "tags:updated",
-          documentId,
+          documentId: documentId2,
           currentTags: tagIds,
           action: "save"
         });
@@ -16220,7 +16440,7 @@ function TagsManagerIsland(props) {
     } finally {
       setIsSaving(false);
     }
-  }, [currentTags, documentId]);
+  }, [currentTags, documentId2]);
   const selectableTags = availableTags.filter(
     (at) => !currentTags.find((ct) => ct.id === at.id)
   );
@@ -16270,7 +16490,7 @@ function TagsManagerIsland(props) {
             type: "button",
             className: "tm-save-btn",
             onClick: handleSaveTags,
-            disabled: isSaving || !documentId,
+            disabled: isSaving || !documentId2,
             "data-testid": "save-tags-btn",
             children: isSaving ? "Saving..." : "Save Tags"
           }
@@ -16506,7 +16726,7 @@ function AIAnalysisIsland(props) {
   const [analysisType, setAnalysisType] = d2(null);
   const [gpuState, setGpuState] = d2(props.gpuState || "idle");
   const [statusMessage, setStatusMessage] = d2("");
-  const [documentId, setDocumentId] = d2(props.documentId ?? null);
+  const [documentId2, setDocumentId] = d2(props.documentId ?? null);
   const [content, setContent] = d2(props.content || "");
   y2(() => {
     let mounted = true;
@@ -16579,13 +16799,13 @@ function AIAnalysisIsland(props) {
     }));
   }, []);
   const handleTextAnalysis = q2(async () => {
-    if (!documentId) return;
+    if (!documentId2) return;
     setIsAnalyzing(true);
     setAnalysisType("text");
     setStatusMessage("AI is analyzing the document...");
     dispatchEventSafe6("ai:analysis-started", {
       type: "ai:analysis-started",
-      documentId,
+      documentId: documentId2,
       analysisType: "text"
     });
     try {
@@ -16596,12 +16816,12 @@ function AIAnalysisIsland(props) {
       if (analysisContent.length > 5e4) {
         analysisContent = analysisContent.substring(0, 5e4);
       }
-      const res = await fetch("/manual/analyze", {
+      const res = await fetch("/api/processing/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           content: analysisContent,
-          id: documentId
+          id: documentId2
         })
       });
       if (!res.ok) {
@@ -16615,7 +16835,7 @@ function AIAnalysisIsland(props) {
       const documentType = doc.document_type || null;
       dispatchEventSafe6("ai:analysis-completed", {
         type: "ai:analysis-completed",
-        documentId,
+        documentId: documentId2,
         analysisType: "text",
         result: {
           tags,
@@ -16628,7 +16848,7 @@ function AIAnalysisIsland(props) {
       if (tags && tags.length > 0) {
         dispatchEventSafe6("tags:suggestions-received", {
           type: "tags:suggestions-received",
-          documentId,
+          documentId: documentId2,
           suggestedTags: tags
         });
       }
@@ -16640,9 +16860,9 @@ function AIAnalysisIsland(props) {
       setIsAnalyzing(false);
       setAnalysisType(null);
     }
-  }, [documentId, content, toManualFields]);
+  }, [documentId2, content, toManualFields]);
   const handleVisualAnalysis = q2(async () => {
-    if (!documentId) return;
+    if (!documentId2) return;
     if (gpuState !== "ready") {
       setStatusMessage("GPU is not ready for visual analysis");
       return;
@@ -16652,14 +16872,14 @@ function AIAnalysisIsland(props) {
     setStatusMessage("Running Visual Analysis (Expert Pipeline)...");
     dispatchEventSafe6("ai:analysis-started", {
       type: "ai:analysis-started",
-      documentId,
+      documentId: documentId2,
       analysisType: "visual"
     });
     try {
-      const res = await fetch("/manual/analyze-visual", {
+      const res = await fetch("/api/processing/analyze-visual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ docId: documentId })
+        body: JSON.stringify({ docId: documentId2 })
       });
       const data = await res.json();
       if (!data.success) {
@@ -16667,7 +16887,7 @@ function AIAnalysisIsland(props) {
       }
       dispatchEventSafe6("visual:fallback", {
         type: "visual:fallback",
-        documentId,
+        documentId: documentId2,
         fallback: data.fallback || null
       });
       const doc = data.result || data.document || {};
@@ -16677,7 +16897,7 @@ function AIAnalysisIsland(props) {
       const documentType = doc.document_type || null;
       dispatchEventSafe6("ai:analysis-completed", {
         type: "ai:analysis-completed",
-        documentId,
+        documentId: documentId2,
         analysisType: "visual",
         result: {
           tags,
@@ -16691,7 +16911,7 @@ function AIAnalysisIsland(props) {
       if (tags.length > 0) {
         dispatchEventSafe6("tags:suggestions-received", {
           type: "tags:suggestions-received",
-          documentId,
+          documentId: documentId2,
           suggestedTags: tags
         });
       }
@@ -16703,17 +16923,17 @@ function AIAnalysisIsland(props) {
       setIsAnalyzing(false);
       setAnalysisType(null);
     }
-  }, [documentId, gpuState, toManualFields]);
+  }, [documentId2, gpuState, toManualFields]);
   const handleChat = q2(() => {
-    if (!documentId) return;
+    if (!documentId2) return;
     dispatchEventSafe6("ai:analysis-started", {
       type: "ai:analysis-started",
-      documentId,
+      documentId: documentId2,
       analysisType: "chat"
     });
-    window.location.href = `/chat?open=${documentId}`;
-  }, [documentId]);
-  const isDisabled = !documentId || isAnalyzing;
+    window.location.href = `/chat?open=${documentId2}`;
+  }, [documentId2]);
+  const isDisabled = !documentId2 || isAnalyzing;
   const visualDisabled = isDisabled || gpuState !== "ready";
   return /* @__PURE__ */ u3("div", { "data-testid": "ai-analysis-root", "data-hydrated": "true", className: "aia-root", children: [
     /* @__PURE__ */ u3(
@@ -16739,7 +16959,7 @@ function AIAnalysisIsland(props) {
         type: "button",
         className: "aia-btn aia-btn-secondary",
         onClick: handleChat,
-        disabled: !documentId,
+        disabled: !documentId2,
         "data-testid": "open-chat-btn",
         children: [
           /* @__PURE__ */ u3("i", { className: "fas fa-comment aia-icon", "aria-hidden": "true" }),
@@ -17042,6 +17262,19 @@ function ChatWorkspaceIsland(props) {
     }
   }, [visualRagAvailable, visualRagStatus, chatMode]);
   y2(() => {
+    const handleDocumentSwitched = (e3) => {
+      const detail = e3?.detail || {};
+      const { documentId: documentId2, document: document2 } = detail;
+      if (documentId2 != null) {
+        setSelectedDocumentId(Number(documentId2));
+        setSelectedDocumentTitle(document2?.title || "");
+        console.log(`[Chat] Document switched to ${documentId2}: ${document2?.title || "Untitled"}`);
+      }
+    };
+    window.addEventListener("workspace:document-switched", handleDocumentSwitched);
+    return () => window.removeEventListener("workspace:document-switched", handleDocumentSwitched);
+  }, []);
+  y2(() => {
     if (props.modelConfig && props.modelConfig.providers) {
       const providers = props.modelConfig.providers || {};
       const groups = Object.keys(providers).flatMap((provider) => {
@@ -17176,13 +17409,13 @@ function ChatWorkspaceIsland(props) {
       setIsModelLoading(false);
     }
   };
-  const loadDocumentPreview = q2(async (documentId) => {
+  const loadDocumentPreview = q2(async (documentId2) => {
     try {
-      const response = await fetch(`/manual/preview/${documentId}`);
+      const response = await fetch(`/workspace/api/doc/${documentId2}`);
       if (!response.ok) throw new Error("Preview unavailable");
       const data = await response.json();
       setDocPreview({
-        title: data.title || `Document ${documentId}`,
+        title: data.title || `Document ${documentId2}`,
         content: data.content || "No content available",
         tags: Array.isArray(data.tags) ? data.tags : [],
         originalUrl: data.normalized_original_url || data.original_url || null,
@@ -17190,7 +17423,7 @@ function ChatWorkspaceIsland(props) {
       });
     } catch (error) {
       setDocPreview({
-        title: `Document ${documentId}`,
+        title: `Document ${documentId2}`,
         content: "Preview unavailable.",
         tags: [],
         originalUrl: null,
@@ -17199,15 +17432,15 @@ function ChatWorkspaceIsland(props) {
     }
   }, []);
   const [localTextRagStatus, setLocalTextRagStatus] = d2(null);
-  const initializeChat = q2(async (documentId) => {
+  const initializeChat = q2(async (documentId2) => {
     try {
       setStreamError(null);
       setStatusMessage("Initializing chat...");
       const modelParam = selectedModel ? `?model=${encodeURIComponent(selectedModel)}` : "";
-      const response = await fetch(`/chat/init/${documentId}${modelParam}`);
+      const response = await fetch(`/chat/init/${documentId2}${modelParam}`);
       if (!response.ok) throw new Error("Failed to initialize chat");
       const data = await response.json();
-      setSelectedDocumentTitle(data.documentTitle || `Document ${documentId}`);
+      setSelectedDocumentTitle(data.documentTitle || `Document ${documentId2}`);
       if (Array.isArray(data.history) && data.history.length > 0) {
         setChatMessages(
           data.history.map((m3) => ({ id: makeId(), role: m3.role, content: m3.content }))
@@ -17217,12 +17450,12 @@ function ChatWorkspaceIsland(props) {
           {
             id: makeId(),
             role: "status",
-            content: `Chat ready for ${data.documentTitle || `Document ${documentId}`}.`
+            content: `Chat ready for ${data.documentTitle || `Document ${documentId2}`}.`
           }
         ]);
       }
       if (data.textRagStatus) setLocalTextRagStatus(data.textRagStatus);
-      await loadDocumentPreview(documentId);
+      await loadDocumentPreview(documentId2);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setStreamError(message || "Failed to initialize chat");
@@ -17372,24 +17605,11 @@ function ChatWorkspaceIsland(props) {
     ] }),
     /* @__PURE__ */ u3("div", { className: "material-card sg-card", children: /* @__PURE__ */ u3("div", { className: "flex flex-wrap items-center gap-4", children: [
       /* @__PURE__ */ u3("div", { className: "flex-1 min-w-[220px]", children: [
-        /* @__PURE__ */ u3("label", { className: "sg-label", htmlFor: "chat-document-select", children: "Document" }),
-        /* @__PURE__ */ u3(
-          "select",
-          {
-            id: "chat-document-select",
-            "data-testid": "chat-document-select",
-            className: "sg-select",
-            value: selectedDocumentId ?? "",
-            onChange: (e3) => {
-              const value = e3.target.value;
-              setSelectedDocumentId(value ? Number(value) : null);
-            },
-            children: [
-              /* @__PURE__ */ u3("option", { value: "", children: "Choose a document..." }),
-              documents.map((doc) => /* @__PURE__ */ u3("option", { value: doc.id, children: doc.title || doc.original_filename || `Document ${doc.id}` }, doc.id))
-            ]
-          }
-        )
+        /* @__PURE__ */ u3("label", { className: "sg-label", children: "Document" }),
+        /* @__PURE__ */ u3("div", { className: "flex items-center gap-2 px-3 py-2 bg-[#fdfaf6] border border-[#e5e0d8] rounded-lg", "data-testid": "chat-document-title", children: [
+          /* @__PURE__ */ u3("i", { className: "fas fa-file-alt text-[#b87333]" }),
+          /* @__PURE__ */ u3("span", { className: "font-['Space_Grotesk'] font-medium text-[#2c2c2c]", children: selectedDocumentId ? selectedDocumentTitle || documents.find((d3) => d3.id === selectedDocumentId)?.title || `Document #${selectedDocumentId}` : "No document selected" })
+        ] })
       ] }),
       /* @__PURE__ */ u3("div", { className: "flex-1 min-w-[220px]", children: [
         /* @__PURE__ */ u3("div", { className: "mb-2 flex items-center gap-2 text-xs text-[#666]", "data-testid": "chat-provider-indicator", children: [
@@ -17734,7 +17954,7 @@ function ChatWorkspaceIsland(props) {
                     },
                     dangerouslySetInnerHTML: {
                       __html: msg.role === "assistant" ? safeMarkdown(msg.content).replace(/\[visual:(\d+)\/(\d+)\/(.*?)\]/g, (match, docId, pg, bbox) => {
-                        return `<a href="/manual?open=${docId}&page=${pg}&highlight=${encodeURIComponent(bbox)}" class="text-blue-600 hover:underline inline-flex items-center gap-1" title="View in Manual Mode"><i class="fas fa-search"></i> Visual Reference (Page ${pg})</a>`;
+                        return `<a href="/workspace/doc/${docId}?tab=visual&page=${pg}" class="text-blue-600 hover:underline inline-flex items-center gap-1" title="View in Workspace"><i class="fas fa-search"></i> Visual Reference (Page ${pg})</a>`;
                       }) : msg.content
                     }
                   },
@@ -18011,7 +18231,7 @@ function HistoryManagerIsland(props) {
     setVisualOriginalUrl(null);
     setVisualPageCount(1);
     try {
-      const preview = await fetch(`/manual/preview/${docId}`);
+      const preview = await fetch(`/workspace/api/doc/${docId}`);
       if (preview.ok) {
         const data = await preview.json();
         const nextOriginalUrl = data.normalized_original_url || data.original_url || null;
@@ -18375,7 +18595,7 @@ function formatDocumentLabel(doc) {
 }
 function ManualWorkspaceIsland(props) {
   const [documents, setDocuments] = d2(props.documents || []);
-  const [documentId, setDocumentId] = d2(props.documentId ?? null);
+  const [documentId2, setDocumentId] = d2(props.documentId ?? null);
   const [content, setContent] = d2(props.content || "");
   const [title, setTitle] = d2(props.title || "");
   const [correspondent, setCorrespondent] = d2(props.correspondent || "");
@@ -18389,7 +18609,7 @@ function ManualWorkspaceIsland(props) {
   const [showFallback, setShowFallback] = d2(false);
   const selectRef = A2(null);
   y2(() => {
-    if (typeof window !== "undefined" && documentId) {
+    if (typeof window !== "undefined" && documentId2) {
       const params = new URLSearchParams(window.location.search);
       const highlight = params.get("highlight");
       const pageParam = params.get("page");
@@ -18408,12 +18628,12 @@ function ManualWorkspaceIsland(props) {
             }
           }
           if (targetPage > 1) {
-            dispatchEventSafe7("overlay:document-changed", { documentId, page: targetPage });
+            dispatchEventSafe7("overlay:document-changed", { documentId: documentId2, page: targetPage });
           }
         }, 500);
       }
     }
-  }, [documentId]);
+  }, [documentId2]);
   const correspondentInfoRef = A2(null);
   const correspondentNameRef = A2(null);
   const titleInfoRef = A2(null);
@@ -18439,10 +18659,10 @@ function ManualWorkspaceIsland(props) {
       option.textContent = formatDocumentLabel(doc);
       select.appendChild(option);
     });
-    if (documentId) {
-      select.value = String(documentId);
+    if (documentId2) {
+      select.value = String(documentId2);
     }
-  }, [documents, documentId]);
+  }, [documents, documentId2]);
   const updateCorrespondentDisplay = q2((value) => {
     if (!correspondentInfoRef.current || !correspondentNameRef.current) return;
     if (value) {
@@ -18546,7 +18766,7 @@ function ManualWorkspaceIsland(props) {
     setDocumentType("");
     setIsLoading(true);
     try {
-      const response = await fetchWithTimeout(`/manual/preview/${docId}`);
+      const response = await fetchWithTimeout(`/workspace/api/doc/${docId}`);
       if (!response.ok) {
         throw new Error("Failed to fetch document content");
       }
@@ -18621,7 +18841,7 @@ function ManualWorkspaceIsland(props) {
   const refreshDocuments = q2(async () => {
     setStatus(null);
     try {
-      const response = await fetchWithTimeout("/manual/documents");
+      const response = await fetchWithTimeout("/workspace/api/documents");
       if (!response.ok) throw new Error("Failed to fetch documents");
       const docs = await response.json();
       setDocuments(Array.isArray(docs) ? docs : []);
@@ -18670,7 +18890,7 @@ function ManualWorkspaceIsland(props) {
       const nextCorrespondent = result.correspondent || correspondent;
       const nextDocumentType = result.documentType || documentType;
       const nextPageCount = pageCount || 1;
-      const nextDocId = detail.documentId ?? documentId;
+      const nextDocId = detail.documentId ?? documentId2;
       if (result.correspondent) setCorrespondent(result.correspondent);
       if (result.title) setTitle(result.title);
       if (result.documentType) setDocumentType(result.documentType);
@@ -18715,19 +18935,19 @@ function ManualWorkspaceIsland(props) {
     correspondent,
     dispatchDocumentFields,
     dispatchDocumentMetadata,
-    documentId,
+    documentId2,
     documentType,
     pageCount,
     title
   ]);
   const railText = T2(() => {
-    if (!documentId) {
+    if (!documentId2) {
       return "Select a document to begin a guided review.";
     }
-    return `Reviewing ${title || `Document ${documentId}`}`;
-  }, [documentId, title]);
+    return `Reviewing ${title || `Document ${documentId2}`}`;
+  }, [documentId2, title]);
   const railStatus = T2(() => {
-    if (!documentId) {
+    if (!documentId2) {
       return "Step 1: Choose a document to unlock analysis and tags.";
     }
     if (isLoading) {
@@ -18737,7 +18957,7 @@ function ManualWorkspaceIsland(props) {
       return "Visual mode active. Inspect overlays or run visual analysis.";
     }
     return "Text mode active. Run AI analysis or switch to visual.";
-  }, [documentId, isLoading, viewMode]);
+  }, [documentId2, isLoading, viewMode]);
   return /* @__PURE__ */ u3("div", { "data-testid": "manual-workspace-root", className: "sg-shell", children: [
     /* @__PURE__ */ u3("div", { className: "guided-rail", "data-testid": "guided-rail", children: [
       /* @__PURE__ */ u3("div", { className: "guided-rail__label", children: "Guided Review" }),
@@ -18763,7 +18983,7 @@ function ManualWorkspaceIsland(props) {
       }
     ),
     /* @__PURE__ */ u3("div", { className: "flex items-center justify-between mb-4", children: [
-      /* @__PURE__ */ u3("div", { className: "text-sm text-gray-500", children: documentId ? `Tags: ${tags.length}` : "No document selected" }),
+      /* @__PURE__ */ u3("div", { className: "text-sm text-gray-500", children: documentId2 ? `Tags: ${tags.length}` : "No document selected" }),
       /* @__PURE__ */ u3(
         "button",
         {
@@ -18780,7 +19000,7 @@ function ManualWorkspaceIsland(props) {
 
 // src/islands/DocumentContentIsland.tsx
 function DocumentContentIsland(props) {
-  const [documentId, setDocumentId] = d2(null);
+  const [documentId2, setDocumentId] = d2(null);
   const [content, setContent] = d2("");
   const [searchQuery, setSearchQuery] = d2("");
   const [caseSensitive, setCaseSensitive] = d2(false);
@@ -18800,6 +19020,50 @@ function DocumentContentIsland(props) {
   const [currentMatchIndex, setCurrentMatchIndex] = d2(-1);
   const [regexError, setRegexError] = d2(null);
   const contentRef = A2(null);
+  const [selectedText, setSelectedText] = d2("");
+  const [showExportToolbar, setShowExportToolbar] = d2(false);
+  const [toolbarPos, setToolbarPos] = d2({ top: 0, left: 0 });
+  y2(() => {
+    const handleMouseUp = () => {
+      const selection = window.getSelection();
+      const text = selection?.toString().trim();
+      if (text && text.length > 0) {
+        setSelectedText(text);
+        const range = selection?.getRangeAt(0);
+        const rect = range?.getBoundingClientRect();
+        if (rect) {
+          setToolbarPos({
+            top: rect.top - 50,
+            left: rect.left + rect.width / 2 - 60
+          });
+          setShowExportToolbar(true);
+        }
+      } else {
+        setShowExportToolbar(false);
+        setSelectedText("");
+      }
+    };
+    const contentElement = contentRef.current;
+    if (contentElement) {
+      contentElement.addEventListener("mouseup", handleMouseUp);
+      return () => contentElement.removeEventListener("mouseup", handleMouseUp);
+    }
+  }, []);
+  const handleExportText = (format) => {
+    if (!selectedText || !documentId2) return;
+    const event = new CustomEvent("export:text-requested", {
+      detail: {
+        documentId: documentId2,
+        text: selectedText,
+        format
+      }
+    });
+    if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+      window.dispatchEvent(event);
+    }
+    setShowExportToolbar(false);
+    setSelectedText("");
+  };
   y2(() => {
     const handler = (e3) => {
       const detail = e3?.detail || {};
@@ -18814,6 +19078,22 @@ function DocumentContentIsland(props) {
     window.addEventListener("document:selected", handler);
     return () => window.removeEventListener("document:selected", handler);
   }, []);
+  y2(() => {
+    const handleDocumentSwitched = (e3) => {
+      const detail = e3?.detail || {};
+      const { documentId: newDocId, document: document2 } = detail;
+      if (newDocId != null && newDocId !== documentId2) {
+        setDocumentId(newDocId);
+        setContent(document2?.content || "");
+        setSearchQuery("");
+        setMatches([]);
+        setCurrentMatchIndex(-1);
+        console.log(`[DocumentContent] Document switched to ${newDocId}`);
+      }
+    };
+    window.addEventListener("workspace:document-switched", handleDocumentSwitched);
+    return () => window.removeEventListener("workspace:document-switched", handleDocumentSwitched);
+  }, [documentId2]);
   y2(() => {
     const timer = setTimeout(() => {
       if (!searchQuery) {
@@ -18984,7 +19264,7 @@ function DocumentContentIsland(props) {
           "button",
           {
             onClick: () => {
-              const context = { type: "text", data: { text: content.substring(0, 5e3) }, documentId };
+              const context = { type: "text", data: { text: content.substring(0, 5e3) }, documentId: documentId2 };
               window.location.href = `/chat?context=${encodeURIComponent(JSON.stringify(context))}`;
             },
             className: "px-2 py-1 border rounded text-xs bg-white border-gray-300 hover:bg-gray-50 text-green-600",
@@ -19006,6 +19286,57 @@ function DocumentContentIsland(props) {
         "data-testid": "document-content-area",
         className: "flex-1 overflow-auto p-4 bg-white",
         children: renderedContent
+      }
+    ),
+    showExportToolbar && /* @__PURE__ */ u3(
+      "div",
+      {
+        "data-testid": "text-export-toolbar",
+        className: "fixed bg-white border-2 border-[#b87333] rounded-lg shadow-lg p-2 flex gap-2 z-50",
+        style: {
+          top: `${toolbarPos.top}px`,
+          left: `${toolbarPos.left}px`
+        },
+        children: [
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              "data-testid": "export-text-txt-btn",
+              onClick: () => handleExportText("txt"),
+              className: "px-3 py-1.5 text-sm bg-[#b87333] text-white rounded hover:bg-[#a56729] transition-colors",
+              title: "Export as TXT",
+              children: [
+                /* @__PURE__ */ u3("i", { className: "fas fa-file-alt mr-1" }),
+                "TXT"
+              ]
+            }
+          ),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              "data-testid": "export-text-pdf-btn",
+              onClick: () => handleExportText("pdf"),
+              className: "px-3 py-1.5 text-sm bg-[#b87333] text-white rounded hover:bg-[#a56729] transition-colors",
+              title: "Export as PDF",
+              children: [
+                /* @__PURE__ */ u3("i", { className: "fas fa-file-pdf mr-1" }),
+                "PDF"
+              ]
+            }
+          ),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              "data-testid": "export-text-cancel-btn",
+              onClick: () => {
+                setShowExportToolbar(false);
+                setSelectedText("");
+              },
+              className: "px-2 py-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors",
+              children: /* @__PURE__ */ u3("i", { className: "fas fa-times" })
+            }
+          )
+        ]
       }
     )
   ] });
@@ -19117,21 +19448,21 @@ function UnifiedWorkspaceIsland(props) {
       const detail = e3?.detail || {};
       const fieldId = detail.fieldId;
       const vote = detail.vote;
-      const documentId = props.document?.id ?? null;
-      if (!fieldId || !vote || !documentId) return;
+      const documentId2 = props.document?.id ?? null;
+      if (!fieldId || !vote || !documentId2) return;
       try {
         const resp = await fetch("/api/feedback/field-vote", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ documentId, fieldId, vote })
+          body: JSON.stringify({ documentId: documentId2, fieldId, vote })
         });
         if (resp.ok) {
-          window.dispatchEvent(new CustomEvent("feedback:sent", { detail: { documentId, fieldId, vote } }));
+          window.dispatchEvent(new CustomEvent("feedback:sent", { detail: { documentId: documentId2, fieldId, vote } }));
         } else {
-          window.dispatchEvent(new CustomEvent("feedback:failed", { detail: { documentId, fieldId, vote, status: resp.status } }));
+          window.dispatchEvent(new CustomEvent("feedback:failed", { detail: { documentId: documentId2, fieldId, vote, status: resp.status } }));
         }
       } catch (err) {
-        window.dispatchEvent(new CustomEvent("feedback:failed", { detail: { documentId, fieldId, vote, error: err.message } }));
+        window.dispatchEvent(new CustomEvent("feedback:failed", { detail: { documentId: documentId2, fieldId, vote, error: err.message } }));
       }
     };
     window.addEventListener("feedback:vote", feedbackHandler);
@@ -19141,36 +19472,36 @@ function UnifiedWorkspaceIsland(props) {
     const wnd = getWorkspaceWindow();
     wnd.__workspaceState = wnd.__workspaceState || {};
     const onDirty = (e3) => {
-      const documentId = e3?.detail?.documentId ?? (props.document?.id ?? null);
-      if (!documentId) return;
+      const documentId2 = e3?.detail?.documentId ?? (props.document?.id ?? null);
+      if (!documentId2) return;
       const state = wnd.__workspaceState || {};
-      const docKey = String(documentId);
+      const docKey = String(documentId2);
       state[docKey] = state[docKey] || {};
       state[docKey].isDirty = true;
       state[docKey].lastDirtyAt = Date.now();
       wnd.__workspaceState = state;
-      if ((props.document?.id ?? null) && Number(props.document?.id) === Number(documentId)) setIsDirty(true);
+      if ((props.document?.id ?? null) && Number(props.document?.id) === Number(documentId2)) setIsDirty(true);
       try {
-        wnd.__last_workspace_state_change = { documentId, isDirty: true };
+        wnd.__last_workspace_state_change = { documentId: documentId2, isDirty: true };
       } catch (err) {
       }
-      dispatchEventSafe8("workspace:state-change", { documentId, isDirty: true });
+      dispatchEventSafe8("workspace:state-change", { documentId: documentId2, isDirty: true });
     };
     const onSaved = (e3) => {
-      const documentId = e3?.detail?.documentId ?? (props.document?.id ?? null);
-      if (!documentId) return;
+      const documentId2 = e3?.detail?.documentId ?? (props.document?.id ?? null);
+      if (!documentId2) return;
       const state = wnd.__workspaceState || {};
-      const docKey = String(documentId);
+      const docKey = String(documentId2);
       state[docKey] = state[docKey] || {};
       state[docKey].isDirty = false;
       state[docKey].lastSavedAt = Date.now();
       wnd.__workspaceState = state;
-      if ((props.document?.id ?? null) && Number(props.document?.id) === Number(documentId)) setIsDirty(false);
+      if ((props.document?.id ?? null) && Number(props.document?.id) === Number(documentId2)) setIsDirty(false);
       try {
-        wnd.__last_workspace_state_change = { documentId, isDirty: false };
+        wnd.__last_workspace_state_change = { documentId: documentId2, isDirty: false };
       } catch (err) {
       }
-      dispatchEventSafe8("workspace:state-change", { documentId, isDirty: false });
+      dispatchEventSafe8("workspace:state-change", { documentId: documentId2, isDirty: false });
     };
     window.addEventListener("workspace:dirty", onDirty);
     window.addEventListener("sync:success", onSaved);
@@ -19205,27 +19536,27 @@ function UnifiedWorkspaceIsland(props) {
   y2(() => {
     const handleSaveRequest = async (e3) => {
       const detail = e3?.detail || {};
-      const { documentId } = detail;
-      if (String(documentId) !== String(props.document?.id)) return;
+      const { documentId: documentId2 } = detail;
+      if (String(documentId2) !== String(props.document?.id)) return;
       try {
-        const response = await fetch("/manual/updateDocument", {
+        const response = await fetch("/api/processing/update-document", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            documentId
+            documentId: documentId2
             // Include metadata from current state if available via global workspace state
           })
         });
         if (response.ok) {
           window.dispatchEvent(new CustomEvent("workspace:save-complete", {
-            detail: { documentId, success: true }
+            detail: { documentId: documentId2, success: true }
           }));
         } else {
           throw new Error("Save failed");
         }
       } catch (err) {
         window.dispatchEvent(new CustomEvent("workspace:save-failed", {
-          detail: { documentId, error: err.message }
+          detail: { documentId: documentId2, error: err.message }
         }));
       }
     };
@@ -19235,13 +19566,13 @@ function UnifiedWorkspaceIsland(props) {
   y2(() => {
     const handleReprocessRequest = async (e3) => {
       const detail = e3?.detail || {};
-      const { documentId } = detail;
-      if (String(documentId) !== String(props.document?.id)) return;
+      const { documentId: documentId2 } = detail;
+      if (String(documentId2) !== String(props.document?.id)) return;
       try {
         window.dispatchEvent(new CustomEvent("workspace:reprocess-started", {
-          detail: { documentId }
+          detail: { documentId: documentId2 }
         }));
-        const response = await fetch(`/api/documents/${documentId}/reprocess`, {
+        const response = await fetch(`/api/documents/${documentId2}/reprocess`, {
           method: "POST",
           headers: { "Content-Type": "application/json" }
         });
@@ -19252,7 +19583,7 @@ function UnifiedWorkspaceIsland(props) {
         const result = await response.json();
         window.dispatchEvent(new CustomEvent("workspace:reprocess-complete", {
           detail: {
-            documentId,
+            documentId: documentId2,
             success: true,
             classification: result.classification,
             extractedFields: result.extractedFields,
@@ -19263,7 +19594,7 @@ function UnifiedWorkspaceIsland(props) {
         }));
         window.dispatchEvent(new CustomEvent("metadata:refresh", {
           detail: {
-            documentId,
+            documentId: documentId2,
             fields: result.extractedFields,
             tags: result.smartTags,
             classification: result.classification
@@ -19272,7 +19603,7 @@ function UnifiedWorkspaceIsland(props) {
       } catch (err) {
         console.error("[UnifiedWorkspace] Reprocess failed:", err);
         window.dispatchEvent(new CustomEvent("workspace:reprocess-failed", {
-          detail: { documentId, error: err.message }
+          detail: { documentId: documentId2, error: err.message }
         }));
       }
     };
@@ -19994,6 +20325,7 @@ function DocumentContextBarIsland(props) {
 
 // src/islands/VisualTabIsland.tsx
 function VisualTabIsland(props) {
+  const [currentDocumentId, setCurrentDocumentId] = d2(props.documentId ?? null);
   const [fields, setFields] = d2(props.fields || []);
   const [overlays, setOverlays] = d2(props.overlays || []);
   const [isDrawMode, setIsDrawMode] = d2(false);
@@ -20016,7 +20348,23 @@ function VisualTabIsland(props) {
     };
   }, []);
   y2(() => {
-    if (!props.documentId) {
+    const handleDocumentSwitched = (e3) => {
+      const detail = e3?.detail || {};
+      const { documentId: documentId2 } = detail;
+      if (documentId2 != null && documentId2 !== currentDocumentId) {
+        setCurrentDocumentId(documentId2);
+        setFields([]);
+        setOverlays([]);
+        setIsDrawMode(false);
+        setActiveFieldId(null);
+        console.log(`[VisualTab] Document switched to ${documentId2}`);
+      }
+    };
+    window.addEventListener("workspace:document-switched", handleDocumentSwitched);
+    return () => window.removeEventListener("workspace:document-switched", handleDocumentSwitched);
+  }, [currentDocumentId]);
+  y2(() => {
+    if (!currentDocumentId) {
       setFields([]);
       setOverlays([]);
       return;
@@ -20025,14 +20373,14 @@ function VisualTabIsland(props) {
       setLoading(true);
       setError(null);
       try {
-        const fieldsRes = await fetch(`/api/visual-overlays/missing-fields/${props.documentId}`);
+        const fieldsRes = await fetch(`/api/visual-overlays/missing-fields/${currentDocumentId}`);
         if (fieldsRes.ok) {
           const fieldsData = await fieldsRes.json();
           setFields(fieldsData.fields || []);
         } else {
           console.warn("[VisualTabIsland] Failed to fetch fields:", fieldsRes.status);
         }
-        const overlaysRes = await fetch(`/api/visual-overlays/document/${props.documentId}`);
+        const overlaysRes = await fetch(`/api/visual-overlays/document/${currentDocumentId}`);
         if (overlaysRes.ok) {
           const overlaysData = await overlaysRes.json();
           setOverlays(overlaysData.overlays || []);
@@ -20048,7 +20396,7 @@ function VisualTabIsland(props) {
       }
     };
     void fetchData();
-  }, [props.documentId]);
+  }, [currentDocumentId]);
   const handleLabelField = q2((fieldId) => {
     setActiveFieldId(fieldId);
     setIsDrawMode(true);

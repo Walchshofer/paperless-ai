@@ -204,7 +204,7 @@ describe('ChatWorkspaceIsland - model placeholders', function () {
           ]
         }) };
       }
-      if (url.startsWith('/manual/preview/')) {
+      if (url.startsWith('/workspace/api/doc/')) {
         return { ok: true, json: async () => ({ title: 'Doc 42', content: 'preview' }) };
       }
       return { ok: false, json: async () => ({}) };

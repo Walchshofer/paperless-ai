@@ -60,7 +60,6 @@ const _VIEWER_ROUTES = [
  * @type {string[]}
  */
 const ADMIN_ROUTES = [
-  '/settings',
   '/setup',
   '/api/settings',
 ];

@@ -583,29 +583,7 @@
                     "status": {
                       "type": "string",
                       "example": "healthy",
-                      "description": "Health status of the system"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "description": "Status indicating an error",
-                      "example": "error"
-                    },
-                    "message": {
-                      "type": "string",
-                      "description": "Error message details",
-                      "example": "Internal server error"
+                      "description": "Health status indication"
                     }
                   }
                 }
@@ -626,12 +604,12 @@
                         "error"
                       ],
                       "example": "database_error",
-                      "description": "Status indicating database error"
+                      "description": "Error status type"
                     },
                     "message": {
                       "type": "string",
                       "example": "Database check failed",
-                      "description": "Details about the service unavailability"
+                      "description": "Detailed error message"
                     }
                   }
                 }
@@ -745,44 +723,17 @@
     },
     "/login": {
       "get": {
-        "summary": "Render login page or redirect to setup if no users exist",
-        "description": "Serves the login page for user authentication to the Paperless-AI application.\nIf no users exist in the database, the endpoint automatically redirects to the setup page\nto complete the initial application configuration.\n\nThis endpoint handles both new user sessions and returning users whose\nsessions have expired.\n",
+        "summary": "Display login page",
+        "description": "Displays the login page for user authentication. If no users exist in the system,\nthe user is automatically redirected to the setup page to create the first user account.\n",
         "tags": [
-          "Authentication",
-          "Navigation"
+          "Authentication"
         ],
         "responses": {
           "200": {
-            "description": "Login page rendered successfully",
-            "content": {
-              "text/html": {
-                "schema": {
-                  "type": "string",
-                  "description": "HTML content of the login page"
-                }
-              }
-            }
+            "description": "Login page rendered successfully"
           },
           "302": {
-            "description": "Redirect to setup page if no users exist, or to dashboard if already authenticated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "Location": {
-                "schema": {
-                  "type": "string",
-                  "example": "/setup"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
+            "description": "Redirected to setup page (no users exist)",
             "content": {
               "application/json": {
                 "schema": {
@@ -919,424 +870,6 @@
                 "schema": {
                   "type": "string",
                   "description": "HTTP-only cookie with cleared JWT token and immediate expiration"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/chat": {
-      "get": {
-        "summary": "Chat interface page",
-        "description": "Renders the chat interface page where users can interact with document-specific AI assistants.\nThis page displays a list of available documents and the chat interface for the selected document.\n",
-        "tags": [
-          "Navigation",
-          "Chat"
-        ],
-        "parameters": [
-          {
-            "in": "query",
-            "name": "open",
-            "schema": {
-              "type": "string"
-            },
-            "description": "ID of document to open immediately in chat",
-            "required": false
-          }
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Chat interface page rendered successfully",
-            "content": {
-              "text/html": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Invalid or expired token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/chat/init": {
-      "get": {
-        "summary": "Initialize chat for a document via query parameter",
-        "description": "Initializes a chat session for a specific document identified by the query parameter.\nLoads document content and prepares it for the chat interface.\nThis endpoint returns the document content, chat history if available, and initial context.\n",
-        "tags": [
-          "API",
-          "Chat"
-        ],
-        "parameters": [
-          {
-            "in": "query",
-            "name": "documentId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "ID of the document to initialize chat for",
-            "example": "123"
-          }
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Chat session initialized successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "documentId": {
-                      "type": "string",
-                      "description": "ID of the document",
-                      "example": "123"
-                    },
-                    "content": {
-                      "type": "string",
-                      "description": "Content of the document",
-                      "example": "This is the document content"
-                    },
-                    "title": {
-                      "type": "string",
-                      "description": "Title of the document",
-                      "example": "Invoice #12345"
-                    },
-                    "history": {
-                      "type": "array",
-                      "description": "Previous chat messages if any",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "role": {
-                            "type": "string",
-                            "example": "user"
-                          },
-                          "content": {
-                            "type": "string",
-                            "example": "What is this document about?"
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Missing document ID",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Invalid or expired token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Document not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/chat/message": {
-      "post": {
-        "summary": "Send message to document chat",
-        "description": "Sends a user message to the document-specific chat AI assistant.\nThe message is processed in the context of the specified document.\nReturns a streaming response with the AI's reply chunks.\n",
-        "tags": [
-          "API",
-          "Chat"
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "documentId",
-                  "message"
-                ],
-                "properties": {
-                  "documentId": {
-                    "type": "string",
-                    "description": "ID of the document to chat with",
-                    "example": "123"
-                  },
-                  "message": {
-                    "type": "string",
-                    "description": "User message to send to the chat",
-                    "example": "What is this document about?"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Response streaming started. Each event contains a message chunk.\n",
-            "content": {
-              "text/event-stream": {
-                "schema": {
-                  "type": "string",
-                  "example": "data: {\"chunk\":\"This document appears to be\"}\n\ndata: {\"chunk\":\" an invoice from\"}\n\ndata: {\"done\":true}\n"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Missing document ID or message",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Invalid or expired token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Document not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/chat/init/{documentId}": {
-      "get": {
-        "summary": "Initialize chat for a document via path parameter",
-        "description": "Initializes a chat session for a specific document identified by the path parameter.\nLoads document content and prepares it for the chat interface.\nThis endpoint returns the document content, chat history if available, and initial context.\n",
-        "tags": [
-          "API",
-          "Chat"
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "documentId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "ID of the document to initialize chat for",
-            "example": "123"
-          }
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Chat session initialized successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "documentId": {
-                      "type": "string",
-                      "description": "ID of the document",
-                      "example": "123"
-                    },
-                    "content": {
-                      "type": "string",
-                      "description": "Content of the document",
-                      "example": "This is the document content"
-                    },
-                    "title": {
-                      "type": "string",
-                      "description": "Title of the document",
-                      "example": "Invoice #12345"
-                    },
-                    "history": {
-                      "type": "array",
-                      "description": "Previous chat messages if any",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "role": {
-                            "type": "string",
-                            "example": "user"
-                          },
-                          "content": {
-                            "type": "string",
-                            "example": "What is this document about?"
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Missing document ID",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Invalid or expired token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Document not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -2279,7 +1812,7 @@
         }
       }
     },
-    "/manual/analyze-visual": {
+    "/api/processing/analyze-visual": {
       "post": {
         "summary": "Analyze document using Visual Expert Pipeline",
         "description": "Renders the document at 300 DPI and processes it through the Expert Pipeline\nwith vision capabilities. This uses the router model (qwen3-vl:8b) to classify\nthe document and extract visual overlays.\n",
@@ -2347,7 +1880,7 @@
         }
       }
     },
-    "/manual/playground": {
+    "/api/processing/playground": {
       "post": {
         "summary": "Process document using a custom prompt in playground mode",
         "description": "Analyzes document content using a custom user-provided prompt.\nThis endpoint is primarily used for testing and experimenting with different prompts\nwithout affecting the actual document processing workflow.\n\nThe analysis is performed using the AI provider configured in the application settings,\nbut with a custom prompt that overrides the default system prompt.\n",
@@ -2449,7 +1982,7 @@
         }
       }
     },
-    "/manual/updateDocument": {
+    "/api/processing/update-document": {
       "post": {
         "summary": "Update document metadata in Paperless-ngx",
         "description": "Updates document metadata such as tags, correspondent and title in the Paperless-ngx system.\nThis endpoint handles the translation between tag names and IDs, and manages the creation of\nnew tags or correspondents if they don't exist in the system.\n\nThe endpoint also removes any unused tags from the document to keep the metadata clean.\n",
@@ -2566,6 +2099,388 @@
         }
       }
     },
+    "/settings": {
+      "get": {
+        "summary": "Application settings page",
+        "description": "Renders the application settings page where users can modify configuration\nafter initial setup.\n\nThis page allows administrators to update connections to Paperless-ngx,\nAI provider settings, processing parameters, feature toggles, and custom fields.\nThe interface provides validation for connection settings and displays the current\nconfiguration values.\n\nChanges made on this page require application restart to take full effect.\n",
+        "tags": [
+          "Navigation",
+          "Setup",
+          "System"
+        ],
+        "responses": {
+          "200": {
+            "description": "Settings page rendered successfully",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "description": "HTML content of the application settings page"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Update application settings",
+        "description": "Updates the configuration settings of the Paperless-AI application after initial setup.\nThis endpoint allows administrators to modify connections to Paperless-ngx,\nAI provider settings, processing parameters, and feature toggles.\n\nChanges made through this endpoint are applied immediately and affect all future\ndocument processing operations.\n",
+        "tags": [
+          "System",
+          "Setup"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "paperlessUrl": {
+                    "type": "string",
+                    "description": "URL of the Paperless-ngx instance",
+                    "example": "https://paperless.example.com"
+                  },
+                  "paperlessToken": {
+                    "type": "string",
+                    "description": "API token for Paperless-ngx access",
+                    "example": "abc123def456"
+                  },
+                  "paperlessUsername": {
+                    "type": "string",
+                    "description": "Username for Paperless-ngx (alternative to token authentication)",
+                    "example": "admin"
+                  },
+                  "aiProvider": {
+                    "type": "string",
+                    "description": "Selected AI provider for document analysis",
+                    "enum": [
+                      "openai",
+                      "ollama",
+                      "custom",
+                      "azure"
+                    ],
+                    "example": "openai"
+                  },
+                  "openaiKey": {
+                    "type": "string",
+                    "description": "API key for OpenAI (required when aiProvider is 'openai')",
+                    "example": "sk-abc123def456"
+                  },
+                  "openaiModel": {
+                    "type": "string",
+                    "description": "OpenAI model to use for analysis",
+                    "example": "gpt-4"
+                  },
+                  "ollamaUrl": {
+                    "type": "string",
+                    "description": "URL for Ollama API (required when aiProvider is 'ollama')",
+                    "example": "http://localhost:11434"
+                  },
+                  "ollamaModel": {
+                    "type": "string",
+                    "description": "Ollama model to use for analysis",
+                    "example": "sauerkraut-llama3.1:8b"
+                  },
+                  "customApiKey": {
+                    "type": "string",
+                    "description": "API key for custom LLM provider",
+                    "example": "api-key-123"
+                  },
+                  "customBaseUrl": {
+                    "type": "string",
+                    "description": "Base URL for custom LLM provider",
+                    "example": "https://api.customllm.com"
+                  },
+                  "customModel": {
+                    "type": "string",
+                    "description": "Model name for custom LLM provider",
+                    "example": "custom-model"
+                  },
+                  "scanInterval": {
+                    "type": "number",
+                    "description": "Interval in minutes for scanning new documents",
+                    "example": 15
+                  },
+                  "systemPrompt": {
+                    "type": "string",
+                    "description": "Custom system prompt for document analysis",
+                    "example": "Extract key information from the following document..."
+                  },
+                  "showTags": {
+                    "type": "boolean",
+                    "description": "Whether to show tags in the UI",
+                    "example": true
+                  },
+                  "tokenLimit": {
+                    "type": "integer",
+                    "description": "The maximum number of tokens th AI can handle",
+                    "example": 128000
+                  },
+                  "responseTokens": {
+                    "type": "integer",
+                    "description": "The approx. amount of tokens required for the response",
+                    "example": 1000
+                  },
+                  "tags": {
+                    "type": "string",
+                    "description": "Comma-separated list of tags to use for filtering",
+                    "example": "Invoice,Receipt,Contract"
+                  },
+                  "aiProcessedTag": {
+                    "type": "boolean",
+                    "description": "Whether to add a tag for AI-processed documents",
+                    "example": true
+                  },
+                  "aiTagName": {
+                    "type": "string",
+                    "description": "Tag name to use for AI-processed documents",
+                    "example": "AI-Processed"
+                  },
+                  "usePromptTags": {
+                    "type": "boolean",
+                    "description": "Whether to use tags in prompts",
+                    "example": true
+                  },
+                  "promptTags": {
+                    "type": "string",
+                    "description": "Comma-separated list of tags to use in prompts",
+                    "example": "Invoice,Receipt"
+                  },
+                  "useExistingData": {
+                    "type": "boolean",
+                    "description": "Whether to use existing data from a previous setup",
+                    "example": false
+                  },
+                  "activateTagging": {
+                    "type": "boolean",
+                    "description": "Enable AI-based tag suggestions",
+                    "example": true
+                  },
+                  "activateCorrespondents": {
+                    "type": "boolean",
+                    "description": "Enable AI-based correspondent suggestions",
+                    "example": true
+                  },
+                  "activateDocumentType": {
+                    "type": "boolean",
+                    "description": "Enable AI-based document type suggestions",
+                    "example": true
+                  },
+                  "activateTitle": {
+                    "type": "boolean",
+                    "description": "Enable AI-based title suggestions",
+                    "example": true
+                  },
+                  "activateCustomFields": {
+                    "type": "boolean",
+                    "description": "Enable AI-based custom field extraction",
+                    "example": false
+                  },
+                  "customFields": {
+                    "type": "string",
+                    "description": "JSON string defining custom fields to extract",
+                    "example": "{\"invoice_number\":{\"type\":\"string\"},\"total_amount\":{\"type\":\"number\"}}"
+                  },
+                  "disableAutomaticProcessing": {
+                    "type": "boolean",
+                    "description": "Disable automatic document processing",
+                    "example": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Settings updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "success"
+                      ],
+                      "example": "success"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Settings updated successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid configuration parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "error"
+                      ],
+                      "example": "error"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Invalid settings: AI provider required when automatic processing is enabled"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error while updating settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "error"
+                      ],
+                      "example": "error"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Failed to update settings: Database error"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings/presets": {
+      "get": {
+        "summary": "List available configuration presets",
+        "description": "Returns a list of predefined configuration presets",
+        "tags": [
+          "Settings"
+        ],
+        "responses": {
+          "200": {
+            "description": "Presets retrieved successfully"
+          }
+        }
+      }
+    },
+    "/settings/presets/{name}": {
+      "post": {
+        "summary": "Load or preview a configuration preset",
+        "description": "Load a preset and apply settings, or preview changes without applying",
+        "tags": [
+          "Settings"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "preview": {
+                    "type": "boolean",
+                    "description": "If true, return diff without applying"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings/export": {
+      "get": {
+        "summary": "Export current settings as .env file",
+        "description": "Downloads all current settings as a .env file with timestamp",
+        "tags": [
+          "Settings"
+        ],
+        "responses": {
+          "200": {
+            "description": "Settings exported successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings/import": {
+      "post": {
+        "summary": "Import settings from .env file",
+        "description": "Upload and validate a .env file, optionally preview changes before applying",
+        "tags": [
+          "Settings"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "preview": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Import successful or preview generated"
+          }
+        }
+      }
+    },
     "/playground": {
       "get": {
         "summary": "AI playground testing environment",
@@ -2608,72 +2523,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/key-regenerate": {
-      "post": {
-        "summary": "Regenerate API key",
-        "description": "Generates a new random API key for the application and updates the .env file.\nThe previous API key will be invalidated immediately after generation.\n\nThis API key can be used for programmatic access to the API endpoints\nby sending it in the `x-api-key` header of subsequent requests.\n\n**Security Notice**: This operation invalidates any existing API key.\nAll systems using the previous key will need to be updated.\n",
-        "tags": [
-          "System",
-          "Authentication"
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "API key regenerated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "string",
-                      "description": "The newly generated API key",
-                      "example": "3f7a8d6e2c1b5a9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - JWT authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "Authentication required"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "Error regenerating API key"
-                    }
-                  }
                 }
               }
             }
@@ -2965,269 +2814,6 @@
         }
       }
     },
-    "/manual/preview/{id}": {
-      "get": {
-        "summary": "Document preview",
-        "description": "Fetches and returns the content of a specific document from Paperless-ngx \nfor preview in the manual document review interface.\n\nThis endpoint retrieves document details including content, title, ID, and tags,\nallowing users to view the document text before applying changes or processing\nit with AI tools. The document content is retrieved directly from Paperless-ngx\nusing the system's configured API credentials.\n",
-        "tags": [
-          "Documents",
-          "API"
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            },
-            "description": "The document ID from Paperless-ngx",
-            "example": 123
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Document content retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "content": {
-                      "type": "string",
-                      "description": "The document content",
-                      "example": "Invoice from ACME Corp. Amount: $1,234.56"
-                    },
-                    "title": {
-                      "type": "string",
-                      "description": "The document title",
-                      "example": "ACME Corp Invoice #12345"
-                    },
-                    "id": {
-                      "type": "integer",
-                      "description": "The document ID",
-                      "example": 123
-                    },
-                    "tags": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "description": "Array of tag names assigned to the document",
-                      "example": [
-                        "Invoice",
-                        "ACME Corp",
-                        "2023"
-                      ]
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - user not authenticated",
-            "headers": {
-              "Location": {
-                "schema": {
-                  "type": "string",
-                  "example": "/login"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Document not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error or Paperless connection error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/manual": {
-      "get": {
-        "summary": "Document review page",
-        "description": "Renders the manual document review page that allows users to browse, \nview and manually process documents from Paperless-ngx.\n\nThis interface enables users to review documents, view their content, and \nmanage tags, correspondents, and document metadata without AI assistance.\nUsers can apply manual changes to documents based on their own judgment,\nwhich is particularly useful for correction or verification of AI-processed documents.\n",
-        "tags": [
-          "Navigation",
-          "Documents"
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Manual document review page rendered successfully",
-            "content": {
-              "text/html": {
-                "schema": {
-                  "type": "string",
-                  "description": "HTML content of the manual document review interface"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - user not authenticated",
-            "headers": {
-              "Location": {
-                "schema": {
-                  "type": "string",
-                  "example": "/login"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/manual/tags": {
-      "get": {
-        "summary": "Get all tags",
-        "description": "Retrieves all tags from Paperless-ngx for use in the manual document review interface.\n\nThis endpoint returns a complete list of all available tags that can be applied to documents,\nincluding their IDs, names, and colors. The tags are retrieved directly from Paperless-ngx\nand used for tag selection in the UI when manually updating document metadata.\n",
-        "tags": [
-          "Documents",
-          "API",
-          "Metadata"
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Tags retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Tag"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - user not authenticated",
-            "headers": {
-              "Location": {
-                "schema": {
-                  "type": "string",
-                  "example": "/login"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error or Paperless connection error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/manual/documents": {
-      "get": {
-        "summary": "Get all documents",
-        "description": "Retrieves all documents from Paperless-ngx for display in the manual document review interface.\n\nThis endpoint returns a list of all available documents that can be manually reviewed,\nincluding their basic metadata such as ID, title, and creation date. The documents are\nretrieved directly from Paperless-ngx and presented in the UI for selection and processing.\n",
-        "tags": [
-          "Documents",
-          "API"
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Documents retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Document"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - user not authenticated",
-            "headers": {
-              "Location": {
-                "schema": {
-                  "type": "string",
-                  "example": "/login"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error or Paperless connection error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/correspondentsCount": {
       "get": {
         "summary": "Get count of correspondents",
@@ -3434,14 +3020,30 @@
         }
       }
     },
-    "/settings": {
+    "/api/dashboard/metrics": {
       "get": {
-        "summary": "Application settings page",
-        "description": "Renders the application settings page where users can modify configuration\nafter initial setup.\n\nThis page allows administrators to update connections to Paperless-ngx, \nAI provider settings, processing parameters, feature toggles, and custom fields.\nThe interface provides validation for connection settings and displays the current\nconfiguration values.\n\nChanges made on this page require application restart to take full effect.\n",
+        "summary": "Get dashboard metrics as JSON",
+        "description": "Returns document counts, token distribution, and service health status.",
         "tags": [
-          "Navigation",
-          "Setup",
           "System"
+        ],
+        "responses": {
+          "200": {
+            "description": "Metrics data"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/processing-status": {
+      "get": {
+        "summary": "Get current document processing status",
+        "description": "Returns the current status of document processing, including the number of documents\nbeing processed and any active background tasks.\n",
+        "tags": [
+          "System",
+          "API"
         ],
         "security": [
           {
@@ -3453,23 +3055,127 @@
         ],
         "responses": {
           "200": {
-            "description": "Settings page rendered successfully",
+            "description": "Processing status retrieved successfully",
             "content": {
-              "text/html": {
+              "application/json": {
                 "schema": {
-                  "type": "string",
-                  "description": "HTML content of the application settings page"
+                  "type": "object",
+                  "properties": {
+                    "isProcessing": {
+                      "type": "boolean",
+                      "description": "Whether documents are currently being processed",
+                      "example": true
+                    },
+                    "processedCount": {
+                      "type": "integer",
+                      "description": "Total number of documents processed",
+                      "example": 42
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to fetch processing status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Failed to fetch processing status"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runtime/state": {
+      "get": {
+        "summary": "Get current runtime system state",
+        "description": "Returns runtime state including circuit breaker, VRAM, Qdrant, sidecars, and background sync info",
+        "tags": [
+          "System"
+        ],
+        "responses": {
+          "200": {
+            "description": "Runtime state retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "circuitBreaker": {
+                      "type": "object"
+                    },
+                    "vram": {
+                      "type": "object"
+                    },
+                    "qdrant": {
+                      "type": "object"
+                    },
+                    "sidecars": {
+                      "type": "object"
+                    },
+                    "backgroundSync": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/key-regenerate": {
+      "post": {
+        "summary": "Regenerate API key",
+        "description": "Generates a new random API key for the application and updates the .env file.\nThe previous API key will be invalidated immediately after generation.\n\nThis API key can be used for programmatic access to the API endpoints\nby sending it in the `x-api-key` header of subsequent requests.\n\n**Security Notice**: This operation invalidates any existing API key.\nAll systems using the previous key will need to be updated.\n",
+        "tags": [
+          "System",
+          "Authentication"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "API key regenerated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "string",
+                      "description": "The newly generated API key",
+                      "example": "3f7a8d6e2c1b5a9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5"
+                    }
+                  }
                 }
               }
             }
           },
           "401": {
-            "description": "Unauthorized - user not authenticated",
-            "headers": {
-              "Location": {
+            "description": "Unauthorized - JWT authentication required",
+            "content": {
+              "application/json": {
                 "schema": {
-                  "type": "string",
-                  "example": "/login"
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Authentication required"
+                    }
+                  }
                 }
               }
             }
@@ -3479,252 +3185,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Update application settings",
-        "description": "Updates the configuration settings of the Paperless-AI application after initial setup.\nThis endpoint allows administrators to modify connections to Paperless-ngx, \nAI provider settings, processing parameters, and feature toggles.\n\nChanges made through this endpoint are applied immediately and affect all future\ndocument processing operations.\n",
-        "tags": [
-          "System",
-          "Setup"
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "paperlessUrl": {
-                    "type": "string",
-                    "description": "URL of the Paperless-ngx instance",
-                    "example": "https://paperless.example.com"
-                  },
-                  "paperlessToken": {
-                    "type": "string",
-                    "description": "API token for Paperless-ngx access",
-                    "example": "abc123def456"
-                  },
-                  "paperlessUsername": {
-                    "type": "string",
-                    "description": "Username for Paperless-ngx (alternative to token authentication)",
-                    "example": "admin"
-                  },
-                  "aiProvider": {
-                    "type": "string",
-                    "description": "Selected AI provider for document analysis",
-                    "enum": [
-                      "openai",
-                      "ollama",
-                      "custom",
-                      "azure"
-                    ],
-                    "example": "openai"
-                  },
-                  "openaiKey": {
-                    "type": "string",
-                    "description": "API key for OpenAI (required when aiProvider is 'openai')",
-                    "example": "sk-abc123def456"
-                  },
-                  "openaiModel": {
-                    "type": "string",
-                    "description": "OpenAI model to use for analysis",
-                    "example": "gpt-4"
-                  },
-                  "ollamaUrl": {
-                    "type": "string",
-                    "description": "URL for Ollama API (required when aiProvider is 'ollama')",
-                    "example": "http://localhost:11434"
-                  },
-                  "ollamaModel": {
-                    "type": "string",
-                    "description": "Ollama model to use for analysis",
-                    "example": "sauerkraut-llama3.1:8b"
-                  },
-                  "customApiKey": {
-                    "type": "string",
-                    "description": "API key for custom LLM provider",
-                    "example": "api-key-123"
-                  },
-                  "customBaseUrl": {
-                    "type": "string",
-                    "description": "Base URL for custom LLM provider",
-                    "example": "https://api.customllm.com"
-                  },
-                  "customModel": {
-                    "type": "string",
-                    "description": "Model name for custom LLM provider",
-                    "example": "custom-model"
-                  },
-                  "scanInterval": {
-                    "type": "number",
-                    "description": "Interval in minutes for scanning new documents",
-                    "example": 15
-                  },
-                  "systemPrompt": {
-                    "type": "string",
-                    "description": "Custom system prompt for document analysis",
-                    "example": "Extract key information from the following document..."
-                  },
-                  "showTags": {
-                    "type": "boolean",
-                    "description": "Whether to show tags in the UI",
-                    "example": true
-                  },
-                  "tokenLimit": {
-                    "type": "integer",
-                    "description": "The maximum number of tokens th AI can handle",
-                    "example": 128000
-                  },
-                  "responseTokens": {
-                    "type": "integer",
-                    "description": "The approx. amount of tokens required for the response",
-                    "example": 1000
-                  },
-                  "tags": {
-                    "type": "string",
-                    "description": "Comma-separated list of tags to use for filtering",
-                    "example": "Invoice,Receipt,Contract"
-                  },
-                  "aiProcessedTag": {
-                    "type": "boolean",
-                    "description": "Whether to add a tag for AI-processed documents",
-                    "example": true
-                  },
-                  "aiTagName": {
-                    "type": "string",
-                    "description": "Tag name to use for AI-processed documents",
-                    "example": "AI-Processed"
-                  },
-                  "usePromptTags": {
-                    "type": "boolean",
-                    "description": "Whether to use tags in prompts",
-                    "example": true
-                  },
-                  "promptTags": {
-                    "type": "string",
-                    "description": "Comma-separated list of tags to use in prompts",
-                    "example": "Invoice,Receipt"
-                  },
-                  "useExistingData": {
-                    "type": "boolean",
-                    "description": "Whether to use existing data from a previous setup",
-                    "example": false
-                  },
-                  "activateTagging": {
-                    "type": "boolean",
-                    "description": "Enable AI-based tag suggestions",
-                    "example": true
-                  },
-                  "activateCorrespondents": {
-                    "type": "boolean",
-                    "description": "Enable AI-based correspondent suggestions",
-                    "example": true
-                  },
-                  "activateDocumentType": {
-                    "type": "boolean",
-                    "description": "Enable AI-based document type suggestions",
-                    "example": true
-                  },
-                  "activateTitle": {
-                    "type": "boolean",
-                    "description": "Enable AI-based title suggestions",
-                    "example": true
-                  },
-                  "activateCustomFields": {
-                    "type": "boolean",
-                    "description": "Enable AI-based custom field extraction",
-                    "example": false
-                  },
-                  "customFields": {
-                    "type": "string",
-                    "description": "JSON string defining custom fields to extract",
-                    "example": "{\"invoice_number\":{\"type\":\"string\"},\"total_amount\":{\"type\":\"number\"}}"
-                  },
-                  "disableAutomaticProcessing": {
-                    "type": "boolean",
-                    "description": "Disable automatic document processing",
-                    "example": false
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Settings updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
                   "type": "object",
                   "properties": {
-                    "status": {
+                    "error": {
                       "type": "string",
-                      "enum": [
-                        "success"
-                      ],
-                      "example": "success"
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Settings updated successfully"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid configuration parameters",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "error"
-                      ],
-                      "example": "error"
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Invalid settings: AI provider required when automatic processing is enabled"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error while updating settings",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "error"
-                      ],
-                      "example": "error"
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Failed to update settings: Database error"
+                      "example": "Error regenerating API key"
                     }
                   }
                 }
@@ -3933,12 +3398,116 @@
         }
       }
     },
-    "/manual/analyze": {
-      "post": {
-        "summary": "Analyze document content manually",
-        "description": "Analyzes document content using the configured AI provider and returns structured metadata.\nThis endpoint processes the document text to extract relevant information such as tags,\ncorrespondent, and document type based on content analysis.\n\nThe analysis is performed using the AI provider configured in the application settings.\n",
+    "/workspace/doc/{id}": {
+      "get": {
+        "summary": "Unified Document Workspace",
+        "description": "Renders the unified workspace for a specific document.\nConsolidates metadata editing, AI chat, and visual RAG capabilities.\n",
         "tags": [
-          "Documents",
+          "Navigation",
+          "Documents"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unified Workspace rendered successfully"
+          }
+        }
+      }
+    },
+    "/api/workspace/doc/{id}": {
+      "get": {
+        "summary": "Get document data for inline workspace loading",
+        "description": "Returns document metadata in JSON format for client-side document switching",
+        "tags": [
+          "API",
+          "Documents"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document data returned successfully"
+          }
+        }
+      }
+    },
+    "/workspace/api/tags": {
+      "get": {
+        "summary": "Get all tags from Paperless",
+        "description": "Returns all available tags for document tagging",
+        "tags": [
+          "API",
+          "Documents"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tags retrieved successfully"
+          }
+        }
+      }
+    },
+    "/workspace/api/documents": {
+      "get": {
+        "summary": "Get all documents from Paperless",
+        "description": "Returns all available documents (unfiltered)",
+        "tags": [
+          "API",
+          "Documents"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Documents retrieved successfully"
+          }
+        }
+      }
+    },
+    "/workspace": {
+      "get": {
+        "summary": "Document workspace entry",
+        "description": "Redirects to the latest processed document or shows an empty state.",
+        "tags": [
+          "Navigation"
+        ]
+      }
+    },
+    "/api/annotations": {
+      "post": {
+        "summary": "Save user annotations for a document",
+        "description": "Saves user-created visual annotations (bounding boxes with labels/notes) for a specific document and page",
+        "tags": [
+          "Annotations",
           "API"
         ],
         "security": [
@@ -3953,30 +3522,47 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "content"
+                  "documentId",
+                  "annotations"
                 ],
                 "properties": {
-                  "content": {
-                    "type": "string",
-                    "description": "The document text content to analyze",
-                    "example": "Invoice from Acme Corp. Total amount: $125.00, Due date: 2023-08-15"
+                  "documentId": {
+                    "type": "integer"
                   },
-                  "existingTags": {
+                  "page": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "annotations": {
                     "type": "array",
-                    "description": "List of existing tags in the system to help with tag matching",
                     "items": {
-                      "type": "string"
-                    },
-                    "example": [
-                      "Invoice",
-                      "Finance",
-                      "Acme Corp"
-                    ]
-                  },
-                  "id": {
-                    "type": "string",
-                    "description": "Optional document ID for tracking metrics",
-                    "example": "doc_123"
+                      "type": "object",
+                      "properties": {
+                        "bbox": {
+                          "type": "object",
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "width": {
+                              "type": "number"
+                            },
+                            "height": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "note": {
+                          "type": "string"
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -3985,53 +3571,234 @@
         },
         "responses": {
           "200": {
-            "description": "Document analysis results",
+            "description": "Annotations saved successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/annotations/{documentId}": {
+      "get": {
+        "summary": "Load user annotations for a document",
+        "description": "Retrieves user-created annotations for a specific document and optionally a specific page",
+        "tags": [
+          "Annotations",
+          "API"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "documentId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Annotations retrieved successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/annotations/{id}": {
+      "delete": {
+        "summary": "Delete a user annotation",
+        "description": "Deletes a specific annotation by ID (user must be the owner)",
+        "tags": [
+          "Annotations",
+          "API"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Annotation deleted successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Annotation not found"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update a user annotation",
+        "description": "Updates label, note, or bbox of an existing annotation (user must be the owner)",
+        "tags": [
+          "Annotations",
+          "API"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "bbox": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Annotation updated successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Annotation not found"
+          }
+        }
+      }
+    },
+    "/api/chat/rag": {
+      "post": {
+        "summary": "RAG Chat - Search across all indexed documents",
+        "description": "Performs semantic search across all indexed documents and generates\nan AI response based on the most relevant results.\nThis endpoint is always available, regardless of document selection.\n",
+        "tags": [
+          "API",
+          "Chat"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "message",
+                  "model"
+                ],
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "description": "User's question or search query",
+                    "example": "Find all invoices over $1000"
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "LLM model to use for response generation",
+                    "example": "llama3.2"
+                  },
+                  "history": {
+                    "type": "array",
+                    "description": "Previous conversation messages for context",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "user",
+                            "assistant",
+                            "system"
+                          ]
+                        },
+                        "content": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "RAG search response with sources",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "correspondent": {
+                    "response": {
                       "type": "string",
-                      "description": "Detected correspondent name",
-                      "example": "Acme Corp"
+                      "description": "AI-generated answer"
                     },
-                    "title": {
-                      "type": "string",
-                      "description": "Suggested document title",
-                      "example": "Acme Corp Invoice - August 2023"
-                    },
-                    "tags": {
+                    "sources": {
                       "type": "array",
-                      "description": "Suggested tags for the document",
+                      "description": "Documents used to generate the response",
                       "items": {
-                        "type": "string"
-                      },
-                      "example": [
-                        "Invoice",
-                        "Finance"
-                      ]
-                    },
-                    "documentType": {
-                      "type": "string",
-                      "description": "Detected document type",
-                      "example": "Invoice"
-                    },
-                    "metrics": {
-                      "type": "object",
-                      "description": "Token usage metrics (when using OpenAI)",
-                      "properties": {
-                        "promptTokens": {
-                          "type": "number",
-                          "example": 350
-                        },
-                        "completionTokens": {
-                          "type": "number",
-                          "example": 120
-                        },
-                        "totalTokens": {
-                          "type": "number",
-                          "example": 470
+                        "type": "object",
+                        "properties": {
+                          "documentId": {
+                            "type": "number"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "page": {
+                            "type": "number"
+                          },
+                          "confidence": {
+                            "type": "number"
+                          }
                         }
                       }
                     }
@@ -4041,21 +3808,263 @@
             }
           },
           "400": {
-            "description": "Invalid request parameters",
+            "description": "Missing required fields"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/chat/visual-rag": {
+      "post": {
+        "summary": "Visual RAG Chat - Hybrid text + visual search",
+        "description": "Performs hybrid search combining text embeddings (384D) and visual\nembeddings (320D ColQwen3) using Reciprocal Rank Fusion (RRF).\nFalls back to text-only search if Visual-RAG sidecar is unavailable.\n",
+        "tags": [
+          "API",
+          "Chat"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "message",
+                  "model"
+                ],
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "description": "User's visual search query",
+                    "example": "Find documents with tables"
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "LLM model to use"
+                  },
+                  "history": {
+                    "type": "array",
+                    "description": "Previous conversation messages"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Visual RAG response with sources",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "type": "object",
+                  "properties": {
+                    "response": {
+                      "type": "string"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "documentId": {
+                            "type": "number"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "page": {
+                            "type": "number"
+                          },
+                          "visualScore": {
+                            "type": "number"
+                          },
+                          "textScore": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "hybrid",
+                        "text-fallback"
+                      ]
+                    }
+                  }
                 }
               }
             }
           },
+          "400": {
+            "description": "Missing required fields"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
           "500": {
-            "description": "Server error or AI provider not configured",
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/chat/document": {
+      "post": {
+        "summary": "Document Chat - Context-aware conversation about a specific document",
+        "description": "Enables chat about a specific document with full document context.\nOnly available when a document is loaded.\n",
+        "tags": [
+          "API",
+          "Chat"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "message",
+                  "model",
+                  "documentId"
+                ],
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "description": "User's question about the document",
+                    "example": "What is the due date on this invoice?"
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "LLM model to use"
+                  },
+                  "documentId": {
+                    "type": "number",
+                    "description": "ID of the document to chat about"
+                  },
+                  "documentContext": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "content": {
+                        "type": "string"
+                      },
+                      "page": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Document chat response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "type": "object",
+                  "properties": {
+                    "response": {
+                      "type": "string"
+                    },
+                    "confidence": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing document ID or message"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/chat/status": {
+      "get": {
+        "summary": "Get chat service status",
+        "description": "Returns the availability status of all three chat modes.",
+        "tags": [
+          "API",
+          "Chat"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chat service status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rag": {
+                      "type": "object",
+                      "properties": {
+                        "available": {
+                          "type": "boolean"
+                        },
+                        "indexReady": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "visualRag": {
+                      "type": "object",
+                      "properties": {
+                        "available": {
+                          "type": "boolean",
+                          "description": "True if hybrid search is available"
+                        },
+                        "visualSidecar": {
+                          "type": "boolean",
+                          "description": "True if Visual-RAG sidecar is healthy"
+                        },
+                        "textFallback": {
+                          "type": "boolean",
+                          "description": "True if text-only fallback is available"
+                        }
+                      }
+                    },
+                    "document": {
+                      "type": "object",
+                      "properties": {
+                        "available": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -4063,66 +4072,100 @@
         }
       }
     },
-    "/api/processing-status": {
-      "get": {
-        "summary": "Get current document processing status",
-        "description": "Returns the current status of document processing, including the number of documents\nbeing processed and any active background tasks.\n",
+    "/api/documents/{id}/reprocess": {
+      "post": {
+        "summary": "Reprocess document through Expert Pipeline",
+        "description": "Triggers full Expert Pipeline execution for a document.\nThe pipeline classifies the document, extracts fields using OCR and Visual RAG,\ngenerates smart tags, and stores results in the database.\n\nThis operation may take 30-120 seconds depending on document complexity\nand pipeline configuration.\n",
         "tags": [
-          "System",
-          "API",
-          "API"
+          "Documents",
+          "Expert Pipeline"
         ],
-        "security": [
+        "parameters": [
           {
-            "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Paperless document ID"
           }
         ],
         "responses": {
           "200": {
-            "description": "Processing status retrieved successfully",
+            "description": "Reprocessing completed successfully",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "isProcessing": {
+                    "success": {
                       "type": "boolean",
-                      "description": "Whether documents are currently being processed",
                       "example": true
                     },
-                    "queueLength": {
+                    "documentId": {
                       "type": "integer",
-                      "description": "Number of documents waiting in the processing queue",
-                      "example": 5
+                      "example": 74
                     },
-                    "currentDocument": {
-                      "type": "object",
-                      "description": "Details about the document currently being processed (if any)",
-                      "properties": {
-                        "id": {
-                          "type": "integer",
-                          "description": "Document ID",
-                          "example": 123
-                        },
-                        "title": {
-                          "type": "string",
-                          "description": "Document title",
-                          "example": "Invoice #12345"
-                        },
-                        "status": {
-                          "type": "string",
-                          "description": "Current processing status",
-                          "example": "processing"
+                    "classification": {
+                      "type": "string",
+                      "example": "Medical"
+                    },
+                    "extractedFields": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          },
+                          "confidence": {
+                            "type": "number"
+                          }
                         }
                       }
                     },
-                    "processedCount": {
-                      "type": "integer",
-                      "description": "Total number of documents processed",
-                      "example": 42
+                    "smartTags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "example": 0.85
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "totalTime": {
+                          "type": "number",
+                          "description": "Total processing time in milliseconds"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid document ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error": {
+                      "type": "string",
+                      "example": "Invalid document ID"
                     }
                   }
                 }
@@ -4130,15 +4173,22 @@
             }
           },
           "401": {
-            "description": "Unauthorized - authentication required",
+            "description": "Unauthorized - authentication required"
+          },
+          "404": {
+            "description": "Document not found",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
                     "error": {
                       "type": "string",
-                      "example": "Authentication required"
+                      "example": "Document not found"
                     }
                   }
                 }
@@ -4146,15 +4196,22 @@
             }
           },
           "500": {
-            "description": "Failed to fetch processing status",
+            "description": "Pipeline execution failed",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
                     "error": {
+                      "type": "string"
+                    },
+                    "reasonCode": {
                       "type": "string",
-                      "example": "Failed to fetch processing status"
+                      "description": "Machine-readable error reason code"
                     }
                   }
                 }
@@ -4164,72 +4221,1273 @@
         }
       }
     },
-    "/api/runtime/state": {
+    "/api/documents/{id}/status": {
       "get": {
-        "summary": "Get current runtime system state",
-        "description": "Returns runtime state including circuit breaker, VRAM, Qdrant, sidecars, and background sync info",
+        "summary": "Get document processing status",
+        "description": "Returns the current processing status and last reprocessing result\nfor a document.\n",
         "tags": [
-          "System"
-        ],
-        "responses": {
-          "200": {
-            "description": "Runtime state retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "circuitBreaker": {
-                      "type": "object"
-                    },
-                    "vram": {
-                      "type": "object"
-                    },
-                    "qdrant": {
-                      "type": "object"
-                    },
-                    "sidecars": {
-                      "type": "object"
-                    },
-                    "backgroundSync": {
-                      "type": "object"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/settings/presets": {
-      "get": {
-        "summary": "List available configuration presets",
-        "description": "Returns a list of predefined configuration presets",
-        "tags": [
-          "Settings"
-        ],
-        "responses": {
-          "200": {
-            "description": "Presets retrieved successfully"
-          }
-        }
-      }
-    },
-    "/settings/presets/{name}": {
-      "post": {
-        "summary": "Load or preview a configuration preset",
-        "description": "Load a preset and apply settings, or preview changes without applying",
-        "tags": [
-          "Settings"
+          "Documents"
         ],
         "parameters": [
           {
-            "name": "name",
             "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Paperless document ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "documentId": {
+                      "type": "integer"
+                    },
+                    "lastProcessed": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "classification": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid document ID"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/feedback": {
+      "post": {
+        "summary": "Submit feedback for document extraction",
+        "description": "Records user feedback about extraction accuracy for a processed document.\nSupports ratings, accuracy scores, field corrections, and comments.\n",
+        "tags": [
+          "Feedback"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "documentId",
+                  "rating"
+                ],
+                "properties": {
+                  "documentId": {
+                    "type": "string",
+                    "description": "Paperless document ID"
+                  },
+                  "pipelineId": {
+                    "type": "string",
+                    "description": "Pipeline that processed the document"
+                  },
+                  "rating": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5,
+                    "description": "Overall satisfaction rating (1-5 stars)"
+                  },
+                  "accuracyScore": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Estimated extraction accuracy (0.0-1.0)"
+                  },
+                  "corrections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "List of field names that had errors"
+                  },
+                  "comments": {
+                    "type": "string",
+                    "description": "Free-form feedback comments"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Feedback submitted successfully"
+          },
+          "400": {
+            "description": "Invalid request parameters"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/feedback/analytics": {
+      "get": {
+        "summary": "Get feedback analytics",
+        "description": "Returns aggregated statistics about user feedback",
+        "tags": [
+          "Feedback"
+        ],
+        "responses": {
+          "200": {
+            "description": "Analytics data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "analytics": {
+                      "type": "object",
+                      "properties": {
+                        "totalFeedback": {
+                          "type": "integer"
+                        },
+                        "averageRating": {
+                          "type": "number"
+                        },
+                        "averageAccuracy": {
+                          "type": "number"
+                        },
+                        "pipelinePerformance": {
+                          "type": "object"
+                        },
+                        "topCorrectionFields": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/normalization/trigger": {
+      "post": {
+        "summary": "Manually trigger normalization for a single document",
+        "description": "Analyzes and normalizes a document's page geometry (rotation, cropping, scaling).\nCan force re-normalization of already-normalized documents.\n",
+        "tags": [
+          "Documents",
+          "API"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "documentId"
+                ],
+                "properties": {
+                  "documentId": {
+                    "type": "integer",
+                    "description": "Paperless document ID",
+                    "example": 123
+                  },
+                  "force": {
+                    "type": "boolean",
+                    "description": "Force re-normalization even if already completed",
+                    "default": false
+                  },
+                  "options": {
+                    "type": "object",
+                    "description": "Normalization options (rotation, cropping, scaling thresholds)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalization completed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "documentId": {
+                      "type": "integer"
+                    },
+                    "changesDetected": {
+                      "type": "boolean"
+                    },
+                    "actions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "normalizedPages": {
+                      "type": "array"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - missing or invalid documentId"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Normalization failed"
+          }
+        }
+      }
+    },
+    "/api/normalization/batch": {
+      "post": {
+        "summary": "Trigger batch normalization job",
+        "description": "Processes multiple documents that haven't been normalized yet.\nDocuments with status 'processing' or 'completed' are skipped unless force is enabled.\nSupports dry-run mode to preview what would be done.\n",
+        "tags": [
+          "Documents",
+          "API"
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "limit": {
+                    "type": "integer",
+                    "description": "Maximum documents to process",
+                    "default": 50,
+                    "example": 10
+                  },
+                  "dryRun": {
+                    "type": "boolean",
+                    "description": "If true, only report what would be done without actually normalizing",
+                    "default": false
+                  },
+                  "force": {
+                    "type": "boolean",
+                    "description": "Force re-normalization of completed documents",
+                    "default": false
+                  },
+                  "concurrency": {
+                    "type": "integer",
+                    "description": "Number of documents to process in parallel",
+                    "default": 2
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Batch job completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jobId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "completed",
+                        "failed",
+                        "cancelled"
+                      ]
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer"
+                        },
+                        "processed": {
+                          "type": "integer"
+                        },
+                        "succeeded": {
+                          "type": "integer"
+                        },
+                        "failed": {
+                          "type": "integer"
+                        },
+                        "skipped": {
+                          "type": "integer"
+                        },
+                        "duration": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "errors": {
+                      "type": "array"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Batch job failed"
+          }
+        }
+      }
+    },
+    "/api/normalization/status/{docId}": {
+      "get": {
+        "summary": "Get normalization status for a document",
+        "description": "Returns the current normalization status and metadata for a document.\nStatus can be: pending, processing, completed, skipped, or failed.\n",
+        "tags": [
+          "Documents",
+          "API"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "docId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Document ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "documentId": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "processing",
+                        "completed",
+                        "skipped",
+                        "failed"
+                      ]
+                    },
+                    "isNormalized": {
+                      "type": "boolean"
+                    },
+                    "url": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid document ID"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Failed to retrieve status"
+          }
+        }
+      }
+    },
+    "/api/normalization/health": {
+      "get": {
+        "summary": "Health check for normalization system",
+        "description": "Returns health status and statistics for the normalization system.\nIncludes counts of normalized, pending, processing, and failed documents,\nas well as disk usage metrics.\n",
+        "tags": [
+          "Documents",
+          "API"
+        ],
+        "responses": {
+          "200": {
+            "description": "Health check successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "totalDocuments": {
+                          "type": "integer",
+                          "description": "Total normalized documents"
+                        },
+                        "diskUsageBytes": {
+                          "type": "number",
+                          "description": "Disk usage in bytes"
+                        },
+                        "diskUsageMb": {
+                          "type": "number",
+                          "description": "Disk usage in MB"
+                        },
+                        "stored": {
+                          "type": "integer",
+                          "description": "Total stored operations"
+                        },
+                        "updated": {
+                          "type": "integer",
+                          "description": "Total metadata updates"
+                        },
+                        "errors": {
+                          "type": "integer",
+                          "description": "Total error count"
+                        },
+                        "lastOperation": {
+                          "type": "string",
+                          "description": "Timestamp of last operation"
+                        }
+                      }
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Health check failed"
+          }
+        }
+      }
+    },
+    "/api/visual-overlays/missing-fields/{documentId}": {
+      "get": {
+        "summary": "Get fields without overlay mappings",
+        "description": "Returns a list of required fields and their mapping status",
+        "tags": [
+          "Visual Overlays"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "documentId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Paperless document ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fields with mapping status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "isMapped": {
+                            "type": "boolean"
+                          },
+                          "overlayId": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid document ID"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/visual-overlays/document/{documentId}": {
+      "get": {
+        "summary": "Get all overlays for a document",
+        "description": "Returns all visual overlays associated with a document",
+        "tags": [
+          "Visual Overlays"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "documentId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Paperless document ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document overlays",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "overlays": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "pageNumber": {
+                            "type": "integer"
+                          },
+                          "confidence": {
+                            "type": "number"
+                          },
+                          "bbox": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid document ID"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/visual-overlays": {
+      "post": {
+        "summary": "Create a new overlay",
+        "description": "Creates a visual overlay for a field mapping",
+        "tags": [
+          "Visual Overlays"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "documentId",
+                  "fieldId",
+                  "bbox"
+                ],
+                "properties": {
+                  "documentId": {
+                    "type": "integer"
+                  },
+                  "fieldId": {
+                    "type": "string"
+                  },
+                  "bbox": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "width": {
+                        "type": "number"
+                      },
+                      "height": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "pageNumber": {
+                    "type": "integer",
+                    "default": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Overlay created"
+          },
+          "400": {
+            "description": "Invalid request body"
+          },
+          "503": {
+            "description": "Visual RAG service not available"
+          }
+        }
+      }
+    },
+    "/api/visual-overlays/{overlayId}": {
+      "delete": {
+        "summary": "Delete an overlay",
+        "description": "Removes a visual overlay by ID",
+        "tags": [
+          "Visual Overlays"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "overlayId",
             "required": true,
             "schema": {
               "type": "string"
+            },
+            "description": "Overlay ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Overlay deleted"
+          },
+          "400": {
+            "description": "Invalid overlay ID"
+          },
+          "503": {
+            "description": "Visual RAG service not available"
+          }
+        }
+      }
+    },
+    "/api/visual-rag/search": {
+      "post": {
+        "summary": "Hybrid document search",
+        "description": "Search documents using hybrid visual and text embeddings with RRF fusion.\nSupports three search modes: hybrid, visual-only, and text-only.\n",
+        "tags": [
+          "Visual RAG"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "query"
+                ],
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "Search query",
+                    "example": "invoice with signature"
+                  },
+                  "k": {
+                    "type": "integer",
+                    "description": "Number of results to return",
+                    "default": 5
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "hybrid",
+                      "visual",
+                      "text"
+                    ],
+                    "description": "Search mode",
+                    "default": "hybrid"
+                  },
+                  "includeOverlays": {
+                    "type": "boolean",
+                    "description": "Include bounding box overlays in results",
+                    "default": true
+                  },
+                  "alpha": {
+                    "type": "number",
+                    "description": "Visual weight for hybrid mode (0-1, 0.5 = equal)",
+                    "default": 0.5
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "query": {
+                      "type": "string"
+                    },
+                    "mode": {
+                      "type": "string"
+                    },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "totalResults": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing required query parameter"
+          },
+          "500": {
+            "description": "Search failed"
+          }
+        }
+      }
+    },
+    "/api/visual-rag/search/visual": {
+      "post": {
+        "summary": "Alpha-9 Visual Search with Expert Filtering (ticket:006.2)",
+        "description": "Search for documents using an image region (base64) as the query.\nSupports collection routing and Hybrid SOT metadata filtering.\nUses Alpha-9 Protocol with 5-second timeout and 503 handshake.\n",
+        "tags": [
+          "Visual RAG"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "image"
+                ],
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "description": "Base64 encoded image"
+                  },
+                  "collection": {
+                    "type": "string",
+                    "enum": [
+                      "visual_pages",
+                      "visual_overlays"
+                    ],
+                    "default": "visual_pages"
+                  },
+                  "k": {
+                    "type": "integer",
+                    "default": 5
+                  },
+                  "filters": {
+                    "type": "object",
+                    "description": "Expert Filtering options",
+                    "properties": {
+                      "doc_id": {
+                        "type": "integer"
+                      },
+                      "tag_ids": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        }
+                      },
+                      "correspondent_id": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "MaxSim search results"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "503": {
+            "description": "Sidecar unavailable or initializing"
+          }
+        }
+      }
+    },
+    "/api/visual-rag/health": {
+      "get": {
+        "summary": "Visual RAG health check",
+        "description": "Check the health status of visual RAG components",
+        "tags": [
+          "Visual RAG"
+        ],
+        "responses": {
+          "200": {
+            "description": "Health status of components",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "visualSearchClient": {
+                      "type": "boolean"
+                    },
+                    "overlayRepository": {
+                      "type": "boolean"
+                    },
+                    "overlayExtractor": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/visual-rag/stats": {
+      "get": {
+        "summary": "Ingestion statistics",
+        "description": "Get statistics about document ingestion",
+        "tags": [
+          "Visual RAG"
+        ],
+        "responses": {
+          "200": {
+            "description": "Ingestion statistics"
+          }
+        }
+      }
+    },
+    "/api/visual-rag/feedback": {
+      "post": {
+        "summary": "Record granular visual feedback",
+        "description": "Ingest granular feedback events and visual annotations. Persists events\nto PostgreSQL and upserts overlay vectors to Qdrant when bbox/embedding\nis present. Handles sidecar 'initializing' by deferring ingestion.\n",
+        "tags": [
+          "Visual RAG"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "documentId",
+                  "events"
+                ],
+                "properties": {
+                  "documentId": {
+                    "type": "integer"
+                  },
+                  "events": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Feedback ingested"
+          },
+          "202": {
+            "description": "Feedback accepted but some overlay ingest deferred (sidecar initializing)"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/visual-rag/batch/start": {
+      "post": {
+        "summary": "Start batch ingestion job",
+        "description": "Start a background job to ingest multiple documents from paperless-ngx.\nReturns immediately with a jobId for monitoring progress.\n",
+        "tags": [
+          "Visual RAG",
+          "Batch"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filters": {
+                    "type": "object",
+                    "properties": {
+                      "createdAfter": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "createdBefore": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "documentType": {
+                        "type": "integer"
+                      },
+                      "tagId": {
+                        "type": "integer"
+                      },
+                      "pdfOnly": {
+                        "type": "boolean",
+                        "default": true
+                      }
+                    }
+                  },
+                  "options": {
+                    "type": "object",
+                    "properties": {
+                      "concurrency": {
+                        "type": "integer",
+                        "default": 2
+                      },
+                      "skipIngested": {
+                        "type": "boolean",
+                        "default": true
+                      },
+                      "maxRetries": {
+                        "type": "integer",
+                        "default": 3
+                      },
+                      "dpi": {
+                        "type": "integer",
+                        "default": 300
+                      },
+                      "batchLimit": {
+                        "type": "integer",
+                        "description": "Limit number of documents to process"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Job started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "jobId": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/visual-rag/batch/{jobId}/status": {
+      "get": {
+        "summary": "Get batch job status",
+        "description": "Get current progress and status of a batch ingestion job",
+        "tags": [
+          "Visual RAG",
+          "Batch"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "jobId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job progress"
+          },
+          "404": {
+            "description": "Job not found"
+          }
+        }
+      }
+    },
+    "/api/visual-rag/batch/{jobId}/pause": {
+      "post": {
+        "summary": "Pause batch job",
+        "tags": [
+          "Visual RAG",
+          "Batch"
+        ]
+      }
+    },
+    "/api/visual-rag/batch/{jobId}/resume": {
+      "post": {
+        "summary": "Resume paused batch job",
+        "tags": [
+          "Visual RAG",
+          "Batch"
+        ]
+      }
+    },
+    "/api/visual-rag/batch/{jobId}/cancel": {
+      "post": {
+        "summary": "Cancel batch job",
+        "tags": [
+          "Visual RAG",
+          "Batch"
+        ]
+      }
+    },
+    "/api/visual-rag/batch/list": {
+      "get": {
+        "summary": "List all batch jobs",
+        "description": "List all active and recently completed batch jobs",
+        "tags": [
+          "Visual RAG",
+          "Batch"
+        ],
+        "responses": {
+          "200": {
+            "description": "List of jobs"
+          }
+        }
+      }
+    },
+    "/api/visual-rag/overlays/{docId}": {
+      "get": {
+        "summary": "Get overlays for a document",
+        "description": "Retrieve all bounding box overlays for a document, formatted for UI display",
+        "tags": [
+          "Visual RAG",
+          "Overlays"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "docId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Document ID"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Filter by page number (optional)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document overlays",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "docId": {
+                      "type": "integer"
+                    },
+                    "overlays": {
+                      "type": "array"
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/visual-rag/legend/{domain}": {
+      "get": {
+        "summary": "Get legend for a domain",
+        "description": "Get field legend data for a specific document domain",
+        "tags": [
+          "Visual RAG",
+          "Overlays"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "domain",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "financial",
+                "medical",
+                "legal",
+                "general"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Legend fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "color": {
+                        "type": "string"
+                      },
+                      "mapping": {
+                        "type": "string"
+                      },
+                      "isMandatory": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Domain not found"
+          }
+        }
+      }
+    },
+    "/api/visual-rag/domains": {
+      "get": {
+        "summary": "Get available domains",
+        "description": "List all available document domains with field counts",
+        "tags": [
+          "Visual RAG",
+          "Overlays"
+        ],
+        "responses": {
+          "200": {
+            "description": "List of domains"
+          }
+        }
+      }
+    },
+    "/api/visual-rag/ingest/{docId}": {
+      "post": {
+        "summary": "Ingest/reingest single document",
+        "description": "Process a single document through the Visual RAG pipeline",
+        "tags": [
+          "Visual RAG",
+          "Ingestion"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "docId",
+            "required": true,
+            "schema": {
+              "type": "integer"
             }
           }
         ],
@@ -4239,57 +5497,9 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "preview": {
+                  "force": {
                     "type": "boolean",
-                    "description": "If true, return diff without applying"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/settings/export": {
-      "get": {
-        "summary": "Export current settings as .env file",
-        "description": "Downloads all current settings as a .env file with timestamp",
-        "tags": [
-          "Settings"
-        ],
-        "responses": {
-          "200": {
-            "description": "Settings exported successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/settings/import": {
-      "post": {
-        "summary": "Import settings from .env file",
-        "description": "Upload and validate a .env file, optionally preview changes before applying",
-        "tags": [
-          "Settings"
-        ],
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary"
-                  },
-                  "preview": {
-                    "type": "boolean"
+                    "description": "Force re-ingestion even if already processed"
                   }
                 }
               }
@@ -4298,7 +5508,10 @@
         },
         "responses": {
           "200": {
-            "description": "Import successful or preview generated"
+            "description": "Ingestion result"
+          },
+          "500": {
+            "description": "Ingestion failed"
           }
         }
       }
@@ -4336,6 +5549,10 @@
     {
       "name": "Metadata",
       "description": "Endpoints for managing document metadata like tags, correspondents, and document types"
+    },
+    {
+      "name": "Visual Overlays",
+      "description": "Visual overlay labeling and field mapping endpoints"
     }
   ]
 }

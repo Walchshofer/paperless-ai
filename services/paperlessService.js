@@ -5,6 +5,7 @@ const { parse, isValid, parseISO, format } = require('date-fns');
 const FieldMatcher = require('./FieldMatcher');
 const logger = require('./logger');
 const { normalizeCustomFieldValue } = require('./customFieldUtils');
+const { getPaperlessBaseUrl } = require('./utils/paperlessUrl');
 
 class PaperlessService {
   constructor() {
@@ -24,15 +25,38 @@ class PaperlessService {
    * @private
    */
   _validateBinaryResponse(buffer, context = '') {
+    const apiUrl = config.paperless?.apiUrl || process.env.PAPERLESS_API_URL || null;
+    const baseUrl = getPaperlessBaseUrl(apiUrl);
+    const logContext = {
+      context: context || null,
+      apiUrl,
+      baseUrl
+    };
+
     if (!buffer || buffer.length === 0) {
-      return { valid: false, reason: 'empty_buffer' };
+      logger.warn(
+        '[PAPERLESS] Empty binary response received',
+        {
+          ...logContext,
+          code: 'NETWORK_ERROR',
+          suggestion: 'Check Paperless API reachability and container network connectivity.'
+        }
+      );
+      return { valid: false, reason: 'empty_buffer', code: 'NETWORK_ERROR' };
     }
 
     // Check for HTML response (login page)
     const header = buffer.slice(0, 15).toString('utf8').toLowerCase();
     if (header.includes('<!doctype') || header.includes('<html')) {
-      logger.warn(`[PAPERLESS] Received HTML instead of binary data${context ? ' for ' + context : ''} - likely auth failure`);
-      return { valid: false, reason: 'html_response' };
+      logger.warn(
+        `[PAPERLESS] Received HTML instead of binary data${context ? ' for ' + context : ''}`,
+        {
+          ...logContext,
+          code: 'AUTH_FAILURE',
+          suggestion: 'Verify PAPERLESS_API_TOKEN and ensure PAPERLESS_API_URL ends with /api.'
+        }
+      );
+      return { valid: false, reason: 'html_response', code: 'AUTH_FAILURE' };
     }
 
     // Check for JSON error response
@@ -41,8 +65,23 @@ class PaperlessService {
         const text = buffer.toString('utf8');
         const json = JSON.parse(text);
         if (json.error || json.detail) {
-          logger.warn(`[PAPERLESS] Received JSON error${context ? ' for ' + context : ''}: ${json.error || json.detail}`);
-          return { valid: false, reason: 'json_error', error: json };
+          const detail = String(json.error || json.detail || '').toLowerCase();
+          const authHints = ['authentication', 'credentials', 'token', 'permission', 'forbidden', 'unauthorized'];
+          const isAuth = authHints.some(hint => detail.includes(hint));
+          const code = isAuth ? 'AUTH_FAILURE' : 'WRONG_URL';
+          const suggestion = isAuth
+            ? 'Check PAPERLESS_API_TOKEN permissions and validity.'
+            : 'Verify PAPERLESS_API_URL and document ID; ensure the API endpoint exists.';
+          logger.warn(
+            `[PAPERLESS] Received JSON error${context ? ' for ' + context : ''}: ${json.error || json.detail}`,
+            {
+              ...logContext,
+              code,
+              suggestion,
+              error: json
+            }
+          );
+          return { valid: false, reason: 'json_error', code, error: json };
         }
       } catch (e) {
         // Not JSON, continue
@@ -59,6 +98,81 @@ class PaperlessService {
     logger.info('[PAPERLESS] Resetting client connection');
     this.client = null;
     this.lastAuthCheck = 0;
+  }
+
+  async validateConnection() {
+    this.initialize();
+    const apiUrl = config.paperless?.apiUrl || process.env.PAPERLESS_API_URL || null;
+    const baseUrl = getPaperlessBaseUrl(apiUrl);
+    const apiToken = config.paperless?.apiToken || process.env.PAPERLESS_API_TOKEN || null;
+
+    if (!this.client) {
+      return {
+        valid: false,
+        error: 'Client not initialized',
+        details: {
+          apiUrlSet: !!apiUrl,
+          apiTokenSet: !!apiToken,
+          apiUrl,
+          baseUrl
+        }
+      };
+    }
+
+    const start = Date.now();
+    try {
+      const response = await this.client.get('/documents/?page_size=1', {
+        timeout: 5000
+      });
+      const responseTimeMs = Date.now() - start;
+      const data = response?.data;
+
+      if (!data || typeof data !== 'object') {
+        return {
+          valid: false,
+          error: 'Invalid API response',
+          details: { responseTimeMs, apiUrl, baseUrl }
+        };
+      }
+
+      return {
+        valid: true,
+        details: {
+          responseTimeMs,
+          documentCount: data.count,
+          apiUrl,
+          baseUrl
+        }
+      };
+    } catch (error) {
+      const responseTimeMs = Date.now() - start;
+      const status = error.response?.status || null;
+      const networkCode = error.code || null;
+      let code = 'NETWORK_ERROR';
+      let message = 'Cannot reach Paperless API';
+
+      if (status === 401 || status === 403) {
+        code = 'AUTH_FAILURE';
+        message = 'Invalid API token';
+      } else if (status === 404) {
+        code = 'WRONG_URL';
+        message = 'Cannot reach Paperless API';
+      }
+
+      return {
+        valid: false,
+        error: message,
+        details: {
+          status,
+          code,
+          networkCode,
+          responseTimeMs,
+          apiUrl,
+          baseUrl,
+          message: error.message
+        }
+      };
+    }
   }
 
   initialize() {

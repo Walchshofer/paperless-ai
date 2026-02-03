@@ -38,7 +38,7 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
   useEffect(() => {
     const fetchTags = async () => {
       try {
-        const res = await fetch('/manual/tags');
+        const res = await fetch('/workspace/api/tags');
         if (res.ok) {
           const tags = await res.json();
           setAvailableTags(tags);
@@ -184,7 +184,7 @@ export default function TagsManagerIsland(props: Partial<TagsManagerContract>) {
     try {
       const tagIds = currentTags.map((t: Tag) => t.id).filter((id: number) => id > 0);
       
-      const res = await fetch('/manual/updateDocument', {
+      const res = await fetch('/api/processing/update-document', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

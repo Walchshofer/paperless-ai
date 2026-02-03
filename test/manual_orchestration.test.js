@@ -5,7 +5,7 @@ const app = require('../server');
 const paperlessService = require('../services/paperlessService');
 const feedbackService = require('../services/feedback/FeedbackService');
 
-describe('Manual Orchestration Route /manual/updateDocument', function() {
+describe('Processing Orchestration Route /api/processing/update-document', function() {
   it('should update Paperless and persist feedback (best-effort) when feedback fails', async function() {
     const docId = 12345;
     // Stub paperless update to succeed
@@ -32,7 +32,7 @@ describe('Manual Orchestration Route /manual/updateDocument', function() {
     metricsCollector.recordQdrantPayloadSync = (_c) => { metricCalled = true; };
 
     const res = await request(app)
-      .post('/manual/updateDocument')
+      .post('/api/processing/update-document')
       .set('X-Request-Id', 'test-req-1')
       .send({ documentId: docId, document_updates: { title: 'New Title' }, feedback_events: [{ type: 'correction' }] });
 
@@ -64,7 +64,7 @@ describe('Manual Orchestration Route /manual/updateDocument', function() {
     feedbackService.recordGranularFeedback = async () => ({ errors: [{ type: 'insertion', error: 'DB down' }] });
 
     const res = await request(app)
-      .post('/manual/updateDocument')
+      .post('/api/processing/update-document')
       .set('X-Request-Id', 'test-req-2')
       .send({ documentId: docId, transactional: true, document_updates: { title: 'New Title' }, feedback_events: [{ type: 'correction' }] });
 
@@ -102,7 +102,7 @@ describe('Manual Orchestration Route /manual/updateDocument', function() {
     metricsCollector.recordQdrantPayloadSync = (_c) => { metricCalled = true; };
 
     const res = await request(app)
-      .post('/manual/updateDocument')
+      .post('/api/processing/update-document')
       .set('X-Request-Id', 'test-req-3')
       .send({ documentId: docId, transactional: true, document_updates: { title: 'OK' }, feedback_events: [{ type: 'annotation', context: { bbox: [1,2,3,4], page: 1 } }] });
 

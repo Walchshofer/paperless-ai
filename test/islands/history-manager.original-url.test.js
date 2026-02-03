@@ -106,7 +106,7 @@ describe('HistoryManagerIsland - original image wiring', function () {
         };
       }
 
-      if (url.startsWith('/manual/preview/42')) {
+      if (url.startsWith('/workspace/api/doc/42')) {
         return {
           ok: true,
           status: 200,

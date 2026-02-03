@@ -74,8 +74,8 @@ test.describe('Manual - Annotation persistence & per-user isolation', () => {
     await expect(labelInput).toBeVisible({ timeout: 2000 });
     await labelInput.fill('E2E Test Annotation');
 
-    // Intercept the POST to /manual/annotations
-    const postPromise = page.waitForResponse(resp => resp.url().endsWith('/manual/annotations') && resp.request().method() === 'POST');
+    // Intercept the POST to /api/annotations
+    const postPromise = page.waitForResponse(resp => resp.url().endsWith('/api/annotations') && resp.request().method() === 'POST');
 
     await page.click('[data-testid="save-annotations"]');
 
@@ -96,8 +96,8 @@ test.describe('Manual - Annotation persistence & per-user isolation', () => {
     const labelAfter = await page.locator('[data-testid="annotation-label-0"]').inputValue();
     expect(labelAfter).toBe('E2E Test Annotation');
 
-    // Update the label and assert PUT to /manual/annotations/:id
-    const putPromise = page.waitForResponse(resp => resp.url().endsWith(`/manual/annotations/${annotationId}`) && resp.request().method() === 'PUT');
+    // Update the label and assert PUT to /api/annotations/:id
+    const putPromise = page.waitForResponse(resp => resp.url().endsWith(`/api/annotations/${annotationId}`) && resp.request().method() === 'PUT');
     await page.locator('[data-testid="annotation-label-0"]').fill('Updated Annotation');
     // small wait for the island to send the PUT
     const putResp = await putPromise;
@@ -106,7 +106,7 @@ test.describe('Manual - Annotation persistence & per-user isolation', () => {
     expect(putJson.success).toBeTruthy();
 
     // Delete annotation and assert it is removed server-side and UI
-    const delPromise = page.waitForResponse(resp => resp.url().endsWith(`/manual/annotations/${annotationId}`) && resp.request().method() === 'DELETE');
+    const delPromise = page.waitForResponse(resp => resp.url().endsWith(`/api/annotations/${annotationId}`) && resp.request().method() === 'DELETE');
     // Click remove on first item
     await page.click('[data-testid="remove-btn-0"]');
     const delResp = await delPromise;
@@ -131,7 +131,7 @@ test.describe('Manual - Annotation persistence & per-user isolation', () => {
     await drawBoxOnCanvas(page, page.locator('[data-testid="annotation-canvas"]').first(), [0.2, 0.2], [0.35, 0.35]);
     await page.locator('[data-testid="annotation-label-0"]').fill('UserA Only');
 
-    const post = page.waitForResponse(resp => resp.url().endsWith('/manual/annotations') && resp.request().method() === 'POST');
+    const post = page.waitForResponse(resp => resp.url().endsWith('/api/annotations') && resp.request().method() === 'POST');
     await page.click('[data-testid="save-annotations"]');
     const postResp = await post;
     const created = (await postResp.json()).created[0];

@@ -44,6 +44,7 @@ declare global {
 }
 
 export default function VisualTabIsland(props: VisualTabProps) {
+  const [currentDocumentId, setCurrentDocumentId] = useState(props.documentId ?? null);
   const [fields, setFields] = useState(props.fields || [] as VisualField[]);
   const [overlays, setOverlays] = useState(props.overlays || [] as VisualOverlay[]);
   const [isDrawMode, setIsDrawMode] = useState(false);
@@ -69,9 +70,30 @@ export default function VisualTabIsland(props: VisualTabProps) {
     };
   }, []);
 
+  // Listen for document changes from the main workspace document dropdown
+  useEffect(() => {
+    const handleDocumentSwitched = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      const { documentId } = detail;
+      
+      if (documentId != null && documentId !== currentDocumentId) {
+        setCurrentDocumentId(documentId);
+        setFields([]);
+        setOverlays([]);
+        setIsDrawMode(false);
+        setActiveFieldId(null);
+        console.log(`[VisualTab] Document switched to ${documentId}`);
+        // The existing useEffect that watches props.documentId will trigger data refetch
+      }
+    };
+
+    window.addEventListener('workspace:document-switched', handleDocumentSwitched as EventListener);
+    return () => window.removeEventListener('workspace:document-switched', handleDocumentSwitched as EventListener);
+  }, [currentDocumentId]);
+
   // Fetch fields and overlays when document changes
   useEffect(() => {
-    if (!props.documentId) {
+    if (!currentDocumentId) {
       setFields([]);
       setOverlays([]);
       return;
@@ -83,7 +105,7 @@ export default function VisualTabIsland(props: VisualTabProps) {
 
       try {
         // Fetch missing fields
-        const fieldsRes = await fetch(`/api/visual-overlays/missing-fields/${props.documentId}`);
+        const fieldsRes = await fetch(`/api/visual-overlays/missing-fields/${currentDocumentId}`);
         if (fieldsRes.ok) {
           const fieldsData = await fieldsRes.json();
           setFields(fieldsData.fields || []);
@@ -92,7 +114,7 @@ export default function VisualTabIsland(props: VisualTabProps) {
         }
 
         // Fetch existing overlays
-        const overlaysRes = await fetch(`/api/visual-overlays/document/${props.documentId}`);
+        const overlaysRes = await fetch(`/api/visual-overlays/document/${currentDocumentId}`);
         if (overlaysRes.ok) {
           const overlaysData = await overlaysRes.json();
           setOverlays(overlaysData.overlays || []);
@@ -109,7 +131,7 @@ export default function VisualTabIsland(props: VisualTabProps) {
     };
 
     void fetchData();
-  }, [props.documentId]);
+  }, [currentDocumentId]);
 
   // Handle label field click - activates draw mode on document viewer
   const handleLabelField = useCallback((fieldId: string) => {

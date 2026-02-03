@@ -157,6 +157,14 @@
                 }) %>"
             ></div>
 
+            <!-- Export Panel Modal (global - listens to custom events) -->
+            <div
+                data-island="export-panel-island"
+                data-testid="export-panel-island"
+                class="fixed inset-0 z-50 pointer-events-none"
+                data-props="<%= JSON.stringify({ documentId: doc ? doc.id : null }) %>"
+            ></div>
+
             <!-- Sidebar (400px) -->
             <aside class="workspace-sidebar border-l border-[#e5e0d8] bg-white flex flex-col overflow-hidden z-10">
                 <div 

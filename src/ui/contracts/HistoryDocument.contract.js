@@ -26,7 +26,7 @@ const HistoryDocumentVmSchema = z.object({
   documentType: z.string().nullable(),
   createdAt: z.string(),
   modifiedAt: z.string().nullable(),
-  paperlessUrl: z.string(),
+  paperlessUrl: z.string().nullable(),
   original_url: z.string().nullable(),
   page_count: z.coerce.number().int().min(1),
   images: z.array(z.object({ id: z.string(), originalSrc: z.string().optional(), thumbnailSrc: z.string().optional() })),

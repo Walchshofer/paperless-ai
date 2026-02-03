@@ -930,7 +930,7 @@ router.post('/api/webhook/document', authenticateApi, async (req, res) => {
   }
 });
 
-router.post('/manual/analyze', express.json(), authenticateApi, requireUser, async (req, res) => {
+router.post('/api/processing/analyze', express.json(), authenticateApi, requireUser, async (req, res) => {
   try {
     const { content, id } = req.body;
     let existingCorrespondentList = await paperlessService.listCorrespondentsNames();
@@ -974,7 +974,7 @@ router.post('/manual/analyze', express.json(), authenticateApi, requireUser, asy
 
 /**
  * @swagger
- * /manual/analyze-visual:
+ * /api/processing/analyze-visual:
  *   post:
  *     summary: Analyze document using Visual Expert Pipeline
  *     description: |
@@ -1021,7 +1021,7 @@ router.post('/manual/analyze', express.json(), authenticateApi, requireUser, asy
  *       500:
  *         description: Server error or PDF rendering failed
  */
-router.post('/manual/analyze-visual', express.json(), authenticateApi, requireUser, async (req, res) => {
+router.post('/api/processing/analyze-visual', express.json(), authenticateApi, requireUser, async (req, res) => {
   try {
     const { docId } = req.body;
 
@@ -1138,7 +1138,7 @@ router.post('/manual/analyze-visual', express.json(), authenticateApi, requireUs
 
 /**
  * @swagger
- * /manual/playground:
+ * /api/processing/playground:
  *   post:
  *     summary: Process document using a custom prompt in playground mode
  *     description: |
@@ -1212,7 +1212,7 @@ router.post('/manual/analyze-visual', express.json(), authenticateApi, requireUs
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/manual/playground', express.json(), authenticateApi, requireUser, async (req, res) => {
+router.post('/api/processing/playground', express.json(), authenticateApi, requireUser, async (req, res) => {
   try {
     const { content, prompt, documentId } = req.body;
 
@@ -1262,7 +1262,7 @@ router.post('/manual/playground', express.json(), authenticateApi, requireUser, 
 
 /**
  * @swagger
- * /manual/updateDocument:
+ * /api/processing/update-document:
  *   post:
  *     summary: Update document metadata in Paperless-ngx
  *     description: |
@@ -1338,7 +1338,7 @@ router.post('/manual/playground', express.json(), authenticateApi, requireUser, 
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/manual/updateDocument', express.json(), authenticateApi, requireUser, async (req, res) => {
+router.post('/api/processing/update-document', express.json(), authenticateApi, requireUser, async (req, res) => {
   const crypto = require('crypto');
   const feedbackService = require('../services/feedback/FeedbackService');
   const { normalizeManualUpdatePayload } = require('../services/manualUpdateNormalizer');

@@ -125,7 +125,7 @@ const normalizeArray = (value) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/settings', authenticate, requireAdmin, async (req, res) => {
+router.get('/settings', authenticate, async (req, res) => {
   let showErrorCheckSettings = false;
   const isConfigured = await setupService.isConfigured();
   if(!isConfigured && process.env.PAPERLESS_AI_INITIAL_SETUP === 'yes') {
@@ -285,6 +285,11 @@ router.get('/settings', authenticate, requireAdmin, async (req, res) => {
     expertModels,
     success: isConfigured ? 'The application is already configured. You can update the configuration below.' : undefined,
     settingsError: showErrorCheckSettings ? 'Please check your settings. Something is not working correctly.' : undefined,
+    user: {
+      username: req.user.username,
+      role: req.user.role,
+      isAdmin: req.user.isAdmin
+    },
     developer: {
       featureFlags: {
         expertPipelineEnabled: settingsConfig.EXPERT_PIPELINE_ENABLED === 'yes',

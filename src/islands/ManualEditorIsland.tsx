@@ -328,7 +328,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
 
     try {
       // Hybrid SOT orchestrator endpoint
-      const res = await fetch('/manual/updateDocument', {
+      const res = await fetch('/api/processing/update-document', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -361,7 +361,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
     setAiResponse(null);
 
     try {
-      const res = await fetch('/manual/analyze', {
+      const res = await fetch('/api/processing/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

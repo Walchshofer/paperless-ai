@@ -115,7 +115,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
       if (!props.documentId) return;
       try {
         const pageQuery = (props.page !== undefined && props.page !== null) ? `?page=${props.page}` : '';
-        const resp = await fetch(`/manual/annotations/${props.documentId}${pageQuery}`, { headers: { 'X-Request-Id': `load-annotations-${Date.now()}` } });
+        const resp = await fetch(`/api/annotations/${props.documentId}${pageQuery}`, { headers: { 'X-Request-Id': `load-annotations-${Date.now()}` } });
         if (aborted) return;
         if (resp.status === 401) {
           // not authenticated - nothing to load for this user
@@ -396,7 +396,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
     };
 
     try {
-      const resp = await fetch('/manual/annotations', {
+      const resp = await fetch('/api/annotations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Request-Id': `save-annotations-${Date.now()}` },
         body: JSON.stringify(payload)
@@ -476,6 +476,24 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
       setIsSaving(false);
     }
   };
+
+  // Export annotations handler
+  const handleExportAnnotations = useCallback(() => {
+    if (annotations.length === 0 || !documentId) return;
+    
+    // Dispatch export event
+    const event = new CustomEvent('export:annotations-requested', {
+      detail: {
+        documentId,
+        annotations,
+        format: 'json'
+      }
+    });
+    
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(event);
+    }
+  }, [annotations, documentId]);
 
   // Listen for workspace save requests and participate
   useEffect(() => {
@@ -581,6 +599,16 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
         >
           {isSaving ? 'Saving...' : 'Save Annotations'}
         </button>
+        <button
+          data-testid="export-annotations"
+          onClick={handleExportAnnotations}
+          className="vai-btn"
+          disabled={status !== 'ready' || annotations.length === 0}
+          title="Export all annotations as JSON"
+        >
+          <i className="fas fa-download mr-1"></i>
+          Export ({annotations.length})
+        </button>
         {saveError && (
           <div className="flex items-center gap-2 ml-2">
             <div data-testid="annotation-save-error" className="vai-save-error text-red-600" role="alert">
@@ -669,7 +697,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
                 // If this is a persisted annotation, update server
                 try {
                   if (newAnns[i].id) {
-                    await fetch(`/manual/annotations/${newAnns[i].id}`, {
+                    await fetch(`/api/annotations/${newAnns[i].id}`, {
                       method: 'PUT',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ label: val })
@@ -707,7 +735,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
                 const annToRemove = annotations[i];
                 if (annToRemove && annToRemove.id) {
                   try {
-                    const resp = await fetch(`/manual/annotations/${annToRemove.id}`, { method: 'DELETE' });
+                    const resp = await fetch(`/api/annotations/${annToRemove.id}`, { method: 'DELETE' });
                     if (!resp.ok) throw new Error('delete failed');
                     setAnnotations(annotations.filter((_: Annotation, idx: number) => idx !== i));
                   } catch (err) {

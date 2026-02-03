@@ -34,12 +34,15 @@ A persistent “Guided Rail” that narrates the next best action (select docume
   - TagsManagerIsland: edits tags + save
   - OverlayViewerIsland: visual navigation + selection (now includes zoom & pan controls for precise navigation and selection)
 - Chat:
-  - ChatWorkspaceIsland: document selection, chat streaming, document preview, visual preview
+  - ChatWorkspaceIsland: displays current document title (read-only), chat streaming, document preview, visual preview
+  - Receives document context via `workspace:document-switched` event from main header dropdown
 - History:
   - HistoryManagerIsland: filters, pagination, select-all, reanalyze/reset actions, overlay preview modal
   - OverlayViewerIsland (composed inside modal)
 
 > Note: The unified workspace now loads without a pre-selected document by default. The `DocumentContextBarIsland` provides a prominent document selector at the top of the workspace; legacy behavior (auto-opening the most recent document) is still available via `/document?latest=1` for compatibility. (See route: `routes/document.js`).
+>
+> **Workspace Synchronization:** The `DocumentContextBarIsland` is the single source of truth for document selection. All sidebar islands (Smart Metadata, Document Content, Chat, Visual Tab) listen to the `workspace:document-switched` event and update automatically when a user selects a different document from the main dropdown. Sidebar islands display the current document title as read-only text and do not implement their own document selectors.
 
 ## vm contract shape (fields only, grouped)
 ### Manual vm

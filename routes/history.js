@@ -4,12 +4,45 @@ const paperlessService = require('../services/paperlessService.js');
 const documentModel = require('../services/documentModel.js');
 const configFile = require('../config/config.js');
 const {
+  getPaperlessBaseUrl,
+  buildPaperlessDocumentUrl
+} = require('../services/utils/paperlessUrl');
+const {
   HistoryDocumentVmSchema,
 } = require('../src/ui/contracts/HistoryDocument.contract.js');
 const { authenticate } = require('../middleware/auth');
 
 // Apply authentication to all history routes
 router.use(authenticate);
+
+// Cache for document type lookups
+const DOC_TYPE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+let docTypeCache = { fetchedAt: 0, byId: new Map() };
+
+async function getDocumentTypeName(documentTypeId) {
+  if (!documentTypeId) return '';
+
+  const now = Date.now();
+  const cacheFresh = now - docTypeCache.fetchedAt < DOC_TYPE_CACHE_TTL_MS;
+
+  if (!cacheFresh) {
+    try {
+      const docTypes = await paperlessService.listDocumentTypesNames();
+      const byId = new Map();
+      docTypes.forEach((entry) => {
+        if (entry && entry.id) {
+          byId.set(entry.id, entry.name || String(entry.id));
+        }
+      });
+      docTypeCache = { fetchedAt: now, byId };
+    } catch (error) {
+      console.warn('Could not refresh document types:', error.message);
+      docTypeCache.fetchedAt = now;
+    }
+  }
+
+  return docTypeCache.byId.get(documentTypeId) || String(documentTypeId);
+}
 
 /**
  * @swagger
@@ -205,13 +238,20 @@ router.get('/history/doc/:id', async (req, res) => {
     }
 
     const correspondentId = document?.correspondent || null;
-    const documentType = document?.document_type || document?.type || null;
+    
+    let documentType = '';
+    if (document?.document_type) {
+      try {
+        documentType = await getDocumentTypeName(document.document_type);
+      } catch (e) {
+        console.warn('Could not fetch document type name:', e.message);
+        documentType = String(document.document_type);
+      }
+    }
     const modifiedAt = document?.modified || document?.modified_at || null;
     const createdAt = document?.created || document?.created_at ||
       fallbackHistory?.created_at || '';
-    const paperlessBaseUrl = process.env.PAPERLESS_API_URL
-      ? process.env.PAPERLESS_API_URL.replace(/\/api$/, '')
-      : '';
+    const paperlessBaseUrl = getPaperlessBaseUrl();
 
     const metadata = {
       correspondent: correspondentName || null,
@@ -236,9 +276,10 @@ router.get('/history/doc/:id', async (req, res) => {
       createdAt,
       modifiedAt,
       paperlessUrl: paperlessBaseUrl,
-      original_url: paperlessBaseUrl
-        ? `${paperlessBaseUrl}/documents/${document?.id}/download/original/`
-        : null,
+      original_url: buildPaperlessDocumentUrl(
+        document?.id || documentId,
+        '/download/original/'
+      ),
       page_count: document?.page_count || 1,
       // Keep overlay props null-safe; overlays are fetched client-side.
       images: [],
@@ -424,8 +465,6 @@ router.get('/api/history', async (req, res) => {
     let filteredDocs = allDocs.map(doc => {
       const tagIds = doc.tags === '[]' ? [] : JSON.parse(doc.tags || '[]');
       const resolvedTags = tagIds.map(id => tagMap.get(parseInt(id))).filter(Boolean);
-      const baseURL = process.env.PAPERLESS_API_URL.replace(/\/api$/, '');
-
       resolvedTags.sort((a, b) => a.name.localeCompare(b.name));
 
       return {
@@ -434,7 +473,7 @@ router.get('/api/history', async (req, res) => {
         created_at: doc.created_at,
         tags: resolvedTags,
         correspondent: doc.correspondent || 'Not assigned',
-        link: `${baseURL}/documents/${doc.document_id}/`
+        link: buildPaperlessDocumentUrl(doc.document_id, '/')
       };
     }).filter(doc => {
       const matchesSearch = !search ||

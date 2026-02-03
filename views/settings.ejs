@@ -172,7 +172,8 @@
                             </div>
                         </div>
 
-                        <!-- Developer Settings Island -->
+                        <!-- Developer Settings Island (Admin Only) -->
+                        <% if (vm.user && vm.user.isAdmin) { %>
                         <div
                             class="settings-section"
                             data-settings-category="developer"
@@ -184,8 +185,10 @@
                                 data-props='<%- JSON.stringify(vm.developer || {}) %>'
                             ></div>
                         </div>
+                        <% } %>
 
-                        <!-- Presets Manager Island -->
+                        <!-- Presets Manager Island (Admin Only) -->
+                        <% if (vm.user && vm.user.isAdmin) { %>
                         <div
                             class="settings-section"
                             data-settings-category="advanced"
@@ -197,6 +200,7 @@
                                 data-props='{}'
                             ></div>
                         </div>
+                        <% } %>
                     </div>
                 </div>
             </div>

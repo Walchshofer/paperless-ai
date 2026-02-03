@@ -41,6 +41,7 @@ describe('history-document view model contract + test IDs', function () {
         'data-testid="history-feedback-button"',
         'data-testid="history-back-link"',
         'data-testid="history-open-paperless-link"',
+        'data-testid="history-open-paperless-disabled"',
       ];
 
       requiredTestIds.forEach((token) => {
@@ -71,7 +72,7 @@ describe('history-document view model contract + test IDs', function () {
       documentType: 'invoice',
       createdAt: '',
       modifiedAt: null,
-      paperlessUrl: '',
+      paperlessUrl: null,
       original_url: null,
       page_count: '1',
       images: [],

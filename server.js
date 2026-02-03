@@ -10,12 +10,10 @@ const setupService = require('./services/setupService');
 const setupRoutes = require('./routes/setup');
 const authRoutes = require('./routes/auth');
 const documentsRoutes = require('./routes/documents');
-const chatRoutes = require('./routes/chat');
 const historyRoutes = require('./routes/history');
 const processingRoutes = require('./routes/processing');
 const systemRoutes = require('./routes/system');
 const settingsRoutes = require('./routes/settings');
-const manualRoutes = require('./routes/manual');
 const documentRoutes = require('./routes/workspace');
 const legacyRedirectMiddleware = require('./middleware/legacy-redirect');
 const duplicateDetector = require('./services/DuplicateDetector');
@@ -59,6 +57,12 @@ const app = express();
 
 app.set('trust proxy', process.env.TRUST_PROXY === 'true');
 let runningTask = false;
+let paperlessValidationStatus = {
+  checkedAt: null,
+  valid: null,
+  error: null,
+  details: null
+};
 
 const corsOptions = {
   origin: true,
@@ -89,6 +93,36 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Cookie parser MUST be mounted before any routes that need req.cookies
 app.use(cookieParser());
+
+// Redirect misdirected Paperless-ngx document requests
+// This catches relative links like /documents/123/ that should go to Paperless-ngx
+app.use('/documents', (req, res) => {
+  const { getPaperlessBaseUrl } = require('./services/utils/paperlessUrl');
+  const paperlessBase = getPaperlessBaseUrl();
+
+  if (!paperlessBase) {
+    logger.warn('[REDIRECT] /documents/* request but Paperless not configured', {
+      path: req.originalUrl,
+      user: req.user?.username || 'anonymous'
+    });
+
+    return res.status(503).json({
+      error: 'Paperless not configured',
+      message: 'PAPERLESS_API_URL is not set. Please complete setup at /setup',
+      setupUrl: '/setup',
+      requestedPath: req.originalUrl
+    });
+  }
+
+  const targetUrl = `${paperlessBase}${req.originalUrl}`;
+  logger.info('[REDIRECT] /documents/* -> Paperless-ngx', {
+    from: req.originalUrl,
+    to: targetUrl,
+    user: req.user?.username || 'anonymous'
+  });
+
+  return res.redirect(302, targetUrl);
+});
 
 // Expose Prometheus metrics early to avoid being shadowed by static routes
 app.get('/metrics', allowInternalNetwork, async (_req, res) => {
@@ -644,20 +678,18 @@ app.use('/', authRoutes);
 app.use('/', documentsRoutes);
 
 
-app.use('/', chatRoutes);
 app.use('/', historyRoutes);
 app.use('/', processingRoutes);
 app.use('/', systemRoutes);
 app.use('/', settingsRoutes);
-app.use('/', manualRoutes);
 app.use('/workspace', documentRoutes);
 app.use('/', setupRoutes);
-const ragRoutes = require('./routes/rag');
 const feedbackRoutes = require('./routes/api/feedback');
 const settingsApiRoutes = require('./routes/api/settings');
 const documentsApiRoutes = require('./routes/api/documents');
 const visualOverlaysRoutes = require('./routes/api/visual-overlays');
 const chatApiRoutes = require('./routes/api/chat');
+const annotationsApiRoutes = require('./routes/api/annotations');
 
 // Mount Feedback routes (always enabled - user feedback collection)
 app.use('/api/feedback', feedbackRoutes);
@@ -674,14 +706,17 @@ app.use('/api/visual-overlays', visualOverlaysRoutes);
 // Mount Chat API routes (dual mode: RAG and Document chat)
 app.use('/api/chat', chatApiRoutes);
 
+// Mount Annotations API routes (user visual annotations)
+app.use('/api/annotations', annotationsApiRoutes);
+
+// Mount Export API routes (export regions, text, annotations)
+const exportApiRoutes = require('./routes/api/export');
+app.use('/api/export', exportApiRoutes);
+
 // Note: Visual RAG routes are mounted early (after body parser) at line ~109
 // to ensure they're accessible before auth middleware runs
 
-// Mount RAG routes if enabled
-if (process.env.RAG_SERVICE_ENABLED === 'true') {
-  app.use('/api/rag', ragRoutes);
-  // RAG UI route removed in Phase C (legacy UI retired). UI-level access is now provided via `/workspace`.
-}
+// Note: Legacy RAG routes removed - all functionality now in /workspace
 
 /**
  * @swagger
@@ -764,17 +799,31 @@ app.get('/health', async (req, res) => {
     if (!isConfigured) {
       return res.status(503).json({ 
         status: 'not_configured',
-        message: 'Application setup not completed'
+        message: 'Application setup not completed',
+        paperless: {
+          status: 'unknown',
+          message: 'Paperless validation not available before setup completes'
+        }
       });
     }
 
     await documentModel.isDocumentProcessed(1);
-    res.json({ status: 'healthy' });
+    const paperlessStatus = paperlessValidationStatus.valid === true
+      ? { status: 'healthy', ...paperlessValidationStatus }
+      : paperlessValidationStatus.valid === false
+        ? { status: 'degraded', ...paperlessValidationStatus }
+        : { status: 'unknown', ...paperlessValidationStatus };
+
+    res.json({
+      status: 'healthy',
+      paperless: paperlessStatus
+    });
   } catch (error) {
     console.error('Health check failed:', error);
     res.status(503).json({ 
       status: 'error', 
-      message: error.message 
+      message: error.message,
+      paperless: paperlessValidationStatus
     });
   }
 });
@@ -1203,6 +1252,71 @@ async function validateDatabaseConnection() {
   }
 }
 
+function getPaperlessTroubleshooting(code) {
+  if (code === 'AUTH_FAILURE') {
+    return [
+      'Verify PAPERLESS_API_TOKEN is valid (create a new token in Paperless-ngx if needed)',
+      'Confirm the token has API permissions',
+      'Restart paperless-ai after updating docker-compose.env'
+    ];
+  }
+  if (code === 'WRONG_URL') {
+    return [
+      'Verify PAPERLESS_API_URL points to the /api endpoint (e.g. http://webserver:8000/api)',
+      'Ensure the Paperless-ngx service is reachable from the paperless-ai container',
+      'Check for DNS/host mapping issues in docker-compose'
+    ];
+  }
+  return [
+    'Check if Paperless-ngx is running: docker ps | grep webserver',
+    'Verify PAPERLESS_API_URL and network connectivity',
+    'Inspect paperless-ai logs for connection errors'
+  ];
+}
+
+async function validatePaperlessConnection() {
+  console.log('[STARTUP] Validating Paperless API connection...');
+  try {
+    const result = await paperlessService.validateConnection();
+    paperlessValidationStatus = {
+      checkedAt: new Date().toISOString(),
+      valid: result.valid,
+      error: result.error || null,
+      details: result.details || null
+    };
+
+    if (result.valid) {
+      logger.info('[STARTUP] ✓ Paperless connection successful', {
+        event: 'paperless_validation_success',
+        ...result.details
+      });
+    } else {
+      const troubleshooting = getPaperlessTroubleshooting(result.details?.code);
+      logger.warn('[STARTUP] Paperless validation failed', {
+        event: 'paperless_validation_failed',
+        error: result.error,
+        troubleshooting,
+        ...result.details
+      });
+      console.warn(`[STARTUP] Paperless validation warning: ${result.error}`);
+      troubleshooting.forEach(step => console.warn(`[STARTUP] - ${step}`));
+    }
+    return result;
+  } catch (error) {
+    paperlessValidationStatus = {
+      checkedAt: new Date().toISOString(),
+      valid: false,
+      error: 'Paperless validation failed',
+      details: { message: error.message }
+    };
+    logger.warn('[STARTUP] Paperless validation threw an error', {
+      event: 'paperless_validation_exception',
+      error: error.message
+    });
+    return paperlessValidationStatus;
+  }
+}
+
 async function startServer() {
   const port = process.env.PAPERLESS_AI_PORT || 3000;
   try {
@@ -1214,6 +1328,9 @@ async function startServer() {
 
     // Validate database connection before starting server
     await validateDatabaseConnection();
+
+    // Validate Paperless API connectivity (non-blocking)
+    await validatePaperlessConnection();
 
     // Validate metrics internal config (fail-fast)
     try {

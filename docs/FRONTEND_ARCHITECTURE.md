@@ -107,7 +107,7 @@ Displays system overview, recent documents, and stats. Uses `DashboardChartsIsla
 | **`ManualWorkspaceIsland`** | Orchestrates the manual review page, handling document selection and events. | `<div data-island="manual-workspace-island" ...>` |
 | **`SettingsSidebarIsland`** | Semantic sidebar navigation for the Settings page. | `<div data-island="settings-sidebar-island" ...>` |
 | **`DocumentContentIsland`** | Interactive document text viewer with search, highlighting, and export. | `<div data-island="document-content-island" ...>` |
-| **`ExportPanelIsland`** | Modal-based export utility for regions, text excerpts, and annotations. | `<div data-island="export-panel-island" ...>` |
+| **`ExportPanelIsland`** | Event-driven modal export utility for regions, text, and annotations. **Wired in:** [document-workspace.ejs](../views/document-workspace.ejs). **Endpoints:** Not yet implemented (see [EXPORT_PANEL_FEATURE.md](./EXPORT_PANEL_FEATURE.md)). | `<div data-island="export-panel-island" ...>` |
 | **`VisualAnnotationIsland`** | Legacy or specific annotation tool for drawing regions with labels. | `<div data-island="visual-annotation-island" ...>` |
 | **`DashboardChartsIsland`** | Reactive Preact charts (Bar/Doughnut) and task runner status for the Dashboard. | `<div data-island="dashboard-charts-island" ...>` |
 
@@ -279,7 +279,7 @@ Pages that render `data-island` anchors must load the runtime once and call
 also auto-mount on `DOMContentLoaded` to cover full-page loads.
 
 For document-scoped overlay clipping/search, pass `originalUrl` sourced from
-`/manual/preview/:id` when available. Prefer
+`/workspace/api/doc/:id` when available. Prefer
 `normalized_original_url` (served by `/api/visual-rag/normalized/:docId?page=`
 and rendered via `PDFRenderer`) so the visual tab uses the same page rendering
 path as visual ingestion; fall back to `original_url` when normalization is
@@ -332,6 +332,25 @@ Settings page VM contract (doc-first guardrail):
   - Sidebar: `vm.settings.aiProvider`
   - Connection: `vm.settings.connection.*`
   - AI provider: `vm.settings.aiProvider`, `vm.settings.ollama.*`
+
+Workspace document synchronization (unified workspace pattern):
+- **Single Source of Truth:** The `DocumentContextBarIsland` in the workspace
+  header is the authoritative document selector.
+- **Event-Driven Updates:** When a document is selected, the island dispatches
+  `workspace:document-switched` with `{ documentId, document }` payload.
+- **Sidebar Islands Listen:** All sidebar tab islands (Smart Metadata, Document
+  Content, Chat, Visual Tab) listen to this event and update their state:
+  - `SmartMetadataIsland`: Resets metadata fields and loads new document data
+  - `DocumentContentIsland`: Clears content and loads new OCR text
+  - `ChatWorkspaceIsland`: Updates displayed document title (read-only)
+  - `VisualTabIsland`: Refetches visual overlays and fields
+- **No Duplicate Selectors:** Sidebar islands must NOT implement their own
+  document dropdowns; they receive document context via events.
+- **Display Pattern:** If a sidebar island needs to show the current document,
+  use a read-only display (e.g., document title with icon) that updates via
+  the `workspace:document-switched` event listener.
+- **Implementation:** Each island maintains `currentDocumentId` state and
+  updates it in a `useEffect` hook that listens to the event.
 
 Do not add duplicate inline scripts that manually dispatch
 `overlay:document-changed` on page load; the island runtime and the overlay

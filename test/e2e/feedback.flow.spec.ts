@@ -30,7 +30,7 @@ test.describe('Feedback Flow E2E', () => {
     const beforeTs = Date.now();
 
     // POST to orchestrator endpoint (this simulates the UI flow and propagates X-Request-Id)
-    const resp = await page.request.post(`http://localhost:3000/manual/updateDocument`, {
+    const resp = await page.request.post(`http://localhost:3000/api/processing/update-document`, {
       headers: { 'X-Request-Id': requestId },
       data: {
         documentId: docId,

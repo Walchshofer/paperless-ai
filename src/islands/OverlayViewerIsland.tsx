@@ -215,6 +215,10 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   // Draw context for Visual Tab integration (label-field or visual-search)
   const [drawContext, setDrawContext] = useState(null as { fieldId?: string; purpose?: string } | null);
   const drawContextRef = useRef(null as { fieldId?: string; purpose?: string } | null);
+
+  // Export functionality state
+  const [selectedRegion, setSelectedRegion] = useState(null as BoundingBox | null);
+  const [showExportBtn, setShowExportBtn] = useState(false);
   
   const MIN_SCALE = 0.5;
   const MAX_SCALE = 3;
@@ -667,7 +671,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     const loadUserAnnotations = async () => {
       if (!docId) return;
       try {
-        const resp = await fetch(`/manual/annotations/${docId}?page=${page}`);
+        const resp = await fetch(`/api/annotations/${docId}?page=${page}`);
         if (!resp.ok) return;
         const data = await resp.json();
         if (cancelled) return;
@@ -684,7 +688,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       const payload = (e as CustomEvent)?.detail;
       if (!payload || !payload.documentId || !Array.isArray(payload.annotations)) return;
       try {
-        const resp = await fetch('/manual/annotations', {
+        const resp = await fetch('/api/annotations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -898,6 +902,75 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     [docId, page, imageLoaded, imageError, onRegionSelected]
   );
 
+  // Export region handler
+  const handleExportRegion = useCallback(
+    async (format: 'png' | 'pdf') => {
+      if (!selectedRegion || !docId) return;
+      
+      const container = containerRef.current;
+      const img = imageRef.current;
+      if (!container || !img) return;
+      
+      try {
+        // Create temp canvas with selected region
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        
+        const naturalWidth = img.naturalWidth || container.clientWidth;
+        const naturalHeight = img.naturalHeight || container.clientHeight;
+        const scaleX = naturalWidth / container.clientWidth;
+        const scaleY = naturalHeight / container.clientHeight;
+        
+        const srcX = selectedRegion.x * scaleX;
+        const srcY = selectedRegion.y * scaleY;
+        const srcWidth = selectedRegion.width * scaleX;
+        const srcHeight = selectedRegion.height * scaleY;
+        
+        canvas.width = srcWidth;
+        canvas.height = srcHeight;
+        
+        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+          ctx.drawImage(img, srcX, srcY, srcWidth, srcHeight, 0, 0, srcWidth, srcHeight);
+        } else {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        
+        const dataUrl = canvas.toDataURL('image/png');
+        
+        // Dispatch export event
+        const event = new CustomEvent('export:region-requested', {
+          detail: {
+            documentId: docId,
+            page,
+            format,
+            imageData: dataUrl,
+            bbox: {
+              x: selectedRegion.x / container.clientWidth,
+              y: selectedRegion.y / container.clientHeight,
+              width: selectedRegion.width / container.clientWidth,
+              height: selectedRegion.height / container.clientHeight
+            }
+          }
+        });
+        
+        if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+          window.dispatchEvent(event);
+        }
+        
+        // Clear selection after export
+        setSelectedRegion(null);
+        setShowExportBtn(false);
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        console.error('Failed to export region:', errorMessage);
+        setWarning('Failed to export selection. Please try again.');
+      }
+    },
+    [selectedRegion, docId, page]
+  );
+
   const handleMouseUp = useCallback((e?: MouseEvent | TouchEvent) => {
     if (!isDrawingRef.current || !currentBoxRef.current) return;
     if (e) {
@@ -941,12 +1014,16 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     currentBoxRef.current = null;
     setCurrentBox(null);
     
+    // Store selected region and show export button
+    setSelectedRegion(normalizedBox);
+    setShowExportBtn(true);
+    
     if (mode === 'draw') {
       captureRegion(normalizedBox, 'overlay:draw-complete');
     } else {
       captureRegion(normalizedBox, 'visual-search-requested');
     }
-  }, [captureRegion, getRelativePosition, mode]);
+  }, [captureRegion, getRelativePosition, mode]);;
 
   const removeBox = useCallback((boxId: string) => {
     setBoxes((prev: BoundingBox[]) => prev.filter((b: BoundingBox) => b.id !== boxId));
@@ -1625,6 +1702,48 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
            </div>
         )}
       </div>
+
+      {/* Export Button Overlay */}
+      {showExportBtn && selectedRegion && (
+        <div
+          data-testid="export-region-overlay"
+          className="absolute bg-white border-2 border-[#b87333] rounded-lg shadow-lg p-2 flex flex-col gap-2 z-50"
+          style={{
+            left: `${selectedRegion.x + selectedRegion.width / 2 - 60}px`,
+            top: `${selectedRegion.y - 60}px`,
+          }}
+        >
+          <div className="text-xs font-semibold text-gray-700 mb-1">Export Selection</div>
+          <div className="flex gap-2">
+            <button
+              data-testid="export-png-btn"
+              onClick={() => handleExportRegion('png')}
+              className="px-3 py-1.5 text-sm bg-[#b87333] text-white rounded hover:bg-[#a56729] transition-colors"
+            >
+              <i className="fas fa-image mr-1"></i>
+              PNG
+            </button>
+            <button
+              data-testid="export-pdf-btn"
+              onClick={() => handleExportRegion('pdf')}
+              className="px-3 py-1.5 text-sm bg-[#b87333] text-white rounded hover:bg-[#a56729] transition-colors"
+            >
+              <i className="fas fa-file-pdf mr-1"></i>
+              PDF
+            </button>
+          </div>
+          <button
+            data-testid="export-cancel-btn"
+            onClick={() => {
+              setSelectedRegion(null);
+              setShowExportBtn(false);
+            }}
+            className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }

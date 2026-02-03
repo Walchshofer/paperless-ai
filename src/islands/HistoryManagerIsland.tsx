@@ -216,9 +216,9 @@ export default function HistoryManagerIsland(
     setVisualOriginalUrl(null);
     setVisualPageCount(1);
 
-    // Prefer manual preview to source Paperless originalUrl + pageCount.
+    // Prefer workspace preview to source Paperless originalUrl + pageCount.
     try {
-      const preview = await fetch(`/manual/preview/${docId}`);
+      const preview = await fetch(`/workspace/api/doc/${docId}`);
       if (preview.ok) {
         const data = await preview.json();
         const nextOriginalUrl =

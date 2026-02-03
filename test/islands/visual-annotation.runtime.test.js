@@ -274,7 +274,7 @@ describe('island runtime - Visual Annotation', function () {
     global.fetch = async (url, opts = {}) => {
       // health check
       if (url.endsWith('/health')) return { ok: true, status: 200, json: async () => ({}) };
-      if (url.includes('/manual/annotations/') && (!opts.method || opts.method === 'GET')) {
+      if (url.includes('/api/annotations/') && (!opts.method || opts.method === 'GET')) {
         return { ok: true, status: 200, json: async () => ({ annotations: saved }) };
       }
       return { ok: true, status: 200, json: async () => ({}) };
@@ -307,7 +307,7 @@ describe('island runtime - Visual Annotation', function () {
     const origFetch = global.fetch;
     global.fetch = async (url, opts = {}) => {
       if (url.endsWith('/health')) return { ok: true, status: 200, json: async () => ({}) };
-      if (url.endsWith('/manual/annotations') && opts.method === 'POST') return { ok: false, status: 401, json: async () => ({ error: 'Unauthorized' }) };
+      if (url.endsWith('/api/annotations') && opts.method === 'POST') return { ok: false, status: 401, json: async () => ({ error: 'Unauthorized' }) };
       return { ok: true, status: 200, json: async () => ({}) };
     };
 
@@ -357,19 +357,19 @@ describe('island runtime - Visual Annotation', function () {
     }, 50);
   });
 
-  it('saving annotations posts to /manual/annotations and assigns ids (then allows PUT on update)', (done) => {
+  it('saving annotations posts to /api/annotations and assigns ids (then allows PUT on update)', (done) => {
     const calls = [];
     const origFetch = global.fetch;
     global.fetch = async (url, opts = {}) => {
       calls.push({ url, opts });
       if (url.endsWith('/health')) return { ok: true, status: 200, json: async () => ({}) };
 
-      if (url.endsWith('/manual/annotations') && opts.method === 'POST') {
+      if (url.endsWith('/api/annotations') && opts.method === 'POST') {
         // Return created annotation with an id
         return { ok: true, status: 200, json: async () => ({ success: true, created: [{ id: 'uuid-1', document_id: 'doc-42', page: 1, bbox: { x: 0.1, y: 0.1, width: 0.25, height: 0.5 }, label: '', note: '' }] }) };
       }
 
-      if (url.endsWith('/manual/annotations/uuid-1') && opts.method === 'PUT') {
+      if (url.endsWith('/api/annotations/uuid-1') && opts.method === 'PUT') {
         return { ok: true, status: 200, json: async () => ({ success: true, annotation: { id: 'uuid-1' } }) };
       }
 
@@ -411,8 +411,8 @@ describe('island runtime - Visual Annotation', function () {
         // allow some time for the PUT to happen
         setTimeout(() => {
           try {
-            const putCall = calls.find(c => c.url && c.url.endsWith('/manual/annotations/uuid-1') && c.opts.method === 'PUT');
-            assert.ok(putCall, 'Expected a PUT to /manual/annotations/uuid-1 after label update');
+            const putCall = calls.find(c => c.url && c.url.endsWith('/api/annotations/uuid-1') && c.opts.method === 'PUT');
+            assert.ok(putCall, 'Expected a PUT to /api/annotations/uuid-1 after label update');
             global.fetch = origFetch;
             done();
           } catch (err) { global.fetch = origFetch; done(err); }

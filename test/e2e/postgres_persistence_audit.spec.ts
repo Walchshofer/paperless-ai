@@ -45,7 +45,7 @@ test.describe('PostgreSQL Persistence Audit', () => {
     const beforeTs = Date.now();
 
     // Submit via API
-    const resp = await page.request.post(`${BASE_URL}/manual/updateDocument`, {
+    const resp = await page.request.post(`${BASE_URL}/api/processing/update-document`, {
       headers: {
         'Content-Type': 'application/json',
         'X-Request-Id': testRequestId,

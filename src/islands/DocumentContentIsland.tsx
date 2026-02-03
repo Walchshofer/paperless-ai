@@ -33,6 +33,66 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
 
   const contentRef = useRef(null as HTMLDivElement | null);
 
+  // Text selection export state
+  const [selectedText, setSelectedText] = useState('');
+  const [showExportToolbar, setShowExportToolbar] = useState(false);
+  const [toolbarPos, setToolbarPos] = useState({ top: 0, left: 0 });
+
+  // Handle text selection
+  useEffect(() => {
+    const handleMouseUp = () => {
+      const selection = window.getSelection();
+      const text = selection?.toString().trim();
+      
+      if (text && text.length > 0) {
+        setSelectedText(text);
+        
+        // Get selection position for toolbar
+        const range = selection?.getRangeAt(0);
+        const rect = range?.getBoundingClientRect();
+        
+        if (rect) {
+          setToolbarPos({
+            top: rect.top - 50,
+            left: rect.left + rect.width / 2 - 60
+          });
+          setShowExportToolbar(true);
+        }
+      } else {
+        setShowExportToolbar(false);
+        setSelectedText('');
+      }
+    };
+
+    const contentElement = contentRef.current;
+    if (contentElement) {
+      contentElement.addEventListener('mouseup', handleMouseUp);
+      return () => contentElement.removeEventListener('mouseup', handleMouseUp);
+    }
+  }, []);
+
+  // Export text handler
+  const handleExportText = (format: 'txt' | 'pdf') => {
+    if (!selectedText || !documentId) return;
+    
+    // Dispatch export event
+    const event = new CustomEvent('export:text-requested', {
+      detail: {
+        documentId,
+        text: selectedText,
+        format
+      }
+    });
+    
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(event);
+    }
+    
+    // Clear selection
+    setShowExportToolbar(false);
+    setSelectedText('');
+  };
+
   // Listen for document selection events from ManualWorkspaceIsland
   useEffect(() => {
     const handler = (e: Event) => {
@@ -49,6 +109,27 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
     window.addEventListener('document:selected', handler as EventListener);
     return () => window.removeEventListener('document:selected', handler as EventListener);
   }, []);
+
+  // Listen for document changes from the main workspace document dropdown
+  useEffect(() => {
+    const handleDocumentSwitched = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      const { documentId: newDocId, document } = detail;
+      
+      if (newDocId != null && newDocId !== documentId) {
+        setDocumentId(newDocId);
+        setContent(document?.content || '');
+        // Reset search on new document
+        setSearchQuery('');
+        setMatches([]);
+        setCurrentMatchIndex(-1);
+        console.log(`[DocumentContent] Document switched to ${newDocId}`);
+      }
+    };
+
+    window.addEventListener('workspace:document-switched', handleDocumentSwitched as EventListener);
+    return () => window.removeEventListener('workspace:document-switched', handleDocumentSwitched as EventListener);
+  }, [documentId]);
 
   // Search Logic with Debounce
   useEffect(() => {
@@ -259,6 +340,47 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
       >
         {renderedContent}
       </div>
+
+      {/* Export Toolbar (floating) */}
+      {showExportToolbar && (
+        <div
+          data-testid="text-export-toolbar"
+          className="fixed bg-white border-2 border-[#b87333] rounded-lg shadow-lg p-2 flex gap-2 z-50"
+          style={{
+            top: `${toolbarPos.top}px`,
+            left: `${toolbarPos.left}px`,
+          }}
+        >
+          <button
+            data-testid="export-text-txt-btn"
+            onClick={() => handleExportText('txt')}
+            className="px-3 py-1.5 text-sm bg-[#b87333] text-white rounded hover:bg-[#a56729] transition-colors"
+            title="Export as TXT"
+          >
+            <i className="fas fa-file-alt mr-1"></i>
+            TXT
+          </button>
+          <button
+            data-testid="export-text-pdf-btn"
+            onClick={() => handleExportText('pdf')}
+            className="px-3 py-1.5 text-sm bg-[#b87333] text-white rounded hover:bg-[#a56729] transition-colors"
+            title="Export as PDF"
+          >
+            <i className="fas fa-file-pdf mr-1"></i>
+            PDF
+          </button>
+          <button
+            data-testid="export-text-cancel-btn"
+            onClick={() => {
+              setShowExportToolbar(false);
+              setSelectedText('');
+            }}
+            className="px-2 py-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            <i className="fas fa-times"></i>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

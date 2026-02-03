@@ -10,6 +10,7 @@ export default function ExportPanelIsland(props: ExportPanelContract) {
   const [data, setData] = useState(null as string | Record<string, unknown>[] | null);
   const [format, setFormat] = useState('png'); // png, pdf, txt, json
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null as string | null);
 
   useEffect(() => {
     const onRegion = (e: Event) => {
@@ -44,18 +45,19 @@ export default function ExportPanelIsland(props: ExportPanelContract) {
 
   const handleExport = async () => {
     setLoading(true);
+    setError(null);
     try {
       let endpoint = '';
       let body: Record<string, unknown> = {};
 
       if (exportType === 'region') {
-        endpoint = '/manual/export/region';
+        endpoint = '/api/export/region';
         body = { imageBase64: data, format };
       } else if (exportType === 'text') {
-        endpoint = '/manual/export/text';
+        endpoint = '/api/export/text';
         body = { text: data, format };
       } else if (exportType === 'annotations') {
-        endpoint = '/manual/export/annotations';
+        endpoint = '/api/export/annotations';
         body = { annotations: data, documentId: props.documentId };
       }
 
@@ -90,7 +92,8 @@ export default function ExportPanelIsland(props: ExportPanelContract) {
       setShowModal(false);
     } catch (e) {
       console.error('Export error', e);
-      alert('Export failed. Please try again.');
+      const errorMsg = e instanceof Error ? e.message : 'Export failed. Please try again.';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -119,7 +122,26 @@ export default function ExportPanelIsland(props: ExportPanelContract) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm">
       <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-        <h2 className="text-xl font-bold mb-4 capitalize">Export {exportType}</h2>
+        <h2 className="text-xl font-bold mb-4 capitalize flex items-center gap-2">
+          <i className={`fas ${exportType === 'region' ? 'fa-image' : exportType === 'text' ? 'fa-file-alt' : 'fa-list'}`}></i>
+          Export {exportType}
+        </h2>
+        
+        {/* Loading State */}
+        {loading && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded flex items-center gap-2">
+            <i className="fas fa-spinner fa-spin text-blue-600"></i>
+            <span className="text-sm text-blue-700">Exporting...</span>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded flex items-center gap-2">
+            <i className="fas fa-exclamation-circle text-red-600"></i>
+            <span className="text-sm text-red-700">{error}</span>
+          </div>
+        )}
         
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">Format</label>
@@ -128,13 +150,15 @@ export default function ExportPanelIsland(props: ExportPanelContract) {
               <>
                 <button 
                   onClick={() => setFormat('png')} 
-                  className={`px-3 py-2 border rounded ${format === 'png' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white'}`}
+                  disabled={loading}
+                  className={`px-3 py-2 border rounded transition-colors ${format === 'png' ? 'bg-[#b87333] border-[#b87333] text-white' : 'bg-white hover:bg-gray-50'} disabled:opacity-50`}
                 >
                   PNG
                 </button>
                 <button 
                   onClick={() => setFormat('pdf')} 
-                  className={`px-3 py-2 border rounded ${format === 'pdf' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white'}`}
+                  disabled={loading}
+                  className={`px-3 py-2 border rounded transition-colors ${format === 'pdf' ? 'bg-[#b87333] border-[#b87333] text-white' : 'bg-white hover:bg-gray-50'} disabled:opacity-50`}
                 >
                   PDF
                 </button>
@@ -144,13 +168,15 @@ export default function ExportPanelIsland(props: ExportPanelContract) {
               <>
                 <button 
                   onClick={() => setFormat('txt')} 
-                  className={`px-3 py-2 border rounded ${format === 'txt' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white'}`}
+                  disabled={loading}
+                  className={`px-3 py-2 border rounded transition-colors ${format === 'txt' ? 'bg-[#b87333] border-[#b87333] text-white' : 'bg-white hover:bg-gray-50'} disabled:opacity-50`}
                 >
                   TXT
                 </button>
                 <button 
                   onClick={() => setFormat('pdf')} 
-                  className={`px-3 py-2 border rounded ${format === 'pdf' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white'}`}
+                  disabled={loading}
+                  className={`px-3 py-2 border rounded transition-colors ${format === 'pdf' ? 'bg-[#b87333] border-[#b87333] text-white' : 'bg-white hover:bg-gray-50'} disabled:opacity-50`}
                 >
                   PDF
                 </button>
@@ -159,7 +185,8 @@ export default function ExportPanelIsland(props: ExportPanelContract) {
             {exportType === 'annotations' && (
               <button 
                 onClick={() => setFormat('json')} 
-                className={`px-3 py-2 border rounded ${format === 'json' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white'}`}
+                disabled={loading}
+                className={`px-3 py-2 border rounded transition-colors ${format === 'json' ? 'bg-[#b87333] border-[#b87333] text-white' : 'bg-white hover:bg-gray-50'} disabled:opacity-50`}
               >
                 JSON
               </button>
@@ -170,22 +197,35 @@ export default function ExportPanelIsland(props: ExportPanelContract) {
         <div className="flex justify-end gap-3 mt-6">
           <button 
             onClick={() => setShowModal(false)}
-            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+            disabled={loading}
+            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button 
             onClick={handleCopy}
-            className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+            disabled={loading}
+            className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
+            <i className="fas fa-copy mr-1"></i>
             Copy
           </button>
           <button 
             onClick={handleExport}
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            className="px-4 py-2 bg-[#b87333] text-white rounded hover:bg-[#a56729] transition-colors disabled:opacity-50 flex items-center gap-2"
           >
-            {loading ? 'Exporting...' : 'Download'}
+            {loading ? (
+              <>
+                <i className="fas fa-spinner fa-spin"></i>
+                <span>Exporting...</span>
+              </>
+            ) : (
+              <>
+                <i className="fas fa-download"></i>
+                <span>Download</span>
+              </>
+            )}
           </button>
         </div>
       </div>

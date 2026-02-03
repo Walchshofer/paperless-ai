@@ -134,7 +134,7 @@ export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
         analysisContent = analysisContent.substring(0, 50000);
       }
 
-      const res = await fetch('/manual/analyze', {
+      const res = await fetch('/api/processing/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -203,7 +203,7 @@ export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
     });
 
     try {
-      const res = await fetch('/manual/analyze-visual', {
+      const res = await fetch('/api/processing/analyze-visual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ docId: documentId }),

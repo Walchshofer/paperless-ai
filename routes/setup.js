@@ -193,8 +193,8 @@ let PUBLIC_ROUTES = [
   '/api/feedback',
   // Allow unauthenticated access to Ollama model discovery for UI dropdowns (harmless metadata)
   '/api/ollama/models',
-  // Allow unauthenticated programmatic manual updates for test harnesses and automated integrations
-  '/manual/updateDocument'
+  // Allow unauthenticated programmatic updates for test harnesses and automated integrations
+  '/api/processing/update-document'
 ];
 
 if (
@@ -203,13 +203,12 @@ if (
   process.env.E2E_TESTS === 'true'
 ) {
   PUBLIC_ROUTES = PUBLIC_ROUTES.concat([
-    '/manual',
-    '/manual/preview',
-    '/manual/tags',
-    '/manual/documents',
-    '/manual/analyze',
-    '/manual/analyze-visual',
-    '/manual/playground'
+    '/workspace/api/doc',
+    '/workspace/api/tags',
+    '/workspace/api/documents',
+    '/api/processing/analyze',
+    '/api/processing/analyze-visual',
+    '/api/processing/playground'
   ]);
 }
 

@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Manual Route Enhancements', () => {
   test.beforeEach(async ({ page }) => {
     // Mock document preview
-    await page.route('/manual/preview/*', async route => {
+    await page.route('/workspace/api/doc/*', async route => {
       const json = {
         id: 123,
         title: 'Test Document',
@@ -16,7 +16,7 @@ test.describe('Manual Route Enhancements', () => {
     });
 
     // Mock documents list
-    await page.route('/manual/documents', async route => {
+    await page.route('/workspace/api/documents', async route => {
       await route.fulfill({
         json: [
           { id: 123, title: 'Test Document' }
