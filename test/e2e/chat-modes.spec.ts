@@ -3,7 +3,7 @@
  * Tests the chat mode toggle functionality and mode-specific behavior.
  * 
  * NOTE: Chat functionality lives in the Unified Workspace sidebar, NOT as a standalone page.
- * The /chat route has been retired and redirects to /workspace.
+ * The /chat route has been retired and returns 410 (Gone).
  * 
  * @see tickets/e69971fa-a795-43ef-a75f-4dae52ee65aa
  */
@@ -346,29 +346,14 @@ test.describe('RAG Chat Functionality', () => {
 });
 
 test.describe('/chat route deprecation', () => {
-  test('should redirect /chat to /workspace with chat tab', async ({ page }) => {
-    // Navigate to the deprecated /chat route
-    await page.goto('/chat', { waitUntil: 'domcontentloaded' });
-    
-    // Should redirect (302) to workspace
-    const url = page.url();
-    expect(url).toMatch(/\/workspace\/doc\/.+\?tab=chat/);
-    
-    // Should load the workspace with chat tab active
-    await page.waitForSelector('[data-testid="context-sidebar-root"]', { timeout: 15000 });
-    
-    // Chat tab should be active
-    const chatTab = page.locator('[data-testid="tab-chat"]');
-    await expect(chatTab).toHaveClass(/border-copper/);
+  test('returns 410 for /chat', async ({ request }) => {
+    const res = await request.get('/chat');
+    expect(res.status()).toBe(410);
   });
 
-  test('should preserve document ID in redirect from /chat?open=X', async ({ page }) => {
-    // Navigate to the deprecated /chat route with a document ID
-    await page.goto('/chat?open=123', { waitUntil: 'domcontentloaded' });
-    
-    // Should redirect to workspace with the document ID
-    const url = page.url();
-    expect(url).toMatch(/\/workspace\/doc\/123\?tab=chat/);
+  test('returns 410 for /chat?open=X', async ({ request }) => {
+    const res = await request.get('/chat?open=123');
+    expect(res.status()).toBe(410);
   });
 });
 

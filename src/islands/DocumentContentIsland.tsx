@@ -315,7 +315,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
           <button
             onClick={() => {
               const context = { type: 'text', data: { text: content.substring(0, 5000) }, documentId }; // Limit text size
-              window.location.href = `/chat?context=${encodeURIComponent(JSON.stringify(context))}`;
+              window.location.href = `/workspace/doc/${documentId}?tab=chat&context=${encodeURIComponent(JSON.stringify(context))}`;
             }}
             className="px-2 py-1 border rounded text-xs bg-white border-gray-300 hover:bg-gray-50 text-green-600"
             title="Send to Chat"

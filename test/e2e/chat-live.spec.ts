@@ -4,8 +4,8 @@ import path from 'path';
 
 test.describe('Chat Route Live E2E', () => {
   test('initializes chat, sends a message, and receives assistant reply (live)', async ({ page }) => {
-    // Navigate to chat route
-    await page.goto('/chat');
+    // Navigate to workspace chat tab
+    await page.goto('/workspace/doc/latest?tab=chat');
 
     // If the app redirects to /login, perform login using env credentials or defaults
     await page.waitForLoadState('domcontentloaded');
@@ -21,8 +21,8 @@ test.describe('Chat Route Live E2E', () => {
         page.click('button[type="submit"]')
       ]).catch(() => null);
 
-      // After login, navigate back to chat
-      await page.goto('/chat');
+      // After login, navigate back to workspace chat tab
+      await page.goto('/workspace/doc/latest?tab=chat');
     }
 
     // Wait for the chat document select to populate with real documents

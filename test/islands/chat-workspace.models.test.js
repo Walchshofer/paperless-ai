@@ -22,7 +22,7 @@ describe('ChatWorkspaceIsland - model placeholders', function () {
 
   beforeEach(() => {
     dom = new JSDOM('<!doctype html><html><body></body></html>', {
-      url: 'http://localhost/chat',
+      url: 'http://localhost/workspace/doc/1?tab=chat',
     });
     window = dom.window;
     document = window.document;
@@ -187,22 +187,14 @@ describe('ChatWorkspaceIsland - model placeholders', function () {
     );
   });
 
-  it('hydrates persisted history returned from /chat/init', async () => {
+  it('sets status message when a document is selected', async () => {
     const root = document.createElement('div');
     document.body.appendChild(root);
 
-    // Mock fetch for initialize and preview
+    // Mock fetch for status and preview
     global.fetch = async (url) => {
-      if (url.startsWith('/chat/init/')) {
-        return { ok: true, json: async () => ({
-          documentTitle: 'Doc 42',
-          initialized: true,
-          history: [
-            { role: 'system', content: 'system message' },
-            { role: 'user', content: 'persisted question' },
-            { role: 'assistant', content: 'persisted answer' }
-          ]
-        }) };
+      if (url === '/api/chat/status') {
+        return { ok: true, json: async () => ({ rag: { available: true } }) };
       }
       if (url.startsWith('/workspace/api/doc/')) {
         return { ok: true, json: async () => ({ title: 'Doc 42', content: 'preview' }) };
@@ -226,14 +218,12 @@ describe('ChatWorkspaceIsland - model placeholders', function () {
     // restore
     window.HTMLElement.prototype.scrollIntoView = originalScroll;
 
-    // After init, chatMessages should include persisted messages
+    // After init, chatMessages should include status message
     const chatContainer = root.querySelector('[data-testid="chat-workspace-root"]');
     const _messages = chatContainer.querySelectorAll('.chat-message, .system-message, .assistant-message, .user-message');
 
-    // Basic assertion: the persisted contents are present somewhere in the document
     const html = root.innerHTML;
-    assert.ok(html.includes('persisted question'));
-    assert.ok(html.includes('persisted answer'));
+    assert.ok(html.includes('Chat ready for Doc 42.'));
 
     delete global.fetch;
   });

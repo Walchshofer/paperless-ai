@@ -522,31 +522,31 @@ export default function ChatWorkspaceIsland(
     try {
       setStreamError(null);
       setStatusMessage('Initializing chat...');
-      const modelParam = selectedModel
-        ? `?model=${encodeURIComponent(selectedModel)}`
-        : '';
-      const response = await fetch(`/chat/init/${documentId}${modelParam}`);
-      if (!response.ok) throw new Error('Failed to initialize chat');
-      const data = await response.json();
-      setSelectedDocumentTitle(data.documentTitle || `Document ${documentId}`);
+      const fallbackTitle =
+        documents.find((d: ChatDoc) => d.id === documentId)?.title ||
+        `Document ${documentId}`;
+      setSelectedDocumentTitle(fallbackTitle);
+      setChatMessages([
+        {
+          id: makeId(),
+          role: 'status',
+          content: `Chat ready for ${fallbackTitle}.`
+        }
+      ]);
 
-      // Hydrate persisted chat history when available
-      type HistoryMessage = { role: ChatMessageRole; content: string };
-      if (Array.isArray(data.history) && data.history.length > 0) {
-        setChatMessages(
-          (data.history as HistoryMessage[]).map((m: HistoryMessage) => ({ id: makeId(), role: m.role, content: m.content }))
-        );
-      } else {
-        setChatMessages([
-          {
-            id: makeId(),
-            role: 'status',
-            content: `Chat ready for ${data.documentTitle || `Document ${documentId}`}.`
+      try {
+        const statusResponse = await fetch('/api/chat/status');
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          if (statusData && statusData.rag) {
+            setLocalTextRagStatus({
+              available: Boolean(statusData.rag.available)
+            });
           }
-        ]);
+        }
+      } catch (statusError) {
+        console.warn('[Chat] Status check failed:', statusError);
       }
-
-      if (data.textRagStatus) setLocalTextRagStatus(data.textRagStatus);
 
       await loadDocumentPreview(documentId);
     } catch (error: unknown) {
@@ -555,7 +555,7 @@ export default function ChatWorkspaceIsland(
     } finally {
       setStatusMessage(null);
     }
-  }, [loadDocumentPreview, selectedModel]);
+  }, [documents, loadDocumentPreview]);
 
   useEffect(() => {
     if (selectedDocumentId) {
@@ -609,7 +609,7 @@ export default function ChatWorkspaceIsland(
         ? '/api/chat/rag'
         : chatMode === 'visual-rag'
         ? '/api/chat/visual-rag'
-        : '/chat/message';
+        : '/api/chat/document';
       
       // Build request payload based on mode
       let payload;
@@ -625,6 +625,11 @@ export default function ChatWorkspaceIsland(
           documentId: selectedDocumentId,
           message: userMessage,
           model: selectedModel,
+          documentContext: {
+            title: docPreview.title,
+            content: docPreview.content,
+            page: docPreview.pageCount
+          },
           context: chatContext.length > 0 ? chatContext.map((c: ChatContextItem) => ({
             type: c.type,
             page: c.data?.page,
@@ -665,7 +670,22 @@ export default function ChatWorkspaceIsland(
         return;
       }
 
-      // Handle Document mode (streaming SSE response)
+      // Handle Document mode (JSON or streaming SSE response)
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('text/event-stream')) {
+        const data = await response.json().catch(() => ({}));
+        setChatMessages((prev: ChatMessage[]) =>
+          prev.map((msg: ChatMessage) =>
+            msg.id === assistantEntryId
+              ? {
+                  ...msg,
+                  content: data.response || data.answer || 'No response received'
+                }
+              : msg
+          )
+        );
+        return;
+      }
       if (!response.body) {
         throw new Error('No response body for streaming');
       }
@@ -719,7 +739,7 @@ export default function ChatWorkspaceIsland(
     } finally {
       setIsStreaming(false);
     }
-  }, [messageInput, selectedDocumentId, selectedModel, chatMode, chatContext, chatMessages]);;
+  }, [messageInput, selectedDocumentId, selectedModel, chatMode, chatContext, chatMessages, docPreview]);
 
   const tabs = useMemo(() => (
     [

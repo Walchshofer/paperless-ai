@@ -17436,25 +17436,28 @@ function ChatWorkspaceIsland(props) {
     try {
       setStreamError(null);
       setStatusMessage("Initializing chat...");
-      const modelParam = selectedModel ? `?model=${encodeURIComponent(selectedModel)}` : "";
-      const response = await fetch(`/chat/init/${documentId2}${modelParam}`);
-      if (!response.ok) throw new Error("Failed to initialize chat");
-      const data = await response.json();
-      setSelectedDocumentTitle(data.documentTitle || `Document ${documentId2}`);
-      if (Array.isArray(data.history) && data.history.length > 0) {
-        setChatMessages(
-          data.history.map((m3) => ({ id: makeId(), role: m3.role, content: m3.content }))
-        );
-      } else {
-        setChatMessages([
-          {
-            id: makeId(),
-            role: "status",
-            content: `Chat ready for ${data.documentTitle || `Document ${documentId2}`}.`
+      const fallbackTitle = documents.find((d3) => d3.id === documentId2)?.title || `Document ${documentId2}`;
+      setSelectedDocumentTitle(fallbackTitle);
+      setChatMessages([
+        {
+          id: makeId(),
+          role: "status",
+          content: `Chat ready for ${fallbackTitle}.`
+        }
+      ]);
+      try {
+        const statusResponse = await fetch("/api/chat/status");
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          if (statusData && statusData.rag) {
+            setLocalTextRagStatus({
+              available: Boolean(statusData.rag.available)
+            });
           }
-        ]);
+        }
+      } catch (statusError) {
+        console.warn("[Chat] Status check failed:", statusError);
       }
-      if (data.textRagStatus) setLocalTextRagStatus(data.textRagStatus);
       await loadDocumentPreview(documentId2);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -17462,7 +17465,7 @@ function ChatWorkspaceIsland(props) {
     } finally {
       setStatusMessage(null);
     }
-  }, [loadDocumentPreview, selectedModel]);
+  }, [documents, loadDocumentPreview]);
   y2(() => {
     if (selectedDocumentId) {
       void initializeChat(selectedDocumentId);
@@ -17503,7 +17506,7 @@ function ChatWorkspaceIsland(props) {
     ]);
     setIsStreaming(true);
     try {
-      const endpoint = chatMode === "rag" ? "/api/chat/rag" : chatMode === "visual-rag" ? "/api/chat/visual-rag" : "/chat/message";
+      const endpoint = chatMode === "rag" ? "/api/chat/rag" : chatMode === "visual-rag" ? "/api/chat/visual-rag" : "/api/chat/document";
       let payload;
       if (chatMode === "rag" || chatMode === "visual-rag") {
         payload = {
@@ -17516,6 +17519,11 @@ function ChatWorkspaceIsland(props) {
           documentId: selectedDocumentId,
           message: userMessage,
           model: selectedModel,
+          documentContext: {
+            title: docPreview.title,
+            content: docPreview.content,
+            page: docPreview.pageCount
+          },
           context: chatContext.length > 0 ? chatContext.map((c3) => ({
             type: c3.type,
             page: c3.data?.page,
@@ -17544,6 +17552,19 @@ function ChatWorkspaceIsland(props) {
               sources: data.sources || [],
               searchMode: data.mode
               // 'hybrid' or 'text-fallback'
+            } : msg
+          )
+        );
+        return;
+      }
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("text/event-stream")) {
+        const data = await response.json().catch(() => ({}));
+        setChatMessages(
+          (prev) => prev.map(
+            (msg) => msg.id === assistantEntryId ? {
+              ...msg,
+              content: data.response || data.answer || "No response received"
             } : msg
           )
         );
@@ -17590,8 +17611,7 @@ function ChatWorkspaceIsland(props) {
     } finally {
       setIsStreaming(false);
     }
-  }, [messageInput, selectedDocumentId, selectedModel, chatMode, chatContext, chatMessages]);
-  ;
+  }, [messageInput, selectedDocumentId, selectedModel, chatMode, chatContext, chatMessages, docPreview]);
   const tabs = T2(() => [
     { id: "chat", label: "Chat" },
     { id: "document", label: "Document" },

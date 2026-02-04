@@ -1585,7 +1585,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                     const onSend = (e: Event) => {
                       const { imageBase64, bbox, page, documentId } = (e as CustomEvent).detail || {};
                       const context = { type: 'visual', data: { imageBase64, bbox, page }, documentId };
-                      window.location.href = `/chat?context=${encodeURIComponent(JSON.stringify(context))}`;
+                      window.location.href = `/workspace/doc/${documentId}?tab=chat&context=${encodeURIComponent(JSON.stringify(context))}`;
                     };
                     window.addEventListener('manual:send-to-chat', onSend, { once: true });
                   }}
@@ -1667,7 +1667,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                              });
                              window.dispatchEvent(ev);
                           } else {
-                             window.open(`/manual?open=${result.document_id}&page=${result.page}`, '_blank');
+                             window.open(`/workspace/doc/${result.document_id}?tab=visual&page=${result.page}`, '_blank');
                           }
                        }}
                     >

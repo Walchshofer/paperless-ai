@@ -44,20 +44,8 @@ test.describe('Accessibility and Hydration Checks', () => {
     }
   });
 
-  test('Manual page accessibility', async ({ page }) => {
-    await page.goto(`${BASE_URL}/manual`);
-    
-    // Check tablist accessibility
-    const tablist = page.locator('[role="tablist"]');
-    if (await tablist.count() > 0) {
-      await expect(tablist).toHaveAttribute('aria-label', /Tabs/i);
-      const tabs = tablist.locator('[role="tab"]');
-      const firstTab = tabs.first();
-      await expect(firstTab).toHaveAttribute('aria-selected', 'true');
-    }
-    
-    // Check for aria-live regions (AI status updates)
-    const _ariaLive = page.locator('[aria-live="polite"], [aria-live="assertive"]');
-    // At least the toast container or status badges should exist
+  test('Legacy manual route returns 410', async ({ request }) => {
+    const res = await request.get(`${BASE_URL}/manual`);
+    expect(res.status()).toBe(410);
   });
 });

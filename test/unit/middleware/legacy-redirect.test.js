@@ -31,35 +31,57 @@ describe('legacyRedirectMiddleware', function () {
     });
   });
 
-  it('Phase A sets banner locals and calls metrics', function (done) {
-    process.env.LEGACY_REDIRECT_PHASE = 'A';
-    const req = { path: '/manual', cookies: {}, user: null, get: () => 'ua' };
-    const res = { locals: {} };
-    legacyRedirectMiddleware(req, res, function () {
-      assert.strictEqual(res.locals.showLegacyBanner, true);
-      assert.strictEqual(res.locals.legacyBannerDismissed, false);
-      assert.strictEqual(metricsCalled, true);
-      done();
-    });
-  });
+  it('returns 410 HTML for legacy routes and calls metrics', function () {
+    const req = {
+      path: '/manual',
+      cookies: {},
+      user: null,
+      get: () => 'ua',
+      accepts: (type) => (type === 'html' ? 'html' : false),
+    };
+    let statusCode = null;
+    let rendered = null;
+    const res = {
+      status(code) {
+        statusCode = code;
+        return this;
+      },
+      render(view, locals) {
+        rendered = { view, locals };
+      },
+    };
 
-  it('Phase B redirects anonymous users with 302', function () {
-    process.env.LEGACY_REDIRECT_PHASE = 'B';
-    const req = { path: '/manual', cookies: {}, user: null, get: () => 'ua' };
-    let redirected = null;
-    const res = { redirect: (code, target) => { redirected = { code, target }; } };
-    legacyRedirectMiddleware(req, res, function () {
-      // Should not call next in this case
-    });
-    assert.deepStrictEqual(redirected, { code: 302, target: process.env.LEGACY_REDIRECT_TARGET || '/workspace' });
-  });
-
-  it('Phase C hard redirects with 301', function () {
-    process.env.LEGACY_REDIRECT_PHASE = 'C';
-    const req = { path: '/manual', cookies: {}, user: null, get: () => 'ua' };
-    let redirected = null;
-    const res = { redirect: (code, target) => { redirected = { code, target }; } };
     legacyRedirectMiddleware(req, res, function () {});
-    assert.deepStrictEqual(redirected, { code: 301, target: process.env.LEGACY_REDIRECT_TARGET || '/workspace' });
+
+    assert.strictEqual(statusCode, 410);
+    assert.strictEqual(rendered?.view, 'error');
+    assert.strictEqual(rendered?.locals?.status, 410);
+    assert.strictEqual(metricsCalled, true);
+  });
+
+  it('returns 410 JSON when HTML is not accepted', function () {
+    const req = {
+      path: '/chat',
+      cookies: {},
+      user: null,
+      get: () => 'ua',
+      accepts: () => false,
+    };
+    let statusCode = null;
+    let payload = null;
+    const res = {
+      status(code) {
+        statusCode = code;
+        return this;
+      },
+      json(body) {
+        payload = body;
+      },
+    };
+
+    legacyRedirectMiddleware(req, res, function () {});
+
+    assert.strictEqual(statusCode, 410);
+    assert.ok(payload && payload.error);
   });
 });

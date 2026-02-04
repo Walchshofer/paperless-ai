@@ -11,6 +11,22 @@ const router = express.Router();
 const { authenticateApi } = require('../../middleware/auth');
 const configFile = require('../../config/config');
 
+async function generateChatFallback(aiService, prompt, options) {
+  if (typeof aiService?.generateCompletion === 'function') {
+    return aiService.generateCompletion(prompt, options);
+  }
+
+  if (typeof aiService?.generateText === 'function') {
+    return aiService.generateText(prompt);
+  }
+
+  if (typeof aiService?.generate === 'function') {
+    return aiService.generate(prompt, options);
+  }
+
+  throw new Error('AI service does not support text generation');
+}
+
 /**
  * @swagger
  * /api/chat/rag:
@@ -164,7 +180,7 @@ ${context || 'No relevant documents found.'}`;
       console.warn('[RAG Chat] Chat API failed, trying generate:', chatError.message);
       // Fallback to generate API
       const prompt = `${systemPrompt}\n\nUser: ${message}\n\nAssistant:`;
-      const result = await aiService.generateCompletion(prompt, {
+      const result = await generateChatFallback(aiService, prompt, {
         model,
         temperature: 0.7
       });
@@ -356,7 +372,7 @@ ${context || 'No relevant documents found.'}`;
     } catch (chatError) {
       console.warn('[Visual RAG Chat] Chat API failed, trying generate:', chatError.message);
       const prompt = `${systemPrompt}\\n\\nUser: ${message}\\n\\nAssistant:`;
-      const result = await aiService.generateCompletion(prompt, {
+      const result = await generateChatFallback(aiService, prompt, {
         model,
         temperature: 0.7
       });
@@ -510,7 +526,7 @@ ${context}`;
     } catch (chatError) {
       console.warn('[Document Chat] Chat API failed, trying generate:', chatError.message);
       const prompt = `${systemPrompt}\n\nQuestion: ${message}\n\nAnswer:`;
-      const result = await aiService.generateCompletion(prompt, {
+      const result = await generateChatFallback(aiService, prompt, {
         model: model || configFile.ollama?.model || 'llama3.2',
         temperature: 0.7
       });

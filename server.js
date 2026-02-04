@@ -22,7 +22,6 @@ const PatternDetectionEngine = require('./services/PatternDetectionEngine');
 const { metricsCollector } = require('./services/metrics/PrometheusMetrics');
 const { validateInternalMetricsConfig } = require('./metrics/validateInternalMetricsConfig');
 const { allowInternalNetwork } = require('./routes/internal-auth');
-const { RagPageVmSchema } = require('./src/ui/contracts/RagPage.contract.js');
 
 // Add environment variables for RAG service if not already set.
 if (process.env.RAG_SERVICE_ENABLED === undefined) {
@@ -155,7 +154,7 @@ app.use('/api/normalization', normalizationRoutes);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Legacy route deprecation middleware: mount early so it intercepts legacy UI accesses
+// Legacy route retirement middleware: returns 410 for /chat, /manual, /rag
 app.use(legacyRedirectMiddleware);
 
 // Swagger documentation route
@@ -684,6 +683,7 @@ app.use('/', systemRoutes);
 app.use('/', settingsRoutes);
 app.use('/workspace', documentRoutes);
 app.use('/', setupRoutes);
+const ragRoutes = require('./routes/rag');
 const feedbackRoutes = require('./routes/api/feedback');
 const settingsApiRoutes = require('./routes/api/settings');
 const documentsApiRoutes = require('./routes/api/documents');
@@ -716,7 +716,10 @@ app.use('/api/export', exportApiRoutes);
 // Note: Visual RAG routes are mounted early (after body parser) at line ~109
 // to ensure they're accessible before auth middleware runs
 
-// Note: Legacy RAG routes removed - all functionality now in /workspace
+// Mount RAG routes if enabled
+if (process.env.RAG_SERVICE_ENABLED === 'true') {
+  app.use('/api/rag', ragRoutes);
+}
 
 /**
  * @swagger

@@ -1,71 +1,51 @@
 import { test, expect } from '@playwright/test';
-
-// Position verification requires a fixture with known visual_overlays payload and a document image available.
-// This scaffold is for test-agent to fill in once fixtures/infra are available.
+const { getTestDocId } = require('../../helpers/fixtures');
+const { navigateToWorkspace, switchTab } = require('../../helpers/workspace-fixtures');
 
 test.describe('Visual overlay position verification', () => {
-  test('overlay SVG rect attributes match bbox percentages', async ({ page }) => {
-    await page.goto('/manual');
-
-    const visualBtn = await page.$('[data-testid="view-visual-btn"]');
-    if (!visualBtn) {
-      test.skip(true, 'Manual page not available in this environment (skipping)');
-      return;
-    }
-
-    await page.click('[data-testid="view-visual-btn"]');
-    const overlayAnchor = await page.$('[data-testid="visual-overlays-island"]');
-    if (!overlayAnchor) {
-      test.skip(true, 'Visual overlays anchor not present in this environment');
-      return;
-    }
-
+  test('highlight region reflects overlay bbox percentages', async ({ page }) => {
+    const docId = getTestDocId();
     const overlayId = 'ov-pos-1';
     const bbox = { x: 0.12, y: 0.34, width: 0.56, height: 0.22 };
 
-    await page.evaluate(
-      async ({ overlayId, bbox }) => {
-        const anchor = document.querySelector(
-          '[data-island="visual-overlays-island"]'
-        );
-        if (!anchor) return;
+    await page.route(`**/api/visual-overlays/missing-fields/${docId}`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ fields: [] })
+      });
+    });
 
-        const props = {
-          documentId: 1001,
-          images: [
+    await page.route(`**/api/visual-overlays/document/${docId}`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          overlays: [
             {
-              id: 'img-pos-1',
-              originalSrc:
-                'data:image/svg+xml;utf8,' +
-                encodeURIComponent(
-                  '<svg xmlns="http://www.w3.org/2000/svg" width="500" height="400"><rect width="500" height="400" fill="#e5e7eb"/></svg>'
-                ),
-            },
-          ],
-          overlaysByImage: {
-            'img-pos-1': [
-              {
-                id: overlayId,
-                bbox,
-              },
-            ],
-          },
-        };
+              id: overlayId,
+              label: 'Invoice Number',
+              pageNumber: 1,
+              confidence: 0.91,
+              bbox
+            }
+          ]
+        })
+      });
+    });
 
-        anchor.setAttribute('data-props', JSON.stringify(props));
-        if (typeof (window as unknown as { mountIslands?: (_: Document) => void }).mountIslands === 'function') {
-          (window as unknown as { mountIslands?: (_: Document) => void }).mountIslands?.(document);
-        }
-      },
-      { overlayId, bbox }
-    );
+    await navigateToWorkspace(page, docId);
+    await switchTab(page, 'visual');
 
-    const marker = page.locator(`[data-testid="overlay-marker-${overlayId}"]`);
-    await marker.waitFor({ state: 'visible', timeout: 10000 });
+    const viewButton = page.locator(`[data-testid="view-overlay-${overlayId}"]`);
+    await expect(viewButton).toBeVisible();
+    await viewButton.click();
 
-    await expect(marker).toHaveAttribute('x', `${bbox.x * 100}%`);
-    await expect(marker).toHaveAttribute('y', `${bbox.y * 100}%`);
-    await expect(marker).toHaveAttribute('width', `${bbox.width * 100}%`);
-    await expect(marker).toHaveAttribute('height', `${bbox.height * 100}%`);
+    const highlight = page.locator('[data-testid="overlay-highlight-region"]');
+    await expect(highlight).toBeVisible();
+    await expect(highlight).toHaveClass(new RegExp(`--region-left:${bbox.x * 100}%`));
+    await expect(highlight).toHaveClass(new RegExp(`--region-top:${bbox.y * 100}%`));
+    await expect(highlight).toHaveClass(new RegExp(`--region-width:${bbox.width * 100}%`));
+    await expect(highlight).toHaveClass(new RegExp(`--region-height:${bbox.height * 100}%`));
   });
 });

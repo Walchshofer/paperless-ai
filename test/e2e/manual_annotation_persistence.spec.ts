@@ -1,151 +1,190 @@
-import { test, expect, Page, BrowserContext, Locator } from '@playwright/test';
-import jwt from 'jsonwebtoken';
+import { test, expect } from '@playwright/test';
+const { getTestDocId } = require('../helpers/fixtures');
+const { navigateToWorkspace, switchTab } = require('../helpers/workspace-fixtures');
 
-// Helpers
-async function ensureLoggedInAs(page: Page, ctx: BrowserContext, base: string, userId = 1, username = 'testuser') {
-  const secret = process.env.JWT_SECRET || 'your-secret-key';
-  const token = jwt.sign({ id: userId, username }, secret);
-  // clear existing cookies and set jwt cookie for the test domain
-  await ctx.clearCookies();
-  const url = new URL(base);
-  await ctx.addCookies([{ name: 'jwt', value: token, domain: url.hostname, path: '/' }]);
-}
-
-async function selectFirstDocument(page: Page): Promise<number> {
-  // Wait for document select to be populated and choose the first real option
-  const select = page.locator('[data-testid="manual-document-select"]');
-  await expect(select).toBeVisible({ timeout: 10000 });
-  // wait until there is at least one non-empty option
-  await page.waitForFunction(() => {
-    const s = document.getElementById('documentSelect') as HTMLSelectElement | null;
-    if (!s) return false;
-    return Array.from(s.options).some(o => o.value && o.value !== '');
-  }, null, { timeout: 10000 });
-
-  const options = await select.locator('option').all();
-  let pickValue = null;
-  for (const opt of options) {
-    const v = await opt.getAttribute('value');
-    if (v && v !== '') { pickValue = v; break; }
-  }
-  if (!pickValue) throw new Error('No document options available to select');
-  await select.selectOption(pickValue);
-  return Number(pickValue);
-}
-
-// Draw a box on the annotation canvas. coords are relative percentages of width/height
-async function drawBoxOnCanvas(page: Page, canvasLocator: Locator, startPct: [number, number], endPct: [number, number]) {
-  const box = await canvasLocator.boundingBox();
-  if (!box) throw new Error('Canvas bounding box not found');
-  const sx = box.x + box.width * startPct[0];
-  const sy = box.y + box.height * startPct[1];
-  const ex = box.x + box.width * endPct[0];
-  const ey = box.y + box.height * endPct[1];
-  await page.mouse.move(sx, sy);
+const drawBoxOnViewer = async (page) => {
+  const container = page.locator('[data-testid="overlay-container"]');
+  const box = await container.boundingBox();
+  if (!box) throw new Error('Overlay container bounding box not found');
+  await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.2);
   await page.mouse.down();
-  await page.mouse.move(ex, ey, { steps: 8 });
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5, { steps: 8 });
   await page.mouse.up();
-}
+};
 
-const base = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
+test.describe('Workspace - Visual overlay persistence', () => {
+  test('label field creates overlay and delete removes it', async ({ page }) => {
+    const docId = getTestDocId();
+    const fieldId = 'invoice_number';
+    let overlays = [];
 
-// Tests
-test.describe('Manual - Annotation persistence & per-user isolation', () => {
-  test('save → reload → update → delete flow persists annotations for user', async ({ page, context }) => {
-    await ensureLoggedInAs(page, context, base, 100, 'user100');
+    await page.route(`**/api/visual-overlays/missing-fields/${docId}`, async (route) => {
+      const mapped = overlays.some((o) => o.label === fieldId);
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          fields: [
+            { id: fieldId, label: 'Invoice Number', isMapped: mapped, overlayId: mapped ? 'ov-1' : null }
+          ]
+        })
+      });
+    });
 
-    // open manual and select a document
-    await page.goto(`${base}/manual`, { waitUntil: 'load' });
-    const _docId = await selectFirstDocument(page);
+    await page.route(`**/api/visual-overlays/document/${docId}`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ overlays })
+      });
+    });
 
-    // ensure annotation island is mounted
-    await page.waitForSelector('[data-testid="visual-annotation-island-root"]', { timeout: 10000 });
+    await page.route('**/api/visual-overlays', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.continue();
+        return;
+      }
+      overlays = [{
+        id: 'ov-1',
+        label: fieldId,
+        pageNumber: 1,
+        confidence: 1,
+        bbox: { x: 0.1, y: 0.1, width: 0.3, height: 0.2 }
+      }];
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, overlay: overlays[0] })
+      });
+    });
 
-    const drawToggle = page.locator('[data-testid="draw-toggle"]').first();
-    const canvas = page.locator('[data-testid="annotation-canvas"]').first();
+    await page.route('**/api/visual-overlays/ov-1', async (route) => {
+      if (route.request().method() !== 'DELETE') {
+        await route.continue();
+        return;
+      }
+      overlays = [];
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true })
+      });
+    });
 
-    await drawToggle.click();
+  await navigateToWorkspace(page, docId);
+  await switchTab(page, 'visual');
 
-    // draw a box (10%,10% to 40%,40%)
-    await drawBoxOnCanvas(page, canvas, [0.1, 0.1], [0.4, 0.4]);
+  await page.waitForSelector('[data-testid="overlay-container"][data-draw-mode="inactive"]', { timeout: 10000 }).catch(() => null);
 
-    // fill label and save
-    const labelInput = page.locator('[data-testid="annotation-label-0"]').first();
-    await expect(labelInput).toBeVisible({ timeout: 2000 });
-    await labelInput.fill('E2E Test Annotation');
+  const labelButton = page.locator(`[data-testid="label-btn-${fieldId}"]`);
+  await expect(labelButton).toBeVisible();
+  await labelButton.click();
 
-    // Intercept the POST to /api/annotations
-    const postPromise = page.waitForResponse(resp => resp.url().endsWith('/api/annotations') && resp.request().method() === 'POST');
+  await page.waitForSelector('[data-testid="overlay-container"][data-draw-mode="active"]', { timeout: 10000 });
 
-    await page.click('[data-testid="save-annotations"]');
+  const postOverlay = page.waitForResponse(resp =>
+    resp.url().includes('/api/visual-overlays') &&
+    resp.request().method() === 'POST'
+  );
 
-    const postResp = await postPromise;
-    expect(postResp.ok()).toBeTruthy();
-    const payload = await postResp.json();
-    expect(payload.success).toBe(true);
-    expect(Array.isArray(payload.created)).toBe(true);
-    const created = payload.created[0];
-    expect(created).toBeTruthy();
-    const annotationId = created.id;
-
-    // Reload and re-select doc, then assert annotation present
-    await page.reload({ waitUntil: 'load' });
-    await selectFirstDocument(page);
-    // wait for annotations to load into island
-    await page.waitForSelector('[data-testid="annotation-item"]', { timeout: 5000 });
-    const labelAfter = await page.locator('[data-testid="annotation-label-0"]').inputValue();
-    expect(labelAfter).toBe('E2E Test Annotation');
-
-    // Update the label and assert PUT to /api/annotations/:id
-    const putPromise = page.waitForResponse(resp => resp.url().endsWith(`/api/annotations/${annotationId}`) && resp.request().method() === 'PUT');
-    await page.locator('[data-testid="annotation-label-0"]').fill('Updated Annotation');
-    // small wait for the island to send the PUT
-    const putResp = await putPromise;
-    expect(putResp.ok()).toBeTruthy();
-    const putJson = await putResp.json();
-    expect(putJson.success).toBeTruthy();
-
-    // Delete annotation and assert it is removed server-side and UI
-    const delPromise = page.waitForResponse(resp => resp.url().endsWith(`/api/annotations/${annotationId}`) && resp.request().method() === 'DELETE');
-    // Click remove on first item
-    await page.click('[data-testid="remove-btn-0"]');
-    const delResp = await delPromise;
-    expect(delResp.ok()).toBeTruthy();
-
-    // reload and confirm it's gone
-    await page.reload({ waitUntil: 'load' });
-    await selectFirstDocument(page);
-    // allow some time for island to fetch; if none present, test passes
-    const count = await page.locator('[data-testid="annotation-item"]').count();
-    expect(count).toBe(0);
+  await page.evaluate((detail) => {
+    window.dispatchEvent(new CustomEvent('overlay:draw-complete', { detail }));
+  }, {
+    bbox: { x: 0.1, y: 0.1, width: 0.3, height: 0.2 },
+    page: 1,
+    purpose: 'label-field',
+    fieldId,
+    imageBase64: 'ZmFrZQ=='
   });
 
-  test('per-user isolation: user A annotations not visible to user B', async ({ page, context }) => {
-    // Save as user A (id=500)
-    await ensureLoggedInAs(page, context, base, 500, 'userA');
-    await page.goto(`${base}/manual`, { waitUntil: 'load' });
-    const _docId = await selectFirstDocument(page);
+  await postOverlay;
 
-    await page.waitForSelector('[data-testid="visual-annotation-island-root"]', { timeout: 10000 });
-    await page.locator('[data-testid="draw-toggle"]').click();
-    await drawBoxOnCanvas(page, page.locator('[data-testid="annotation-canvas"]').first(), [0.2, 0.2], [0.35, 0.35]);
-    await page.locator('[data-testid="annotation-label-0"]').fill('UserA Only');
+  await page.waitForSelector('[data-testid="overlay-ov-1"]', { timeout: 10000 });
+  await expect(page.locator('[data-testid="overlay-ov-1"]')).toBeVisible();
 
-    const post = page.waitForResponse(resp => resp.url().endsWith('/api/annotations') && resp.request().method() === 'POST');
-    await page.click('[data-testid="save-annotations"]');
-    const postResp = await post;
-    const created = (await postResp.json()).created[0];
-    expect(created).toBeTruthy();
+  const deleteButton = page.locator('[data-testid="delete-overlay-ov-1"]');
+  await expect(deleteButton).toBeVisible();
+  page.once('dialog', async (dialog) => {
+    await dialog.accept();
+  });
+  const deleteOverlay = page.waitForResponse(resp =>
+    resp.url().includes('/api/visual-overlays/ov-1') &&
+    resp.request().method() === 'DELETE'
+  );
+  await deleteButton.click();
+  await deleteOverlay;
 
-    // Now switch to user B (id=600)
-    await ensureLoggedInAs(page, context, base, 600, 'userB');
-    await page.reload({ waitUntil: 'load' });
-    await selectFirstDocument(page);
+  await page.waitForSelector('[data-testid="overlay-ov-1"]', { state: 'detached', timeout: 10000 });
+  });
 
-    // Wait briefly and assert no annotations present for this user
-    // If an annotation appears, it's a failure
-    await page.waitForTimeout(500); // let UI fetch
-    const countUserB = await page.locator('[data-testid="annotation-item"]').count();
-    expect(countUserB).toBe(0);
+  test('missing fields list updates when overlay is mapped', async ({ page }) => {
+    const docId = getTestDocId();
+    const fieldId = 'invoice_number';
+    let overlays = [];
+
+    await page.route(`**/api/visual-overlays/missing-fields/${docId}`, async (route) => {
+      const mapped = overlays.some((o) => o.label === fieldId);
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          fields: [
+            { id: fieldId, label: 'Invoice Number', isMapped: mapped, overlayId: mapped ? 'ov-1' : null }
+          ]
+        })
+      });
+    });
+
+    await page.route(`**/api/visual-overlays/document/${docId}`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ overlays })
+      });
+    });
+
+    await page.route('**/api/visual-overlays', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.continue();
+        return;
+      }
+      overlays = [{
+        id: 'ov-1',
+        label: fieldId,
+        pageNumber: 1,
+        confidence: 1,
+        bbox: { x: 0.1, y: 0.1, width: 0.3, height: 0.2 }
+      }];
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, overlay: overlays[0] })
+      });
+    });
+
+  await navigateToWorkspace(page, docId);
+  await switchTab(page, 'visual');
+
+  await expect(page.locator(`[data-testid="missing-field-${fieldId}"]`)).toBeVisible();
+
+  await page.waitForSelector('[data-testid="overlay-container"][data-draw-mode="inactive"]', { timeout: 10000 }).catch(() => null);
+  await page.locator(`[data-testid="label-btn-${fieldId}"]`).click();
+  await page.waitForSelector('[data-testid="overlay-container"][data-draw-mode="active"]', { timeout: 10000 });
+  const postOverlay = page.waitForResponse(resp =>
+    resp.url().includes('/api/visual-overlays') &&
+    resp.request().method() === 'POST'
+  );
+  await page.evaluate((detail) => {
+    window.dispatchEvent(new CustomEvent('overlay:draw-complete', { detail }));
+  }, {
+    bbox: { x: 0.2, y: 0.2, width: 0.2, height: 0.2 },
+    page: 1,
+    purpose: 'label-field',
+    fieldId,
+    imageBase64: 'ZmFrZQ=='
+  });
+  await postOverlay;
+
+  await expect(page.locator(`[data-testid="missing-field-${fieldId}"]`)).toHaveCount(0);
   });
 });

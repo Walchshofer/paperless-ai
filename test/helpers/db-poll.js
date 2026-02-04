@@ -1,6 +1,12 @@
 const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs');
+let SqliteDatabase = null;
+try {
+    SqliteDatabase = require('better-sqlite3');
+} catch (e) {
+    SqliteDatabase = null;
+}
 
 function readEnvFallback(key) {
     if (process.env[key] !== undefined && process.env[key] !== '') return process.env[key];
@@ -88,6 +94,100 @@ async function pollForRow({ sql, params = [], timeoutMs = 5000, intervalMs = 500
     }
 }
 
+function getSqlitePath() {
+    return path.join(process.cwd(), 'data', 'documents.db');
+}
+
+function querySqlite(sql, params = []) {
+    if (!SqliteDatabase) return null;
+    const dbPath = getSqlitePath();
+    if (!fs.existsSync(dbPath)) return null;
+    const db = new SqliteDatabase(dbPath);
+    try {
+        const stmt = db.prepare(sql);
+        return stmt.all(...params);
+    } finally {
+        db.close();
+    }
+}
+
+async function pollForHistoryEntry(docId, timeoutMs = 5000, intervalMs = 500) {
+    const start = Date.now();
+    const numericId = typeof docId === 'number' || (/^\d+$/.test(String(docId)))
+        ? parseInt(docId, 10)
+        : null;
+
+    const pgSql = 'SELECT * FROM history_documents WHERE document_id = $1 ORDER BY created_at DESC LIMIT 1';
+    const sqliteSql = 'SELECT * FROM history_documents WHERE document_id = ? ORDER BY created_at DESC LIMIT 1';
+
+    while (Date.now() - start < timeoutMs) {
+        // Try Postgres first if numeric id
+        if (numericId != null) {
+            try {
+                const row = await pollForRow({
+                    sql: pgSql,
+                    params: [numericId],
+                    timeoutMs: intervalMs,
+                    intervalMs
+                });
+                if (row) return row;
+            } catch (e) {
+                // Ignore and fall back to sqlite
+            }
+        }
+
+        // SQLite fallback
+        const rows = querySqlite(sqliteSql, numericId != null ? [numericId] : [String(docId)]);
+        if (rows && rows.length > 0) return rows[0];
+
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
+
+    throw new Error(`Timed out after ${timeoutMs}ms waiting for history entry for doc_id=${docId}`);
+}
+
+async function cleanupTestData(docId) {
+    const numericId = typeof docId === 'number' || (/^\d+$/.test(String(docId)))
+        ? parseInt(docId, 10)
+        : null;
+    const errors = [];
+
+    if (numericId != null) {
+        try {
+            await queryDb('DELETE FROM feedback_events WHERE doc_id = $1', [numericId]);
+        } catch (e) {
+            errors.push(`pg:feedback_events:${e.message || e}`);
+        }
+
+        try {
+            await queryDb('DELETE FROM history_documents WHERE document_id = $1', [numericId]);
+        } catch (e) {
+            errors.push(`pg:history_documents:${e.message || e}`);
+        }
+    }
+
+    try {
+        if (SqliteDatabase) {
+            const dbPath = getSqlitePath();
+            if (fs.existsSync(dbPath)) {
+                const db = new SqliteDatabase(dbPath);
+                try {
+                    if (numericId != null) {
+                        db.prepare('DELETE FROM feedback_events WHERE document_id = ?').run(numericId);
+                        db.prepare('DELETE FROM history_documents WHERE document_id = ?').run(numericId);
+                    }
+                } finally {
+                    db.close();
+                }
+            }
+        }
+    } catch (e) {
+        errors.push(`sqlite:${e.message || e}`);
+    }
+
+    return { ok: errors.length === 0, errors };
+}
+
 // Check whether Postgres is reachable. Returns true if a simple 'SELECT 1' succeeds within timeout.
 async function isPostgresAvailable(timeoutMs = 2000) {
     const pool = new Pool(config);
@@ -123,5 +223,7 @@ module.exports = {
     pollForFeedbackEvent,
     pollForRow,
     queryDb,
-    isPostgresAvailable
+    isPostgresAvailable,
+    pollForHistoryEntry,
+    cleanupTestData
 };

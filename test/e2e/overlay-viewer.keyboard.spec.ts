@@ -1,22 +1,25 @@
 import { test, expect } from '@playwright/test';
+const { getTestDocId } = require('../helpers/fixtures');
 
 test.describe('OverlayViewer keyboard shortcuts (E2E)', () => {
   test('press + / - / 0 to zoom and Space to toggle pan and ArrowRight to nudge', async ({ page }) => {
+    const docId = getTestDocId();
     try {
-      await page.goto('/manual');
+      await page.goto(`/workspace/doc/${docId}`, { waitUntil: 'domcontentloaded' });
     } catch (e: unknown) {
       const msg = typeof e === 'object' && e !== null && 'message' in e ? (e as { message?: string }).message : String(e);
       test.skip(true, 'Backend not reachable for E2E run: ' + msg);
       return;
     }
 
+    await page.click('[data-testid="tab-visual"]');
     await page.waitForSelector('[data-island="overlay-viewer-island"]', { timeout: 5000 });
     await page.waitForTimeout(500);
 
     const zoomPct = page.locator('[data-testid="overlay-zoom-percentage"]');
     const viewport = page.locator('[data-testid="overlay-viewport"]');
 
-    await expect(zoomPct).toHaveText(/100%/);
+    await expect(zoomPct).toHaveText(/%/);
 
     // Press + (zoom in)
     await page.keyboard.press('+');

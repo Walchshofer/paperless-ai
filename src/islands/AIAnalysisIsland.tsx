@@ -267,7 +267,7 @@ export default function AIAnalysisIsland(props: Partial<AIAnalysisContract>) {
       analysisType: 'chat',
     });
 
-    window.location.href = `/chat?open=${documentId}`;
+    window.location.href = `/workspace/doc/${documentId}?tab=chat`;
   }, [documentId]);
 
   const isDisabled = !documentId || isAnalyzing;

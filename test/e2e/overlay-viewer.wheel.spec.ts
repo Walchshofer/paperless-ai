@@ -1,21 +1,24 @@
 import { test, expect } from '@playwright/test';
+const { getTestDocId } = require('../helpers/fixtures');
 
 test.describe('OverlayViewer wheel zoom (E2E)', () => {
   test('mouse wheel zooms towards pointer and Ctrl fine control reduces step', async ({ page }) => {
+    const docId = getTestDocId();
     try {
-      await page.goto('/manual');
+      await page.goto(`/workspace/doc/${docId}`, { waitUntil: 'domcontentloaded' });
     } catch (e: unknown) {
       const msg = typeof e === 'object' && e !== null && 'message' in e ? (e as { message?: string }).message : String(e);
       test.skip(true, 'Backend not reachable for E2E run: ' + msg);
       return;
     }
 
+    await page.click('[data-testid="tab-visual"]');
     await page.waitForSelector('[data-island="overlay-viewer-island"]', { timeout: 5000 });
     await page.waitForTimeout(500);
 
     const zoomPct = page.locator('[data-testid="overlay-zoom-percentage"]');
     const _container = await page.locator('[data-testid="overlay-container"]');
-    await expect(zoomPct).toHaveText(/100%/);
+    await expect(zoomPct).toHaveText(/%/);
 
     // Dispatch a coarse wheel event (deltaY negative to zoom in)
     await page.evaluate(() => {

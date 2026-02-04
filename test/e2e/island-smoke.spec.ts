@@ -2,7 +2,7 @@ import { test, expect, Page } from '@playwright/test';
 import { getHistoryDocId } from '../helpers/fixtures';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
-const MANUAL_URL = `${BASE_URL}/manual`;
+const MANUAL_URL = `${BASE_URL}/workspace/doc/latest?tab=metadata`;
 const HISTORY_URL = `${BASE_URL}/history/${getHistoryDocId()}`;
 
 async function gotoPage(page: Page, url: string) {
@@ -24,11 +24,11 @@ async function gotoPage(page: Page, url: string) {
 }
 
 test.describe('Island Runtime Smoke', () => {
-  test('manual islands mount with hydrated roots', async ({ page }) => {
+  test('workspace islands mount with hydrated roots', async ({ page }) => {
     const response = await gotoPage(page, MANUAL_URL);
 
     if (!response || response.status() >= 400) {
-      test.skip(true, `Manual page not available at ${MANUAL_URL}`);
+      test.skip(true, `Workspace page not available at ${MANUAL_URL}`);
       return;
     }
 

@@ -6,7 +6,11 @@ test('Verify UI changes - no duplicate dropdown, document title visible', async 
   await page.fill('input[name="username"]', 'elfman');
   await page.fill('input[name="password"]', 'password');
   await page.click('button[type="submit"]');
-  await page.waitForURL('**/chat');
+  await page.waitForURL((url) => !url.pathname.includes('/login'));
+
+  // Navigate to workspace chat tab
+  await page.goto('http://localhost:3000/workspace/doc/latest?tab=chat');
+  await page.waitForSelector('[data-testid="chat-workspace-root"]', { timeout: 15000 });
 
   // Wait for page to load
   await page.waitForTimeout(2000);

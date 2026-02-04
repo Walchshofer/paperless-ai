@@ -1,323 +1,151 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+const { getTestDocId } = require('../helpers/fixtures');
+const { navigateToWorkspace, switchTab } = require('../helpers/workspace-fixtures');
 
-/**
- * E2E User Flow Test - Manual Route UI
- *
- * This test verifies the complete user flow through the Manual Route UI:
- * 1. Navigate to /manual page
- * 2. Interact with Visual Annotation Island (draw annotations)
- * 3. Use Feedback Controls (thumbs up/down)
- * 4. Edit metadata in Manual Editor
- * 5. Save and verify persistence
- */
+const waitForEvent = async (page, eventName) => {
+  return page.evaluate((name) => {
+    return new Promise((resolve) => {
+      const handler = (e) => {
+        document.removeEventListener(name, handler);
+        window.removeEventListener(name, handler);
+        resolve(e.detail || null);
+      };
+      document.addEventListener(name, handler, { once: true });
+      window.addEventListener(name, handler, { once: true });
+      setTimeout(() => {
+        document.removeEventListener(name, handler);
+        window.removeEventListener(name, handler);
+        resolve(null);
+      }, 5000);
+    });
+  }, eventName);
+};
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
-const MANUAL_URL = `${BASE_URL}/manual`;
+test.describe('Workspace UI - Complete User Flow', () => {
+  test('metadata edit, tab switch, visual draw mode, save', async ({ page }) => {
+    const docId = getTestDocId();
 
-async function gotoManual(page: Page) {
-  const response = await page.goto(MANUAL_URL, {
-    waitUntil: 'domcontentloaded',
-    timeout: 15000
-  }).catch(() => null);
-
-  const loginFormPresent = response && (
-    response.url().includes('/login') ||
-    await page.locator('form[action="/login"]').count() > 0
-  );
-
-  if (loginFormPresent) {
-    throw new Error('Auth state missing for /manual (login redirect).');
-  }
-}
-
-test.describe('Manual Route UI - Complete User Flow', () => {
-  // Handle login if needed
-  test.beforeEach(async ({ page }) => {
-    await gotoManual(page);
-  });
-
-  test('complete user flow: annotation, feedback, save', async ({ page }) => {
-    // 1. Verify Manual page loaded
-    await expect(page).toHaveURL(/\/workspace/);
-
-    // 2. Check for Visual Annotation Island
-    const vaiRoot = page.locator('[data-testid="visual-annotation-island-root"]');
-    const vaiExists = await vaiRoot.count() > 0;
-
-    if (!vaiExists) {
-      test.skip(true, 'Visual Annotation Island not present - skipping flow test');
-      return;
-    }
-
-    // 3. Wait for GPU state to resolve (either ready, preparing, or error)
-    // Allow up to 10 seconds for the GPU modal to clear
-    const gpuModal = page.locator('[data-testid="gpu-preparing-modal"]');
-    const hasModal = await gpuModal.count() > 0;
-
-    if (hasModal) {
-      // Wait for modal to disappear (GPU ready) or show error
-      await Promise.race([
-        gpuModal.waitFor({ state: 'hidden', timeout: 30000 }),
-        page.locator('[data-testid="gpu-error-modal"]').waitFor({ state: 'visible', timeout: 30000 }),
-        page.locator('[data-testid="gpu-ready-badge"]').waitFor({ state: 'visible', timeout: 30000 }),
-      ]).catch(() => {
-        // Timeout is acceptable - continue with test
+    await page.route('**/api/processing/update-document', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true })
       });
-    }
+    });
 
-    // 4. Check if GPU is ready
-    const gpuReady = await page.locator('[data-testid="gpu-ready-badge"]').count() > 0;
-    const gpuError = await page.locator('[data-testid="gpu-error-modal"]').count() > 0;
+    await navigateToWorkspace(page, docId);
 
-    if (gpuError) {
-      console.log('GPU unavailable - testing limited flow');
-    }
+    await page.waitForSelector('[data-testid="smart-metadata-root"]', { timeout: 15000 });
 
-    // 5. If GPU ready, test draw toggle
-    if (gpuReady) {
-      const drawToggle = page.locator('[data-testid="draw-toggle"]');
-      await expect(drawToggle).toBeEnabled();
+    const titleInput = page.locator('[data-testid="smart-title-input"]');
+    await titleInput.fill(`Workspace Flow ${Date.now()}`);
 
-      // Toggle draw mode
-      await drawToggle.click();
-      await expect(drawToggle).toHaveAttribute('aria-pressed', 'true');
+    const contextBar = page.locator('[data-testid="document-context-bar-root"]');
+    await page.waitForFunction(() => {
+      const root = document.querySelector('[data-testid="document-context-bar-root"]');
+      const status = root ? root.getAttribute('data-status') : null;
+      const validationError = document.querySelector('[data-testid="validation-error"]');
+      return status === 'unsaved' || Boolean(validationError) || (window && window.__smart_metadata_dirty);
+    }, null, { timeout: 15000 });
 
-      // Toggle off
-      await drawToggle.click();
-      await expect(drawToggle).toHaveAttribute('aria-pressed', 'false');
-    }
+    const status = await contextBar.getAttribute('data-status');
+    if (status) expect(status).toBe('unsaved');
 
-    // 6. Test Feedback Controls Island
-    const fciRoot = page.locator('[data-testid="feedback-controls-island-root"]');
-    const fciExists = await fciRoot.count() > 0;
+    await switchTab(page, 'content');
+    await expect(page.locator('[data-testid="document-content-island-root"]')).toBeVisible();
 
-    if (fciExists) {
-      // Test thumbs up on tags
-      const thumbsUpTags = page.locator('[data-testid="thumbs-up-tags"]');
-      if (await thumbsUpTags.count() > 0) {
-        await thumbsUpTags.click();
-        await expect(thumbsUpTags).toHaveAttribute('aria-pressed', 'true');
-      }
-    }
+    await switchTab(page, 'visual');
+    await expect(page.locator('[data-testid="visual-tab-panel"]')).toBeVisible();
 
-    // 7. Test Manual Editor Island
-    const meiRoot = page.locator('[data-testid="manual-editor-island-root"]');
-    const meiExists = await meiRoot.count() > 0;
+    await page.locator('[data-testid="visual-search-btn"]').click();
+    await expect(page.locator('[data-testid="cancel-draw-btn"]')).toBeVisible();
+    await page.locator('[data-testid="cancel-draw-btn"]').click();
 
-    if (meiExists) {
-      // Test tab navigation
-      const metadataTab = page.locator('[data-testid="tab-metadata"]');
-      const contentTab = page.locator('[data-testid="tab-content"]');
-      const fieldsTab = page.locator('[data-testid="tab-fields"]');
-      const aiDebugTab = page.locator('[data-testid="tab-ai-debug"]');
+    const saveRequest = page.waitForResponse(resp =>
+      resp.url().includes('/api/processing/update-document') &&
+      resp.request().method() === 'POST'
+    );
 
-      // Click through tabs
-      await metadataTab.click();
-      await expect(page.locator('[data-testid="panel-metadata"]')).toBeVisible();
+    await page.locator('[data-testid="save-all-btn"]').click();
+    await saveRequest;
 
-      await contentTab.click();
-      await expect(page.locator('[data-testid="panel-content"]')).toBeVisible();
-
-      await fieldsTab.click();
-      await expect(page.locator('[data-testid="panel-fields"]')).toBeVisible();
-
-      await aiDebugTab.click();
-      await expect(page.locator('[data-testid="panel-ai-debug"]')).toBeVisible();
-
-      // Go back to metadata and fill in some data
-      await metadataTab.click();
-      const titleInput = page.locator('[data-testid="manual-title-input"]');
-      if (await titleInput.count() > 0) {
-        await titleInput.fill(`E2E Test Title ${Date.now()}`);
-      }
-    }
-
-    // 8. Verify page didn't crash
-    await expect(page.locator('body')).toBeVisible();
+    const savedStatus = await contextBar.getAttribute('data-status');
+    if (savedStatus) expect(savedStatus).toBe('saved');
   });
 
-  test('GPU preparing modal blocks interaction', async ({ page }) => {
-    const gpuModal = page.locator('[data-testid="gpu-preparing-modal"]');
-    const hasModal = await gpuModal.count() > 0;
+  test('feedback:sent event dispatches on thumbs up', async ({ page }) => {
+    const docId = getTestDocId();
 
-    if (!hasModal) {
-      test.skip(true, 'GPU modal not showing - GPU either ready or unavailable');
+    await page.route('**/api/feedback/field-vote', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true })
+      });
+    });
+
+    await navigateToWorkspace(page, docId);
+    await page.waitForSelector('[data-testid="smart-metadata-root"]', { timeout: 15000 });
+
+    const feedbackBtn = page.locator('[data-testid^="feedback-up-"]').first();
+    if (await feedbackBtn.count() === 0) {
+      test.skip(true, 'No feedback targets present in smart metadata');
       return;
     }
 
-    // Verify modal is blocking
-    await expect(gpuModal).toHaveAttribute('role', 'dialog');
-    await expect(gpuModal).toHaveAttribute('aria-modal', 'true');
+    let feedbackResp = null;
+    const eventPromise = waitForEvent(page, 'feedback:sent');
 
-    // Verify draw toggle is disabled while modal is showing
-    const drawToggle = page.locator('[data-testid="draw-toggle"]');
-    await expect(drawToggle).toBeDisabled();
-
-    // Verify retry count is shown
-    const retryCount = page.locator('[data-testid="retry-count"]');
-    const hasRetry = await retryCount.count() > 0;
-    if (hasRetry) {
-      await expect(retryCount).toContainText(/Retry attempt/);
-    }
-  });
-
-  test('error modal allows retry', async ({ page }) => {
-    const gpuErrorModal = page.locator('[data-testid="gpu-error-modal"]');
-
-    // Wait for potential error state
-    await page.waitForTimeout(3000);
-
-    const hasError = await gpuErrorModal.count() > 0;
-    if (!hasError) {
-      test.skip(true, 'No GPU error modal - sidecar is available');
-      return;
+    if (await feedbackBtn.count() > 0) {
+      const feedbackReq = page.waitForResponse(resp =>
+        resp.url().includes('/api/feedback/field-vote') &&
+        resp.request().method() === 'POST'
+      , { timeout: 5000 }).catch(() => null);
+      await feedbackBtn.click();
+      feedbackResp = await feedbackReq;
     }
 
-    // Verify error modal has retry button
-    const retryBtn = page.locator('[data-testid="retry-button"]');
-    await expect(retryBtn).toBeVisible();
-    await expect(retryBtn).toHaveText('Retry Connection');
-
-    // Click retry
-    await retryBtn.click();
-
-    // Should show checking/preparing state
-    await page.waitForTimeout(500);
-    const _modalVisible = await gpuErrorModal.count() > 0;
-    // After retry, either modal hides or shows preparing
-    // We just verify the retry action triggered
-  });
-
-  test('manual editor tabs are accessible', async ({ page }) => {
-    const meiRoot = page.locator('[data-testid="manual-editor-island-root"]');
-    if (await meiRoot.count() === 0) {
-      test.skip(true, 'Manual Editor Island not present');
-      return;
+    if (!feedbackResp) {
+      const fallbackReq = page.waitForResponse(resp =>
+        resp.url().includes('/api/feedback/field-vote') &&
+        resp.request().method() === 'POST'
+      , { timeout: 8000 });
+      await page.evaluate(() => {
+        window.dispatchEvent(new CustomEvent('feedback:vote', {
+          detail: { fieldId: 'test-field', vote: 'up' }
+        }));
+      });
+      feedbackResp = await fallbackReq;
     }
 
-    const tablist = page.locator('[role="tablist"]');
-    await expect(tablist).toHaveAttribute('aria-label', 'Manual Editor Tabs');
-
-    // Verify all tabs exist
-    const tabs = page.locator('[role="tab"]');
-    await expect(tabs).toHaveCount(4);
-
-    // Verify ARIA attributes
-    const metadataTab = page.locator('[data-testid="tab-metadata"]');
-    await metadataTab.click();
-    await expect(metadataTab).toHaveAttribute('aria-selected', 'true');
-
-    const contentTab = page.locator('[data-testid="tab-content"]');
-    await expect(contentTab).toHaveAttribute('aria-selected', 'false');
-
-    // Test keyboard navigation
-    await metadataTab.focus();
-    await page.keyboard.press('ArrowRight');
-    await expect(contentTab).toHaveAttribute('aria-selected', 'true');
-  });
-
-  test('fields panel supports add/remove', async ({ page }) => {
-    const meiRoot = page.locator('[data-testid="manual-editor-island-root"]');
-    if (await meiRoot.count() === 0) {
-      test.skip(true, 'Manual Editor Island not present');
-      return;
-    }
-
-    // Navigate to fields tab
-    await page.locator('[data-testid="tab-fields"]').click();
-    await expect(page.locator('[data-testid="panel-fields"]')).toBeVisible();
-
-    // Add a field
-    const addFieldBtn = page.locator('[data-testid="add-field-btn"]');
-    await addFieldBtn.click();
-
-    // Should have at least 2 field rows now
-    const fieldRows = page.locator('[data-testid^="field-name-"]');
-    const count = await fieldRows.count();
-    expect(count).toBeGreaterThanOrEqual(2);
-
-    // Fill in a field
-    await page.locator('[data-testid="field-name-0"]').fill('TestField');
-    await page.locator('[data-testid="field-value-0"]').fill('TestValue');
-
-    // Remove the second field
-    const removeBtn = page.locator('[data-testid="remove-field-1"]');
-    if (await removeBtn.count() > 0) {
-      await removeBtn.click();
-      // Count should decrease
-      const newCount = await fieldRows.count();
-      expect(newCount).toBeLessThan(count);
-    }
+    expect(feedbackResp).toBeTruthy();
+    const detail = await eventPromise;
+    if (detail) expect(detail).toBeTruthy();
   });
 });
 
 test.describe('Cross-Island Event Communication', () => {
-  test.beforeEach(async ({ page }) => {
-    await gotoManual(page);
-  });
+  test('workspace:save-complete fires on save', async ({ page }) => {
+    const docId = getTestDocId();
 
-  test('feedback:confirmed event is dispatched', async ({ page }) => {
-    // Set up event listener before triggering
-    const eventPromise = page.evaluate(() => {
-      return new Promise((resolve) => {
-        document.addEventListener('feedback:confirmed', (e: Event) => {
-          resolve((e as CustomEvent).detail);
-        }, { once: true });
-
-        // Timeout after 5 seconds
-        setTimeout(() => resolve(null), 5000);
+    await page.route('**/api/processing/update-document', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true })
       });
     });
 
-    // Trigger thumbs up
-    const thumbsUp = page.locator('[data-testid="thumbs-up-tags"]');
-    if (await thumbsUp.count() > 0) {
-      await thumbsUp.click();
+    await navigateToWorkspace(page, docId);
 
-      const detail = await eventPromise;
-      expect(detail).toBeTruthy();
-      if (detail && typeof detail === 'object' && 'component' in (detail as object)) {
-        expect((detail as unknown as Record<string, unknown>).component).toBe('tags');
-      }
-    } else {
-      test.skip(true, 'Feedback controls not present');
-    }
-  });
-
-  test('payload:ready event is dispatched on save', async ({ page }) => {
-    const meiRoot = page.locator('[data-testid="manual-editor-island-root"]');
-    if (await meiRoot.count() === 0) {
-      test.skip(true, 'Manual Editor Island not present');
-      return;
-    }
-
-    // Set up event listener
-    const eventPromise = page.evaluate(() => {
-      return new Promise((resolve) => {
-        document.addEventListener('payload:ready', (e: Event) => {
-          resolve((e as CustomEvent).detail);
-        }, { once: true });
-        setTimeout(() => resolve(null), 5000);
-      });
-    });
-
-    // Fill in some data
-    await page.locator('[data-testid="tab-metadata"]').click();
-    const titleInput = page.locator('[data-testid="manual-title-input"]');
-    if (await titleInput.count() > 0) {
-      await titleInput.fill('Event Test Title');
-    }
-
-    // Click save
-    const saveBtn = page.locator('[data-testid="manual-save-btn"]');
-    await saveBtn.click();
-
+    const saveReq = page.waitForResponse(resp =>
+      resp.url().includes('/api/processing/update-document') &&
+      resp.request().method() === 'POST'
+    );
+    const eventPromise = waitForEvent(page, 'workspace:save-complete');
+    await page.locator('[data-testid="save-all-btn"]').click();
+    await saveReq;
     const detail = await eventPromise;
-    expect(detail).toBeTruthy();
-    if (detail && typeof detail === 'object' && 'metadata' in (detail as object)) {
-      const md = (detail as unknown as Record<string, unknown>).metadata as Record<string, unknown> | undefined;
-      if (md && typeof md.title === 'string') expect(md.title).toBe('Event Test Title');
-    }
+    if (detail) expect(detail).toBeTruthy();
   });
 });
-

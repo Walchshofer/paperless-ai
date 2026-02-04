@@ -193,7 +193,7 @@ test.describe('Telemetry Metrics Verification', () => {
 
 test.describe('GPU Warmup Flow Verification', () => {
   test('UI shows GPU preparing state during warmup', async ({ page }) => {
-    await page.goto(`${BASE_URL}/manual`, { waitUntil: 'domcontentloaded', timeout: 10000 });
+    await page.goto(`${BASE_URL}/workspace/doc/latest?tab=visual`, { waitUntil: 'domcontentloaded', timeout: 10000 });
 
     // Check for GPU preparing modal
     const gpuModal = page.locator('[data-testid="gpu-preparing-modal"]');
@@ -234,7 +234,7 @@ test.describe('GPU Warmup Flow Verification', () => {
 
   test('exponential backoff increases retry delay', async ({ page }) => {
     // Navigate and observe retry timing
-    await page.goto(`${BASE_URL}/manual`, { waitUntil: 'domcontentloaded', timeout: 5000 });
+    await page.goto(`${BASE_URL}/workspace/doc/latest?tab=visual`, { waitUntil: 'domcontentloaded', timeout: 5000 });
 
     // If GPU modal is visible, wait and observe retries
     const gpuModal = page.locator('[data-testid="gpu-preparing-modal"]');
@@ -275,7 +275,7 @@ test.describe('GPU Warmup Flow Verification', () => {
   });
 
   test('error state shows retry button', async ({ page }) => {
-    await page.goto(`${BASE_URL}/manual`, { waitUntil: 'domcontentloaded', timeout: 10000 });
+    await page.goto(`${BASE_URL}/workspace/doc/latest?tab=visual`, { waitUntil: 'domcontentloaded', timeout: 10000 });
 
     // Wait for potential error state (longer timeout for retries to exhaust)
     await page.waitForTimeout(5000);

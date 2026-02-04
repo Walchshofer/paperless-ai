@@ -675,13 +675,37 @@ class IngestionManager {
         const health = {
             visualSearchClient: false,
             overlayRepository: false,
-            overlayExtractor: true  // Always available if Ollama is running
+            overlayExtractor: true,  // Always available if Ollama is running
+            status: 'unavailable',
+            model_loaded: false,
+            initializing: false
         };
 
         try {
-            health.visualSearchClient = await this.visualSearchClient.isAvailable();
+            const visualHealth = await this.visualSearchClient.health();
+            const modelLoaded = Boolean(
+                visualHealth?.model_loaded ??
+                visualHealth?.init?.model_loaded
+            );
+            health.visualSearchClient = modelLoaded;
+            health.model_loaded = modelLoaded;
+            health.initializing = Boolean(
+                visualHealth?.initializing ??
+                visualHealth?.init?.initializing ??
+                visualHealth?.status === 'initializing'
+            );
+            health.status = visualHealth?.status || (modelLoaded ? 'ok' : 'unavailable');
         } catch (error) {
             logger.debug(`[IngestionManager] Visual search client check failed: ${error.message}`);
+            try {
+                health.visualSearchClient = await this.visualSearchClient.isAvailable();
+            } catch (fallbackError) {
+                logger.debug(`[IngestionManager] Visual search availability fallback failed: ${fallbackError.message}`);
+            }
+            if (health.visualSearchClient) {
+                health.status = 'ok';
+                health.model_loaded = true;
+            }
         }
 
         try {
