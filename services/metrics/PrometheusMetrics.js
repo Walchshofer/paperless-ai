@@ -139,6 +139,17 @@ class PrometheusMetrics {
             'Visual query timeouts.',
             ['document_type', 'query_type']
         );
+        this.ocrGuidedFallbackTotal = this._getOrCreateCounter(
+            'ocr_guided_fallback_total',
+            'OCR-guided visual fallback usage.',
+            ['document_type', 'outcome']
+        );
+        this.ocrGuidedFallbackLatency = this._getOrCreateHistogram(
+            'ocr_guided_fallback_latency_ms',
+            'OCR-guided visual fallback latency (ms).',
+            ['document_type'],
+            [50, 100, 200, 500, 1000, 2000, 5000]
+        );
         this.ocrConflictsTotal = this._getOrCreateCounter(
             'ocr_conflicts_total',
             'OCR reconciliation conflicts.',
@@ -374,6 +385,24 @@ class PrometheusMetrics {
         this._safeRun(() => {
             this.visualQueryExecutionTime.labels(docType).observe(durationMs);
         }, 'visual_query_execution_time');
+    }
+
+    observeOcrGuidedLatency(documentType, durationMs) {
+        if (!this.enabled) return;
+        if (!Number.isFinite(durationMs)) return;
+        const docType = this._normalizeDocumentType(documentType);
+        this._safeRun(() => {
+            this.ocrGuidedFallbackLatency.labels(docType).observe(durationMs);
+        }, 'ocr_guided_fallback_latency');
+    }
+
+    recordOcrGuidedFallback(documentType, outcome) {
+        if (!this.enabled) return;
+        const docType = this._normalizeDocumentType(documentType);
+        const status = outcome || 'used';
+        this._safeRun(() => {
+            this.ocrGuidedFallbackTotal.labels(docType, status).inc();
+        }, 'ocr_guided_fallback_total');
     }
 
     incrementVisualQueriesExecuted(documentType, queryType) {

@@ -30,7 +30,46 @@ const UnifiedWorkspaceSchema = z.object({
     correspondentId: z.coerce.number().int().nullable(),
     documentType: z.string().nullable(),
     documentTypeId: z.coerce.number().int().nullable(),
+    documentDomain: z.string().nullable().optional(),
+    fieldProfile: z.object({
+      domain: z.string().optional(),
+      displayName: z.string().optional(),
+      icon: z.string().optional(),
+      requiredFields: z.array(z.object({
+        fieldId: z.string().optional(),
+        label: z.string().optional(),
+        paperlessField: z.string().nullable().optional(),
+        type: z.string().optional(),
+        enum: z.array(z.string()).optional(),
+        validationRules: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+        isMandatory: z.boolean().optional()
+      })).optional(),
+      optionalFields: z.array(z.object({
+        fieldId: z.string().optional(),
+        label: z.string().optional(),
+        paperlessField: z.string().nullable().optional(),
+        type: z.string().optional(),
+        enum: z.array(z.string()).optional(),
+        validationRules: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+        isMandatory: z.boolean().optional()
+      })).optional()
+    }).optional(),
+    customFields: z.array(z.object({
+      field: z.any().optional(),
+      name: z.string().optional(),
+      value: z.any().optional(),
+    }).passthrough()).optional().default([]),
     tags: z.array(z.string()).default([]),
+    tagItems: z.array(z.object({
+      id: z.coerce.number().int(),
+      name: z.string(),
+      color: z.string().nullable().optional(),
+    })).optional().default([]),
+    availableTags: z.array(z.object({
+      id: z.coerce.number().int(),
+      name: z.string(),
+      color: z.string().nullable().optional(),
+    })).optional().default([]),
     pageCount: z.coerce.number().int().nullable(),
     currentPage: z.coerce.number().int().default(1),
     mimeType: z.string().nullable(),
@@ -50,11 +89,16 @@ const UnifiedWorkspaceSchema = z.object({
 
   visual: z.object({
     fields: z.array(z.object({
+      id: z.string().optional(),
       label: z.string(),
       value: z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.string())]),
       domain: z.string(),
       confidence: z.coerce.number(),
       paperlessMapping: z.string().nullable().optional(),
+      paperlessField: z.string().nullable().optional(),
+      mappingConfidence: z.coerce.number().nullable().optional(),
+      matchType: z.enum(['exact', 'fuzzy', 'none']).nullable().optional(),
+      overlayId: z.string().nullable().optional(),
       isMandatory: z.boolean().default(false),
       pageNumber: z.coerce.number().int().default(1),
     })).default([]),

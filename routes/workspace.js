@@ -8,6 +8,8 @@ const {
   buildPaperlessDocumentUrl
 } = require('../services/utils/paperlessUrl');
 const { authenticate } = require('../middleware/auth');
+const { fieldMappingService } = require('../services/experts/FieldMappingService');
+const { domainResolver } = require('../services/visual-rag-client/DomainResolver');
 
 // All workspace routes require authentication
 router.use(authenticate);
@@ -127,21 +129,71 @@ router.get('/doc/:id', async (req, res) => {
       }
     }
 
-    // 6. Resolve tag names
+    // 6. Resolve tags (names + IDs + available list)
     let tagNames = [];
-    if (document.tags && document.tags.length > 0) {
-      try {
-        const allTags = await paperlessService.getTags();
-        tagNames = document.tags
+    let tagItems = [];
+    let availableTags = [];
+    try {
+      const allTags = await paperlessService.getTags();
+      availableTags = allTags.map(tag => ({
+        id: tag.id,
+        name: tag.name,
+        color: tag.color || tag.colour || null
+      }));
+      if (document.tags && document.tags.length > 0) {
+        tagItems = document.tags
           .map(tagId => {
             const tag = allTags.find(t => t.id === tagId);
-            return tag?.name || null;
+            if (!tag) return null;
+            return {
+              id: tag.id,
+              name: tag.name,
+              color: tag.color || tag.colour || null
+            };
           })
-          .filter(name => name !== null);
-      } catch (e) {
-        console.warn('[Unified Workspace] Could not resolve tag names:', e.message);
+          .filter(tag => tag !== null);
+        tagNames = tagItems.map(tag => tag.name);
       }
+    } catch (e) {
+      console.warn('[Unified Workspace] Could not resolve tag names:', e.message);
     }
+
+    // 6.5 Resolve document domain + field profile for UI
+    let documentDomain = 'general';
+    try {
+      documentDomain = await domainResolver.resolveDomain(documentId, {
+        documentType: documentTypeName,
+        tags: tagNames,
+        content
+      });
+    } catch (e) {
+      console.warn('[Unified Workspace] Domain resolution failed:', e.message);
+    }
+
+    const domainMapping = fieldMappingService.domainMappings?.[documentDomain] || {};
+    const fieldProfile = {
+      domain: documentDomain,
+      displayName: domainMapping.displayName?.en || `${documentDomain} document`,
+      icon: domainMapping.icon || '📄',
+      requiredFields: fieldMappingService.getRequiredFields(documentDomain).map(field => ({
+        fieldId: field.fieldId,
+        label: field.displayName?.en || field.fieldId,
+        paperlessField: field.paperlessField || null,
+        type: field.type,
+        enum: Array.isArray(field.enum) ? field.enum : undefined,
+        validationRules: field.validationRules || {},
+        isMandatory: true
+      })),
+      optionalFields: fieldMappingService.getOptionalFields(documentDomain).map(field => ({
+        fieldId: field.fieldId,
+        label: field.displayName?.en || field.fieldId,
+        paperlessField: field.paperlessField || null,
+        type: field.type,
+        enum: Array.isArray(field.enum) ? field.enum : undefined,
+        validationRules: field.validationRules || {},
+        isMandatory: false
+      }))
+    };
 
     // 7. Visual RAG Data
     let visualFields = [];
@@ -154,11 +206,16 @@ router.get('/doc/:id', async (req, res) => {
         visualFields = overlays.map(o => {
           const data = o.overlayData || {};
           return {
+            id: String(o.id),
+            overlayId: String(o.id),
             label: data.label || o.semanticLabel || 'Unknown',
             value: data.value || data.text || null,
             domain: data.domain || 'GENERAL',
             confidence: data.confidence || o.confidence || 0.5,
             paperlessMapping: data.paperlessMapping || null,
+            paperlessField: data.paperlessField || data.paperlessMapping || null,
+            mappingConfidence: data.mappingConfidence ?? null,
+            matchType: data.matchType || null,
             isMandatory: data.isMandatory || false,
             pageNumber: o.pageNumber || 1
           };
@@ -209,7 +266,11 @@ router.get('/doc/:id', async (req, res) => {
         correspondentId: document.correspondent || null,
         documentType: documentTypeName,
         documentTypeId: document.document_type || null,
+        documentDomain: documentDomain,
+        fieldProfile: fieldProfile,
         tags: tagNames,
+        tagItems: tagItems,
+        availableTags: availableTags,
         pageCount: document.page_count || 1,
         currentPage: 1,
         mimeType: document.mime_type,
@@ -220,6 +281,7 @@ router.get('/doc/:id', async (req, res) => {
         persistedNormalizedUrl: document.custom_fields?.ai_normalized_url || null,
         normalizationStatus: document.custom_fields?.ai_normalization_status || 'pending',
         normalizedUrl: document.custom_fields?.ai_normalized_url || `/api/normalized/${document.id}/1`,
+        customFields: document.custom_fields || [],
         status: 'saved',
       },
       availableDocuments: availableDocs.map(d => ({
@@ -329,19 +391,32 @@ router.get('/api/doc/:id', async (req, res) => {
       } catch (e) { /* ignore */ }
     }
 
-    // Resolve tag names
+    // Resolve tags (names + IDs + available list)
     let tagNames = [];
-    if (document.tags && document.tags.length > 0) {
-      try {
-        const allTags = await paperlessService.getTags();
-        tagNames = document.tags
+    let tagItems = [];
+    let availableTags = [];
+    try {
+      const allTags = await paperlessService.getTags();
+      availableTags = allTags.map(tag => ({
+        id: tag.id,
+        name: tag.name,
+        color: tag.color || tag.colour || null
+      }));
+      if (document.tags && document.tags.length > 0) {
+        tagItems = document.tags
           .map(tagId => {
             const tag = allTags.find(t => t.id === tagId);
-            return tag?.name || null;
+            if (!tag) return null;
+            return {
+              id: tag.id,
+              name: tag.name,
+              color: tag.color || tag.colour || null
+            };
           })
-          .filter(name => name !== null);
-      } catch (e) { /* ignore */ }
-    }
+          .filter(tag => tag !== null);
+        tagNames = tagItems.map(tag => tag.name);
+      }
+    } catch (e) { /* ignore */ }
 
     // Build response
     res.json({
@@ -352,6 +427,8 @@ router.get('/api/doc/:id', async (req, res) => {
       documentType: documentTypeName,
       documentTypeId: document.document_type || null,
       tags: tagNames,
+      tagItems,
+      availableTags,
       pageCount: document.page_count || 1,
       mimeType: document.mime_type,
       originalUrl: buildPaperlessDocumentUrl(

@@ -524,6 +524,7 @@ describe('VisualQueryExecutor', () => {
             executor = new VisualQueryExecutor(mockVisualSearchClient, {
                 ocrFallbackEnabled: true,
                 ocrFallbackConfidenceThreshold: 0.7,
+                ocrCrossValidationEnabled: false,
                 paperlessService: mockPaperless
             });
 

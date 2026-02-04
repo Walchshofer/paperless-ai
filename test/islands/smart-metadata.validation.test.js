@@ -20,23 +20,26 @@ describe('SmartMetadataIsland - validation', function () {
     delete global.window;
   });
 
-  it('does not mark workspace dirty when initial customFields fail Zod validation', async () => {
+  it('does not mark workspace dirty when required fields are missing', async () => {
     const root = document.createElement('div');
     document.body.appendChild(root);
 
-    // invalid field: missing id
-    const fields = [{ id: null, label: 'Bad Field', value: 'X' }];
+    const profile = {
+      domain: 'financial',
+      requiredFields: [{ fieldId: 'invoice_number', label: 'Invoice No', paperlessField: 'custom_field:invoice_number' }],
+      optionalFields: []
+    };
 
-    render(h(SmartMetadataIsland, { documentId: 99, customFields: fields }), root);
-    await new Promise((r) => setTimeout(r, 20));
+    render(h(SmartMetadataIsland, { documentId: 99, fieldProfile: profile }), root);
+    await new Promise((r) => setTimeout(r, 60));
 
     let seen = null;
     window.addEventListener('workspace:dirty', (e) => { seen = e.detail; });
 
-    // attempt to change title; validation should fail because customFields invalid
+    // attempt to change title; validation should fail because required fields are missing
     const input = root.querySelector('[data-testid="smart-title-input"]');
     input.value = 'New Title';
-    input.dispatchEvent(new window.Event('input'));
+    input.dispatchEvent(new window.Event('input', { bubbles: true }));
 
     await new Promise((r) => setTimeout(r, 50));
 

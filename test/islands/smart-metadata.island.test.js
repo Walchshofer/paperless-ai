@@ -17,6 +17,15 @@ require('ts-node').register({
 const { h, render } = require('preact');
 const SmartMetadataIsland = require('../../src/islands/SmartMetadataIsland.tsx').default;
 
+async function waitForSelector(root, selector, attempts = 10, delayMs = 20) {
+  for (let i = 0; i < attempts; i += 1) {
+    const node = root.querySelector(selector);
+    if (node) return node;
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return null;
+}
+
 describe('SmartMetadataIsland - basic interactions', function () {
   let dom, document, window;
 
@@ -33,72 +42,117 @@ describe('SmartMetadataIsland - basic interactions', function () {
     delete global.window;
   });
 
-  it('renders custom fields and emits metadata:locate-field when locate clicked', async () => {
+  it('renders required fields and emits metadata:locate-field when locate clicked', async () => {
     const root = document.createElement('div');
     document.body.appendChild(root);
 
-    const fields = [{ id: 'f1', label: 'Invoice No', value: 'INV-1', overlayId: 'ov-1', pageNumber: 1 }];
+    const profile = {
+      domain: 'financial',
+      requiredFields: [{ fieldId: 'invoice_number', label: 'Invoice No', paperlessField: 'custom_field:invoice_number' }],
+      optionalFields: []
+    };
 
-    render(h(SmartMetadataIsland, { documentId: 42, customFields: fields }), root);
+    render(h(SmartMetadataIsland, {
+      documentId: 42,
+      fieldProfile: profile,
+      customFields: [{ name: 'invoice_number', value: 'INV-1' }]
+    }), root);
 
-    await new Promise((r) => setTimeout(r, 20));
-
-    const locateBtn = root.querySelector('[data-testid="locate-btn-f1"]');
+    const locateBtn = await waitForSelector(root, '[data-testid="locate-required-invoice-number"]');
     assert.ok(locateBtn, 'locate button should exist');
 
     let seen = null;
     window.addEventListener('metadata:locate-field', (e) => { seen = e.detail; });
 
-    locateBtn.click();
+    locateBtn.dispatchEvent(new window.Event('click', { bubbles: true }));
     await new Promise((r) => setTimeout(r, 10));
 
-    assert.deepStrictEqual(seen, { fieldId: 'f1' });
+    assert.deepStrictEqual(seen, { fieldId: 'custom_field:invoice_number' });
   });
 
   it('emits feedback:vote when thumbs up/down clicked', async () => {
     const root = document.createElement('div');
     document.body.appendChild(root);
 
-    const fields = [{ id: 'f2', label: 'Total', value: '100.00' }];
-    render(h(SmartMetadataIsland, { documentId: 42, customFields: fields }), root);
-    await new Promise((r) => setTimeout(r, 20));
-
+    const profile = { domain: 'general', requiredFields: [], optionalFields: [] };
+    const visualFields = [{ id: 'v1', label: 'Signature', value: 'Signed' }];
+    render(h(SmartMetadataIsland, { documentId: 42, fieldProfile: profile, visualFields }), root);
     let seen = [];
     window.addEventListener('feedback:vote', (e) => { seen.push(e.detail); });
 
-    const up = root.querySelector('[data-testid="feedback-up-f2"]');
-    const down = root.querySelector('[data-testid="feedback-down-f2"]');
+    const up = await waitForSelector(root, '[data-testid="feedback-up-v1"]');
+    const down = await waitForSelector(root, '[data-testid="feedback-down-v1"]');
     assert.ok(up && down, 'feedback buttons present');
 
-    up.click();
-    down.click();
+    up.dispatchEvent(new window.Event('click', { bubbles: true }));
+    down.dispatchEvent(new window.Event('click', { bubbles: true }));
     await new Promise((r) => setTimeout(r, 10));
 
     assert.strictEqual(seen.length, 2);
-    assert.deepStrictEqual(seen[0], { fieldId: 'f2', vote: 'up' });
-    assert.deepStrictEqual(seen[1], { fieldId: 'f2', vote: 'down' });
+    assert.deepStrictEqual(seen[0], { fieldId: 'v1', vote: 'up' });
+    assert.deepStrictEqual(seen[1], { fieldId: 'v1', vote: 'down' });
   });
 
   it('marks workspace dirty when input changed', async () => {
     const root = document.createElement('div');
     document.body.appendChild(root);
 
-    const fields = [{ id: 'f3', label: 'Currency', value: 'EUR' }];
-    render(h(SmartMetadataIsland, { documentId: 42, customFields: fields }), root);
-    await new Promise((r) => setTimeout(r, 20));
-
+    const profile = {
+      domain: 'financial',
+      requiredFields: [{ fieldId: 'invoice_number', label: 'Invoice No', paperlessField: 'custom_field:invoice_number' }],
+      optionalFields: []
+    };
+    render(h(SmartMetadataIsland, { documentId: 42, fieldProfile: profile }), root);
     let seen = null;
     window.addEventListener('workspace:dirty', (e) => { seen = e.detail; });
 
-    const input = root.querySelector('[data-testid="custom-field-value-f3"]');
+    const input = await waitForSelector(root, '[data-testid="required-field-value-invoice-number"]');
     assert.ok(input, 'value input exists');
 
     input.value = 'USD';
-    input.dispatchEvent(new window.Event('input'));
+    input.dispatchEvent(new window.Event('input', { bubbles: true }));
 
-    await new Promise((r) => setTimeout(r, 20));
+    await new Promise((r) => setTimeout(r, 60));
 
     assert.ok(window.__smart_metadata_dirty === true, 'test flag set');
     assert.deepStrictEqual(seen, { documentId: 42 });
+  });
+
+  it('emits tags:updated with tag IDs when adding/removing tags', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    const selectedTags = [{ id: 1, name: 'Finance', color: '#ffcc00' }];
+    const availableTags = [
+      { id: 1, name: 'Finance', color: '#ffcc00' },
+      { id: 2, name: 'Urgent', color: '#ff0000' }
+    ];
+
+    render(h(SmartMetadataIsland, {
+      documentId: 42,
+      selectedTags,
+      availableTags
+    }), root);
+
+    const seen = [];
+    window.addEventListener('tags:updated', (e) => { seen.push(e.detail); });
+
+    const select = await waitForSelector(root, '[data-testid="add-tag-select"]');
+    assert.ok(select, 'tag select exists');
+
+    select.value = '2';
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 20));
+
+    assert.ok(seen.length >= 1, 'tag add should emit event');
+    assert.ok(seen[seen.length - 1].tags.some((t) => t.id === 2), 'new tag id should be included');
+
+    const removeBtn = await waitForSelector(root, '[data-testid="tag-remove-1"]');
+    assert.ok(removeBtn, 'remove button exists');
+    removeBtn.dispatchEvent(new window.Event('click', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 20));
+
+    assert.ok(seen.length >= 2, 'tag remove should emit event');
+    assert.ok(!seen[seen.length - 1].tags.some((t) => t.id === 1), 'removed tag id should be absent');
   });
 });

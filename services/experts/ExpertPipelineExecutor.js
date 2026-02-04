@@ -162,6 +162,182 @@ class ExpertPipelineExecutor {
     return require('../ragService');
   }
 
+  _mapClassificationToDomain(classification) {
+    const raw =
+      classification?.primary_domain ||
+      classification?.classification?.primary_domain ||
+      classification?.document_type ||
+      classification?.documentType ||
+      classification;
+
+    if (!raw) {
+      return 'general';
+    }
+
+    const normalized = String(raw).toLowerCase();
+    if (normalized.includes('financial')) return 'financial';
+    if (normalized.includes('medical')) return 'medical';
+    if (normalized.includes('legal')) return 'legal';
+    if (normalized.includes('general')) return 'general';
+
+    return normalized || 'general';
+  }
+
+  _generateQueryForField(field, domain) {
+    const displayName =
+      field?.displayName?.en ||
+      field?.displayName?.de ||
+      field?.fieldId ||
+      field?.paperlessField ||
+      'field';
+
+    const labelHints = Array.isArray(field?.visualLabels)
+      ? field.visualLabels.slice(0, 2).join(', ')
+      : '';
+    const hint = labelHints ? ` (labels: ${labelHints})` : '';
+
+    const templates = {
+      financial: `Find the ${displayName} in this financial document${hint}.`,
+      medical: `Find the ${displayName} in this medical document${hint}.`,
+      legal: `Find the ${displayName} in this legal document${hint}.`,
+      general: `Find the ${displayName} in this document${hint}.`
+    };
+
+    return templates[domain] || templates.general;
+  }
+
+  _buildMissingFieldQueries(missingFields, domain) {
+    const required = Array.isArray(missingFields) ? missingFields : [];
+    return required.map(field => ({
+      question: this._generateQueryForField(field, domain),
+      field_target: field.fieldId,
+      expected_element_type: 'field_extraction',
+      priority: field.extractionPriority || 0.9,
+      visualLabels: field.visualLabels || [],
+      paperlessField: field.paperlessField || null
+    }));
+  }
+
+  _mergeMissingFieldQueries(seedQueries, generatedQueries) {
+    const merged = [];
+    const seen = new Set();
+
+    const addQuery = (query) => {
+      if (!query || !query.field_target) return;
+      const key = String(query.field_target);
+      if (seen.has(key)) return;
+      seen.add(key);
+      merged.push(query);
+    };
+
+    (Array.isArray(seedQueries) ? seedQueries : []).forEach(addQuery);
+    (Array.isArray(generatedQueries) ? generatedQueries : []).forEach(addQuery);
+
+    return merged;
+  }
+
+  _applyFieldMapping(extractionResults, domain, fieldMappingService) {
+    const mappingStart = Date.now();
+    const requiredFields = fieldMappingService.getRequiredFields(domain);
+    const optionalFields = fieldMappingService.getOptionalFields(domain);
+
+    const mappedFields = [];
+    const mappingStats = {
+      totalFields: 0,
+      exactMatches: 0,
+      fuzzyMatches: 0,
+      noMatches: 0,
+      avgConfidence: 0,
+      requiredFieldsCovered: 0,
+      requiredFieldsMissing: 0
+    };
+
+    let confidenceSum = 0;
+    let confidenceCount = 0;
+    const invalidFieldIds = new Set();
+
+    const validationStart = Date.now();
+
+    if (Array.isArray(extractionResults?.fields)) {
+      for (const field of extractionResults.fields) {
+        if (!field) continue;
+        const rawLabel = field.label || field.name || field.field_target;
+        const mapping = fieldMappingService.mapVisualToPaperless(
+          rawLabel,
+          domain,
+          field.confidence || 0
+        );
+
+        mappingStats.totalFields += 1;
+        if (mapping.matchType === 'exact') mappingStats.exactMatches += 1;
+        if (mapping.matchType === 'fuzzy') mappingStats.fuzzyMatches += 1;
+        if (mapping.matchType === 'none') mappingStats.noMatches += 1;
+
+        if (Number.isFinite(mapping.confidence)) {
+          confidenceSum += mapping.confidence;
+          confidenceCount += 1;
+        }
+
+        const mappedField = {
+          ...field,
+          original_label: field.label || field.name || null,
+          name: mapping.fieldId || field.name,
+          fieldId: mapping.fieldId,
+          paperlessField: mapping.paperlessField,
+          mappingConfidence: mapping.confidence,
+          matchType: mapping.matchType
+        };
+
+        if (mapping.fieldId) {
+          const validation = fieldMappingService.validateField(
+            mapping.fieldId,
+            mappedField.value
+          );
+          mappedField.validation = validation;
+          mappedField.validation_valid = validation.valid;
+
+          if (!validation.valid) {
+            mappedField.validation_error = validation.error;
+            mappedField.original_value = mappedField.value;
+            mappedField.value = null;
+            mappedField.confidence = 0;
+            mappedField.invalid = true;
+            invalidFieldIds.add(mapping.fieldId);
+          }
+        }
+
+        mappedFields.push(mappedField);
+      }
+    }
+
+    const validationLatencyMs = Date.now() - validationStart;
+    const extractedFieldIds = new Set(
+      mappedFields
+        .filter(field => field.fieldId && !invalidFieldIds.has(field.fieldId))
+        .map(field => field.fieldId)
+    );
+
+    const missingFields = requiredFields.filter(
+      field => !extractedFieldIds.has(field.fieldId)
+    );
+
+    mappingStats.avgConfidence = confidenceCount
+      ? confidenceSum / confidenceCount
+      : 0;
+    mappingStats.requiredFieldsCovered = requiredFields.length - missingFields.length;
+    mappingStats.requiredFieldsMissing = missingFields.length;
+
+    return {
+      mappedFields,
+      missingFields,
+      requiredFields,
+      optionalFields,
+      mappingStats,
+      mappingLatencyMs: Date.now() - mappingStart,
+      validationLatencyMs
+    };
+  }
+
   /**
    * Execute a complete pipeline for a document
    *
@@ -1283,6 +1459,54 @@ class ExpertPipelineExecutor {
           context.document?.documentType ||
           'general'
       };
+      const classificationOutput = context.getStageOutput('classification') || {};
+      const documentDomain = this._mapClassificationToDomain(
+        classificationOutput?.primary_domain ||
+        classificationOutput?.classification?.primary_domain ||
+        documentMetadata.documentType
+      );
+      documentMetadata.documentDomain = documentDomain;
+
+      let mappingContext = null;
+      let fieldMappingService = null;
+      let missingFieldQueries = [];
+      let mappingStats = null;
+
+      try {
+        const mappingModule = require('./FieldMappingService');
+        fieldMappingService = mappingModule.fieldMappingService;
+        if (fieldMappingService && fieldMappingService.initialized) {
+          mappingContext = this._applyFieldMapping(
+            extractionResults,
+            documentDomain,
+            fieldMappingService
+          );
+          extractionResults.fields = mappingContext.mappedFields;
+          missingFieldQueries = this._buildMissingFieldQueries(
+            mappingContext.missingFields,
+            documentDomain
+          );
+          mappingStats = mappingContext.mappingStats;
+
+          logger.info({
+            event: 'field_mapping_executed',
+            documentId: documentMetadata.id,
+            domain: documentDomain,
+            mappingStats,
+            performance: {
+              mappingLatency: mappingContext.mappingLatencyMs,
+              validationLatency: mappingContext.validationLatencyMs
+            }
+          });
+        }
+      } catch (mappingError) {
+        logger.warn({
+          event: 'field_mapping_failed',
+          stageId: stage.id,
+          documentId: context.document?.id,
+          error: mappingError.message
+        });
+      }
 
       const allowedFields = new Set();
       const taxonomyFields = Array.isArray(fieldTaxonomy?.fields) ? fieldTaxonomy.fields : [];
@@ -1294,6 +1518,13 @@ class ExpertPipelineExecutor {
       if (Array.isArray(extractionResults.fields)) {
         for (const field of extractionResults.fields) {
           if (field?.name) allowedFields.add(field.name);
+          if (field?.original_label) allowedFields.add(field.original_label);
+        }
+      }
+
+      if (mappingContext) {
+        for (const field of [...mappingContext.requiredFields, ...mappingContext.optionalFields]) {
+          if (field?.fieldId) allowedFields.add(field.fieldId);
         }
       }
 
@@ -1319,8 +1550,27 @@ class ExpertPipelineExecutor {
             if (!query || typeof query !== 'object') return null;
 
             const question = typeof query.question === 'string' ? query.question.trim() : '';
-            const fieldTarget = typeof query.field_target === 'string' ? query.field_target.trim() : '';
+            let fieldTarget = typeof query.field_target === 'string' ? query.field_target.trim() : '';
             if (!question || !fieldTarget) return null;
+
+            let paperlessField = query.paperlessField || null;
+            let mappingConfidence = null;
+            let matchType = null;
+            const mappingService = fieldMappingService;
+
+            if (mappingService && mappingService.initialized) {
+              const mapping = mappingService.mapVisualToPaperless(
+                fieldTarget,
+                documentDomain,
+                normalizeFloat(query.confidence, 0.6)
+              );
+              if (mapping?.fieldId) {
+                fieldTarget = mapping.fieldId;
+                paperlessField = mapping.paperlessField || paperlessField;
+                mappingConfidence = mapping.confidence;
+                matchType = mapping.matchType;
+              }
+            }
 
             if (hasAllowedFields && !allowedFields.has(fieldTarget)) return null;
 
@@ -1335,7 +1585,10 @@ class ExpertPipelineExecutor {
               priority: normalizeFloat(query.priority, 0.5),
               confidence: normalizeFloat(query.confidence, 0.6),
               rarity_factor: normalizeFloat(query.rarity_factor, 0.5),
-              source: sourceLabel
+              source: sourceLabel,
+              paperlessField,
+              mappingConfidence,
+              matchType
             };
           })
           .filter(Boolean);
@@ -1385,7 +1638,6 @@ class ExpertPipelineExecutor {
       let generated = null;
       let source = 'heuristic';
 
-      const documentDomain = String(documentMetadata.documentType || '').toLowerCase();
       let resolvedTemplate = stage.guidanceTemplate || null;
 
       if (
@@ -1488,6 +1740,13 @@ class ExpertPipelineExecutor {
         source = 'heuristic';
       }
 
+      if (missingFieldQueries.length > 0) {
+        normalizedQueries = this._mergeMissingFieldQueries(
+          missingFieldQueries,
+          normalizedQueries
+        );
+      }
+
       const timing = Date.now() - stageStart;
       const queryOutput = {
         queries: normalizedQueries,
@@ -1495,7 +1754,15 @@ class ExpertPipelineExecutor {
           total_queries_generated: normalizedQueries.length,
           success_rate: normalizedQueries.length > 0 ? 1 : 0,
           fields_targeted: normalizedQueries.map(q => q.field_target),
-          source
+          source,
+          domain: documentDomain,
+          mapped_fields: (mappingContext?.mappedFields || [])
+            .map(field => field.fieldId || field.name)
+            .filter(Boolean),
+          missing_fields: (mappingContext?.missingFields || []).map(field => field.fieldId),
+          mapping_stats: mappingStats,
+          mapping_latency_ms: mappingContext?.mappingLatencyMs,
+          validation_latency_ms: mappingContext?.validationLatencyMs
         },
         executionTimeMs: timing
       };

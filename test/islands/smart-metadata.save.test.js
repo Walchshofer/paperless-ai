@@ -9,6 +9,15 @@ require('ts-node').register({
 const { h, render } = require('preact');
 const SmartMetadataIsland = require('../../src/islands/SmartMetadataIsland.tsx').default;
 
+async function waitForSelector(root, selector, attempts = 10, delayMs = 20) {
+  for (let i = 0; i < attempts; i += 1) {
+    const node = root.querySelector(selector);
+    if (node) return node;
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return null;
+}
+
 describe('SmartMetadataIsland - participant save wiring', function () {
   let dom, document, window;
 
@@ -29,15 +38,24 @@ describe('SmartMetadataIsland - participant save wiring', function () {
     const root = document.createElement('div');
     document.body.appendChild(root);
 
-    const fields = [{ id: 'f1', label: 'Invoice No', value: 'INV-1' }];
-    render(h(SmartMetadataIsland, { documentId: 42, customFields: fields }), root);
+    const profile = {
+      domain: 'financial',
+      requiredFields: [{ fieldId: 'invoice_number', label: 'Invoice No', paperlessField: 'custom_field:invoice_number' }],
+      optionalFields: []
+    };
+    render(h(SmartMetadataIsland, {
+      documentId: 42,
+      fieldProfile: profile,
+      customFields: [{ name: 'invoice_number', value: 'INV-1' }]
+    }), root);
 
     // mark dirty
-    const input = root.querySelector('[data-testid="custom-field-value-f1"]');
+    const input = await waitForSelector(root, '[data-testid="required-field-value-invoice-number"]');
+    assert.ok(input, 'value input exists');
     input.value = 'INV-2';
-    input.dispatchEvent(new window.Event('input'));
+    input.dispatchEvent(new window.Event('input', { bubbles: true }));
 
-    await new Promise((r) => setTimeout(r, 20));
+    await new Promise((r) => setTimeout(r, 60));
     assert.strictEqual(window.__smart_metadata_dirty, true);
 
     let ack = null;

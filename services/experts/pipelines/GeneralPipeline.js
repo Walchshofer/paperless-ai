@@ -121,7 +121,10 @@ const GeneralPipeline = {
             executorConfig: {
                 timeoutBudget: 500,
                 hardTimeout: 1000,
-                maxConcurrentQueries: 5
+                maxConcurrentQueries: 5,
+                ocrFallbackEnabled: true,
+                ocrFallbackConfidenceThreshold: 0.7,
+                ocrCrossValidationEnabled: true
             }
         }
     ]

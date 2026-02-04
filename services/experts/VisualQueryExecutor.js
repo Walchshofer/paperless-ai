@@ -15,6 +15,7 @@ const logger = require('../logger');
 const { metricsCollector } = require('../metrics/PrometheusMetrics');
 const { CircuitBreaker, CircuitState } = require('./CircuitBreaker');
 const paperlessService = require('../paperlessService');
+const { OcrGuidedVisualSearch } = require('./OcrGuidedVisualSearch');
 
 /**
  * Base K values for different query types
@@ -44,7 +45,13 @@ const DEFAULT_CONFIG = {
     ocrFallbackConfidenceThreshold: 0.7,
     ocrFallbackMaxQueries: 5,
     ocrFallbackMaxQueryLength: 140,
-    ocrFallbackMinValueLength: 3
+    ocrFallbackMinValueLength: 3,
+    ocrFallbackOcrTimeoutMs: 1500,
+    ocrFallbackMaxKeyTerms: 12,
+    ocrFallbackMinOcrLength: 20,
+    ocrFallbackMaxOcrChars: 2000,
+    ocrCrossValidationEnabled: true,
+    ocrCrossValidationTimeoutMs: 1500
 };
 
 /**
@@ -75,6 +82,7 @@ class VisualQueryExecutor {
         const {
             metricsCollector: providedMetrics,
             paperlessService: providedPaperlessService,
+            ocrGuidedSearch: providedOcrGuidedSearch,
             ...executorOptions
         } = options;
         this.metricsCollector = providedMetrics || metricsCollector || null;
@@ -83,6 +91,21 @@ class VisualQueryExecutor {
             ...DEFAULT_CONFIG,
             ...executorOptions
         };
+
+        this.ocrGuidedSearch = providedOcrGuidedSearch ||
+            new OcrGuidedVisualSearch({
+                paperlessService: this.paperlessService,
+                metricsCollector: this.metricsCollector,
+                maxQueries: this.config.ocrFallbackMaxQueries,
+                maxQueryLength: this.config.ocrFallbackMaxQueryLength,
+                minValueLength: this.config.ocrFallbackMinValueLength,
+                maxKeyTerms: this.config.ocrFallbackMaxKeyTerms,
+                minOcrLength: this.config.ocrFallbackMinOcrLength,
+                maxOcrChars: this.config.ocrFallbackMaxOcrChars,
+                ocrFetchTimeoutMs: this.config.ocrFallbackOcrTimeoutMs,
+                crossValidationEnabled: this.config.ocrCrossValidationEnabled,
+                crossValidationTimeoutMs: this.config.ocrCrossValidationTimeoutMs
+            });
 
         // Initialize circuit breaker for sidecar protection
         this.circuitBreaker = new CircuitBreaker('visual-rag-sidecar', {
@@ -661,67 +684,16 @@ class VisualQueryExecutor {
     }
 
     _generateOcrGuidedQueries(ocrText, visualQueries, fields) {
-        if (!ocrText || typeof ocrText !== 'string') {
+        if (!this.ocrGuidedSearch ||
+            typeof this.ocrGuidedSearch._generateOcrGuidedQueries !== 'function') {
             return [];
         }
-        if (!Array.isArray(visualQueries) || visualQueries.length === 0) {
-            return [];
-        }
 
-        const normalizedOcr = ocrText.toLowerCase();
-        const valueByField = new Map();
-        for (const field of fields || []) {
-            if (!field || !field.name) {
-                continue;
-            }
-            const value = field.value;
-            if (value === null || value === undefined) {
-                continue;
-            }
-            const valueText = String(value).trim();
-            if (valueText.length < this.config.ocrFallbackMinValueLength) {
-                continue;
-            }
-            valueByField.set(field.name, valueText);
-        }
-
-        const guidedQueries = [];
-        const seen = new Set();
-
-        for (const query of visualQueries) {
-            if (!query?.question) {
-                continue;
-            }
-            const value = valueByField.get(query.field_target);
-            if (!value) {
-                continue;
-            }
-            if (!normalizedOcr.includes(value.toLowerCase())) {
-                continue;
-            }
-            const candidate = this._sanitizeQueryText(`${query.question} ${value}`);
-            if (!candidate) {
-                continue;
-            }
-            const key = candidate.toLowerCase();
-            if (key === query.question.toLowerCase()) {
-                continue;
-            }
-            if (seen.has(key)) {
-                continue;
-            }
-            seen.add(key);
-            guidedQueries.push({
-                ...query,
-                question: candidate,
-                ocr_guided: true
-            });
-            if (guidedQueries.length >= this.config.ocrFallbackMaxQueries) {
-                break;
-            }
-        }
-
-        return guidedQueries;
+        return this.ocrGuidedSearch._generateOcrGuidedQueries(
+            ocrText,
+            fields,
+            visualQueries
+        );
     }
 
     async executeWithOcrFallback(visualResult, documentMetadata, options = {}) {
@@ -733,119 +705,35 @@ class VisualQueryExecutor {
             return visualResult;
         }
 
-        const {
-            visualQueries = [],
-            extractionResults = {},
-            queryResults = [],
-            dedupedResults = [],
-            documentImage = null,
-            startTime = Date.now()
-        } = options;
-
-        if (!documentImage) {
-            logger.info({
-                event: 'visual_query_ocr_fallback_skipped',
-                documentId,
-                reason: 'no_image'
-            });
-            return visualResult;
-        }
-
-        if (!this.paperlessService ||
-            typeof this.paperlessService.getDocumentContent !== 'function') {
-            logger.info({
-                event: 'visual_query_ocr_fallback_skipped',
-                documentId,
-                reason: 'paperless_unavailable'
-            });
-            return visualResult;
-        }
-
-        let ocrText = null;
-        try {
-            ocrText = await this.paperlessService.getDocumentContent(documentId);
-        } catch (error) {
-            logger.warn({
-                event: 'visual_query_ocr_fallback_failed',
-                documentId,
-                error: error.message
-            });
-            return {
-                ...visualResult,
-                execution_metadata: {
-                    ...visualResult.execution_metadata,
-                    ocr_fallback_used: false,
-                    ocr_fallback_error: error.message
-                }
-            };
-        }
-
-        const ocrGuidedQueries = this._generateOcrGuidedQueries(
-            ocrText,
-            visualQueries,
-            visualResult.fields || []
-        );
-
-        if (ocrGuidedQueries.length === 0) {
-            logger.info({
-                event: 'visual_query_ocr_fallback_skipped',
-                documentId,
-                reason: 'no_ocr_context'
-            });
-            return visualResult;
-        }
-
-        logger.info({
-            event: 'visual_query_ocr_fallback_triggered',
+        const ocrGuidedSearch = this.ocrGuidedSearch;
+        const result = await ocrGuidedSearch.searchWithOcrGuidance(
+            visualResult,
             documentId,
-            visualConfidence: visualResult.execution_metadata?.visual_confidence,
-            queryCount: ocrGuidedQueries.length
-        });
-
-        const fallbackResults = await this._executeQueriesWithCircuitBreaker(
-            ocrGuidedQueries,
-            documentImage,
-            documentMetadata
+            documentMetadata?.documentType || 'general',
+            {
+                ...options,
+                documentMetadata,
+                executeQueries: this._executeQueriesWithCircuitBreaker.bind(this),
+                deduplicateBoundingBoxes: this._deduplicateBoundingBoxes.bind(this),
+                deduplicateCandidates: this._deduplicateCandidates.bind(this),
+                mergeResults: this._mergeResults.bind(this),
+                calculateOverlays: this._calculateOverlays.bind(this),
+                buildKValues: this._buildKValues.bind(this),
+                buildDedupStats: this._buildDedupStats.bind(this),
+                calculateVisualConfidence: this._calculateVisualConfidence.bind(this),
+                buildMetadata: this._buildMetadata.bind(this),
+                extractNewlyDiscovered: this._extractNewlyDiscovered.bind(this),
+                confidenceThreshold: this.config.ocrFallbackConfidenceThreshold
+            }
         );
 
-        const fallbackDeduped = this._deduplicateBoundingBoxes(fallbackResults);
-        const combinedDeduped = this._deduplicateCandidates([
-            ...(Array.isArray(dedupedResults) ? dedupedResults : []),
-            ...fallbackDeduped
-        ]);
+        if (result.execution_metadata) {
+            result.execution_metadata.ocr_fallback_confidence_threshold =
+                this.config.ocrFallbackConfidenceThreshold;
+        }
 
-        const mergedFields = this._mergeResults(
-            extractionResults,
-            combinedDeduped,
-            visualQueries
-        );
-
-        const overlays = this._calculateOverlays(combinedDeduped);
-        const combinedQueryResults = [
-            ...(Array.isArray(queryResults) ? queryResults : []),
-            ...fallbackResults
-        ];
-        const kValues = this._buildKValues(combinedQueryResults);
-        const dedupStats = this._buildDedupStats(combinedQueryResults, combinedDeduped);
-        const visualConfidence = this._calculateVisualConfidence(combinedQueryResults);
-        const metadata = this._buildMetadata(combinedQueryResults, startTime, {
-            kValues,
-            dedupStats,
-            visualConfidence
-        });
-
-        metadata.ocr_fallback_used = true;
-        metadata.ocr_fallback_confidence_threshold = this.config.ocrFallbackConfidenceThreshold;
-        metadata.ocr_fallback_visual_confidence_before =
-            visualResult.execution_metadata?.visual_confidence ?? null;
-        metadata.ocr_fallback_visual_confidence_after = visualConfidence;
-        metadata.ocr_guided_query_count = ocrGuidedQueries.length;
-        metadata.ocr_guided_hit_count = fallbackDeduped.length;
-        metadata.ocr_guided_query_examples = ocrGuidedQueries
-            .slice(0, 3)
-            .map(query => query.question);
-
-        if (this.metricsCollector?.recordFallback) {
+        if (result.execution_metadata?.ocr_fallback_used &&
+            this.metricsCollector?.recordFallback) {
             this.metricsCollector.recordFallback({
                 pipelineId: documentMetadata?.pipelineId,
                 from: 'visual',
@@ -854,20 +742,7 @@ class VisualQueryExecutor {
             });
         }
 
-        logger.info({
-            event: 'visual_query_ocr_fallback_complete',
-            documentId,
-            ocrGuidedHitCount: fallbackDeduped.length,
-            visualConfidence: visualConfidence
-        });
-
-        return {
-            ...visualResult,
-            fields: mergedFields,
-            newly_discovered_fields: this._extractNewlyDiscovered(mergedFields),
-            overlays,
-            execution_metadata: metadata
-        };
+        return result;
     }
 
     /**
@@ -1012,6 +887,8 @@ class VisualQueryExecutor {
         for (const visualResult of visualResults) {
             const fieldName = visualResult.query.field_target;
             const visualConfidence = visualResult.score;
+            const queryPaperlessField = visualResult.query?.paperlessField || null;
+            const queryMappingConfidence = visualResult.query?.mappingConfidence ?? null;
 
             if (extractedFieldsMap.has(fieldName)) {
                 // Field exists - fuse confidence scores
@@ -1028,6 +905,9 @@ class VisualQueryExecutor {
                     visual_confirmation: true,
                     visual_confidence: visualConfidence,
                     extraction_confidence: extractionConfidence,
+                    paperlessField: extractedField.paperlessField || queryPaperlessField,
+                    mappingConfidence:
+                        extractedField.mappingConfidence ?? queryMappingConfidence,
                     bounding_box: {
                         ...visualResult.box,
                         page_number: visualResult.page_number ?? null
@@ -1043,6 +923,8 @@ class VisualQueryExecutor {
                     value: null,  // Value extraction happens in next stage     
                     confidence: visualConfidence,
                     visual_confidence: visualConfidence,
+                    paperlessField: queryPaperlessField,
+                    mappingConfidence: queryMappingConfidence,
                     newly_discovered: true,
                     bounding_box: {
                         ...visualResult.box,

@@ -61,6 +61,13 @@ The system must emit structured telemetry for the following events:
 
 ---
 
+### `visual_query_ocr_fallback`
+- triggered when visual confidence falls below threshold
+- includes `ocr_guided_query_count`, `ocr_guided_hit_count`, `ocr_text_length`
+- cross-validation usage + latency
+
+---
+
 ### `prompt_truncated`
 - original token count
 - truncated token count
@@ -108,6 +115,8 @@ The system must emit structured telemetry for the following events:
 - ocr_conflicts_total
 - extraction_errors_total
 - integration_errors_total
+- ocr_guided_fallback_total
+- ocr_guided_fallback_latency_ms
 
 ## Prometheus Metrics (Canonical Names)
 
@@ -132,6 +141,8 @@ The system must emit structured telemetry for the following events:
 - visual_query_timeouts_total
 - ocr_source_attribution_rate
 - ocr_conflicts_total
+- ocr_guided_fallback_total
+- ocr_guided_fallback_latency_ms
 - extraction_accuracy_per_field_type
 - extraction_errors_total
 - integration_errors_total

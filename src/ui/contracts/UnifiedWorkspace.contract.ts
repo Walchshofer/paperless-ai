@@ -15,7 +15,46 @@ export const UnifiedWorkspaceSchema = z.object({
     correspondentId: z.number().int().nullable(),
     documentType: z.string().nullable(),
     documentTypeId: z.number().int().nullable(),
+    documentDomain: z.string().nullable().optional(),
+    fieldProfile: z.object({
+      domain: z.string().optional(),
+      displayName: z.string().optional(),
+      icon: z.string().optional(),
+      requiredFields: z.array(z.object({
+        fieldId: z.string().optional(),
+        label: z.string().optional(),
+        paperlessField: z.string().nullable().optional(),
+        type: z.string().optional(),
+        enum: z.array(z.string()).optional(),
+        validationRules: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+        isMandatory: z.boolean().optional()
+      })).optional(),
+      optionalFields: z.array(z.object({
+        fieldId: z.string().optional(),
+        label: z.string().optional(),
+        paperlessField: z.string().nullable().optional(),
+        type: z.string().optional(),
+        enum: z.array(z.string()).optional(),
+        validationRules: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+        isMandatory: z.boolean().optional()
+      })).optional()
+    }).optional(),
+    customFields: z.array(z.object({
+      field: z.any().optional(),
+      name: z.string().optional(),
+      value: z.any().optional(),
+    }).passthrough()).optional().default([]),
     tags: z.array(z.string()).default([]),
+    tagItems: z.array(z.object({
+      id: z.number().int(),
+      name: z.string(),
+      color: z.string().nullable().optional(),
+    })).optional().default([]),
+    availableTags: z.array(z.object({
+      id: z.number().int(),
+      name: z.string(),
+      color: z.string().nullable().optional(),
+    })).optional().default([]),
     pageCount: z.number().int().nullable(),
     currentPage: z.number().int().default(1),
     mimeType: z.string().nullable(),
@@ -45,11 +84,16 @@ export const UnifiedWorkspaceSchema = z.object({
   // Visual/RAG context
   visual: z.object({
     fields: z.array(z.object({
+      id: z.string().optional(),
       label: z.string(),
       value: z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.string())]),
       domain: z.string(),
       confidence: z.number(),
       paperlessMapping: z.string().nullable(),
+      paperlessField: z.string().nullable().optional(),
+      mappingConfidence: z.number().nullable().optional(),
+      matchType: z.enum(['exact', 'fuzzy', 'none']).nullable().optional(),
+      overlayId: z.string().nullable().optional(),
       isMandatory: z.boolean(),
       pageNumber: z.number().int(),
     })).default([]),

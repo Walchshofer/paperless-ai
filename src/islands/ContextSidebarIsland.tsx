@@ -24,6 +24,18 @@ interface SmartFieldLike {
   value?: string | number | boolean | string[];
   overlayId?: string | null;
   pageNumber?: number | null;
+  paperlessMapping?: string | null;
+  paperlessField?: string | null;
+  mappingConfidence?: number | null;
+  matchType?: 'exact' | 'fuzzy' | 'none' | null;
+  confidence?: number;
+  isMandatory?: boolean;
+}
+
+interface TagItem {
+  id: number;
+  name: string;
+  color?: string | null;
 }
 
 interface DocumentInfo {
@@ -31,7 +43,17 @@ interface DocumentInfo {
   title?: string;
   correspondent?: string;
   content?: string;
-  customFields?: SmartFieldLike[];
+  documentDomain?: string;
+  tagItems?: TagItem[];
+  availableTags?: TagItem[];
+  fieldProfile?: {
+    domain?: string;
+    displayName?: string;
+    icon?: string;
+    requiredFields?: SmartFieldLike[];
+    optionalFields?: SmartFieldLike[];
+  };
+  customFields?: Array<Record<string, unknown>>;
   [key: string]: unknown;
 }
 
@@ -43,6 +65,11 @@ interface VisualInfo {
     overlayId?: string;
     pageNumber?: number;
     confidence?: number;
+    paperlessMapping?: string | null;
+    paperlessField?: string | null;
+    mappingConfidence?: number | null;
+    matchType?: 'exact' | 'fuzzy' | 'none' | null;
+    value?: string | number | boolean | string[] | null;
   }>;
   overlays?: Array<{
     id: string;
@@ -186,7 +213,12 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
             <SmartMetadataIsland
               documentId={props.document?.id}
               metadata={props.document}
-              customFields={props.document?.customFields || props.visual?.fields}
+              selectedTags={props.document?.tagItems}
+              availableTags={props.document?.availableTags}
+              customFields={props.document?.customFields}
+              visualFields={props.visual?.fields}
+              fieldProfile={props.document?.fieldProfile}
+              documentDomain={props.document?.documentDomain}
             />
           </div>
         )}

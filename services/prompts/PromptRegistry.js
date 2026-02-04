@@ -994,6 +994,52 @@ Return this exact JSON structure:
 };
 
 /**
+ * OCR_GUIDED_CROSS_VALIDATE_V1: OCR-guided visual cross-validation
+ *
+ * Purpose: Correct low-confidence visual extractions using OCR context
+ * Output: JSON array of corrected fields
+ */
+const OCR_GUIDED_CROSS_VALIDATE_V1 = {
+    id: 'OCR_GUIDED_CROSS_VALIDATE_V1',
+    version: '1.0.0',
+    domain: DomainType.SYSTEM,
+    category: PromptCategory.VALIDATION,
+    model: MODEL_NAMES.general,
+    modelType: ModelType.TEXT_ONLY,
+
+    systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+You are an OCR cross-validation expert. Compare OCR text with visual
+extraction fields and correct errors. Preserve field names and return only
+valid JSON.
+Rules:
+- Fix common OCR mistakes (O vs 0, l vs 1, S vs $) when obvious.
+- Do not invent fields. Only correct existing field values.
+- Confidence must be between 0.0 and 1.0.
+<|eot_id|>`,
+
+    userTemplate: `<|start_header_id|>user<|end_header_id|>
+OCR TEXT:
+{{ocr_text}}
+
+VISUAL FIELDS (JSON):
+{{visual_fields}}
+
+VISUAL HITS (JSON):
+{{visual_hits}}
+
+DOMAIN:
+{{domain}}
+
+Return this exact JSON structure:
+[
+  {"name": "<field name>", "value": "<corrected value>", "confidence": <0.0-1.0>}
+]
+<|eot_id|>`,
+
+    config: { temperature: 0.1, maxTokens: 512, topK: 40, topP: 0.9 }
+};
+
+/**
  * VIS_SIGNAL_ANALYZER_V1: First-Pass Visual Signal Analysis
  *
  * Purpose: Fast, single-pass analysis of document geometry and type.
@@ -1379,6 +1425,7 @@ class PromptRegistry {
         this.register(LEGAL_EXTRACTOR_V1);
         this.register(GEN_FALLBACK_V1);
         this.register(VISUAL_QUERY_GENERATOR_V1);
+        this.register(OCR_GUIDED_CROSS_VALIDATE_V1);
 
         logger.info(`PromptRegistry initialized with ${this.prompts.size} prompts`);
     }
@@ -1637,5 +1684,6 @@ module.exports = {
     LEGAL_ORCHESTRATOR_V1,
     LEGAL_EXTRACTOR_V1,
     GEN_FALLBACK_V1,
-    VISUAL_QUERY_GENERATOR_V1
+    VISUAL_QUERY_GENERATOR_V1,
+    OCR_GUIDED_CROSS_VALIDATE_V1
 };
