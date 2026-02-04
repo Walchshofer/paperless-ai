@@ -1,424 +1,1745 @@
 {
-  "_version": "1.0.0",
-  "_description": "Central registry of all extractable fields. Field IDs are immutable once deployed.",
-
+  "_version": "2.0.0",
+  "_description": "Enhanced field registry for bidirectional mapping between Paperless-ngx fields and Visual RAG overlays.",
   "fields": {
     "title": {
       "type": "string",
       "description": "Document title (short, descriptive)",
       "required": true,
-      "maxLength": 128
+      "maxLength": 128,
+      "domain": "general",
+      "paperlessField": "metadata:title",
+      "visualLabels": [
+        "Title",
+        "Titel"
+      ],
+      "extractionPriority": 0.95,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Title",
+        "de": "Titel"
+      }
     },
     "correspondent": {
       "type": "string",
       "description": "Document sender/originator (not recipient)",
-      "required": true
+      "required": true,
+      "domain": "general",
+      "paperlessField": "metadata:correspondent",
+      "visualLabels": [
+        "Correspondent",
+        "Sender",
+        "Absender",
+        "From"
+      ],
+      "extractionPriority": 0.95,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Correspondent",
+        "de": "Absender"
+      }
     },
     "tags": {
       "type": "array",
       "itemType": "string",
       "description": "Classification tags",
-      "required": true
+      "required": true,
+      "domain": "general",
+      "paperlessField": "metadata:tags",
+      "visualLabels": [
+        "Tags",
+        "Stichworte",
+        "Schlagworte"
+      ],
+      "extractionPriority": 0.7,
+      "validationRules": {
+        "minItems": 0,
+        "maxItems": 50
+      },
+      "displayName": {
+        "en": "Tags",
+        "de": "Stichworte"
+      }
     },
     "document_type": {
       "type": "string",
       "description": "Document category (Invoice, Contract, Letter, etc.)",
-      "required": true
+      "required": true,
+      "domain": "general",
+      "paperlessField": "metadata:document_type",
+      "visualLabels": [
+        "Document Type",
+        "Dokumenttyp"
+      ],
+      "extractionPriority": 0.7,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Document Type",
+        "de": "Dokumenttyp"
+      }
     },
     "document_date": {
       "type": "string",
       "format": "date",
       "description": "Primary document date (YYYY-MM-DD)",
-      "required": true
+      "required": true,
+      "domain": "general",
+      "paperlessField": "metadata:document_date",
+      "visualLabels": [
+        "Document Date",
+        "Date",
+        "Datum",
+        "Dokumentdatum"
+      ],
+      "extractionPriority": 0.95,
+      "validationRules": {
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+        "minLength": 10,
+        "maxLength": 10
+      },
+      "displayName": {
+        "en": "Document Date",
+        "de": "Dokumentdatum"
+      }
     },
     "language": {
       "type": "string",
       "description": "Document language (ISO 639-1: en, de, es, etc.)",
       "required": true,
-      "enum": ["en", "de", "es", "fr", "it", "nl", "pl", "pt", "ru", "zh", "ja", "ko"]
+      "enum": [
+        "en",
+        "de",
+        "es",
+        "fr",
+        "it",
+        "nl",
+        "pl",
+        "pt",
+        "ru",
+        "zh",
+        "ja",
+        "ko"
+      ],
+      "domain": "general",
+      "paperlessField": "metadata:language",
+      "visualLabels": [
+        "Language",
+        "Sprache"
+      ],
+      "extractionPriority": 0.7,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[a-z]{2}$"
+      },
+      "displayName": {
+        "en": "Language",
+        "de": "Sprache"
+      }
     },
-
     "invoice_number": {
       "type": "string",
       "description": "Invoice/receipt number",
-      "domain": "financial"
+      "domain": "financial",
+      "paperlessField": "custom_field:invoice_number",
+      "visualLabels": [
+        "Invoice #",
+        "Inv. No.",
+        "Invoice Number",
+        "Rechnung Nr.",
+        "Rechnungsnr."
+      ],
+      "extractionPriority": 0.95,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Z0-9-]+$"
+      },
+      "displayName": {
+        "en": "Invoice Number",
+        "de": "Rechnungsnummer"
+      }
     },
     "invoice_amount": {
       "type": "number",
       "description": "Total invoice amount (no currency symbol)",
-      "domain": "financial"
+      "domain": "financial",
+      "paperlessField": "custom_field:invoice_amount",
+      "visualLabels": [
+        "Invoice Amount",
+        "Total Amount",
+        "Invoice Total",
+        "Gesamtbetrag",
+        "Rechnungsbetrag"
+      ],
+      "extractionPriority": 0.95,
+      "validationRules": {
+        "min": 0,
+        "max": 100000000
+      },
+      "displayName": {
+        "en": "Invoice Amount",
+        "de": "Rechnungsbetrag"
+      }
     },
     "invoice_vat": {
       "type": "number",
       "description": "VAT/tax amount",
-      "domain": "financial"
+      "domain": "financial",
+      "paperlessField": "custom_field:invoice_vat",
+      "visualLabels": [
+        "VAT Amount",
+        "MwSt-Betrag",
+        "USt"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "min": 0,
+        "max": 100000000
+      },
+      "displayName": {
+        "en": "VAT Amount",
+        "de": "MwSt-Betrag"
+      }
     },
     "invoice_net": {
       "type": "number",
       "description": "Net amount before tax",
-      "domain": "financial"
+      "domain": "financial",
+      "paperlessField": "custom_field:invoice_net",
+      "visualLabels": [
+        "Net Amount",
+        "Nettobetrag",
+        "Netto"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "min": 0,
+        "max": 100000000
+      },
+      "displayName": {
+        "en": "Net Amount",
+        "de": "Nettobetrag"
+      }
     },
     "payment_due_date": {
       "type": "string",
       "format": "date",
       "description": "Payment due date (YYYY-MM-DD)",
-      "domain": "financial"
+      "domain": "financial",
+      "paperlessField": "custom_field:payment_due_date",
+      "visualLabels": [
+        "Due Date",
+        "Fällig am",
+        "Zahlbar bis",
+        "Payment Due Date"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+        "minLength": 10,
+        "maxLength": 10
+      },
+      "displayName": {
+        "en": "Payment Due Date",
+        "de": "Fälligkeitsdatum"
+      }
     },
     "iban": {
       "type": "string",
       "description": "Bank account IBAN",
-      "domain": "financial"
+      "domain": "financial",
+      "paperlessField": "custom_field:iban",
+      "visualLabels": [
+        "IBAN",
+        "IBAN Nummer"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Z]{2}\\d{2}[A-Z0-9]{10,30}$"
+      },
+      "displayName": {
+        "en": "IBAN",
+        "de": "IBAN"
+      }
     },
     "currency": {
       "type": "string",
       "description": "Currency code (EUR, USD, etc.)",
       "domain": "financial",
-      "enum": ["EUR", "USD", "GBP", "CHF", "PLN", "CZK", "SEK", "NOK", "DKK"]
+      "enum": [
+        "EUR",
+        "USD",
+        "GBP",
+        "CHF",
+        "PLN",
+        "CZK",
+        "SEK",
+        "NOK",
+        "DKK"
+      ],
+      "paperlessField": "custom_field:currency",
+      "visualLabels": [
+        "Currency",
+        "Währung"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Z]{3}$"
+      },
+      "displayName": {
+        "en": "Currency",
+        "de": "Währung"
+      }
     },
-
     "bic": {
       "type": "string",
       "description": "Bank Identifier Code (BIC/SWIFT)",
-      "domain": "financial"
+      "domain": "financial",
+      "paperlessField": "custom_field:bic",
+      "visualLabels": [
+        "BIC",
+        "SWIFT",
+        "BIC/SWIFT"
+      ],
+      "extractionPriority": 0.7,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Z]{6}[A-Z0-9]{2,5}$"
+      },
+      "displayName": {
+        "en": "BIC",
+        "de": "BIC"
+      }
     },
     "payment_reference": {
       "type": "string",
       "description": "Payment reference / Verwendungszweck",
-      "domain": "financial"
+      "domain": "financial",
+      "paperlessField": "custom_field:payment_reference",
+      "visualLabels": [
+        "Payment Reference",
+        "Reference",
+        "Verwendungszweck",
+        "Zahlungsreferenz"
+      ],
+      "extractionPriority": 0.7,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Payment Reference",
+        "de": "Verwendungszweck"
+      }
     },
     "total_gross": {
       "type": "number",
       "description": "Gross total including VAT",
-      "domain": "financial"
+      "domain": "financial",
+      "paperlessField": "custom_field:total_gross",
+      "visualLabels": [
+        "Gross Total",
+        "Brutto",
+        "Bruttosumme"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "min": 0,
+        "max": 100000000
+      },
+      "displayName": {
+        "en": "Gross Total",
+        "de": "Bruttobetrag"
+      }
     },
     "total_net": {
       "type": "number",
       "description": "Net total before VAT",
-      "domain": "financial"
+      "domain": "financial",
+      "paperlessField": "custom_field:total_net",
+      "visualLabels": [
+        "Net Total",
+        "Netto",
+        "Nettosumme"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "min": 0,
+        "max": 100000000
+      },
+      "displayName": {
+        "en": "Net Total",
+        "de": "Nettosumme"
+      }
     },
     "uid": {
       "type": "string",
       "description": "Austrian tax identification number",
-      "domain": "financial"
+      "domain": "financial",
+      "paperlessField": "custom_field:uid",
+      "visualLabels": [
+        "VAT ID",
+        "UID",
+        "USt-IdNr."
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^ATU\\d{8}$"
+      },
+      "displayName": {
+        "en": "VAT ID",
+        "de": "UID"
+      }
     },
     "vat_rate": {
       "type": "number",
       "description": "VAT percentage rate (e.g., 20, 10, 13)",
-      "domain": "financial"
+      "domain": "financial",
+      "paperlessField": "custom_field:vat_rate",
+      "visualLabels": [
+        "VAT Rate",
+        "VAT %",
+        "MwSt %",
+        "MwSt-Satz"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "min": 0,
+        "max": 100
+      },
+      "displayName": {
+        "en": "VAT Rate",
+        "de": "MwSt-Satz"
+      }
     },
-
     "patient_name": {
       "type": "string",
       "description": "Patient name",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:patient_name",
+      "visualLabels": [
+        "Patient",
+        "Patientenname",
+        "Patient Name"
+      ],
+      "extractionPriority": 0.95,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Patient Name",
+        "de": "Patientenname"
+      }
     },
     "doctor_name": {
       "type": "string",
       "description": "Doctor/physician name",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:doctor_name",
+      "visualLabels": [
+        "Doctor",
+        "Arzt",
+        "Doctor Name",
+        "Behandler"
+      ],
+      "extractionPriority": 0.95,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Doctor Name",
+        "de": "Arztname"
+      }
     },
     "diagnosis": {
       "type": "string",
       "description": "Medical diagnosis or finding",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:diagnosis",
+      "visualLabels": [
+        "Diagnosis",
+        "Diagnose",
+        "Befund"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Diagnosis",
+        "de": "Diagnose"
+      }
     },
     "medication": {
       "type": "array",
       "itemType": "string",
       "description": "List of medications",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:medication",
+      "visualLabels": [
+        "Medication",
+        "Medikation",
+        "Arznei"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "minItems": 0,
+        "maxItems": 50
+      },
+      "displayName": {
+        "en": "Medication",
+        "de": "Medikation"
+      }
     },
     "lab_values": {
       "type": "object",
       "description": "Lab test results as key-value pairs",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:lab_values",
+      "visualLabels": [
+        "Lab Values",
+        "Laborwerte"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "minItems": 0,
+        "maxItems": 200
+      },
+      "displayName": {
+        "en": "Lab Values",
+        "de": "Laborwerte"
+      }
     },
     "appointment_date": {
       "type": "string",
       "format": "date",
       "description": "Medical appointment date",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:appointment_date",
+      "visualLabels": [
+        "Appointment Date",
+        "Termin",
+        "Behandlungsdatum"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+        "minLength": 10,
+        "maxLength": 10
+      },
+      "displayName": {
+        "en": "Appointment Date",
+        "de": "Termin"
+      }
     },
     "provider_name": {
       "type": "string",
       "description": "Healthcare provider / facility name",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:provider_name",
+      "visualLabels": [
+        "Provider",
+        "Klinik",
+        "Praxis",
+        "Provider Name"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Provider Name",
+        "de": "Einrichtung"
+      }
     },
     "provider_location": {
       "type": "string",
       "description": "Provider location / address",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:provider_location",
+      "visualLabels": [
+        "Provider Location",
+        "Standort",
+        "Adresse"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Provider Location",
+        "de": "Standort"
+      }
     },
     "report_date": {
       "type": "string",
       "format": "date",
       "description": "Medical report date",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:report_date",
+      "visualLabels": [
+        "Report Date",
+        "Befunddatum",
+        "Berichtsdatum"
+      ],
+      "extractionPriority": 0.95,
+      "validationRules": {
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+        "minLength": 10,
+        "maxLength": 10
+      },
+      "displayName": {
+        "en": "Report Date",
+        "de": "Berichtsdatum"
+      }
     },
     "insurance": {
       "type": "string",
       "description": "Insurance provider name",
       "domain": "medical",
-      "optional": true
+      "optional": true,
+      "paperlessField": "custom_field:insurance",
+      "visualLabels": [
+        "Insurance",
+        "Krankenkasse",
+        "Versicherung"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Insurance",
+        "de": "Versicherung"
+      }
     },
-
     "lab_panel_name": {
       "type": "string",
       "description": "Name of the lab panel (e.g. Standardlabor, Immunstatus, Zytokinprofil)",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:lab_panel_name",
+      "visualLabels": [
+        "Lab Panel",
+        "Laborpanel",
+        "Panel"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Lab Panel",
+        "de": "Laborpanel"
+      }
     },
     "lab_report_date": {
       "type": "string",
       "format": "date",
       "description": "Date on the lab report (YYYY-MM-DD)",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:lab_report_date",
+      "visualLabels": [
+        "Lab Report Date",
+        "Laborbericht Datum"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+        "minLength": 10,
+        "maxLength": 10
+      },
+      "displayName": {
+        "en": "Lab Report Date",
+        "de": "Laborbericht Datum"
+      }
     },
     "crp_mg_l": {
       "type": "number",
       "description": "C-reactive protein (CRP), mg/L; aliases: CRP, C-reaktives Protein",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:crp_mg_l",
+      "visualLabels": [
+        "CRP",
+        "C-reaktives Protein",
+        "C-reactive protein"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "CRP (mg/L)",
+        "de": "C-reaktives Protein (mg/L)"
+      }
     },
     "esr_mm_h": {
       "type": "number",
       "description": "Erythrocyte sedimentation rate (ESR/BSG), mm/h; aliases: BSG, Blutsenkung",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:esr_mm_h",
+      "visualLabels": [
+        "ESR",
+        "BSG",
+        "Blutsenkung"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "ESR (mm/h)",
+        "de": "BSG (mm/h)"
+      }
     },
     "ferritin_ug_l": {
       "type": "number",
       "description": "Ferritin, µg/L",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:ferritin_ug_l",
+      "visualLabels": [
+        "Ferritin",
+        "Ferritin (µg/L)"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "Ferritin (µg/L)",
+        "de": "Ferritin (µg/L)"
+      }
     },
     "fibrinogen_g_l": {
       "type": "number",
       "description": "Fibrinogen, g/L",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:fibrinogen_g_l",
+      "visualLabels": [
+        "Fibrinogen",
+        "Fibrinogen (g/L)"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "Fibrinogen (g/L)",
+        "de": "Fibrinogen (g/L)"
+      }
     },
     "d_dimer_mg_l_feu": {
       "type": "number",
       "description": "D-Dimer, mg/L FEU",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:d_dimer_mg_l_feu",
+      "visualLabels": [
+        "D-Dimer",
+        "D-Dimer (FEU)"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "D-Dimer (mg/L FEU)",
+        "de": "D-Dimer (mg/L FEU)"
+      }
     },
     "alt_u_l": {
       "type": "number",
       "description": "Alanine aminotransferase (ALT/GPT), U/L",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:alt_u_l",
+      "visualLabels": [
+        "ALT",
+        "GPT",
+        "ALT (U/L)"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "ALT (U/L)",
+        "de": "GPT (U/L)"
+      }
     },
     "ast_u_l": {
       "type": "number",
       "description": "Aspartate aminotransferase (AST/GOT), U/L",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:ast_u_l",
+      "visualLabels": [
+        "AST",
+        "GOT",
+        "AST (U/L)"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "AST (U/L)",
+        "de": "GOT (U/L)"
+      }
     },
     "g_gt_u_l": {
       "type": "number",
       "description": "Gamma-glutamyl transferase (GGT), U/L",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:g_gt_u_l",
+      "visualLabels": [
+        "GGT",
+        "Gamma-GT",
+        "GGT (U/L)"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "GGT (U/L)",
+        "de": "GGT (U/L)"
+      }
     },
     "ldh_u_l": {
       "type": "number",
       "description": "Lactate dehydrogenase (LDH), U/L",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:ldh_u_l",
+      "visualLabels": [
+        "LDH",
+        "LDH (U/L)"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "LDH (U/L)",
+        "de": "LDH (U/L)"
+      }
     },
     "creatinine_mg_dl": {
       "type": "number",
       "description": "Creatinine, mg/dL",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:creatinine_mg_dl",
+      "visualLabels": [
+        "Creatinine",
+        "Kreatinin",
+        "Creatinine (mg/dL)"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "Creatinine (mg/dL)",
+        "de": "Kreatinin (mg/dL)"
+      }
     },
     "igg_g_l": {
       "type": "number",
       "description": "IgG total, g/L",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:igg_g_l",
+      "visualLabels": [
+        "IgG",
+        "Immunglobulin G"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "IgG (g/L)",
+        "de": "IgG (g/L)"
+      }
     },
     "iga_g_l": {
       "type": "number",
       "description": "IgA, g/L",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:iga_g_l",
+      "visualLabels": [
+        "IgA",
+        "Immunglobulin A"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "IgA (g/L)",
+        "de": "IgA (g/L)"
+      }
     },
     "igm_g_l": {
       "type": "number",
       "description": "IgM, g/L",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:igm_g_l",
+      "visualLabels": [
+        "IgM",
+        "Immunglobulin M"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "IgM (g/L)",
+        "de": "IgM (g/L)"
+      }
     },
     "igg1_g_l": {
       "type": "number",
       "description": "IgG1 subclass, g/L",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:igg1_g_l",
+      "visualLabels": [
+        "IgG1",
+        "Immunglobulin G1"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "IgG1 (g/L)",
+        "de": "IgG1 (g/L)"
+      }
     },
     "igg2_g_l": {
       "type": "number",
       "description": "IgG2 subclass, g/L",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:igg2_g_l",
+      "visualLabels": [
+        "IgG2",
+        "Immunglobulin G2"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "IgG2 (g/L)",
+        "de": "IgG2 (g/L)"
+      }
     },
     "igg3_g_l": {
       "type": "number",
       "description": "IgG3 subclass, g/L",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:igg3_g_l",
+      "visualLabels": [
+        "IgG3",
+        "Immunglobulin G3"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "IgG3 (g/L)",
+        "de": "IgG3 (g/L)"
+      }
     },
     "igg4_g_l": {
       "type": "number",
       "description": "IgG4 subclass, g/L",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:igg4_g_l",
+      "visualLabels": [
+        "IgG4",
+        "Immunglobulin G4"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "IgG4 (g/L)",
+        "de": "IgG4 (g/L)"
+      }
     },
     "c3c_g_l": {
       "type": "number",
       "description": "Complement C3c, g/L",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:c3c_g_l",
+      "visualLabels": [
+        "Complement C3c",
+        "Komplement C3c"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "Complement C3c (g/L)",
+        "de": "Komplement C3c (g/L)"
+      }
     },
     "c4_g_l": {
       "type": "number",
       "description": "Complement C4, g/L",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:c4_g_l",
+      "visualLabels": [
+        "Complement C4",
+        "Komplement C4"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "Complement C4 (g/L)",
+        "de": "Komplement C4 (g/L)"
+      }
     },
     "mbl_ng_ml": {
       "type": "number",
       "description": "Mannose-binding lectin (MBL), ng/mL",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:mbl_ng_ml",
+      "visualLabels": [
+        "MBL",
+        "Mannose-bindendes Lektin"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "MBL (ng/mL)",
+        "de": "Mannose-bindendes Lektin (ng/mL)"
+      }
     },
     "il6_pg_ml": {
       "type": "number",
       "description": "Interleukin-6 (IL-6), pg/mL",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:il6_pg_ml",
+      "visualLabels": [
+        "IL-6",
+        "Interleukin-6"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "IL-6 (pg/mL)",
+        "de": "Interleukin-6 (pg/mL)"
+      }
     },
     "tnfa_pg_ml": {
       "type": "number",
       "description": "Tumor necrosis factor alpha (TNF-α), pg/mL",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:tnfa_pg_ml",
+      "visualLabels": [
+        "TNF-α",
+        "TNF-alpha"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "TNF-α (pg/mL)",
+        "de": "TNF-α (pg/mL)"
+      }
     },
     "il1b_pg_ml": {
       "type": "number",
       "description": "Interleukin-1β, pg/mL",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:il1b_pg_ml",
+      "visualLabels": [
+        "IL-1β",
+        "Interleukin-1β"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "IL-1β (pg/mL)",
+        "de": "Interleukin-1β (pg/mL)"
+      }
     },
     "il17_pg_ml": {
       "type": "number",
       "description": "Interleukin-17, pg/mL",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:il17_pg_ml",
+      "visualLabels": [
+        "IL-17",
+        "Interleukin-17"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "IL-17 (pg/mL)",
+        "de": "Interleukin-17 (pg/mL)"
+      }
     },
     "tsh_u_u_ml": {
       "type": "number",
       "description": "TSH, µU/mL",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:tsh_u_u_ml",
+      "visualLabels": [
+        "TSH",
+        "TSH (µU/mL)"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "TSH (µU/mL)",
+        "de": "TSH (µU/mL)"
+      }
     },
     "ft3_pg_ml": {
       "type": "number",
       "description": "Free T3, pg/mL",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:ft3_pg_ml",
+      "visualLabels": [
+        "Free T3",
+        "Freies T3"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "Free T3 (pg/mL)",
+        "de": "Freies T3 (pg/mL)"
+      }
     },
     "ft4_ng_dl": {
       "type": "number",
       "description": "Free T4, ng/dL",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:ft4_ng_dl",
+      "visualLabels": [
+        "Free T4",
+        "Freies T4"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "Free T4 (ng/dL)",
+        "de": "Freies T4 (ng/dL)"
+      }
     },
     "cortisol_morning_ug_dl": {
       "type": "number",
       "description": "Morning serum cortisol, µg/dL",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:cortisol_morning_ug_dl",
+      "visualLabels": [
+        "Cortisol Morning",
+        "Cortisol morgens"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "Cortisol Morning (µg/dL)",
+        "de": "Cortisol morgens (µg/dL)"
+      }
     },
     "vitd25_oh_ng_ml": {
       "type": "number",
       "description": "25-OH vitamin D, ng/mL",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:vitd25_oh_ng_ml",
+      "visualLabels": [
+        "Vitamin D 25-OH",
+        "Vitamin D 25 OH"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "Vitamin D 25-OH (ng/mL)",
+        "de": "Vitamin D 25-OH (ng/mL)"
+      }
     },
     "vitb12_pg_ml": {
       "type": "number",
       "description": "Vitamin B12, pg/mL",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:vitb12_pg_ml",
+      "visualLabels": [
+        "Vitamin B12",
+        "Vitamin B12 (pg/mL)"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "Vitamin B12 (pg/mL)",
+        "de": "Vitamin B12 (pg/mL)"
+      }
     },
     "folate_ng_ml": {
       "type": "number",
       "description": "Folate, ng/mL",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:folate_ng_ml",
+      "visualLabels": [
+        "Folate",
+        "Folat"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "min": 0,
+        "max": 1000000
+      },
+      "displayName": {
+        "en": "Folate (ng/mL)",
+        "de": "Folat (ng/mL)"
+      }
     },
     "lab_values_json": {
       "type": "string",
       "description": "Raw lab results as JSON string (for parameters without dedicated fields)",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:lab_values_json",
+      "visualLabels": [
+        "Lab Values JSON",
+        "Laborwerte JSON"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Lab Values (JSON)",
+        "de": "Laborwerte (JSON)"
+      }
     },
     "lab_abnormal_flags_json": {
       "type": "string",
       "description": "JSON string: parameter → {value, unit, reference_range, direction}",
-      "domain": "medical"
+      "domain": "medical",
+      "paperlessField": "custom_field:lab_abnormal_flags_json",
+      "visualLabels": [
+        "Lab Abnormal Flags",
+        "Labor Auffälligkeiten"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Lab Abnormal Flags (JSON)",
+        "de": "Labor Auffälligkeiten (JSON)"
+      }
     },
-
     "contract_parties": {
       "type": "array",
       "itemType": "string",
       "description": "Parties to the contract",
-      "domain": "legal"
+      "domain": "legal",
+      "paperlessField": "custom_field:contract_parties",
+      "visualLabels": [
+        "Contract Parties",
+        "Vertragsparteien",
+        "Parteien"
+      ],
+      "extractionPriority": 0.95,
+      "validationRules": {
+        "minItems": 2,
+        "maxItems": 10
+      },
+      "displayName": {
+        "en": "Contract Parties",
+        "de": "Vertragsparteien"
+      }
     },
     "contract_start_date": {
       "type": "string",
       "format": "date",
       "description": "Contract start date",
-      "domain": "legal"
+      "domain": "legal",
+      "paperlessField": "custom_field:contract_start_date",
+      "visualLabels": [
+        "Contract Start Date",
+        "Vertragsbeginn"
+      ],
+      "extractionPriority": 0.95,
+      "validationRules": {
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+        "minLength": 10,
+        "maxLength": 10
+      },
+      "displayName": {
+        "en": "Contract Start Date",
+        "de": "Vertragsbeginn"
+      }
     },
     "contract_end_date": {
       "type": "string",
       "format": "date",
       "description": "Contract end date",
-      "domain": "legal"
+      "domain": "legal",
+      "paperlessField": "custom_field:contract_end_date",
+      "visualLabels": [
+        "Contract End Date",
+        "Vertragsende"
+      ],
+      "extractionPriority": 0.7,
+      "validationRules": {
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+        "minLength": 10,
+        "maxLength": 10
+      },
+      "displayName": {
+        "en": "Contract End Date",
+        "de": "Vertragsende"
+      }
     },
     "contract_value": {
       "type": "number",
       "description": "Contract monetary value",
-      "domain": "legal"
+      "domain": "legal",
+      "paperlessField": "custom_field:contract_value",
+      "visualLabels": [
+        "Contract Value",
+        "Vertragswert"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "min": 0,
+        "max": 100000000
+      },
+      "displayName": {
+        "en": "Contract Value",
+        "de": "Vertragswert"
+      }
     },
     "termination_notice": {
       "type": "string",
       "description": "Termination notice period",
-      "domain": "legal"
+      "domain": "legal",
+      "paperlessField": "custom_field:termination_notice",
+      "visualLabels": [
+        "Termination Notice",
+        "Kündigungsfrist"
+      ],
+      "extractionPriority": 0.7,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Termination Notice",
+        "de": "Kündigungsfrist"
+      }
     },
     "case_number": {
       "type": "string",
       "description": "Case/file number (separate from generic reference)",
-      "domain": "legal"
+      "domain": "legal",
+      "paperlessField": "custom_field:case_number",
+      "visualLabels": [
+        "Case Number",
+        "Aktenzeichen",
+        "GZ"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Z0-9\\-\\/]+$"
+      },
+      "displayName": {
+        "en": "Case Number",
+        "de": "Aktenzeichen"
+      }
     },
     "deadline_date": {
       "type": "string",
       "format": "date",
       "description": "Legal deadline date",
-      "domain": "legal"
+      "domain": "legal",
+      "paperlessField": "custom_field:deadline_date",
+      "visualLabels": [
+        "Deadline Date",
+        "Fristdatum",
+        "Frist"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+        "minLength": 10,
+        "maxLength": 10
+      },
+      "displayName": {
+        "en": "Deadline Date",
+        "de": "Fristdatum"
+      }
     },
-
     "product_name": {
       "type": "string",
       "description": "Product/device name",
-      "domain": "technical"
+      "domain": "technical",
+      "paperlessField": "custom_field:product_name",
+      "visualLabels": [
+        "Product Name",
+        "Produktname"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Product Name",
+        "de": "Produktname"
+      }
     },
     "model_number": {
       "type": "string",
       "description": "Model/part number",
-      "domain": "technical"
+      "domain": "technical",
+      "paperlessField": "custom_field:model_number",
+      "visualLabels": [
+        "Model Number",
+        "Modellnummer",
+        "Model No."
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Model Number",
+        "de": "Modellnummer"
+      }
     },
     "serial_number": {
       "type": "string",
       "description": "Serial number",
-      "domain": "technical"
+      "domain": "technical",
+      "paperlessField": "custom_field:serial_number",
+      "visualLabels": [
+        "Serial Number",
+        "Seriennummer",
+        "S/N"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Serial Number",
+        "de": "Seriennummer"
+      }
     },
     "manufacturer": {
       "type": "string",
       "description": "Manufacturer name",
-      "domain": "technical"
+      "domain": "technical",
+      "paperlessField": "custom_field:manufacturer",
+      "visualLabels": [
+        "Manufacturer",
+        "Hersteller"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Manufacturer",
+        "de": "Hersteller"
+      }
     },
     "specifications": {
       "type": "object",
       "description": "Technical specifications as key-value pairs",
-      "domain": "technical"
+      "domain": "technical",
+      "paperlessField": "custom_field:specifications",
+      "visualLabels": [
+        "Specifications",
+        "Spezifikationen",
+        "Technische Daten"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "minItems": 0,
+        "maxItems": 200
+      },
+      "displayName": {
+        "en": "Specifications",
+        "de": "Spezifikationen"
+      }
     },
-
     "sender_address": {
       "type": "string",
       "description": "Sender postal address",
-      "domain": "personal"
+      "domain": "personal",
+      "paperlessField": "custom_field:sender_address",
+      "visualLabels": [
+        "Sender Address",
+        "Absenderadresse"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Sender Address",
+        "de": "Absenderadresse"
+      }
     },
     "recipient_address": {
       "type": "string",
       "description": "Recipient postal address",
-      "domain": "personal"
+      "domain": "personal",
+      "paperlessField": "custom_field:recipient_address",
+      "visualLabels": [
+        "Recipient Address",
+        "Empfängeradresse"
+      ],
+      "extractionPriority": 0.85,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "displayName": {
+        "en": "Recipient Address",
+        "de": "Empfängeradresse"
+      }
     },
     "reference_number": {
       "type": "string",
       "description": "Reference/case number",
-      "domain": "personal"
+      "domain": "personal",
+      "paperlessField": "custom_field:reference_number",
+      "visualLabels": [
+        "Reference Number",
+        "Referenznummer",
+        "Unser Zeichen"
+      ],
+      "extractionPriority": 0.6,
+      "validationRules": {
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Z0-9\\-\\/]+$"
+      },
+      "displayName": {
+        "en": "Reference Number",
+        "de": "Referenznummer"
+      }
+    }
+  },
+  "domainMappings": {
+    "financial": {
+      "requiredFields": [
+        "invoice_number",
+        "invoice_amount",
+        "document_date"
+      ],
+      "optionalFields": [
+        "payment_due_date",
+        "iban",
+        "currency",
+        "invoice_vat",
+        "invoice_net",
+        "bic",
+        "payment_reference",
+        "total_gross",
+        "total_net",
+        "uid",
+        "vat_rate",
+        "correspondent",
+        "title"
+      ],
+      "expertModel": "fino1-8b-q8",
+      "displayName": {
+        "en": "Financial Document",
+        "de": "Finanzdokument"
+      },
+      "icon": "📋"
+    },
+    "medical": {
+      "requiredFields": [
+        "patient_name",
+        "doctor_name",
+        "report_date"
+      ],
+      "optionalFields": [
+        "diagnosis",
+        "medication",
+        "lab_values",
+        "appointment_date",
+        "provider_name",
+        "provider_location",
+        "insurance",
+        "lab_panel_name",
+        "lab_report_date",
+        "crp_mg_l",
+        "esr_mm_h",
+        "ferritin_ug_l",
+        "fibrinogen_g_l",
+        "d_dimer_mg_l_feu",
+        "alt_u_l",
+        "ast_u_l",
+        "g_gt_u_l",
+        "ldh_u_l",
+        "creatinine_mg_dl",
+        "igg_g_l",
+        "iga_g_l",
+        "igm_g_l",
+        "igg1_g_l",
+        "igg2_g_l",
+        "igg3_g_l",
+        "igg4_g_l",
+        "c3c_g_l",
+        "c4_g_l",
+        "mbl_ng_ml",
+        "il6_pg_ml",
+        "tnfa_pg_ml",
+        "il1b_pg_ml",
+        "il17_pg_ml",
+        "tsh_u_u_ml",
+        "ft3_pg_ml",
+        "ft4_ng_dl",
+        "cortisol_morning_ug_dl",
+        "vitd25_oh_ng_ml",
+        "vitb12_pg_ml",
+        "folate_ng_ml",
+        "lab_values_json",
+        "lab_abnormal_flags_json",
+        "title",
+        "document_date",
+        "correspondent"
+      ],
+      "expertModel": "medtext-llama3",
+      "displayName": {
+        "en": "Medical Document",
+        "de": "Medizinisches Dokument"
+      },
+      "icon": "🏥"
+    },
+    "legal": {
+      "requiredFields": [
+        "contract_parties",
+        "contract_start_date"
+      ],
+      "optionalFields": [
+        "contract_end_date",
+        "contract_value",
+        "termination_notice",
+        "case_number",
+        "deadline_date",
+        "document_date",
+        "correspondent",
+        "title"
+      ],
+      "expertModel": "legal-llama3",
+      "displayName": {
+        "en": "Legal Document",
+        "de": "Rechtsdokument"
+      },
+      "icon": "⚖️"
+    },
+    "general": {
+      "requiredFields": [
+        "title",
+        "correspondent",
+        "document_date"
+      ],
+      "optionalFields": [
+        "tags",
+        "language",
+        "document_type"
+      ],
+      "expertModel": "sauerkraut-llama3.1:8b",
+      "displayName": {
+        "en": "General Document",
+        "de": "Allgemeines Dokument"
+      },
+      "icon": "📄"
     }
   }
 }

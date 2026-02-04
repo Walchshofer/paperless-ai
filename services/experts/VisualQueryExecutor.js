@@ -14,6 +14,7 @@
 const logger = require('../logger');
 const { metricsCollector } = require('../metrics/PrometheusMetrics');
 const { CircuitBreaker, CircuitState } = require('./CircuitBreaker');
+const paperlessService = require('../paperlessService');
 
 /**
  * Base K values for different query types
@@ -38,7 +39,12 @@ const DEFAULT_CONFIG = {
     extractionWeight: 0.6,       // Confidence fusion: extraction weight
     visualWeight: 0.4,           // Confidence fusion: visual weight
     failureThreshold: 3,         // Circuit breaker failure threshold
-    cooldownPeriod: 30000        // Circuit breaker cooldown: 30s
+    cooldownPeriod: 30000,       // Circuit breaker cooldown: 30s
+    ocrFallbackEnabled: false,   // Opt-in OCR-guided visual fallback
+    ocrFallbackConfidenceThreshold: 0.7,
+    ocrFallbackMaxQueries: 5,
+    ocrFallbackMaxQueryLength: 140,
+    ocrFallbackMinValueLength: 3
 };
 
 /**
@@ -66,8 +72,13 @@ class VisualQueryExecutor {
 
         this.visualSearchClient = visualSearchClient;
         this.overlayRepository = overlayRepository;
-        const { metricsCollector: providedMetrics, ...executorOptions } = options;
+        const {
+            metricsCollector: providedMetrics,
+            paperlessService: providedPaperlessService,
+            ...executorOptions
+        } = options;
         this.metricsCollector = providedMetrics || metricsCollector || null;
+        this.paperlessService = providedPaperlessService || paperlessService;
         this.config = {
             ...DEFAULT_CONFIG,
             ...executorOptions
@@ -218,23 +229,53 @@ class VisualQueryExecutor {
             // Calculate overlay positions
             const overlays = this._calculateOverlays(dedupedResults);
 
-            // Build metadata
-            const metadata = this._buildMetadata(queryResults, startTime);
+            const kValues = this._buildKValues(queryResults);
+            const dedupStats = this._buildDedupStats(queryResults, dedupedResults);
+            const visualConfidence = this._calculateVisualConfidence(queryResults);
 
-            logger.info({
-                event: 'visual_query_execution_complete',
-                documentId: documentMetadata.id,
-                successfulQueries: metadata.successful_queries,
-                failedQueries: metadata.failed_queries,
-                durationMs: Date.now() - startTime
+            // Build metadata
+            let metadata = this._buildMetadata(queryResults, startTime, {
+                kValues,
+                dedupStats,
+                visualConfidence
             });
 
-            const result = {
+            let result = {
                 fields: mergedFields,
                 newly_discovered_fields: this._extractNewlyDiscovered(mergedFields),
                 overlays,
                 execution_metadata: metadata
             };
+
+            if (this._shouldTriggerOcrFallback(metadata, mergedFields, documentMetadata)) {
+                result = await this.executeWithOcrFallback(
+                    result,
+                    documentMetadata,
+                    {
+                        visualQueries,
+                        extractionResults,
+                        queryResults,
+                        dedupedResults,
+                        documentImage,
+                        startTime
+                    }
+                );
+                metadata = result.execution_metadata || metadata;
+            }
+
+            const kSummary = metadata.k_summary || this._buildKSummary(kValues);
+            logger.info({
+                event: 'visual_query_execution_complete',
+                documentId: documentMetadata.id,
+                successfulQueries: metadata.successful_queries,
+                failedQueries: metadata.failed_queries,
+                durationMs: Date.now() - startTime,
+                visualConfidence: metadata.visual_confidence,
+                kSummary,
+                rawHitCount: metadata.raw_hit_count,
+                deduplicatedCount: metadata.deduplicated_count,
+                ocrFallbackUsed: metadata.ocr_fallback_used || false
+            });
             if (this.metricsCollector?.observeVisualQueryExecutionTime) {
                 this.metricsCollector.observeVisualQueryExecutionTime(
                     documentMetadata.documentType,
@@ -315,6 +356,7 @@ class VisualQueryExecutor {
      */
     async _executeQueryWithRetry(query, documentImage, documentMetadata) {
         const startTime = Date.now();
+        let k = 0;
         if (this.metricsCollector?.incrementVisualQueriesExecuted) {
             this.metricsCollector.incrementVisualQueriesExecuted(
                 documentMetadata.documentType,
@@ -324,7 +366,7 @@ class VisualQueryExecutor {
 
         try {
             // Calculate dynamic K for this query
-            const k = this._calculateDynamicK(query);
+            k = this._calculateDynamicK(query);
 
             // Execute via circuit breaker
             const cbResult = await this.circuitBreaker.execute(async () => {
@@ -349,6 +391,7 @@ class VisualQueryExecutor {
             return {
                 success: true,
                 query,
+                k,
                 bounding_boxes: result.bounding_boxes || [],
                 scores: result.scores || [],
                 page_numbers: result.page_numbers || [],
@@ -380,6 +423,7 @@ class VisualQueryExecutor {
             return {
                 success: false,
                 query,
+                k,
                 error: error.message,
                 error_status: errorStatus,
                 error_type: errorType,
@@ -505,6 +549,327 @@ class VisualQueryExecutor {
         return Math.max(1, Math.round(dynamicK));  // At least 1, rounded
     }
 
+    _buildKValues(queryResults) {
+        if (!Array.isArray(queryResults)) {
+            return [];
+        }
+
+        return queryResults
+            .filter(result => Number.isFinite(result.k))
+            .map(result => ({
+                field_target: result.query?.field_target || null,
+                expected_element_type: result.query?.expected_element_type || null,
+                k: result.k
+            }));
+    }
+
+    _buildKSummary(kValues) {
+        const values = Array.isArray(kValues)
+            ? kValues.map(item => item.k).filter(Number.isFinite)
+            : [];
+
+        if (values.length === 0) {
+            return { min: 0, max: 0, avg: 0 };
+        }
+
+        const sum = values.reduce((total, value) => total + value, 0);
+        return {
+            min: Math.min(...values),
+            max: Math.max(...values),
+            avg: sum / values.length
+        };
+    }
+
+    _buildDedupStats(queryResults, dedupedResults) {
+        const results = Array.isArray(queryResults) ? queryResults : [];
+        const rawHitCount = results.reduce((sum, result) => {
+            if (!Array.isArray(result.bounding_boxes)) {
+                return sum;
+            }
+            return sum + result.bounding_boxes.length;
+        }, 0);
+        const dedupedCount = Array.isArray(dedupedResults) ? dedupedResults.length : 0;
+
+        return {
+            raw_hit_count: rawHitCount,
+            deduplicated_count: dedupedCount,
+            dedup_removed_count: Math.max(0, rawHitCount - dedupedCount)
+        };
+    }
+
+    _calculateVisualConfidence(queryResults) {
+        if (!Array.isArray(queryResults) || queryResults.length === 0) {
+            return 0;
+        }
+
+        const bestScores = [];
+        for (const result of queryResults) {
+            if (!result.success || !Array.isArray(result.scores) || result.scores.length === 0) {
+                continue;
+            }
+            const numericScores = result.scores.filter(Number.isFinite);
+            if (numericScores.length === 0) {
+                continue;
+            }
+            bestScores.push(Math.max(...numericScores));
+        }
+
+        if (bestScores.length === 0) {
+            return 0;
+        }
+
+        const sum = bestScores.reduce((total, value) => total + value, 0);
+        const avg = sum / bestScores.length;
+        return Math.max(0, Math.min(1, avg));
+    }
+
+    _shouldTriggerOcrFallback(metadata, fields, documentMetadata) {
+        if (!this.config.ocrFallbackEnabled) {
+            return false;
+        }
+        if (!documentMetadata?.id) {
+            return false;
+        }
+        if (!this.paperlessService ||
+            typeof this.paperlessService.getDocumentContent !== 'function') {
+            return false;
+        }
+        if (!metadata || !Number.isFinite(metadata.visual_confidence)) {
+            return false;
+        }
+        if (metadata.visual_confidence >= this.config.ocrFallbackConfidenceThreshold) {
+            return false;
+        }
+        if (!Array.isArray(fields) || fields.length === 0) {
+            return false;
+        }
+        return true;
+    }
+
+    _sanitizeQueryText(text) {
+        if (!text || typeof text !== 'string') {
+            return '';
+        }
+        const normalized = text.replace(/\s+/g, ' ').trim();
+        if (!normalized) {
+            return '';
+        }
+        if (normalized.length <= this.config.ocrFallbackMaxQueryLength) {
+            return normalized;
+        }
+        return normalized.slice(0, this.config.ocrFallbackMaxQueryLength).trim();
+    }
+
+    _generateOcrGuidedQueries(ocrText, visualQueries, fields) {
+        if (!ocrText || typeof ocrText !== 'string') {
+            return [];
+        }
+        if (!Array.isArray(visualQueries) || visualQueries.length === 0) {
+            return [];
+        }
+
+        const normalizedOcr = ocrText.toLowerCase();
+        const valueByField = new Map();
+        for (const field of fields || []) {
+            if (!field || !field.name) {
+                continue;
+            }
+            const value = field.value;
+            if (value === null || value === undefined) {
+                continue;
+            }
+            const valueText = String(value).trim();
+            if (valueText.length < this.config.ocrFallbackMinValueLength) {
+                continue;
+            }
+            valueByField.set(field.name, valueText);
+        }
+
+        const guidedQueries = [];
+        const seen = new Set();
+
+        for (const query of visualQueries) {
+            if (!query?.question) {
+                continue;
+            }
+            const value = valueByField.get(query.field_target);
+            if (!value) {
+                continue;
+            }
+            if (!normalizedOcr.includes(value.toLowerCase())) {
+                continue;
+            }
+            const candidate = this._sanitizeQueryText(`${query.question} ${value}`);
+            if (!candidate) {
+                continue;
+            }
+            const key = candidate.toLowerCase();
+            if (key === query.question.toLowerCase()) {
+                continue;
+            }
+            if (seen.has(key)) {
+                continue;
+            }
+            seen.add(key);
+            guidedQueries.push({
+                ...query,
+                question: candidate,
+                ocr_guided: true
+            });
+            if (guidedQueries.length >= this.config.ocrFallbackMaxQueries) {
+                break;
+            }
+        }
+
+        return guidedQueries;
+    }
+
+    async executeWithOcrFallback(visualResult, documentMetadata, options = {}) {
+        const documentId = typeof documentMetadata === 'object'
+            ? documentMetadata.id
+            : documentMetadata;
+
+        if (!documentId) {
+            return visualResult;
+        }
+
+        const {
+            visualQueries = [],
+            extractionResults = {},
+            queryResults = [],
+            dedupedResults = [],
+            documentImage = null,
+            startTime = Date.now()
+        } = options;
+
+        if (!documentImage) {
+            logger.info({
+                event: 'visual_query_ocr_fallback_skipped',
+                documentId,
+                reason: 'no_image'
+            });
+            return visualResult;
+        }
+
+        if (!this.paperlessService ||
+            typeof this.paperlessService.getDocumentContent !== 'function') {
+            logger.info({
+                event: 'visual_query_ocr_fallback_skipped',
+                documentId,
+                reason: 'paperless_unavailable'
+            });
+            return visualResult;
+        }
+
+        let ocrText = null;
+        try {
+            ocrText = await this.paperlessService.getDocumentContent(documentId);
+        } catch (error) {
+            logger.warn({
+                event: 'visual_query_ocr_fallback_failed',
+                documentId,
+                error: error.message
+            });
+            return {
+                ...visualResult,
+                execution_metadata: {
+                    ...visualResult.execution_metadata,
+                    ocr_fallback_used: false,
+                    ocr_fallback_error: error.message
+                }
+            };
+        }
+
+        const ocrGuidedQueries = this._generateOcrGuidedQueries(
+            ocrText,
+            visualQueries,
+            visualResult.fields || []
+        );
+
+        if (ocrGuidedQueries.length === 0) {
+            logger.info({
+                event: 'visual_query_ocr_fallback_skipped',
+                documentId,
+                reason: 'no_ocr_context'
+            });
+            return visualResult;
+        }
+
+        logger.info({
+            event: 'visual_query_ocr_fallback_triggered',
+            documentId,
+            visualConfidence: visualResult.execution_metadata?.visual_confidence,
+            queryCount: ocrGuidedQueries.length
+        });
+
+        const fallbackResults = await this._executeQueriesWithCircuitBreaker(
+            ocrGuidedQueries,
+            documentImage,
+            documentMetadata
+        );
+
+        const fallbackDeduped = this._deduplicateBoundingBoxes(fallbackResults);
+        const combinedDeduped = this._deduplicateCandidates([
+            ...(Array.isArray(dedupedResults) ? dedupedResults : []),
+            ...fallbackDeduped
+        ]);
+
+        const mergedFields = this._mergeResults(
+            extractionResults,
+            combinedDeduped,
+            visualQueries
+        );
+
+        const overlays = this._calculateOverlays(combinedDeduped);
+        const combinedQueryResults = [
+            ...(Array.isArray(queryResults) ? queryResults : []),
+            ...fallbackResults
+        ];
+        const kValues = this._buildKValues(combinedQueryResults);
+        const dedupStats = this._buildDedupStats(combinedQueryResults, combinedDeduped);
+        const visualConfidence = this._calculateVisualConfidence(combinedQueryResults);
+        const metadata = this._buildMetadata(combinedQueryResults, startTime, {
+            kValues,
+            dedupStats,
+            visualConfidence
+        });
+
+        metadata.ocr_fallback_used = true;
+        metadata.ocr_fallback_confidence_threshold = this.config.ocrFallbackConfidenceThreshold;
+        metadata.ocr_fallback_visual_confidence_before =
+            visualResult.execution_metadata?.visual_confidence ?? null;
+        metadata.ocr_fallback_visual_confidence_after = visualConfidence;
+        metadata.ocr_guided_query_count = ocrGuidedQueries.length;
+        metadata.ocr_guided_hit_count = fallbackDeduped.length;
+        metadata.ocr_guided_query_examples = ocrGuidedQueries
+            .slice(0, 3)
+            .map(query => query.question);
+
+        if (this.metricsCollector?.recordFallback) {
+            this.metricsCollector.recordFallback({
+                pipelineId: documentMetadata?.pipelineId,
+                from: 'visual',
+                to: 'ocr_guided_visual',
+                reason: 'low_visual_confidence'
+            });
+        }
+
+        logger.info({
+            event: 'visual_query_ocr_fallback_complete',
+            documentId,
+            ocrGuidedHitCount: fallbackDeduped.length,
+            visualConfidence: visualConfidence
+        });
+
+        return {
+            ...visualResult,
+            fields: mergedFields,
+            newly_discovered_fields: this._extractNewlyDiscovered(mergedFields),
+            overlays,
+            execution_metadata: metadata
+        };
+    }
+
     /**
      * Deduplicate overlapping bounding boxes using IoU threshold
      * @private
@@ -515,7 +880,7 @@ class VisualQueryExecutor {
         // Collect all bounding boxes from successful queries
         for (const result of queryResults) {
             if (result.success && result.bounding_boxes) {
-                for (let i = 0; i < result.bounding_boxes.length; i++) {        
+                for (let i = 0; i < result.bounding_boxes.length; i++) {
                     allBoxes.push({
                         box: result.bounding_boxes[i],
                         score: result.scores?.[i] || 0,
@@ -526,11 +891,17 @@ class VisualQueryExecutor {
             }
         }
 
+        return this._deduplicateCandidates(allBoxes);
+    }
+
+    _deduplicateCandidates(candidates) {
+        const allBoxes = Array.isArray(candidates) ? [...candidates] : [];
+
         // Sort by score (descending) for greedy deduplication
         allBoxes.sort((a, b) => b.score - a.score);
 
         const deduplicated = [];
-        const iouThreshold = Math.max(0, this.config.iouThreshold - 0.1); // allow small tolerance
+        const iouThreshold = Math.max(0, this.config.iouThreshold - 0.1);
 
         for (const candidate of allBoxes) {
             let isDuplicate = false;
@@ -723,26 +1094,39 @@ class VisualQueryExecutor {
      * Build execution metadata
      * @private
      */
-    _buildMetadata(queryResults, startTime) {
-        const successful = queryResults.filter(r => r.success).length;
-        const failed = queryResults.filter(r => !r.success).length;
-        const timeouts = queryResults.filter(r => r.isTimeout).length;
-        const totalLatency = queryResults.reduce((sum, r) => sum + (r.latency || 0), 0);
-        const errorStatus = queryResults.find(r => r.error_status)?.error_status || null;
-        const errorType = queryResults.find(r => r.error_type)?.error_type || null;
+    _buildMetadata(queryResults, startTime, extras = {}) {
+        const results = Array.isArray(queryResults) ? queryResults : [];
+        const successful = results.filter(r => r.success).length;
+        const failed = results.filter(r => !r.success).length;
+        const timeouts = results.filter(r => r.isTimeout).length;
+        const totalLatency = results.reduce((sum, r) => sum + (r.latency || 0), 0);
+        const errorStatus = results.find(r => r.error_status)?.error_status || null;
+        const errorType = results.find(r => r.error_type)?.error_type || null;
+        const kValues = extras.kValues || this._buildKValues(results);
+        const kSummary = this._buildKSummary(kValues);
+        const dedupStats = extras.dedupStats || {};
+        const computedConfidence = Number.isFinite(extras.visualConfidence)
+            ? Math.max(0, Math.min(1, extras.visualConfidence))
+            : this._calculateVisualConfidence(results);
 
         return {
-            total_queries_executed: queryResults.length,
+            total_queries_executed: results.length,
             successful_queries: successful,
             failed_queries: failed,
             timeout_queries: timeouts,
             circuit_breaker_state: this.circuitBreaker.state,
             total_latency_ms: totalLatency,
-            average_query_latency_ms: queryResults.length > 0 ? totalLatency / queryResults.length : 0,
-            visual_confirmation_rate: successful / Math.max(1, queryResults.length),
+            average_query_latency_ms: results.length > 0 ? totalLatency / results.length : 0,
+            visual_confirmation_rate: successful / Math.max(1, results.length),
             execution_duration_ms: Date.now() - startTime,
             error_status: errorStatus,
-            error_type: errorType
+            error_type: errorType,
+            visual_confidence: computedConfidence,
+            k_values: kValues,
+            k_summary: kSummary,
+            raw_hit_count: dedupStats.raw_hit_count || 0,
+            deduplicated_count: dedupStats.deduplicated_count || 0,
+            dedup_removed_count: dedupStats.dedup_removed_count || 0
         };
     }
 

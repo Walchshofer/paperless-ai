@@ -9,6 +9,7 @@
     "test:performance": "mocha --require test/setup-env.js \"test/performance/**/*.{test,spec}.js\" --timeout 60000 --reporter spec --exit",
     "test:coverage": "c8 --reporter=text --reporter=lcov npm test",
     "test:report": "node scripts/test-report.js",
+    "validate:schemas": "node scripts/validate-schemas.js",
     "test:ui": "cross-env VITE_CJS_IGNORE_WARNING=1 vitest --run",
     "test:ui:e2e": "npx playwright test test/e2e/shadcn-compat.spec.ts --config=test/playwright.config.ts",
     "test:ui:e2e:report": "npx playwright test test/e2e/shadcn-compat.spec.ts --config=test/playwright.config.ts --reporter=html && node scripts/collect-playwright-report.js",
@@ -80,6 +81,7 @@
     "zod": "^3.22.2"
   },
   "devDependencies": {
+    "ajv": "^8.17.1",
     "@eslint/js": "^9.22.0",
     "@grpc/grpc-js": "^1.11.5",
     "@grpc/proto-loader": "^0.7.13",

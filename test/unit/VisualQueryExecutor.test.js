@@ -490,4 +490,68 @@ describe('VisualQueryExecutor', () => {
             assert.strictEqual(stats.timeoutQueries, 0);
         });
     });
+
+    describe('OCR Fallback', () => {
+        it('should trigger OCR fallback when visual confidence is low', async () => {
+            const queriesSeen = [];
+            let callCount = 0;
+
+            mockVisualSearchClient.search = async (query) => {
+                callCount += 1;
+                queriesSeen.push(query);
+                if (callCount === 1) {
+                    return {
+                        bounding_boxes: [
+                            { x: 0.1, y: 0.2, width: 0.3, height: 0.05 }
+                        ],
+                        scores: [0.4],
+                        page_numbers: [1]
+                    };
+                }
+                return {
+                    bounding_boxes: [
+                        { x: 0.12, y: 0.22, width: 0.3, height: 0.05 }
+                    ],
+                    scores: [0.92],
+                    page_numbers: [1]
+                };
+            };
+
+            const mockPaperless = {
+                getDocumentContent: async () => 'Invoice INV-001 total 45.00'
+            };
+
+            executor = new VisualQueryExecutor(mockVisualSearchClient, {
+                ocrFallbackEnabled: true,
+                ocrFallbackConfidenceThreshold: 0.7,
+                paperlessService: mockPaperless
+            });
+
+            const result = await executor.executeQueries({
+                visualQueries: [
+                    {
+                        question: 'Find invoice number',
+                        field_target: 'invoice_number',
+                        expected_element_type: 'field_extraction',
+                        confidence: 0.4,
+                        rarity_factor: 0.1
+                    }
+                ],
+                extractionResults: {
+                    fields: [
+                        { name: 'invoice_number', value: 'INV-001', confidence: 0.5 }
+                    ]
+                },
+                documentMetadata: { id: 'doc-001', documentType: 'financial' },
+                documentImage: 'dGVzdA=='
+            });
+
+            assert.ok(result.execution_metadata.ocr_fallback_used);
+            assert.ok(callCount >= 2, 'Fallback should execute a second query');
+            assert.ok(
+                queriesSeen[1].includes('INV-001'),
+                'OCR-guided query should include OCR value'
+            );
+        });
+    });
 });

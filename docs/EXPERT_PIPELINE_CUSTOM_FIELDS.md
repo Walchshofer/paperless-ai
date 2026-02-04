@@ -23,6 +23,48 @@
 ## Source of truth (field registry)
 Repository canonical schema: `config/schemas/fieldRegistry.json` — this lists fields per domain (financial, medical, legal, technical, etc.). We use this to decide which fields the pipelines should populate.
 
+## Field registry v2 usage (domain + mapping)
+Field Registry v2 adds bidirectional mapping to Paperless-ngx fields and
+visual-label aliases for fuzzy matching. Use `domainMappings` to assemble
+required/optional field sets per domain, and use `paperlessField` to map
+to the Paperless-ngx target (custom field or metadata).
+
+Example field definition:
+
+```json
+{
+  "invoice_number": {
+    "type": "string",
+    "domain": "financial",
+    "paperlessField": "custom_field:invoice_number",
+    "visualLabels": ["Invoice Number", "Rechnungsnummer", "Invoice #"],
+    "extractionPriority": 0.95,
+    "validationRules": { "pattern": "^[A-Z0-9-]+$", "minLength": 3 },
+    "displayName": { "en": "Invoice Number", "de": "Rechnungsnummer" }
+  }
+}
+```
+
+Domain mapping example:
+
+```json
+{
+  "domainMappings": {
+    "financial": {
+      "requiredFields": ["invoice_number", "invoice_amount", "document_date"],
+      "optionalFields": ["payment_due_date", "iban", "currency"],
+      "expertModel": "fino1-8b-q8"
+    }
+  }
+}
+```
+
+Notes:
+- `paperlessField` prefixes:
+  - `metadata:<field>` for Paperless-ngx core metadata
+  - `custom_field:<field>` for custom fields
+- `visualLabels` should include English + German variants for fuzzy matching.
+
 ---
 
 ## Per-pipeline recommendations
