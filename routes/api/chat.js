@@ -2,7 +2,8 @@
  * @fileoverview Chat API routes for three chat modes (Text RAG, Visual RAG, Document).
  * Provides endpoints for:
  * - Text RAG: Semantic text search across all documents (384D embeddings)
- * - Visual RAG: Hybrid text + visual search using ColQwen3 (320D) and RRF fusion
+ * - Visual RAG: Hybrid text + visual search using ColQwen3 (320D) and
+ *   weighted score fusion
  * - Document: Context-aware chat about a specific loaded document
  * @module routes/api/chat
  */
@@ -216,7 +217,7 @@ ${context || 'No relevant documents found.'}`;
  *     summary: Visual RAG Chat - Hybrid text + visual search
  *     description: |
  *       Performs hybrid search combining text embeddings (384D) and visual
- *       embeddings (320D ColQwen3) using Reciprocal Rank Fusion (RRF).
+ *       embeddings (320D ColQwen3) using weighted score fusion.
  *       Falls back to text-only search if Visual-RAG sidecar is unavailable.
  *     tags:
  *       - API
@@ -300,10 +301,9 @@ router.post('/visual-rag', authenticateApi, async (req, res) => {
     let searchMode = 'hybrid';
 
     if (availability.hybrid) {
-      // Hybrid search with alpha=0.5 (equal blend)
+      // Hybrid search with default weighted fusion (visual 0.7, text 0.3)
       try {
         const hybridResults = await hybridSearch.search(message, {
-          alpha: 0.5,
           k: 10,
           maxResults: 5
         });

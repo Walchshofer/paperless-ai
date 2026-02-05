@@ -1,8 +1,8 @@
 /**
  * Visual RAG API Routes
  *
- * Provides hybrid search endpoint combining visual (ColQwen2) and text (RAG) search
- * with Reciprocal Rank Fusion (RRF) for improved document retrieval.
+ * Provides hybrid search endpoint combining visual (ColQwen3) and text (RAG)
+ * search with weighted score fusion for improved document retrieval.
  *
  * Endpoints:
  * - POST /api/visual-rag/search - Hybrid document search
@@ -58,7 +58,8 @@ const activeJobs = new Map();
  *   post:
  *     summary: Hybrid document search
  *     description: |
- *       Search documents using hybrid visual and text embeddings with RRF fusion.
+ *       Search documents using hybrid visual and text retrieval with weighted
+ *       score fusion.
  *       Supports three search modes: hybrid, visual-only, and text-only.
  *     tags: [Visual RAG]
  *     requestBody:
@@ -89,8 +90,8 @@ const activeJobs = new Map();
  *                 default: true
  *               alpha:
  *                 type: number
- *                 description: Visual weight for hybrid mode (0-1, 0.5 = equal)
- *                 default: 0.5
+ *                 description: Visual weight for hybrid mode (0-1)
+ *                 default: 0.7
  *     responses:
  *       200:
  *         description: Search results

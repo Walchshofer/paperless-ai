@@ -8,7 +8,7 @@
  * - VisualOverlayRepository: PostgreSQL storage for bounding boxes
  * - OverlayExtractor: Qwen3-VL bounding box detection
  * - IngestionManager: Dual-path ingestion orchestrator
- * - HybridSearchService: Combined visual + text search with RRF fusion
+ * - HybridSearchService: Combined visual + text weighted score fusion
  * - FieldProfiler: Field set selection for extraction
  * - PDFRenderer: High-resolution PDF to image conversion
  */

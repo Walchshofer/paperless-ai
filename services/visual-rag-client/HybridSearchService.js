@@ -1,13 +1,15 @@
 /**
  * HybridSearchService.js
  *
- * Combines visual search (ColQwen2 sidecar) with text-based RAG search
- * using Reciprocal Rank Fusion (RRF) for improved document retrieval.
+ * Combines visual search (ColQwen3 sidecar) with text-based RAG search
+ * using weighted score fusion for improved document retrieval.
  *
  * Architecture Reference: PROMPT-004 (Hybrid Search Service)
  *
- * RRF Formula: score(d) = Σ 1 / (k + rank(d)) for each result list
- * Default k = 60 (standard RRF constant)
+ * Weighted Formula: score = (visual_score * visual_weight)
+ *                 + (text_score * text_weight)
+ * Default visual weight: 0.7
+ * Default text weight: 0.3
  *
  * Usage:
  *   const { hybridSearchService } = require('./services/visual-rag');
@@ -26,11 +28,16 @@ class HybridSearchService {
             getDefaultVisualSearchClient();
         this.ragService = options.ragService || getDefaultRagService();
 
-        // RRF parameters
-        this.rrfK = options.rrfK || 60;  // Standard RRF constant
+        // Legacy RRF knob kept for compatibility with existing config payloads.
+        this.rrfK = options.rrfK || 60;
 
-        // Weight for visual vs text (0 = text only, 1 = visual only, 0.5 = equal)
-        this.alpha = options.alpha ?? 0.5;
+        const initialWeights = this._resolveWeights({
+            alpha: options.alpha,
+            visualWeight: options.visualWeight ?? 0.7,
+            textWeight: options.textWeight
+        });
+        this.visualWeight = initialWeights.visualWeight;
+        this.textWeight = initialWeights.textWeight;
 
         // Caching
         this._visualAvailable = false;
@@ -135,7 +142,9 @@ class HybridSearchService {
      * @param {Object} options - Search options
      * @param {number} options.k - Number of results per source (default: 10)
      * @param {number} options.maxResults - Maximum total results (default: 20)
-     * @param {number} options.alpha - Visual weight override (0-1)
+     * @param {number} options.alpha - Legacy alias for visual weight override
+     * @param {number} options.visualWeight - Visual weight override (0-1)
+     * @param {number} options.textWeight - Text weight override (0-1)
      * @param {boolean} options.includeOverlays - Include overlays in results
      * @returns {Promise<Object>} Fused search results
      */
@@ -143,16 +152,31 @@ class HybridSearchService {
         const {
             k = 10,
             maxResults = 20,
-            alpha = this.alpha,
+            alpha,
+            visualWeight,
+            textWeight,
             includeOverlays: _includeOverlays = false
         } = options;
+        const effectiveWeights = this._resolveWeights({
+            alpha,
+            visualWeight,
+            textWeight
+        });
 
         if (!query || typeof query !== 'string') {
             throw new Error('Query must be a non-empty string');
         }
 
         const startTime = Date.now();
-        logger.info(`[HybridSearchService] Searching: "${query}" (k=${k}, alpha=${alpha})`);
+        logger.info(
+            '[HybridSearchService] Searching',
+            {
+                query,
+                k,
+                visualWeight: effectiveWeights.visualWeight,
+                textWeight: effectiveWeights.textWeight
+            }
+        );
 
         // Check availability
         const availability = await this.isAvailable();
@@ -176,16 +200,29 @@ class HybridSearchService {
 
         logger.debug(`[HybridSearchService] Visual: ${visualResults.length}, Text: ${textResults.length}`);
 
-        // Fuse results using RRF
-        const fusedResults = this._fuseResults(visualResults, textResults, {
-            k: this.rrfK,
-            alpha,
-            maxResults
+        const fusedPayload = this._fuseResults(visualResults, textResults, {
+            maxResults,
+            visualWeight: effectiveWeights.visualWeight,
+            textWeight: effectiveWeights.textWeight
         });
+        const fusedResults = fusedPayload.results;
 
         const duration = Date.now() - startTime;
+        const fusionStats = {
+            ...fusedPayload.stats,
+            latencyMs: duration,
+            latencyTargetMs: 2000,
+            latencyTargetMet: duration < 2000
+        };
 
-        logger.info(`[HybridSearchService] Found ${fusedResults.length} results in ${duration}ms`);
+        logger.info(
+            '[HybridSearchService] Fusion stats',
+            {
+                event: 'hybrid_search_fusion_stats',
+                queryLength: query.length,
+                ...fusionStats
+            }
+        );
 
         return {
             query,
@@ -197,6 +234,7 @@ class HybridSearchService {
                 visualCount: visualResults.length,
                 textCount: textResults.length
             },
+            fusionStats,
             duration
         };
     }
@@ -316,39 +354,42 @@ class HybridSearchService {
     }
 
     // =========================================================================
-    // Result Fusion (RRF)
+    // Result Fusion (Weighted)
     // =========================================================================
 
     /**
-     * Fuse results using Reciprocal Rank Fusion
-     * RRF formula: score(d) = Σ 1 / (k + rank(d))
+     * Fuse results using weighted score fusion.
+     * score = (visual_score * visual_weight) + (text_score * text_weight)
      *
      * @param {Array} visualResults - Visual search results
      * @param {Array} textResults - Text search results
      * @param {Object} options - Fusion options
-     * @returns {Array} Fused and ranked results
+     * @returns {{results: Array, stats: Object}} Fused and ranked results
      */
     _fuseResults(visualResults, textResults, options = {}) {
-        const { k = 60, alpha = 0.5, maxResults = 20 } = options;
+        const {
+            maxResults = 20,
+            visualWeight = this.visualWeight,
+            textWeight = this.textWeight
+        } = options;
 
-        // Map: docId -> fusion data
+        const dedupedVisual = this._dedupeByDocId(visualResults);
+        const dedupedText = this._dedupeByDocId(textResults);
         const scoreMap = new Map();
 
-        // Score visual results (weighted by alpha)
-        visualResults.forEach((result, index) => {
+        dedupedVisual.forEach(result => {
             const docId = result.docId;
-            if (!docId) return;
-
-            const rrfScore = 1 / (k + index + 1);
-            const weightedScore = rrfScore * alpha;
+            const normalizedVisualScore = this._normalizeScore(result.score);
 
             scoreMap.set(docId, {
                 docId,
-                fusedScore: weightedScore,
-                visualRank: index + 1,
-                visualScore: result.score,
+                fusedScore: normalizedVisualScore * visualWeight,
+                visualRank: result.rank,
+                visualScore: normalizedVisualScore,
+                visualRawScore: this._toFiniteNumber(result.score),
                 textRank: null,
                 textScore: null,
+                textRawScore: null,
                 sources: ['visual'],
                 data: {
                     pageNum: result.pageNum,
@@ -358,36 +399,32 @@ class HybridSearchService {
             });
         });
 
-        // Score text results (weighted by 1 - alpha)
-        textResults.forEach((result, index) => {
+        dedupedText.forEach(result => {
             const docId = result.docId;
-            if (!docId) return;
-
-            const rrfScore = 1 / (k + index + 1);
-            const weightedScore = rrfScore * (1 - alpha);
+            const normalizedTextScore = this._normalizeScore(result.score);
 
             if (scoreMap.has(docId)) {
-                // Document found in both - add scores
                 const existing = scoreMap.get(docId);
-                existing.fusedScore += weightedScore;
-                existing.textRank = index + 1;
-                existing.textScore = result.score;
+                existing.fusedScore += normalizedTextScore * textWeight;
+                existing.textRank = result.rank;
+                existing.textScore = normalizedTextScore;
+                existing.textRawScore = this._toFiniteNumber(result.score);
                 existing.sources.push('text');
 
-                // Merge text-specific data
                 existing.data.title = result.title;
                 existing.data.content = result.content;
                 existing.data.correspondent = result.correspondent;
                 existing.data.created = result.created;
             } else {
-                // New document from text only
                 scoreMap.set(docId, {
                     docId,
-                    fusedScore: weightedScore,
+                    fusedScore: normalizedTextScore * textWeight,
                     visualRank: null,
                     visualScore: null,
-                    textRank: index + 1,
-                    textScore: result.score,
+                    visualRawScore: null,
+                    textRank: result.rank,
+                    textScore: normalizedTextScore,
+                    textRawScore: this._toFiniteNumber(result.score),
                     sources: ['text'],
                     data: {
                         title: result.title,
@@ -399,7 +436,6 @@ class HybridSearchService {
             }
         });
 
-        // Sort by fused score (descending) and limit results
         const fusedResults = Array.from(scoreMap.values())
             .sort((a, b) => b.fusedScore - a.fusedScore)
             .slice(0, maxResults)
@@ -407,15 +443,139 @@ class HybridSearchService {
                 rank: index + 1,
                 docId: item.docId,
                 fusedScore: item.fusedScore,
+                score: item.fusedScore,
                 visualRank: item.visualRank,
                 textRank: item.textRank,
+                visualScore: item.visualScore,
+                textScore: item.textScore,
+                visualRawScore: item.visualRawScore,
+                textRawScore: item.textRawScore,
                 sources: item.sources,
                 source: item.sources.length === 1 ? item.sources[0] : 'hybrid',
                 inBoth: item.sources.length === 2,
+                fusion: {
+                    method: 'weighted_score',
+                    visualWeight,
+                    textWeight
+                },
                 ...item.data
             }));
 
-        return fusedResults;
+        const overlapCount = fusedResults.filter(item => item.inBoth).length;
+        return {
+            results: fusedResults,
+            stats: {
+                fusionMethod: 'weighted_score',
+                visualWeight,
+                textWeight,
+                visualInputCount: visualResults.length,
+                textInputCount: textResults.length,
+                visualDedupedCount: dedupedVisual.length,
+                textDedupedCount: dedupedText.length,
+                overlapCount,
+                totalResults: fusedResults.length
+            }
+        };
+    }
+
+    _resolveWeights(options = {}) {
+        let visualWeight = options.visualWeight;
+        let textWeight = options.textWeight;
+
+        if (visualWeight === undefined && options.alpha !== undefined) {
+            visualWeight = options.alpha;
+        }
+
+        if (visualWeight === undefined && textWeight === undefined) {
+            return {
+                visualWeight: this.visualWeight ?? 0.7,
+                textWeight: this.textWeight ?? 0.3
+            };
+        }
+
+        if (visualWeight !== undefined && textWeight === undefined) {
+            const normalizedVisualWeight = this._normalizeWeight(visualWeight, 0.7);
+            return {
+                visualWeight: normalizedVisualWeight,
+                textWeight: 1 - normalizedVisualWeight
+            };
+        }
+
+        if (visualWeight === undefined && textWeight !== undefined) {
+            const normalizedTextWeight = this._normalizeWeight(textWeight, 0.3);
+            return {
+                visualWeight: 1 - normalizedTextWeight,
+                textWeight: normalizedTextWeight
+            };
+        }
+
+        const safeVisual = this._normalizeWeight(visualWeight, 0.7);
+        const safeText = this._normalizeWeight(textWeight, 0.3);
+        const sum = safeVisual + safeText;
+        if (sum <= 0) {
+            return { visualWeight: 0.7, textWeight: 0.3 };
+        }
+        return {
+            visualWeight: safeVisual / sum,
+            textWeight: safeText / sum
+        };
+    }
+
+    _normalizeWeight(value, fallback) {
+        const numberValue = this._toFiniteNumber(value);
+        if (numberValue === null) {
+            return fallback;
+        }
+        if (numberValue < 0) {
+            return 0;
+        }
+        if (numberValue > 1) {
+            return 1;
+        }
+        return numberValue;
+    }
+
+    _toFiniteNumber(value) {
+        if (typeof value !== 'number' || !Number.isFinite(value)) {
+            return null;
+        }
+        return value;
+    }
+
+    _normalizeScore(score) {
+        const numericScore = this._toFiniteNumber(score);
+        if (numericScore === null) {
+            return 0;
+        }
+        if (numericScore < 0) {
+            return 0;
+        }
+        if (numericScore > 1) {
+            return 1;
+        }
+        return numericScore;
+    }
+
+    _dedupeByDocId(results) {
+        const bestByDoc = new Map();
+        (results || []).forEach((result, index) => {
+            const docId = result?.docId;
+            if (docId === null || docId === undefined) {
+                return;
+            }
+            const candidateScore = this._normalizeScore(result.score);
+            const existing = bestByDoc.get(docId);
+            if (!existing || candidateScore > this._normalizeScore(existing.score)) {
+                bestByDoc.set(docId, {
+                    ...result,
+                    rank: index + 1
+                });
+            }
+        });
+        return Array.from(bestByDoc.values()).sort(
+            (left, right) => this._normalizeScore(right.score) -
+                this._normalizeScore(left.score)
+        );
     }
 
     /**
@@ -425,7 +585,9 @@ class HybridSearchService {
     getConfig() {
         return {
             rrfK: this.rrfK,
-            alpha: this.alpha,
+            alpha: this.visualWeight,
+            visualWeight: this.visualWeight,
+            textWeight: this.textWeight,
             checkInterval: this._checkInterval
         };
     }
@@ -436,7 +598,17 @@ class HybridSearchService {
      */
     setConfig(config) {
         if (config.rrfK !== undefined) this.rrfK = config.rrfK;
-        if (config.alpha !== undefined) this.alpha = config.alpha;
+        if (config.alpha !== undefined ||
+            config.visualWeight !== undefined ||
+            config.textWeight !== undefined) {
+            const resolvedWeights = this._resolveWeights({
+                alpha: config.alpha,
+                visualWeight: config.visualWeight,
+                textWeight: config.textWeight
+            });
+            this.visualWeight = resolvedWeights.visualWeight;
+            this.textWeight = resolvedWeights.textWeight;
+        }
         if (config.checkInterval !== undefined) this._checkInterval = config.checkInterval;
     }
 }

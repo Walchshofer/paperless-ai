@@ -707,7 +707,7 @@ class IngestionManager {
      * @param {number} options.k - Number of results (default: 5)
      * @param {boolean} options.includeOverlays - Include overlays in results (default: true)
      * @param {string} options.mode - Search mode: 'hybrid', 'visual', 'text' (default: 'hybrid')
-     * @param {number} options.alpha - Visual weight for hybrid mode (0-1, default: 0.5)
+     * @param {number} options.alpha - Legacy visual weight alias (0-1)
      * @returns {Promise<Object>} Search results with overlays
      */
     async hybridSearch(query, options = {}) {

@@ -1,4 +1,4 @@
-
+/* eslint-env mocha */
 const assert = require('assert');
 const { HybridSearchService } = require('../../services/visual-rag-client/HybridSearchService');
 
@@ -38,11 +38,85 @@ describe('HybridSearchService Integration', function () {
         assert.ok(results.results.length > 0, 'Should return results');
         assert.strictEqual(results.sources.visual, true, 'Visual source should be active');
         assert.strictEqual(results.sources.text, true, 'Text source should be active');
-        
+        assert.ok(results.fusionStats, 'Fusion telemetry should be present');
+        assert.strictEqual(results.fusionStats.fusionMethod, 'weighted_score');
+
         // Check fusion (docId 101 from visual, docId 102 from text)
         const docIds = results.results.map(r => r.docId);
         assert.ok(docIds.includes(101));
         assert.ok(docIds.includes(102));
+    });
+
+    it('should apply default weighted fusion formula (visual 0.7, text 0.3)', async function () {
+        const weightedVisualClient = {
+            isAvailable: async () => true,
+            search: async () => ({
+                results: [
+                    { docId: 201, pageNum: 1, score: 0.9 },
+                    { docId: 202, pageNum: 1, score: 0.4 }
+                ]
+            })
+        };
+        const weightedRagService = {
+            checkStatus: async () => ({
+                server_up: true,
+                index_ready: true,
+                data_loaded: true
+            }),
+            search: async () => ([
+                { docId: 201, score: 0.5, title: 'Overlap' },
+                { docId: 203, score: 0.95, title: 'Text-only' }
+            ])
+        };
+        const service = new HybridSearchService({
+            visualSearchClient: weightedVisualClient,
+            ragService: weightedRagService
+        });
+
+        await service.isAvailable();
+        const output = await service.search('weighted');
+
+        const overlap = output.results.find(r => r.docId === 201);
+        assert.ok(overlap, 'Overlapping doc should exist');
+        assert.strictEqual(
+            Number(overlap.fusedScore.toFixed(4)),
+            Number(((0.9 * 0.7) + (0.5 * 0.3)).toFixed(4))
+        );
+        assert.strictEqual(overlap.source, 'hybrid');
+        assert.strictEqual(overlap.inBoth, true);
+    });
+
+    it('should deduplicate results by docId using the best source score', async function () {
+        const dedupeVisualClient = {
+            isAvailable: async () => true,
+            search: async () => ({
+                results: [
+                    { docId: 301, pageNum: 1, score: 0.2 },
+                    { docId: 301, pageNum: 2, score: 0.8 }
+                ]
+            })
+        };
+        const emptyRagService = {
+            checkStatus: async () => ({
+                server_up: true,
+                index_ready: false,
+                data_loaded: false
+            }),
+            search: async () => []
+        };
+        const service = new HybridSearchService({
+            visualSearchClient: dedupeVisualClient,
+            ragService: emptyRagService
+        });
+
+        await service.isAvailable();
+        const output = await service.search('dedupe');
+        const deduped = output.results.filter(result => result.docId === 301);
+
+        assert.strictEqual(deduped.length, 1, 'docId should be deduplicated');
+        assert.strictEqual(deduped[0].pageNum, 2, 'Best visual score should win');
+        assert.strictEqual(output.fusionStats.visualInputCount, 2);
+        assert.strictEqual(output.fusionStats.visualDedupedCount, 1);
     });
 
     it('should fallback to text search when visual sidecar is unavailable', async function () {
