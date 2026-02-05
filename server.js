@@ -37,6 +37,10 @@ const logger = require('./services/logger');
 const { max: _max } = require('date-fns');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
+const { WebSocketServer } = require('ws');
+const {
+  reprocessProgressBroker
+} = require('./services/reprocess/ReprocessProgressBroker');
 
 const _htmlLogger = new Logger({
   logFile: 'logs.html',
@@ -53,6 +57,8 @@ const _txtLogger = new Logger({
 });
 
 const app = express();
+const SOCKET_OPEN = 1;
+let reprocessWebSocketServer = null;
 
 app.set('trust proxy', process.env.TRUST_PROXY === 'true');
 let runningTask = false;
@@ -62,6 +68,85 @@ let paperlessValidationStatus = {
   error: null,
   details: null
 };
+
+function initializeReprocessWebSocket(server) {
+  if (reprocessWebSocketServer) {
+    return reprocessWebSocketServer;
+  }
+
+  const wss = new WebSocketServer({ noServer: true });
+
+  server.on('upgrade', (request, socket, head) => {
+    const host = request.headers.host || 'localhost';
+    let pathname = '';
+
+    try {
+      const parsed = new URL(request.url || '/', `http://${host}`);
+      pathname = parsed.pathname;
+    } catch (error) {
+      socket.destroy();
+      return;
+    }
+
+    const match = pathname.match(/^\/ws\/reprocess\/(\d+)$/);
+    if (!match) {
+      if (pathname.startsWith('/ws/')) {
+        socket.destroy();
+      }
+      return;
+    }
+
+    const documentId = Number(match[1]);
+
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, documentId);
+    });
+  });
+
+  wss.on('connection', (ws, documentId) => {
+    const sendPayload = (payload) => {
+      if (ws.readyState !== SOCKET_OPEN) return;
+      ws.send(JSON.stringify(payload));
+    };
+
+    const unsubscribe = reprocessProgressBroker.subscribe(
+      documentId,
+      sendPayload
+    );
+
+    sendPayload({
+      documentId,
+      stage: 'connected',
+      label: 'Connected to reprocess progress stream',
+      status: 'connected',
+      percentage: 0,
+      details: null,
+      timestamp: new Date().toISOString()
+    });
+
+    ws.on('message', (raw) => {
+      const message = String(raw || '').trim().toLowerCase();
+      if (message === 'ping') {
+        sendPayload({
+          documentId,
+          stage: 'heartbeat',
+          label: 'heartbeat',
+          status: 'connected',
+          percentage: 0,
+          details: null,
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
+    ws.on('close', () => {
+      unsubscribe();
+    });
+  });
+
+  reprocessWebSocketServer = wss;
+  return wss;
+}
 
 const corsOptions = {
   origin: true,
@@ -1345,12 +1430,13 @@ async function startServer() {
       process.exit(1);
     }
 
-    const server = app.listen(port, () => { 
+    const server = app.listen(port, () => {
       const actualPort = server.address().port;
       process.env.PAPERLESS_AI_PORT = actualPort;
       console.log(`Server running on port ${actualPort}`);
       startScanning();
     });
+    initializeReprocessWebSocket(server);
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);

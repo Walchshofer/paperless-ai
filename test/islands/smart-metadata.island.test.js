@@ -155,4 +155,47 @@ describe('SmartMetadataIsland - basic interactions', function () {
     assert.ok(seen.length >= 2, 'tag remove should emit event');
     assert.ok(!seen[seen.length - 1].tags.some((t) => t.id === 1), 'removed tag id should be absent');
   });
+
+  it('triggers reprocess request and renders progress overlay updates', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    render(h(SmartMetadataIsland, { documentId: 42 }), root);
+
+    const reprocessBtn = await waitForSelector(root, '[data-testid="reprocess-metadata-btn"]');
+    assert.ok(reprocessBtn, 'metadata reprocess button exists');
+
+    let requestDetail = null;
+    window.addEventListener('workspace:reprocess-request', (e) => {
+      requestDetail = e.detail;
+    });
+
+    reprocessBtn.dispatchEvent(new window.Event('click', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 30));
+
+    assert.deepStrictEqual(requestDetail, { documentId: 42 });
+    const overlay = root.querySelector('[data-testid="reprocess-progress-overlay"]');
+    assert.ok(overlay, 'overlay should appear after request');
+
+    window.dispatchEvent(new window.CustomEvent('workspace:reprocess-progress', {
+      detail: {
+        documentId: 42,
+        stage: 'extracting',
+        label: 'Extracting fields with expert pipeline',
+        status: 'in_progress',
+        percentage: 60
+      }
+    }));
+    await new Promise((r) => setTimeout(r, 30));
+
+    const percent = root.querySelector('[data-testid="reprocess-progress-percent"]');
+    assert.ok(percent && percent.textContent && percent.textContent.includes('60%'));
+
+    window.dispatchEvent(new window.CustomEvent('workspace:reprocess-complete', {
+      detail: { documentId: 42 }
+    }));
+    await new Promise((r) => setTimeout(r, 30));
+
+    assert.strictEqual(reprocessBtn.textContent.includes('Reprocessing...'), false);
+  });
 });

@@ -19,6 +19,14 @@ type DocumentId = number | null;
 interface WorkspaceDirtyDetail { documentId: DocumentId }
 interface FeedbackVoteDetail { fieldId: string | number; vote: 'up' | 'down' }
 interface MetadataLocateDetail { fieldId: string | number }
+interface ReprocessProgressDetail {
+  documentId?: DocumentId;
+  stage?: string;
+  label?: string;
+  status?: string;
+  percentage?: number;
+  details?: Record<string, unknown> | null;
+}
 
 type MatchType = 'exact' | 'fuzzy' | 'none';
 
@@ -50,6 +58,14 @@ const MATCH_BADGES: Record<MatchType, string> = {
   fuzzy: 'bg-amber-50 border-amber-200 text-amber-700',
   none: 'bg-red-50 border-red-200 text-red-700'
 };
+
+const REPROCESS_STEPS = [
+  { key: 'queued', label: 'Request queued' },
+  { key: 'classifying', label: 'Domain classification' },
+  { key: 'extracting', label: 'Field extraction' },
+  { key: 'persisting', label: 'Persisting results' },
+  { key: 'completed', label: 'Complete' }
+];
 
 function createSafeCustomEvent(name: string, detail?: unknown): CustomEvent<unknown> | null {
   try {
@@ -167,6 +183,14 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
   const [requiredMetadataKeys, setRequiredMetadataKeys] = useState([] as string[]);
   const [domainOverride, setDomainOverride] = useState(null as string | null);
   const [profileOverride, setProfileOverride] = useState(null as { displayName?: string; icon?: string } | null);
+  const [isReprocessing, setIsReprocessing] = useState(false);
+  const [showReprocessOverlay, setShowReprocessOverlay] = useState(false);
+  const [reprocessProgress, setReprocessProgress] = useState({
+    stage: 'idle',
+    label: 'Waiting to start',
+    status: 'idle',
+    percentage: 0
+  });
 
   const resolvedProfile = useMemo(() => {
     const profile = initial.fieldProfile || {};
@@ -490,6 +514,85 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     return () => window.removeEventListener('workspace:document-switched', handleDocumentSwitched as EventListener);
   }, [currentDocumentId]);
 
+  useEffect(() => {
+    const onReprocessStarted = (e: Event) => {
+      const detail = (e as CustomEvent<{ documentId?: DocumentId }>)?.detail || {};
+      if (String(detail.documentId) !== String(currentDocumentId)) return;
+      setIsReprocessing(true);
+      setShowReprocessOverlay(true);
+      setReprocessProgress({
+        stage: 'queued',
+        label: 'Queued for re-analysis',
+        status: 'in_progress',
+        percentage: 5
+      });
+    };
+
+    const onReprocessProgress = (e: Event) => {
+      const detail = (e as CustomEvent<ReprocessProgressDetail>)?.detail || {};
+      if (String(detail.documentId) !== String(currentDocumentId)) return;
+
+      const nextStatus = detail.status || 'in_progress';
+      const nextPercentage = Number.isFinite(Number(detail.percentage))
+        ? Number(detail.percentage)
+        : 0;
+
+      setReprocessProgress({
+        stage: detail.stage || 'extracting',
+        label: detail.label || 'Reprocessing document',
+        status: nextStatus,
+        percentage: Math.max(0, Math.min(100, Math.round(nextPercentage)))
+      });
+
+      if (nextStatus === 'completed') {
+        setIsReprocessing(false);
+        setTimeout(() => setShowReprocessOverlay(false), 600);
+      } else if (nextStatus === 'failed') {
+        setIsReprocessing(false);
+      } else {
+        setIsReprocessing(true);
+        setShowReprocessOverlay(true);
+      }
+    };
+
+    const onReprocessComplete = (e: Event) => {
+      const detail = (e as CustomEvent<{ documentId?: DocumentId }>)?.detail || {};
+      if (String(detail.documentId) !== String(currentDocumentId)) return;
+      setReprocessProgress({
+        stage: 'completed',
+        label: 'Re-analysis complete',
+        status: 'completed',
+        percentage: 100
+      });
+      setIsReprocessing(false);
+      setTimeout(() => setShowReprocessOverlay(false), 600);
+    };
+
+    const onReprocessFailed = (e: Event) => {
+      const detail = (e as CustomEvent<{ documentId?: DocumentId; error?: string }>)?.detail || {};
+      if (String(detail.documentId) !== String(currentDocumentId)) return;
+      setReprocessProgress({
+        stage: 'failed',
+        label: detail.error ? `Failed: ${detail.error}` : 'Re-analysis failed',
+        status: 'failed',
+        percentage: 100
+      });
+      setIsReprocessing(false);
+      setShowReprocessOverlay(true);
+    };
+
+    window.addEventListener('workspace:reprocess-started', onReprocessStarted as EventListener);
+    window.addEventListener('workspace:reprocess-progress', onReprocessProgress as EventListener);
+    window.addEventListener('workspace:reprocess-complete', onReprocessComplete as EventListener);
+    window.addEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
+    return () => {
+      window.removeEventListener('workspace:reprocess-started', onReprocessStarted as EventListener);
+      window.removeEventListener('workspace:reprocess-progress', onReprocessProgress as EventListener);
+      window.removeEventListener('workspace:reprocess-complete', onReprocessComplete as EventListener);
+      window.removeEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
+    };
+  }, [currentDocumentId]);
+
   const onLocate = (fieldId: string | number): void => {
     dispatchEventSafe('metadata:locate-field', { fieldId } as MetadataLocateDetail);
   };
@@ -519,6 +622,21 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     setLocalTags(nextTags);
     validateAndMarkDirty(localMetadata, requiredFields, optionalFields, nextTags);
     dispatchEventSafe('tags:updated', { documentId: currentDocumentId, tags: nextTags });
+  };
+
+  const handleReprocess = (): void => {
+    if (currentDocumentId == null || isReprocessing) return;
+    setIsReprocessing(true);
+    setShowReprocessOverlay(true);
+    setReprocessProgress({
+      stage: 'queued',
+      label: 'Queued for re-analysis',
+      status: 'in_progress',
+      percentage: 5
+    });
+    dispatchEventSafe('workspace:reprocess-request', {
+      documentId: currentDocumentId
+    });
   };
 
   const updateFieldValue = (fieldId: string, val: string) => {
@@ -623,6 +741,10 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
   const titleError = validationErrors.get('metadata:title');
   const correspondentError = validationErrors.get('metadata:correspondent');
   const createdDateError = validationErrors.get('metadata:document_date');
+  const currentStepIndex = REPROCESS_STEPS.findIndex(
+    (step) => step.key === reprocessProgress.stage
+  );
+  const hasFailedProgress = reprocessProgress.status === 'failed';
 
   return (
     <div data-testid="smart-metadata-root" className="flex flex-col gap-4">
@@ -643,12 +765,25 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
             <div className="text-xs uppercase tracking-wide text-[#8a6f54]">Smart Metadata</div>
             <div className="text-lg font-['Fraunces'] text-[#2c2c2c]">Unified Metadata View</div>
           </div>
-          <div
-            data-testid="document-domain-badge"
-            className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-semibold ${domainMeta.badge}`}
-          >
-            <span>{resolvedProfile.icon || domainMeta.icon}</span>
-            <span>{resolvedProfile.displayName || domainMeta.label}</span>
+          <div className="flex items-center gap-2">
+            <div
+              data-testid="document-domain-badge"
+              className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-semibold ${domainMeta.badge}`}
+            >
+              <span>{resolvedProfile.icon || domainMeta.icon}</span>
+              <span>{resolvedProfile.displayName || domainMeta.label}</span>
+            </div>
+            <button
+              type="button"
+              data-testid="reprocess-metadata-btn"
+              onClick={handleReprocess}
+              disabled={isReprocessing || currentDocumentId == null}
+              aria-label="Reprocess document with AI"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold text-white bg-[#b87333] hover:bg-[#a06028] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <i className={`fas ${isReprocessing ? 'fa-circle-notch fa-spin' : 'fa-rotate-right'}`}></i>
+              <span>{isReprocessing ? 'Reprocessing...' : 'Reprocess'}</span>
+            </button>
           </div>
         </div>
 
@@ -997,6 +1132,82 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
           );
         })}
       </div>
+
+      {showReprocessOverlay && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+          data-testid="reprocess-progress-overlay"
+          role="dialog"
+          aria-live="polite"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-lg rounded-xl bg-white border border-[#e5e0d8] shadow-2xl p-5">
+            <div className="text-base font-semibold text-[#2c2c2c]">
+              Reprocessing Document
+            </div>
+            <div
+              className={`mt-1 text-sm ${hasFailedProgress ? 'text-red-700' : 'text-[#7c5a3a]'}`}
+              data-testid="reprocess-progress-label"
+            >
+              {reprocessProgress.label}
+            </div>
+
+            <div className="mt-4 h-2.5 rounded-full bg-[#f3e8dc] overflow-hidden">
+              <div
+                data-testid="reprocess-progress-bar"
+                className={`h-full ${hasFailedProgress ? 'bg-red-500' : 'bg-[#b87333]'}`}
+                style={{ width: `${reprocessProgress.percentage}%` }}
+              ></div>
+            </div>
+            <div className="mt-1 text-xs text-[#8a6f54]" data-testid="reprocess-progress-percent">
+              {reprocessProgress.percentage}%
+            </div>
+
+            <div className="mt-4 space-y-1.5">
+              {REPROCESS_STEPS.map((step, index) => {
+                const isFailedStep = hasFailedProgress && index === currentStepIndex;
+                const isDoneStep = !hasFailedProgress && (
+                  index < currentStepIndex ||
+                  (index === currentStepIndex && reprocessProgress.status === 'completed')
+                );
+                const isActiveStep = !hasFailedProgress &&
+                  reprocessProgress.status === 'in_progress' &&
+                  index === currentStepIndex;
+
+                const statusIcon = isFailedStep
+                  ? 'fa-circle-xmark text-red-600'
+                  : isDoneStep
+                    ? 'fa-circle-check text-emerald-600'
+                    : isActiveStep
+                      ? 'fa-hourglass-half text-amber-600'
+                      : 'fa-circle text-gray-300';
+
+                return (
+                  <div
+                    key={step.key}
+                    className="flex items-center gap-2 text-sm"
+                    data-testid={`reprocess-step-${step.key}`}
+                  >
+                    <i className={`fas ${statusIcon}`}></i>
+                    <span className="text-[#4a3a2a]">{step.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                data-testid="reprocess-overlay-cancel"
+                className="px-3 py-1.5 rounded-md border border-[#e5e0d8] text-sm text-[#4a3a2a] hover:bg-[#f8f3ec]"
+                onClick={() => setShowReprocessOverlay(false)}
+              >
+                {isReprocessing ? 'Cancel' : 'Close'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

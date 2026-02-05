@@ -207,7 +207,7 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
             <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg" data-testid="panel-header-metadata">
               <p className="text-sm text-purple-800">
                 <i className="fas fa-wand-magic-sparkles mr-2"></i>
-                AI-powered metadata extraction and suggestions
+                AI metadata editing, manual reprocess, and live progress
               </p>
             </div>
             <SmartMetadataIsland

@@ -195,6 +195,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const [translateX, setTranslateX] = useState(0);
   const [translateY, setTranslateY] = useState(0);
   const translateRef = useRef({ x: 0, y: 0 });
+  const [rotationDeg, setRotationDeg] = useState(0);
   const [panMode, setPanMode] = useState(false);
   const panActiveRef = useRef(false);
   const lastPanPointRef = useRef(null as { x: number; y: number } | null);
@@ -220,8 +221,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const [selectedRegion, setSelectedRegion] = useState(null as BoundingBox | null);
   const [showExportBtn, setShowExportBtn] = useState(false);
   
-  const MIN_SCALE = 0.5;
-  const MAX_SCALE = 3;
+  const MIN_SCALE = 0.25;
+  const MAX_SCALE = 4;
   const SCALE_STEP = 0.1;
 
   // Helper to set scale with clamping
@@ -316,6 +317,9 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       setDrawContext(ctx);
       drawContextRef.current = ctx;
 
+      // Ensure draw interactions always happen in unrotated coordinates.
+      setRotationDeg(0);
+
       // Activate draw mode
       drawModeRef.current = true;
       setIsDrawMode(true);
@@ -344,9 +348,73 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     };
   }, []);
 
+  const getFitScale = useCallback(
+    (axis: 'width' | 'height') => {
+      const container = containerRef.current;
+      const img = imageRef.current;
+      if (!container || !img) return null;
+
+      const naturalWidth = img.naturalWidth || 0;
+      const naturalHeight = img.naturalHeight || 0;
+      if (naturalWidth <= 0 || naturalHeight <= 0) return null;
+
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+      if (containerWidth <= 0 || containerHeight <= 0) return null;
+
+      const baseScale = Math.min(
+        containerWidth / naturalWidth,
+        containerHeight / naturalHeight
+      );
+      let displayWidth = naturalWidth * baseScale;
+      let displayHeight = naturalHeight * baseScale;
+
+      if (rotationDeg % 180 !== 0) {
+        [displayWidth, displayHeight] = [displayHeight, displayWidth];
+      }
+
+      if (axis === 'width') return containerWidth / displayWidth;
+      return containerHeight / displayHeight;
+    },
+    [rotationDeg]
+  );
+
+  const fitToWidth = useCallback(() => {
+    const next = getFitScale('width');
+    if (next === null) return;
+    applyScale(next);
+    applyTranslate(0, 0);
+  }, [getFitScale, applyScale, applyTranslate]);
+
+  const fitToHeight = useCallback(() => {
+    const next = getFitScale('height');
+    if (next === null) return;
+    applyScale(next);
+    applyTranslate(0, 0);
+  }, [getFitScale, applyScale, applyTranslate]);
+
+  const rotateClockwise = useCallback(() => {
+    setRotationDeg((prev) => (prev + 90) % 360);
+    if (drawModeRef.current) {
+      drawModeRef.current = false;
+      setIsDrawMode(false);
+    }
+    setPanMode(false);
+    panActiveRef.current = false;
+    lastPanPointRef.current = null;
+    isDrawingRef.current = false;
+    currentBoxRef.current = null;
+    setIsDrawing(false);
+    setCurrentBox(null);
+    setBoxes([]);
+    setSelectedRegion(null);
+    setShowExportBtn(false);
+  }, []);
+
   const resetView = useCallback(() => {
     applyScale(1);
     applyTranslate(0, 0);
+    setRotationDeg(0);
   }, [applyScale, applyTranslate]);
 
   const zoomIn = useCallback(() => applyScale(scaleRef.current + SCALE_STEP), [applyScale]);
@@ -1036,6 +1104,10 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
   const toggleDrawMode = useCallback(() => {
     if (!selectionEnabled) return;
+    if (rotationDeg !== 0) {
+      setWarning('Reset rotation to 0° before drawing.');
+      return;
+    }
     const next = !drawModeRef.current;
     drawModeRef.current = next;
     setIsDrawMode(next);
@@ -1051,7 +1123,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       setIsDrawing(false);
       setCurrentBox(null);
     }
-  }, []);
+  }, [selectionEnabled, rotationDeg]);
 
   useEffect(() => {
     drawModeRef.current = isDrawMode;
@@ -1345,8 +1417,41 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
         <div className="flex items-center gap-2 px-2 border-l border-gray-200">
           <button aria-label="Zoom out" data-testid="overlay-zoom-out" onClick={zoomOut} title="Zoom Out (-)" className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">-</button>
-          <span data-testid="overlay-zoom-percentage" className="text-xs text-gray-500 w-8 text-center">{Math.round(scale * 100)}%</span>
+          <span data-testid="overlay-zoom-percentage" className="text-xs text-gray-500 w-12 text-center">{Math.round(scale * 100)}%</span>
           <button aria-label="Zoom in" data-testid="overlay-zoom-in" onClick={zoomIn} title="Zoom In (+)" className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">+</button>
+          <button
+            aria-label="Rotate clockwise"
+            data-testid="overlay-rotate-cw"
+            onClick={rotateClockwise}
+            title="Rotate 90° clockwise"
+            className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200"
+          >
+            <i className="fas fa-rotate-right"></i>
+          </button>
+          <button
+            aria-label="Fit to width"
+            data-testid="overlay-fit-width"
+            onClick={fitToWidth}
+            title="Fit to width"
+            className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200 text-xs"
+          >
+            Fit W
+          </button>
+          <button
+            aria-label="Fit to height"
+            data-testid="overlay-fit-height"
+            onClick={fitToHeight}
+            title="Fit to height"
+            className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200 text-xs"
+          >
+            Fit H
+          </button>
+          <span
+            data-testid="overlay-rotation-degrees"
+            className="text-xs text-gray-500"
+          >
+            {rotationDeg}°
+          </span>
           <button aria-label="Reset zoom" data-testid="overlay-zoom-reset" onClick={resetView} title="Reset View (R or 0)" className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">Reset</button>
         </div>
         
@@ -1463,6 +1568,14 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
               data-testid="overlay-viewport"
               className={`${styles.viewport} [--viewport-transform:translate(${translateX}px, ${translateY}px) scale(${scale})]`}
             >
+              <div
+                data-testid="overlay-rotation-layer"
+                className="absolute inset-0"
+                style={{
+                  transform: `rotate(${rotationDeg}deg)`,
+                  transformOrigin: 'center center',
+                }}
+              >
               {imageUrl && !imageError ? (
                 <img
                   ref={imageRef}
@@ -1550,6 +1663,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                   className={`${styles.highlightRegion} animate-pulse [--region-left:${highlightedRegion.x * 100}%] [--region-top:${highlightedRegion.y * 100}%] [--region-width:${highlightedRegion.width * 100}%] [--region-height:${highlightedRegion.height * 100}%]`}
                 />
               )}
+              </div>
             </div>
 
             {boxes.map((box: BoundingBox, idx: number) => (

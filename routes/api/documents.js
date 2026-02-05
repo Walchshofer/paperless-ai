@@ -8,13 +8,108 @@
  */
 
 const express = require('express');
+const path = require('path');
 const router = express.Router();
 const { authenticateApi } = require('../../middleware/auth');
+const AIServiceFactory = require('../../services/aiServiceFactory');
+const paperlessService = require('../../services/paperlessService');
+const DocumentProcessor = require('../../services/integration/DocumentProcessor');
 const logger = require('../../services/logger');
 const documentModel = require('../../services/documentModel');
+const {
+  reprocessProgressBroker
+} = require('../../services/reprocess/ReprocessProgressBroker');
 
 // All routes require authentication
 router.use(authenticateApi);
+
+function toDisplayLabel(rawKey) {
+  return String(rawKey || '')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function mapCustomFieldsToExtractedFields(customFields, confidence = 0.5) {
+  if (!customFields || typeof customFields !== 'object') {
+    return [];
+  }
+
+  return Object.entries(customFields).map(([key, value], index) => ({
+    id: `custom-field-${index}-${key}`,
+    fieldId: key,
+    label: toDisplayLabel(key),
+    value: value == null ? '' : String(value),
+    paperlessField: `custom_field:${key}`,
+    paperlessMapping: `custom_field:${key}`,
+    confidence,
+    isAiGenerated: true
+  }));
+}
+
+function mapSuggestedTagsToObjects(tagValues, availableTags = []) {
+  if (!Array.isArray(tagValues) || tagValues.length === 0) return [];
+
+  const byName = new Map(
+    availableTags
+      .filter((tag) => tag && tag.name)
+      .map((tag) => [String(tag.name).toLowerCase(), tag])
+  );
+
+  return tagValues.map((tag, index) => {
+    if (tag && typeof tag === 'object' && tag.id != null && tag.name) {
+      return tag;
+    }
+    const normalized = String(tag || '').trim().toLowerCase();
+    const matched = normalized ? byName.get(normalized) : null;
+    if (matched) return matched;
+    return {
+      id: -1 * (index + 1),
+      name: String(tag || `tag-${index + 1}`)
+    };
+  });
+}
+
+function resolveClassification(resultPayload) {
+  const raw = resultPayload?.classification || null;
+  const detail = raw && typeof raw === 'object'
+    ? (raw.classification && typeof raw.classification === 'object'
+      ? raw.classification
+      : raw)
+    : null;
+  const label = detail?.primary_domain || detail?.domain || 'General';
+  return { label, detail };
+}
+
+function buildPreparedDocument(document, documentId, ocrText = '') {
+  const archiveFileName = document.archive_file_name ||
+    document.archive_filename ||
+    null;
+  const originalFileName = document.original_file_name ||
+    `doc-${documentId}.pdf`;
+  const relativePdfPath = archiveFileName
+    ? path.posix.join('documents', 'archive', archiveFileName)
+    : path.posix.join('documents', 'originals', originalFileName);
+  const mediaRoot = process.env.PAPERLESS_MEDIA_ROOT ||
+    '/usr/src/paperless/media';
+  const absolutePdfPath = path.posix.join(mediaRoot, relativePdfPath);
+
+  return {
+    id: documentId,
+    title: document.title || '',
+    filename: originalFileName,
+    content: ocrText || document.content || '',
+    ocr_text: ocrText || document.content || '',
+    pdf_path: relativePdfPath,
+    pdf_path_abs: absolutePdfPath,
+    tags: Array.isArray(document.tags) ? document.tags : [],
+    correspondent: document.correspondent || null,
+    document_type: document.document_type || null,
+    created: document.created || document.added || null,
+    mime_type: document.mime_type || null,
+    archive_file_name: archiveFileName
+  };
+}
 
 /**
  * @swagger
@@ -150,43 +245,112 @@ router.post('/:id/reprocess', async (req, res) => {
     username,
     source: 'workspace-reprocess'
   });
+  reprocessProgressBroker.publish(documentId, {
+    stage: 'queued',
+    details: { source: 'workspace-reprocess', requestedBy: username }
+  });
 
   try {
-    // Dynamically import ExpertPipelineExecutor to avoid circular dependencies
-    const { ExpertPipelineExecutor } = require('../../services/experts/ExpertPipelineExecutor');
-
-    // Initialize Expert Pipeline Executor with appropriate options
-    const executor = new ExpertPipelineExecutor({
-      enableVisualRag: true,
-      timeout: 120000, // 2 minutes
-      maxRetries: 2
+    reprocessProgressBroker.publish(documentId, {
+      stage: 'classifying',
+      details: { message: 'Preparing document and expert context' }
     });
 
-    // Execute the pipeline
-    const result = await executor.execute(documentId, {
-      username,
+    const [
+      sourceDocument,
+      ocrText,
+      existingTags,
+      existingCorrespondentList,
+      existingDocumentTypesList
+    ] = await Promise.all([
+      paperlessService.getDocument(documentId),
+      paperlessService.getDocumentContent(documentId).catch(() => ''),
+      paperlessService.getTags().catch(() => []),
+      paperlessService.listCorrespondentsNames().catch(() => []),
+      paperlessService.listDocumentTypesNames().catch(() => [])
+    ]);
+
+    if (!sourceDocument) {
+      const notFoundError = new Error('Document not found');
+      notFoundError.code = 'DOCUMENT_NOT_FOUND';
+      throw notFoundError;
+    }
+
+    const ollamaService = AIServiceFactory.getService();
+    const processor = new DocumentProcessor(ollamaService, {
+      mode: 'hybrid',
+      enableVisualRAG: true
+    });
+    const preparedDocument = buildPreparedDocument(
+      sourceDocument,
+      documentId,
+      ocrText
+    );
+
+    reprocessProgressBroker.publish(documentId, {
+      stage: 'extracting',
+      details: { message: 'Running expert pipeline stages' }
+    });
+
+    const processingResult = await processor.process(preparedDocument, {
+      mode: 'expert_pipeline',
+      triggerVisualIngestion: true,
       forceReprocess: true,
-      source: 'workspace-reprocess'
+      existingTags: Array.isArray(existingTags)
+        ? existingTags.map((tag) => tag.name).filter(Boolean)
+        : [],
+      existingCorrespondentList: Array.isArray(existingCorrespondentList)
+        ? existingCorrespondentList
+        : [],
+      existingDocumentTypesList: Array.isArray(existingDocumentTypesList)
+        ? existingDocumentTypesList
+        : [],
+      documentCreated: sourceDocument.created || sourceDocument.added || null,
+      context: {
+        source: 'workspace-reprocess',
+        initiatedBy: username
+      }
     });
 
-    // Extract results with safe defaults
-    const classification = result.classification || result.primary_domain || 'General';
-    const extractedFields = result.extractedFields || result.fields || [];
-    const smartTags = result.smartTags || result.tags || [];
-    const confidence = result.confidence || result.overall_confidence || 0.5;
+    if (!processingResult?.success) {
+      throw new Error(
+        processingResult?.error || 'Pipeline execution failed'
+      );
+    }
 
-    // Calculate processing time
+    reprocessProgressBroker.publish(documentId, {
+      stage: 'persisting',
+      details: { message: 'Finalizing metadata and history' }
+    });
+
+    const classificationInfo = resolveClassification(processingResult.result);
+    const confidence = Number(
+      processingResult?.metadata?.confidence ??
+      processingResult?.result?.confidence ??
+      0.5
+    );
+    const extractedFields = mapCustomFieldsToExtractedFields(
+      processingResult?.paperless?.custom_fields || {},
+      confidence
+    );
+    const smartTags = mapSuggestedTagsToObjects(
+      processingResult?.paperless?.tags || [],
+      existingTags
+    );
+
     const processingTime = Date.now() - startTime;
 
     // Save reprocessing history to database
     try {
       // Use addToHistory method (existing method in documentModel)
       // The history table stores: document_id, tags, title, correspondent, username
-      const tagIds = smartTags.map((t) => typeof t === 'object' ? t.id : t);
+      const tagIds = smartTags
+        .map((tag) => Number(tag?.id))
+        .filter((id) => Number.isFinite(id) && id > 0);
       await documentModel.addToHistory(
         documentId,
         tagIds,
-        `[Reprocessed] ${classification}`, // Use classification as title indicator
+        `[Reprocessed] ${classificationInfo.label}`,
         '', // correspondent not extracted by pipeline
         username
       );
@@ -203,23 +367,35 @@ router.post('/:id/reprocess', async (req, res) => {
       event: 'reprocess_completed',
       documentId,
       username,
-      classification,
+      classification: classificationInfo.label,
       fieldCount: extractedFields.length,
       tagCount: smartTags.length,
       confidence,
       processingTime
     });
 
+    reprocessProgressBroker.publish(documentId, {
+      stage: 'completed',
+      details: {
+        fieldCount: extractedFields.length,
+        tagCount: smartTags.length,
+        processingTime
+      }
+    });
+
     res.json({
       success: true,
       documentId,
-      classification,
+      classification: classificationInfo.label,
+      classificationDetails: classificationInfo.detail || {
+        primary_domain: classificationInfo.label
+      },
       extractedFields,
       smartTags,
       confidence,
       stats: {
         totalTime: processingTime,
-        ...(result.stats || {})
+        ...(processingResult?.metadata || {})
       }
     });
 
@@ -229,6 +405,8 @@ router.post('/:id/reprocess', async (req, res) => {
     // Determine reason code based on error type
     let reasonCode = 'pipeline_execution_failed';
     if (error.message?.includes('not found') || error.message?.includes('404')) {
+      reasonCode = 'document_not_found';
+    } else if (error.code === 'DOCUMENT_NOT_FOUND') {
       reasonCode = 'document_not_found';
     } else if (error.message?.includes('timeout') || error.code === 'ETIMEDOUT') {
       reasonCode = 'pipeline_timeout';
@@ -246,6 +424,15 @@ router.post('/:id/reprocess', async (req, res) => {
       reasonCode,
       processingTime,
       stack: error.stack
+    });
+
+    reprocessProgressBroker.publish(documentId, {
+      stage: 'failed',
+      details: {
+        reasonCode,
+        error: error.message || 'Pipeline execution failed',
+        processingTime
+      }
     });
 
     // Return appropriate status code

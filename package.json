@@ -78,10 +78,10 @@
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "tiktoken": "^1.0.20",
+    "ws": "^8.19.0",
     "zod": "^3.22.2"
   },
   "devDependencies": {
-    "ajv": "^8.17.1",
     "@eslint/js": "^9.22.0",
     "@grpc/grpc-js": "^1.11.5",
     "@grpc/proto-loader": "^0.7.13",
@@ -95,6 +95,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/mocha": "^10.0.10",
     "@types/node": "^25.0.3",
+    "ajv": "^8.17.1",
     "autoprefixer": "^10.4.14",
     "c8": "^9.1.0",
     "class-variance-authority": "^0.7.1",

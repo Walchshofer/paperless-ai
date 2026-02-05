@@ -36,7 +36,7 @@ test.describe('OverlayViewer interactions', () => {
     await switchTab(page, 'visual');
     await page.waitForSelector('[data-island="overlay-viewer-island"]', { timeout: 5000 });
 
-    const panToggle = page.locator('[data-testid="overlay-pan-toggle"]');
+    const panToggle = page.locator('[data-testid="pan-mode-btn"]');
     await expect(panToggle).toHaveAttribute('aria-pressed', 'false');
 
     await panToggle.click();

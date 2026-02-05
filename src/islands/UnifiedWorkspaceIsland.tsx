@@ -59,6 +59,12 @@ function dispatchEventSafe(name: string, detail?: unknown) {
   } catch (err) { /* ignore */ }
 }
 
+function buildReprocessSocketUrl(documentId: number | string): string | null {
+  if (typeof window === 'undefined' || !window.location) return null;
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}/ws/reprocess/${documentId}`;
+}
+
 export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProps) {
   const [isDirty, setIsDirty] = useState(false);
 
@@ -299,11 +305,52 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
       // Only handle if this workspace instance is showing the same document
       if (String(documentId) !== String(props.document?.id)) return;
 
+      let progressSocket: WebSocket | null = null;
+      let hasProgressSocket = false;
+
       try {
         // Show processing state
         window.dispatchEvent(new CustomEvent('workspace:reprocess-started', {
           detail: { documentId }
         }));
+        dispatchEventSafe('workspace:reprocess-progress', {
+          documentId,
+          stage: 'queued',
+          label: 'Queued for re-analysis',
+          status: 'in_progress',
+          percentage: 5,
+          details: null,
+          timestamp: new Date().toISOString()
+        });
+
+        const socketUrl = buildReprocessSocketUrl(String(documentId));
+        if (socketUrl && typeof window !== 'undefined' && window.WebSocket) {
+          try {
+            progressSocket = new window.WebSocket(socketUrl);
+            progressSocket.onmessage = (message: MessageEvent<string>) => {
+              try {
+                const payload = JSON.parse(message.data || '{}');
+                hasProgressSocket = true;
+                dispatchEventSafe('workspace:reprocess-progress', payload);
+              } catch {
+                // Ignore malformed payloads
+              }
+            };
+            progressSocket.onerror = () => {
+              dispatchEventSafe('workspace:reprocess-progress', {
+                documentId,
+                stage: 'extracting',
+                label: 'Reprocessing document',
+                status: 'in_progress',
+                percentage: 40,
+                details: { source: 'fallback' },
+                timestamp: new Date().toISOString()
+              });
+            };
+          } catch {
+            // WebSocket optional: fallback to optimistic client-side progress
+          }
+        }
 
         // Call the reprocess API
         const response = await fetch(`/api/documents/${documentId}/reprocess`, {
@@ -317,6 +364,18 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
         }
 
         const result = await response.json();
+
+        if (!hasProgressSocket) {
+          dispatchEventSafe('workspace:reprocess-progress', {
+            documentId,
+            stage: 'completed',
+            label: 'Re-analysis complete',
+            status: 'completed',
+            percentage: 100,
+            details: null,
+            timestamp: new Date().toISOString()
+          });
+        }
 
         // Dispatch success event with results
         window.dispatchEvent(new CustomEvent('workspace:reprocess-complete', {
@@ -337,15 +396,28 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
             documentId,
             fields: result.extractedFields,
             tags: result.smartTags,
-            classification: result.classification
+            classification: result.classificationDetails || result.classification
           }
         }));
 
       } catch (err) {
         console.error('[UnifiedWorkspace] Reprocess failed:', err);
+        dispatchEventSafe('workspace:reprocess-progress', {
+          documentId,
+          stage: 'failed',
+          label: 'Re-analysis failed',
+          status: 'failed',
+          percentage: 100,
+          details: { error: (err as Error).message },
+          timestamp: new Date().toISOString()
+        });
         window.dispatchEvent(new CustomEvent('workspace:reprocess-failed', {
           detail: { documentId, error: (err as Error).message }
         }));
+      } finally {
+        if (progressSocket) {
+          try { progressSocket.close(); } catch { /* ignore */ }
+        }
       }
     };
 
