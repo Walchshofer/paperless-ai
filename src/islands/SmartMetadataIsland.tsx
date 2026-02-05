@@ -60,12 +60,22 @@ const MATCH_BADGES: Record<MatchType, string> = {
 };
 
 const REPROCESS_STEPS = [
-  { key: 'queued', label: 'Request queued' },
-  { key: 'classifying', label: 'Domain classification' },
-  { key: 'extracting', label: 'Field extraction' },
-  { key: 'persisting', label: 'Persisting results' },
-  { key: 'completed', label: 'Complete' }
+  { key: 'visual_triage', label: 'Visual triage' },
+  { key: 'visual_extraction', label: 'Visual extraction' },
+  { key: 'query_generation', label: 'Query generation' },
+  { key: 'query_execution', label: 'Query execution' },
+  { key: 'ocr_fallback', label: 'OCR fallback' },
+  { key: 'hybrid_fusion', label: 'Hybrid fusion' },
+  { key: 'storage', label: 'Storage' }
 ];
+
+function resolveProgressStage(stage?: string): string {
+  if (!stage) return 'visual_triage';
+  if (stage === 'queued') return 'visual_triage';
+  if (stage === 'completed') return 'storage';
+  if (stage === 'failed') return 'storage';
+  return stage;
+}
 
 function createSafeCustomEvent(name: string, detail?: unknown): CustomEvent<unknown> | null {
   try {
@@ -536,10 +546,22 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
       const nextPercentage = Number.isFinite(Number(detail.percentage))
         ? Number(detail.percentage)
         : 0;
+      const progressDetails = (
+        detail.details &&
+        typeof detail.details === 'object'
+      ) ? detail.details : null;
+      const detailUserMessage = (
+        progressDetails &&
+        typeof (progressDetails as Record<string, unknown>).userMessage ===
+          'string'
+      ) ? String((progressDetails as Record<string, unknown>).userMessage) : '';
+      const nextLabel = nextStatus === 'failed'
+        ? detailUserMessage || detail.label || 'Re-analysis failed'
+        : detail.label || 'Reprocessing document';
 
       setReprocessProgress({
-        stage: detail.stage || 'extracting',
-        label: detail.label || 'Reprocessing document',
+        stage: detail.stage || 'visual_extraction',
+        label: nextLabel,
         status: nextStatus,
         percentage: Math.max(0, Math.min(100, Math.round(nextPercentage)))
       });
@@ -569,11 +591,16 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     };
 
     const onReprocessFailed = (e: Event) => {
-      const detail = (e as CustomEvent<{ documentId?: DocumentId; error?: string }>)?.detail || {};
+      const detail = (e as CustomEvent<{
+        documentId?: DocumentId;
+        error?: string;
+        userMessage?: string;
+      }>)?.detail || {};
       if (String(detail.documentId) !== String(currentDocumentId)) return;
+      const message = detail.userMessage || detail.error || 'Re-analysis failed';
       setReprocessProgress({
         stage: 'failed',
-        label: detail.error ? `Failed: ${detail.error}` : 'Re-analysis failed',
+        label: message,
         status: 'failed',
         percentage: 100
       });
@@ -741,8 +768,11 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
   const titleError = validationErrors.get('metadata:title');
   const correspondentError = validationErrors.get('metadata:correspondent');
   const createdDateError = validationErrors.get('metadata:document_date');
-  const currentStepIndex = REPROCESS_STEPS.findIndex(
-    (step) => step.key === reprocessProgress.stage
+  const currentStepIndex = Math.max(
+    0,
+    REPROCESS_STEPS.findIndex(
+      (step) => step.key === resolveProgressStage(reprocessProgress.stage)
+    )
   );
   const hasFailedProgress = reprocessProgress.status === 'failed';
 

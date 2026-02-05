@@ -17,6 +17,8 @@ const DocumentProcessor = require('../../services/integration/DocumentProcessor'
 const logger = require('../../services/logger');
 const documentModel = require('../../services/documentModel');
 const {
+  REPROCESS_ERROR_MESSAGES,
+  REPROCESS_STAGE_DEFINITIONS,
   reprocessProgressBroker
 } = require('../../services/reprocess/ReprocessProgressBroker');
 
@@ -109,6 +111,112 @@ function buildPreparedDocument(document, documentId, ocrText = '') {
     mime_type: document.mime_type || null,
     archive_file_name: archiveFileName
   };
+}
+
+const SUPPORTED_REPROCESS_MIME_PREFIXES = Object.freeze([
+  'application/pdf',
+  'image/'
+]);
+
+const REPROCESS_REASON_TO_ERROR_KEY = Object.freeze({
+  invalid_document_format: 'invalid-document',
+  visual_rag_unavailable: 'visual-rag-unavailable',
+  model_unavailable: 'visual-rag-unavailable',
+  guidance_unavailable: 'visual-rag-unavailable',
+  pipeline_timeout: 'ollama-timeout',
+  qdrant_connection_failed: 'qdrant-connection-failed',
+  pipeline_execution_failed: 'pipeline-execution-failed'
+});
+
+function isSupportedReprocessMime(mimeType) {
+  if (!mimeType) return true;
+  const normalized = String(mimeType).trim().toLowerCase();
+  if (!normalized) return true;
+
+  return SUPPORTED_REPROCESS_MIME_PREFIXES.some((allowed) =>
+    normalized.startsWith(allowed)
+  );
+}
+
+function normalizeReprocessReasonCode(error) {
+  const message = String(error?.message || '').toLowerCase();
+
+  if (error?.code === 'DOCUMENT_NOT_FOUND') {
+    return 'document_not_found';
+  }
+
+  if (error?.code === 'INVALID_DOCUMENT_FORMAT') {
+    return 'invalid_document_format';
+  }
+
+  if (message.includes('not found') || message.includes('404')) {
+    return 'document_not_found';
+  }
+
+  if (message.includes('timeout') || error?.code === 'ETIMEDOUT') {
+    return 'pipeline_timeout';
+  }
+
+  if (
+    message.includes('qdrant') ||
+    message.includes('circuit breaker') ||
+    message.includes('circuit_open')
+  ) {
+    return 'qdrant_connection_failed';
+  }
+
+  if (
+    message.includes('visual sidecar') ||
+    message.includes('sidecar unavailable') ||
+    message.includes('503')
+  ) {
+    return 'visual_rag_unavailable';
+  }
+
+  if (message.includes('model not available')) {
+    return 'model_unavailable';
+  }
+
+  if (message.includes('guidance')) {
+    return 'guidance_unavailable';
+  }
+
+  return 'pipeline_execution_failed';
+}
+
+function resolveReprocessErrorKey(reasonCode) {
+  return (
+    REPROCESS_REASON_TO_ERROR_KEY[reasonCode] ||
+    'pipeline-execution-failed'
+  );
+}
+
+function resolveReprocessUserMessage(reasonCode, fallbackMessage) {
+  const errorKey = resolveReprocessErrorKey(reasonCode);
+  return (
+    REPROCESS_ERROR_MESSAGES[errorKey] ||
+    fallbackMessage ||
+    REPROCESS_ERROR_MESSAGES['pipeline-execution-failed']
+  );
+}
+
+function resolveReprocessStatusCode(reasonCode) {
+  if (reasonCode === 'document_not_found') return 404;
+  if (reasonCode === 'invalid_document_format') return 415;
+  if (reasonCode === 'qdrant_connection_failed') return 503;
+  return 500;
+}
+
+function publishReprocessProgress(documentId, update = {}) {
+  const stageName = String(update.stage || '').toLowerCase();
+  if (!stageName || !REPROCESS_STAGE_DEFINITIONS[stageName]) {
+    return null;
+  }
+
+  return reprocessProgressBroker.publish(documentId, {
+    ...update,
+    stage: stageName
+  });
 }
 
 /**
@@ -245,14 +353,14 @@ router.post('/:id/reprocess', async (req, res) => {
     username,
     source: 'workspace-reprocess'
   });
-  reprocessProgressBroker.publish(documentId, {
+  publishReprocessProgress(documentId, {
     stage: 'queued',
     details: { source: 'workspace-reprocess', requestedBy: username }
   });
 
   try {
-    reprocessProgressBroker.publish(documentId, {
-      stage: 'classifying',
+    publishReprocessProgress(documentId, {
+      stage: 'visual_triage',
       details: { message: 'Preparing document and expert context' }
     });
 
@@ -276,6 +384,14 @@ router.post('/:id/reprocess', async (req, res) => {
       throw notFoundError;
     }
 
+    if (!isSupportedReprocessMime(sourceDocument.mime_type)) {
+      const invalidFormatError = new Error(
+        `Unsupported document format: ${sourceDocument.mime_type || 'unknown'}`
+      );
+      invalidFormatError.code = 'INVALID_DOCUMENT_FORMAT';
+      throw invalidFormatError;
+    }
+
     const ollamaService = AIServiceFactory.getService();
     const processor = new DocumentProcessor(ollamaService, {
       mode: 'hybrid',
@@ -287,10 +403,26 @@ router.post('/:id/reprocess', async (req, res) => {
       ocrText
     );
 
-    reprocessProgressBroker.publish(documentId, {
-      stage: 'extracting',
+    publishReprocessProgress(documentId, {
+      stage: 'visual_extraction',
       details: { message: 'Running expert pipeline stages' }
     });
+
+    const progressReporter = (update = {}) => {
+      const stageName = String(update.stage || '').toLowerCase();
+      if (!REPROCESS_STAGE_DEFINITIONS[stageName]) return;
+
+      const details = {
+        source: 'expert-pipeline',
+        ...(update.details || {})
+      };
+
+      publishReprocessProgress(documentId, {
+        ...update,
+        stage: stageName,
+        details
+      });
+    };
 
     const processingResult = await processor.process(preparedDocument, {
       mode: 'expert_pipeline',
@@ -306,6 +438,7 @@ router.post('/:id/reprocess', async (req, res) => {
         ? existingDocumentTypesList
         : [],
       documentCreated: sourceDocument.created || sourceDocument.added || null,
+      progressReporter,
       context: {
         source: 'workspace-reprocess',
         initiatedBy: username
@@ -318,8 +451,39 @@ router.post('/:id/reprocess', async (req, res) => {
       );
     }
 
-    reprocessProgressBroker.publish(documentId, {
-      stage: 'persisting',
+    const visualExecutionMetadata =
+      processingResult?.result?._expert_result?.result?.outputs
+        ?.visual_execution?.metadata ||
+      null;
+    const usedTextFallback =
+      processingResult?.metadata?.processingMode === 'fallback_text' ||
+      Boolean(visualExecutionMetadata?.fallback);
+
+    if (usedTextFallback) {
+      publishReprocessProgress(documentId, {
+        stage: 'ocr_fallback',
+        details: {
+          source: 'workspace-reprocess',
+          reason:
+            visualExecutionMetadata?.fallback_reason ||
+            processingResult?.metadata?.originalError ||
+            'visual_text_fallback',
+          userMessage: resolveReprocessUserMessage('visual_rag_unavailable')
+        }
+      });
+    }
+
+    publishReprocessProgress(documentId, {
+      stage: 'hybrid_fusion',
+      details: {
+        source: 'workspace-reprocess',
+        ocrFallbackUsed: Boolean(visualExecutionMetadata?.ocr_fallback_used),
+        visualConfidence: visualExecutionMetadata?.visual_confidence ?? null
+      }
+    });
+
+    publishReprocessProgress(documentId, {
+      stage: 'storage',
       details: { message: 'Finalizing metadata and history' }
     });
 
@@ -374,7 +538,7 @@ router.post('/:id/reprocess', async (req, res) => {
       processingTime
     });
 
-    reprocessProgressBroker.publish(documentId, {
+    publishReprocessProgress(documentId, {
       stage: 'completed',
       details: {
         fieldCount: extractedFields.length,
@@ -402,19 +566,12 @@ router.post('/:id/reprocess', async (req, res) => {
   } catch (error) {
     const processingTime = Date.now() - startTime;
 
-    // Determine reason code based on error type
-    let reasonCode = 'pipeline_execution_failed';
-    if (error.message?.includes('not found') || error.message?.includes('404')) {
-      reasonCode = 'document_not_found';
-    } else if (error.code === 'DOCUMENT_NOT_FOUND') {
-      reasonCode = 'document_not_found';
-    } else if (error.message?.includes('timeout') || error.code === 'ETIMEDOUT') {
-      reasonCode = 'pipeline_timeout';
-    } else if (error.message?.includes('Model not available')) {
-      reasonCode = 'model_unavailable';
-    } else if (error.message?.includes('Guidance')) {
-      reasonCode = 'guidance_unavailable';
-    }
+    const reasonCode = normalizeReprocessReasonCode(error);
+    const errorKey = resolveReprocessErrorKey(reasonCode);
+    const userMessage = resolveReprocessUserMessage(
+      reasonCode,
+      error.message || 'Pipeline execution failed'
+    );
 
     logger.error({
       event: 'reprocess_failed',
@@ -422,26 +579,32 @@ router.post('/:id/reprocess', async (req, res) => {
       username,
       error: error.message,
       reasonCode,
+      errorKey,
+      userMessage,
       processingTime,
       stack: error.stack
     });
 
-    reprocessProgressBroker.publish(documentId, {
+    publishReprocessProgress(documentId, {
       stage: 'failed',
+      label: userMessage,
       details: {
         reasonCode,
+        errorKey,
+        userMessage,
         error: error.message || 'Pipeline execution failed',
         processingTime
       }
     });
 
-    // Return appropriate status code
-    const statusCode = reasonCode === 'document_not_found' ? 404 : 500;
+    const statusCode = resolveReprocessStatusCode(reasonCode);
 
     res.status(statusCode).json({
       success: false,
       error: error.message || 'Pipeline execution failed',
       reasonCode,
+      errorKey,
+      userMessage,
       processingTime
     });
   }

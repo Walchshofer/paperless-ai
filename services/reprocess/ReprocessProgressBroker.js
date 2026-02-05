@@ -7,22 +7,46 @@ const REPROCESS_STAGE_DEFINITIONS = Object.freeze({
     percentage: 5,
     status: 'in_progress'
   },
-  classifying: {
-    stage: 'classifying',
-    label: 'Classifying document domain',
-    percentage: 20,
+  visual_triage: {
+    stage: 'visual_triage',
+    label: 'Visual triage',
+    percentage: 10,
     status: 'in_progress'
   },
-  extracting: {
-    stage: 'extracting',
-    label: 'Extracting fields with expert pipeline',
-    percentage: 55,
+  visual_extraction: {
+    stage: 'visual_extraction',
+    label: 'Visual extraction',
+    percentage: 30,
     status: 'in_progress'
   },
-  persisting: {
-    stage: 'persisting',
+  query_generation: {
+    stage: 'query_generation',
+    label: 'Generating visual queries',
+    percentage: 50,
+    status: 'in_progress'
+  },
+  query_execution: {
+    stage: 'query_execution',
+    label: 'Executing visual queries',
+    percentage: 70,
+    status: 'in_progress'
+  },
+  ocr_fallback: {
+    stage: 'ocr_fallback',
+    label: 'Applying OCR fallback',
+    percentage: 85,
+    status: 'in_progress'
+  },
+  hybrid_fusion: {
+    stage: 'hybrid_fusion',
+    label: 'Merging visual and text evidence',
+    percentage: 95,
+    status: 'in_progress'
+  },
+  storage: {
+    stage: 'storage',
     label: 'Persisting metadata updates',
-    percentage: 80,
+    percentage: 100,
     status: 'in_progress'
   },
   completed: {
@@ -37,6 +61,29 @@ const REPROCESS_STAGE_DEFINITIONS = Object.freeze({
     percentage: 100,
     status: 'failed'
   }
+});
+
+const REPROCESS_ERROR_MESSAGES = Object.freeze({
+  'visual-rag-unavailable': (
+    'GPU Preparing: visual search is temporarily unavailable. '
+    + 'Using text-based extraction fallback.'
+  ),
+  'ollama-timeout': (
+    'Vision model is taking longer than expected. '
+    + 'Retrying with exponential backoff.'
+  ),
+  'qdrant-connection-failed': (
+    'Vector search is temporarily unavailable because the circuit breaker is '
+    + 'open. Please try again later.'
+  ),
+  'invalid-document': (
+    'This document format is not supported. '
+    + 'Please upload a PDF or image file.'
+  ),
+  'pipeline-execution-failed': (
+    'We could not complete visual re-analysis. '
+    + 'Please retry in a moment.'
+  )
 });
 
 function clampPercentage(value) {
@@ -98,6 +145,7 @@ const reprocessProgressBroker = new ReprocessProgressBroker();
 
 module.exports = {
   REPROCESS_STAGE_DEFINITIONS,
+  REPROCESS_ERROR_MESSAGES,
   buildProgressUpdate,
   ReprocessProgressBroker,
   reprocessProgressBroker

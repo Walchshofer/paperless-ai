@@ -197,6 +197,39 @@ class ExpertPipelineExecutor {
     return require('../ragService');
   }
 
+  _emitProgress(context, update = {}) {
+    const progressReporter = context?.options?.progressReporter;
+    if (typeof progressReporter !== 'function') {
+      return;
+    }
+
+    try {
+      progressReporter(update);
+    } catch (error) {
+      logger.debug({
+        event: 'pipeline_progress_reporter_failed',
+        stage: update?.stage || null,
+        error: error.message
+      });
+    }
+  }
+
+  _mapStageToProgress(stage = {}) {
+    if (stage.type === StageType.VISUAL_QUERY_GENERATION) {
+      return 'query_generation';
+    }
+
+    if (stage.type === StageType.VISUAL_QUERY_EXECUTION) {
+      return 'query_execution';
+    }
+
+    if (stage.type === StageType.TEXT_EXTRACTION && stage.useParallelOcr) {
+      return 'visual_extraction';
+    }
+
+    return null;
+  }
+
   _mapClassificationToDomain(classification) {
     const raw =
       classification?.primary_domain ||
@@ -607,6 +640,18 @@ class ExpertPipelineExecutor {
         return { status: 'skipped', abort: false };
       }
       context.recoveryAttempts += 1;
+    }
+
+    const progressStage = this._mapStageToProgress(stage);
+    if (progressStage) {
+      this._emitProgress(context, {
+        stage: progressStage,
+        details: {
+          source: 'expert-pipeline',
+          stageId: stage.id,
+          stageType: stage.type
+        }
+      });
     }
 
     // Validation stages (no LLM call)
@@ -2029,6 +2074,15 @@ class ExpertPipelineExecutor {
       });
 
       const executeTextFallback = async (reason, visualError = null) => {
+        this._emitProgress(context, {
+          stage: 'ocr_fallback',
+          details: {
+            source: 'visual-query-execution',
+            reason,
+            error: visualError?.message || null
+          }
+        });
+
         const ragService = this._getRagService();
         let status = null;
         try {
@@ -2189,6 +2243,16 @@ class ExpertPipelineExecutor {
         typeof executor.executeWithOcrFallback === 'function';
 
       if (shouldEnforceOcrFallback) {
+        this._emitProgress(context, {
+          stage: 'ocr_fallback',
+          details: {
+            source: 'visual-query-execution',
+            reason: 'low_visual_confidence',
+            visualConfidence,
+            threshold: executorConfig.ocrFallbackConfidenceThreshold
+          }
+        });
+
         result = await executor.executeWithOcrFallback(
           result,
           {
@@ -2241,6 +2305,15 @@ class ExpertPipelineExecutor {
           within_latency_target: withinLatencyTarget
         }
       };
+
+      this._emitProgress(context, {
+        stage: 'hybrid_fusion',
+        details: {
+          source: 'visual-query-execution',
+          ocrFallbackUsed: Boolean(result.execution_metadata.ocr_fallback_used),
+          visualConfidence: result.execution_metadata.visual_confidence
+        }
+      });
 
       logger.info({
         event: 'vision_first_pipeline_stats',
@@ -3569,6 +3642,22 @@ class ExpertPipelineExecutor {
  */
 async function processDocument(document, ollamaService, options = {}) {
   const executor = new ExpertPipelineExecutor(ollamaService, options);
+  const progressReporter = options?.progressReporter;
+  const emitProgress = (update = {}) => {
+    if (typeof progressReporter !== 'function') {
+      return;
+    }
+
+    try {
+      progressReporter(update);
+    } catch (error) {
+      logger.debug({
+        event: 'process_document_progress_reporter_failed',
+        stage: update?.stage || null,
+        error: error.message
+      });
+    }
+  };
 
   logger.info({
     event: 'document_processing_start',
@@ -3579,6 +3668,14 @@ async function processDocument(document, ollamaService, options = {}) {
   let classifyResult = null;
 
   const preCalculatedSignals = options.context?.preCalculatedSignals || options.preCalculatedSignals;
+
+  emitProgress({
+    stage: 'visual_triage',
+    details: {
+      source: 'process-document',
+      documentId: document.id || null
+    }
+  });
 
   if (preCalculatedSignals && preCalculatedSignals.classification) {
     logger.info({
@@ -3887,6 +3984,14 @@ async function processDocument(document, ollamaService, options = {}) {
   }
 
   // Step 1.5: Visual OCR Enhancement Stage
+  emitProgress({
+    stage: 'visual_extraction',
+    details: {
+      source: 'process-document',
+      visualOcrEnabled: useVisualOcr
+    }
+  });
+
   if (useVisualOcr && document.base64Images?.length > 0 && config.visualOCR?.enabled !== false) {
     try {
       const ocrResult = await executor._executeVisualOCR(document, options);

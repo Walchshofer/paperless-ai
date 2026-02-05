@@ -47,6 +47,19 @@ interface FieldRecord {
   page?: number;
 }
 
+interface ReprocessApiErrorPayload {
+  error?: string;
+  reasonCode?: string;
+  errorKey?: string;
+  userMessage?: string;
+}
+
+interface ReprocessClientError extends Error {
+  reasonCode?: string;
+  errorKey?: string;
+  userMessage?: string;
+}
+
 export type UnifiedWorkspaceIslandProps = Partial<UnifiedWorkspaceContract>;
 
 function dispatchEventSafe(name: string, detail?: unknown) {
@@ -63,6 +76,45 @@ function buildReprocessSocketUrl(documentId: number | string): string | null {
   if (typeof window === 'undefined' || !window.location) return null;
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${protocol}//${window.location.host}/ws/reprocess/${documentId}`;
+}
+
+const REPROCESS_FRIENDLY_MESSAGES: Record<string, string> = {
+  visual_rag_unavailable: (
+    'GPU Preparing: visual search is temporarily unavailable. '
+    + 'Using text-based extraction fallback.'
+  ),
+  model_unavailable: (
+    'GPU Preparing: visual search is temporarily unavailable. '
+    + 'Using text-based extraction fallback.'
+  ),
+  pipeline_timeout: (
+    'Vision model is taking longer than expected. '
+    + 'Retrying with exponential backoff.'
+  ),
+  qdrant_connection_failed: (
+    'Vector search is temporarily unavailable because the circuit breaker is '
+    + 'open. Please try again later.'
+  ),
+  invalid_document_format: (
+    'This document format is not supported. '
+    + 'Please upload a PDF or image file.'
+  )
+};
+
+function resolveReprocessUserMessage(payload: ReprocessApiErrorPayload): string {
+  const explicit = payload.userMessage;
+  if (typeof explicit === 'string' && explicit.trim().length > 0) {
+    return explicit;
+  }
+
+  const reasonCode = payload.reasonCode
+    ? String(payload.reasonCode)
+    : '';
+  if (reasonCode && REPROCESS_FRIENDLY_MESSAGES[reasonCode]) {
+    return REPROCESS_FRIENDLY_MESSAGES[reasonCode];
+  }
+
+  return String(payload.error || 'Re-analysis failed');
 }
 
 export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProps) {
@@ -339,10 +391,10 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
             progressSocket.onerror = () => {
               dispatchEventSafe('workspace:reprocess-progress', {
                 documentId,
-                stage: 'extracting',
-                label: 'Reprocessing document',
+                stage: 'visual_extraction',
+                label: 'Running expert pipeline stages',
                 status: 'in_progress',
-                percentage: 40,
+                percentage: 30,
                 details: { source: 'fallback' },
                 timestamp: new Date().toISOString()
               });
@@ -359,8 +411,16 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
         });
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || 'Reprocess failed');
+          const errorData = await response
+            .json()
+            .catch(() => ({} as ReprocessApiErrorPayload));
+          const apiError = new Error(
+            resolveReprocessUserMessage(errorData)
+          ) as ReprocessClientError;
+          apiError.reasonCode = errorData.reasonCode;
+          apiError.errorKey = errorData.errorKey;
+          apiError.userMessage = resolveReprocessUserMessage(errorData);
+          throw apiError;
         }
 
         const result = await response.json();
@@ -402,17 +462,32 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
 
       } catch (err) {
         console.error('[UnifiedWorkspace] Reprocess failed:', err);
+        const reprocessError = err as ReprocessClientError;
+        const userMessage = reprocessError.userMessage ||
+          reprocessError.message ||
+          'Re-analysis failed';
         dispatchEventSafe('workspace:reprocess-progress', {
           documentId,
           stage: 'failed',
-          label: 'Re-analysis failed',
+          label: userMessage,
           status: 'failed',
           percentage: 100,
-          details: { error: (err as Error).message },
+          details: {
+            error: reprocessError.message,
+            userMessage,
+            reasonCode: reprocessError.reasonCode || null,
+            errorKey: reprocessError.errorKey || null
+          },
           timestamp: new Date().toISOString()
         });
         window.dispatchEvent(new CustomEvent('workspace:reprocess-failed', {
-          detail: { documentId, error: (err as Error).message }
+          detail: {
+            documentId,
+            error: userMessage,
+            userMessage,
+            reasonCode: reprocessError.reasonCode || null,
+            errorKey: reprocessError.errorKey || null
+          }
         }));
       } finally {
         if (progressSocket) {

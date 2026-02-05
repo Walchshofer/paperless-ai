@@ -1,5 +1,6 @@
 const assert = require('node:assert');
 const {
+  REPROCESS_ERROR_MESSAGES,
   buildProgressUpdate,
   ReprocessProgressBroker
 } = require('../../services/reprocess/ReprocessProgressBroker');
@@ -7,15 +8,22 @@ const {
 describe('ReprocessProgressBroker', function () {
   it('builds normalized progress payloads with clamped percentages', function () {
     const payload = buildProgressUpdate(42, {
-      stage: 'extracting',
+      stage: 'visual_extraction',
       percentage: 140
     });
 
     assert.strictEqual(payload.documentId, 42);
-    assert.strictEqual(payload.stage, 'extracting');
+    assert.strictEqual(payload.stage, 'visual_extraction');
     assert.strictEqual(payload.percentage, 100);
     assert.strictEqual(payload.status, 'in_progress');
     assert.ok(payload.timestamp);
+  });
+
+  it('exposes user-friendly canonical error messages', function () {
+    assert.ok(REPROCESS_ERROR_MESSAGES['visual-rag-unavailable']);
+    assert.ok(REPROCESS_ERROR_MESSAGES['ollama-timeout']);
+    assert.ok(REPROCESS_ERROR_MESSAGES['qdrant-connection-failed']);
+    assert.ok(REPROCESS_ERROR_MESSAGES['invalid-document']);
   });
 
   it('publishes updates to subscribers for the matching document', function () {

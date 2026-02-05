@@ -180,8 +180,8 @@ describe('SmartMetadataIsland - basic interactions', function () {
     window.dispatchEvent(new window.CustomEvent('workspace:reprocess-progress', {
       detail: {
         documentId: 42,
-        stage: 'extracting',
-        label: 'Extracting fields with expert pipeline',
+        stage: 'visual_extraction',
+        label: 'Visual extraction',
         status: 'in_progress',
         percentage: 60
       }
@@ -197,5 +197,39 @@ describe('SmartMetadataIsland - basic interactions', function () {
     await new Promise((r) => setTimeout(r, 30));
 
     assert.strictEqual(reprocessBtn.textContent.includes('Reprocessing...'), false);
+  });
+
+  it('renders user-friendly failed progress messages', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    render(h(SmartMetadataIsland, { documentId: 42 }), root);
+    const reprocessBtn = await waitForSelector(
+      root,
+      '[data-testid="reprocess-metadata-btn"]'
+    );
+    assert.ok(reprocessBtn, 'metadata reprocess button exists');
+
+    reprocessBtn.dispatchEvent(new window.Event('click', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 30));
+
+    const userMessage = (
+      'Vector search is temporarily unavailable because the circuit '
+      + 'breaker is open. Please try again later.'
+    );
+    window.dispatchEvent(new window.CustomEvent('workspace:reprocess-progress', {
+      detail: {
+        documentId: 42,
+        stage: 'failed',
+        status: 'failed',
+        percentage: 100,
+        details: { userMessage }
+      }
+    }));
+    await new Promise((r) => setTimeout(r, 30));
+
+    const label = root.querySelector('[data-testid="reprocess-progress-label"]');
+    assert.ok(label, 'progress label is rendered');
+    assert.ok(label.textContent.includes('Vector search is temporarily'));
   });
 });
