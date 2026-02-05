@@ -46,6 +46,8 @@ describe('VisualTabIsland - visual chat', function () {
   let document;
   let root;
   let searchPayload;
+  let reingestUrl;
+  let resolveReingestRequest;
   const initialOverlays = [
     {
       id: 'ov-1',
@@ -77,8 +79,11 @@ describe('VisualTabIsland - visual chat', function () {
     global.document = document;
     global.CustomEvent = window.CustomEvent;
     global.alert = () => {};
-    global.confirm = () => true;
+    window.confirm = () => true;
+    global.confirm = window.confirm;
     searchPayload = null;
+    reingestUrl = null;
+    resolveReingestRequest = null;
 
     class MockFileReader {
       constructor() {
@@ -131,6 +136,19 @@ describe('VisualTabIsland - visual chat', function () {
 
       if (url === '/api/visual-rag/search/visual') {
         return jsonResponse({ results: [] });
+      }
+
+      if (url === '/api/visual-rag/reingest/1') {
+        reingestUrl = url;
+        return new Promise((resolve) => {
+          resolveReingestRequest = () => {
+            resolve(jsonResponse({
+              success: true,
+              overlayCount: 3,
+              pagesProcessed: 2,
+            }));
+          };
+        });
       }
 
       return jsonResponse({}, 404);
@@ -268,6 +286,37 @@ describe('VisualTabIsland - visual chat', function () {
     assert.ok(
       String(attachmentContainer.textContent).includes('receipt.png'),
       'image attachment chip should render file name'
+    );
+  });
+
+  it('reingests visual index with loading and success status', async () => {
+    render(h(VisualTabIsland, {
+      documentId: 1,
+      fields: initialFields,
+      overlays: initialOverlays,
+    }), root);
+    await wait(60);
+
+    const button = root.querySelector('[data-testid="visual-chat-reingest-btn"]');
+    assert.ok(button, 'reingest visual button should render');
+    button.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+
+    await wait(10);
+    assert.ok(
+      String(button.textContent).includes('Reingesting...'),
+      'button should show loading state while request is pending'
+    );
+    assert.strictEqual(reingestUrl, '/api/visual-rag/reingest/1');
+
+    assert.ok(resolveReingestRequest, 'reingest request resolver should be captured');
+    resolveReingestRequest();
+    await wait(20);
+
+    const status = root.querySelector('[data-testid="visual-chat-status"]');
+    assert.ok(status, 'status message should render');
+    assert.ok(
+      String(status.textContent).includes('Visual reingest complete'),
+      'status should indicate success'
     );
   });
 });

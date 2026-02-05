@@ -27,6 +27,7 @@ type ChatMessage = {
 
 // LocalStorage key for persisting chat mode
 const CHAT_MODE_STORAGE_KEY = 'paperless-ai-chat-mode';
+const REINGEST_TIMEOUT_MS = 10000;
 
 type ChatDoc = {
   id: number;
@@ -144,6 +145,10 @@ export default function ChatWorkspaceIsland(
 
   const [guidedStep, setGuidedStep] = useState('Select a document to begin.');
   const [statusMessage, setStatusMessage] = useState(null as string | null);
+  const [textReingestBusy, setTextReingestBusy] = useState(false);
+  const [textReingestStatus, setTextReingestStatus] = useState(
+    null as string | null
+  );
 
   type ChatContextItem = {
     type: string;
@@ -573,6 +578,10 @@ export default function ChatWorkspaceIsland(
     }
   }, [selectedDocumentId]);
 
+  useEffect(() => {
+    setTextReingestStatus(null);
+  }, [selectedDocumentId, chatMode]);
+
   const sendMessage = useCallback(async () => {
     // In RAG/Visual-RAG mode, we don't need a document; in Document mode, we do
     if (!messageInput.trim()) return;
@@ -740,6 +749,56 @@ export default function ChatWorkspaceIsland(
       setIsStreaming(false);
     }
   }, [messageInput, selectedDocumentId, selectedModel, chatMode, chatContext, chatMessages, docPreview]);
+
+  const handleTextReingest = useCallback(async () => {
+    if (!selectedDocumentId || textReingestBusy) return;
+    const confirmed = window.confirm(
+      'This will re-index the document text. Continue?'
+    );
+    if (!confirmed) return;
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(
+      () => controller.abort(),
+      REINGEST_TIMEOUT_MS
+    );
+
+    setTextReingestBusy(true);
+    setTextReingestStatus(
+      `Reingesting text index for document #${selectedDocumentId}...`
+    );
+
+    try {
+      const response = await fetch(`/api/rag/reingest/${selectedDocumentId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: true }),
+        signal: controller.signal
+      });
+      const payload = await response.json().catch(() => ({} as {
+        error?: string;
+        message?: string;
+      }));
+      if (!response.ok) {
+        throw new Error(
+          payload.error || `Request failed (${response.status})`
+        );
+      }
+
+      setTextReingestStatus(
+        payload.message ||
+          `Text reingest started for document #${selectedDocumentId}.`
+      );
+    } catch (reingestError: unknown) {
+      const message = reingestError instanceof Error
+        ? reingestError.message
+        : String(reingestError);
+      setTextReingestStatus(`Text reingest failed: ${message}`);
+    } finally {
+      window.clearTimeout(timeoutId);
+      setTextReingestBusy(false);
+    }
+  }, [selectedDocumentId, textReingestBusy]);
 
   const tabs = useMemo(() => (
     [
@@ -968,6 +1027,31 @@ export default function ChatWorkspaceIsland(
             {/* RAG mode: always available */}
             {chatMode === 'rag' && (
               <div className="sg-chat-panel">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs text-[#777]">Text Search</span>
+                  <button
+                    type="button"
+                    className="rounded-md border border-[#e5e0d8] px-2 py-1 text-xs text-[#666] hover:bg-[#f5f0e8] disabled:opacity-60 disabled:cursor-not-allowed"
+                    data-testid="chat-reingest-text-btn"
+                    disabled={!selectedDocumentId || textReingestBusy}
+                    onClick={() => void handleTextReingest()}
+                    title={
+                      !selectedDocumentId
+                        ? 'Select a document first'
+                        : 'Re-index text embeddings for this document'
+                    }
+                  >
+                    {textReingestBusy ? 'Reingesting...' : 'Reingest Text'}
+                  </button>
+                </div>
+                {textReingestStatus && (
+                  <div
+                    className="mb-2 text-xs text-[#8a5a2f]"
+                    data-testid="chat-reingest-text-status"
+                  >
+                    {textReingestStatus}
+                  </div>
+                )}
                 <div
                   ref={chatHistoryRef}
                   className="sg-chat-history"

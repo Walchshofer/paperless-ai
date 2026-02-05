@@ -911,74 +911,129 @@ router.get('/domains', authenticateApi, (req, res) => {
  *       500:
  *         description: Ingestion failed
  */
-router.post('/ingest/:docId', authenticateApi, requireAdmin, async (req, res) => {
-    const docId = parseInt(req.params.docId, 10);
-    const { force = false } = req.body || {};
+const createApiError = (statusCode, message) => {
+    const error = new Error(message);
+    error.statusCode = statusCode;
+    return error;
+};
 
-    if (isNaN(docId)) {
-        return res.status(400).json({ success: false, error: 'Invalid document ID' });
+async function ingestDocumentById(docId, force) {
+    logger.info(`[Visual-RAG API] Ingesting document ${docId} (force=${force})`);
+
+    if (!force) {
+        const hasOverlays = await visualOverlayRepository.hasOverlays(docId);
+        if (hasOverlays) {
+            return {
+                success: true,
+                message: 'Document already ingested',
+                overlayCount: (await visualOverlayRepository.getByDocId(docId)).length,
+                skipped: true
+            };
+        }
+    }
+
+    const doc = await paperlessService.getDocumentMetadata(docId);
+    if (!doc) {
+        throw createApiError(404, 'Document not found');
+    }
+
+    const pdfBuffer = await paperlessService.downloadDocument(docId);
+    if (!pdfBuffer) {
+        throw createApiError(404, 'Failed to download document');
+    }
+
+    const images = await pdfRenderer.renderBuffer(pdfBuffer, {
+        dpi: config.visualRag.visionRenderDpi,
+        docId
+    });
+
+    if (force) {
+        await visualOverlayRepository.deleteByDocId(docId);
+    }
+
+    const pdfPath = resolveRelativePdfPath(doc, docId);
+    const result = await ingestionManager.ingestDocument(docId, pdfPath, {
+        base64Images: images.map(i => i.base64),
+        metadata: {
+            title: doc.title,
+            tags: doc.tags?.map(t => t.name || t) || []
+        }
+    });
+
+    const overlayCount = result.overlayExtraction?.overlayCount || 0;
+    logger.info(
+        `[Visual-RAG API] Document ${docId} ingested: ${overlayCount} overlays`
+    );
+
+    return {
+        success: true,
+        docId,
+        overlayCount,
+        domain: result.overlayExtraction?.domain || 'general',
+        pagesProcessed: images.length
+    };
+}
+
+async function handleIngestRequest(req, res, forceOverride = null) {
+    const docId = Number.parseInt(req.params.docId, 10);
+    const forceFlag = req.body && typeof req.body.force === 'boolean'
+        ? req.body.force
+        : false;
+    const force = forceOverride === null ? forceFlag : forceOverride;
+
+    if (!Number.isFinite(docId) || docId <= 0) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid document ID'
+        });
     }
 
     try {
-        logger.info(`[Visual-RAG API] Ingesting document ${docId} (force=${force})`);
-
-        // Check if already ingested and not forcing
-        if (!force) {
-            const hasOverlays = await visualOverlayRepository.hasOverlays(docId);
-            if (hasOverlays) {
-                return res.json({
-                    success: true,
-                    message: 'Document already ingested',
-                    overlayCount: (await visualOverlayRepository.getByDocId(docId)).length,
-                    skipped: true
-                });
-            }
-        }
-
-        // Fetch document metadata from paperless
-        const doc = await paperlessService.getDocumentMetadata(docId);
-        if (!doc) {
-            return res.status(404).json({ success: false, error: 'Document not found' });
-        }
-
-        // Download PDF
-        const pdfBuffer = await paperlessService.downloadDocument(docId);
-        if (!pdfBuffer) {
-            return res.status(404).json({ success: false, error: 'Failed to download document' });
-        }
-
-        // Render PDF to images
-        const images = await pdfRenderer.renderBuffer(pdfBuffer, { dpi: config.visualRag.visionRenderDpi, docId });
-
-        // Delete existing overlays if re-ingesting
-        if (force) {
-            await visualOverlayRepository.deleteByDocId(docId);
-        }
-
-        // Ingest through pipeline
-        const pdfPath = resolveRelativePdfPath(doc, docId);
-        const result = await ingestionManager.ingestDocument(docId, pdfPath, {
-            base64Images: images.map(i => i.base64),
-            metadata: {
-                title: doc.title,
-                tags: doc.tags?.map(t => t.name || t) || []
-            }
-        });
-
-        logger.info(`[Visual-RAG API] Document ${docId} ingested: ${result.overlayExtraction?.overlayCount || 0} overlays`);
-
-        res.json({
-            success: true,
-            docId,
-            overlayCount: result.overlayExtraction?.overlayCount || 0,
-            domain: result.overlayExtraction?.domain || 'general',
-            pagesProcessed: images.length
-        });
+        const result = await ingestDocumentById(docId, force);
+        return res.json(result);
     } catch (error) {
         logger.error(`[Visual-RAG API] Ingest failed for ${docId}:`, error.message);
-        res.status(500).json({ success: false, error: error.message });
+        const statusCode = Number.isInteger(error.statusCode)
+            ? error.statusCode
+            : 500;
+        return res.status(statusCode).json({
+            success: false,
+            error: error.message
+        });
     }
+}
+
+router.post('/ingest/:docId', authenticateApi, requireAdmin, async (req, res) => {
+    return handleIngestRequest(req, res);
 });
+
+/**
+ * @swagger
+ * /api/visual-rag/reingest/{docId}:
+ *   post:
+ *     summary: Force re-ingest a single document
+ *     description: Re-analyze and re-index visual embeddings for one document
+ *     tags: [Visual RAG, Ingestion]
+ *     parameters:
+ *       - in: path
+ *         name: docId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Re-ingestion result
+ *       500:
+ *         description: Re-ingestion failed
+ */
+router.post(
+    '/reingest/:docId',
+    authenticateApi,
+    requireAdmin,
+    async (req, res) => {
+        return handleIngestRequest(req, res, true);
+    }
+);
 
 // Render a normalized page image for overlay viewers.
 router.get('/normalized/:docId', authenticateApi, async (req, res) => {

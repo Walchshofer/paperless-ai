@@ -61,6 +61,36 @@ router.post('/index', async (req, res) => {
 });
 
 /**
+ * Re-index a document in text RAG.
+ *
+ * Note: the current text-rag backend exposes a global forced re-index trigger.
+ * We keep the requested document id in the response for UI traceability.
+ */
+router.post('/reingest/:documentId', async (req, res) => {
+  try {
+    const documentId = Number.parseInt(req.params.documentId, 10);
+    if (!Number.isFinite(documentId) || documentId <= 0) {
+      return res.status(400).json({ error: 'Invalid document ID' });
+    }
+
+    const result = await ragService.indexDocuments(true);
+    return res.json({
+      success: true,
+      documentId,
+      message: `Text reingest started for document ${documentId}`,
+      backendScope: 'global',
+      ...result
+    });
+  } catch (error) {
+    console.error('Error in /api/rag/reingest/:documentId:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error'
+    });
+  }
+});
+
+/**
  * Get indexing status
  */
 router.get('/index/status', async (req, res) => {

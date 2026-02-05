@@ -90,6 +90,7 @@ class FetchError extends Error {
 
 const CHAT_SESSION_PREFIX = 'paperless:visual-chat:';
 const SEARCH_TIMEOUT_MS = 5000;
+const REINGEST_TIMEOUT_MS = 10000;
 const MAX_IMAGE_ATTACHMENTS = 3;
 const MAX_RESULTS = 6;
 
@@ -213,9 +214,13 @@ const parseResultSource = (raw: unknown): ChatSource => {
   return 'hybrid';
 };
 
-async function postJsonWithTimeout<T>(url: string, body: Record<string, unknown>) {
+async function postJsonWithTimeout<T>(
+  url: string,
+  body: Record<string, unknown>,
+  timeoutMs = SEARCH_TIMEOUT_MS
+) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -266,6 +271,7 @@ export default function VisualTabIsland(props: VisualTabProps) {
   const [chatHistory, setChatHistory] = useState([] as VisualChatMessage[]);
   const [chatBusy, setChatBusy] = useState(false);
   const [chatStatus, setChatStatus] = useState(null as string | null);
+  const [visualReingestBusy, setVisualReingestBusy] = useState(false);
   const [overlayAttachments, setOverlayAttachments] = useState([] as OverlayAttachment[]);
   const [imageAttachments, setImageAttachments] = useState([] as ImageAttachment[]);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -868,6 +874,40 @@ export default function VisualTabIsland(props: VisualTabProps) {
     setImageAttachments([]);
   }, []);
 
+  const handleReingestVisual = useCallback(async () => {
+    if (!currentDocumentId || visualReingestBusy) return;
+    const confirmed = window.confirm(
+      'This will re-analyze the document visually. Continue?'
+    );
+    if (!confirmed) return;
+
+    setVisualReingestBusy(true);
+    setChatStatus(`Reingesting visual index for document #${currentDocumentId}...`);
+    try {
+      const response = await postJsonWithTimeout<{
+        overlayCount?: number;
+        pagesProcessed?: number;
+      }>(
+        `/api/visual-rag/reingest/${currentDocumentId}`,
+        { force: true },
+        REINGEST_TIMEOUT_MS
+      );
+      const overlays = Number(response.overlayCount || 0);
+      const pages = Number(response.pagesProcessed || 0);
+      setChatStatus(
+        `Visual reingest complete for document #${currentDocumentId}` +
+          ` (${overlays} overlays, ${pages} pages).`
+      );
+    } catch (reingestError: unknown) {
+      const msg = reingestError instanceof Error
+        ? reingestError.message
+        : String(reingestError);
+      setChatStatus(`Visual reingest failed: ${msg}`);
+    } finally {
+      setVisualReingestBusy(false);
+    }
+  }, [currentDocumentId, visualReingestBusy]);
+
   const addImageAttachments = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
@@ -972,14 +1012,25 @@ export default function VisualTabIsland(props: VisualTabProps) {
           <h3 className="text-sm font-semibold text-[#2c2c2c] font-['Space_Grotesk']">
             Visual Chat
           </h3>
-          <button
-            type="button"
-            className="rounded-md border border-[#e5e0d8] px-2 py-1 text-xs text-[#666] hover:bg-[#f5f0e8]"
-            data-testid="visual-chat-clear-btn"
-            onClick={handleClearChat}
-          >
-            Clear
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded-md border border-[#e5e0d8] px-2 py-1 text-xs text-[#666] hover:bg-[#f5f0e8] disabled:opacity-60"
+              data-testid="visual-chat-reingest-btn"
+              disabled={visualReingestBusy}
+              onClick={() => void handleReingestVisual()}
+            >
+              {visualReingestBusy ? 'Reingesting...' : 'Reingest Visual'}
+            </button>
+            <button
+              type="button"
+              className="rounded-md border border-[#e5e0d8] px-2 py-1 text-xs text-[#666] hover:bg-[#f5f0e8]"
+              data-testid="visual-chat-clear-btn"
+              onClick={handleClearChat}
+            >
+              Clear
+            </button>
+          </div>
         </div>
 
         <div className="p-3">
