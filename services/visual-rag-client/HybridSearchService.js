@@ -39,6 +39,13 @@ class HybridSearchService {
         this.visualWeight = initialWeights.visualWeight;
         this.textWeight = initialWeights.textWeight;
 
+        this.confidenceFallbackEnabled =
+            options.confidenceFallbackEnabled !== false;
+        this.visualConfidenceThreshold = this._normalizeThreshold(
+            options.visualConfidenceThreshold,
+            0.7
+        );
+
         // Caching
         this._visualAvailable = false;
         this._textAvailable = false;
@@ -145,6 +152,8 @@ class HybridSearchService {
      * @param {number} options.alpha - Legacy alias for visual weight override
      * @param {number} options.visualWeight - Visual weight override (0-1)
      * @param {number} options.textWeight - Text weight override (0-1)
+     * @param {boolean} options.confidenceFallbackEnabled - Enable fallback
+     * @param {number} options.visualConfidenceThreshold - Fallback threshold
      * @param {boolean} options.includeOverlays - Include overlays in results
      * @returns {Promise<Object>} Fused search results
      */
@@ -155,6 +164,8 @@ class HybridSearchService {
             alpha,
             visualWeight,
             textWeight,
+            confidenceFallbackEnabled,
+            visualConfidenceThreshold,
             includeOverlays: _includeOverlays = false
         } = options;
         const effectiveWeights = this._resolveWeights({
@@ -162,6 +173,13 @@ class HybridSearchService {
             visualWeight,
             textWeight
         });
+        const effectiveConfidenceThreshold = this._normalizeThreshold(
+            visualConfidenceThreshold,
+            this.visualConfidenceThreshold
+        );
+        const useConfidenceFallback = confidenceFallbackEnabled !== undefined
+            ? Boolean(confidenceFallbackEnabled)
+            : this.confidenceFallbackEnabled;
 
         if (!query || typeof query !== 'string') {
             throw new Error('Query must be a non-empty string');
@@ -174,7 +192,9 @@ class HybridSearchService {
                 query,
                 k,
                 visualWeight: effectiveWeights.visualWeight,
-                textWeight: effectiveWeights.textWeight
+                textWeight: effectiveWeights.textWeight,
+                visualConfidenceThreshold: effectiveConfidenceThreshold,
+                confidenceFallbackEnabled: useConfidenceFallback
             }
         );
 
@@ -199,6 +219,64 @@ class HybridSearchService {
         ]);
 
         logger.debug(`[HybridSearchService] Visual: ${visualResults.length}, Text: ${textResults.length}`);
+
+        const visualConfidence = this._calculateVisualConfidence(visualResults);
+        const shouldFallbackToText = Boolean(
+            useConfidenceFallback &&
+            availability.visual &&
+            availability.text &&
+            textResults.length > 0 &&
+            visualConfidence < effectiveConfidenceThreshold
+        );
+
+        if (shouldFallbackToText) {
+            const fallbackResults = this._buildTextFallbackResults(
+                textResults,
+                maxResults
+            );
+            const duration = Date.now() - startTime;
+            const fallbackStats = {
+                fusionMethod: 'text_fallback_low_visual_confidence',
+                fallbackUsed: 'text-rag',
+                fallbackReason: 'visual_low_confidence',
+                originalVisualConfidence: visualConfidence,
+                confidenceThreshold: effectiveConfidenceThreshold,
+                visualInputCount: visualResults.length,
+                textInputCount: textResults.length,
+                totalResults: fallbackResults.length,
+                fallbackLatencyMs: duration,
+                fallbackLatencyTargetMs: 1000,
+                fallbackLatencyTargetMet: duration < 1000
+            };
+
+            logger.info(
+                '[HybridSearchService] Confidence fallback triggered',
+                {
+                    event: 'fallback_triggered',
+                    fallback: 'text-rag',
+                    queryLength: query.length,
+                    ...fallbackStats
+                }
+            );
+
+            return {
+                query,
+                results: fallbackResults,
+                totalResults: fallbackResults.length,
+                sources: {
+                    visual: visualResults.length > 0,
+                    text: textResults.length > 0,
+                    visualCount: visualResults.length,
+                    textCount: textResults.length
+                },
+                fallbackUsed: 'text-rag',
+                fallbackReason: 'visual_low_confidence',
+                originalVisualConfidence: visualConfidence,
+                confidenceThreshold: effectiveConfidenceThreshold,
+                fusionStats: fallbackStats,
+                duration
+            };
+        }
 
         const fusedPayload = this._fuseResults(visualResults, textResults, {
             maxResults,
@@ -556,6 +634,42 @@ class HybridSearchService {
         return numericScore;
     }
 
+    _normalizeThreshold(value, fallback) {
+        const normalizedFallback = this._normalizeWeight(fallback, 0.7);
+        if (value === undefined || value === null) {
+            return normalizedFallback;
+        }
+        return this._normalizeWeight(value, normalizedFallback);
+    }
+
+    _calculateVisualConfidence(visualResults) {
+        if (!Array.isArray(visualResults) || visualResults.length === 0) {
+            return 0;
+        }
+        let bestScore = 0;
+        for (const result of visualResults) {
+            const normalizedScore = this._normalizeScore(result?.score);
+            if (normalizedScore > bestScore) {
+                bestScore = normalizedScore;
+            }
+        }
+        return bestScore;
+    }
+
+    _buildTextFallbackResults(textResults, maxResults) {
+        return [...(textResults || [])]
+            .sort(
+                (left, right) => this._normalizeScore(right.score) -
+                    this._normalizeScore(left.score)
+            )
+            .slice(0, maxResults)
+            .map((result, index) => ({
+                ...result,
+                rank: index + 1,
+                source: 'text'
+            }));
+    }
+
     _dedupeByDocId(results) {
         const bestByDoc = new Map();
         (results || []).forEach((result, index) => {
@@ -588,6 +702,8 @@ class HybridSearchService {
             alpha: this.visualWeight,
             visualWeight: this.visualWeight,
             textWeight: this.textWeight,
+            confidenceFallbackEnabled: this.confidenceFallbackEnabled,
+            visualConfidenceThreshold: this.visualConfidenceThreshold,
             checkInterval: this._checkInterval
         };
     }
@@ -608,6 +724,16 @@ class HybridSearchService {
             });
             this.visualWeight = resolvedWeights.visualWeight;
             this.textWeight = resolvedWeights.textWeight;
+        }
+        if (config.confidenceFallbackEnabled !== undefined) {
+            this.confidenceFallbackEnabled =
+                Boolean(config.confidenceFallbackEnabled);
+        }
+        if (config.visualConfidenceThreshold !== undefined) {
+            this.visualConfidenceThreshold = this._normalizeThreshold(
+                config.visualConfidenceThreshold,
+                this.visualConfidenceThreshold
+            );
         }
         if (config.checkInterval !== undefined) this._checkInterval = config.checkInterval;
     }

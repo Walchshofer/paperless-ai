@@ -119,6 +119,83 @@ describe('HybridSearchService Integration', function () {
         assert.strictEqual(output.fusionStats.visualDedupedCount, 1);
     });
 
+    it('should fallback to text RAG when visual confidence is below threshold', async function () {
+        const lowConfidenceVisualClient = {
+            isAvailable: async () => true,
+            search: async () => ({
+                results: [
+                    { docId: 401, pageNum: 1, score: 0.62 }
+                ]
+            })
+        };
+        const lowConfidenceTextService = {
+            checkStatus: async () => ({
+                server_up: true,
+                index_ready: true,
+                data_loaded: true
+            }),
+            search: async () => ([
+                { docId: 402, score: 0.92, title: 'Text Winner' },
+                { docId: 403, score: 0.73, title: 'Text Runner-Up' }
+            ])
+        };
+        const service = new HybridSearchService({
+            visualSearchClient: lowConfidenceVisualClient,
+            ragService: lowConfidenceTextService
+        });
+
+        await service.isAvailable();
+        const output = await service.search('fallback query', { maxResults: 2 });
+
+        assert.strictEqual(output.fallbackUsed, 'text-rag');
+        assert.strictEqual(output.fallbackReason, 'visual_low_confidence');
+        assert.strictEqual(
+            Number(output.originalVisualConfidence.toFixed(2)),
+            0.62
+        );
+        assert.strictEqual(output.fusionStats.fusionMethod,
+            'text_fallback_low_visual_confidence');
+        assert.strictEqual(output.fusionStats.confidenceThreshold, 0.7);
+        assert.strictEqual(output.fusionStats.fallbackLatencyTargetMs, 1000);
+        assert.ok(typeof output.fusionStats.fallbackLatencyMs === 'number');
+        assert.ok(output.fusionStats.fallbackLatencyMs >= 0);
+        assert.strictEqual(output.results.length, 2);
+        assert.strictEqual(output.results[0].source, 'text');
+    });
+
+    it('should keep weighted fusion when visual confidence is above threshold', async function () {
+        const highConfidenceVisualClient = {
+            isAvailable: async () => true,
+            search: async () => ({
+                results: [
+                    { docId: 501, pageNum: 1, score: 0.88 }
+                ]
+            })
+        };
+        const highConfidenceTextService = {
+            checkStatus: async () => ({
+                server_up: true,
+                index_ready: true,
+                data_loaded: true
+            }),
+            search: async () => ([
+                { docId: 502, score: 0.91, title: 'Text result' }
+            ])
+        };
+        const service = new HybridSearchService({
+            visualSearchClient: highConfidenceVisualClient,
+            ragService: highConfidenceTextService
+        });
+
+        await service.isAvailable();
+        const output = await service.search('no fallback query');
+
+        assert.strictEqual(output.fallbackUsed, undefined);
+        assert.strictEqual(output.fusionStats.fusionMethod, 'weighted_score');
+        assert.ok(output.results.some(r => r.docId === 501));
+        assert.ok(output.results.some(r => r.docId === 502));
+    });
+
     it('should fallback to text search when visual sidecar is unavailable', async function () {
         const unavailableVisualClient = {
             isAvailable: async () => false,
