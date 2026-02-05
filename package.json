@@ -23,7 +23,8 @@
     "check:island-runtime": "node scripts/check-island-runtime.js",
     "check:suppressions": "node scripts/check-no-suppressions.js",
     "env:sync": "bash scripts/sync_dotenv_from_compose_env.sh || pwsh -NoProfile -File scripts/sync_dotenv_from_compose_env.ps1",
-    "env:validate": "python scripts/validate_env_py.py"
+    "env:validate": "python scripts/validate_env_py.py",
+    "reindex:visual": "node scripts/batch-reindex-visual.js"
   },
   "keywords": [
     "paperless-ngx",
