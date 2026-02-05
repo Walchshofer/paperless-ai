@@ -14,6 +14,7 @@
  */
 
 const { VisualSearchClient, visualSearchClient } = require('./VisualSearchClient');
+const { VisualIndexer, visualIndexer } = require('./VisualIndexer');
 const { VisualOverlayRepository, visualOverlayRepository } = require('./VisualOverlayRepository');
 const { OverlayExtractor, overlayExtractor, BOUNDING_BOX_PROMPT, DOMAIN_PROMPTS } = require('./OverlayExtractor');
 const { IngestionManager, ingestionManager } = require('./IngestionManager');
@@ -29,6 +30,7 @@ const overlayConfig = require('./overlayConfig');
 module.exports = {
     // Classes
     VisualSearchClient,
+    VisualIndexer,
     VisualOverlayRepository,
     OverlayExtractor,
     IngestionManager,
@@ -42,6 +44,7 @@ module.exports = {
 
     // Singleton instances
     visualSearchClient,
+    visualIndexer,
     visualOverlayRepository,
     overlayExtractor,
     ingestionManager,

@@ -18,6 +18,7 @@ import logging
 import os
 import threading
 import time
+from datetime import datetime, timezone
 from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -368,6 +369,7 @@ class IndexRequest(BaseModel):
     """Request to index document images."""
     doc_id: int
     images: List[str]
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class IndexPdfRequest(BaseModel):
@@ -767,12 +769,84 @@ Instrumentator().instrument(app).expose(app)  # type: ignore
 
 # --- Endpoints ---
 
+def _to_optional_int(value: Any) -> Optional[int]:
+    """Convert a value to int when possible."""
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str) and value.strip():
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _extract_tag_ids(metadata: Dict[str, Any]) -> List[int]:
+    """Extract integer tag IDs from metadata."""
+    raw_tag_ids = metadata.get("tag_ids", metadata.get("tags"))
+    if not isinstance(raw_tag_ids, list):
+        return []
+
+    tag_ids: List[int] = []
+    for item in raw_tag_ids:
+        tag_id = _to_optional_int(item)
+        if tag_id is not None:
+            tag_ids.append(tag_id)
+    return tag_ids
+
+
+def _build_page_payload(
+    doc_id: int,
+    page_number: int,
+    page_count: int,
+    metadata: Optional[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """Build payload for a single page embedding point."""
+    metadata = metadata or {}
+    domain_raw = metadata.get("domain")
+    domain = "general"
+    if isinstance(domain_raw, str) and domain_raw.strip():
+        domain = domain_raw.strip().lower()
+
+    indexed_at_raw = metadata.get("indexed_at")
+    if isinstance(indexed_at_raw, str) and indexed_at_raw.strip():
+        indexed_at = indexed_at_raw
+    else:
+        indexed_at = datetime.now(timezone.utc).isoformat()
+
+    payload: Dict[str, Any] = {
+        "doc_id": doc_id,
+        "document_id": doc_id,
+        "page_number": page_number,
+        "page_count": page_count,
+        "domain": domain,
+        "indexed_at": indexed_at,
+    }
+
+    correspondent_id = _to_optional_int(
+        metadata.get("correspondent_id", metadata.get("correspondent"))
+    )
+    if correspondent_id is not None:
+        payload["correspondent_id"] = correspondent_id
+
+    tag_ids = _extract_tag_ids(metadata)
+    if tag_ids:
+        payload["tag_ids"] = tag_ids
+
+    return payload
+
 async def _process_images(
     doc_id: int,
-    pil_images: List[Any]
+    pil_images: List[Any],
+    metadata: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """Shared logic for processing document images."""
     doc_id_str = str(doc_id)
+    started_at = time.time()
     try:
         with torch.inference_mode():  # type: ignore
             inputs = state.processor.process_images(pil_images).to(DEVICE)
@@ -784,49 +858,56 @@ async def _process_images(
         # Note: Persistence is handled by Qdrant SOT below
         state.registry[doc_id_str] = embeddings
 
+        indexed_points = 0
         if state.qdrant:
             try:
-                # Serialize full tensor for SOT restoration
-                buffer = io.BytesIO()
-                torch.save(embeddings, buffer)  # type: ignore
-                tensor_b64 = base64.b64encode(
-                    buffer.getvalue()
-                ).decode("utf-8")
-
-                # Mean pooling for vector index
-                mean_vec: List[float] = (
-                    embeddings.float()
-                    .view(-1, EXPECTED_EMBEDDING_DIM)
-                    .mean(dim=0)
-                    .tolist()
-                )
+                page_vectors: Any = embeddings.float().mean(dim=1)
+                points: List[Any] = []
+                page_count = len(pil_images)
+                for page_idx in range(page_count):
+                    page_number = page_idx + 1
+                    point_id = f"{doc_id}:{page_number}"
+                    page_vector: List[float] = (
+                        page_vectors[page_idx]
+                        .view(EXPECTED_EMBEDDING_DIM)
+                        .tolist()
+                    )
+                    points.append(
+                        PointStruct(
+                            id=point_id,
+                            vector={"page_embedding": page_vector},
+                            payload=_build_page_payload(
+                                doc_id,
+                                page_number,
+                                page_count,
+                                metadata,
+                            ),
+                        )
+                    )
 
                 state.qdrant.upsert(
                     collection_name="visual_pages",
-                    points=[
-                        PointStruct(
-                            id=doc_id,
-                            vector={"page_embedding": mean_vec},
-                            payload={
-                                "doc_id": doc_id,
-                                "tensor_b64": tensor_b64,
-                                "page_count": len(pil_images)
-                            }
-                        )
-                    ]
+                    points=points,
                 )
+                indexed_points = len(points)
                 logger.info("✅ Synced doc %s to Qdrant SOT", doc_id_str)
             except Exception as exc:
                 logger.error(
                     "⚠️ Qdrant sync failed for %s: %s", doc_id_str, exc
                 )
 
+        indexing_time_ms = (time.time() - started_at) * 1000
+        page_count = len(pil_images)
+        per_page_latency_ms = indexing_time_ms / max(page_count, 1)
         vram_used = torch.cuda.memory_allocated()  # type: ignore
         vram_gb: float = float(vram_used) / 1e9    # type: ignore
         return {
             "status": "success",
             "doc_id": doc_id,
-            "page_count": len(pil_images),
+            "page_count": page_count,
+            "indexed_points": indexed_points,
+            "indexing_time_ms": round(indexing_time_ms, 2),
+            "per_page_latency_ms": round(per_page_latency_ms, 2),
             "vram_gb": f"{vram_gb:.2f}"
         }
     except Exception as exc:
@@ -845,7 +926,11 @@ async def index_document(payload: IndexRequest) -> Dict[str, Any]:
             img = _decode_base64_image(img_b64)
             pil_images.append(img)
 
-        return await _process_images(payload.doc_id, pil_images)
+        return await _process_images(
+            payload.doc_id,
+            pil_images,
+            payload.metadata
+        )
     except HTTPException:
         raise
     except Exception as exc:
@@ -1121,7 +1206,14 @@ async def delete_document(doc_id: int) -> Dict[str, Any]:
         try:
             state.qdrant.delete(
                 collection_name="visual_pages",
-                points_selector=[doc_id]
+                points_selector=Filter(
+                    must=[
+                        FieldCondition(
+                            key="doc_id",
+                            match=MatchValue(value=doc_id)
+                        )
+                    ]
+                )
             )
             deleted_from.append("qdrant")
         except Exception as exc:

@@ -38,6 +38,13 @@ const { guidanceClient, getFallbackPromptId } = require('../guidance');
 // Import ParallelOcrExecutor for Phase 2: Parallel OCR Execution
 const { ParallelOcrExecutor } = require('./ParallelOcrExecutor');
 const { VisualTriageService } = require('./VisualTriageService');
+const {
+  VisualQueryGenerator,
+  visualQueryGenerator: defaultVisualQueryGenerator
+} = require('./VisualQueryGenerator');
+const { OcrGuidedVisualSearch } = require('./OcrGuidedVisualSearch');
+const { HybridConfidenceFusion } = require('./HybridConfidenceFusion');
+const { VisualQueryExecutor } = require('./VisualQueryExecutor');
 
 // Import normalization components for Stage 3
 const { PreVisionNormalizer } = require('./normalization/PreVisionNormalizer');
@@ -126,6 +133,28 @@ class ExpertPipelineExecutor {
     this.visualTriageService =
       options.visualTriageService ||
       new VisualTriageService(this.ollamaService, options.visualTriage || {});
+
+    // Vision-first P0 services (Stages 5.5 / 8 / 8.5 / 8.6)
+    this.visualQueryGenerator =
+      options.visualQueryGenerator ||
+      defaultVisualQueryGenerator ||
+      new VisualQueryGenerator(options.visualQueryGeneratorOptions || {});
+    this.ocrGuidedVisualSearch =
+      options.ocrGuidedVisualSearch ||
+      new OcrGuidedVisualSearch({
+        metricsCollector: this.metricsCollector
+      });
+    this.hybridConfidenceFusion =
+      options.hybridConfidenceFusion ||
+      new HybridConfidenceFusion(options.hybridConfidenceFusionOptions || {});
+    this.visualQueryExecutorFactory =
+      options.visualQueryExecutorFactory ||
+      ((visualSearchClient, overlayRepository, executorOptions) =>
+        new VisualQueryExecutor(
+          visualSearchClient,
+          overlayRepository,
+          executorOptions
+        ));
 
     // Normalization components (Stage 3)
     this.normalizationStore = options.normalizationStore || new NormalizationStore();
@@ -235,15 +264,7 @@ class ExpertPipelineExecutor {
   _buildMissingFieldQueries(missingFields, domain, extractedFields = []) {
     const required = Array.isArray(missingFields) ? missingFields : [];
 
-    let visualQueryGenerator = null;
-    try {
-      ({ visualQueryGenerator } = require('./VisualQueryGenerator'));
-    } catch (error) {
-      logger.debug({
-        event: 'missing_field_query_priority_fallback',
-        reason: error.message
-      });
-    }
+    const visualQueryGenerator = this.visualQueryGenerator;
 
     return required.map(field => ({
       question: this._generateQueryForField(field, domain),
@@ -1451,7 +1472,7 @@ class ExpertPipelineExecutor {
     }
 
     try {
-      const { visualQueryGenerator } = require('./VisualQueryGenerator');
+      const visualQueryGenerator = this.visualQueryGenerator;
 
       if (typeof context.visualSidecarAvailable !== 'boolean') {
         const { VisualSearchClient } = require('../visual-rag-client/VisualSearchClient');
@@ -1869,6 +1890,30 @@ class ExpertPipelineExecutor {
     }
   }
 
+  _buildVisionFirstExecutorConfig(stageExecutorConfig = {}) {
+    const defaultConfig = this.options?.visionFirstExecutor || {};
+    const stageThreshold = Number.parseFloat(
+      stageExecutorConfig.ocrFallbackConfidenceThreshold
+    );
+    const defaultThreshold = Number.parseFloat(
+      defaultConfig.ocrFallbackConfidenceThreshold
+    );
+
+    return {
+      ...defaultConfig,
+      ...stageExecutorConfig,
+      ocrFallbackEnabled: normalizeBoolean(
+        stageExecutorConfig.ocrFallbackEnabled,
+        normalizeBoolean(defaultConfig.ocrFallbackEnabled, true)
+      ),
+      ocrFallbackConfidenceThreshold: Number.isFinite(stageThreshold)
+        ? stageThreshold
+        : Number.isFinite(defaultThreshold)
+          ? defaultThreshold
+          : 0.7
+    };
+  }
+
   /**
    * Execute a visual query execution stage (Phase 4)
    */
@@ -1945,7 +1990,6 @@ class ExpertPipelineExecutor {
     }
 
     try {
-      const { VisualQueryExecutor } = require('./VisualQueryExecutor');
       const queryOutput = context.getStageOutput('visual_queries');
       const visualQueries = queryOutput?.queries || [];
 
@@ -2112,17 +2156,55 @@ class ExpertPipelineExecutor {
 
       this._initVisualRag();
 
-      const executor = new VisualQueryExecutor(visualSearchClient, this._visualOverlayRepository, {
-        ...(stage.executorConfig || {}),
-        metricsCollector: this.metricsCollector
-      });
+      const executorConfig = this._buildVisionFirstExecutorConfig(
+        stage.executorConfig || {}
+      );
 
-      const result = await executor.executeQueries({
+      const executor = this.visualQueryExecutorFactory(
+        visualSearchClient,
+        this._visualOverlayRepository,
+        {
+          ...executorConfig,
+          metricsCollector: this.metricsCollector,
+          ocrGuidedSearch: this.ocrGuidedVisualSearch,
+          hybridConfidenceFusion: this.hybridConfidenceFusion
+        }
+      );
+
+      let result = await executor.executeQueries({
         visualQueries,
         extractionResults,
         documentMetadata,
         documentImage
       });
+
+      const visualConfidence = Number.parseFloat(
+        result?.execution_metadata?.visual_confidence
+      );
+      const shouldEnforceOcrFallback =
+        executorConfig.ocrFallbackEnabled &&
+        Number.isFinite(visualConfidence) &&
+        visualConfidence < executorConfig.ocrFallbackConfidenceThreshold &&
+        !result?.execution_metadata?.ocr_fallback_used &&
+        typeof executor.executeWithOcrFallback === 'function';
+
+      if (shouldEnforceOcrFallback) {
+        result = await executor.executeWithOcrFallback(
+          result,
+          {
+            ...documentMetadata,
+            pipelineId: context.options?.pipelineId,
+            requestId: context.options?.requestId
+          },
+          {
+            visualQueries,
+            extractionResults,
+            documentImage,
+            startTime: stageStart,
+            requestId: context.options?.requestId
+          }
+        );
+      }
 
       const shouldFallbackToText = (metadata) => {
         if (!metadata?.fallback) {
@@ -2148,6 +2230,32 @@ class ExpertPipelineExecutor {
       }
 
       const timing = Date.now() - stageStart;
+      const latencyTargetMs = 8000;
+      const withinLatencyTarget = timing <= latencyTargetMs;
+
+      result.execution_metadata = {
+        ...(result.execution_metadata || {}),
+        vision_first: {
+          enabled: true,
+          latency_target_ms: latencyTargetMs,
+          within_latency_target: withinLatencyTarget
+        }
+      };
+
+      logger.info({
+        event: 'vision_first_pipeline_stats',
+        request_id: context.options?.requestId,
+        document_id: context.document?.id,
+        stage_id: stage.id,
+        model_id: stage.model || null,
+        execution_time_ms: timing,
+        latency_target_ms: latencyTargetMs,
+        within_latency_target: withinLatencyTarget,
+        visual_confidence: result.execution_metadata.visual_confidence,
+        ocr_fallback_used: Boolean(result.execution_metadata.ocr_fallback_used),
+        hybrid_confidence_fusion:
+          result.execution_metadata.hybrid_confidence_fusion || null
+      });
 
       const executionOutput = {
         fields: result.fields,

@@ -22,6 +22,104 @@ let documentQueue = [];
 let isProcessing = false;
 let _usePrompt = false;
 
+function resolveRelativePdfPath(document, documentId) {
+  const archiveFileName = document.archive_file_name ||
+    document.archive_filename || null;
+  const originalFileName = document.original_file_name ||
+    `doc-${documentId}.pdf`;
+
+  if (archiveFileName) {
+    return path.posix.join('documents', 'archive', archiveFileName);
+  }
+
+  return path.posix.join('documents', 'originals', originalFileName);
+}
+
+async function triggerUploadVisualIndexing(document) {
+  if (!document?.id || config.visualRagSidecar?.enabled !== 'yes') {
+    return;
+  }
+
+  try {
+    const { ingestionManager } = require(
+      '../services/visual-rag-client/IngestionManager'
+    );
+
+    const pdfBuffer = await paperlessService.downloadOriginalDocument(
+      document.id
+    ) || await paperlessService.downloadDocument(document.id);
+
+    if (!pdfBuffer) {
+      logger.warn({
+        event: 'upload_visual_index_pdf_missing',
+        docId: document.id
+      });
+      return;
+    }
+
+    if (!(await pdfRenderer.isAvailableAsync())) {
+      logger.warn({
+        event: 'upload_visual_index_renderer_unavailable',
+        docId: document.id
+      });
+      return;
+    }
+
+    const pageCount = Number.parseInt(
+      String(document.page_count || document.pageCount || ''),
+      10
+    );
+    const renderOptions = {
+      dpi: config.visualRag?.visionRenderDpi,
+      docId: `upload-${document.id}`
+    };
+    if (Number.isInteger(pageCount) && pageCount > 0) {
+      renderOptions.maxPages = pageCount;
+    }
+
+    const images = await pdfRenderer.renderBuffer(pdfBuffer, renderOptions);
+    const base64Images = images
+      .map(image => image.base64)
+      .filter(value => typeof value === 'string' && value.length > 0);
+
+    if (base64Images.length === 0) {
+      logger.warn({
+        event: 'upload_visual_index_no_pages',
+        docId: document.id
+      });
+      return;
+    }
+
+    await ingestionManager.ingestDocument(
+      document.id,
+      resolveRelativePdfPath(document, document.id),
+      {
+        base64Images,
+        fetchOcrText: false,
+        metadata: {
+          title: document.title,
+          domain: 'general',
+          page_count: pageCount,
+          correspondent_id: document.correspondent,
+          tag_ids: Array.isArray(document.tags) ? document.tags : []
+        }
+      }
+    );
+
+    logger.info({
+      event: 'upload_visual_index_complete',
+      docId: document.id,
+      pagesIndexed: base64Images.length
+    });
+  } catch (error) {
+    logger.warn({
+      event: 'upload_visual_index_failed',
+      docId: document?.id || null,
+      error: error.message
+    });
+  }
+}
+
 /**
  * @swagger
  * /api/reset-all-documents:
@@ -904,6 +1002,7 @@ router.post('/api/webhook/document', authenticateApi, async (req, res) => {
       }
 
       documentQueue.push({ doc: document, username: 'system' });
+      void triggerUploadVisualIndexing(document);
       if (prompt) {
         _usePrompt = true;
         logger.debug('Using custom prompt: %s', prompt);

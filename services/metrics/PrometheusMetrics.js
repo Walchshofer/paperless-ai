@@ -150,6 +150,17 @@ class PrometheusMetrics {
             ['document_type'],
             [50, 100, 200, 500, 1000, 2000, 5000]
         );
+        this.hybridConfidenceFusionTotal = this._getOrCreateCounter(
+            'hybrid_confidence_fusion_total',
+            'Hybrid confidence fusion decisions by state.',
+            ['document_type', 'fusion_state']
+        );
+        this.hybridConfidenceFusedScore = this._getOrCreateHistogram(
+            'hybrid_confidence_fused_score',
+            'Distribution of fused confidence scores.',
+            ['document_type', 'fusion_state'],
+            [0.1, 0.2, 0.4, 0.6, 0.8, 0.9, 1.0]
+        );
         this.ocrConflictsTotal = this._getOrCreateCounter(
             'ocr_conflicts_total',
             'OCR reconciliation conflicts.',
@@ -403,6 +414,21 @@ class PrometheusMetrics {
         this._safeRun(() => {
             this.ocrGuidedFallbackTotal.labels(docType, status).inc();
         }, 'ocr_guided_fallback_total');
+    }
+
+    recordHybridConfidenceFusion(documentType, fusionState, fusedConfidence) {
+        if (!this.enabled) return;
+        const docType = this._normalizeDocumentType(documentType);
+        const state = fusionState || 'unknown';
+        this._safeRun(() => {
+            this.hybridConfidenceFusionTotal.labels(docType, state).inc();
+            if (Number.isFinite(fusedConfidence)) {
+                const bounded = Math.max(0, Math.min(1, fusedConfidence));
+                this.hybridConfidenceFusedScore
+                    .labels(docType, state)
+                    .observe(bounded);
+            }
+        }, 'hybrid_confidence_fusion');
     }
 
     incrementVisualQueriesExecuted(documentType, queryType) {

@@ -68,6 +68,13 @@ The system must emit structured telemetry for the following events:
 
 ---
 
+### `hybrid_confidence_fusion_stats`
+- emitted after visual + OCR confidence fusion
+- includes per-state counts (`ocr-confirmed`, `arbitrated`, `visual-only`)
+- includes average fused confidence and average adjustment
+
+---
+
 ### `prompt_truncated`
 - original token count
 - truncated token count
@@ -117,6 +124,8 @@ The system must emit structured telemetry for the following events:
 - integration_errors_total
 - ocr_guided_fallback_total
 - ocr_guided_fallback_latency_ms
+- hybrid_confidence_fusion_total
+- hybrid_confidence_fused_score
 
 ## Prometheus Metrics (Canonical Names)
 
@@ -143,6 +152,8 @@ The system must emit structured telemetry for the following events:
 - ocr_conflicts_total
 - ocr_guided_fallback_total
 - ocr_guided_fallback_latency_ms
+- hybrid_confidence_fusion_total
+- hybrid_confidence_fused_score
 - extraction_accuracy_per_field_type
 - extraction_errors_total
 - integration_errors_total

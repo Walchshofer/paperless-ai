@@ -117,3 +117,159 @@ describe('ExpertPipelineExecutor visual text fallback', () => {
     assert.ok(context.errors.length > 0);
   });
 });
+
+describe('ExpertPipelineExecutor vision-first orchestration', () => {
+  it('enforces OCR fallback below confidence threshold by default', async () => {
+    let fallbackCalls = 0;
+    const mockVisualQueryExecutor = {
+      executeQueries: async () => ({
+        fields: [{ name: 'total', confidence: 0.55 }],
+        newly_discovered_fields: [],
+        overlays: [],
+        execution_metadata: {
+          visual_confidence: 0.55,
+          successful_queries: 1,
+          failed_queries: 0,
+          timeout_queries: 0,
+          visual_confirmation_rate: 0.2
+        }
+      }),
+      executeWithOcrFallback: async () => {
+        fallbackCalls += 1;
+        return {
+          fields: [{ name: 'total', confidence: 0.77 }],
+          newly_discovered_fields: [],
+          overlays: [],
+          execution_metadata: {
+            visual_confidence: 0.77,
+            ocr_fallback_used: true,
+            visual_confirmation_rate: 0.7,
+            hybrid_confidence_fusion: {
+              states: {
+                'ocr-confirmed': 1,
+                arbitrated: 0,
+                'visual-only': 0
+              }
+            }
+          }
+        };
+      }
+    };
+
+    const executor = new ExpertPipelineExecutor({}, {
+      enableVisualRag: true,
+      enableMetrics: false,
+      visualSearchClient: { isAvailable: async () => true },
+      visualQueryExecutorFactory: () => mockVisualQueryExecutor
+    });
+    executor._initVisualRag = () => {};
+
+    const context = buildContext({
+      visualSidecarAvailable: true,
+      stageOutputs: {
+        extraction: { fields: [{ name: 'total', confidence: 0.55 }] },
+        visual_queries: {
+          queries: [{ question: 'Find total amount', field_target: 'total' }]
+        }
+      },
+      options: {
+        requestId: 'req-vision-1',
+        pipelineId: 'PIPELINE_GENERAL_V1'
+      }
+    });
+
+    const stage = {
+      id: 'visual_execution',
+      outputKey: 'visual_execution',
+      type: 'visual_query_execution',
+      model: 'qwen3-vl:8b',
+      executionMode: 'sequential',
+      executorConfig: { ocrFallbackConfidenceThreshold: 0.7 }
+    };
+
+    const result = await executor._executeVisualQueryExecutionStage(
+      stage,
+      context,
+      Date.now()
+    );
+
+    const output = context.getStageOutput('visual_execution');
+    assert.strictEqual(result.status, 'success');
+    assert.strictEqual(fallbackCalls, 1);
+    assert.strictEqual(output.metadata.ocr_fallback_used, true);
+    assert.strictEqual(output.metadata.vision_first.enabled, true);
+    assert.strictEqual(
+      typeof output.metadata.vision_first.within_latency_target,
+      'boolean'
+    );
+  });
+
+  it('respects explicit OCR fallback disablement in stage config', async () => {
+    let fallbackCalls = 0;
+    const mockVisualQueryExecutor = {
+      executeQueries: async () => ({
+        fields: [{ name: 'total', confidence: 0.42 }],
+        newly_discovered_fields: [],
+        overlays: [],
+        execution_metadata: {
+          visual_confidence: 0.42,
+          successful_queries: 1,
+          failed_queries: 0,
+          timeout_queries: 0,
+          visual_confirmation_rate: 0.1
+        }
+      }),
+      executeWithOcrFallback: async () => {
+        fallbackCalls += 1;
+        return {
+          fields: [{ name: 'total', confidence: 0.9 }],
+          newly_discovered_fields: [],
+          overlays: [],
+          execution_metadata: {
+            visual_confidence: 0.9,
+            ocr_fallback_used: true
+          }
+        };
+      }
+    };
+
+    const executor = new ExpertPipelineExecutor({}, {
+      enableVisualRag: true,
+      enableMetrics: false,
+      visualSearchClient: { isAvailable: async () => true },
+      visualQueryExecutorFactory: () => mockVisualQueryExecutor
+    });
+    executor._initVisualRag = () => {};
+
+    const context = buildContext({
+      visualSidecarAvailable: true,
+      stageOutputs: {
+        extraction: { fields: [{ name: 'total', confidence: 0.42 }] },
+        visual_queries: {
+          queries: [{ question: 'Find total amount', field_target: 'total' }]
+        }
+      }
+    });
+
+    const stage = {
+      id: 'visual_execution',
+      outputKey: 'visual_execution',
+      type: 'visual_query_execution',
+      model: 'qwen3-vl:8b',
+      executionMode: 'sequential',
+      executorConfig: {
+        ocrFallbackEnabled: false,
+        ocrFallbackConfidenceThreshold: 0.7
+      }
+    };
+
+    const result = await executor._executeVisualQueryExecutionStage(
+      stage,
+      context,
+      Date.now()
+    );
+
+    assert.strictEqual(result.status, 'success');
+    assert.strictEqual(fallbackCalls, 0);
+  });
+});

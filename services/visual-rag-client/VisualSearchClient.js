@@ -558,10 +558,14 @@ class VisualSearchClient {
      * @param {Object} metadata - Additional metadata to store
      * @returns {Promise<Object>} Indexing status
      */
-    async indexDocument(docId, pdfPath, metadata = {}) {
-        // Allow indexing by PDF path OR by array of base64 images
-        const useImages = Array.isArray(arguments[3]) && arguments[3].length > 0;
-        const base64Images = useImages ? arguments[3] : null;
+    async indexDocument(docId, pdfPath, metadata = {}, base64Images = null, options = {}) {
+        // Backward compatibility: old callers passed images as 4th positional arg.
+        const imageArray = Array.isArray(base64Images)
+            ? base64Images
+            : (Array.isArray(arguments[3]) ? arguments[3] : null);
+        const useImages = Array.isArray(imageArray) && imageArray.length > 0;
+        const requestId = options.requestId || metadata.requestId || metadata.request_id;
+        const headers = requestId ? { 'X-Request-Id': requestId } : {};
 
         if (!useImages && (!pdfPath || typeof pdfPath !== 'string')) {
             throw new Error('PDF path must be a non-empty string when images are not provided');
@@ -569,13 +573,13 @@ class VisualSearchClient {
 
         try {
             if (useImages) {
-                logger.info(`[VisualSearchClient] Indexing document ${docId} via ${base64Images.length} image(s)`);
+                logger.info(`[VisualSearchClient] Indexing document ${docId} via ${imageArray.length} image(s)`);
 
                 const response = await this.client.post('/index/document', {
                     doc_id: docId,
-                    images: base64Images,
+                    images: imageArray,
                     metadata
-                });
+                }, { headers });
 
                 logger.info(`[VisualSearchClient] Indexing (images) started for document ${docId}`);
 
@@ -592,7 +596,7 @@ class VisualSearchClient {
                 doc_id: docId,
                 pdf_path: pdfPath,
                 metadata
-            });
+            }, { headers });
 
             logger.info(`[VisualSearchClient] Indexing started for document ${docId}`);
 

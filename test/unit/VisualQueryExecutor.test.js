@@ -300,7 +300,14 @@ describe('VisualQueryExecutor', () => {
     });
 
     describe('Confidence Score Fusion', () => {
-        it('should fuse extraction and visual confidence with 0.6/0.4 weights', () => {
+        it('should fuse visual and OCR confidence with 0.6/0.4 weights', () => {
+            const weightedExecutor = new VisualQueryExecutor(mockVisualSearchClient, {
+                ocrConfirmedBoostMin: 0,
+                ocrConfirmedBoostMax: 0,
+                arbitratedBoostMin: 0,
+                arbitratedBoostMax: 0,
+                visualOnlyPenalty: 0
+            });
             const extractionResults = {
                 fields: [
                     { name: 'invoice_number', value: 'INV-001', confidence: 0.8 }
@@ -315,12 +322,19 @@ describe('VisualQueryExecutor', () => {
                 }
             ];
 
-            const merged = executor._mergeResults(extractionResults, visualResults, []);
+            const merged = weightedExecutor._mergeResults(
+                extractionResults,
+                visualResults,
+                []
+            );
 
             const field = merged.find(f => f.name === 'invoice_number');
 
-            // Expected: 0.8 * 0.6 + 0.9 * 0.4 = 0.48 + 0.36 = 0.84
-            assert.ok(field.confidence > 0.83 && field.confidence < 0.85, 'Should fuse with 0.6/0.4 weights');
+            // Expected: 0.9 * 0.6 + 0.8 * 0.4 = 0.54 + 0.32 = 0.86
+            assert.ok(
+                field.confidence > 0.85 && field.confidence < 0.87,
+                'Should fuse with visual=0.6 and OCR=0.4'
+            );
         });
 
         it('should mark fields with visual confirmation', () => {
@@ -343,6 +357,7 @@ describe('VisualQueryExecutor', () => {
             const field = merged.find(f => f.name === 'invoice_number');
 
             assert.strictEqual(field.visual_confirmation, true, 'Should mark visual confirmation');
+            assert.strictEqual(field.fusion_state, 'ocr-confirmed');
             assert.ok(field.bounding_box, 'Should include bounding box');
         });
 
@@ -367,7 +382,11 @@ describe('VisualQueryExecutor', () => {
 
             assert.ok(newField, 'Should create newly discovered field');
             assert.strictEqual(newField.newly_discovered, true);
-            assert.strictEqual(newField.confidence, 0.85, 'Should use visual confidence');
+            assert.strictEqual(newField.fusion_state, 'visual-only');
+            assert.ok(
+                newField.confidence > 0.40 && newField.confidence < 0.42,
+                'Should apply visual-only confidence fusion and penalty'
+            );
         });
 
         it('should preserve extraction-only fields without visual confirmation', () => {
@@ -395,9 +414,9 @@ describe('VisualQueryExecutor', () => {
             assert.strictEqual(vendorField.confidence, 0.9, 'Should keep original confidence');
         });
 
-        it('should use correct default weights (0.6 extraction, 0.4 visual)', () => {
-            assert.strictEqual(executor.config.extractionWeight, 0.6);
-            assert.strictEqual(executor.config.visualWeight, 0.4);
+        it('should use correct default weights (0.6 visual, 0.4 OCR)', () => {
+            assert.strictEqual(executor.config.visualWeight, 0.6);
+            assert.strictEqual(executor.config.ocrWeight, 0.4);
         });
     });
 

@@ -16,6 +16,7 @@ const { metricsCollector } = require('../metrics/PrometheusMetrics');
 const { CircuitBreaker, CircuitState } = require('./CircuitBreaker');
 const paperlessService = require('../paperlessService');
 const { OcrGuidedVisualSearch } = require('./OcrGuidedVisualSearch');
+const { HybridConfidenceFusion } = require('./HybridConfidenceFusion');
 
 /**
  * Base K values for different query types
@@ -38,8 +39,13 @@ const DEFAULT_CONFIG = {
     initialBackoff: 100,         // Initial backoff: 100ms
     backoffMultiplier: 2,        // Exponential backoff: 100, 200, 400
     iouThreshold: 0.7,           // IoU threshold for deduplication
-    extractionWeight: 0.6,       // Confidence fusion: extraction weight
-    visualWeight: 0.4,           // Confidence fusion: visual weight
+    ocrWeight: 0.4,              // Confidence fusion: OCR weight
+    visualWeight: 0.6,           // Confidence fusion: visual weight
+    ocrConfirmedBoostMin: 0.15,  // Confidence boost range for confirmed values
+    ocrConfirmedBoostMax: 0.2,
+    arbitratedBoostMin: 0.05,    // Confidence boost range for arbitration
+    arbitratedBoostMax: 0.1,
+    visualOnlyPenalty: 0.1,      // Confidence penalty when OCR value is missing
     failureThreshold: 3,         // Circuit breaker failure threshold
     cooldownPeriod: 30000,       // Circuit breaker cooldown: 30s
     ocrFallbackEnabled: false,   // Opt-in OCR-guided visual fallback
@@ -84,14 +90,33 @@ class VisualQueryExecutor {
             metricsCollector: providedMetrics,
             paperlessService: providedPaperlessService,
             ocrGuidedSearch: providedOcrGuidedSearch,
+            hybridConfidenceFusion: providedHybridConfidenceFusion,
             ...executorOptions
         } = options;
         this.metricsCollector = providedMetrics || metricsCollector || null;
         this.paperlessService = providedPaperlessService || paperlessService;
+        const normalizedOptions = { ...executorOptions };
+        const legacyExtractionWeight = Number(normalizedOptions.extractionWeight);
+        if (
+            Number.isFinite(legacyExtractionWeight) &&
+            !Number.isFinite(Number(normalizedOptions.ocrWeight))
+        ) {
+            normalizedOptions.ocrWeight = legacyExtractionWeight;
+        }
         this.config = {
             ...DEFAULT_CONFIG,
-            ...executorOptions
+            ...normalizedOptions
         };
+        this.hybridConfidenceFusion = providedHybridConfidenceFusion ||
+            new HybridConfidenceFusion({
+                visualWeight: this.config.visualWeight,
+                ocrWeight: this.config.ocrWeight,
+                ocrConfirmedBoostMin: this.config.ocrConfirmedBoostMin,
+                ocrConfirmedBoostMax: this.config.ocrConfirmedBoostMax,
+                arbitratedBoostMin: this.config.arbitratedBoostMin,
+                arbitratedBoostMax: this.config.arbitratedBoostMax,
+                visualOnlyPenalty: this.config.visualOnlyPenalty
+            });
 
         this.ocrGuidedSearch = providedOcrGuidedSearch ||
             new OcrGuidedVisualSearch({
@@ -249,6 +274,7 @@ class VisualQueryExecutor {
                 dedupedResults,
                 visualQueries
             );
+            let fusionSummary = this._summarizeFusionStates(mergedFields);
 
             // Calculate overlay positions
             const overlays = this._calculateOverlays(dedupedResults);
@@ -261,7 +287,8 @@ class VisualQueryExecutor {
             let metadata = this._buildMetadata(queryResults, startTime, {
                 kValues,
                 dedupStats,
-                visualConfidence
+                visualConfidence,
+                fusionSummary
             });
 
             let result = {
@@ -285,7 +312,15 @@ class VisualQueryExecutor {
                     }
                 );
                 metadata = result.execution_metadata || metadata;
+                fusionSummary = this._summarizeFusionStates(result.fields);
+                metadata.hybrid_confidence_fusion = fusionSummary;
             }
+
+            this._recordHybridFusionTelemetry(
+                documentMetadata,
+                fusionSummary,
+                result.fields
+            );
 
             const kSummary = metadata.k_summary || this._buildKSummary(kValues);
             logger.info({
@@ -298,6 +333,7 @@ class VisualQueryExecutor {
                 kSummary,
                 rawHitCount: metadata.raw_hit_count,
                 deduplicatedCount: metadata.deduplicated_count,
+                hybridFusionSummary: metadata.hybrid_confidence_fusion || null,
                 ocrFallbackUsed: metadata.ocr_fallback_used || false
             });
             if (this.metricsCollector?.observeVisualQueryExecutionTime) {
@@ -907,18 +943,36 @@ class VisualQueryExecutor {
             if (extractedFieldsMap.has(fieldName)) {
                 // Field exists - fuse confidence scores
                 const extractedField = extractedFieldsMap.get(fieldName);
-                const extractionConfidence = extractedField.confidence;
-
-                const fusedConfidence =
-                    extractionConfidence * this.config.extractionWeight +
-                    visualConfidence * this.config.visualWeight;
+                const ocrConfidence = Number.isFinite(extractedField.confidence)
+                    ? extractedField.confidence
+                    : 0;
+                const visualValue =
+                    visualResult.value ??
+                    visualResult.query?.value ??
+                    visualResult.query?.visual_value ??
+                    extractedField.value;
+                const fusionResult = this.hybridConfidenceFusion.fuseField({
+                    fieldName,
+                    visualConfidence,
+                    ocrConfidence,
+                    visualValue,
+                    ocrValue: extractedField.value
+                });
 
                 fields.push({
                     ...extractedField,
-                    confidence: fusedConfidence,
+                    value: fusionResult.resolved_value ?? extractedField.value,
+                    confidence: fusionResult.confidence,
                     visual_confirmation: true,
                     visual_confidence: visualConfidence,
-                    extraction_confidence: extractionConfidence,
+                    ocr_confidence: ocrConfidence,
+                    extraction_confidence: ocrConfidence,
+                    confidence_adjustment: fusionResult.confidence_adjustment,
+                    confidence_base: fusionResult.base_confidence,
+                    fusion_state: fusionResult.fusion_state,
+                    agreement_detected: fusionResult.agreement_detected,
+                    agreement_score: fusionResult.agreement_score,
+                    arbitration_source: fusionResult.arbitration_source,
                     paperlessField: extractedField.paperlessField || queryPaperlessField,
                     mappingConfidence:
                         extractedField.mappingConfidence ?? queryMappingConfidence,
@@ -932,11 +986,26 @@ class VisualQueryExecutor {
                 extractedFieldsMap.delete(fieldName);
             } else {
                 // Newly discovered field from visual search
+                const fusionResult = this.hybridConfidenceFusion.fuseField({
+                    fieldName,
+                    visualConfidence,
+                    ocrConfidence: 0,
+                    visualValue: visualResult.value ?? null,
+                    ocrValue: null
+                });
                 fields.push({
                     name: fieldName,
-                    value: null,  // Value extraction happens in next stage     
-                    confidence: visualConfidence,
+                    value: fusionResult.resolved_value, // Resolved visual value if available
+                    confidence: fusionResult.confidence,
                     visual_confidence: visualConfidence,
+                    ocr_confidence: 0,
+                    extraction_confidence: 0,
+                    confidence_adjustment: fusionResult.confidence_adjustment,
+                    confidence_base: fusionResult.base_confidence,
+                    fusion_state: fusionResult.fusion_state,
+                    agreement_detected: fusionResult.agreement_detected,
+                    agreement_score: fusionResult.agreement_score,
+                    arbitration_source: fusionResult.arbitration_source,
                     paperlessField: queryPaperlessField,
                     mappingConfidence: queryMappingConfidence,
                     newly_discovered: true,
@@ -957,6 +1026,43 @@ class VisualQueryExecutor {
         }
 
         return fields;
+    }
+
+    _summarizeFusionStates(fields) {
+        return this.hybridConfidenceFusion.summarize(fields);
+    }
+
+    _recordHybridFusionTelemetry(documentMetadata, fusionSummary, fields) {
+        if (!fusionSummary || fusionSummary.total_fused_fields === 0) {
+            return;
+        }
+
+        logger.info({
+            event: 'hybrid_confidence_fusion_stats',
+            documentId: documentMetadata?.id,
+            documentType: documentMetadata?.documentType || 'unknown',
+            totalFusedFields: fusionSummary.total_fused_fields,
+            states: fusionSummary.states,
+            averageConfidence: fusionSummary.average_confidence,
+            averageAdjustment: fusionSummary.average_adjustment
+        });
+
+        if (!this.metricsCollector?.recordHybridConfidenceFusion) {
+            return;
+        }
+
+        const docType = documentMetadata?.documentType || 'unknown';
+        const list = Array.isArray(fields) ? fields : [];
+        for (const field of list) {
+            if (!field?.fusion_state) {
+                continue;
+            }
+            this.metricsCollector.recordHybridConfidenceFusion(
+                docType,
+                field.fusion_state,
+                field.confidence
+            );
+        }
     }
 
     /**
@@ -1004,6 +1110,7 @@ class VisualQueryExecutor {
         const computedConfidence = Number.isFinite(extras.visualConfidence)
             ? Math.max(0, Math.min(1, extras.visualConfidence))
             : this._calculateVisualConfidence(results);
+        const fusionSummary = extras.fusionSummary || null;
 
         return {
             total_queries_executed: results.length,
@@ -1022,7 +1129,8 @@ class VisualQueryExecutor {
             k_summary: kSummary,
             raw_hit_count: dedupStats.raw_hit_count || 0,
             deduplicated_count: dedupStats.deduplicated_count || 0,
-            dedup_removed_count: dedupStats.dedup_removed_count || 0
+            dedup_removed_count: dedupStats.dedup_removed_count || 0,
+            hybrid_confidence_fusion: fusionSummary
         };
     }
 
@@ -1051,7 +1159,8 @@ class VisualQueryExecutor {
                 fallback_reason: reason,
                 error: error?.message,
                 error_status: error?.status || null,
-                error_type: error?.type || null
+                error_type: error?.type || null,
+                hybrid_confidence_fusion: this._summarizeFusionStates(fields)
             }
         };
     }

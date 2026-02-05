@@ -19,22 +19,28 @@
  */
 
 const logger = require('../logger');
+const config = require('../../config/config');
 const { visualSearchClient } = require('./VisualSearchClient');
+const { visualIndexer } = require('./VisualIndexer');
 const { overlayExtractor } = require('./OverlayExtractor');
 const { visualOverlayRepository } = require('./VisualOverlayRepository');
 const { hybridSearchService } = require('./HybridSearchService');
 const { domainResolver } = require('./DomainResolver');
 const { overlayRefiner } = require('./OverlayRefiner');
+const { pdfRenderer } = require('./PDFRenderer');
 const paperlessService = require('../paperlessService');
 
 class IngestionManager {
     constructor(options = {}) {
         this.visualSearchClient = options.visualSearchClient || visualSearchClient;
+        this.visualIndexer = options.visualIndexer || visualIndexer;
         this.overlayExtractor = options.overlayExtractor || overlayExtractor;
         this.overlayRepository = options.overlayRepository || visualOverlayRepository;
         this.hybridSearchService = options.hybridSearchService || hybridSearchService;
         this.domainResolver = options.domainResolver || domainResolver;
         this.overlayRefiner = options.overlayRefiner || overlayRefiner;
+        this.pdfRenderer = options.pdfRenderer || pdfRenderer;
+        this.paperlessService = options.paperlessService || paperlessService;
 
         // Configuration
         this.enableVisualIndex = options.enableVisualIndex ?? true;
@@ -42,6 +48,7 @@ class IngestionManager {
         this.enableDomainAutoDetection = options.enableDomainAutoDetection ?? true;
         this.enableExpertRefinement = options.enableExpertRefinement ?? true;
         this.parallelIngestion = options.parallelIngestion ?? true;
+        this.indexAllPages = options.indexAllPages ?? true;
 
         // Statistics
         this.stats = {
@@ -194,20 +201,119 @@ class IngestionManager {
                 return { success: false, error: 'Sidecar not available', skipped: true };
             }
 
-            // Index the document
-            const indexResult = await this.visualSearchClient.indexDocument(docId, pdfPath, metadata, base64Images);
+            const indexImages = await this._resolveIndexImages(
+                docId,
+                base64Images,
+                metadata
+            );
+            if (!Array.isArray(indexImages) || indexImages.length === 0) {
+                throw new Error('No page images available for visual indexing');
+            }
+
+            const indexResult = await this.visualIndexer.indexDocument(
+                docId,
+                indexImages,
+                metadata
+            );
 
             this.stats.visualIndexSuccesses++;
 
             return {
                 success: true,
                 status: indexResult.status,
-                document: indexResult.document
+                document: indexResult.document,
+                pagesIndexed: indexResult.pagesIndexed,
+                indexingLatencyMs: indexResult.indexingLatencyMs,
+                perPageLatencyMs: indexResult.perPageLatencyMs
             };
         } catch (error) {
             this.stats.visualIndexFailures++;
             logger.error(`[IngestionManager] Visual indexing failed for doc ${docId}: ${error.message}`);
             throw error;
+        }
+    }
+
+    async _resolveIndexImages(docId, base64Images = null, metadata = {}) {
+        const providedImages = Array.isArray(base64Images)
+            ? base64Images.filter(i => typeof i === 'string' && i.length > 0)
+            : [];
+
+        if (!this.indexAllPages && providedImages.length > 0) {
+            return providedImages;
+        }
+
+        const pageCount = Number.parseInt(
+            String(metadata.page_count ?? metadata.pageCount ?? ''),
+            10
+        );
+        if (providedImages.length > 0 &&
+            Number.isInteger(pageCount) &&
+            pageCount > 0 &&
+            providedImages.length >= pageCount) {
+            return providedImages;
+        }
+
+        const renderedImages = await this._renderAllPagesForIndex(docId);
+        if (renderedImages.length > 0) {
+            return renderedImages;
+        }
+
+        return providedImages;
+    }
+
+    async _renderAllPagesForIndex(docId) {
+        try {
+            if (!(await this.pdfRenderer.isAvailableAsync())) {
+                return [];
+            }
+
+            const [docMeta, originalPdf] = await Promise.all([
+                this.paperlessService.getDocument(docId),
+                this.paperlessService.downloadOriginalDocument(docId)
+            ]);
+
+            const pdfBuffer = originalPdf ||
+                await this.paperlessService.downloadDocument(docId);
+            if (!pdfBuffer) {
+                return [];
+            }
+
+            const pageCount = Number.parseInt(
+                String(docMeta?.page_count ?? docMeta?.pageCount ?? ''),
+                10
+            );
+            const renderOptions = {
+                dpi: config.visualRag?.visionRenderDpi,
+                docId: `universal-index-${docId}`
+            };
+            if (Number.isInteger(pageCount) && pageCount > 0) {
+                renderOptions.maxPages = pageCount;
+            }
+
+            const pages = await this.pdfRenderer.renderBuffer(
+                pdfBuffer,
+                renderOptions
+            );
+            const images = pages
+                .map(page => page.base64)
+                .filter(value => typeof value === 'string' && value.length > 0);
+
+            if (images.length > 0) {
+                logger.info({
+                    event: 'visual_index_full_render_complete',
+                    docId,
+                    pagesRendered: images.length
+                });
+            }
+
+            return images;
+        } catch (error) {
+            logger.warn({
+                event: 'visual_index_full_render_failed',
+                docId,
+                error: error.message
+            });
+            return [];
         }
     }
 
@@ -300,7 +406,7 @@ class IngestionManager {
      */
     async _fetchOcrText(docId) {
         try {
-            const content = await paperlessService.getDocumentContent(docId);
+            const content = await this.paperlessService.getDocumentContent(docId);
 
             if (content && typeof content === 'string' && content.length > 0) {
                 logger.debug(`[IngestionManager] Fetched OCR text for doc ${docId}: ${content.length} chars`);
