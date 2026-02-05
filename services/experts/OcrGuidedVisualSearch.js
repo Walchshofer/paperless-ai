@@ -226,13 +226,28 @@ class OcrGuidedVisualSearch {
         }
 
         const crossValidationStart = Date.now();
-        const crossValidation = await this._crossValidate(
-            normalizedOcr,
-            mergedFields,
-            fallbackDeduped,
-            domain,
-            requestId
-        );
+        const crossValidation = await this._withTimeout(
+            this._crossValidate(
+                normalizedOcr,
+                mergedFields,
+                fallbackDeduped,
+                domain,
+                requestId
+            ),
+            this.config.crossValidationTimeoutMs,
+            'OCR cross-validation timeout'
+        ).catch((error) => {
+            logger.warn({
+                event: 'ocr_guided_cross_validation_timeout',
+                documentId,
+                error: error.message
+            });
+            return {
+                fields: mergedFields,
+                corrections: 0,
+                used: false
+            };
+        });
         const crossValidationLatency = Date.now() - crossValidationStart;
 
         metadata.ocr_cross_validation_used = crossValidation.used;
@@ -343,10 +358,27 @@ class OcrGuidedVisualSearch {
         if (!ocrText || typeof ocrText !== 'string') {
             return [];
         }
-        const terms = ocrText.match(/\b[A-Z][a-z]+\b|\$[\d,]+\.?\d*/g) || [];
-        const deduped = Array.from(new Set(terms.map(term => term.trim())))
-            .filter(Boolean);
-        return deduped.slice(0, this.config.maxKeyTerms);
+        const terms = ocrText.match(
+            /\b[A-Z][a-z]+\b|\$[\d,]+(?:\.\d+)?|\b\d+(?:[.,:/-]\d+)*\b/g
+        ) || [];
+        const deduped = [];
+        const seen = new Set();
+        for (const term of terms) {
+            const cleaned = term.trim();
+            if (!cleaned) {
+                continue;
+            }
+            const key = cleaned.toLowerCase();
+            if (seen.has(key)) {
+                continue;
+            }
+            seen.add(key);
+            deduped.push(cleaned);
+            if (deduped.length >= this.config.maxKeyTerms) {
+                break;
+            }
+        }
+        return deduped;
     }
 
     _findFieldInOcr(fieldName, ocrText) {
@@ -359,8 +391,8 @@ class OcrGuidedVisualSearch {
             invoice_number: /(?:Invoice|Rechnung)\s*#?\s*:?\s*([A-Z0-9-]+)/i,
             invoice_amount: /(?:Total|Summe|Amount)\s*:?\s*\$?([\d,]+\.?\d*)/i,
             total_amount: /(?:Total|Summe|Amount)\s*:?\s*\$?([\d,]+\.?\d*)/i,
-            document_date: /(?:Date|Datum)\s*:?\s*(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})/i,
-            invoice_date: /(?:Date|Datum)\s*:?\s*(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})/i
+            document_date: /(?:Date|Datum)\s*:?\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})/i,
+            invoice_date: /(?:Date|Datum)\s*:?\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})/i
         };
 
         const pattern = patterns[normalizedName];

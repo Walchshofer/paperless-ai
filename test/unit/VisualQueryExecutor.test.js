@@ -134,6 +134,29 @@ describe('VisualQueryExecutor', () => {
             const k = executor._calculateDynamicK(query);
             assert.strictEqual(k, Math.round(k), 'K should be an integer');
         });
+
+        it('should cap dynamic K at maxDynamicK', () => {
+            const query = {
+                expected_element_type: 'exploration',
+                confidence: -1,
+                rarity_factor: 2
+            };
+
+            const k = executor._calculateDynamicK(query);
+            assert.strictEqual(k, executor.config.maxDynamicK);
+        });
+
+        it('should handle malformed confidence and rarity safely', () => {
+            const query = {
+                expected_element_type: 'field_extraction',
+                confidence: undefined,
+                rarity_factor: 'bad-value'
+            };
+
+            const k = executor._calculateDynamicK(query);
+            assert.ok(Number.isFinite(k), 'K should always be numeric');
+            assert.strictEqual(k, 3, 'Malformed inputs should use safe defaults');
+        });
     });
 
     describe('IoU Calculation', () => {

@@ -42,7 +42,7 @@ describe('Performance: Latency', function() {
         assert.ok(result.execution_metadata.execution_duration_ms < 500);
     });
 
-    it('should generate visual queries under 200ms', async function() {
+    it('should generate visual queries under 100ms', async function() {
         const generator = new VisualQueryGenerator();
         const start = Date.now();
         const result = await generator.generateQueries({
@@ -55,7 +55,7 @@ describe('Performance: Latency', function() {
         });
         const duration = Date.now() - start;
 
-        assert.ok(duration < 200, `Expected <200ms, got ${duration}ms`);
+        assert.ok(duration < 100, `Expected <100ms, got ${duration}ms`);
         assert.ok(result.visual_queries.length >= 3);
     });
 

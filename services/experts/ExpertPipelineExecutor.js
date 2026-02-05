@@ -37,6 +37,7 @@ const { guidanceClient, getFallbackPromptId } = require('../guidance');
 
 // Import ParallelOcrExecutor for Phase 2: Parallel OCR Execution
 const { ParallelOcrExecutor } = require('./ParallelOcrExecutor');
+const { VisualTriageService } = require('./VisualTriageService');
 
 // Import normalization components for Stage 3
 const { PreVisionNormalizer } = require('./normalization/PreVisionNormalizer');
@@ -121,6 +122,11 @@ class ExpertPipelineExecutor {
       options.metricsCollector || null
     );
 
+    // Visual triage service (Stage 1 classification)
+    this.visualTriageService =
+      options.visualTriageService ||
+      new VisualTriageService(this.ollamaService, options.visualTriage || {});
+
     // Normalization components (Stage 3)
     this.normalizationStore = options.normalizationStore || new NormalizationStore();
     this.preVisionNormalizer = options.preVisionNormalizer || new PreVisionNormalizer({
@@ -184,6 +190,26 @@ class ExpertPipelineExecutor {
   }
 
   _generateQueryForField(field, domain) {
+    try {
+      const { visualQueryGenerator } = require('./VisualQueryGenerator');
+      if (visualQueryGenerator &&
+          typeof visualQueryGenerator._generateQueryForField === 'function') {
+        return visualQueryGenerator._generateQueryForField(
+          {
+            fieldId: field?.fieldId,
+            name: field?.fieldId,
+            type: 'missing'
+          },
+          domain
+        );
+      }
+    } catch (error) {
+      logger.debug({
+        event: 'missing_field_query_template_fallback',
+        reason: error.message
+      });
+    }
+
     const displayName =
       field?.displayName?.en ||
       field?.displayName?.de ||
@@ -206,13 +232,39 @@ class ExpertPipelineExecutor {
     return templates[domain] || templates.general;
   }
 
-  _buildMissingFieldQueries(missingFields, domain) {
+  _buildMissingFieldQueries(missingFields, domain, extractedFields = []) {
     const required = Array.isArray(missingFields) ? missingFields : [];
+
+    let visualQueryGenerator = null;
+    try {
+      ({ visualQueryGenerator } = require('./VisualQueryGenerator'));
+    } catch (error) {
+      logger.debug({
+        event: 'missing_field_query_priority_fallback',
+        reason: error.message
+      });
+    }
+
     return required.map(field => ({
       question: this._generateQueryForField(field, domain),
       field_target: field.fieldId,
       expected_element_type: 'field_extraction',
-      priority: field.extractionPriority || 0.9,
+      priority: (
+        visualQueryGenerator &&
+        typeof visualQueryGenerator._calculatePriority === 'function'
+      )
+        ? visualQueryGenerator._calculatePriority(
+          {
+            ...field,
+            isRequired: true,
+            rarityBoost: 1.5
+          },
+          domain,
+          extractedFields
+        )
+        : Math.min((field.extractionPriority || 0.6) * 1.5, 1),
+      confidence: 0.35,
+      rarity_factor: 1,
       visualLabels: field.visualLabels || [],
       paperlessField: field.paperlessField || null
     }));
@@ -1484,7 +1536,8 @@ class ExpertPipelineExecutor {
           extractionResults.fields = mappingContext.mappedFields;
           missingFieldQueries = this._buildMissingFieldQueries(
             mappingContext.missingFields,
-            documentDomain
+            documentDomain,
+            extractionResults.fields
           );
           mappingStats = mappingContext.mappingStats;
 
@@ -3010,6 +3063,55 @@ class ExpertPipelineExecutor {
     }
   }
 
+  _buildRouterMessages(document, imageData) {
+    return promptRegistry.buildMessages(
+      'SYS_ROUTER_V1',
+      {
+        source_system: document.source || 'paperless-ngx',
+        filename: document.filename || 'unknown',
+        resolution: document.resolution || 'standard',
+        file_size: document.file_size || 'unknown'
+      },
+      imageData
+    );
+  }
+
+  async _classifyDocumentWithVisualTriage(document, options = {}) {
+    try {
+      const resolvedImages = resolveDocumentImages(document);
+      const triageResult = await this.visualTriageService.classifyDocument(
+        document.id || document.filename,
+        resolvedImages.base64Images,
+        {
+          source_system: document.source || 'paperless-ngx',
+          filename: document.filename || 'unknown',
+          resolution: document.resolution || 'standard',
+          file_size: document.file_size || 'unknown'
+        }
+      );
+
+      return triageResult;
+    } catch (triageError) {
+      logger.warn({
+        event: 'visual_triage_unexpected_error',
+        documentId: document.id || document.filename,
+        error: triageError.message
+      });
+
+      const routerMessages = this._buildRouterMessages(
+        document,
+        document.image_data
+      );
+
+      return this._classifyDocumentWithRetry(
+        document,
+        this,
+        routerMessages,
+        options
+      );
+    }
+  }
+
   /**
    * Classify document using router with retry, exponential backoff and optional model availability pre-check
    * Signature follows plan: accepts document, executor, routerMessages, options
@@ -3280,28 +3382,10 @@ class ExpertPipelineExecutor {
           }
         };
       } else {
-        const routerMessages = promptRegistry.buildMessages(
-          'SYS_ROUTER_V1',
-          {
-            source_system: document.source || 'paperless-ngx',
-            filename: document.filename || 'unknown',
-            resolution: document.resolution || 'standard',
-            file_size: document.file_size || 'unknown'
-          },
-          document.image_data
+        classificationResult = await this._classifyDocumentWithVisualTriage(
+          document,
+          options
         );
-
-        const routerResponse = await this._callOllamaWithTimeout(
-          MODEL_NAMES.router,
-          routerMessages,
-          promptRegistry.getOptions('SYS_ROUTER_V1'),
-          options.timeout || 30000
-        );
-
-        classificationResult = await this._parseResponse(routerResponse, {
-          id: 'router',
-          model: MODEL_NAMES.router
-        });
       }
 
       const domain =
@@ -3406,18 +3490,10 @@ async function processDocument(document, ollamaService, options = {}) {
       }
     };
   } else {
-    const routerMessages = promptRegistry.buildMessages(
-      'SYS_ROUTER_V1',
-      {
-        source_system: document.source || 'paperless-ngx',
-        filename: document.filename || 'unknown',
-        resolution: document.resolution || 'standard',
-        file_size: document.file_size || 'unknown'
-      },
-      document.image_data
+    classifyResult = await executor._classifyDocumentWithVisualTriage(
+      document,
+      options
     );
-
-    classifyResult = await executor._classifyDocumentWithRetry(document, executor, routerMessages, options);
     classificationResult = classifyResult;
   }
 

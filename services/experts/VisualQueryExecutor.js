@@ -33,6 +33,7 @@ const DEFAULT_CONFIG = {
     timeoutBudget: 500,          // 500ms per query budget
     hardTimeout: 1000,           // 1000ms hard timeout
     maxConcurrentQueries: 5,     // Max 5 concurrent queries
+    maxDynamicK: 10,             // Keep dynamic K bounded for latency
     maxRetries: 3,               // Retry failed queries up to 3 times
     initialBackoff: 100,         // Initial backoff: 100ms
     backoffMultiplier: 2,        // Exponential backoff: 100, 200, 400
@@ -563,13 +564,26 @@ class VisualQueryExecutor {
      * @private
      */
     _calculateDynamicK(query) {
-        const baseK = BASE_K_VALUES[query.expected_element_type] || 3;
-        const confidenceFactor = 1 + (1 - query.confidence);
-        const rarityFactor = 1 + query.rarity_factor;
-
+        const safeQuery = query && typeof query === 'object' ? query : {};
+        const baseK = BASE_K_VALUES[safeQuery.expected_element_type] ||
+            BASE_K_VALUES.field_extraction;
+        const confidence = Number(safeQuery.confidence);
+        const rarity = Number(safeQuery.rarity_factor);
+        const normalizedConfidence = Number.isFinite(confidence)
+            ? Math.max(0, Math.min(1, confidence))
+            : 1;
+        const normalizedRarity = Number.isFinite(rarity)
+            ? Math.max(0, rarity)
+            : 0;
+        const confidenceFactor = 1 + (1 - normalizedConfidence);
+        const rarityFactor = 1 + normalizedRarity;
         const dynamicK = baseK * confidenceFactor * rarityFactor;
+        const maxDynamicK = Number.isFinite(this.config.maxDynamicK)
+            ? this.config.maxDynamicK
+            : DEFAULT_CONFIG.maxDynamicK;
+        const boundedK = Math.min(dynamicK, maxDynamicK);
 
-        return Math.max(1, Math.round(dynamicK));  // At least 1, rounded
+        return Math.max(1, Math.round(boundedK));
     }
 
     _buildKValues(queryResults) {

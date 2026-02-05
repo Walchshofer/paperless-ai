@@ -1,66 +1,126 @@
 /**
  * VisualQueryGenerator.js
  *
- * Phase 3: Visual Query Generation Integration
- *
- * Generates targeted visual queries for missing or low-confidence fields
- * using the Guidance framework for structured output with logit bias.
- *
- * Architecture Reference: SSOT Retrieval Broker + Visual RAG Integration, Phase 3
- * Prerequisites: Phase 1 (CircuitBreaker), Phase 2 (Parallel OCR)
+ * Stage 5.5: Domain-aware visual query generation.
+ * Generates targeted visual search questions for missing required fields and
+ * low-confidence extraction fields.
  */
 
 const logger = require('../logger');
+const { fieldMappingService } = require('./FieldMappingService');
 
-/**
- * Query element types for visual analysis
- */
 const QueryElementType = Object.freeze({
     FIELD_EXTRACTION: 'field_extraction',
     VALIDATION: 'validation',
     EXPLORATION: 'exploration'
 });
 
-/**
- * Default configuration for query generation
- */
+const DOMAIN_ALIASES = Object.freeze({
+    financial: 'financial',
+    finance: 'financial',
+    medical: 'medical',
+    med: 'medical',
+    legal: 'legal',
+    law: 'legal',
+    general: 'general',
+    unknown: 'general'
+});
+
+const DOMAIN_TEMPLATES = Object.freeze({
+    financial: {
+        invoice_number: [
+            'Find the invoice number or Rechnungsnummer.',
+            'Locate the invoice ID at the top of the document.',
+            'Find the unique invoice reference number.'
+        ],
+        invoice_amount: [
+            'Find the total amount or Summe Brutto.',
+            'Locate the invoice total at the bottom right.',
+            'Find the final payment amount including tax.'
+        ],
+        payment_due_date: [
+            'Find the payment due date or Fälligkeitsdatum.',
+            'Locate when payment is due.',
+            'Find the deadline for payment.'
+        ]
+    },
+    medical: {
+        patient_name: [
+            'Find the patient name.',
+            'Locate the patient full name at the top.',
+            'Find who this medical report is for.'
+        ],
+        lab_values: [
+            'Find the laboratory test results table.',
+            'Locate the lab values with units.',
+            'Find the test results section.'
+        ],
+        diagnosis: [
+            'Find the diagnosis section.',
+            'Locate the diagnosed condition in the report.',
+            'Find the primary diagnosis text.'
+        ]
+    },
+    legal: {
+        contract_parties: [
+            'Find the contract parties.',
+            'Locate who signed or is listed as party in this contract.',
+            'Find the named legal entities in the agreement.'
+        ],
+        contract_start_date: [
+            'Find the contract start date.',
+            'Locate the effective date of the agreement.',
+            'Find when this legal contract begins.'
+        ],
+        case_number: [
+            'Find the case number or Aktenzeichen.',
+            'Locate the legal reference number.',
+            'Find the docket identifier in this document.'
+        ]
+    },
+    general: {
+        title: [
+            'Find the document title.',
+            'Locate the title or heading near the top.',
+            'Find the primary heading that names this document.'
+        ],
+        correspondent: [
+            'Find the sender or correspondent name.',
+            'Locate the document originator information.',
+            'Find who sent or issued this document.'
+        ],
+        document_date: [
+            'Find the primary document date.',
+            'Locate the date in the header area.',
+            'Find when this document was issued.'
+        ]
+    }
+});
+
 const DEFAULT_CONFIG = {
     minQueriesPerDocument: 3,
-    confidenceThreshold: 0.7,        // Fields below this are considered low-confidence
-    priorityWeights: {
-        missingField: 1.0,            // Highest priority
-        lowConfidence: 0.8,
-        validation: 0.6,
-        exploration: 0.4
-    },
-    fallbackFieldSet: [               // Used when taxonomy unavailable
+    confidenceThreshold: 0.7,
+    defaultPriority: 0.5,
+    requiredFieldWeight: 1.5,
+    optionalFieldWeight: 1.0,
+    fallbackFieldSet: [
         'invoice_number',
-        'invoice_date',
-        'total_amount',
-        'vendor_name',
-        'document_type'
+        'invoice_amount',
+        'document_date',
+        'title',
+        'correspondent'
     ]
 };
 
-/**
- * VisualQueryGenerator - Generates visual queries for document analysis
- *
- * Responsibilities:
- * 1. Analyze extraction results and identify fields needing visual confirmation
- * 2. Generate minimum 3 queries per document
- * 3. Prioritize missing fields, then low-confidence fields
- * 4. Configure logit bias for structured JSON output
- * 5. Gracefully degrade on failures (non-blocking)
- */
 class VisualQueryGenerator {
-    /**
-     * @param {Object} options - Generator configuration
-     */
     constructor(options = {}) {
         this.config = {
             ...DEFAULT_CONFIG,
             ...options
         };
+
+        this.fieldMappingService = options.fieldMappingService ||
+            fieldMappingService;
 
         this.stats = {
             totalDocumentsProcessed: 0,
@@ -71,97 +131,186 @@ class VisualQueryGenerator {
         };
     }
 
-    _clampPriority(value) {
-        return Math.max(0, Math.min(1, value));
-    }
-
-    _missingPriority(rarity = 0) {
-        // Normalize into [0,1] while keeping relative ordering by rarity
-        return this._clampPriority(
-            this.config.priorityWeights.missingField * (0.5 + 0.5 * rarity)
-        );
-    }
-
-    _lowConfidencePriority(confidence = 0) {
-        return this._clampPriority(
-            this.config.priorityWeights.lowConfidence * (1 - confidence)
-        );
-    }
-
-    /**
-     * Generate visual queries for a document
-     *
-     * @param {Object} params - Generation parameters
-     * @param {Object} params.extractionResults - Results from extraction pipeline
-     * @param {Object} params.ocrResults - Reconciled OCR text from Phase 2
-     * @param {Array} params.fieldTaxonomy - Custom field taxonomy (optional)
-     * @param {Object} params.documentMetadata - Document metadata
-     * @returns {Object} Generated queries and metadata
-     */
-    async generateQueries(params) {
-        const {
-            extractionResults = {},
-            ocrResults = {},
-            fieldTaxonomy = null,
-            documentMetadata = {}
-        } = params;
-
+    async generateQueries(
+        documentIdOrParams,
+        domainArg,
+        extractedFieldsArg,
+        metadataArg = {}
+    ) {
         const startTime = Date.now();
 
         try {
-            logger.debug({
-                event: 'visual_query_generation_start',
-                documentId: documentMetadata.id || documentMetadata.filename
-            });
+            const input = this._normalizeInput(
+                documentIdOrParams,
+                domainArg,
+                extractedFieldsArg,
+                metadataArg
+            );
+            const domain = this._normalizeDomain(input.domain);
+            const extractedFields = input.extractedFields;
+            const extractedById = this._buildExtractedFieldMap(extractedFields);
 
-            // Step 1: Analyze extraction results to identify target fields
-            const fieldAnalysis = this._analyzeFields(extractionResults, fieldTaxonomy);
-
-            // Step 2: Prioritize fields for query generation
-            const prioritizedFields = this._prioritizeFields(fieldAnalysis);
-
-            // Step 3: Generate queries for prioritized fields
-            const queries = await this._generateQueriesForFields(
-                prioritizedFields,
-                ocrResults,
-                fieldTaxonomy,
-                documentMetadata
+            const resolved = this._resolveDomainFields(
+                domain,
+                input.fieldTaxonomy,
+                extractedById
             );
 
-            // Step 4: Ensure minimum query count
+            const requiredFieldIds = resolved.requiredFieldIds;
+            const optionalFieldIds = resolved.optionalFieldIds;
+            const allowedFieldIds = resolved.allowedFieldIds;
+            const lowConfidenceFields = [];
+            const missingFields = [];
+            const queries = [];
+            const seenTargets = new Set();
+
+            for (const field of extractedFields) {
+                const fieldId = this._fieldId(field);
+                if (!fieldId || !allowedFieldIds.has(fieldId)) {
+                    continue;
+                }
+                const confidence = this._normalizeConfidence(field.confidence, 1);
+                if (confidence >= this.config.confidenceThreshold) {
+                    continue;
+                }
+
+                const candidate = {
+                    ...this._resolveFieldDef(fieldId, resolved.fieldDefMap),
+                    fieldId,
+                    type: 'low_confidence',
+                    isRequired: requiredFieldIds.has(fieldId),
+                    existingValue: field.value,
+                    existingConfidence: confidence
+                };
+
+                lowConfidenceFields.push(fieldId);
+                queries.push(
+                    this._buildQuery(candidate, domain, extractedFields, input)
+                );
+                seenTargets.add(fieldId);
+            }
+
+            for (const fieldId of requiredFieldIds) {
+                if (extractedById.has(fieldId)) {
+                    continue;
+                }
+                const candidate = {
+                    ...this._resolveFieldDef(fieldId, resolved.fieldDefMap),
+                    fieldId,
+                    type: 'missing',
+                    isRequired: true,
+                    existingValue: null,
+                    existingConfidence: 0
+                };
+
+                missingFields.push(fieldId);
+                if (!seenTargets.has(fieldId)) {
+                    queries.push(
+                        this._buildQuery(candidate, domain, extractedFields, input)
+                    );
+                    seenTargets.add(fieldId);
+                }
+            }
+
+            const taxonomyFieldIds = this._getTaxonomyFieldIds(
+                input.fieldTaxonomy
+            );
+            for (const fieldId of taxonomyFieldIds) {
+                if (extractedById.has(fieldId) || seenTargets.has(fieldId)) {
+                    continue;
+                }
+
+                const candidate = {
+                    ...this._resolveFieldDef(fieldId, resolved.fieldDefMap),
+                    fieldId,
+                    type: 'missing',
+                    isRequired: requiredFieldIds.has(fieldId),
+                    existingValue: null,
+                    existingConfidence: 0
+                };
+
+                missingFields.push(fieldId);
+                queries.push(
+                    this._buildQuery(candidate, domain, extractedFields, input)
+                );
+                seenTargets.add(fieldId);
+            }
+
+            const fallbackCandidates = [
+                ...optionalFieldIds,
+                ...this.config.fallbackFieldSet
+            ];
+
+            for (const fieldId of fallbackCandidates) {
+                if (queries.length >= this.config.minQueriesPerDocument) {
+                    break;
+                }
+                if (!allowedFieldIds.has(fieldId)) {
+                    continue;
+                }
+                if (seenTargets.has(fieldId)) {
+                    continue;
+                }
+
+                const candidate = {
+                    ...this._resolveFieldDef(fieldId, resolved.fieldDefMap),
+                    fieldId,
+                    type: 'exploration',
+                    isRequired: requiredFieldIds.has(fieldId),
+                    existingValue: extractedById.get(fieldId)?.value || null,
+                    existingConfidence: this._normalizeConfidence(
+                        extractedById.get(fieldId)?.confidence,
+                        0
+                    )
+                };
+
+                queries.push(
+                    this._buildQuery(candidate, domain, extractedFields, input)
+                );
+                seenTargets.add(fieldId);
+            }
+
             const finalQueries = this._ensureMinimumQueries(
                 queries,
-                fieldAnalysis
+                Array.from(allowedFieldIds),
+                domain,
+                extractedFields,
+                input
             );
 
-            // Step 5: Build metadata
-            const metadata = this._buildMetadata(fieldAnalysis, finalQueries, startTime);
+            const metadata = this._buildMetadata(
+                finalQueries,
+                missingFields,
+                lowConfidenceFields,
+                domain,
+                startTime
+            );
 
-            // Update stats
             this._updateStats(true, finalQueries.length);
 
             logger.info({
-                event: 'visual_query_generation_success',
-                documentId: documentMetadata.id || documentMetadata.filename,
-                queriesGenerated: finalQueries.length,
-                durationMs: Date.now() - startTime
+                event: 'visual_query_generation_stats',
+                documentId: input.documentMetadata.id ||
+                    input.documentMetadata.filename,
+                domain,
+                totalQueries: finalQueries.length,
+                missingFieldCount: missingFields.length,
+                lowConfidenceFieldCount: lowConfidenceFields.length,
+                generationDurationMs: metadata.generation_duration_ms
             });
 
             return {
                 visual_queries: finalQueries,
                 generation_metadata: metadata
             };
-
         } catch (error) {
+            this._updateStats(false, 0);
+
             logger.error({
                 event: 'visual_query_generation_failed',
                 error: error.message,
-                stack: error.stack,
-                documentId: documentMetadata.id || documentMetadata.filename
+                stack: error.stack
             });
-
-            // Graceful degradation: return empty queries
-            this._updateStats(false, 0);
 
             return {
                 visual_queries: [],
@@ -178,307 +327,439 @@ class VisualQueryGenerator {
         }
     }
 
-    /**
-     * Analyze extraction results to identify fields needing visual queries
-     * @private
-     */
-    _analyzeFields(extractionResults, fieldTaxonomy) {
-        const analysis = {
-            missingFields: [],
-            lowConfidenceFields: [],
-            extractedFields: [],
-            availableFields: []
+    _normalizeInput(
+        documentIdOrParams,
+        domainArg,
+        extractedFieldsArg,
+        metadataArg
+    ) {
+        if (
+            documentIdOrParams &&
+            typeof documentIdOrParams === 'object' &&
+            (
+                documentIdOrParams.extractionResults ||
+                documentIdOrParams.documentMetadata ||
+                documentIdOrParams.fieldTaxonomy
+            )
+        ) {
+            const params = documentIdOrParams;
+            const extractionResults = params.extractionResults || {};
+            const documentMetadata = params.documentMetadata || {};
+            const derivedDomain = documentMetadata.documentDomain ||
+                documentMetadata.documentType ||
+                params.domain ||
+                'general';
+
+            return {
+                documentId: documentMetadata.id || documentMetadata.filename,
+                domain: derivedDomain,
+                extractedFields: Array.isArray(extractionResults.fields) ?
+                    extractionResults.fields : [],
+                fieldTaxonomy: params.fieldTaxonomy || null,
+                ocrResults: params.ocrResults || {},
+                documentMetadata
+            };
+        }
+
+        const metadata = metadataArg || {};
+        return {
+            documentId: documentIdOrParams,
+            domain: domainArg || metadata.documentType || 'general',
+            extractedFields: Array.isArray(extractedFieldsArg) ?
+                extractedFieldsArg : [],
+            fieldTaxonomy: metadata.fieldTaxonomy || null,
+            ocrResults: metadata.ocrResults || {},
+            documentMetadata: {
+                id: documentIdOrParams,
+                filename: metadata.filename,
+                documentType: domainArg || metadata.documentType || 'general'
+            }
         };
+    }
 
-        // Get available fields from taxonomy or use fallback
-        const taxonomyFields = Array.isArray(fieldTaxonomy?.fields)
-            ? fieldTaxonomy.fields
-            : [];
-        const extractedFieldNames = Array.isArray(extractionResults.fields)
-            ? extractionResults.fields.map(field => field.name).filter(Boolean)
-            : [];
-        const fallbackFields = this.config.fallbackFieldSet;
+    _normalizeDomain(domain) {
+        const normalized = String(domain || 'general').toLowerCase();
+        return DOMAIN_ALIASES[normalized] || 'general';
+    }
 
-        const availableFieldSet = new Set([
-            ...taxonomyFields,
-            ...extractedFieldNames,
-            ...fallbackFields
-        ]);
-        analysis.availableFields = Array.from(availableFieldSet);
+    _fieldId(field) {
+        if (!field || typeof field !== 'object') {
+            return '';
+        }
+        return String(field.fieldId || field.name || field.field_target || '')
+            .trim()
+            .toLowerCase();
+    }
 
-        // Analyze extraction results
-        const extractedFieldsMap = new Map();
-        if (extractionResults.fields && Array.isArray(extractionResults.fields)) {
-            for (const field of extractionResults.fields) {
-                if (!field?.name) {
+    _buildExtractedFieldMap(extractedFields) {
+        const index = new Map();
+        for (const field of extractedFields) {
+            const fieldId = this._fieldId(field);
+            if (!fieldId || index.has(fieldId)) {
+                continue;
+            }
+            index.set(fieldId, field);
+        }
+        return index;
+    }
+
+    _resolveDomainFields(domain, fieldTaxonomy, extractedById) {
+        const fieldDefMap = new Map();
+        const requiredFieldIds = new Set();
+        const optionalFieldIds = new Set();
+        const allowedFieldIds = new Set();
+
+        const mappingService = this.fieldMappingService;
+        const useMapping = Boolean(
+            mappingService &&
+            typeof mappingService.getRequiredFields === 'function' &&
+            mappingService.initialized
+        );
+
+        if (useMapping) {
+            const required = mappingService.getRequiredFields(domain) || [];
+            const optional = mappingService.getOptionalFields(domain) || [];
+
+            for (const field of required) {
+                if (!field?.fieldId) {
                     continue;
                 }
-                extractedFieldsMap.set(field.name, field);
-                analysis.extractedFields.push(field.name);
+                const fieldId = String(field.fieldId).toLowerCase();
+                fieldDefMap.set(fieldId, field);
+                requiredFieldIds.add(fieldId);
+                allowedFieldIds.add(fieldId);
+            }
 
-                // Check if field has low confidence
-                if (field.confidence < this.config.confidenceThreshold &&
-                    availableFieldSet.has(field.name)) {
-                    analysis.lowConfidenceFields.push({
-                        name: field.name,
-                        confidence: field.confidence,
-                        value: field.value
-                    });
+            for (const field of optional) {
+                if (!field?.fieldId) {
+                    continue;
                 }
+                const fieldId = String(field.fieldId).toLowerCase();
+                if (!fieldDefMap.has(fieldId)) {
+                    fieldDefMap.set(fieldId, field);
+                }
+                optionalFieldIds.add(fieldId);
+                allowedFieldIds.add(fieldId);
             }
         }
 
-        // Identify missing fields from taxonomy (or fallback)
-        const missingCandidates = taxonomyFields.length > 0
-            ? taxonomyFields
-            : fallbackFields;
-        for (const fieldName of missingCandidates) {
-            if (!extractedFieldsMap.has(fieldName)) {
-                analysis.missingFields.push({
-                    name: fieldName,
-                    rarity: this._calculateRarity(fieldName, fieldTaxonomy)
+        const taxonomyFields = Array.isArray(fieldTaxonomy?.fields) ?
+            fieldTaxonomy.fields : [];
+        for (const entry of taxonomyFields) {
+            const fieldId = typeof entry === 'string' ?
+                entry.toLowerCase() :
+                String(entry?.name || entry?.fieldId || '').toLowerCase();
+            if (!fieldId) {
+                continue;
+            }
+            if (!fieldDefMap.has(fieldId)) {
+                fieldDefMap.set(fieldId, {
+                    fieldId,
+                    extractionPriority: this.config.defaultPriority,
+                    domain
                 });
             }
+            allowedFieldIds.add(fieldId);
+            optionalFieldIds.add(fieldId);
         }
 
-        logger.debug({
-            event: 'field_analysis_complete',
-            missingCount: analysis.missingFields.length,
-            lowConfidenceCount: analysis.lowConfidenceFields.length,
-            extractedCount: analysis.extractedFields.length
-        });
-
-        return analysis;
-    }
-
-    /**
-     * Prioritize fields for query generation
-     * Missing fields first, then low-confidence fields
-     * @private
-     */
-    _prioritizeFields(fieldAnalysis) {
-        const prioritized = [];
-
-        // Priority 1: Missing fields
-        for (const missingField of fieldAnalysis.missingFields) {
-            prioritized.push({
-                fieldName: missingField.name,
-                type: 'missing',
-                priority: this._missingPriority(missingField.rarity),
-                rarity: missingField.rarity,
-                existingValue: null,
-                existingConfidence: 0
-            });
+        for (const fieldId of extractedById.keys()) {
+            if (!fieldDefMap.has(fieldId)) {
+                fieldDefMap.set(fieldId, {
+                    fieldId,
+                    extractionPriority: this.config.defaultPriority,
+                    domain
+                });
+            }
+            allowedFieldIds.add(fieldId);
         }
 
-        // Priority 2: Low-confidence fields
-        for (const lowConfField of fieldAnalysis.lowConfidenceFields) {
-            prioritized.push({
-                fieldName: lowConfField.name,
-                type: 'low_confidence',
-                priority: this._lowConfidencePriority(lowConfField.confidence),
-                rarity: this._calculateRarity(lowConfField.name, null),
-                existingValue: lowConfField.value,
-                existingConfidence: lowConfField.confidence
-            });
-        }
-
-        // Sort by priority (descending)
-        prioritized.sort((a, b) => b.priority - a.priority);
-
-        logger.debug({
-            event: 'fields_prioritized',
-            totalFields: prioritized.length,
-            topField: prioritized[0]?.fieldName
-        });
-
-        return prioritized;
-    }
-
-    /**
-     * Generate queries for prioritized fields
-     * @private
-     */
-    async _generateQueriesForFields(prioritizedFields, ocrResults, fieldTaxonomy, documentMetadata) {
-        const queries = [];
-
-        // Generate query for each prioritized field
-        for (const field of prioritizedFields) {
-            const query = this._createQuery(field, ocrResults, documentMetadata);
-            queries.push(query);
-
-            // Stop if we have enough queries
-            if (queries.length >= this.config.minQueriesPerDocument) {
-                break;
+        if (allowedFieldIds.size === 0) {
+            for (const fieldId of this.config.fallbackFieldSet) {
+                const normalized = String(fieldId).toLowerCase();
+                if (!fieldDefMap.has(normalized)) {
+                    fieldDefMap.set(normalized, {
+                        fieldId: normalized,
+                        extractionPriority: this.config.defaultPriority,
+                        domain
+                    });
+                }
+                allowedFieldIds.add(normalized);
+                optionalFieldIds.add(normalized);
             }
         }
 
-        return queries;
+        return {
+            fieldDefMap,
+            requiredFieldIds,
+            optionalFieldIds,
+            allowedFieldIds
+        };
     }
 
-    /**
-     * Create a single visual query for a field
-     * @private
-     */
-    _createQuery(field, _ocrResults, _documentMetadata) {
-        // Determine element type based on field type
-        let elementType = QueryElementType.FIELD_EXTRACTION;
-        if (field.type === 'low_confidence') {
-            elementType = QueryElementType.VALIDATION;
+    _resolveFieldDef(fieldId, fieldDefMap) {
+        if (fieldDefMap.has(fieldId)) {
+            return fieldDefMap.get(fieldId);
         }
+        return {
+            fieldId,
+            extractionPriority: this.config.defaultPriority
+        };
+    }
 
-        // Build natural language question
-        const question = this._buildQuestion(field);
+    _buildQuery(field, domain, extractedFields, input) {
+        const question = this._generateQueryForField(field, domain);
+        const rarityBoost = this._calculateRarityFactor(field, extractedFields);
+        const priority = this._calculatePriority(
+            { ...field, rarityBoost },
+            domain,
+            extractedFields
+        );
+        const rarityFactor = this._resolveRarityFactor(
+            field.fieldId,
+            input.fieldTaxonomy,
+            rarityBoost
+        );
 
-        // Calculate expected confidence (higher for missing fields)
-        const expectedConfidence = field.type === 'missing' ? 0.9 : 0.8;
+        let expectedElementType = QueryElementType.FIELD_EXTRACTION;
+        let confidence = 0.35;
 
-        // Build logit bias configuration
-        const logitBias = this._buildLogitBias(field.fieldName, elementType);
+        if (field.type === 'low_confidence') {
+            expectedElementType = QueryElementType.VALIDATION;
+            confidence = this._normalizeConfidence(field.existingConfidence, 0.5);
+        } else if (field.type === 'exploration') {
+            expectedElementType = QueryElementType.EXPLORATION;
+            confidence = 0.6;
+        }
 
         return {
             question,
-            field_target: field.fieldName,
-            expected_element_type: elementType,
-            priority: field.priority,
-            confidence: expectedConfidence,
-            rarity_factor: field.rarity,
-            logit_bias: logitBias
+            field_target: field.fieldId,
+            expected_element_type: expectedElementType,
+            priority,
+            confidence,
+            rarity_factor: rarityFactor,
+            paperlessField: field.paperlessField || null,
+            visualLabels: Array.isArray(field.visualLabels) ?
+                field.visualLabels : []
         };
     }
 
-    /**
-     * Build a natural language question for a field
-     * @private
-     */
-    _buildQuestion(field) {
-        const fieldNameReadable = field.fieldName.replace(/_/g, ' ');
-
-        if (field.type === 'missing') {
-            return `What is the ${fieldNameReadable} shown in this document?`;
-        } else if (field.type === 'low_confidence') {
-            return `Verify the ${fieldNameReadable} in this document. Current value: "${field.existingValue}" (confidence: ${field.existingConfidence.toFixed(2)})`;
-        } else {
-            return `Find the ${fieldNameReadable} in this document`;
-        }
-    }
-
-    /**
-     * Build logit bias configuration for structured output
-     * @private
-     */
-    _buildLogitBias(fieldName, _elementType) {
-        // JSON structure tokens (using GPT2 tokenizer)
-        const structureTokens = [
-            '{', '}', '[', ']', ':', '"', ',', 'null', 'true', 'false'
-        ];
-
-        // Field name tokens (split on underscore and capitalize)
-        const fieldTokens = fieldName.split('_').map(part =>
-            part.charAt(0).toUpperCase() + part.slice(1)
-        );
-
-        return {
-            structure_tokens: structureTokens,
-            field_tokens: fieldTokens,
-            bias_strength: 1.5  // Moderate bias (0.0 = none, 2.0 = strong)
-        };
-    }
-
-    /**
-     * Calculate field rarity (0.0 = common, 1.0 = rare)
-     * @private
-     */
-    _calculateRarity(fieldName, fieldTaxonomy) {
-        if (!fieldTaxonomy || !fieldTaxonomy.fieldFrequencies) {
-            // Default rarity for common fields
-            const commonFields = ['invoice_number', 'date', 'total', 'amount'];
-            return commonFields.includes(fieldName) ? 0.1 : 0.5;
-        }
-
-        const frequency = fieldTaxonomy.fieldFrequencies[fieldName] || 0;
-        return Math.max(0, Math.min(1, 1 - frequency));
-    }
-
-    /**
-     * Ensure minimum query count is met
-     * @private
-     */
-    _ensureMinimumQueries(queries, fieldAnalysis) {
+    _ensureMinimumQueries(
+        queries,
+        candidateFieldIds,
+        domain,
+        extractedFields,
+        input
+    ) {
         if (queries.length >= this.config.minQueriesPerDocument) {
             return queries;
         }
 
-        // Use allowed fields to meet minimum while respecting schema/taxonomy
-        const remainingCount = this.config.minQueriesPerDocument - queries.length;
-        const existingTargets = new Set(queries.map(q => q.field_target));
-        const candidateFields = [
-            ...fieldAnalysis.missingFields.map(field => ({
-                fieldName: field.name,
-                type: 'missing',
-                priority: this._missingPriority(field.rarity),
-                rarity: field.rarity,
-                existingValue: null,
-                existingConfidence: 0
-            })),
-            ...fieldAnalysis.lowConfidenceFields.map(field => ({
-                fieldName: field.name,
-                type: 'low_confidence',
-                priority: this._lowConfidencePriority(field.confidence),
-                rarity: this._calculateRarity(field.name, null),
-                existingValue: field.value,
-                existingConfidence: field.confidence
-            }))
-        ];
-
-        const fallbackFields = fieldAnalysis.availableFields.map(fieldName => ({
-            fieldName,
-            type: 'missing',
-            priority: this._clampPriority(this.config.priorityWeights.missingField),
-            rarity: this._calculateRarity(fieldName, null),
-            existingValue: null,
-            existingConfidence: 0
-        }));
-
-        const supplemental = candidateFields.length > 0 ? candidateFields : fallbackFields;
-        const uniqueSupplemental = supplemental.filter(
-            entry => !existingTargets.has(entry.fieldName)
+        const existingTargets = new Set(
+            queries.map(query => query.field_target)
         );
-        const selectionPool = uniqueSupplemental.length > 0
-            ? uniqueSupplemental
-            : supplemental;
+
+        const fallbackPool = Array.isArray(candidateFieldIds) ?
+            candidateFieldIds : [];
         let cursor = 0;
 
-        for (let i = 0; i < remainingCount && selectionPool.length > 0; i++) {
-            const entry = selectionPool[cursor % selectionPool.length];
+        while (
+            queries.length < this.config.minQueriesPerDocument &&
+            fallbackPool.length > 0 &&
+            cursor < (fallbackPool.length * 2)
+        ) {
+            const fieldId = fallbackPool[cursor % fallbackPool.length];
             cursor += 1;
-            const query = this._createQuery(entry);
-            queries.push(query);
-            existingTargets.add(entry.fieldName);
+
+            if (existingTargets.has(fieldId)) {
+                continue;
+            }
+
+            const candidate = {
+                fieldId,
+                type: 'exploration',
+                extractionPriority: this.config.defaultPriority,
+                isRequired: false
+            };
+
+            queries.push(
+                this._buildQuery(candidate, domain, extractedFields, input)
+            );
+            existingTargets.add(fieldId);
         }
 
         return queries;
     }
 
-    /**
-     * Build generation metadata
-     * @private
-     */
-    _buildMetadata(fieldAnalysis, queries, startTime) {
+    _resolveRarityFactor(fieldId, fieldTaxonomy, rarityBoost) {
+        const frequency = Number(
+            fieldTaxonomy?.fieldFrequencies?.[fieldId]
+        );
+
+        if (Number.isFinite(frequency)) {
+            return this._clamp(1 - frequency);
+        }
+
+        return this._clamp((rarityBoost - 1) / 0.5);
+    }
+
+    _formatFieldName(fieldId) {
+        return String(fieldId || '')
+            .replace(/_/g, ' ')
+            .trim();
+    }
+
+    _getTaxonomyFieldIds(fieldTaxonomy) {
+        const taxonomyFields = Array.isArray(fieldTaxonomy?.fields) ?
+            fieldTaxonomy.fields : [];
+
+        return taxonomyFields
+            .map(entry => {
+                if (typeof entry === 'string') {
+                    return entry.toLowerCase();
+                }
+                return String(entry?.name || entry?.fieldId || '')
+                    .toLowerCase();
+            })
+            .filter(Boolean);
+    }
+
+    _generateQueryForField(field, domain) {
+        const fieldId = this._fieldId(field);
+        const formattedField = this._formatFieldName(fieldId);
+        const templates = this._getDomainTemplate(domain, fieldId);
+        const selected = templates[0] ||
+            `Find the ${formattedField} in this document.`;
+        const question = selected.replace(/\{\{field\}\}/g, formattedField);
+
+        if (field.type === 'low_confidence') {
+            const value = field.existingValue;
+            if (value !== undefined && value !== null && String(value).trim()) {
+                return `Verify ${formattedField}. Current extraction: ` +
+                    `"${String(value).trim()}". ${question}`;
+            }
+            return `Verify ${formattedField}. ${question}`;
+        }
+
+        return question;
+    }
+
+    _getDomainTemplate(domain, fieldType) {
+        const normalizedDomain = this._normalizeDomain(domain);
+        const normalizedFieldType = String(fieldType || '').toLowerCase();
+        const domainTemplates = DOMAIN_TEMPLATES[normalizedDomain] || {};
+
+        if (domainTemplates[normalizedFieldType]) {
+            return domainTemplates[normalizedFieldType];
+        }
+
+        if (normalizedFieldType.includes('date')) {
+            return [
+                'Find the {{field}} date in the document.',
+                'Locate where {{field}} appears in the header or table.'
+            ];
+        }
+
+        if (
+            normalizedFieldType.includes('amount') ||
+            normalizedFieldType.includes('total') ||
+            normalizedFieldType.includes('value')
+        ) {
+            return [
+                'Find the {{field}} value including nearby numeric context.',
+                'Locate {{field}} near totals or amount sections.'
+            ];
+        }
+
+        if (
+            normalizedFieldType.includes('number') ||
+            normalizedFieldType.includes('reference')
+        ) {
+            return [
+                'Find the {{field}} identifier exactly as written.',
+                'Locate {{field}} in the reference area of the document.'
+            ];
+        }
+
+        return [
+            'Find the {{field}} in this document.',
+            'Locate the {{field}} field using visual context.'
+        ];
+    }
+
+    _calculatePriority(field, domain, extractedFields = []) {
+        const basePriority = Number(field.extractionPriority);
+        const effectiveBase = Number.isFinite(basePriority) ?
+            this._clamp(basePriority) :
+            this.config.defaultPriority;
+
+        let isRequired = Boolean(field.isRequired);
+        if (!isRequired && this.fieldMappingService?.initialized) {
+            const required = this.fieldMappingService.getRequiredFields(domain) || [];
+            isRequired = required.some(
+                requiredField => this._fieldId(requiredField) === this._fieldId(field)
+            );
+        }
+
+        const domainWeight = isRequired ?
+            this.config.requiredFieldWeight :
+            this.config.optionalFieldWeight;
+
+        const rarityBoost = Number(field.rarityBoost) ||
+            this._calculateRarityFactor(field, extractedFields);
+
+        return this._clamp(effectiveBase * domainWeight * rarityBoost);
+    }
+
+    _calculateRarityFactor(field, extractedFields) {
+        const fieldId = this._fieldId(field);
+        const extracted = Array.isArray(extractedFields) ?
+            extractedFields : [];
+
+        const extractionCount = extracted.filter(
+            candidate => this._fieldId(candidate) === fieldId
+        ).length;
+
+        if (extractionCount === 0) {
+            return 1.5;
+        }
+        if (extractionCount === 1) {
+            return 1.2;
+        }
+        return 1.0;
+    }
+
+    _buildMetadata(
+        queries,
+        missingFields,
+        lowConfidenceFields,
+        domain,
+        startTime
+    ) {
         return {
             total_queries_generated: queries.length,
             success_rate: this.stats.successRate,
-            fields_targeted: queries.map(q => q.field_target),
-            missing_fields: fieldAnalysis.missingFields.map(f => f.name),
-            low_confidence_fields: fieldAnalysis.lowConfidenceFields.map(f => f.name),
+            fields_targeted: queries.map(query => query.field_target),
+            missing_fields: missingFields,
+            low_confidence_fields: lowConfidenceFields,
+            domain,
             generation_duration_ms: Date.now() - startTime
         };
     }
 
-    /**
-     * Update statistics
-     * @private
-     */
+    _normalizeConfidence(value, fallback) {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) {
+            return this._clamp(fallback);
+        }
+        return this._clamp(parsed);
+    }
+
+    _clamp(value) {
+        return Math.max(0, Math.min(1, Number(value)));
+    }
+
     _updateStats(success, queryCount) {
         this.stats.totalDocumentsProcessed += 1;
 
@@ -488,24 +769,20 @@ class VisualQueryGenerator {
             this.stats.failureCount += 1;
         }
 
-        this.stats.successRate =
-            (this.stats.totalDocumentsProcessed - this.stats.failureCount) /
+        const successCount = (
+            this.stats.totalDocumentsProcessed - this.stats.failureCount
+        );
+        this.stats.successRate = successCount /
             this.stats.totalDocumentsProcessed;
-
         this.stats.averageQueriesPerDocument =
-            this.stats.totalQueriesGenerated / this.stats.totalDocumentsProcessed;
+            this.stats.totalQueriesGenerated /
+            this.stats.totalDocumentsProcessed;
     }
 
-    /**
-     * Get current statistics
-     */
     getStats() {
         return { ...this.stats };
     }
 
-    /**
-     * Reset statistics
-     */
     resetStats() {
         this.stats = {
             totalDocumentsProcessed: 0,
@@ -517,7 +794,6 @@ class VisualQueryGenerator {
     }
 }
 
-// Export singleton instance
 const visualQueryGenerator = new VisualQueryGenerator();
 
 module.exports = {
