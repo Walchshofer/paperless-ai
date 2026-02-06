@@ -22,6 +22,7 @@ const PatternDetectionEngine = require('./services/PatternDetectionEngine');
 const { metricsCollector } = require('./services/metrics/PrometheusMetrics');
 const { validateInternalMetricsConfig } = require('./metrics/validateInternalMetricsConfig');
 const { allowInternalNetwork } = require('./routes/internal-auth');
+const { createProxyMiddleware } = require('http-proxy-middleware');
 
 // Add environment variables for RAG service if not already set.
 if (process.env.RAG_SERVICE_ENABLED === undefined) {
@@ -236,6 +237,16 @@ app.use('/api/normalized', normalizedRoutes);
 // Mount Normalization Management API (batch jobs and triggers)
 const normalizationRoutes = require('./routes/api/normalization');
 app.use('/api/normalization', normalizationRoutes);
+
+// Grafana Reverse Proxy
+app.use('/grafana', createProxyMiddleware({
+  target: 'http://paperless_grafana:3000',
+  changeOrigin: true,
+  pathRewrite: {
+    '^/grafana': '', // remove /grafana prefix
+  },
+  logLevel: 'debug'
+}));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -797,6 +808,18 @@ app.use('/api/annotations', annotationsApiRoutes);
 // Mount Export API routes (export regions, text, annotations)
 const exportApiRoutes = require('./routes/api/export');
 app.use('/api/export', exportApiRoutes);
+
+// Mount Analytics API routes (Visual Query Analytics Dashboard)
+const analyticsApiRoutes = require('./routes/api/analytics');
+app.use('/api/analytics', analyticsApiRoutes);
+
+// Mount Analytics View routes (dashboard pages)
+const analyticsRoutes = require('./routes/analytics');
+app.use('/analytics', analyticsRoutes);
+
+// Mount Suggestions API routes (Field Suggestion Engine)
+const suggestionsRoutes = require('./routes/suggestions');
+app.use('/api/suggestions', suggestionsRoutes);
 
 // Note: Visual RAG routes are mounted early (after body parser) at line ~109
 // to ensure they're accessible before auth middleware runs

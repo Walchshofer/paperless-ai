@@ -49,7 +49,8 @@ describe('CircuitBreaker', function() {
             const breaker = new CircuitBreaker('test-service', {
                 failureThreshold: 3,
                 timeout: 100,
-                maxRetries: 0
+                maxRetries: 0,
+                enableAdaptiveThreshold: false  // Test fixed threshold behavior
             });
 
             // Create operation that always fails
@@ -434,3 +435,341 @@ describe('CircuitBreaker', function() {
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+
+describe('Adaptive Threshold', function() {
+    describe('Configuration', function() {
+        it('should enable adaptive threshold by default', function() {
+            const breaker = new CircuitBreaker('test-service');
+            assert.strictEqual(breaker.config.enableAdaptiveThreshold, true);
+            assert.strictEqual(breaker.config.baseThreshold, 3);
+            assert.strictEqual(breaker.config.windowSize, 20);
+        });
+
+        it('should allow disabling adaptive threshold', function() {
+            const breaker = new CircuitBreaker('test-service', {
+                enableAdaptiveThreshold: false
+            });
+            assert.strictEqual(breaker.config.enableAdaptiveThreshold, false);
+        });
+
+        it('should support backward compatibility with failureThreshold', function() {
+            const breaker = new CircuitBreaker('test-service', {
+                failureThreshold: 5
+            });
+            // failureThreshold should be used as baseThreshold
+            assert.strictEqual(breaker.config.baseThreshold, 5);
+        });
+
+        it('should prefer baseThreshold over failureThreshold', function() {
+            const breaker = new CircuitBreaker('test-service', {
+                failureThreshold: 5,
+                baseThreshold: 7
+            });
+            assert.strictEqual(breaker.config.baseThreshold, 7);
+        });
+    });
+
+    describe('Error Rate Calculation', function() {
+        it('should calculate error rate correctly with mixed operations', async function() {
+            const breaker = new CircuitBreaker('test-service', {
+                baseThreshold: 3,
+                windowSize: 10,
+                maxRetries: 0
+            });
+
+            // Execute 10 operations: 3 failures, 7 successes
+            await breaker.execute(async () => { throw new Error('fail'); }); // fail
+            await breaker.execute(async () => 'success'); // success
+            await breaker.execute(async () => 'success'); // success
+            await breaker.execute(async () => { throw new Error('fail'); }); // fail
+            await breaker.execute(async () => 'success'); // success
+            await breaker.execute(async () => 'success'); // success
+            await breaker.execute(async () => 'success'); // success
+            await breaker.execute(async () => { throw new Error('fail'); }); // fail
+            await breaker.execute(async () => 'success'); // success
+            await breaker.execute(async () => 'success'); // success
+
+            const stats = breaker.getStats();
+            // Error rate should be 3/10 = 0.3 (30%)
+            assert.strictEqual(stats.errorRate, 0.3);
+            assert.strictEqual(stats.windowSize, 10);
+        });
+
+        it('should maintain sliding window size', async function() {
+            const breaker = new CircuitBreaker('test-service', {
+                baseThreshold: 3,
+                windowSize: 5,
+                maxRetries: 0
+            });
+
+            // Execute more operations than window size
+            for (let i = 0; i < 10; i++) {
+                await breaker.execute(async () => 'success');
+            }
+
+            const stats = breaker.getStats();
+            assert.strictEqual(stats.windowSize, 5); // Should not exceed window size
+            assert.strictEqual(stats.maxWindowSize, 5);
+        });
+
+        it('should return 0 error rate for all successes', async function() {
+            const breaker = new CircuitBreaker('test-service', {
+                baseThreshold: 3,
+                windowSize: 10,
+                maxRetries: 0
+            });
+
+            // Execute 5 successful operations
+            for (let i = 0; i < 5; i++) {
+                await breaker.execute(async () => 'success');
+            }
+
+            const stats = breaker.getStats();
+            assert.strictEqual(stats.errorRate, 0);
+        });
+
+        it('should return 1.0 error rate for all failures', async function() {
+            const breaker = new CircuitBreaker('test-service', {
+                baseThreshold: 10, // High threshold to prevent circuit opening
+                windowSize: 5,
+                maxRetries: 0
+            });
+
+            // Execute 5 failed operations
+            for (let i = 0; i < 5; i++) {
+                await breaker.execute(async () => { throw new Error('fail'); });
+            }
+
+            const stats = breaker.getStats();
+            assert.strictEqual(stats.errorRate, 1.0);
+        });
+    });
+
+    describe('Adaptive Threshold Formula', function() {
+        it('should apply formula: threshold = baseThreshold × (1 + errorRate)', async function() {
+            const breaker = new CircuitBreaker('test-service', {
+                baseThreshold: 3,
+                windowSize: 10,
+                maxRetries: 0
+            });
+
+            // Create 10% error rate: 1 failure, 9 successes
+            await breaker.execute(async () => { throw new Error('fail'); });
+            for (let i = 0; i < 9; i++) {
+                await breaker.execute(async () => 'success');
+            }
+
+            const stats = breaker.getStats();
+            assert.strictEqual(stats.errorRate, 0.1);
+            // threshold = 3 × (1 + 0.1) = 3.3 → ceil(3.3) = 4
+            assert.strictEqual(stats.currentThreshold, 4);
+        });
+
+        it('should increase threshold with 50% error rate', async function() {
+            const breaker = new CircuitBreaker('test-service', {
+                baseThreshold: 3,
+                windowSize: 10,
+                maxRetries: 0
+            });
+
+            // Create 50% error rate: 5 failures, 5 successes (interleaved to prevent circuit opening)
+            for (let i = 0; i < 5; i++) {
+                await breaker.execute(async () => { throw new Error('fail'); });
+                await breaker.execute(async () => 'success');
+            }
+
+            const stats = breaker.getStats();
+            assert.strictEqual(stats.errorRate, 0.5);
+            // threshold = 3 × (1 + 0.5) = 4.5 → ceil(4.5) = 5
+            assert.strictEqual(stats.currentThreshold, 5);
+        });
+
+        it('should maintain base threshold with 0% error rate', async function() {
+            const breaker = new CircuitBreaker('test-service', {
+                baseThreshold: 3,
+                windowSize: 10,
+                maxRetries: 0
+            });
+
+            // All successes
+            for (let i = 0; i < 10; i++) {
+                await breaker.execute(async () => 'success');
+            }
+
+            const stats = breaker.getStats();
+            assert.strictEqual(stats.errorRate, 0);
+            // threshold = 3 × (1 + 0) = 3
+            assert.strictEqual(stats.currentThreshold, 3);
+            assert.strictEqual(stats.currentThreshold, stats.baseThreshold);
+        });
+
+        it('should round up threshold to nearest integer', async function() {
+            const breaker = new CircuitBreaker('test-service', {
+                baseThreshold: 3,
+                windowSize: 10,
+                maxRetries: 0
+            });
+
+            // Create 20% error rate: 2 failures, 8 successes
+            await breaker.execute(async () => { throw new Error('fail'); });
+            await breaker.execute(async () => { throw new Error('fail'); });
+            for (let i = 0; i < 8; i++) {
+                await breaker.execute(async () => 'success');
+            }
+
+            const stats = breaker.getStats();
+            assert.strictEqual(stats.errorRate, 0.2);
+            // threshold = 3 × (1 + 0.2) = 3.6 → ceil(3.6) = 4
+            assert.strictEqual(stats.currentThreshold, 4);
+        });
+    });
+
+    describe('Adaptive Threshold Behavior', function() {
+        it('should prevent circuit opening when threshold increases', async function() {
+            const breaker = new CircuitBreaker('test-service', {
+                baseThreshold: 3,
+                windowSize: 10,
+                maxRetries: 0
+            });
+
+            // Build error rate history: 5 failures, 5 successes
+            for (let i = 0; i < 5; i++) {
+                await breaker.execute(async () => { throw new Error('fail'); });
+                await breaker.execute(async () => 'success');
+            }
+
+            // Current threshold should be higher due to 50% error rate
+            // threshold = 3 × (1 + 0.5) = 4.5 → ceil(4.5) = 5
+            const stats = breaker.getStats();
+            assert.strictEqual(stats.currentThreshold, 5);
+
+            // Circuit should still be CLOSED (failureCount is reset after each success)
+            assert.strictEqual(breaker.getState(), CircuitState.CLOSED);
+        });
+
+        it('should open circuit when consecutive failures exceed adaptive threshold', async function() {
+            const breaker = new CircuitBreaker('test-service', {
+                baseThreshold: 3,
+                windowSize: 20,  // Larger window to maintain stable threshold
+                maxRetries: 0
+            });
+
+            // Build history with many successes to keep error rate low
+            for (let i = 0; i < 15; i++) {
+                await breaker.execute(async () => 'success');
+            }
+
+            // Now cause consecutive failures to open circuit
+            // With 15 successes in window, error rate will be: 3/18 = 0.167 (16.7%)
+            // Adaptive threshold: 3 × (1 + 0.167) = 3.5 → ceil = 4
+            await breaker.execute(async () => { throw new Error('fail'); }); // failureCount = 1, window: 15S + 1F
+            await breaker.execute(async () => { throw new Error('fail'); }); // failureCount = 2, window: 15S + 2F
+            await breaker.execute(async () => { throw new Error('fail'); }); // failureCount = 3, window: 15S + 3F
+            
+            // At this point: errorRate = 3/18 = 0.167, threshold = 4
+            // Need one more failure to reach threshold of 4
+            await breaker.execute(async () => { throw new Error('fail'); }); // failureCount = 4, window: 15S + 4F
+
+            // Circuit should open after 4 consecutive failures (meeting adaptive threshold of 4)
+            assert.strictEqual(breaker.getState(), CircuitState.OPEN);
+            
+            // Verify the adaptive threshold was indeed 4
+            const stats = breaker.getStats();
+            assert.strictEqual(stats.currentThreshold, 4);
+        });
+
+        it('should track threshold adjustments in stats', async function() {
+            const breaker = new CircuitBreaker('test-service', {
+                baseThreshold: 3,
+                windowSize: 5,
+                maxRetries: 0
+            });
+
+            // Start with successes
+            for (let i = 0; i < 3; i++) {
+                await breaker.execute(async () => 'success');
+            }
+
+            let initialStats = breaker.getStats();
+            let initialAdjustments = initialStats.thresholdAdjustments || 0;
+
+            // Add failures to change error rate and trigger threshold adjustment
+            await breaker.execute(async () => { throw new Error('fail'); });
+            await breaker.execute(async () => { throw new Error('fail'); });
+
+            let finalStats = breaker.getStats();
+            // Threshold should have changed, incrementing adjustment count
+            assert.ok(finalStats.thresholdAdjustments > initialAdjustments);
+        });
+    });
+
+    describe('Backward Compatibility', function() {
+        it('should use fixed threshold when adaptive is disabled', async function() {
+            const breaker = new CircuitBreaker('test-service', {
+                enableAdaptiveThreshold: false,
+                failureThreshold: 3,
+                maxRetries: 0
+            });
+
+            // Create high error rate
+            for (let i = 0; i < 5; i++) {
+                await breaker.execute(async () => { throw new Error('fail'); });
+                await breaker.execute(async () => 'success');
+            }
+
+            const stats = breaker.getStats();
+            assert.strictEqual(stats.adaptiveThresholdEnabled, false);
+            // Should maintain base threshold regardless of error rate
+            assert.strictEqual(stats.currentThreshold, 3);
+        });
+
+        it('should open circuit with fixed threshold when adaptive disabled', async function() {
+            const breaker = new CircuitBreaker('test-service', {
+                enableAdaptiveThreshold: false,
+                failureThreshold: 2,
+                maxRetries: 0
+            });
+
+            // Consecutive failures should open circuit at fixed threshold
+            await breaker.execute(async () => { throw new Error('fail'); }); // failureCount = 1
+            assert.strictEqual(breaker.getState(), CircuitState.CLOSED);
+
+            await breaker.execute(async () => { throw new Error('fail'); }); // failureCount = 2
+            assert.strictEqual(breaker.getState(), CircuitState.OPEN);
+        });
+    });
+
+    describe('Metrics Integration', function() {
+        it('should call metrics collector for threshold adjustments', async function() {
+            let thresholdAdjustmentCalls = [];
+
+            const mockMetrics = {
+                recordCircuitBreakerThresholdAdjustment: (service, prevThreshold, newThreshold, errorRate) => {
+                    thresholdAdjustmentCalls.push({ service, prevThreshold, newThreshold, errorRate });
+                }
+            };
+
+            const breaker = new CircuitBreaker('test-service', {
+                baseThreshold: 3,
+                windowSize: 5,
+                maxRetries: 0
+            }, mockMetrics);
+
+            // Create operations that will trigger threshold adjustment
+            for (let i = 0; i < 3; i++) {
+                await breaker.execute(async () => 'success');
+            }
+            
+            // Add failures to increase error rate
+            await breaker.execute(async () => { throw new Error('fail'); });
+            await breaker.execute(async () => { throw new Error('fail'); });
+
+            // Should have recorded threshold adjustment
+            assert.ok(thresholdAdjustmentCalls.length > 0);
+            const lastCall = thresholdAdjustmentCalls[thresholdAdjustmentCalls.length - 1];
+            assert.strictEqual(lastCall.service, 'test-service');
+            assert.ok(lastCall.errorRate > 0);
+        });
+    });
+});

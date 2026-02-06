@@ -56,6 +56,7 @@ Notes:
 - visual-rag requires NVIDIA GPU support and persists model cache and indices
 - guidance-service connects to Ollama via `http://host.docker.internal:11434`
 - text-rag provides multilingual text semantic search with 384-dim embeddings
+- broker (Redis) serves dual purpose: Paperless-ngx message queue + Visual Query Cache
 
 ## Key Environment Variables
 
@@ -71,6 +72,42 @@ do not copy into docs or logs).
 | `GUIDANCE_SERVICE_URL` | `http://guidance-service:8002` | Guidance service endpoint |
 | `VISUAL_RAG_URL` | `http://visual-rag:8001` | Visual RAG sidecar endpoint |
 | `TEXT_RAG_URL` | `http://text-rag:8004` | Text RAG service endpoint |
+| `REDIS_URL` | `redis://broker:6379` | Redis endpoint for Visual Query Cache |
+
+## Visual Query Cache
+
+Visual RAG queries are cached in Redis to reduce latency and improve performance.
+
+### Cache Strategy
+- **Storage**: Redis (reuses `broker` service)
+- **Key Format**: SHA256(query + documentId + domain)
+- **TTL**: 24 hours
+- **Eviction**: LRU (Least Recently Used)
+
+### Implementation
+- **Service**: `VisualQueryCache` (`services/visual-rag-client/VisualQueryCache.js`)
+- **Integration**: All `VisualSearchClient` methods (search, searchImage, searchImageAlpha9)
+- **Graceful Degradation**: Cache failures don't break queries
+
+### Statistics
+```javascript
+const stats = visualSearchClient.getCacheStats();
+// { hits, misses, hitRate, totalRequests, enabled, connected }
+```
+
+### Performance Targets
+- Cache hit rate > 60%
+- Latency reduction > 50% on cache hits
+- Cache lookup overhead < 5ms
+
+### Configuration
+```bash
+# Enable/disable caching (default: enabled)
+const client = new VisualSearchClient({ cacheEnabled: true });
+
+# Redis connection
+REDIS_URL=redis://broker:6379
+```
 
 ## Monitoring
 

@@ -1,5 +1,5 @@
 <div class="error-page">
-  <h1>Error <%= status %></h1>
+  <h1>Error <%= typeof status !== 'undefined' ? status : '500' %></h1>
   <p><strong><%= message %></strong></p>
 
   <% if (details) { %>

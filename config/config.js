@@ -357,6 +357,30 @@ module.exports = {
     }
   },
   expertPipelineEnabled: parseEnvBoolean(process.env.EXPERT_PIPELINE_ENABLED, 'yes'),
+  pipeline: {
+    mode: process.env.PIPELINE_MODE || 'hybrid', // 'ocr-first' | 'vision-first' | 'hybrid'
+    visionFirst: {
+      enabled: parseEnvBoolean(process.env.VISION_FIRST_ENABLED, 'true'),
+      ocrFallback: {
+        enabled: parseEnvBoolean(process.env.OCR_FALLBACK_ENABLED, 'true'),
+        confidenceThreshold: parseFloat(process.env.OCR_CONFIDENCE_THRESHOLD || '0.7'),
+        strategy: process.env.OCR_FALLBACK_STRATEGY || 'ocr-guided-visual', // 'ocr-guided-visual' | 'hybrid-fusion' | 'both'
+        crossValidation: parseEnvBoolean(process.env.OCR_CROSS_VALIDATION, 'true'),
+        timeout: parseInt(process.env.OCR_FALLBACK_TIMEOUT || '3000', 10)
+      },
+      hybridFusion: {
+        enabled: parseEnvBoolean(process.env.HYBRID_FUSION_ENABLED, 'true'),
+        fusionWeights: {
+          visual: parseFloat(process.env.FUSION_WEIGHT_VISUAL || '0.6'),
+          ocr: parseFloat(process.env.FUSION_WEIGHT_OCR || '0.4')
+        },
+        arbitrationEnabled: parseEnvBoolean(process.env.FUSION_ARBITRATION, 'true')
+      },
+      canaryRollout: {
+        percentage: parseFloat(process.env.VISION_CANARY_PERCENTAGE || '100') // Default to 100 for now as per audit
+      }
+    }
+  },
   metrics: {
     enabled: metricsEnabled,
     retentionDays: metricsRetentionDays,

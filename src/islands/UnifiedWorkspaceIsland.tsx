@@ -501,15 +501,8 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
   }, [props.document?.id]);
 
   return (
-    <div className="h-full w-full flex flex-col p-8" data-hydrated="true">
-      <div className="flex-1 border-2 border-dashed border-[#e5e0d8] rounded-lg flex items-center justify-center relative">
-        <p className="font-['Space_Grotesk'] text-[#888]">Document Viewer Area Placeholder</p>
-        {props.document?.id ? (
-          <div data-testid="workspace-state-badge" data-state={isDirty ? 'unsaved' : 'clean'} className="absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-semibold bg-white border" aria-live="polite" aria-atomic="true">
-            {isDirty ? 'Unsaved Changes' : 'Saved'}
-          </div>
-        ) : null}
-      </div>
+    <div data-testid="unified-workspace-root" data-hydrated="true" style={{ display: 'none' }}>
+      {/* Background state coordinator - no visible UI */}
     </div>
   );
 }

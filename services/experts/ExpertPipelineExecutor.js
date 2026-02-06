@@ -47,7 +47,9 @@ const { HybridConfidenceFusion } = require('./HybridConfidenceFusion');
 const { VisualQueryExecutor } = require('./VisualQueryExecutor');
 
 // Import normalization components for Stage 3
-const { PreVisionNormalizer } = require('./normalization/PreVisionNormalizer');
+
+// Import FieldSuggestionEngine for intelligent field suggestions
+const { fieldSuggestionEngine } = require('./FieldSuggestionEngine');
 const { NormalizationStore } = require('../normalization/NormalizationStore');
 const { normalizationTotal, normalizationLatency } = require('../metrics/normalizationMetrics');
 
@@ -86,6 +88,10 @@ class ExpertPipelineExecutor {
    */
   constructor(ollamaService, options = {}) {
     this.ollamaService = ollamaService;
+
+    // Lazy require PreVisionNormalizer to avoid circular dependencies
+    const { PreVisionNormalizer } = require('./normalization/PreVisionNormalizer');
+
     this.options = {
       defaultTimeout: options.defaultTimeout || 60000,
       maxRetries: options.maxRetries || 2,
@@ -342,6 +348,59 @@ class ExpertPipelineExecutor {
     return merged;
   }
 
+  /**
+   * Extract fields from pipeline output for suggestion engine
+   * @private
+   */
+  _extractFieldsFromOutput(integratedOutput) {
+    if (!integratedOutput) {
+      return [];
+    }
+
+    const fields = [];
+
+    // Extract from fields array if available
+    if (Array.isArray(integratedOutput.fields)) {
+      integratedOutput.fields.forEach(field => {
+        if (field.name || field.fieldId || field.field_id) {
+          fields.push({
+            fieldId: field.fieldId || field.name || field.field_id,
+            value: field.value,
+            confidence: field.confidence || 0
+          });
+        }
+      });
+    }
+
+    // Extract from metadata if available
+    if (integratedOutput.metadata) {
+      Object.entries(integratedOutput.metadata).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && key !== 'confidence') {
+          fields.push({
+            fieldId: key,
+            value,
+            confidence: 0.8
+          });
+        }
+      });
+    }
+
+    // Extract from custom_fields if available
+    if (integratedOutput.custom_fields) {
+      Object.entries(integratedOutput.custom_fields).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) {
+          fields.push({
+            fieldId: key,
+            value,
+            confidence: 0.8
+          });
+        }
+      });
+    }
+
+    return fields;
+  }
+
   _applyFieldMapping(extractionResults, domain, fieldMappingService) {
     const mappingStart = Date.now();
     const requiredFields = fieldMappingService.getRequiredFields(domain);
@@ -458,11 +517,15 @@ class ExpertPipelineExecutor {
     this.stats.totalExecutions += 1;
 
     try {
+      // Determine pipeline mode (migration strategy)
+      const pipelineMode = await this._selectPipelineMode(document);
+
       logger.info({
         event: 'pipeline_execution_start',
         pipelineId,
         documentId: document.id || document.filename,
-        classification: classificationResult?.classification?.primary_domain
+        classification: classificationResult?.classification?.primary_domain,
+        pipelineMode
       });
 
       // Get pipeline definition
@@ -487,7 +550,8 @@ class ExpertPipelineExecutor {
       // Create execution context
       const context = new ExecutionContext(document, classificationResult, {
         ...options,
-        pipelineId
+        pipelineId,
+        pipelineMode
       });
 
       // Execute stages
@@ -652,6 +716,22 @@ class ExpertPipelineExecutor {
           stageType: stage.type
         }
       });
+    }
+
+    // Skip vision-heavy stages in ocr-first mode
+    const isOcrFirst = context.options?.pipelineMode === 'ocr-first';
+    const isVisionStage = [
+      StageType.VISUAL_ANALYSIS,
+      StageType.PRE_VISION_NORMALIZATION,
+      StageType.VISUAL_QUERY_GENERATION,
+      StageType.VISUAL_QUERY_EXECUTION
+    ].includes(stage.type);
+
+    if (isOcrFirst && isVisionStage) {
+      context.skipStage(stage.id, 'ocr-first_mode_active');
+      logger.info(`Skipping vision stage ${stage.id} because ocr-first mode is active`);
+      this._recordStageLatency(stage, Date.now() - stageStart);
+      return { status: 'skipped', abort: false };
     }
 
     // Validation stages (no LLM call)
@@ -1336,6 +1416,7 @@ class ExpertPipelineExecutor {
       const metadata = {
         documentType,
         classification: context.classification,
+        pipelineMode: context.options?.pipelineMode,
         ...stage.metadata
       };
 
@@ -2805,6 +2886,43 @@ class ExpertPipelineExecutor {
       };
     }
 
+    // Generate field suggestions for missing or related fields
+    try {
+      const extractedFields = this._extractFieldsFromOutput(integratedOutput);
+      const domain = context.classification?.primary_domain || 'general';
+      
+      const suggestions = fieldSuggestionEngine.generateSuggestions({
+        extractedFields,
+        domain,
+        classificationResult: context.classification || {},
+        documentContext: {
+          previousFields: context.options?.historicalFields || []
+        }
+      });
+
+      if (suggestions && suggestions.suggestions.length > 0) {
+        result.metadata.field_suggestions = {
+          suggestions: suggestions.suggestions,
+          summary: suggestions.summary,
+          metrics: suggestions.metrics
+        };
+
+        logger.debug({
+          event: 'field_suggestions_generated',
+          pipelineId,
+          domain,
+          totalSuggestions: suggestions.suggestions.length,
+          missingRequired: suggestions.summary.missingRequired
+        });
+      }
+    } catch (suggestionError) {
+      logger.warn({
+        event: 'field_suggestion_generation_failed',
+        pipelineId,
+        error: suggestionError.message
+      });
+    }
+
     return result;
   }
 
@@ -2985,6 +3103,31 @@ class ExpertPipelineExecutor {
     const newTime = result.metadata.execution_time_ms;
 
     this.stats.averageExecutionTimeMs = ((currentAvg * (n - 1)) + newTime) / n;
+  }
+
+  /**
+   * Select pipeline mode based on configuration and canary rollout
+   * @private
+   */
+  async _selectPipelineMode(document) {
+    const pipelineConfig = config.pipeline || {};
+    const mode = pipelineConfig.mode || 'hybrid';
+
+    if (mode === 'ocr-first') return 'ocr-first';
+    if (mode === 'vision-first') return 'vision-first';
+
+    // Hybrid mode: canary rollout
+    const canaryPercentage = pipelineConfig.visionFirst?.canaryRollout?.percentage ?? 100;
+    
+    // Use document ID for deterministic canary selection
+    const docId = Number(document.id);
+    if (!Number.isNaN(docId)) {
+      const isCanary = (docId % 100) < canaryPercentage;
+      return isCanary ? 'vision-first' : 'ocr-first';
+    }
+
+    // Fallback if no ID (e.g. temporary analysis)
+    return 'vision-first';
   }
 
   /**

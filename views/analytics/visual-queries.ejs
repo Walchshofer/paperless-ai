@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Query Analytics - Paperless-AI</title>
+    <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/dashboard.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border: 1px solid #e5e7eb;
+        }
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        .metric-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #6b7280;
+            margin-bottom: 0.5rem;
+        }
+        .domain-bar {
+            height: 8px;
+            border-radius: 4px;
+            background: #e5e7eb;
+            overflow: hidden;
+        }
+        .domain-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        .chart-container {
+            position: relative;
+            height: 200px;
+        }
+        .realtime-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            color: #059669;
+        }
+        .realtime-indicator .pulse {
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .export-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            color: #374151;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .export-btn:hover {
+            background: #e5e7eb;
+        }
+        .window-select {
+            padding: 0.5rem 1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            background: white;
+        }
+        .top-query-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .top-query-item:last-child {
+            border-bottom: none;
+        }
+        .query-text {
+            font-family: monospace;
+            font-size: 0.875rem;
+            color: #1f2937;
+            max-width: 70%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .query-count {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="h-full" data-page="visual-query-analytics">
+    <button id="themeToggle" data-testid="theme-toggle" class="theme-toggle">
+        <i class="fas fa-moon dark:fas fa-sun"></i>
+    </button>
+
+    <div class="layout-container">
+        <button id="mobileMenuButton" data-testid="mobile-menu-button" class="mobile-menu-button">
+            <i class="fas fa-bars"></i>
+        </button>
+
+        <!-- Sidebar -->
+        <div id="sidebarOverlay" class="sidebar-overlay"></div>
+        <aside class="sidebar">
+            <%- include('../partials/sidebar-nav', { active: 'analytics' }) %>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="content-wrapper">
+                <!-- Header -->
+                <div class="content-header flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                        <h2 class="content-title" data-testid="analytics-title">Visual Query Analytics</h2>
+                        <div class="realtime-indicator mt-2" data-testid="realtime-indicator">
+                            <span class="pulse"></span>
+                            <span>Real-time updates enabled</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <select id="windowSelect" class="window-select" data-testid="window-select">
+                            <option value="1" <%= vm.windowHours === 1 ? 'selected' : '' %>>Last 1 hour</option>
+                            <option value="6" <%= vm.windowHours === 6 ? 'selected' : '' %>>Last 6 hours</option>
+                            <option value="12" <%= vm.windowHours === 12 ? 'selected' : '' %>>Last 12 hours</option>
+                            <option value="24" <%= vm.windowHours === 24 ? 'selected' : '' %>>Last 24 hours</option>
+                            <option value="48" <%= vm.windowHours === 48 ? 'selected' : '' %>>Last 48 hours</option>
+                            <option value="168" <%= vm.windowHours === 168 ? 'selected' : '' %>>Last 7 days</option>
+                        </select>
+                        <button id="exportBtn" class="export-btn" data-testid="export-csv-btn">
+                            <i class="fas fa-download"></i>
+                            <span>Export CSV</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Latency Metrics -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="metric-card" data-testid="latency-p50-card">
+                        <div class="metric-label">P50 Latency</div>
+                        <div class="metric-value" id="latencyP50"><%= vm.snapshot.latency.p50Ms.toFixed(1) %><span class="text-lg font-normal text-gray-500">ms</span></div>
+                        <div class="text-xs text-gray-500 mt-1">Median query response time</div>
+                    </div>
+                    <div class="metric-card" data-testid="latency-p95-card">
+                        <div class="metric-label">P95 Latency</div>
+                        <div class="metric-value" id="latencyP95"><%= vm.snapshot.latency.p95Ms.toFixed(1) %><span class="text-lg font-normal text-gray-500">ms</span></div>
+                        <div class="text-xs text-gray-500 mt-1">95th percentile response time</div>
+                    </div>
+                    <div class="metric-card" data-testid="latency-p99-card">
+                        <div class="metric-label">P99 Latency</div>
+                        <div class="metric-value" id="latencyP99"><%= vm.snapshot.latency.p99Ms.toFixed(1) %><span class="text-lg font-normal text-gray-500">ms</span></div>
+                        <div class="text-xs text-gray-500 mt-1">99th percentile response time</div>
+                    </div>
+                </div>
+
+                <!-- Query Stats & Error Rate -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="metric-card" data-testid="total-queries-card">
+                        <div class="metric-label">Total Queries</div>
+                        <div class="metric-value" id="totalQueries"><%= vm.snapshot.counts.totalQueries %></div>
+                    </div>
+                    <div class="metric-card" data-testid="successful-queries-card">
+                        <div class="metric-label">Successful</div>
+                        <div class="metric-value text-green-600" id="successfulQueries"><%= vm.snapshot.counts.successfulQueries %></div>
+                    </div>
+                    <div class="metric-card" data-testid="failed-queries-card">
+                        <div class="metric-label">Failed</div>
+                        <div class="metric-value text-red-600" id="failedQueries"><%= vm.snapshot.counts.failedQueries %></div>
+                    </div>
+                    <div class="metric-card" data-testid="error-rate-card">
+                        <div class="metric-label">Error Rate</div>
+                        <div class="metric-value" id="errorRate"><%= (vm.snapshot.errorRate * 100).toFixed(1) %><span class="text-lg font-normal text-gray-500">%</span></div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <!-- Latency Trend Chart -->
+                    <div class="metric-card" data-testid="latency-trend-card">
+                        <h3 class="text-lg font-semibold mb-4">Query Latency Trend</h3>
+                        <div class="chart-container">
+                            <canvas id="latencyTrendChart" data-testid="latency-trend-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Accuracy by Domain Chart -->
+                    <div class="metric-card" data-testid="accuracy-domain-card">
+                        <h3 class="text-lg font-semibold mb-4">Accuracy by Domain</h3>
+                        <div class="chart-container">
+                            <canvas id="accuracyDomainChart" data-testid="accuracy-domain-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fallback Rates & Top Queries -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Fallback Rates -->
+                    <div class="metric-card" data-testid="fallback-rates-card">
+                        <h3 class="text-lg font-semibold mb-4">Fallback Rates</h3>
+                        <div class="chart-container" style="height: 180px;">
+                            <canvas id="fallbackChart" data-testid="fallback-chart"></canvas>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mt-4">
+                            <div class="text-center p-3 bg-blue-50 rounded-lg">
+                                <div class="text-2xl font-bold text-blue-600" id="fallbackVisualToText"><%= (vm.snapshot.fallbackRates.visualToText * 100).toFixed(1) %>%</div>
+                                <div class="text-xs text-gray-600">Visual → Text</div>
+                            </div>
+                            <div class="text-center p-3 bg-purple-50 rounded-lg">
+                                <div class="text-2xl font-bold text-purple-600" id="fallbackVisualToOcr"><%= (vm.snapshot.fallbackRates.visualToOcr * 100).toFixed(1) %>%</div>
+                                <div class="text-xs text-gray-600">Visual → OCR</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Top Queries -->
+                    <div class="metric-card" data-testid="top-queries-card">
+                        <h3 class="text-lg font-semibold mb-4">Top Queries</h3>
+                        <div id="topQueriesList" class="max-h-64 overflow-y-auto">
+                            <% if (vm.snapshot.topQueries.length === 0) { %>
+                                <div class="text-gray-400 text-center py-8">No queries recorded yet</div>
+                            <% } else { %>
+                                <% vm.snapshot.topQueries.forEach((q, i) => { %>
+                                    <div class="top-query-item" data-testid="top-query-<%= i %>">
+                                        <span class="query-text" title="<%= q.query %>"><%= q.query || '<empty>' %></span>
+                                        <span class="query-count"><%= q.count %></span>
+                                    </div>
+                                <% }) %>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Domain Accuracy Details -->
+                <div class="metric-card mt-6" data-testid="domain-accuracy-details">
+                    <h3 class="text-lg font-semibold mb-4">Domain Accuracy Details</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <% ['financial', 'medical', 'legal', 'general'].forEach(domain => {
+                            const stats = vm.snapshot.accuracyByDomain[domain];
+                        %>
+                            <div class="p-4 bg-gray-50 rounded-lg" data-testid="domain-<%= domain %>">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="font-medium capitalize"><%= domain %></span>
+                                    <span class="text-sm text-gray-500"><%= stats.successful %>/<%= stats.total %></span>
+                                </div>
+                                <div class="domain-bar">
+                                    <div class="domain-bar-fill bg-<%= domain === 'financial' ? 'blue' : domain === 'medical' ? 'green' : domain === 'legal' ? 'purple' : 'gray' %>-500"
+                                         style="width: <%= stats.accuracy * 100 %>%"></div>
+                                </div>
+                                <div class="text-right mt-1 text-sm font-medium" id="accuracy-<%= domain %>">
+                                    <%= (stats.accuracy * 100).toFixed(1) %>%
+                                </div>
+                            </div>
+                        <% }) %>
+                    </div>
+                </div>
+
+                <!-- Generated Timestamp -->
+                <div class="text-center text-xs text-gray-400 mt-6" data-testid="generated-at">
+                    Generated at: <span id="generatedAt"><%= vm.snapshot.generatedAt %></span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/shared-utilities.js"></script>
+    <script>
+        // Initial snapshot data from server
+        window.analyticsSnapshot = <%- JSON.stringify(vm.snapshot) %>;
+        window.windowHours = <%= vm.windowHours %>;
+    </script>
+    <script src="/js/visual-query-analytics.js"></script>
+</body>
+</html>

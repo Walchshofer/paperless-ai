@@ -83,6 +83,45 @@ const LegalPipeline = {
             ],
             outputKey: 'validation_result',
             timeout: 5000
+        },
+        {
+            id: 'visual_query_generation',
+            name: 'Visual Query Generation',
+            type: StageType.VISUAL_QUERY_GENERATION,
+            guidanceTemplate: 'legal_extractor',
+            promptId: 'VISUAL_QUERY_GENERATOR_V1',
+            model: MODEL_NAMES.legalExpert,
+            modelType: ModelType.TEXT_ONLY,
+            executionMode: ExecutionMode.SEQUENTIAL,
+            inputMapping: {
+                extraction: 'stages.legal_extraction.output',
+                ocr: 'stages.ocr.output',
+                validation: 'stages.validation_result.output'
+            },
+            outputKey: 'visual_queries',
+            timeout: 10000,
+            retryCount: 2
+        },
+        {
+            id: 'visual_query_execution',
+            name: 'Visual Query Execution',
+            type: StageType.VISUAL_QUERY_EXECUTION,
+            executionMode: ExecutionMode.SEQUENTIAL,
+            inputMapping: {
+                visual_queries: 'stages.visual_queries.output',
+                extraction: 'stages.legal_extraction.output'
+            },
+            outputKey: 'visual_execution',
+            timeout: 30000,
+            retryCount: 1,
+            executorConfig: {
+                timeoutBudget: 500,
+                hardTimeout: 1000,
+                maxConcurrentQueries: 5,
+                ocrFallbackEnabled: true,
+                ocrFallbackConfidenceThreshold: 0.7,
+                ocrCrossValidationEnabled: true
+            }
         }
     ]
 };

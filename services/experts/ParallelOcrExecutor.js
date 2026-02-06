@@ -41,7 +41,7 @@ const DEFAULT_CONFIG = {
         cooldownPeriod: 30000
     },
     visualElements: {
-        enabled: config.visualRagSidecar?.enabled === 'yes',
+        enabled: false,         // Explicitly disabled - Superseded by visual queries in Stage 5.5
         timeout: 500,           // 500ms for element detection
         url: config.visualRagSidecar?.url || 'http://visual-rag:8001',
         failureThreshold: 3,
@@ -150,14 +150,17 @@ class ParallelOcrExecutor {
         logger.info({
             event: 'parallel_ocr_execution_start',
             documentId: document.id || document.filename,
-            documentType: metadata.documentType || DocumentType.GENERAL
+            documentType: metadata.documentType || DocumentType.GENERAL,
+            pipelineMode: metadata.pipelineMode
         });
+
+        const isOcrFirst = metadata.pipelineMode === 'ocr-first';
 
         // Execute all tracks in parallel
         const trackPromises = [];
 
         // Track 1: Visual OCR
-        if (this.config.visualOcr.enabled) {
+        if (this.config.visualOcr.enabled && !isOcrFirst) {
             trackPromises.push(
                 this._executeVisualOcrTrack(document, metadata)
                     .catch(error => ({
@@ -169,7 +172,7 @@ class ParallelOcrExecutor {
         } else {
             trackPromises.push(Promise.resolve({
                 success: false,
-                error: 'Visual OCR disabled',
+                error: isOcrFirst ? 'OCR-first mode (skipping visual)' : 'Visual OCR disabled',
                 track: 'visual-ocr',
                 disabled: true
             }));
@@ -195,7 +198,7 @@ class ParallelOcrExecutor {
         }
 
         // Track 3: Visual Element Detection
-        if (this.config.visualElements.enabled) {
+        if (this.config.visualElements.enabled && !isOcrFirst) {
             trackPromises.push(
                 this._executeVisualElementsTrack(document, metadata)
                     .catch(error => ({
@@ -207,7 +210,7 @@ class ParallelOcrExecutor {
         } else {
             trackPromises.push(Promise.resolve({
                 success: false,
-                error: 'Visual elements detection disabled',
+                error: isOcrFirst ? 'OCR-first mode (skipping visual)' : 'Visual elements detection disabled',
                 track: 'visual-elements',
                 disabled: true
             }));

@@ -30,11 +30,13 @@ const ErrorTypes = {
 // Valid collections for Alpha-9 protocol
 const VALID_COLLECTIONS = ['visual_pages', 'visual_overlays'];
 
+const crypto = require('crypto');
 const axios = require('axios');
 const logger = require('../logger');
 const { metricsCollector } = require('../metrics/PrometheusMetrics');
 const { CircuitBreaker, CircuitState } = require('../experts/CircuitBreaker');
 const config = require('../../config/config');
+const { visualQueryCache } = require('./VisualQueryCache');
 
 // Re-export CircuitState as CircuitBreakerStates for API consumers (ticket:014.1)
 const CircuitBreakerStates = CircuitState;
@@ -47,6 +49,10 @@ class VisualSearchClient {
         this.timeout = options.timeout || config.visualRagSidecar?.timeout || 30000;
         this.retries = options.retries || 2;
         this.metricsCollector = options.metricsCollector || metricsCollector || null;
+        
+        // Query cache (P3-T1)
+        this.cache = options.cache || visualQueryCache;
+        this.cacheEnabled = options.cacheEnabled !== false;
 
         // Concurrency + query timeout settings
         this._maxConcurrent = options.maxConcurrent || config.visualRagSidecar?.maxConcurrent || 5;
@@ -224,13 +230,27 @@ class VisualSearchClient {
     }
 
     async searchImage(base64Image, options = {}) {
-        const { k = 5, includeBase64 = false, requestId } = options;
+        const { k = 5, includeBase64 = false, requestId, documentId, domain } = options;
 
         if (!base64Image || typeof base64Image !== 'string') {
             throw new Error('base64Image must be a non-empty string');
         }
 
+        // Check cache first (P3-T1)
+        // Use hash of image as cache key since full base64 is too long
+        if (this.cacheEnabled && this.cache) {
+            const imageHash = crypto.createHash('sha256').update(base64Image).digest('hex');
+            const cacheKey = `image:${imageHash.substring(0, 16)}`;
+            const cached = await this.cache.get(cacheKey, documentId, domain);
+            
+            if (cached) {
+                logger.debug('[VisualSearchClient] Returning cached result for image query');
+                return cached;
+            }
+        }
+
         const headers = requestId ? { 'X-Request-Id': requestId } : {};
+        const searchStartTime = Date.now();
 
         await this._acquire();
         try {
@@ -276,8 +296,22 @@ class VisualSearchClient {
             if (result.fallback) {
                 throw result.error || new Error('Circuit breaker fallback triggered');
             }
+
+            const searchDurationMs = Date.now() - searchStartTime;
+            const data = result.data;
+
+            // Cache the result (P3-T1)
+            if (this.cacheEnabled && this.cache && data) {
+                const imageHash = crypto.createHash('sha256').update(base64Image).digest('hex');
+                const cacheKey = `image:${imageHash.substring(0, 16)}`;
+                await this.cache.set(cacheKey, documentId, domain, data);
+                
+                if (searchDurationMs > 100) {
+                    logger.info(`[VisualQueryCache] Image query took ${searchDurationMs}ms, now cached`);
+                }
+            }
             
-            return result.data;
+            return data;
 
         } catch (error) {
             // Error handling is partly done by Circuit Breaker, but we re-throw for API response
@@ -311,6 +345,19 @@ class VisualSearchClient {
 
         if (!base64Image || typeof base64Image !== 'string') {
             throw new Error('base64Image must be a non-empty string');
+        }
+
+        // Check cache first (P3-T1)
+        if (this.cacheEnabled && this.cache) {
+            const imageHash = crypto.createHash('sha256').update(base64Image).digest('hex');
+            const filtersKey = JSON.stringify(filters);
+            const cacheKey = `alpha9:${imageHash.substring(0, 16)}:${collection}:${limit}:${filtersKey}`;
+            const cached = await this.cache.get(cacheKey, filters.doc_id, '');
+            
+            if (cached) {
+                logger.debug('[VisualSearchClient] Returning cached result for Alpha-9 query');
+                return cached;
+            }
         }
 
         // Check circuit breaker state first (ticket:014.1)
@@ -371,7 +418,7 @@ class VisualSearchClient {
                 logger.info('[VisualSearchClient] Circuit breaker recovered to CLOSED');
             }
 
-            return {
+            const result = {
                 results: (data.results || []).map(r => ({
                     docId: r.doc_id,
                     score: r.score,
@@ -383,6 +430,20 @@ class VisualSearchClient {
                 executionTimeMs: data.execution_time_ms || durationMs,
                 queryType: data.query_type || 'image'
             };
+
+            // Cache the result (P3-T1)
+            if (this.cacheEnabled && this.cache) {
+                const imageHash = crypto.createHash('sha256').update(base64Image).digest('hex');
+                const filtersKey = JSON.stringify(filters);
+                const cacheKey = `alpha9:${imageHash.substring(0, 16)}:${collection}:${limit}:${filtersKey}`;
+                await this.cache.set(cacheKey, filters.doc_id, '', result);
+                
+                if (durationMs > 100) {
+                    logger.info(`[VisualQueryCache] Alpha-9 query took ${durationMs}ms, now cached`);
+                }
+            }
+
+            return result;
 
         } catch (error) {
             const durationMs = Date.now() - startTime;
@@ -461,13 +522,25 @@ class VisualSearchClient {
      * @returns {Promise<Object>} Search results with doc_id, page_num, score
      */
     async search(query, options = {}) {
-        const { k = 5, includeBase64 = false, queryType, requestId } = options;
+        const { k = 5, includeBase64 = false, queryType, requestId, documentId, domain } = options;
 
         if (!query || typeof query !== 'string') {
             throw new Error('Query must be a non-empty string');
         }
 
+        // Check cache first (P3-T1)
+        if (this.cacheEnabled && this.cache) {
+            const cacheKey = `text:${query}`;
+            const cached = await this.cache.get(cacheKey, documentId, domain);
+            
+            if (cached) {
+                logger.debug(`[VisualSearchClient] Returning cached result for "${query}"`);
+                return cached;
+            }
+        }
+
         const headers = requestId ? { 'X-Request-Id': requestId } : {};
+        const searchStartTime = Date.now();
 
         await this._acquire();
         try {
@@ -513,7 +586,21 @@ class VisualSearchClient {
                 throw result.error || new Error('Circuit breaker fallback triggered');
             }
 
-            return result.data;
+            const searchDurationMs = Date.now() - searchStartTime;
+            const data = result.data;
+
+            // Cache the result (P3-T1)
+            if (this.cacheEnabled && this.cache && data) {
+                const cacheKey = `text:${query}`;
+                await this.cache.set(cacheKey, documentId, domain, data);
+                
+                // Log cache stats
+                if (searchDurationMs > 100) {
+                    logger.info(`[VisualQueryCache] Query took ${searchDurationMs}ms, now cached for future requests`);
+                }
+            }
+
+            return data;
 
         } catch (error) {
             if (this.metricsCollector?.recordSidecarAvailability && !this.circuitBreaker.isOpen()) {
@@ -673,6 +760,33 @@ class VisualSearchClient {
      */
     getFailureCount() {
         return this.circuitBreaker.failureCount;
+    }
+
+    /**
+     * Get cache statistics (P3-T1)
+     * @returns {Object} Cache stats including hit rate and latency metrics
+     */
+    getCacheStats() {
+        if (!this.cache) {
+            return {
+                enabled: false,
+                hits: 0,
+                misses: 0,
+                hitRate: 0
+            };
+        }
+        return this.cache.getStats();
+    }
+
+    /**
+     * Clear query cache (P3-T1)
+     * @returns {Promise<number>} Number of keys deleted
+     */
+    async clearCache() {
+        if (!this.cache) {
+            return 0;
+        }
+        return this.cache.clear();
     }
 
     // =========================================================================

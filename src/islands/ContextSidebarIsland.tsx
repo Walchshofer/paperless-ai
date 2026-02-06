@@ -97,6 +97,62 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
   const initial = (typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem(STORAGE_KEY)) || props.activeTab || 'metadata';
   const [activeTab, setActiveTab] = useState(initial as TabKey);
 
+  // Local state for document data to support inline switching
+  const [currentDocument, setCurrentDocument] = useState(props.document);
+  const [currentVisual, setCurrentVisual] = useState(props.visual);
+  const [currentChat, setCurrentChat] = useState(props.chat);
+
+  // Update local state when props change (initial load)
+  useEffect(() => {
+    setCurrentDocument(props.document);
+    setCurrentVisual(props.visual);
+    setCurrentChat(props.chat);
+  }, [props.document, props.visual, props.chat]);
+
+  // Listen for document switch events from DocumentContextBarIsland
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      const docData = detail.document;
+      if (!docData) return;
+
+      console.info('[ContextSidebarIsland] Handling workspace:document-switched for doc:', docData.id);
+
+      // Map API response to DocumentInfo interface
+      const updatedDoc: DocumentInfo = {
+        id: docData.id,
+        title: docData.title,
+        correspondent: docData.correspondent,
+        content: docData.content || '',
+        documentDomain: docData.documentDomain,
+        tagItems: docData.tagItems,
+        availableTags: docData.availableTags,
+        fieldProfile: docData.fieldProfile,
+        customFields: docData.customFields || [],
+      };
+
+      setCurrentDocument(updatedDoc);
+      
+      // Update visual info if provided in the switch event
+      if (detail.visual) {
+        setCurrentVisual(detail.visual);
+      } else {
+        // Reset or fetch visual data for the new document if not in detail
+        // For now, if not provided, we might want to clear or keep as is.
+        // Usually DocumentContextBarIsland only sends 'document' in detail.
+        // We might need to fetch visual data separately if it's not in docData.
+        setCurrentVisual({ fields: [], overlays: [] });
+      }
+
+      if (detail.chat) {
+        setCurrentChat(detail.chat);
+      }
+    };
+
+    window.addEventListener('workspace:document-switched', handler as EventListener);
+    return () => window.removeEventListener('workspace:document-switched', handler as EventListener);
+  }, []);
+
   // Refs for tab buttons so we can set string attributes for ARIA at runtime (axe-friendly)
   const tabRefs = useRef({} as Record<TabKey, HTMLButtonElement | null>);
 
@@ -211,14 +267,14 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
               </p>
             </div>
             <SmartMetadataIsland
-              documentId={props.document?.id}
-              metadata={props.document}
-              selectedTags={props.document?.tagItems}
-              availableTags={props.document?.availableTags}
-              customFields={props.document?.customFields}
-              visualFields={props.visual?.fields}
-              fieldProfile={props.document?.fieldProfile}
-              documentDomain={props.document?.documentDomain}
+              documentId={currentDocument?.id}
+              metadata={currentDocument}
+              selectedTags={currentDocument?.tagItems}
+              availableTags={currentDocument?.availableTags}
+              customFields={currentDocument?.customFields}
+              visualFields={currentVisual?.fields}
+              fieldProfile={currentDocument?.fieldProfile}
+              documentDomain={currentDocument?.documentDomain}
             />
           </div>
         )}
@@ -231,13 +287,13 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
                 Tesseract OCR extracted text (read-only)
               </p>
             </div>
-            <DocumentContentIsland documentId={props.document?.id} content={props.document?.content || ''} />
+            <DocumentContentIsland documentId={currentDocument?.id} content={currentDocument?.content || ''} />
           </div>
         )}
 
         {activeTab === 'chat' && (
           <div role="tabpanel" id="panel-chat" aria-labelledby="tab-chat" data-testid="tab-panel-chat">
-            <ChatWorkspaceIsland documents={props.availableDocuments || []} openDocumentId={props.document?.id} {...props.chat} />
+            <ChatWorkspaceIsland documents={props.availableDocuments || []} openDocumentId={currentDocument?.id} {...currentChat} />
           </div>
         )}
 
@@ -250,16 +306,16 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
               </p>
             </div>
             <VisualTabIsland
-              documentId={props.document?.id}
-              fields={props.visual?.fields}
-              overlays={props.visual?.overlays}
+              documentId={currentDocument?.id}
+              fields={currentVisual?.fields}
+              overlays={currentVisual?.overlays}
             />
           </div>
         )}
 
         {activeTab === 'debug' && isAdmin && (
           <div role="tabpanel" id="panel-debug" aria-labelledby="tab-debug" data-testid="tab-panel-debug">
-            <pre className="text-xs whitespace-pre-wrap text-gray-700" data-testid="debug-content">{JSON.stringify({ document: props.document, chat: props.chat, visual: props.visual }, null, 2)}</pre>
+            <pre className="text-xs whitespace-pre-wrap text-gray-700" data-testid="debug-content">{JSON.stringify({ document: currentDocument, chat: currentChat, visual: currentVisual }, null, 2)}</pre>
           </div>
         )}
       </div>

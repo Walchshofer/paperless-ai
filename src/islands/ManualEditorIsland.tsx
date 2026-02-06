@@ -145,8 +145,40 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
       }
     };
 
+    const handleDocumentSwitched = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      const { documentId: newDocId, document } = detail;
+      
+      if (newDocId != null) {
+        setDocumentId(newDocId);
+        if (document) {
+          setTitle(document.title || '');
+          setCorrespondent(document.correspondent || '');
+          setDocumentType(document.documentType || '');
+          setContent(document.content || '');
+          if (document.fields) {
+            setFields(normalizeFields(document.fields));
+          } else if (document.customFields) {
+            // Map raw customFields array to {name, value} if provided in that format
+            const normalized = Array.isArray(document.customFields) 
+              ? document.customFields.map((cf: any) => ({
+                  name: cf.name || cf.field_name || String(cf.field || ''),
+                  value: cf.value != null ? String(cf.value) : ''
+                }))
+              : [];
+            setFields(normalized.length > 0 ? normalized : [{ name: '', value: '' }]);
+          }
+        }
+        console.info(`[ManualEditor] Document switched to ${newDocId}`);
+      }
+    };
+
     window.addEventListener('document:selected', onDocumentSelected as EventListener);
-    return () => window.removeEventListener('document:selected', onDocumentSelected as EventListener);
+    window.addEventListener('workspace:document-switched', handleDocumentSwitched as EventListener);
+    return () => {
+      window.removeEventListener('document:selected', onDocumentSelected as EventListener);
+      window.removeEventListener('workspace:document-switched', handleDocumentSwitched as EventListener);
+    };
   }, []);
 
   // Clear sync badge after 5 seconds

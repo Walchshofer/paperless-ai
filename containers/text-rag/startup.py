@@ -100,6 +100,9 @@ async def startup_event() -> None:
     """
     global POST_STARTUP_INDEX_INIT
 
+    from settings import load_environment
+    load_environment()
+
     logger.info("Starting RAGZ Document Search API")
 
     try:
@@ -114,34 +117,40 @@ async def startup_event() -> None:
         )
 
         env_file_path = os.path.join(DATA_DIR, ".env")
-        if not os.path.exists(env_file_path):
-            logger.warning(
-                ".env file not found at %s", os.path.abspath(env_file_path)
-            )
-            logger.info("Creating example .env file")
+        # Check if we have the necessary environment variables instead of just checking file existence
+        has_api_config = os.getenv("PAPERLESS_URL") or os.getenv("PAPERLESS_API_URL")
+        has_token_config = os.getenv("PAPERLESS_TOKEN") or os.getenv("PAPERLESS_API_TOKEN")
 
-            os.makedirs(os.path.dirname(env_file_path), exist_ok=True)
+        if not has_api_config or not has_token_config:
+            if not os.path.exists(env_file_path):
+                logger.warning(
+                    ".env file not found at %s and environment variables missing", os.path.abspath(env_file_path)
+                )
+                logger.info("Creating example .env file")
 
-            with open(env_file_path, "w") as handle:
-                handle.write("# Paperless-NGX API configuration\n")
-                handle.write("PAPERLESS_URL=https://your-paperless-instance\n")
-                handle.write("PAPERLESS_API_TOKEN=your-api-token\n")
+                os.makedirs(os.path.dirname(env_file_path), exist_ok=True)
+
+                with open(env_file_path, "w") as handle:
+                    handle.write("# Paperless-NGX API configuration\n")
+                    handle.write("PAPERLESS_URL=https://your-paperless-instance\n")
+                    handle.write("PAPERLESS_API_TOKEN=your-api-token\n")
+                logger.info(
+                    "Created example .env file at %s",
+                    os.path.abspath(env_file_path),
+                )
+            else:
+                logger.warning("API configuration missing in existing .env file and environment variables")
+
             logger.info(
-                "Created example .env file at %s",
-                os.path.abspath(env_file_path),
-            )
-            logger.info(
-                "Please edit the .env file with your Paperless-NGX API "
-                "configuration"
+                "Please edit the .env file or provide environment variables with your Paperless-NGX API configuration"
             )
             logger.warning(
-                "Starting with limited functionality due to missing "
-                "API configuration"
+                "Starting with limited functionality due to missing API configuration"
             )
 
             global_state.system_status.server_up = True
             global_state.indexing_status.message = (
-                "API configuration missing in .env file"
+                "API configuration missing"
             )
             global_state.save_state()
             return

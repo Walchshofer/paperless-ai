@@ -12,6 +12,7 @@ const config = require('../config/config.js');
 const customService = require('../services/customService.js');
 const { DocumentProcessor } = require('../services/integration/DocumentProcessor');
 const { pdfRenderer } = require('../services/visual-rag-client/PDFRenderer');
+const { visualIndexingQueue } = require('../services/queues/VisualIndexingQueue');
 const path = require('path');
 const axios = require('axios');
 const { authenticateApi, requireAdmin, requireUser } = require('../middleware/auth');
@@ -1002,7 +1003,22 @@ router.post('/api/webhook/document', authenticateApi, async (req, res) => {
       }
 
       documentQueue.push({ doc: document, username: 'system' });
-      void triggerUploadVisualIndexing(document);
+
+      // Add visual indexing job to background queue
+      try {
+        await visualIndexingQueue.addJob(document, { priority: 10 });
+        logger.info({
+          event: 'webhook_visual_indexing_queued',
+          documentId: document.id
+        });
+      } catch (queueError) {
+        logger.error({
+          event: 'webhook_visual_indexing_queue_failed',
+          documentId: document.id,
+          error: queueError.message
+        });
+      }
+
       if (prompt) {
         _usePrompt = true;
         logger.debug('Using custom prompt: %s', prompt);

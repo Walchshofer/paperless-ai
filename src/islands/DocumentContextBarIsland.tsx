@@ -90,7 +90,9 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
           documentId: id,
           page: 1,
           originalUrl: docData.originalUrl || null,
-          pageCount: docData.pageCount || 1
+          pageCount: docData.pageCount || 1,
+          persistedNormalizedUrl: docData.persistedNormalizedUrl || null,
+          normalizationStatus: docData.normalizationStatus || null
         }
       }));
 

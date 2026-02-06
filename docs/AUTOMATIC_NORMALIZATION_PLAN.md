@@ -122,9 +122,10 @@ This document outlines the plan to **standardize and automate** document normali
 **Chosen Approach: Metadata-driven with fallback**
 
 ```javascript
-// Workspace route logic
-const normalizedUrl = document.custom_fields?.ai_normalized_url 
-  || `/api/visual-rag/normalized/${docId}`; // Dynamic fallback
+// Workspace route logic (robust resolution)
+const def = customFieldDefs.find(d => d.name === 'ai_normalized_url');
+const field = document.custom_fields.find(cf => Number(cf.field) === Number(def.id));
+const normalizedUrl = field?.value || `/api/visual-rag/normalized/${docId}`; // Dynamic fallback
 ```
 
 ---

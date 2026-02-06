@@ -165,25 +165,40 @@ function resolveMatchLabel(matchType?: MatchType | null): string {
 }
 
 export default function SmartMetadataIsland(props: Partial<SmartMetadataContract & { documentId?: DocumentId; saveDelayMs?: number }>) {
-  const initial = props || {};
-
   const [currentDocumentId, setCurrentDocumentId] = useState(props.documentId ?? null);
-  const [localMetadata, setLocalMetadata] = useState(() => ({
-    title: initial.metadata?.title || '',
-    correspondent: initial.metadata?.correspondent || '',
-    createdDate: initial.metadata?.createdDate || ''
-  }) as { title: string; correspondent: string; createdDate: string });
+  const [localMetadata, setLocalMetadata] = useState({
+    title: props.metadata?.title || '',
+    correspondent: props.metadata?.correspondent || '',
+    createdDate: props.metadata?.createdDate || ''
+  } as { title: string; correspondent: string; createdDate: string });
 
   const [localTags, setLocalTags] = useState(() => (
-    Array.isArray(initial.selectedTags)
-      ? initial.selectedTags.map((t: SmartTag) => ({ ...t }))
+    Array.isArray(props.selectedTags)
+      ? props.selectedTags.map((t: SmartTag) => ({ ...t }))
       : []
   ));
   const [availableTagsState, setAvailableTagsState] = useState(() => (
-    Array.isArray(initial.availableTags)
-      ? initial.availableTags.map((t: SmartTag) => ({ ...t }))
+    Array.isArray(props.availableTags)
+      ? props.availableTags.map((t: SmartTag) => ({ ...t }))
       : []
   ));
+
+  // Sync state when props change (initial load and switches)
+  useEffect(() => {
+    if (props.documentId !== undefined) setCurrentDocumentId(props.documentId);
+    setLocalMetadata({
+      title: props.metadata?.title || '',
+      correspondent: props.metadata?.correspondent || '',
+      createdDate: props.metadata?.createdDate || ''
+    });
+    setLocalTags(Array.isArray(props.selectedTags)
+      ? props.selectedTags.map((t: SmartTag) => ({ ...t }))
+      : []);
+    setAvailableTagsState(Array.isArray(props.availableTags)
+      ? props.availableTags.map((t: SmartTag) => ({ ...t }))
+      : []);
+  }, [props.documentId, props.metadata, props.selectedTags, props.availableTags]);
+
   const [validationError, setValidationError] = useState(null as string | null);
   const [validationErrors, setValidationErrors] = useState(() => new Map<string, string>());
   const [requiredFields, setRequiredFields] = useState([] as SmartField[]);
@@ -203,13 +218,13 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
   });
 
   const resolvedProfile = useMemo(() => {
-    const profile = initial.fieldProfile || {};
+    const profile = props.fieldProfile || {};
     const domain = normalizeDomain(
       domainOverride ||
-      initial.documentDomain ||
+      props.documentDomain ||
       profile.domain ||
-      initial.metadata?.documentType ||
-      initial.visualFields?.[0]?.domain ||
+      props.metadata?.documentType ||
+      props.visualFields?.[0]?.domain ||
       'general'
     );
     const fallback = resolveDomainMeta(domain);
@@ -223,10 +238,10 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
   }, [
     domainOverride,
     profileOverride,
-    initial.documentDomain,
-    initial.fieldProfile,
-    initial.metadata?.documentType,
-    initial.visualFields
+    props.documentDomain,
+    props.fieldProfile,
+    props.metadata?.documentType,
+    props.visualFields
   ]);
 
   useEffect(() => {
@@ -394,10 +409,10 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
 
   const syncDomainFields = (visualOverride?: SmartField[]) => {
     const profile = resolvedProfile;
-    const customFieldMap = buildCustomFieldMap(Array.isArray(initial.customFields) ? initial.customFields : []);
+    const customFieldMap = buildCustomFieldMap(Array.isArray(props.customFields) ? props.customFields : []);
     const visualFieldsRaw = Array.isArray(visualOverride)
       ? visualOverride
-      : (Array.isArray(initial.visualFields) ? initial.visualFields : []);
+      : (Array.isArray(props.visualFields) ? props.visualFields : []);
     const { normalized, byPaperless, byLabel } = buildVisualMaps(visualFieldsRaw);
     const matchedIds = new Set<string>();
 
@@ -483,9 +498,9 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     resolvedProfile.domain,
     resolvedProfile.displayName,
     resolvedProfile.icon,
-    initial.fieldProfile,
-    initial.visualFields,
-    initial.customFields,
+    props.fieldProfile,
+    props.visualFields,
+    props.customFields,
     currentDocumentId
   ]);
 

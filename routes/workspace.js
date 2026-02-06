@@ -252,7 +252,45 @@ router.get('/doc/:id', async (req, res) => {
       }
     }
 
-    // 8. Build VM
+    // Build VM
+    // Fetch custom field definitions for robust name-based resolution
+    let customFieldDefs = [];
+    try {
+      customFieldDefs = await paperlessService.listCustomFields();
+    } catch (e) {
+      console.warn('[Unified Workspace] Could not fetch custom field definitions:', e.message);
+    }
+
+    // Resolve custom fields from raw array to flat values for UI
+    const getCustomField = (name) => {
+      if (!document.custom_fields || !Array.isArray(document.custom_fields)) return null;
+      
+      // 1. Try to find by name directly if present in the objects
+      const fieldByName = document.custom_fields.find(cf => 
+        cf.name === name || 
+        cf.field_name === name ||
+        String(cf.name).toLowerCase() === name.toLowerCase()
+      );
+      if (fieldByName) return fieldByName.value;
+
+      // 2. Resolve field ID from definitions and find in array
+      const def = customFieldDefs.find(d => 
+        d.name === name || 
+        String(d.name).toLowerCase() === name.toLowerCase()
+      );
+      if (def) {
+        const fieldById = document.custom_fields.find(cf => 
+          Number(cf.field) === Number(def.id)
+        );
+        return fieldById?.value ?? null;
+      }
+
+      return null;
+    };
+
+    const persistedNormalizedUrl = getCustomField('ai_normalized_url');
+    const normalizationStatus = getCustomField('ai_normalization_status') || 'pending';
+
     const vm = {
       version: configFile.PAPERLESS_AI_VERSION || '1.0.0',
       config: {
@@ -278,9 +316,9 @@ router.get('/doc/:id', async (req, res) => {
           document.id,
           '/download/original/'
         ),
-        persistedNormalizedUrl: document.custom_fields?.ai_normalized_url || null,
-        normalizationStatus: document.custom_fields?.ai_normalization_status || 'pending',
-        normalizedUrl: document.custom_fields?.ai_normalized_url || `/api/normalized/${document.id}/1`,
+        persistedNormalizedUrl: persistedNormalizedUrl,
+        normalizationStatus: normalizationStatus,
+        normalizedUrl: persistedNormalizedUrl || `/api/normalized/${document.id}/1`,
         customFields: document.custom_fields || [],
         status: 'saved',
       },
@@ -418,6 +456,38 @@ router.get('/api/doc/:id', async (req, res) => {
       }
     } catch (e) { /* ignore */ }
 
+    // Resolve custom fields from raw array to flat values for UI
+    let customFieldDefs = [];
+    try {
+      customFieldDefs = await paperlessService.listCustomFields();
+    } catch (e) { /* ignore */ }
+
+    const getCustomField = (name) => {
+      if (!document.custom_fields || !Array.isArray(document.custom_fields)) return null;
+      
+      const fieldByName = document.custom_fields.find(cf => 
+        cf.name === name || 
+        cf.field_name === name ||
+        String(cf.name).toLowerCase() === name.toLowerCase()
+      );
+      if (fieldByName) return fieldByName.value;
+
+      const def = customFieldDefs.find(d => 
+        d.name === name || 
+        String(d.name).toLowerCase() === name.toLowerCase()
+      );
+      if (def) {
+        const fieldById = document.custom_fields.find(cf => 
+          Number(cf.field) === Number(def.id)
+        );
+        return fieldById?.value ?? null;
+      }
+      return null;
+    };
+
+    const persistedNormalizedUrl = getCustomField('ai_normalized_url');
+    const normalizationStatus = getCustomField('ai_normalization_status') || 'pending';
+
     // Build response
     res.json({
       id: document.id,
@@ -435,9 +505,9 @@ router.get('/api/doc/:id', async (req, res) => {
         document.id,
         '/download/original/'
       ),
-      persistedNormalizedUrl: document.custom_fields?.ai_normalized_url || null,
-      normalizationStatus: document.custom_fields?.ai_normalization_status || 'pending',
-      normalizedUrl: document.custom_fields?.ai_normalized_url || `/api/normalized/${document.id}/1`,
+      persistedNormalizedUrl: persistedNormalizedUrl,
+      normalizationStatus: normalizationStatus,
+      normalizedUrl: persistedNormalizedUrl || `/api/normalized/${document.id}/1`,
     });
 
   } catch (error) {

@@ -312,6 +312,19 @@ class PreVisionNormalizer {
                 optionsProvided: Object.keys(options).length > 0
             });
 
+            // MIME type check: Only normalize PDFs
+            const docMeta = await this.paperlessService.getDocumentMetadata(docId);
+            if (docMeta && docMeta.mime_type !== 'application/pdf') {
+                logger.info({
+                    event: 'normalization_skipped_non_pdf',
+                    documentId: docId,
+                    mimeType: docMeta.mime_type
+                });
+                result.success = true;
+                result.metadata.warnings.push(`Skipping normalization for non-PDF document (${docMeta.mime_type})`);
+                return result;
+            }
+
             // Merge with instance options (provided options override instance defaults)
             const mergedOptions = this._normalizeOptions({ ...this.options, ...options });
             result.metadata.options_used = {
@@ -431,22 +444,23 @@ class PreVisionNormalizer {
                 confidence: geometry.confidence
             };
 
-                // Apply normalization via paperless tool
-                const applyStart = Date.now();
-                await new Promise(resolve => setImmediate(resolve));
+            // Apply normalization via paperless tool
+            const applyStart = Date.now();
+            await new Promise(resolve => setImmediate(resolve));
 
-                // Lazy-load the normalization tools factory to avoid circular requires
-                const { createNormalizationTools } = require('./tools');
-                const tools = createNormalizationTools({ preVisionNormalizer: this });
-                const normalizeResult = await tools.normalizeImagesAI({
-                    document_id: docId,
-                    actions,
-                    target_dpi: geometry.target_dpi || mergedOptions.targetDpi,
-                    max_pages: mergedOptions.maxPages,
-                    format: 'png'
-                });
+            // Lazy-load the normalization tools factory to avoid circular requires
+            const { createNormalizationTools } = require('./tools');
+            const tools = createNormalizationTools({ preVisionNormalizer: this });
+            const normalizeResult = await tools.normalizeImagesAI({
+                document_id: docId,
+                actions,
+                target_dpi: geometry.target_dpi || mergedOptions.targetDpi,
+                max_pages: mergedOptions.maxPages,
+                format: 'png'
+            });
             const applyLatency = Date.now() - applyStart;
             this.stats.stageLatencies.normalizing.push(applyLatency);
+            if (this.stats.stageLatencies.normalizing.length > 100) this.stats.stageLatencies.normalizing.shift();
 
             if (!normalizeResult || !normalizeResult.base64Images) {
                 throw new Error('Normalization tool failed');
@@ -458,6 +472,12 @@ class PreVisionNormalizer {
                 width: normalizeResult.metadata?.pages?.[idx]?.width || null,
                 height: normalizeResult.metadata?.pages?.[idx]?.height || null
             }));
+
+            // Clear large image buffers from normalizeResult immediately to save memory
+            const imageCount = normalizeResult.base64Images.length;
+            const imagesForReingest = normalizeResult.base64Images; // Keep reference if needed for reingest
+            // If we don't need them further in this scope, we could null them out
+            // but they are needed for ingestionManager below.
 
             // Determine if re-ingestion is needed
             const shouldReingest = mergedOptions.enableReingest &&
@@ -480,7 +500,7 @@ class PreVisionNormalizer {
                     }
 
                     await this.ingestionManager.ingestDocument(docId, pdfPath, {
-                        base64Images: normalizeResult.base64Images,
+                        base64Images: imagesForReingest,
                         metadata: {
                             normalized: true,
                             normalization_actions: actions,
@@ -502,7 +522,7 @@ class PreVisionNormalizer {
                     logger.info({
                         event: 'normalization_reingestion_complete',
                         documentId: docId,
-                        imageCount: normalizeResult.base64Images.length
+                        imageCount: imageCount
                     });
                 } catch (reingestError) {
                     result.metadata.warnings.push(`Re-ingestion failed: ${reingestError.message}`);
@@ -514,9 +534,13 @@ class PreVisionNormalizer {
                 } finally {
                     const reingestLatency = Date.now() - reingestStart;
                     this.stats.stageLatencies.reingest.push(reingestLatency);
+                    if (this.stats.stageLatencies.reingest.length > 100) this.stats.stageLatencies.reingest.shift();
                 }
             }
 
+            // Memory cleanup: explicitly null out local large objects before returning
+            normalizeResult.base64Images = null;
+            
             result.success = true;
             this.stats.successfulNormalizations += 1;
 

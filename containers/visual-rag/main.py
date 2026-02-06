@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional, cast
 
 # Third-party imports
 import torch  # type: ignore
-from fastapi import FastAPI, HTTPException  # type: ignore
+from fastapi import FastAPI, HTTPException, BackgroundTasks  # type: ignore
 from pdf2image import convert_from_bytes  # type: ignore
 from PIL import Image  # type: ignore
 from pydantic import BaseModel, Field  # type: ignore
@@ -382,6 +382,12 @@ class IndexDirectoryRequest(BaseModel):
     """Request to index images from a directory."""
     doc_id: int
     path: str
+
+
+class BatchIndexRequest(BaseModel):
+    """Request to index multiple documents in batch."""
+    documents: List[Dict[str, Any]]  # Each dict: {doc_id: int, path: str}
+    force: bool = False
 
 
 class SearchFilters(BaseModel):
@@ -1017,6 +1023,52 @@ async def index_directory(payload: IndexDirectoryRequest) -> Dict[str, Any]:
         )
 
 
+async def _batch_index_task(documents: List[Dict[str, Any]], force: bool) -> None:
+    """Background task for batch indexing."""
+    logger.info("Starting batch indexing for %d documents", len(documents))
+    for doc in documents:
+        doc_id = doc.get("doc_id")
+        path = doc.get("path")
+        if not doc_id or not path:
+            continue
+
+        try:
+            doc_id_str = str(doc_id)
+            if not force and doc_id_str in state.registry:
+                logger.info("Skipping doc %s - already indexed", doc_id_str)
+                continue
+
+            # Load images from directory
+            validated_path = _validate_directory_path(path)
+            image_paths = sorted(glob.glob(str(validated_path / "*")))
+            pil_images: List[Any] = []
+            valid_exts = ('.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.webp')
+            for p in image_paths:
+                if p.lower().endswith(valid_exts):
+                    pil_images.append(Image.open(p).convert("RGB"))
+
+            if pil_images:
+                await _process_images(doc_id, pil_images)
+                logger.info("Successfully indexed doc %s in batch", doc_id_str)
+        except Exception as exc:
+            logger.error("Failed to index doc %s in batch: %s", doc_id, exc)
+
+
+@app.post("/batch/index")  # type: ignore
+async def batch_index(
+    payload: BatchIndexRequest,
+    background_tasks: BackgroundTasks
+) -> Dict[str, Any]:
+    """Index multiple documents in batch (background)."""
+    _check_ready_or_503()
+    background_tasks.add_task(_batch_index_task, payload.documents, payload.force)
+    return {
+        "status": "accepted",
+        "message": f"Queued {len(payload.documents)} documents for indexing",
+        "count": len(payload.documents)
+    }
+
+
 @app.post("/search", response_model=SearchResponse)  # type: ignore
 async def search(payload: SearchRequest) -> SearchResponse:
     """Search endpoint for text and image queries."""
@@ -1269,6 +1321,26 @@ async def health() -> Dict[str, Any]:
             "allowed_index_paths": [str(p) for p in ALLOWED_INDEX_PATHS],
             "require_qdrant": REQUIRE_QDRANT
         }
+    }
+
+
+@app.get("/stats")  # type: ignore
+async def get_stats() -> Dict[str, Any]:
+    """Get index and VRAM statistics."""
+    vram_used = 0.0
+    vram_total = 0.0
+    if torch.cuda.is_available():
+        vram_used = float(torch.cuda.memory_allocated() / 1e9)
+        vram_total = float(torch.cuda.get_device_properties(0).total_memory / 1e9)
+
+    return {
+        "document_count": len(state.registry),
+        "vram_used_gb": round(vram_used, 2),
+        "vram_total_gb": round(vram_total, 2),
+        "vram_usage_percent": round((vram_used / vram_total * 100), 2) if vram_total > 0 else 0,
+        "model_id": MODEL_ID,
+        "qdrant_connected": qdrant_adapter.client is not None,
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 

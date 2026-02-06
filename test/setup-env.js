@@ -363,7 +363,7 @@ process.env.GENERAL_MODEL = process.env.GENERAL_MODEL || 'sauerkraut-llama3.1:8b
 try {
     require('ts-node').register({
         transpileOnly: true,
-        skipProject: true,
+        skipProject: true, // MUST be true to ignore incompatible tsconfig.json settings
         compilerOptions: {
             module: 'CommonJS',
             jsx: 'react-jsx',
@@ -374,7 +374,7 @@ try {
         },
         ignore: []
     });
-    console.log('[test/setup-env] ts-node registered for TS/TSX transpilation');
+    console.log('[test/setup-env] ts-node registered for TS/TSX transpilation (skipProject: true, moduleResolution: node)');
 } catch (e) {
     console.warn('[test/setup-env] ts-node registration failed:', e && e.message);
 }

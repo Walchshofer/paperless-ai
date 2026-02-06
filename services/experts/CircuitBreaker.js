@@ -25,13 +25,16 @@ const CircuitState = {
  * Default configuration for circuit breaker
  */
 const DEFAULT_CONFIG = {
-    failureThreshold: 3,        // Consecutive failures to open circuit
+    failureThreshold: 3,        // Consecutive failures to open circuit (deprecated, use baseThreshold)
+    baseThreshold: 3,           // Base threshold for adaptive calculation
     cooldownPeriod: 30000,      // 30 seconds before attempting recovery (HALF_OPEN)
     timeout: 500,               // 500ms latency budget
     hardTimeout: 1000,          // 1000ms hard limit
     maxRetries: 3,              // Maximum retry attempts
     backoffMultiplier: 2,       // Exponential backoff multiplier
-    initialBackoff: 100         // Initial backoff in ms (100, 200, 400)
+    initialBackoff: 100,        // Initial backoff in ms (100, 200, 400)
+    enableAdaptiveThreshold: true,  // Enable adaptive threshold based on error rate
+    windowSize: 20              // Sliding window size for error rate calculation
 };
 
 // Shared instances map
@@ -57,12 +60,22 @@ class CircuitBreaker {
         this.config = { ...DEFAULT_CONFIG, ...config };
         this.metricsCollector = metricsCollector;
 
+        // Backward compatibility: use failureThreshold as baseThreshold if baseThreshold not provided
+        if (config.failureThreshold && !config.baseThreshold) {
+            this.config.baseThreshold = config.failureThreshold;
+        }
+
         // State machine
         this.state = CircuitState.CLOSED;
         this.failureCount = 0;
         this.successCount = 0;
         this.lastFailureTime = null;
         this.lastStateChangeTime = Date.now();
+
+        // Adaptive threshold tracking
+        this.recentOperations = []; // Sliding window: array of {success: boolean, timestamp: number}
+        this.currentThreshold = this.config.baseThreshold;
+        this.errorRate = 0;
 
         // Metrics tracking
         this.stats = {
@@ -76,13 +89,15 @@ class CircuitBreaker {
                 OPEN_TO_HALF_OPEN: 0,
                 HALF_OPEN_TO_CLOSED: 0,
                 HALF_OPEN_TO_OPEN: 0
-            }
+            },
+            thresholdAdjustments: 0 // Count of threshold adjustments
         };
 
         logger.info({
             event: 'circuit_breaker_initialized',
             serviceName: this.serviceName,
-            config: this.config
+            config: this.config,
+            adaptiveEnabled: this.config.enableAdaptiveThreshold
         });
         if (this.metricsCollector?.recordCircuitBreakerState) {
             this.metricsCollector.recordCircuitBreakerState(this.serviceName, this.state);
@@ -265,6 +280,10 @@ class CircuitBreaker {
         this.successCount++;
         this._recordMetric('success');
 
+        // Update sliding window and adaptive threshold AFTER recording stats
+        // This ensures threshold is updated based on historical data
+        this._updateRecentOperations(true);
+
         // If in HALF_OPEN state, transition back to CLOSED
         if (this.state === CircuitState.HALF_OPEN) {
             logger.info({
@@ -287,26 +306,43 @@ class CircuitBreaker {
         this.lastFailureTime = Date.now();
         this._recordMetric('failure');
 
+        // Determine the threshold to use BEFORE updating the window
+        // This uses historical error rate, not including current failure
+        const effectiveThreshold = this.config.enableAdaptiveThreshold 
+            ? this.currentThreshold 
+            : this.config.failureThreshold;
+
         logger.warn({
             event: 'circuit_breaker_failure',
             serviceName: this.serviceName,
             failureCount: this.failureCount,
-            threshold: this.config.failureThreshold,
+            threshold: effectiveThreshold,
+            adaptiveThreshold: this.currentThreshold,
+            errorRate: this.errorRate.toFixed(3),
             state: this.state,
             error: error.message
         });
 
-        // Check if we should open the circuit
-        if (this.state === CircuitState.CLOSED && this.failureCount >= this.config.failureThreshold) {
+        // Check if we should open the circuit BEFORE updating window
+        const shouldOpenCircuit = this.state === CircuitState.CLOSED && this.failureCount >= effectiveThreshold;
+        const shouldReturnToOpen = this.state === CircuitState.HALF_OPEN;
+
+        // Now update sliding window with this failure
+        this._updateRecentOperations(false);
+
+        // Execute state transitions
+        if (shouldOpenCircuit) {
             logger.error({
                 event: 'circuit_breaker_threshold_exceeded',
                 serviceName: this.serviceName,
                 failureCount: this.failureCount,
-                threshold: this.config.failureThreshold,
+                threshold: effectiveThreshold,
+                adaptiveEnabled: this.config.enableAdaptiveThreshold,
+                errorRate: this.errorRate.toFixed(3),
                 message: 'Failure threshold exceeded, opening circuit'
             });
             this._transitionTo(CircuitState.OPEN);
-        } else if (this.state === CircuitState.HALF_OPEN) {
+        } else if (shouldReturnToOpen) {
             // Failed while testing recovery, go back to OPEN
             logger.warn({
                 event: 'circuit_breaker_recovery_failed',
@@ -432,6 +468,101 @@ class CircuitBreaker {
     }
 
     /**
+     * Update sliding window with operation result
+     * @private
+     */
+    _updateRecentOperations(success) {
+        if (!this.config.enableAdaptiveThreshold) {
+            return;
+        }
+
+        // Add operation to sliding window
+        this.recentOperations.push({
+            success,
+            timestamp: Date.now()
+        });
+
+        // Maintain window size
+        if (this.recentOperations.length > this.config.windowSize) {
+            this.recentOperations.shift();
+        }
+
+        // Recalculate error rate and adaptive threshold
+        this._updateAdaptiveThreshold();
+    }
+
+    /**
+     * Calculate error rate from sliding window
+     * @private
+     * @returns {number} Error rate (0.0 to 1.0)
+     */
+    _calculateErrorRate() {
+        if (!this.config.enableAdaptiveThreshold || this.recentOperations.length === 0) {
+            return 0;
+        }
+
+        const failures = this.recentOperations.filter(op => !op.success).length;
+        return failures / this.recentOperations.length;
+    }
+
+    /**
+     * Calculate adaptive threshold based on error rate
+     * Formula: threshold = baseThreshold × (1 + errorRate)
+     * @private
+     * @returns {number} Adaptive threshold (rounded up)
+     */
+    _calculateAdaptiveThreshold() {
+        if (!this.config.enableAdaptiveThreshold) {
+            return this.config.baseThreshold;
+        }
+
+        const errorRate = this._calculateErrorRate();
+        const adaptiveThreshold = this.config.baseThreshold * (1 + errorRate);
+        return Math.ceil(adaptiveThreshold); // Round up to nearest integer
+    }
+
+    /**
+     * Update adaptive threshold and log if changed
+     * @private
+     */
+    _updateAdaptiveThreshold() {
+        if (!this.config.enableAdaptiveThreshold) {
+            return;
+        }
+
+        const previousThreshold = this.currentThreshold;
+        const previousErrorRate = this.errorRate;
+        
+        this.errorRate = this._calculateErrorRate();
+        this.currentThreshold = this._calculateAdaptiveThreshold();
+
+        if (this.currentThreshold !== previousThreshold) {
+            this.stats.thresholdAdjustments++;
+
+            logger.info({
+                event: 'circuit_breaker_threshold_adjusted',
+                serviceName: this.serviceName,
+                previousThreshold,
+                newThreshold: this.currentThreshold,
+                errorRate: this.errorRate.toFixed(3),
+                previousErrorRate: previousErrorRate.toFixed(3),
+                windowSize: this.recentOperations.length,
+                baseThreshold: this.config.baseThreshold
+            });
+
+            // Record threshold adjustment metric
+            if (this.metricsCollector?.recordCircuitBreakerThresholdAdjustment) {
+                this.metricsCollector.recordCircuitBreakerThresholdAdjustment(
+                    this.serviceName,
+                    previousThreshold,
+                    this.currentThreshold,
+                    this.errorRate
+                );
+            }
+        }
+    }
+
+    /**
      * Get current circuit breaker state
      * @returns {string} Current state (CLOSED, OPEN, HALF_OPEN)
      */
@@ -450,7 +581,14 @@ class CircuitBreaker {
             failureCount: this.failureCount,
             successCount: this.successCount,
             lastFailureTime: this.lastFailureTime,
-            lastStateChangeTime: this.lastStateChangeTime
+            lastStateChangeTime: this.lastStateChangeTime,
+            // Adaptive threshold stats
+            adaptiveThresholdEnabled: this.config.enableAdaptiveThreshold,
+            currentThreshold: this.currentThreshold,
+            baseThreshold: this.config.baseThreshold,
+            errorRate: this.errorRate,
+            windowSize: this.recentOperations.length,
+            maxWindowSize: this.config.windowSize
         };
     }
 

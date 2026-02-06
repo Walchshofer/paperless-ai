@@ -262,6 +262,13 @@ export default function VisualTabIsland(props: VisualTabProps) {
   const [currentDocumentId, setCurrentDocumentId] = useState(props.documentId ?? null);
   const [fields, setFields] = useState(props.fields || [] as VisualField[]);
   const [overlays, setOverlays] = useState(props.overlays || [] as VisualOverlay[]);
+
+  // Update local state when props change
+  useEffect(() => {
+    if (props.documentId !== undefined) setCurrentDocumentId(props.documentId);
+    if (props.fields !== undefined) setFields(props.fields);
+    if (props.overlays !== undefined) setOverlays(props.overlays);
+  }, [props.documentId, props.fields, props.overlays]);
   const [isDrawMode, setIsDrawMode] = useState(false);
   const [activeFieldId, setActiveFieldId] = useState(null as string | null);
   const [loading, setLoading] = useState(false);

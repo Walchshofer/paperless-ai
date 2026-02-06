@@ -113,17 +113,44 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const [page, setPage] = useState(initialPage);
   const [originalUrl, setOriginalUrl] = useState(initialOriginalUrl ?? null);
   const [pageCount, setPageCount] = useState(props?.pageCount ?? null);
+  const [persistedNormUrl, setPersistedNormalizedUrl] = useState(persistedNormalizedUrl ?? null);
+  const [normStatus, setNormalizationStatus] = useState(normalizationStatus ?? null);
+
+  // Sync state with props change (essential for SPA-like navigation without full reload)
+  useEffect(() => {
+    if (initialDocumentId !== undefined) setDocId(initialDocumentId ?? null);
+    if (initialPage !== undefined) setPage(initialPage);
+    if (initialOriginalUrl !== undefined) setOriginalUrl(initialOriginalUrl);
+    if (props.pageCount !== undefined) setPageCount(props.pageCount);
+    if (props.persistedNormalizedUrl !== undefined) setPersistedNormalizedUrl(props.persistedNormalizedUrl ?? null);
+    if (props.normalizationStatus !== undefined) setNormalizationStatus(props.normalizationStatus ?? null);
+  }, [
+    initialDocumentId,
+    initialPage,
+    initialOriginalUrl,
+    props.pageCount,
+    props.persistedNormalizedUrl,
+    props.normalizationStatus
+  ]);
 
   // Listen for page/document change events from the page and update in-place
   useEffect(() => {
     const handler = (e: Event) => {
-      const d: DocumentChangeDetail = (e as CustomEvent<DocumentChangeDetail>)?.detail || {};
+      const d: DocumentChangeDetail & { persistedNormalizedUrl?: string | null; normalizationStatus?: string | null } = (e as CustomEvent).detail || {};
       if (d.documentId !== undefined && d.documentId !== null) setDocId(d.documentId);
       if (d.page !== undefined && d.page !== null) setPage(Number(d.page));
       // Accept either camelCase `originalUrl` or snake_case `original_url` from different emitters
       if (Object.prototype.hasOwnProperty.call(d, 'originalUrl')) setOriginalUrl(d.originalUrl ?? null);
       else if (Object.prototype.hasOwnProperty.call(d, 'original_url')) setOriginalUrl(d.original_url ?? null);
       if (Object.prototype.hasOwnProperty.call(d, 'pageCount')) setPageCount(d.pageCount === null ? null : Number(d.pageCount));
+      
+      // Update normalization fields
+      if (Object.prototype.hasOwnProperty.call(d, 'persistedNormalizedUrl')) {
+        setPersistedNormalizedUrl(d.persistedNormalizedUrl ?? null);
+      }
+      if (Object.prototype.hasOwnProperty.call(d, 'normalizationStatus')) {
+        setNormalizationStatus(d.normalizationStatus ?? null);
+      }
     };
 
     window.addEventListener('overlay:document-changed', handler as EventListener);
@@ -136,7 +163,19 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     if (initialDocumentId !== undefined && initialDocumentId !== null) {
       setDocId(initialDocumentId);
     }
-  }, [initialDocumentId]);
+    if (initialOriginalUrl !== undefined) {
+      setOriginalUrl(initialOriginalUrl);
+    }
+    if (props.pageCount !== undefined) {
+      setPageCount(props.pageCount);
+    }
+    if (persistedNormalizedUrl !== undefined) {
+      setPersistedNormalizedUrl(persistedNormalizedUrl);
+    }
+    if (normalizationStatus !== undefined) {
+      setNormalizationStatus(normalizationStatus);
+    }
+  }, [initialDocumentId, initialOriginalUrl, props.pageCount, persistedNormalizedUrl, normalizationStatus]);
 
 
 
@@ -165,6 +204,9 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
   const [isDrawMode, setIsDrawMode] = useState(false);
   const drawModeRef = useRef(false);
+  const [isMeasureMode, setIsMeasureMode] = useState(false);
+  const measureModeRef = useRef(false);
+  const [measureResult, setMeasureResult] = useState(null as { width: number; height: number } | null);
   const [isDrawing, setIsDrawing] = useState(false);
   const isDrawingRef = useRef(false);
   const pointerActiveRef = useRef(false);
@@ -448,14 +490,44 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     const next = !panMode;
     setPanMode(next);
     if (next) {
-      // Disable draw mode when activating pan mode (mutually exclusive)
+      // Disable draw and measure modes when activating pan mode
       drawModeRef.current = false;
       setIsDrawMode(false);
+      measureModeRef.current = false;
+      setIsMeasureMode(false);
       if (drawModeButtonRef.current) {
         drawModeButtonRef.current.setAttribute('aria-pressed', 'false');
       }
     }
   }, [panMode]);
+
+  const toggleMeasureMode = useCallback(() => {
+    if (rotationDeg !== 0) {
+      setWarning('Reset rotation to 0Â° before measuring.');
+      return;
+    }
+    const next = !measureModeRef.current;
+    measureModeRef.current = next;
+    setIsMeasureMode(next);
+    if (next) {
+      // Disable draw and pan modes when activating measure mode
+      drawModeRef.current = false;
+      setIsDrawMode(false);
+      setPanMode(false);
+      if (drawModeButtonRef.current) {
+        drawModeButtonRef.current.setAttribute('aria-pressed', 'false');
+      }
+      if (panModeButtonRef.current) {
+        panModeButtonRef.current.setAttribute('aria-pressed', 'false');
+      }
+    } else {
+      isDrawingRef.current = false;
+      currentBoxRef.current = null;
+      setIsDrawing(false);
+      setCurrentBox(null);
+      setMeasureResult(null);
+    }
+  }, [rotationDeg]);
 
   // Compute the normalized URL (preferred source for Visual RAG)
   // Prefer persisted normalized URL (files stored on disk), fallback to on-demand rendering
@@ -463,13 +535,13 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     if (!docId) return null;
     
     // Priority 1: Use persisted normalized URL if available (completed normalization)
-    if (persistedNormalizedUrl) {
-      return `${persistedNormalizedUrl}?page=${page}`;
+    if (persistedNormUrl) {
+      return `${persistedNormUrl}${persistedNormUrl.includes('?') ? '&' : '?'}page=${page}`;
     }
     
     // Priority 2: Fallback to dynamic normalization (rendered on-demand)
     return `/api/visual-rag/normalized/${docId}?page=${page}`;
-  }, [docId, page, persistedNormalizedUrl]);
+  }, [docId, page, persistedNormUrl]);
 
   // Compute the original URL (fallback source from Paperless)
   const originalUrlWithPage = useMemo(() => {
@@ -504,6 +576,13 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     setImageSource('normalized');
     setImageLoadState('loading');
     setRetryCount(0);
+    // Memory cleanup: Clear large data when document/page changes
+    setResults([]);
+    setBoxes([]);
+    setSelectedRegion(null);
+    setShowExportBtn(false);
+    setHighlightedRegion(null);
+    setMeasureResult(null);
   }, [docId, page]);
 
   // Image loading effect with fallback mechanism
@@ -521,38 +600,45 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     setImageLoadState('loading');
     
     let cancelled = false;
-    let objectUrl: string | null = null;
-    
+    let currentObjectUrl: string | null = null;
+
     const loadImage = async () => {
+      console.info(`[OverlayViewerIsland] Attempting to load image from ${imageSource} source: ${imageUrl}`);
       try {
         // Use fetch with credentials to include auth cookies
         const response = await fetch(imageUrl, {
           credentials: 'include',
           headers: {
-            'Accept': 'image/*'
+            'Accept': '*/*'
           }
         });
-        
+
         if (!response.ok) {
+          console.warn(`[OverlayViewerIsland] Fetch failed for ${imageSource}: ${response.status} ${response.statusText}`);
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        
+
         const blob = await response.blob();
-        if (cancelled) return;
-        
-        objectUrl = URL.createObjectURL(blob);
-        
+        if (cancelled) {
+          console.info(`[OverlayViewerIsland] Loading cancelled for ${imageSource}`);
+          return;
+        }
+
+        currentObjectUrl = URL.createObjectURL(blob);
+
         // Load into Image to get dimensions and validate
         const img = new Image();
-        
+
         img.onload = () => {
           if (cancelled) {
-            URL.revokeObjectURL(objectUrl!);
+            console.info(`[OverlayViewerIsland] img.onload cancelled for ${imageSource}`);
+            if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
             return;
           }
-          
+
           if (imageRef.current) {
-            imageRef.current.src = objectUrl!;
+            imageRef.current.src = currentObjectUrl!;
+            console.info(`[OverlayViewerIsland] Image src updated from ${imageSource}`);
             try {
               const area = (img.naturalWidth || 0) * (img.naturalHeight || 0);
               if (area > 20000000) {
@@ -562,54 +648,44 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
               const msg = err instanceof Error ? err.message : String(err);
               console.warn('[OverlayViewerIsland] Failed to compute image area for warning detection:', msg);
             }
-            
+
             // Auto-fit to width after layout completes
-            // Use double-RAF to ensure both layout pass and paint are complete
             const applyAutoFit = () => {
               const container = containerRef.current;
               if (container && img.naturalWidth > 0 && img.naturalHeight > 0) {
                 const containerWidth = container.clientWidth;
-                
-                // Only apply if container has rendered (width > 0)
+
                 if (containerWidth > 0) {
-                  // Fit to width to maximize horizontal space for reading (L→R)
                   const fitScale = Math.min(
                     MAX_SCALE,
                     Math.max(MIN_SCALE, containerWidth / img.naturalWidth)
                   );
-                  
-                  // Detect main content area to auto-scroll past whitespace/margins
-                  // Uses density detection: requires multiple dark pixels per row
+
                   let contentTop = 0;
                   try {
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
                     if (ctx) {
-                      // Sample at reduced resolution for performance
                       const sampleScale = Math.min(1, 300 / img.naturalHeight);
                       canvas.width = Math.floor(img.naturalWidth * sampleScale);
                       canvas.height = Math.floor(img.naturalHeight * sampleScale);
                       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                      
+
                       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                       const data = imageData.data;
-                      const darkThreshold = 200; // Consider pixel "dark" below this
-                      const minDarkPixelsPerRow = Math.max(3, Math.floor(canvas.width * 0.05)); // 5% of row width
-                      
-                      // Scan from top to find first row with substantial dark content
+                      const darkThreshold = 200;
+                      const minDarkPixelsPerRow = Math.max(3, Math.floor(canvas.width * 0.05));
+
                       for (let y = 0; y < canvas.height; y++) {
                         let darkCount = 0;
                         for (let x = 0; x < canvas.width; x++) {
                           const idx = (y * canvas.width + x) * 4;
                           const r = data[idx], g = data[idx + 1], b = data[idx + 2];
-                          // Use perceived luminance for better detection
                           const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
                           if (luminance < darkThreshold) {
                             darkCount++;
                             if (darkCount >= minDarkPixelsPerRow) {
-                              // Found row with significant dark content
                               contentTop = (y / sampleScale);
-                              // Add margin above detected content (about 1% of image height)
                               contentTop = Math.max(0, contentTop - img.naturalHeight * 0.01);
                               break;
                             }
@@ -617,23 +693,16 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                         }
                         if (contentTop > 0) break;
                       }
+                      // Clear canvas data
+                      canvas.width = 0;
+                      canvas.height = 0;
                     }
                   } catch (e) {
                     console.warn('[OverlayViewerIsland] Content detection failed:', e);
                   }
-                  
-                  console.info('[OverlayViewerIsland] Auto-fit applied:', {
-                    containerWidth,
-                    imgWidth: img.naturalWidth,
-                    imgHeight: img.naturalHeight,
-                    fitScale: Math.round(fitScale * 100) + '%',
-                    contentTop: Math.round(contentTop)
-                  });
-                  
-                  // Apply scale and scroll to content
+
                   scaleRef.current = fitScale;
                   setScale(fitScale);
-                  // Negative translateY scrolls "up" (shows content that was below)
                   const scrollY = -contentTop * fitScale;
                   translateRef.current = { x: 0, y: scrollY };
                   setTranslateX(0);
@@ -641,53 +710,52 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                 }
               }
             };
-            
-            // Double requestAnimationFrame ensures layout is complete
+
             requestAnimationFrame(() => requestAnimationFrame(applyAutoFit));
           }
           setImageLoaded(true);
           setImageLoadState('loaded');
           setImageError(null);
-          console.info(`[OverlayViewerIsland] Image loaded from ${imageSource} source: ${imageUrl}`);
         };
-        
+
         img.onerror = () => {
           if (cancelled) return;
-          URL.revokeObjectURL(objectUrl!);
+          console.warn(`[OverlayViewerIsland] img.onerror for ${imageSource}`);
+          if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
           handleImageError();
         };
-        
-        img.src = objectUrl;
-        
+
+        img.src = currentObjectUrl;
+
       } catch (err) {
         if (cancelled) return;
-        console.warn(`[OverlayViewerIsland] Fetch failed for ${imageSource} source:`, err);
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[OverlayViewerIsland] loadImage failed for ${imageSource}:`, msg);
         handleImageError();
       }
     };
-    
+
     const handleImageError = () => {
-      console.warn(`[OverlayViewerIsland] Failed to load image from ${imageSource} source: ${imageUrl}`);
-      
-      // If normalized URL failed and we have an original URL, try that next
+      console.warn(`[OverlayViewerIsland] handleImageError for source ${imageSource}`);
       if (imageSource === 'normalized' && originalUrlWithPage) {
-        console.info('[OverlayViewerIsland] Falling back to original URL');
+        console.info(`[OverlayViewerIsland] Falling back from normalized to original source`);
         setImageSource('original');
         return;
       }
-      
-      // All sources exhausted - show error
       setImageError(`Failed to load document image from ${imageSource === 'normalized' ? 'visual-rag' : 'paperless'}`);
       setImageLoadState('error');
       setImageLoaded(false);
     };
-    
+
     loadImage();
-    
+
     return () => {
       cancelled = true;
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
+      if (currentObjectUrl) {
+        URL.revokeObjectURL(currentObjectUrl);
+      }
+      if (imageRef.current) {
+        imageRef.current.src = '';
       }
     };
   }, [imageUrl, imageSource, originalUrlWithPage, retryCount]);
@@ -867,7 +935,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
   const handleMouseDown = useCallback(
     (e: MouseEvent | TouchEvent) => {
-      if (!selectionEnabled || !drawModeRef.current) return;
+      const isDrawingAction = drawModeRef.current || measureModeRef.current;
+      if (!selectionEnabled || !isDrawingAction) return;
       e.preventDefault();
       const pos = getRelativePosition(e);
       const nextBox = { id: `box-${Date.now()}`, x: pos.x, y: pos.y, width: 0, height: 0 };
@@ -876,8 +945,9 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       setIsDrawing(true);
       setCurrentBox(nextBox);
       setWarning(null);
+      if (measureModeRef.current) setMeasureResult(null);
     },
-    [getRelativePosition]
+    [getRelativePosition, selectionEnabled]
   );
 
   const handleMouseMove = useCallback(
@@ -1078,21 +1148,27 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       setCurrentBox(null);
       return;
     }
-    setBoxes((prev: BoundingBox[]) => [...prev, normalizedBox]);
-    currentBoxRef.current = null;
-    setCurrentBox(null);
+        if (measureModeRef.current) {
+          setMeasureResult({ width: Math.round(normalizedBox.width), height: Math.round(normalizedBox.height) });
+          currentBoxRef.current = null;
+          setCurrentBox(null);
+          return;
+        }
     
-    // Store selected region and show export button
-    setSelectedRegion(normalizedBox);
-    setShowExportBtn(true);
+        setBoxes((prev: BoundingBox[]) => [...prev, normalizedBox]);
+        currentBoxRef.current = null;
+        setCurrentBox(null);
     
-    if (mode === 'draw') {
-      captureRegion(normalizedBox, 'overlay:draw-complete');
-    } else {
-      captureRegion(normalizedBox, 'visual-search-requested');
-    }
-  }, [captureRegion, getRelativePosition, mode]);;
-
+        // Store selected region and show export button
+        setSelectedRegion(normalizedBox);
+        setShowExportBtn(true);
+    
+        if (mode === 'draw') {
+          captureRegion(normalizedBox, 'overlay:draw-complete');
+        } else {
+          captureRegion(normalizedBox, 'visual-search-requested');
+        }
+      }, [captureRegion, getRelativePosition, mode]);;
   const removeBox = useCallback((boxId: string) => {
     setBoxes((prev: BoundingBox[]) => prev.filter((b: BoundingBox) => b.id !== boxId));
   }, []);
@@ -1368,6 +1444,21 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
               Draw
             </button>
           )}
+
+          <button
+            data-testid="measure-mode-btn"
+            aria-label="Measure Mode"
+            onClick={toggleMeasureMode}
+            title="Measure Tool"
+            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+              isMeasureMode
+                ? 'bg-[#b87333] text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <i className="fas fa-ruler mr-1.5"></i>
+            Measure
+          </button>
         </div>
 
         {selectionEnabled && boxes.length > 0 && (
@@ -1494,28 +1585,28 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       </div>
 
       {/* Normalization Status Indicator - positioned under toolbar */}
-      {normalizationStatus && (
+      {normStatus && (
         <div 
           data-testid="normalization-status-indicator"
           className="flex items-center gap-2 px-3 py-1.5 text-xs border-b border-gray-100 bg-gray-50"
         >
           <span className="font-medium text-gray-500">Source:</span>
-          {normalizationStatus === 'completed' ? (
+          {normStatus === 'completed' ? (
             <span className="inline-flex items-center gap-1.5 text-green-700">
               <i className="fas fa-check-circle"></i>
               <span>Persisted (Normalized)</span>
             </span>
-          ) : normalizationStatus === 'processing' ? (
+          ) : normStatus === 'processing' ? (
             <span className="inline-flex items-center gap-1.5 text-amber-600">
               <i className="fas fa-spinner fa-spin"></i>
               <span>Normalizing...</span>
             </span>
-          ) : normalizationStatus === 'failed' ? (
+          ) : normStatus === 'failed' ? (
             <span className="inline-flex items-center gap-1.5 text-red-600">
               <i className="fas fa-exclamation-triangle"></i>
               <span>Normalization Failed (using original)</span>
             </span>
-          ) : normalizationStatus === 'skipped' ? (
+          ) : normStatus === 'skipped' ? (
             <span className="inline-flex items-center gap-1.5 text-gray-500">
               <i className="fas fa-forward"></i>
               <span>Skipped (using original)</span>
@@ -1711,16 +1802,43 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
               </div>
             ))}
 
-            {isDrawMode && boxes.length === 0 && (
-              <div
-                className="absolute bottom-2 left-2 right-2 p-2 text-center text-xs text-gray-500 bg-blue-50 rounded pointer-events-none"
-                data-testid="selection-instructions"
-              >
-                <i className="fas fa-info-circle mr-1"></i>
-                Click and drag to select a region for visual search
-              </div>
-            )}
-          </div>
+                          {isDrawMode && boxes.length === 0 && (
+                            <div
+                              className="absolute bottom-2 left-2 right-2 p-2 text-center text-xs text-gray-500 bg-blue-50 rounded pointer-events-none"
+                              data-testid="selection-instructions"
+                            >
+                              <i className="fas fa-info-circle mr-1"></i>
+                              Click and drag to select a region for visual search
+                            </div>
+                          )}
+            
+                          {isMeasureMode && !measureResult && (
+                            <div
+                              className="absolute bottom-2 left-2 right-2 p-2 text-center text-xs text-white bg-[#b87333]/80 rounded pointer-events-none"
+                              data-testid="measure-instructions"
+                            >
+                              <i className="fas fa-ruler mr-1"></i>
+                              Drag to measure an area
+                            </div>
+                          )}
+            
+                          {measureResult && (
+                            <div
+                              className="absolute bottom-2 left-2 right-2 p-2 text-center text-xs font-bold text-white bg-[#b87333] rounded shadow-lg"
+                              data-testid="measure-result"
+                            >
+                              <div className="flex items-center justify-center gap-4">
+                                <span>Width: {measureResult.width}px</span>
+                                <span>Height: {measureResult.height}px</span>
+                                <button
+                                  onClick={() => setMeasureResult(null)}
+                                  className="ml-2 text-white hover:text-white/80"
+                                >
+                                  <i className="fas fa-times"></i>
+                                </button>
+                              </div>
+                            </div>
+                          )}          </div>
         </div>
 
         {/* Resizer */}

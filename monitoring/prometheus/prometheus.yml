@@ -12,9 +12,9 @@ rule_files:
 
 scrape_configs:
   # Guidance Service (Python Flask)
-  - job_name: 'guidance-service'
+  - job_name: 'guidance_service'
     static_configs:
-      - targets: ['guidance-service:8002']
+      - targets: ['guidance_service:8002']
     metrics_path: '/metrics'
     scrape_interval: 10s
 

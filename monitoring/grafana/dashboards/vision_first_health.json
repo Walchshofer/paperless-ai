@@ -1,0 +1,101 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "Pipeline Latency",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(pipeline_stage_latency_ms_bucket[5m]))) / 1000",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(pipeline_stage_latency_ms_bucket[5m]))) / 1000",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(pipeline_stage_latency_ms_bucket[5m]))) / 1000",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      }
+    },
+    {
+      "title": "Service Health",
+      "type": "status-history",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "up{job=~\"visual-rag|qdrant|ollama\"}",
+          "legendFormat": "{{job}}"
+        }
+      ]
+    },
+    {
+      "title": "Error Rates",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "rate(guidance_requests_total{status=\"error\", job=\"visual-rag\"}[5m]) / rate(guidance_requests_total[5m]) * 100",
+          "legendFormat": "Visual RAG"
+        },
+        {
+          "expr": "rate(guidance_requests_total{status=\"error\", job=\"ollama\"}[5m]) / rate(guidance_requests_total[5m]) * 100",
+          "legendFormat": "Ollama"
+        },
+        {
+          "expr": "rate(qdrant_request_errors_total[5m]) / rate(qdrant_requests_total[5m]) * 100",
+          "legendFormat": "Qdrant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        }
+      }
+    },
+    {
+      "title": "Circuit Breakers",
+      "type": "state-timeline",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "circuit_breaker_state",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "CLOSED", "color": "green" }, "1": { "text": "OPEN", "color": "red" }, "0.5": { "text": "HALF-OPEN", "color": "yellow" } } }
+          ]
+        }
+      }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": ["pipeline", "vision", "health"],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "title": "Vision-First Pipeline Health",
+  "uid": "vision_first_health",
+  "version": 1
+}
