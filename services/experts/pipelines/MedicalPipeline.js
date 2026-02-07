@@ -51,7 +51,7 @@ const MedicalPipeline = {
             executionMode: ExecutionMode.SEQUENTIAL,
             inputMapping: {},
             outputKey: 'ocr',
-            timeout: 30000,
+            timeout: 60000,
             retryCount: 1
         },
         {
@@ -167,7 +167,7 @@ const MedicalPipeline = {
                 extraction: 'stages.integrated_record.output'
             },
             outputKey: 'visual_execution',
-            timeout: 30000,
+            timeout: 60000,
             retryCount: 1,
             executorConfig: {
                 timeoutBudget: 500,

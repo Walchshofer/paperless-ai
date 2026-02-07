@@ -1,5 +1,6 @@
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
@@ -7,38 +8,11 @@ var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
 };
-
-// src/islands/FeedbackControlsIsland.module.css
-var require_FeedbackControlsIsland = __commonJS({
-  "src/islands/FeedbackControlsIsland.module.css"(exports, module) {
-    module.exports = {
-      root: "FeedbackControlsIsland_root",
-      button: "FeedbackControlsIsland_button",
-      buttonPressed: "FeedbackControlsIsland_buttonPressed"
-    };
-  }
-});
-
-// src/islands/OverlayViewerIsland.module.css
-var require_OverlayViewerIsland = __commonJS({
-  "src/islands/OverlayViewerIsland.module.css"(exports, module) {
-    module.exports = {
-      legendDot: "OverlayViewerIsland_legendDot",
-      documentPane: "OverlayViewerIsland_documentPane",
-      viewport: "OverlayViewerIsland_viewport",
-      overlayBox: "OverlayViewerIsland_overlayBox",
-      overlayLabel: "OverlayViewerIsland_overlayLabel",
-      highlightRegion: "OverlayViewerIsland_highlightRegion",
-      selectionBoxContainer: "OverlayViewerIsland_selectionBoxContainer",
-      resultsPanel: "OverlayViewerIsland_resultsPanel"
-    };
-  }
-});
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
 // src/lib/navigation-guard.js
 var require_navigation_guard = __commonJS({
   "src/lib/navigation-guard.js"(exports, module) {
-    "use strict";
     function isDocumentDirty(docId) {
       try {
         const wnd = typeof window !== "undefined" ? window : global.window;
@@ -1417,12 +1391,14 @@ function VisualAnnotationIsland(props) {
   ] });
 }
 
+// src/islands/FeedbackControlsIsland.module.css
+var FeedbackControlsIsland_default = {
+  root: "FeedbackControlsIsland_root",
+  button: "FeedbackControlsIsland_button",
+  buttonPressed: "FeedbackControlsIsland_buttonPressed"
+};
+
 // src/islands/FeedbackControlsIsland.tsx
-var styles = {};
-try {
-  styles = require_FeedbackControlsIsland();
-} catch (e3) {
-}
 function dispatchEventSafe(name, detail) {
   if (typeof document === "undefined") return;
   if (typeof document.dispatchEvent !== "function") return;
@@ -1516,7 +1492,7 @@ function FeedbackControlsIsland(props) {
       "data-hydrated": "true",
       role: "group",
       "aria-label": "Feedback Controls",
-      className: `fci-root ${styles.root ?? ""}`,
+      className: `fci-root ${FeedbackControlsIsland_default.root ?? ""}`,
       children: [
         isSyncing && /* @__PURE__ */ u3("div", { className: "fci-sync-indicator", "data-testid": "sync-indicator", "aria-live": "polite", children: "Syncing..." }),
         /* @__PURE__ */ u3("div", { className: "fci-grid", children: available.map((c3) => /* @__PURE__ */ u3("div", { className: "fci-item", children: [
@@ -1530,7 +1506,7 @@ function FeedbackControlsIsland(props) {
                 ref: (el) => {
                   refs.current[c3] = Object.assign(refs.current[c3] || {}, { up: el });
                 },
-                className: `fci-btn fci-btn-up ${stateMap[c3] === "up" ? "fci-btn-active" : ""} ${styles.button ?? ""}`,
+                className: `fci-btn fci-btn-up ${stateMap[c3] === "up" ? "fci-btn-active" : ""} ${FeedbackControlsIsland_default.button ?? ""}`,
                 onClick: () => handleUp(c3),
                 title: `${getDisplayName(c3)} is correct`,
                 children: "\u{1F44D}"
@@ -1544,7 +1520,7 @@ function FeedbackControlsIsland(props) {
                 ref: (el) => {
                   refs.current[c3] = Object.assign(refs.current[c3] || {}, { down: el });
                 },
-                className: `fci-btn fci-btn-down ${stateMap[c3] === "down" ? "fci-btn-active" : ""} ${styles.button ?? ""}`,
+                className: `fci-btn fci-btn-down ${stateMap[c3] === "down" ? "fci-btn-active" : ""} ${FeedbackControlsIsland_default.button ?? ""}`,
                 onClick: () => handleDown(c3),
                 title: `${getDisplayName(c3)} needs correction`,
                 children: "\u{1F44E}"
@@ -5841,8 +5817,35 @@ function ManualEditorIsland(props) {
         setDocumentId(detail.documentId ?? null);
       }
     };
+    const handleDocumentSwitched = (e3) => {
+      const detail = e3?.detail || {};
+      const { documentId: newDocId, document: document2 } = detail;
+      if (newDocId != null) {
+        setDocumentId(newDocId);
+        if (document2) {
+          setTitle(document2.title || "");
+          setCorrespondent(document2.correspondent || "");
+          setDocumentType(document2.documentType || "");
+          setContent(document2.content || "");
+          if (document2.fields) {
+            setFields(normalizeFields(document2.fields));
+          } else if (document2.customFields) {
+            const normalized = Array.isArray(document2.customFields) ? document2.customFields.map((cf) => ({
+              name: cf.name || cf.field_name || String(cf.field || ""),
+              value: cf.value != null ? String(cf.value) : ""
+            })) : [];
+            setFields(normalized.length > 0 ? normalized : [{ name: "", value: "" }]);
+          }
+        }
+        console.info(`[ManualEditor] Document switched to ${newDocId}`);
+      }
+    };
     window.addEventListener("document:selected", onDocumentSelected);
-    return () => window.removeEventListener("document:selected", onDocumentSelected);
+    window.addEventListener("workspace:document-switched", handleDocumentSwitched);
+    return () => {
+      window.removeEventListener("document:selected", onDocumentSelected);
+      window.removeEventListener("workspace:document-switched", handleDocumentSwitched);
+    };
   }, []);
   y2(() => {
     if (syncState === "synced") {
@@ -6533,12 +6536,36 @@ function ManualEditorIsland(props) {
 
 // src/ui/contracts/SmartMetadata.contract.ts
 var SmartFieldValueSchema = external_exports.union([external_exports.string(), external_exports.number(), external_exports.boolean(), external_exports.array(external_exports.string())]);
+var FieldValidationRulesSchema = external_exports.object({
+  minLength: external_exports.number().optional(),
+  maxLength: external_exports.number().optional(),
+  min: external_exports.number().optional(),
+  max: external_exports.number().optional(),
+  minItems: external_exports.number().optional(),
+  maxItems: external_exports.number().optional(),
+  pattern: external_exports.string().optional(),
+  format: external_exports.string().optional(),
+  currency: external_exports.boolean().optional()
+});
 var SmartFieldSchema = external_exports.object({
   id: external_exports.union([external_exports.string(), external_exports.number()]),
+  fieldId: external_exports.string().optional(),
   label: external_exports.string().optional(),
   value: SmartFieldValueSchema.optional(),
   overlayId: external_exports.string().nullable().optional(),
-  pageNumber: external_exports.number().nullable().optional()
+  pageNumber: external_exports.number().nullable().optional(),
+  paperlessField: external_exports.string().nullable().optional(),
+  paperlessMapping: external_exports.string().nullable().optional(),
+  mappingConfidence: external_exports.number().nullable().optional(),
+  matchType: external_exports.enum(["exact", "fuzzy", "none"]).nullable().optional(),
+  confidence: external_exports.number().nullable().optional(),
+  isMandatory: external_exports.boolean().optional(),
+  isAiGenerated: external_exports.boolean().optional(),
+  validationRules: FieldValidationRulesSchema.optional(),
+  type: external_exports.string().optional(),
+  enum: external_exports.array(external_exports.string()).optional(),
+  domain: external_exports.string().optional(),
+  displayName: external_exports.record(external_exports.string()).optional()
 });
 var SmartTagSchema = external_exports.object({
   id: external_exports.number().int(),
@@ -6547,6 +6574,14 @@ var SmartTagSchema = external_exports.object({
 });
 var SmartMetadataSchema = external_exports.object({
   documentId: external_exports.number().int().nullable().optional(),
+  documentDomain: external_exports.string().optional(),
+  fieldProfile: external_exports.object({
+    domain: external_exports.string().optional(),
+    displayName: external_exports.string().optional(),
+    icon: external_exports.string().optional(),
+    requiredFields: external_exports.array(SmartFieldSchema).optional(),
+    optionalFields: external_exports.array(SmartFieldSchema).optional()
+  }).optional(),
   metadata: external_exports.object({
     title: external_exports.string().optional(),
     correspondent: external_exports.string().optional(),
@@ -6554,46 +6589,410 @@ var SmartMetadataSchema = external_exports.object({
     // ISO date string (YYYY-MM-DD)
   }).passthrough().optional(),
   customFields: external_exports.array(SmartFieldSchema).optional(),
+  visualFields: external_exports.array(SmartFieldSchema).optional(),
   // Tags support
   selectedTags: external_exports.array(SmartTagSchema).optional().default([]),
   availableTags: external_exports.array(SmartTagSchema).optional().default([])
 });
 
 // src/islands/SmartMetadataIsland.tsx
+var DOMAIN_FALLBACKS = {
+  financial: {
+    icon: "\u{1F4CB}",
+    label: "Financial Document",
+    badge: "bg-[#fff1e6] border-[#f3c9a6] text-[#9a3412]"
+  },
+  medical: {
+    icon: "\u{1F3E5}",
+    label: "Medical Document",
+    badge: "bg-[#ecfdf3] border-[#bbf7d0] text-[#166534]"
+  },
+  legal: {
+    icon: "\u2696\uFE0F",
+    label: "Legal Document",
+    badge: "bg-[#f5f3ff] border-[#ddd6fe] text-[#5b21b6]"
+  },
+  general: {
+    icon: "\u{1F4C4}",
+    label: "General Document",
+    badge: "bg-[#eff6ff] border-[#bfdbfe] text-[#1d4ed8]"
+  }
+};
+var MATCH_BADGES = {
+  exact: "bg-emerald-50 border-emerald-200 text-emerald-700",
+  fuzzy: "bg-amber-50 border-amber-200 text-amber-700",
+  none: "bg-red-50 border-red-200 text-red-700"
+};
+var REPROCESS_STEPS = [
+  { key: "visual_triage", label: "Visual triage" },
+  { key: "visual_extraction", label: "Visual extraction" },
+  { key: "query_generation", label: "Query generation" },
+  { key: "query_execution", label: "Query execution" },
+  { key: "ocr_fallback", label: "OCR fallback" },
+  { key: "hybrid_fusion", label: "Hybrid fusion" },
+  { key: "storage", label: "Storage" }
+];
+function resolveProgressStage(stage) {
+  if (!stage) return "visual_triage";
+  if (stage === "queued") return "visual_triage";
+  if (stage === "completed") return "storage";
+  if (stage === "failed") return "storage";
+  return stage;
+}
+function createSafeCustomEvent(name, detail) {
+  try {
+    if (typeof window !== "undefined" && window.CustomEvent) {
+      return new window.CustomEvent(name, { detail });
+    }
+  } catch (e3) {
+  }
+  try {
+    if (typeof CustomEvent !== "undefined") {
+      return new CustomEvent(name, { detail });
+    }
+  } catch (e3) {
+  }
+  return null;
+}
 function dispatchEventSafe3(name, detail) {
+  const evt = createSafeCustomEvent(name, detail);
+  if (!evt) return;
   try {
     if (typeof document !== "undefined" && typeof document.dispatchEvent === "function") {
-      document.dispatchEvent(new CustomEvent(name, { detail }));
+      document.dispatchEvent(evt);
     }
   } catch (e3) {
   }
   try {
     if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
-      window.dispatchEvent(new CustomEvent(name, { detail }));
+      window.dispatchEvent(evt);
     }
   } catch (e3) {
   }
 }
+function normalizeDomain(value) {
+  if (!value) return "general";
+  const lowered = String(value).trim().toLowerCase();
+  if (["financial", "medical", "legal", "general"].includes(lowered)) return lowered;
+  if (lowered.includes("finan") || lowered.includes("invoice") || lowered.includes("receipt")) return "financial";
+  if (lowered.includes("med") || lowered.includes("clinic") || lowered.includes("lab")) return "medical";
+  if (lowered.includes("legal") || lowered.includes("contract") || lowered.includes("agreement")) return "legal";
+  return "general";
+}
+function normalizePaperlessKey(value) {
+  if (!value) return "";
+  const raw = String(value).trim();
+  if (!raw) return "";
+  const parts = raw.split(":");
+  if (parts.length < 2) return raw.toLowerCase().replace(/\s+/g, "");
+  const prefix = parts[0].trim().toLowerCase();
+  const rest = parts.slice(1).join(":").trim().replace(/\s+/g, "");
+  return `${prefix}:${rest}`;
+}
+function normalizeLabel(value) {
+  if (!value) return "";
+  return String(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+function stringifyValue(value) {
+  if (value === void 0 || value === null) return "";
+  if (Array.isArray(value)) return value.map((v3) => String(v3)).join(", ");
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+function isEmptyValue(value) {
+  if (value === void 0 || value === null) return true;
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === "string") return value.trim().length === 0;
+  return false;
+}
+function toTestId(value) {
+  return String(value).toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+}
+function resolveDomainMeta(domain) {
+  return DOMAIN_FALLBACKS[domain] || DOMAIN_FALLBACKS.general;
+}
+function resolveMatchLabel(matchType) {
+  if (matchType === "exact") return "Exact Match \u2713";
+  if (matchType === "fuzzy") return "Fuzzy Match ~";
+  return "No Match \u2717";
+}
 function SmartMetadataIsland(props) {
-  const initial = props || {};
-  const fields = Array.isArray(initial.customFields) ? initial.customFields : [];
-  const initialTags = Array.isArray(initial.selectedTags) ? initial.selectedTags : [];
-  const availableTags = Array.isArray(initial.availableTags) ? initial.availableTags : [];
   const [currentDocumentId, setCurrentDocumentId] = d2(props.documentId ?? null);
-  const [localMetadata, setLocalMetadata] = d2(() => ({
-    title: initial.metadata?.title || "",
-    correspondent: initial.metadata?.correspondent || "",
-    createdDate: initial.metadata?.createdDate || ""
-  }));
-  const [localFields, setLocalFields] = d2(() => fields.map((f4) => ({ ...f4 })));
-  const [localTags, setLocalTags] = d2(() => initialTags.map((t3) => ({ ...t3 })));
+  const [localMetadata, setLocalMetadata] = d2({
+    title: props.metadata?.title || "",
+    correspondent: props.metadata?.correspondent || "",
+    createdDate: props.metadata?.createdDate || ""
+  });
+  const [localTags, setLocalTags] = d2(() => Array.isArray(props.selectedTags) ? props.selectedTags.map((t3) => ({ ...t3 })) : []);
+  const [availableTagsState, setAvailableTagsState] = d2(() => Array.isArray(props.availableTags) ? props.availableTags.map((t3) => ({ ...t3 })) : []);
+  y2(() => {
+    if (props.documentId !== void 0) setCurrentDocumentId(props.documentId);
+    setLocalMetadata({
+      title: props.metadata?.title || "",
+      correspondent: props.metadata?.correspondent || "",
+      createdDate: props.metadata?.createdDate || ""
+    });
+    setLocalTags(Array.isArray(props.selectedTags) ? props.selectedTags.map((t3) => ({ ...t3 })) : []);
+    setAvailableTagsState(Array.isArray(props.availableTags) ? props.availableTags.map((t3) => ({ ...t3 })) : []);
+  }, [props.documentId, props.metadata, props.selectedTags, props.availableTags]);
   const [validationError, setValidationError] = d2(null);
+  const [validationErrors, setValidationErrors] = d2(() => /* @__PURE__ */ new Map());
+  const [requiredFields, setRequiredFields] = d2([]);
+  const [optionalFields, setOptionalFields] = d2([]);
+  const [mappedVisualFields, setMappedVisualFields] = d2([]);
+  const [optionalExpanded, setOptionalExpanded] = d2(false);
+  const [requiredMetadataKeys, setRequiredMetadataKeys] = d2([]);
+  const [domainOverride, setDomainOverride] = d2(null);
+  const [profileOverride, setProfileOverride] = d2(null);
+  const [isReprocessing, setIsReprocessing] = d2(false);
+  const [showReprocessOverlay, setShowReprocessOverlay] = d2(false);
+  const [reprocessProgress, setReprocessProgress] = d2({
+    stage: "idle",
+    label: "Waiting to start",
+    status: "idle",
+    percentage: 0
+  });
+  const resolvedProfile = T2(() => {
+    const profile = props.fieldProfile || {};
+    const domain = normalizeDomain(
+      domainOverride || props.documentDomain || profile.domain || props.metadata?.documentType || props.visualFields?.[0]?.domain || "general"
+    );
+    const fallback = resolveDomainMeta(domain);
+    return {
+      domain,
+      displayName: profileOverride?.displayName || profile.displayName || fallback.label,
+      icon: profileOverride?.icon || profile.icon || fallback.icon,
+      requiredFields: Array.isArray(profile.requiredFields) ? profile.requiredFields : [],
+      optionalFields: Array.isArray(profile.optionalFields) ? profile.optionalFields : []
+    };
+  }, [
+    domainOverride,
+    profileOverride,
+    props.documentDomain,
+    props.fieldProfile,
+    props.metadata?.documentType,
+    props.visualFields
+  ]);
   y2(() => {
     try {
       window.__smart_metadata_mounted = true;
     } catch (e3) {
     }
   }, []);
+  const markDirty = () => {
+    try {
+      window.__smart_metadata_dirty = true;
+    } catch (e3) {
+    }
+    dispatchEventSafe3("workspace:dirty", { documentId: currentDocumentId });
+  };
+  const validateFieldValue = (field, rawValue, isRequired) => {
+    if (isRequired && isEmptyValue(rawValue)) {
+      return "Required field is missing";
+    }
+    if (isEmptyValue(rawValue)) return null;
+    const rules = field.validationRules || {};
+    const fieldType = field.type || "string";
+    const value = rawValue;
+    if (fieldType === "number") {
+      const num = typeof value === "number" ? value : Number(String(value).replace(/,/g, ""));
+      if (Number.isNaN(num)) return "Value must be a number";
+      if (rules.min !== void 0 && num < rules.min) return `Value too small (min: ${rules.min})`;
+      if (rules.max !== void 0 && num > rules.max) return `Value too large (max: ${rules.max})`;
+      return null;
+    }
+    if (field.enum && typeof value === "string" && !field.enum.includes(value)) {
+      return "Value not in allowed set";
+    }
+    if (typeof value === "string") {
+      if (rules.minLength !== void 0 && value.length < rules.minLength) {
+        return `Value too short (min: ${rules.minLength})`;
+      }
+      if (rules.maxLength !== void 0 && value.length > rules.maxLength) {
+        return `Value too long (max: ${rules.maxLength})`;
+      }
+      if (rules.pattern) {
+        const regex = new RegExp(rules.pattern);
+        if (!regex.test(value)) {
+          return "Value does not match required pattern";
+        }
+      }
+    }
+    return null;
+  };
+  const runValidation = (meta, nextRequired, nextOptional) => {
+    const errors = /* @__PURE__ */ new Map();
+    if (requiredMetadataKeys.includes("metadata:title") && !meta.title) {
+      errors.set("metadata:title", "Title is required");
+    }
+    if (requiredMetadataKeys.includes("metadata:correspondent") && !meta.correspondent) {
+      errors.set("metadata:correspondent", "Correspondent is required");
+    }
+    if (requiredMetadataKeys.includes("metadata:document_date") && !meta.createdDate) {
+      errors.set("metadata:document_date", "Document date is required");
+    }
+    nextRequired.forEach((field) => {
+      const err = validateFieldValue(field, field.value, true);
+      if (err) errors.set(String(field.id), err);
+    });
+    nextOptional.forEach((field) => {
+      if (isEmptyValue(field.value)) return;
+      const err = validateFieldValue(field, field.value, false);
+      if (err) errors.set(String(field.id), err);
+    });
+    setValidationErrors(errors);
+    if (errors.size > 0) {
+      const summary = errors.values().next().value || "Validation failed";
+      setValidationError(summary);
+      return false;
+    }
+    setValidationError(null);
+    return true;
+  };
+  const validateAndMarkDirty = (meta, nextRequired, nextOptional, tags) => {
+    const payload = {
+      documentId: currentDocumentId,
+      metadata: meta,
+      customFields: [...nextRequired, ...nextOptional],
+      selectedTags: tags
+    };
+    const res = SmartMetadataSchema.safeParse(payload);
+    if (!res.success) {
+      const msg = res.error?.issues?.[0]?.message || "Validation failed";
+      setValidationError(msg);
+      return false;
+    }
+    const valid = runValidation(meta, nextRequired, nextOptional);
+    if (!valid) return false;
+    markDirty();
+    return true;
+  };
+  const buildCustomFieldMap = (customFields) => {
+    const map = /* @__PURE__ */ new Map();
+    customFields.forEach((cf) => {
+      const fieldRef = cf?.field;
+      const name = cf?.name || (typeof fieldRef === "object" && fieldRef && fieldRef.name ? String(fieldRef.name) : typeof fieldRef === "string" ? fieldRef : null);
+      if (!name) return;
+      const key = normalizePaperlessKey(`custom_field:${name}`);
+      if (!key) return;
+      map.set(key, stringifyValue(cf?.value));
+    });
+    return map;
+  };
+  const buildVisualMaps = (visualFields) => {
+    const normalized = visualFields.map((field, index) => {
+      const matchId = String(field.id || field.fieldId || field.label || index);
+      const paperlessKey = normalizePaperlessKey(field.paperlessField || field.paperlessMapping || "");
+      const labelKey = normalizeLabel(field.label || field.fieldId || "");
+      return {
+        ...field,
+        _matchId: matchId,
+        _paperlessKey: paperlessKey,
+        _labelKey: labelKey
+      };
+    });
+    const byPaperless = /* @__PURE__ */ new Map();
+    const byLabel = /* @__PURE__ */ new Map();
+    normalized.forEach((field) => {
+      if (field._paperlessKey) byPaperless.set(field._paperlessKey, field);
+      if (field._labelKey) byLabel.set(field._labelKey, field);
+    });
+    return { normalized, byPaperless, byLabel };
+  };
+  const mergeFieldValues = (nextFields, existingFields) => {
+    if (!existingFields || existingFields.length === 0) return nextFields;
+    const existingMap = new Map(existingFields.map((f4) => [String(f4.id), f4]));
+    return nextFields.map((field) => {
+      const prev = existingMap.get(String(field.id));
+      if (!prev) return field;
+      if (!isEmptyValue(prev.value)) {
+        return {
+          ...field,
+          value: prev.value,
+          isAiGenerated: prev.isAiGenerated === true
+        };
+      }
+      return field;
+    });
+  };
+  const syncDomainFields = (visualOverride) => {
+    const profile = resolvedProfile;
+    const customFieldMap = buildCustomFieldMap(Array.isArray(props.customFields) ? props.customFields : []);
+    const visualFieldsRaw = Array.isArray(visualOverride) ? visualOverride : Array.isArray(props.visualFields) ? props.visualFields : [];
+    const { normalized, byPaperless, byLabel } = buildVisualMaps(visualFieldsRaw);
+    const matchedIds = /* @__PURE__ */ new Set();
+    const requiredMetadata = (profile.requiredFields || []).map((field) => normalizePaperlessKey(field.paperlessField || field.paperlessMapping || "")).filter((key) => key.startsWith("metadata:"));
+    const mapFields = (fields, mandatory) => {
+      return (fields || []).filter((field) => {
+        const key = normalizePaperlessKey(field.paperlessField || field.paperlessMapping || "");
+        return !key.startsWith("metadata:");
+      }).map((field, index) => {
+        const paperlessField = field.paperlessField || field.paperlessMapping || null;
+        const paperlessKey = normalizePaperlessKey(paperlessField || "");
+        const labelKey = normalizeLabel(field.label || field.fieldId || "");
+        const match = paperlessKey && byPaperless.get(paperlessKey) || labelKey && byLabel.get(labelKey) || null;
+        if (match && match._matchId) matchedIds.add(match._matchId);
+        const existingValue = paperlessKey ? customFieldMap.get(paperlessKey) : "";
+        const matchValue = match ? stringifyValue(match.value) : "";
+        const value = !isEmptyValue(existingValue) ? existingValue : matchValue;
+        const isAiGenerated = isEmptyValue(existingValue) && !isEmptyValue(matchValue);
+        const matchType = match?.matchType || (match?.paperlessMapping || match?.paperlessField ? "exact" : "none");
+        return {
+          id: String(field.fieldId || field.id || field.label || `${mandatory ? "req" : "opt"}-${index}`),
+          fieldId: field.fieldId || void 0,
+          label: field.label || field.displayName?.en || field.fieldId || "Field",
+          value,
+          paperlessField,
+          paperlessMapping: match?.paperlessMapping || match?.paperlessField || null,
+          mappingConfidence: match?.mappingConfidence ?? null,
+          matchType,
+          confidence: match?.confidence ?? null,
+          overlayId: match?.overlayId ?? null,
+          pageNumber: match?.pageNumber ?? null,
+          isMandatory: mandatory,
+          isAiGenerated,
+          validationRules: field.validationRules || {},
+          type: field.type,
+          enum: Array.isArray(field.enum) ? field.enum : void 0,
+          domain: profile.domain
+        };
+      });
+    };
+    let nextRequired = mapFields(profile.requiredFields, true);
+    let nextOptional = mapFields(profile.optionalFields, false);
+    nextRequired = mergeFieldValues(nextRequired, requiredFields);
+    nextOptional = mergeFieldValues(nextOptional, optionalFields);
+    const remainingVisual = normalized.filter((field) => !matchedIds.has(field._matchId)).map((field, index) => ({
+      id: String(field.id || field.fieldId || field.label || `visual-${index}`),
+      fieldId: field.fieldId || void 0,
+      label: field.label || "Visual Field",
+      value: stringifyValue(field.value),
+      paperlessField: field.paperlessField || field.paperlessMapping || null,
+      paperlessMapping: field.paperlessMapping || field.paperlessField || null,
+      mappingConfidence: field.mappingConfidence ?? null,
+      matchType: field.matchType || (field.paperlessMapping || field.paperlessField ? "exact" : "none"),
+      confidence: field.confidence ?? null,
+      overlayId: field.overlayId ?? null,
+      pageNumber: field.pageNumber ?? null,
+      isAiGenerated: true
+    }));
+    setRequiredMetadataKeys(requiredMetadata);
+    setRequiredFields(nextRequired);
+    setOptionalFields(nextOptional);
+    setMappedVisualFields(remainingVisual);
+    runValidation(localMetadata, nextRequired, nextOptional);
+  };
+  y2(() => {
+    syncDomainFields();
+  }, [
+    resolvedProfile.domain,
+    resolvedProfile.displayName,
+    resolvedProfile.icon,
+    props.fieldProfile,
+    props.visualFields,
+    props.customFields,
+    currentDocumentId
+  ]);
   y2(() => {
     const handleDocumentSwitched = (e3) => {
       const detail = e3?.detail || {};
@@ -6605,14 +7004,94 @@ function SmartMetadataIsland(props) {
           correspondent: document2?.correspondent || "",
           createdDate: document2?.createdDate || ""
         });
-        setLocalFields([]);
-        setLocalTags([]);
+        setLocalTags(Array.isArray(document2?.tagItems) ? document2.tagItems.map((t3) => ({ ...t3 })) : []);
+        setAvailableTagsState(Array.isArray(document2?.availableTags) ? document2.availableTags.map((t3) => ({ ...t3 })) : []);
+        setRequiredFields([]);
+        setOptionalFields([]);
+        setMappedVisualFields([]);
+        setOptionalExpanded(false);
         setValidationError(null);
+        setValidationErrors(/* @__PURE__ */ new Map());
+        setDomainOverride(null);
+        setProfileOverride(null);
         console.log(`[SmartMetadata] Document switched to ${documentId2}`);
       }
     };
     window.addEventListener("workspace:document-switched", handleDocumentSwitched);
     return () => window.removeEventListener("workspace:document-switched", handleDocumentSwitched);
+  }, [currentDocumentId]);
+  y2(() => {
+    const onReprocessStarted = (e3) => {
+      const detail = e3?.detail || {};
+      if (String(detail.documentId) !== String(currentDocumentId)) return;
+      setIsReprocessing(true);
+      setShowReprocessOverlay(true);
+      setReprocessProgress({
+        stage: "queued",
+        label: "Queued for re-analysis",
+        status: "in_progress",
+        percentage: 5
+      });
+    };
+    const onReprocessProgress = (e3) => {
+      const detail = e3?.detail || {};
+      if (String(detail.documentId) !== String(currentDocumentId)) return;
+      const nextStatus = detail.status || "in_progress";
+      const nextPercentage = Number.isFinite(Number(detail.percentage)) ? Number(detail.percentage) : 0;
+      const progressDetails = detail.details && typeof detail.details === "object" ? detail.details : null;
+      const detailUserMessage = progressDetails && typeof progressDetails.userMessage === "string" ? String(progressDetails.userMessage) : "";
+      const nextLabel = nextStatus === "failed" ? detailUserMessage || detail.label || "Re-analysis failed" : detail.label || "Reprocessing document";
+      setReprocessProgress({
+        stage: detail.stage || "visual_extraction",
+        label: nextLabel,
+        status: nextStatus,
+        percentage: Math.max(0, Math.min(100, Math.round(nextPercentage)))
+      });
+      if (nextStatus === "completed") {
+        setIsReprocessing(false);
+        setTimeout(() => setShowReprocessOverlay(false), 600);
+      } else if (nextStatus === "failed") {
+        setIsReprocessing(false);
+      } else {
+        setIsReprocessing(true);
+        setShowReprocessOverlay(true);
+      }
+    };
+    const onReprocessComplete = (e3) => {
+      const detail = e3?.detail || {};
+      if (String(detail.documentId) !== String(currentDocumentId)) return;
+      setReprocessProgress({
+        stage: "completed",
+        label: "Re-analysis complete",
+        status: "completed",
+        percentage: 100
+      });
+      setIsReprocessing(false);
+      setTimeout(() => setShowReprocessOverlay(false), 600);
+    };
+    const onReprocessFailed = (e3) => {
+      const detail = e3?.detail || {};
+      if (String(detail.documentId) !== String(currentDocumentId)) return;
+      const message = detail.userMessage || detail.error || "Re-analysis failed";
+      setReprocessProgress({
+        stage: "failed",
+        label: message,
+        status: "failed",
+        percentage: 100
+      });
+      setIsReprocessing(false);
+      setShowReprocessOverlay(true);
+    };
+    window.addEventListener("workspace:reprocess-started", onReprocessStarted);
+    window.addEventListener("workspace:reprocess-progress", onReprocessProgress);
+    window.addEventListener("workspace:reprocess-complete", onReprocessComplete);
+    window.addEventListener("workspace:reprocess-failed", onReprocessFailed);
+    return () => {
+      window.removeEventListener("workspace:reprocess-started", onReprocessStarted);
+      window.removeEventListener("workspace:reprocess-progress", onReprocessProgress);
+      window.removeEventListener("workspace:reprocess-complete", onReprocessComplete);
+      window.removeEventListener("workspace:reprocess-failed", onReprocessFailed);
+    };
   }, [currentDocumentId]);
   const onLocate = (fieldId) => {
     dispatchEventSafe3("metadata:locate-field", { fieldId });
@@ -6620,61 +7099,58 @@ function SmartMetadataIsland(props) {
   const onFeedback = (fieldId, vote) => {
     dispatchEventSafe3("feedback:vote", { fieldId, vote });
   };
-  const markDirty = () => {
-    try {
-      window.__smart_metadata_dirty = true;
-    } catch (e3) {
-    }
-    dispatchEventSafe3("workspace:dirty", { documentId: currentDocumentId });
-  };
-  const validateAndMarkDirty = (meta, fields2, tags) => {
-    const payload = { documentId: currentDocumentId, metadata: meta, customFields: fields2, selectedTags: tags };
-    const res = SmartMetadataSchema.safeParse(payload);
-    if (!res.success) {
-      const msg = res.error?.issues?.[0]?.message || "Validation failed";
-      setValidationError(msg);
-      return false;
-    }
-    setValidationError(null);
-    markDirty();
-    return true;
-  };
   const onMetaChange = (key, val) => {
     const next = { ...localMetadata, [key]: val };
     setLocalMetadata(next);
-    validateAndMarkDirty(next, localFields, localTags);
+    validateAndMarkDirty(next, requiredFields, optionalFields, localTags);
   };
   const handleAddTag = (tagId) => {
-    const tagToAdd = availableTags.find((t3) => t3.id === tagId);
+    const tagToAdd = (Array.isArray(availableTagsState) ? availableTagsState : []).find((t3) => t3.id === tagId);
     if (!tagToAdd || localTags.some((t3) => t3.id === tagId)) return;
     const nextTags = [...localTags, tagToAdd];
     setLocalTags(nextTags);
-    validateAndMarkDirty(localMetadata, localFields, nextTags);
+    validateAndMarkDirty(localMetadata, requiredFields, optionalFields, nextTags);
     dispatchEventSafe3("tags:updated", { documentId: currentDocumentId, tags: nextTags });
   };
   const handleRemoveTag = (tagId) => {
     const nextTags = localTags.filter((t3) => t3.id !== tagId);
     setLocalTags(nextTags);
-    validateAndMarkDirty(localMetadata, localFields, nextTags);
+    validateAndMarkDirty(localMetadata, requiredFields, optionalFields, nextTags);
     dispatchEventSafe3("tags:updated", { documentId: currentDocumentId, tags: nextTags });
   };
-  const onFieldValueChange = (idx, val) => {
-    const nextFields = localFields.map((f4, i4) => i4 === idx ? { ...f4, value: val } : f4);
-    setLocalFields(nextFields);
-    validateAndMarkDirty(localMetadata, nextFields, localTags);
+  const handleReprocess = () => {
+    if (currentDocumentId == null || isReprocessing) return;
+    setIsReprocessing(true);
+    setShowReprocessOverlay(true);
+    setReprocessProgress({
+      stage: "queued",
+      label: "Queued for re-analysis",
+      status: "in_progress",
+      percentage: 5
+    });
+    dispatchEventSafe3("workspace:reprocess-request", {
+      documentId: currentDocumentId
+    });
+  };
+  const updateFieldValue = (fieldId, val) => {
+    const nextRequired = requiredFields.map((field) => String(field.id) === fieldId ? { ...field, value: val, isAiGenerated: false } : field);
+    const nextOptional = optionalFields.map((field) => String(field.id) === fieldId ? { ...field, value: val, isAiGenerated: false } : field);
+    setRequiredFields(nextRequired);
+    setOptionalFields(nextOptional);
+    validateAndMarkDirty(localMetadata, nextRequired, nextOptional, localTags);
   };
   y2(() => {
     const handleMetadataRefresh = (e3) => {
       const detail = e3?.detail || {};
-      const { documentId: documentId2, fields: newFields, tags: newTags } = detail;
+      const { documentId: documentId2, fields: newFields, tags: newTags, classification } = detail;
       if (String(documentId2) !== String(currentDocumentId)) return;
       if (Array.isArray(newFields) && newFields.length > 0) {
-        const updatedFields = newFields.map((f4) => ({
+        const normalizedFields = newFields.map((f4) => ({
           ...f4,
           isAiGenerated: true,
           confidence: f4.confidence || 0.5
         }));
-        setLocalFields(updatedFields);
+        syncDomainFields(normalizedFields);
       }
       if (Array.isArray(newTags) && newTags.length > 0) {
         setLocalTags((prevTags) => {
@@ -6682,6 +7158,15 @@ function SmartMetadataIsland(props) {
           const tagsToAdd = newTags.filter((t3) => !existingIds.has(t3.id));
           return [...prevTags, ...tagsToAdd];
         });
+      }
+      if (classification) {
+        const rawDomain = classification?.primary_domain || classification?.domain || classification?.classification?.["primary_domain"];
+        if (rawDomain) {
+          const normalized = normalizeDomain(String(rawDomain));
+          const fallback = resolveDomainMeta(normalized);
+          setDomainOverride(normalized);
+          setProfileOverride({ displayName: fallback.label, icon: fallback.icon });
+        }
       }
       markDirty();
     };
@@ -6714,7 +7199,21 @@ function SmartMetadataIsland(props) {
     window.addEventListener("workspace:save-request", onSaveRequest);
     return () => window.removeEventListener("workspace:save-request", onSaveRequest);
   }, [currentDocumentId, props.saveDelayMs, validationError]);
-  return /* @__PURE__ */ u3("div", { "data-testid": "smart-metadata-root", className: "flex flex-col gap-3", children: [
+  const domainMeta = resolveDomainMeta(resolvedProfile.domain);
+  const availableTags = Array.isArray(availableTagsState) ? availableTagsState : [];
+  const hiddenOptionalCount = Math.max(optionalFields.length - 4, 0);
+  const optionalPreview = optionalExpanded ? optionalFields : optionalFields.slice(0, 4);
+  const titleError = validationErrors.get("metadata:title");
+  const correspondentError = validationErrors.get("metadata:correspondent");
+  const createdDateError = validationErrors.get("metadata:document_date");
+  const currentStepIndex = Math.max(
+    0,
+    REPROCESS_STEPS.findIndex(
+      (step) => step.key === resolveProgressStage(reprocessProgress.stage)
+    )
+  );
+  const hasFailedProgress = reprocessProgress.status === "failed";
+  return /* @__PURE__ */ u3("div", { "data-testid": "smart-metadata-root", className: "flex flex-col gap-4", children: [
     validationError && /* @__PURE__ */ u3(
       "div",
       {
@@ -6727,160 +7226,448 @@ function SmartMetadataIsland(props) {
         ]
       }
     ),
-    /* @__PURE__ */ u3("div", { className: "flex flex-col gap-2", children: [
-      /* @__PURE__ */ u3("label", { htmlFor: "smart-title-input", className: "text-xs text-[#666]", children: "Title" }),
-      /* @__PURE__ */ u3(
-        "input",
-        {
-          id: "smart-title-input",
-          title: "Document title",
-          placeholder: "Enter document title",
-          "data-testid": "smart-title-input",
-          className: "w-full border border-[#e5e0d8] rounded-md px-3 py-2 text-sm",
-          value: localMetadata.title,
-          onInput: (e3) => onMetaChange("title", e3.target.value)
-        }
-      )
-    ] }),
-    /* @__PURE__ */ u3("div", { className: "flex flex-col gap-2", children: [
-      /* @__PURE__ */ u3("label", { htmlFor: "smart-correspondent-input", className: "text-xs text-[#666]", children: "Correspondent" }),
-      /* @__PURE__ */ u3(
-        "input",
-        {
-          id: "smart-correspondent-input",
-          title: "Correspondent name",
-          placeholder: "Enter correspondent name",
-          "data-testid": "smart-correspondent-input",
-          className: "w-full border border-[#e5e0d8] rounded-md px-3 py-2 text-sm",
-          value: localMetadata.correspondent,
-          onInput: (e3) => onMetaChange("correspondent", e3.target.value)
-        }
-      )
-    ] }),
-    /* @__PURE__ */ u3("div", { className: "flex flex-col gap-2", children: [
-      /* @__PURE__ */ u3("label", { htmlFor: "smart-date-input", className: "text-xs text-[#666]", children: "Created Date" }),
-      /* @__PURE__ */ u3(
-        "input",
-        {
-          id: "smart-date-input",
-          type: "date",
-          title: "Document created date",
-          "data-testid": "smart-date-input",
-          className: "w-full border border-[#e5e0d8] rounded-md px-3 py-2 text-sm",
-          value: localMetadata.createdDate,
-          onInput: (e3) => onMetaChange("createdDate", e3.target.value)
-        }
-      )
-    ] }),
-    /* @__PURE__ */ u3("div", { className: "flex flex-col gap-2", "data-testid": "tags-container", children: [
-      /* @__PURE__ */ u3("label", { className: "text-xs text-[#666]", children: "Tags" }),
-      /* @__PURE__ */ u3("div", { className: "flex flex-wrap gap-1 min-h-[32px]", children: [
-        localTags.length === 0 && /* @__PURE__ */ u3("span", { className: "text-xs text-[#888]", children: "No tags selected" }),
-        localTags.map((tag) => /* @__PURE__ */ u3(
-          "span",
-          {
-            "data-testid": `tag-chip-${tag.id}`,
-            className: "tag-chip inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs",
-            style: tag.color ? { "--tag-color": tag.color } : void 0,
-            children: [
-              tag.name,
-              /* @__PURE__ */ u3(
-                "button",
-                {
-                  type: "button",
-                  onClick: () => handleRemoveTag(tag.id),
-                  className: "ml-1 hover:text-red-600",
-                  title: `Remove ${tag.name}`,
-                  children: /* @__PURE__ */ u3("i", { className: "fas fa-times text-[10px]" })
-                }
-              )
-            ]
-          },
-          tag.id
-        ))
-      ] }),
-      availableTags.filter((t3) => !localTags.some((lt) => lt.id === t3.id)).length > 0 && /* @__PURE__ */ u3("div", { className: "flex flex-col gap-1", children: [
-        /* @__PURE__ */ u3("label", { htmlFor: "add-tag-select", className: "sr-only", children: "Add a tag" }),
-        /* @__PURE__ */ u3(
-          "select",
-          {
-            id: "add-tag-select",
-            "data-testid": "add-tag-select",
-            className: "w-full border border-[#e5e0d8] rounded-md px-3 py-2 text-sm",
-            onChange: (e3) => {
-              const val = parseInt(e3.target.value, 10);
-              if (!isNaN(val)) {
-                handleAddTag(val);
-                e3.target.value = "";
-              }
-            },
-            value: "",
-            children: [
-              /* @__PURE__ */ u3("option", { value: "", children: "Add a tag..." }),
-              availableTags.filter((t3) => !localTags.some((lt) => lt.id === t3.id)).map((t3) => /* @__PURE__ */ u3("option", { value: t3.id, children: t3.name }, t3.id))
-            ]
-          }
-        )
-      ] })
-    ] }),
-    /* @__PURE__ */ u3("div", { className: "mt-2", children: [
-      /* @__PURE__ */ u3("div", { className: "text-sm font-medium mb-2", children: "Custom Fields" }),
-      localFields.length === 0 && /* @__PURE__ */ u3("div", { "data-testid": "no-custom-fields", className: "text-xs text-[#888]", children: "No custom fields" }),
-      localFields.map((f4, idx) => /* @__PURE__ */ u3("div", { className: "flex items-center gap-2 mb-2 border border-[#f2efe9] rounded-md p-2", "data-testid": `custom-field-${f4.id}`, children: [
-        /* @__PURE__ */ u3("div", { className: "flex-1", children: [
-          /* @__PURE__ */ u3("div", { className: "text-xs text-[#444] font-medium", children: f4.label || `Field ${idx + 1}` }),
-          /* @__PURE__ */ u3(
-            "input",
-            {
-              id: `custom-field-value-${f4.id}`,
-              title: `Value for ${f4.label || `field ${idx + 1}`}`,
-              placeholder: "Enter value",
-              "data-testid": `custom-field-value-${f4.id}`,
-              className: "w-full border border-[#eae6df] rounded px-2 py-1 text-sm",
-              value: f4.value ?? "",
-              onInput: (e3) => onFieldValueChange(idx, e3.target.value)
-            }
-          )
+    /* @__PURE__ */ u3("div", { className: "rounded-lg border border-[#eee4d7] bg-white/90 shadow-sm p-4", children: [
+      /* @__PURE__ */ u3("div", { className: "flex items-center justify-between gap-3", children: [
+        /* @__PURE__ */ u3("div", { children: [
+          /* @__PURE__ */ u3("div", { className: "text-xs uppercase tracking-wide text-[#8a6f54]", children: "Smart Metadata" }),
+          /* @__PURE__ */ u3("div", { className: "text-lg font-['Fraunces'] text-[#2c2c2c]", children: "Unified Metadata View" })
         ] }),
-        /* @__PURE__ */ u3("div", { className: "flex flex-col gap-1 items-end", children: [
+        /* @__PURE__ */ u3("div", { className: "flex items-center gap-2", children: [
           /* @__PURE__ */ u3(
-            "button",
+            "div",
             {
-              "data-testid": `locate-btn-${f4.id}`,
-              className: "px-2 py-1 text-xs rounded bg-[#f6efe8] border border-[#e5e0d8]",
-              title: "Locate field on document",
-              onClick: () => onLocate(f4.id),
+              "data-testid": "document-domain-badge",
+              className: `inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-semibold ${domainMeta.badge}`,
               children: [
-                /* @__PURE__ */ u3("i", { className: "fas fa-crosshairs mr-1" }),
-                "Locate"
+                /* @__PURE__ */ u3("span", { children: resolvedProfile.icon || domainMeta.icon }),
+                /* @__PURE__ */ u3("span", { children: resolvedProfile.displayName || domainMeta.label })
               ]
             }
           ),
-          /* @__PURE__ */ u3("div", { className: "flex gap-1", children: [
-            /* @__PURE__ */ u3(
-              "button",
-              {
-                "data-testid": `feedback-up-${f4.id}`,
-                className: "px-2 py-1 rounded bg-white border border-[#eae6df] text-sm",
-                onClick: () => onFeedback(f4.id, "up"),
-                title: "Thumbs up",
-                children: /* @__PURE__ */ u3("i", { className: "fas fa-thumbs-up" })
-              }
-            ),
-            /* @__PURE__ */ u3(
-              "button",
-              {
-                "data-testid": `feedback-down-${f4.id}`,
-                className: "px-2 py-1 rounded bg-white border border-[#eae6df] text-sm",
-                onClick: () => onFeedback(f4.id, "down"),
-                title: "Thumbs down",
-                children: /* @__PURE__ */ u3("i", { className: "fas fa-thumbs-down" })
-              }
-            )
-          ] })
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              type: "button",
+              "data-testid": "reprocess-metadata-btn",
+              onClick: handleReprocess,
+              disabled: isReprocessing || currentDocumentId == null,
+              "aria-label": "Reprocess document with AI",
+              className: "inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold text-white bg-[#b87333] hover:bg-[#a06028] disabled:opacity-50 disabled:cursor-not-allowed transition-colors",
+              children: [
+                /* @__PURE__ */ u3("i", { className: `fas ${isReprocessing ? "fa-circle-notch fa-spin" : "fa-rotate-right"}` }),
+                /* @__PURE__ */ u3("span", { children: isReprocessing ? "Reprocessing..." : "Reprocess" })
+              ]
+            }
+          )
         ] })
-      ] }, String(f4.id)))
-    ] })
+      ] }),
+      /* @__PURE__ */ u3("div", { className: "grid gap-3 mt-4", children: [
+        /* @__PURE__ */ u3("div", { className: "flex flex-col gap-2", children: [
+          /* @__PURE__ */ u3("label", { htmlFor: "smart-title-input", className: "text-xs text-[#666] flex items-center gap-2", children: [
+            "Title",
+            requiredMetadataKeys.includes("metadata:title") && /* @__PURE__ */ u3("span", { className: "text-[10px] px-2 py-[2px] rounded-full bg-[#fff3e6] text-[#9a3412] border border-[#f3c9a6]", children: "Required" })
+          ] }),
+          /* @__PURE__ */ u3(
+            "input",
+            {
+              id: "smart-title-input",
+              title: "Document title",
+              placeholder: "Enter document title",
+              "data-testid": "smart-title-input",
+              className: `w-full border rounded-md px-3 py-2 text-sm ${titleError ? "border-red-400 bg-red-50" : "border-[#e5e0d8]"}`,
+              value: localMetadata.title,
+              onInput: (e3) => onMetaChange("title", e3.target.value)
+            }
+          ),
+          titleError && /* @__PURE__ */ u3("span", { "data-testid": "title-error", className: "text-xs text-red-600", children: titleError })
+        ] }),
+        /* @__PURE__ */ u3("div", { className: "flex flex-col gap-2", children: [
+          /* @__PURE__ */ u3("label", { htmlFor: "smart-correspondent-input", className: "text-xs text-[#666] flex items-center gap-2", children: [
+            "Correspondent",
+            requiredMetadataKeys.includes("metadata:correspondent") && /* @__PURE__ */ u3("span", { className: "text-[10px] px-2 py-[2px] rounded-full bg-[#fff3e6] text-[#9a3412] border border-[#f3c9a6]", children: "Required" })
+          ] }),
+          /* @__PURE__ */ u3(
+            "input",
+            {
+              id: "smart-correspondent-input",
+              title: "Correspondent name",
+              placeholder: "Enter correspondent name",
+              "data-testid": "smart-correspondent-input",
+              className: `w-full border rounded-md px-3 py-2 text-sm ${correspondentError ? "border-red-400 bg-red-50" : "border-[#e5e0d8]"}`,
+              value: localMetadata.correspondent,
+              onInput: (e3) => onMetaChange("correspondent", e3.target.value)
+            }
+          ),
+          correspondentError && /* @__PURE__ */ u3("span", { "data-testid": "correspondent-error", className: "text-xs text-red-600", children: correspondentError })
+        ] }),
+        /* @__PURE__ */ u3("div", { className: "flex flex-col gap-2", children: [
+          /* @__PURE__ */ u3("label", { htmlFor: "smart-date-input", className: "text-xs text-[#666] flex items-center gap-2", children: [
+            "Created Date",
+            requiredMetadataKeys.includes("metadata:document_date") && /* @__PURE__ */ u3("span", { className: "text-[10px] px-2 py-[2px] rounded-full bg-[#fff3e6] text-[#9a3412] border border-[#f3c9a6]", children: "Required" })
+          ] }),
+          /* @__PURE__ */ u3(
+            "input",
+            {
+              id: "smart-date-input",
+              type: "date",
+              title: "Document created date",
+              "data-testid": "smart-date-input",
+              className: `w-full border rounded-md px-3 py-2 text-sm ${createdDateError ? "border-red-400 bg-red-50" : "border-[#e5e0d8]"}`,
+              value: localMetadata.createdDate,
+              onInput: (e3) => onMetaChange("createdDate", e3.target.value)
+            }
+          ),
+          createdDateError && /* @__PURE__ */ u3("span", { "data-testid": "created-date-error", className: "text-xs text-red-600", children: createdDateError })
+        ] })
+      ] }),
+      /* @__PURE__ */ u3("div", { className: "mt-4 flex flex-col gap-2", "data-testid": "tags-container", children: [
+        /* @__PURE__ */ u3("label", { className: "text-xs text-[#666]", children: "Tags" }),
+        /* @__PURE__ */ u3("div", { className: "flex flex-wrap gap-1 min-h-[32px]", children: [
+          localTags.length === 0 && /* @__PURE__ */ u3("span", { className: "text-xs text-[#888]", children: "No tags selected" }),
+          localTags.map((tag) => /* @__PURE__ */ u3(
+            "span",
+            {
+              "data-testid": `tag-chip-${tag.id}`,
+              className: "tag-chip inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs",
+              style: tag.color ? { "--tag-color": tag.color } : void 0,
+              children: [
+                tag.name,
+                /* @__PURE__ */ u3(
+                  "button",
+                  {
+                    type: "button",
+                    "data-testid": `tag-remove-${tag.id}`,
+                    onClick: () => handleRemoveTag(tag.id),
+                    className: "ml-1 hover:text-red-600",
+                    title: `Remove ${tag.name}`,
+                    children: /* @__PURE__ */ u3("i", { className: "fas fa-times text-[10px]" })
+                  }
+                )
+              ]
+            },
+            tag.id
+          ))
+        ] }),
+        availableTags.filter((t3) => !localTags.some((lt) => lt.id === t3.id)).length > 0 && /* @__PURE__ */ u3("div", { className: "flex flex-col gap-1", children: [
+          /* @__PURE__ */ u3("label", { htmlFor: "add-tag-select", className: "sr-only", children: "Add a tag" }),
+          /* @__PURE__ */ u3(
+            "select",
+            {
+              id: "add-tag-select",
+              "data-testid": "add-tag-select",
+              className: "w-full border border-[#e5e0d8] rounded-md px-3 py-2 text-sm",
+              onChange: (e3) => {
+                const val = parseInt(e3.target.value, 10);
+                if (!isNaN(val)) {
+                  handleAddTag(val);
+                  e3.target.value = "";
+                }
+              },
+              value: "",
+              children: [
+                /* @__PURE__ */ u3("option", { value: "", children: "Add a tag..." }),
+                availableTags.filter((t3) => !localTags.some((lt) => lt.id === t3.id)).map((t3) => /* @__PURE__ */ u3("option", { value: t3.id, children: t3.name }, t3.id))
+              ]
+            }
+          )
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "rounded-lg border border-[#eee4d7] bg-white/90 shadow-sm p-4", children: [
+      /* @__PURE__ */ u3("div", { className: "flex items-center justify-between mb-3", children: [
+        /* @__PURE__ */ u3("div", { className: "text-xs uppercase tracking-wide text-[#8a6f54]", children: "Required Fields" }),
+        /* @__PURE__ */ u3("div", { className: "text-xs text-[#8a6f54]", "data-testid": "required-field-count", children: [
+          requiredFields.length,
+          " fields"
+        ] })
+      ] }),
+      requiredFields.length === 0 && /* @__PURE__ */ u3("div", { "data-testid": "no-required-fields", className: "text-xs text-[#888]", children: "No required custom fields for this domain." }),
+      requiredFields.map((field) => {
+        const fieldKey = String(field.id);
+        const error = validationErrors.get(fieldKey);
+        const confidenceValue = typeof field.confidence === "number" ? field.confidence : field.mappingConfidence ?? null;
+        const confidencePercent = confidenceValue !== null ? Math.round(confidenceValue * 100) : null;
+        const matchType = field.matchType || "none";
+        return /* @__PURE__ */ u3(
+          "div",
+          {
+            className: `mb-3 border rounded-md p-3 ${error ? "border-red-300 bg-red-50" : "border-[#f2efe9] bg-[#fffaf3]"}`,
+            "data-testid": `required-field-${toTestId(fieldKey)}`,
+            children: [
+              /* @__PURE__ */ u3("div", { className: "flex items-center justify-between gap-3", children: [
+                /* @__PURE__ */ u3("div", { children: [
+                  /* @__PURE__ */ u3("div", { className: "text-xs text-[#444] font-medium", children: field.label || fieldKey }),
+                  /* @__PURE__ */ u3("div", { className: "text-[10px] text-[#8a6f54]", children: field.paperlessField || "" })
+                ] }),
+                /* @__PURE__ */ u3(
+                  "span",
+                  {
+                    "data-testid": `mapping-badge-${toTestId(fieldKey)}`,
+                    className: `text-[10px] px-2 py-1 rounded-full border ${MATCH_BADGES[matchType]}`,
+                    children: resolveMatchLabel(matchType)
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ u3(
+                "input",
+                {
+                  id: `required-field-value-${fieldKey}`,
+                  title: `Value for ${field.label || fieldKey}`,
+                  placeholder: "Enter value",
+                  "data-testid": `required-field-value-${toTestId(fieldKey)}`,
+                  className: `mt-2 w-full border rounded px-2 py-1 text-sm ${error ? "border-red-400 bg-red-50" : "border-[#eae6df]"}`,
+                  value: stringifyValue(field.value),
+                  onInput: (e3) => updateFieldValue(fieldKey, e3.target.value)
+                }
+              ),
+              error && /* @__PURE__ */ u3("div", { "data-testid": `field-error-${toTestId(fieldKey)}`, className: "text-xs text-red-600 mt-1", children: error }),
+              /* @__PURE__ */ u3("div", { className: "mt-2 flex items-center justify-between gap-2", children: [
+                /* @__PURE__ */ u3("div", { className: "flex-1", children: /* @__PURE__ */ u3("div", { className: "h-2 rounded-full bg-[#f3e8dc] overflow-hidden", "data-testid": `confidence-bar-${toTestId(fieldKey)}`, children: /* @__PURE__ */ u3(
+                  "div",
+                  {
+                    className: "h-full bg-[#b87333]",
+                    style: { width: `${confidencePercent ?? 0}%` }
+                  }
+                ) }) }),
+                /* @__PURE__ */ u3("div", { className: "text-xs text-[#8a6f54] w-[44px] text-right", children: confidencePercent !== null ? `${confidencePercent}%` : "--" }),
+                /* @__PURE__ */ u3(
+                  "button",
+                  {
+                    "data-testid": `locate-required-${toTestId(fieldKey)}`,
+                    className: "px-2 py-1 text-xs rounded bg-[#f6efe8] border border-[#e5e0d8]",
+                    title: "Locate field on document",
+                    onClick: () => onLocate(field.paperlessField || field.id),
+                    children: [
+                      /* @__PURE__ */ u3("i", { className: "fas fa-crosshairs mr-1" }),
+                      "Locate"
+                    ]
+                  }
+                )
+              ] })
+            ]
+          },
+          fieldKey
+        );
+      })
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "rounded-lg border border-[#eee4d7] bg-white/90 shadow-sm p-4", children: [
+      /* @__PURE__ */ u3("div", { className: "flex items-center justify-between mb-3", children: [
+        /* @__PURE__ */ u3("div", { className: "text-xs uppercase tracking-wide text-[#8a6f54]", children: "Optional Fields" }),
+        optionalFields.length > 4 && /* @__PURE__ */ u3(
+          "button",
+          {
+            type: "button",
+            "data-testid": "optional-fields-toggle",
+            className: "text-xs text-[#7c5a3a] underline",
+            onClick: () => setOptionalExpanded(!optionalExpanded),
+            children: optionalExpanded ? "Hide extras" : `Show ${hiddenOptionalCount} more`
+          }
+        )
+      ] }),
+      optionalFields.length === 0 && /* @__PURE__ */ u3("div", { "data-testid": "no-optional-fields", className: "text-xs text-[#888]", children: "No optional custom fields for this domain." }),
+      optionalPreview.map((field) => {
+        const fieldKey = String(field.id);
+        const error = validationErrors.get(fieldKey);
+        const confidenceValue = typeof field.confidence === "number" ? field.confidence : field.mappingConfidence ?? null;
+        const confidencePercent = confidenceValue !== null ? Math.round(confidenceValue * 100) : null;
+        const matchType = field.matchType || "none";
+        return /* @__PURE__ */ u3(
+          "div",
+          {
+            className: `mb-3 border rounded-md p-3 ${error ? "border-red-300 bg-red-50" : "border-[#f2efe9]"}`,
+            "data-testid": `optional-field-${toTestId(fieldKey)}`,
+            children: [
+              /* @__PURE__ */ u3("div", { className: "flex items-center justify-between gap-3", children: [
+                /* @__PURE__ */ u3("div", { children: [
+                  /* @__PURE__ */ u3("div", { className: "text-xs text-[#444] font-medium", children: field.label || fieldKey }),
+                  /* @__PURE__ */ u3("div", { className: "text-[10px] text-[#8a6f54]", children: field.paperlessField || "" })
+                ] }),
+                /* @__PURE__ */ u3(
+                  "span",
+                  {
+                    "data-testid": `mapping-badge-${toTestId(fieldKey)}`,
+                    className: `text-[10px] px-2 py-1 rounded-full border ${MATCH_BADGES[matchType]}`,
+                    children: resolveMatchLabel(matchType)
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ u3(
+                "input",
+                {
+                  id: `optional-field-value-${fieldKey}`,
+                  title: `Value for ${field.label || fieldKey}`,
+                  placeholder: "Enter value",
+                  "data-testid": `optional-field-value-${toTestId(fieldKey)}`,
+                  className: `mt-2 w-full border rounded px-2 py-1 text-sm ${error ? "border-red-400 bg-red-50" : "border-[#eae6df]"}`,
+                  value: stringifyValue(field.value),
+                  onInput: (e3) => updateFieldValue(fieldKey, e3.target.value)
+                }
+              ),
+              error && /* @__PURE__ */ u3("div", { "data-testid": `field-error-${toTestId(fieldKey)}`, className: "text-xs text-red-600 mt-1", children: error }),
+              /* @__PURE__ */ u3("div", { className: "mt-2 flex items-center justify-between gap-2", children: [
+                /* @__PURE__ */ u3("div", { className: "flex-1", children: /* @__PURE__ */ u3("div", { className: "h-2 rounded-full bg-[#f3e8dc] overflow-hidden", "data-testid": `confidence-bar-${toTestId(fieldKey)}`, children: /* @__PURE__ */ u3(
+                  "div",
+                  {
+                    className: "h-full bg-[#b87333]",
+                    style: { width: `${confidencePercent ?? 0}%` }
+                  }
+                ) }) }),
+                /* @__PURE__ */ u3("div", { className: "text-xs text-[#8a6f54] w-[44px] text-right", children: confidencePercent !== null ? `${confidencePercent}%` : "--" }),
+                /* @__PURE__ */ u3(
+                  "button",
+                  {
+                    "data-testid": `locate-optional-${toTestId(fieldKey)}`,
+                    className: "px-2 py-1 text-xs rounded bg-[#f6efe8] border border-[#e5e0d8]",
+                    title: "Locate field on document",
+                    onClick: () => onLocate(field.paperlessField || field.id),
+                    children: [
+                      /* @__PURE__ */ u3("i", { className: "fas fa-crosshairs mr-1" }),
+                      "Locate"
+                    ]
+                  }
+                )
+              ] })
+            ]
+          },
+          fieldKey
+        );
+      })
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "rounded-lg border border-[#eee4d7] bg-white/90 shadow-sm p-4", children: [
+      /* @__PURE__ */ u3("div", { className: "flex items-center justify-between mb-3", children: [
+        /* @__PURE__ */ u3("div", { className: "text-xs uppercase tracking-wide text-[#8a6f54]", children: "Visual Extracted Fields" }),
+        /* @__PURE__ */ u3("div", { className: "text-xs text-[#8a6f54]", "data-testid": "visual-field-count", children: [
+          mappedVisualFields.length,
+          " fields"
+        ] })
+      ] }),
+      mappedVisualFields.length === 0 && /* @__PURE__ */ u3("div", { "data-testid": "no-visual-fields", className: "text-xs text-[#888]", children: "No unmapped visual fields detected." }),
+      mappedVisualFields.map((field) => {
+        const fieldKey = String(field.id);
+        const matchType = field.matchType || "none";
+        return /* @__PURE__ */ u3(
+          "div",
+          {
+            className: "mb-3 border border-[#f2efe9] rounded-md p-3",
+            "data-testid": `visual-field-${toTestId(fieldKey)}`,
+            children: [
+              /* @__PURE__ */ u3("div", { className: "flex items-center justify-between gap-3", children: [
+                /* @__PURE__ */ u3("div", { children: [
+                  /* @__PURE__ */ u3("div", { className: "text-xs text-[#444] font-medium", children: field.label || fieldKey }),
+                  /* @__PURE__ */ u3("div", { className: "text-[10px] text-[#8a6f54]", children: field.paperlessField || field.paperlessMapping || "" })
+                ] }),
+                /* @__PURE__ */ u3(
+                  "span",
+                  {
+                    "data-testid": `mapping-badge-${toTestId(fieldKey)}`,
+                    className: `text-[10px] px-2 py-1 rounded-full border ${MATCH_BADGES[matchType]}`,
+                    children: resolveMatchLabel(matchType)
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ u3("div", { className: "mt-2 text-xs text-[#555]", children: stringifyValue(field.value) || "No value detected" }),
+              /* @__PURE__ */ u3("div", { className: "mt-2 flex justify-end", children: /* @__PURE__ */ u3(
+                "button",
+                {
+                  "data-testid": `locate-visual-${toTestId(fieldKey)}`,
+                  className: "px-2 py-1 text-xs rounded bg-[#f6efe8] border border-[#e5e0d8]",
+                  title: "Locate field on document",
+                  onClick: () => onLocate(field.paperlessField || field.id),
+                  children: [
+                    /* @__PURE__ */ u3("i", { className: "fas fa-crosshairs mr-1" }),
+                    "Locate"
+                  ]
+                }
+              ) }),
+              /* @__PURE__ */ u3("div", { className: "mt-2 flex gap-1", children: [
+                /* @__PURE__ */ u3(
+                  "button",
+                  {
+                    "data-testid": `feedback-up-${toTestId(fieldKey)}`,
+                    className: "px-2 py-1 rounded bg-white border border-[#eae6df] text-sm",
+                    onClick: () => onFeedback(field.id, "up"),
+                    title: "Thumbs up",
+                    children: /* @__PURE__ */ u3("i", { className: "fas fa-thumbs-up" })
+                  }
+                ),
+                /* @__PURE__ */ u3(
+                  "button",
+                  {
+                    "data-testid": `feedback-down-${toTestId(fieldKey)}`,
+                    className: "px-2 py-1 rounded bg-white border border-[#eae6df] text-sm",
+                    onClick: () => onFeedback(field.id, "down"),
+                    title: "Thumbs down",
+                    children: /* @__PURE__ */ u3("i", { className: "fas fa-thumbs-down" })
+                  }
+                )
+              ] })
+            ]
+          },
+          fieldKey
+        );
+      })
+    ] }),
+    showReprocessOverlay && /* @__PURE__ */ u3(
+      "div",
+      {
+        className: "fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4",
+        "data-testid": "reprocess-progress-overlay",
+        role: "dialog",
+        "aria-live": "polite",
+        "aria-modal": "true",
+        children: /* @__PURE__ */ u3("div", { className: "w-full max-w-lg rounded-xl bg-white border border-[#e5e0d8] shadow-2xl p-5", children: [
+          /* @__PURE__ */ u3("div", { className: "text-base font-semibold text-[#2c2c2c]", children: "Reprocessing Document" }),
+          /* @__PURE__ */ u3(
+            "div",
+            {
+              className: `mt-1 text-sm ${hasFailedProgress ? "text-red-700" : "text-[#7c5a3a]"}`,
+              "data-testid": "reprocess-progress-label",
+              children: reprocessProgress.label
+            }
+          ),
+          /* @__PURE__ */ u3("div", { className: "mt-4 h-2.5 rounded-full bg-[#f3e8dc] overflow-hidden", children: /* @__PURE__ */ u3(
+            "div",
+            {
+              "data-testid": "reprocess-progress-bar",
+              className: `h-full ${hasFailedProgress ? "bg-red-500" : "bg-[#b87333]"}`,
+              style: { width: `${reprocessProgress.percentage}%` }
+            }
+          ) }),
+          /* @__PURE__ */ u3("div", { className: "mt-1 text-xs text-[#8a6f54]", "data-testid": "reprocess-progress-percent", children: [
+            reprocessProgress.percentage,
+            "%"
+          ] }),
+          /* @__PURE__ */ u3("div", { className: "mt-4 space-y-1.5", children: REPROCESS_STEPS.map((step, index) => {
+            const isFailedStep = hasFailedProgress && index === currentStepIndex;
+            const isDoneStep = !hasFailedProgress && (index < currentStepIndex || index === currentStepIndex && reprocessProgress.status === "completed");
+            const isActiveStep = !hasFailedProgress && reprocessProgress.status === "in_progress" && index === currentStepIndex;
+            const statusIcon = isFailedStep ? "fa-circle-xmark text-red-600" : isDoneStep ? "fa-circle-check text-emerald-600" : isActiveStep ? "fa-hourglass-half text-amber-600" : "fa-circle text-gray-300";
+            return /* @__PURE__ */ u3(
+              "div",
+              {
+                className: "flex items-center gap-2 text-sm",
+                "data-testid": `reprocess-step-${step.key}`,
+                children: [
+                  /* @__PURE__ */ u3("i", { className: `fas ${statusIcon}` }),
+                  /* @__PURE__ */ u3("span", { className: "text-[#4a3a2a]", children: step.label })
+                ]
+              },
+              step.key
+            );
+          }) }),
+          /* @__PURE__ */ u3("div", { className: "mt-5 flex justify-end", children: /* @__PURE__ */ u3(
+            "button",
+            {
+              type: "button",
+              "data-testid": "reprocess-overlay-cancel",
+              className: "px-3 py-1.5 rounded-md border border-[#e5e0d8] text-sm text-[#4a3a2a] hover:bg-[#f8f3ec]",
+              onClick: () => setShowReprocessOverlay(false),
+              children: isReprocessing ? "Cancel" : "Close"
+            }
+          ) })
+        ] })
+      }
+    )
   ] });
 }
 
@@ -7391,50 +8178,22 @@ function HistoryTabsIsland(props) {
   ] });
 }
 
-// src/islands/overlay-utils.js
-function clampTranslate(tx, ty, s3, containerW, containerH, imageNatW, imageNatH, objectFit = "contain") {
-  let contentW = containerW;
-  let contentH = containerH;
-  if (imageNatW && imageNatH) {
-    if (objectFit === "contain") {
-      const scaleBase = Math.min(containerW / imageNatW, containerH / imageNatH) || 1;
-      contentW = imageNatW * scaleBase * s3;
-      contentH = imageNatH * scaleBase * s3;
-    } else if (objectFit === "cover") {
-      const scaleBase = Math.max(containerW / imageNatW, containerH / imageNatH) || 1;
-      contentW = imageNatW * scaleBase * s3;
-      contentH = imageNatH * scaleBase * s3;
-    }
-  } else {
-    contentW = containerW * s3;
-    contentH = containerH * s3;
-  }
-  let minX, maxX, minY, maxY;
-  if (contentW <= containerW) {
-    const centerX = (containerW - contentW) / 2;
-    minX = maxX = centerX;
-  } else {
-    minX = containerW - contentW;
-    maxX = 0;
-  }
-  if (contentH <= containerH) {
-    const centerY = (containerH - contentH) / 2;
-    minY = maxY = centerY;
-  } else {
-    minY = containerH - contentH;
-    maxY = 0;
-  }
-  const cx = Math.min(maxX, Math.max(minX, tx));
-  const cy = Math.min(maxY, Math.max(minY, ty));
-  return { x: cx, y: cy, contentW, contentH };
-}
+// src/islands/OverlayViewerIsland.module.css
+var OverlayViewerIsland_default = {
+  legendDot: "OverlayViewerIsland_legendDot",
+  documentPane: "OverlayViewerIsland_documentPane",
+  overlayContainer: "OverlayViewerIsland_overlayContainer",
+  viewport: "OverlayViewerIsland_viewport",
+  rotationLayer: "OverlayViewerIsland_rotationLayer",
+  overlayBox: "OverlayViewerIsland_overlayBox",
+  overlayLabel: "OverlayViewerIsland_overlayLabel",
+  highlightRegion: "OverlayViewerIsland_highlightRegion",
+  selectionBoxContainer: "OverlayViewerIsland_selectionBoxContainer",
+  resultsPanel: "OverlayViewerIsland_resultsPanel",
+  documentImage: "OverlayViewerIsland_documentImage"
+};
 
 // src/islands/OverlayViewerIsland.tsx
-var styles2 = {};
-try {
-  styles2 = require_OverlayViewerIsland();
-} catch (_e) {
-}
 var MIN_SELECTION_SIZE = 20;
 var MIN_SIZE_FRACTION = 0.01;
 function OverlayViewerIsland(props) {
@@ -7447,7 +8206,7 @@ function OverlayViewerIsland(props) {
     showLegend = false,
     allowSelection = true,
     mode = "visual-search",
-    suggestions = [],
+    suggestions: initialSuggestions = [],
     persistedNormalizedUrl,
     normalizationStatus
   } = props;
@@ -7458,25 +8217,64 @@ function OverlayViewerIsland(props) {
   const [page, setPage] = d2(initialPage);
   const [originalUrl, setOriginalUrl] = d2(initialOriginalUrl ?? null);
   const [pageCount, setPageCount] = d2(props?.pageCount ?? null);
+  const [previewUrl, setPreviewUrl] = d2(props?.previewUrl ?? null);
+  const [persistedNormUrl, setPersistedNormalizedUrl] = d2(persistedNormalizedUrl ?? null);
+  const [normStatus, setNormalizationStatus] = d2(normalizationStatus ?? null);
+  const [suggestions, setSuggestions] = d2(initialSuggestions);
+  y2(() => {
+    setDocId(props.documentId ?? null);
+    setPage(props.page ?? 1);
+    setOriginalUrl(props.originalUrl ?? null);
+    setPageCount(props.pageCount ?? null);
+    setPreviewUrl(props.previewUrl ?? null);
+    setPersistedNormalizedUrl(props.persistedNormalizedUrl ?? null);
+    setNormalizationStatus(props.normalizationStatus ?? null);
+    setSuggestions(props.suggestions ?? []);
+  }, [
+    props.documentId,
+    props.page,
+    props.originalUrl,
+    props.pageCount,
+    props.previewUrl,
+    props.persistedNormalizedUrl,
+    props.normalizationStatus,
+    props.suggestions
+  ]);
   y2(() => {
     const handler = (e3) => {
-      const d3 = e3?.detail || {};
+      const d3 = e3.detail || {};
       if (d3.documentId !== void 0 && d3.documentId !== null) setDocId(d3.documentId);
       if (d3.page !== void 0 && d3.page !== null) setPage(Number(d3.page));
       if (Object.prototype.hasOwnProperty.call(d3, "originalUrl")) setOriginalUrl(d3.originalUrl ?? null);
       else if (Object.prototype.hasOwnProperty.call(d3, "original_url")) setOriginalUrl(d3.original_url ?? null);
       if (Object.prototype.hasOwnProperty.call(d3, "pageCount")) setPageCount(d3.pageCount === null ? null : Number(d3.pageCount));
+      if (Object.prototype.hasOwnProperty.call(d3, "previewUrl")) setPreviewUrl(d3.previewUrl ?? null);
+      if (Object.prototype.hasOwnProperty.call(d3, "persistedNormalizedUrl")) {
+        setPersistedNormalizedUrl(d3.persistedNormalizedUrl ?? null);
+      }
+      if (Object.prototype.hasOwnProperty.call(d3, "normalizationStatus")) {
+        setNormalizationStatus(d3.normalizationStatus ?? null);
+      }
+      if (Object.prototype.hasOwnProperty.call(d3, "suggestions") && Array.isArray(d3.suggestions)) {
+        setSuggestions(d3.suggestions);
+      } else if (d3.documentId !== void 0 && d3.documentId !== docId) {
+        setSuggestions([]);
+      }
     };
     window.addEventListener("overlay:document-changed", handler);
+    const titleHandler = (e3) => {
+      const detail = e3.detail || {};
+      if (detail.document?.title) {
+        const titleEl = document.querySelector('[data-testid="prominent-document-title"]');
+        if (titleEl) titleEl.textContent = detail.document.title;
+      }
+    };
+    window.addEventListener("workspace:document-switched", titleHandler);
     return () => {
       window.removeEventListener("overlay:document-changed", handler);
+      window.removeEventListener("workspace:document-switched", titleHandler);
     };
-  }, []);
-  y2(() => {
-    if (initialDocumentId !== void 0 && initialDocumentId !== null) {
-      setDocId(initialDocumentId);
-    }
-  }, [initialDocumentId]);
+  }, [docId]);
   const normalizeOverlayBox = q2((box) => {
     if (!box) return null;
     const x4 = Number(box.x ?? 0);
@@ -7496,6 +8294,9 @@ function OverlayViewerIsland(props) {
   }, []);
   const [isDrawMode, setIsDrawMode] = d2(false);
   const drawModeRef = A2(false);
+  const [isMeasureMode, setIsMeasureMode] = d2(false);
+  const measureModeRef = A2(false);
+  const [measureResult, setMeasureResult] = d2(null);
   const [isDrawing, setIsDrawing] = d2(false);
   const isDrawingRef = A2(false);
   const pointerActiveRef = A2(false);
@@ -7503,6 +8304,7 @@ function OverlayViewerIsland(props) {
   const [currentBox, setCurrentBox] = d2(null);
   const currentBoxRef = A2(null);
   const [imageLoaded, setImageLoaded] = d2(false);
+  const [imageDimensions, setImageDimensions] = d2({ width: 0, height: 0 });
   const [imageError, setImageError] = d2(null);
   const [warning, setWarning] = d2(null);
   const [imageLoadState, setImageLoadState] = d2("loading");
@@ -7518,9 +8320,7 @@ function OverlayViewerIsland(props) {
   const viewportRef = A2(null);
   const [scale, setScale] = d2(1);
   const scaleRef = A2(1);
-  const [translateX, setTranslateX] = d2(0);
-  const [translateY, setTranslateY] = d2(0);
-  const translateRef = A2({ x: 0, y: 0 });
+  const [rotationDeg, setRotationDeg] = d2(0);
   const [panMode, setPanMode] = d2(false);
   const panActiveRef = A2(false);
   const lastPanPointRef = A2(null);
@@ -7537,41 +8337,14 @@ function OverlayViewerIsland(props) {
   const drawContextRef = A2(null);
   const [selectedRegion, setSelectedRegion] = d2(null);
   const [showExportBtn, setShowExportBtn] = d2(false);
-  const MIN_SCALE = 0.5;
-  const MAX_SCALE = 3;
+  const MIN_SCALE = 0.25;
+  const MAX_SCALE = 4;
   const SCALE_STEP = 0.1;
   const applyScale = q2((next) => {
     const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next));
     scaleRef.current = clamped;
     setScale(clamped);
   }, []);
-  const clampTranslate2 = q2((tx, ty, s3) => {
-    const container = containerRef.current;
-    if (!container) return { x: tx, y: ty };
-    const cw = container.clientWidth;
-    const ch = container.clientHeight;
-    const img = imageRef.current;
-    const natW = img && img.naturalWidth ? img.naturalWidth : null;
-    const natH = img && img.naturalHeight ? img.naturalHeight : null;
-    try {
-      const clamped = clampTranslate(tx, ty, s3, cw, ch, natW, natH, "contain");
-      return { x: clamped.x, y: clamped.y };
-    } catch (_e) {
-      const minX = Math.min(0, cw - cw * s3);
-      const maxX = 0;
-      const minY = Math.min(0, ch - ch * s3);
-      const maxY = 0;
-      const cx = Math.min(maxX, Math.max(minX, tx));
-      const cy = Math.min(maxY, Math.max(minY, ty));
-      return { x: cx, y: cy };
-    }
-  }, []);
-  const applyTranslate = q2((x4, y3) => {
-    const clamped = clampTranslate2(x4, y3, scaleRef.current || 1);
-    translateRef.current = { x: clamped.x, y: clamped.y };
-    setTranslateX(clamped.x);
-    setTranslateY(clamped.y);
-  }, [clampTranslate2]);
   y2(() => {
     const handler = (e3) => {
       const detail = e3?.detail || {};
@@ -7591,17 +8364,22 @@ function OverlayViewerIsland(props) {
           const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min(scaleX, scaleY)));
           const cx = bbox.x + bbox.width / 2;
           const cy = bbox.y + bbox.height / 2;
-          const tx = cw / 2 - cx * cw * newScale;
-          const ty = ch / 2 - cy * ch * newScale;
           applyScale(newScale);
-          applyTranslate(tx, ty);
+          setTimeout(() => {
+            if (containerRef.current) {
+              const fullW = imageDimensions.width * newScale;
+              const fullH = imageDimensions.height * newScale;
+              containerRef.current.scrollLeft = cx * fullW - cw / 2;
+              containerRef.current.scrollTop = cy * fullH - ch / 2;
+            }
+          }, 50);
         }
         setTimeout(() => setHighlightedRegion(null), 5e3);
       }
     };
     window.addEventListener("overlay:highlight-region", handler);
     return () => window.removeEventListener("overlay:highlight-region", handler);
-  }, [page, applyScale, applyTranslate]);
+  }, [page, applyScale]);
   y2(() => {
     const handleActivateDrawMode = (e3) => {
       const detail = e3?.detail || {};
@@ -7609,6 +8387,7 @@ function OverlayViewerIsland(props) {
       const ctx = { fieldId, purpose };
       setDrawContext(ctx);
       drawContextRef.current = ctx;
+      setRotationDeg(0);
       drawModeRef.current = true;
       setIsDrawMode(true);
       setPanMode(false);
@@ -7630,49 +8409,142 @@ function OverlayViewerIsland(props) {
       window.removeEventListener("overlay:draw-cancelled", handleCancelDraw);
     };
   }, []);
+  const getFitScale = q2(
+    (axis) => {
+      const container = containerRef.current;
+      const img = imageRef.current;
+      if (!container || !img) return null;
+      const naturalWidth = img.naturalWidth || 0;
+      const naturalHeight = img.naturalHeight || 0;
+      if (naturalWidth <= 0 || naturalHeight <= 0) return null;
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+      if (containerWidth <= 0 || containerHeight <= 0) return null;
+      const baseScale = Math.min(
+        containerWidth / naturalWidth,
+        containerHeight / naturalHeight
+      );
+      let displayWidth = naturalWidth * baseScale;
+      let displayHeight = naturalHeight * baseScale;
+      if (rotationDeg % 180 !== 0) {
+        [displayWidth, displayHeight] = [displayHeight, displayWidth];
+      }
+      if (axis === "width") return containerWidth / displayWidth;
+      return containerHeight / displayHeight;
+    },
+    [rotationDeg]
+  );
+  const fitToWidth = q2(() => {
+    const next = getFitScale("width");
+    if (next === null) return;
+    applyScale(next);
+    if (containerRef.current) {
+      containerRef.current.scrollLeft = 0;
+      containerRef.current.scrollTop = 0;
+    }
+  }, [getFitScale, applyScale]);
+  const fitToHeight = q2(() => {
+    const next = getFitScale("height");
+    if (next === null) return;
+    applyScale(next);
+    if (containerRef.current) {
+      containerRef.current.scrollLeft = 0;
+      containerRef.current.scrollTop = 0;
+    }
+  }, [getFitScale, applyScale]);
+  const rotateClockwise = q2(() => {
+    setRotationDeg((prev) => (prev + 90) % 360);
+    if (drawModeRef.current) {
+      drawModeRef.current = false;
+      setIsDrawMode(false);
+    }
+    setPanMode(false);
+    panActiveRef.current = false;
+    lastPanPointRef.current = null;
+    isDrawingRef.current = false;
+    currentBoxRef.current = null;
+    setIsDrawing(false);
+    setCurrentBox(null);
+    setBoxes([]);
+    setSelectedRegion(null);
+    setShowExportBtn(false);
+  }, []);
   const resetView = q2(() => {
     applyScale(1);
-    applyTranslate(0, 0);
-  }, [applyScale, applyTranslate]);
+    if (containerRef.current) {
+      containerRef.current.scrollLeft = 0;
+      containerRef.current.scrollTop = 0;
+    }
+    setRotationDeg(0);
+  }, [applyScale]);
   const zoomIn = q2(() => applyScale(scaleRef.current + SCALE_STEP), [applyScale]);
   const zoomOut = q2(() => applyScale(scaleRef.current - SCALE_STEP), [applyScale]);
   const handleWheel = q2((e3) => {
-    if (!viewportRef.current || !containerRef.current) return;
+    if (!viewportRef.current || !containerRef.current || imageDimensions.width === 0) return;
     const delta = -e3.deltaY;
     const factor = e3.ctrlKey || e3.metaKey ? 15e-4 : 25e-4;
     const s3 = scaleRef.current || 1;
     const nextS = Math.min(MAX_SCALE, Math.max(MIN_SCALE, s3 * (1 + delta * factor)));
     if (Math.abs(nextS - s3) < 1e-5) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const rawX = e3.clientX - rect.left;
-    const rawY = e3.clientY - rect.top;
-    const sx = nextS / s3;
-    const currentTx = translateRef.current.x || 0;
-    const currentTy = translateRef.current.y || 0;
-    const nextTx = currentTx * sx + rawX * (1 - sx);
-    const nextTy = currentTy * sx + rawY * (1 - sx);
+    const container = containerRef.current;
+    const rect = container.getBoundingClientRect();
+    const mouseX = e3.clientX - rect.left;
+    const mouseY = e3.clientY - rect.top;
+    const docX = (mouseX + container.scrollLeft) / s3;
+    const docY = (mouseY + container.scrollTop) / s3;
     applyScale(nextS);
-    applyTranslate(nextTx, nextTy);
+    requestAnimationFrame(() => {
+      container.scrollLeft = docX * nextS - mouseX;
+      container.scrollTop = docY * nextS - mouseY;
+    });
     e3.preventDefault();
-  }, [applyScale, applyTranslate]);
+  }, [applyScale, imageDimensions]);
   const togglePanMode = q2(() => {
     const next = !panMode;
     setPanMode(next);
     if (next) {
       drawModeRef.current = false;
       setIsDrawMode(false);
+      measureModeRef.current = false;
+      setIsMeasureMode(false);
       if (drawModeButtonRef.current) {
         drawModeButtonRef.current.setAttribute("aria-pressed", "false");
       }
     }
   }, [panMode]);
+  const toggleMeasureMode = q2(() => {
+    if (rotationDeg !== 0) {
+      setWarning("Reset rotation to 0\xC2\xB0 before measuring.");
+      return;
+    }
+    const next = !measureModeRef.current;
+    measureModeRef.current = next;
+    setIsMeasureMode(next);
+    if (next) {
+      drawModeRef.current = false;
+      setIsDrawMode(false);
+      setPanMode(false);
+      if (drawModeButtonRef.current) {
+        drawModeButtonRef.current.setAttribute("aria-pressed", "false");
+      }
+      if (panModeButtonRef.current) {
+        panModeButtonRef.current.setAttribute("aria-pressed", "false");
+      }
+    } else {
+      isDrawingRef.current = false;
+      currentBoxRef.current = null;
+      setIsDrawing(false);
+      setCurrentBox(null);
+      setMeasureResult(null);
+    }
+  }, [rotationDeg]);
   const normalizedUrl = T2(() => {
     if (!docId) return null;
-    if (persistedNormalizedUrl) {
-      return `${persistedNormalizedUrl}?page=${page}`;
+    if (persistedNormUrl) {
+      return `${persistedNormUrl}${persistedNormUrl.includes("?") ? "&" : "?"}page=${page}`;
     }
     return `/api/visual-rag/normalized/${docId}?page=${page}`;
-  }, [docId, page, persistedNormalizedUrl]);
+  }, [docId, page, persistedNormUrl]);
   const originalUrlWithPage = T2(() => {
     if (!originalUrl) return null;
     return `${originalUrl}${originalUrl.includes("?") ? "&" : "?"}page=${page}`;
@@ -7694,6 +8566,12 @@ function OverlayViewerIsland(props) {
     setImageSource("normalized");
     setImageLoadState("loading");
     setRetryCount(0);
+    setResults([]);
+    setBoxes([]);
+    setSelectedRegion(null);
+    setShowExportBtn(false);
+    setHighlightedRegion(null);
+    setMeasureResult(null);
   }, [docId, page]);
   y2(() => {
     if (!imageUrl) {
@@ -7706,120 +8584,11 @@ function OverlayViewerIsland(props) {
     setImageError(null);
     setImageLoadState("loading");
     let cancelled = false;
-    let objectUrl = null;
-    const loadImage = async () => {
-      try {
-        const response = await fetch(imageUrl, {
-          credentials: "include",
-          headers: {
-            "Accept": "image/*"
-          }
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        const blob = await response.blob();
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        const img = new Image();
-        img.onload = () => {
-          if (cancelled) {
-            URL.revokeObjectURL(objectUrl);
-            return;
-          }
-          if (imageRef.current) {
-            imageRef.current.src = objectUrl;
-            try {
-              const area = (img.naturalWidth || 0) * (img.naturalHeight || 0);
-              if (area > 2e7) {
-                setWarning("Large document image detected. Rendering may be slow.");
-              }
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err);
-              console.warn("[OverlayViewerIsland] Failed to compute image area for warning detection:", msg);
-            }
-            const applyAutoFit = () => {
-              const container = containerRef.current;
-              if (container && img.naturalWidth > 0 && img.naturalHeight > 0) {
-                const containerWidth = container.clientWidth;
-                if (containerWidth > 0) {
-                  const fitScale = Math.min(
-                    MAX_SCALE,
-                    Math.max(MIN_SCALE, containerWidth / img.naturalWidth)
-                  );
-                  let contentTop = 0;
-                  try {
-                    const canvas = document.createElement("canvas");
-                    const ctx = canvas.getContext("2d");
-                    if (ctx) {
-                      const sampleScale = Math.min(1, 300 / img.naturalHeight);
-                      canvas.width = Math.floor(img.naturalWidth * sampleScale);
-                      canvas.height = Math.floor(img.naturalHeight * sampleScale);
-                      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                      const data = imageData.data;
-                      const darkThreshold = 200;
-                      const minDarkPixelsPerRow = Math.max(3, Math.floor(canvas.width * 0.05));
-                      for (let y3 = 0; y3 < canvas.height; y3++) {
-                        let darkCount = 0;
-                        for (let x4 = 0; x4 < canvas.width; x4++) {
-                          const idx = (y3 * canvas.width + x4) * 4;
-                          const r3 = data[idx], g4 = data[idx + 1], b3 = data[idx + 2];
-                          const luminance = 0.299 * r3 + 0.587 * g4 + 0.114 * b3;
-                          if (luminance < darkThreshold) {
-                            darkCount++;
-                            if (darkCount >= minDarkPixelsPerRow) {
-                              contentTop = y3 / sampleScale;
-                              contentTop = Math.max(0, contentTop - img.naturalHeight * 0.01);
-                              break;
-                            }
-                          }
-                        }
-                        if (contentTop > 0) break;
-                      }
-                    }
-                  } catch (e3) {
-                    console.warn("[OverlayViewerIsland] Content detection failed:", e3);
-                  }
-                  console.info("[OverlayViewerIsland] Auto-fit applied:", {
-                    containerWidth,
-                    imgWidth: img.naturalWidth,
-                    imgHeight: img.naturalHeight,
-                    fitScale: Math.round(fitScale * 100) + "%",
-                    contentTop: Math.round(contentTop)
-                  });
-                  scaleRef.current = fitScale;
-                  setScale(fitScale);
-                  const scrollY = -contentTop * fitScale;
-                  translateRef.current = { x: 0, y: scrollY };
-                  setTranslateX(0);
-                  setTranslateY(scrollY);
-                }
-              }
-            };
-            requestAnimationFrame(() => requestAnimationFrame(applyAutoFit));
-          }
-          setImageLoaded(true);
-          setImageLoadState("loaded");
-          setImageError(null);
-          console.info(`[OverlayViewerIsland] Image loaded from ${imageSource} source: ${imageUrl}`);
-        };
-        img.onerror = () => {
-          if (cancelled) return;
-          URL.revokeObjectURL(objectUrl);
-          handleImageError();
-        };
-        img.src = objectUrl;
-      } catch (err) {
-        if (cancelled) return;
-        console.warn(`[OverlayViewerIsland] Fetch failed for ${imageSource} source:`, err);
-        handleImageError();
-      }
-    };
     const handleImageError = () => {
-      console.warn(`[OverlayViewerIsland] Failed to load image from ${imageSource} source: ${imageUrl}`);
+      if (cancelled) return;
+      console.warn(`[OverlayViewerIsland] handleImageError for source ${imageSource}: ${imageUrl}`);
       if (imageSource === "normalized" && originalUrlWithPage) {
-        console.info("[OverlayViewerIsland] Falling back to original URL");
+        console.info(`[OverlayViewerIsland] Falling back from normalized to original source`);
         setImageSource("original");
         return;
       }
@@ -7827,12 +8596,55 @@ function OverlayViewerIsland(props) {
       setImageLoadState("error");
       setImageLoaded(false);
     };
-    loadImage();
+    const img = new Image();
+    img.onload = () => {
+      if (cancelled) return;
+      console.info(`[OverlayViewerIsland] Image pre-loaded: ${imageUrl}`);
+      const naturalWidth = img.naturalWidth || 0;
+      const naturalHeight = img.naturalHeight || 0;
+      setImageDimensions({ width: naturalWidth, height: naturalHeight });
+      try {
+        const area = naturalWidth * naturalHeight;
+        if (area > 2e7) {
+          setWarning("Large document image detected. Rendering may be slow.");
+        }
+      } catch (err) {
+        console.warn("[OverlayViewerIsland] Failed to compute image area:", err);
+      }
+      if (imageRef.current) {
+        imageRef.current.src = imageUrl;
+        const applyAutoFit = () => {
+          const container = containerRef.current;
+          if (container && naturalWidth > 0 && naturalHeight > 0) {
+            const containerWidth = container.clientWidth;
+            if (containerWidth > 0) {
+              const fitScale = Math.min(
+                MAX_SCALE,
+                Math.max(MIN_SCALE, containerWidth / naturalWidth)
+              );
+              scaleRef.current = fitScale;
+              setScale(fitScale);
+              if (containerRef.current) {
+                containerRef.current.scrollLeft = 0;
+                containerRef.current.scrollTop = 0;
+              }
+            }
+          }
+        };
+        requestAnimationFrame(() => requestAnimationFrame(applyAutoFit));
+      }
+      setImageLoaded(true);
+      setImageLoadState("loaded");
+      setImageError(null);
+    };
+    img.onerror = () => {
+      handleImageError();
+    };
+    img.src = imageUrl;
     return () => {
       cancelled = true;
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
+      img.onload = null;
+      img.onerror = null;
     };
   }, [imageUrl, imageSource, originalUrlWithPage, retryCount]);
   const handleRetry = q2(() => {
@@ -7988,8 +8800,8 @@ function OverlayViewerIsland(props) {
         clientX = e3.clientX;
         clientY = e3.clientY;
       }
-      const tx = translateRef.current.x || 0;
-      const ty = translateRef.current.y || 0;
+      const tx = containerRef.current ? -containerRef.current.scrollLeft : 0;
+      const ty = containerRef.current ? -containerRef.current.scrollTop : 0;
       const s3 = scaleRef.current || 1;
       const rawX = clientX - rect.left;
       const rawY = clientY - rect.top;
@@ -7999,7 +8811,8 @@ function OverlayViewerIsland(props) {
   );
   const handleMouseDown = q2(
     (e3) => {
-      if (!selectionEnabled || !drawModeRef.current) return;
+      const isDrawingAction = drawModeRef.current || measureModeRef.current;
+      if (!selectionEnabled || !isDrawingAction) return;
       e3.preventDefault();
       const pos = getRelativePosition(e3);
       const nextBox = { id: `box-${Date.now()}`, x: pos.x, y: pos.y, width: 0, height: 0 };
@@ -8008,8 +8821,9 @@ function OverlayViewerIsland(props) {
       setIsDrawing(true);
       setCurrentBox(nextBox);
       setWarning(null);
+      if (measureModeRef.current) setMeasureResult(null);
     },
-    [getRelativePosition]
+    [getRelativePosition, selectionEnabled]
   );
   const handleMouseMove = q2(
     (e3) => {
@@ -8185,6 +8999,12 @@ function OverlayViewerIsland(props) {
       setCurrentBox(null);
       return;
     }
+    if (measureModeRef.current) {
+      setMeasureResult({ width: Math.round(normalizedBox.width), height: Math.round(normalizedBox.height) });
+      currentBoxRef.current = null;
+      setCurrentBox(null);
+      return;
+    }
     setBoxes((prev) => [...prev, normalizedBox]);
     currentBoxRef.current = null;
     setCurrentBox(null);
@@ -8206,6 +9026,10 @@ function OverlayViewerIsland(props) {
   }, []);
   const toggleDrawMode = q2(() => {
     if (!selectionEnabled) return;
+    if (rotationDeg !== 0) {
+      setWarning("Reset rotation to 0\xB0 before drawing.");
+      return;
+    }
     const next = !drawModeRef.current;
     drawModeRef.current = next;
     setIsDrawMode(next);
@@ -8220,7 +9044,7 @@ function OverlayViewerIsland(props) {
       setIsDrawing(false);
       setCurrentBox(null);
     }
-  }, []);
+  }, [selectionEnabled, rotationDeg]);
   y2(() => {
     drawModeRef.current = isDrawMode;
   }, [isDrawMode]);
@@ -8315,18 +9139,18 @@ function OverlayViewerIsland(props) {
           window.dispatchEvent(new CustomEvent("overlay:draw-cancelled"));
           e3.preventDefault();
         }
-      } else if (e3.key.startsWith("Arrow") && panMode) {
+      } else if (e3.key.startsWith("Arrow") && panMode && containerRef.current) {
         const step = 20;
-        if (e3.key === "ArrowLeft") applyTranslate(translateRef.current.x + step, translateRef.current.y);
-        if (e3.key === "ArrowRight") applyTranslate(translateRef.current.x - step, translateRef.current.y);
-        if (e3.key === "ArrowUp") applyTranslate(translateRef.current.x, translateRef.current.y + step);
-        if (e3.key === "ArrowDown") applyTranslate(translateRef.current.x, translateRef.current.y - step);
+        if (e3.key === "ArrowLeft") containerRef.current.scrollLeft -= step;
+        if (e3.key === "ArrowRight") containerRef.current.scrollLeft += step;
+        if (e3.key === "ArrowUp") containerRef.current.scrollTop -= step;
+        if (e3.key === "ArrowDown") containerRef.current.scrollTop += step;
         e3.preventDefault();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [zoomIn, zoomOut, resetView, togglePanMode, toggleDrawMode, panMode, isDrawMode, selectionEnabled, applyTranslate]);
+  }, [zoomIn, zoomOut, resetView, togglePanMode, toggleDrawMode, panMode, isDrawMode, selectionEnabled]);
   const handlePointerDown = q2((e3) => {
     if (panMode) {
       panActiveRef.current = true;
@@ -8341,19 +9165,18 @@ function OverlayViewerIsland(props) {
     handleMouseDown(e3);
   }, [handleMouseDown, panMode]);
   const handlePointerMove = q2((e3) => {
-    if (panActiveRef.current && lastPanPointRef.current) {
+    if (panActiveRef.current && lastPanPointRef.current && containerRef.current) {
       const last = lastPanPointRef.current;
       const dx = e3.clientX - last.x;
       const dy = e3.clientY - last.y;
-      const nextX = (translateRef.current.x || 0) + dx;
-      const nextY = (translateRef.current.y || 0) + dy;
-      applyTranslate(nextX, nextY);
+      containerRef.current.scrollLeft -= dx;
+      containerRef.current.scrollTop -= dy;
       lastPanPointRef.current = { x: e3.clientX, y: e3.clientY };
       e3.preventDefault();
       return;
     }
     handleMouseMove(e3);
-  }, [handleMouseMove, applyTranslate]);
+  }, [handleMouseMove]);
   const handlePointerUp = q2((e3) => {
     if (panActiveRef.current) {
       panActiveRef.current = false;
@@ -8417,7 +9240,7 @@ function OverlayViewerIsland(props) {
       "data-has-boxes": boxes.length,
       "data-has-warning": warning ? "true" : "false",
       "data-original-url": originalUrl || "",
-      className: "h-full flex flex-col overflow-hidden",
+      className: "h-full w-full flex flex-col overflow-hidden min-h-0",
       children: [
         /* @__PURE__ */ u3("div", { className: "flex flex-wrap items-center gap-2 p-2 border-b border-gray-200 bg-white z-10", "data-testid": "overlay-toolbar", children: [
           /* @__PURE__ */ u3("div", { className: "flex items-center gap-1 border-r border-gray-200 pr-2", children: [
@@ -8448,6 +9271,20 @@ function OverlayViewerIsland(props) {
                 children: [
                   /* @__PURE__ */ u3("i", { className: `fas fa-draw-polygon mr-1.5 ${isDrawMode ? "animate-pulse" : ""}` }),
                   "Draw"
+                ]
+              }
+            ),
+            /* @__PURE__ */ u3(
+              "button",
+              {
+                "data-testid": "measure-mode-btn",
+                "aria-label": "Measure Mode",
+                onClick: toggleMeasureMode,
+                title: "Measure Tool",
+                className: `px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${isMeasureMode ? "bg-[#b87333] text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`,
+                children: [
+                  /* @__PURE__ */ u3("i", { className: "fas fa-ruler mr-1.5" }),
+                  "Measure"
                 ]
               }
             )
@@ -8487,16 +9324,60 @@ function OverlayViewerIsland(props) {
             ] })
           ] }),
           showLegend && legend.length > 0 && /* @__PURE__ */ u3("div", { "data-testid": "overlay-legend", className: "flex flex-wrap items-center gap-2 text-xs text-gray-600", children: legend.map((item) => /* @__PURE__ */ u3("div", { className: "flex items-center gap-1", children: [
-            /* @__PURE__ */ u3("span", { className: `${styles2.legendDot} [--dot-color:${item.color}]`, "aria-hidden": "true" }),
+            /* @__PURE__ */ u3("span", { className: `${OverlayViewerIsland_default.legendDot} [--dot-color:${item.color}]`, "aria-hidden": "true" }),
             /* @__PURE__ */ u3("span", { children: item.label })
           ] }, item.key)) }),
           /* @__PURE__ */ u3("div", { className: "flex items-center gap-2 px-2 border-l border-gray-200", children: [
             /* @__PURE__ */ u3("button", { "aria-label": "Zoom out", "data-testid": "overlay-zoom-out", onClick: zoomOut, title: "Zoom Out (-)", className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "-" }),
-            /* @__PURE__ */ u3("span", { "data-testid": "overlay-zoom-percentage", className: "text-xs text-gray-500 w-8 text-center", children: [
+            /* @__PURE__ */ u3("span", { "data-testid": "overlay-zoom-percentage", className: "text-xs text-gray-500 w-12 text-center", children: [
               Math.round(scale * 100),
               "%"
             ] }),
             /* @__PURE__ */ u3("button", { "aria-label": "Zoom in", "data-testid": "overlay-zoom-in", onClick: zoomIn, title: "Zoom In (+)", className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "+" }),
+            /* @__PURE__ */ u3(
+              "button",
+              {
+                "aria-label": "Rotate clockwise",
+                "data-testid": "overlay-rotate-cw",
+                onClick: rotateClockwise,
+                title: "Rotate 90\xB0 clockwise",
+                className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200",
+                children: /* @__PURE__ */ u3("i", { className: "fas fa-rotate-right" })
+              }
+            ),
+            /* @__PURE__ */ u3(
+              "button",
+              {
+                "aria-label": "Fit to width",
+                "data-testid": "overlay-fit-width",
+                onClick: fitToWidth,
+                title: "Fit to width",
+                className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200 text-xs",
+                children: "Fit W"
+              }
+            ),
+            /* @__PURE__ */ u3(
+              "button",
+              {
+                "aria-label": "Fit to height",
+                "data-testid": "overlay-fit-height",
+                onClick: fitToHeight,
+                title: "Fit to height",
+                className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200 text-xs",
+                children: "Fit H"
+              }
+            ),
+            /* @__PURE__ */ u3(
+              "span",
+              {
+                "data-testid": "overlay-rotation-degrees",
+                className: "text-xs text-gray-500",
+                children: [
+                  rotationDeg,
+                  "\xB0"
+                ]
+              }
+            ),
             /* @__PURE__ */ u3("button", { "aria-label": "Reset zoom", "data-testid": "overlay-zoom-reset", onClick: resetView, title: "Reset View (R or 0)", className: "px-2 py-1 bg-gray-100 rounded hover:bg-gray-200", children: "Reset" })
           ] }),
           showResults && /* @__PURE__ */ u3("button", { onClick: () => setShowResults(false), className: "px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs ml-2 hover:bg-blue-200", children: [
@@ -8537,23 +9418,23 @@ function OverlayViewerIsland(props) {
             )
           ] })
         ] }),
-        normalizationStatus && /* @__PURE__ */ u3(
+        normStatus && /* @__PURE__ */ u3(
           "div",
           {
             "data-testid": "normalization-status-indicator",
             className: "flex items-center gap-2 px-3 py-1.5 text-xs border-b border-gray-100 bg-gray-50",
             children: [
               /* @__PURE__ */ u3("span", { className: "font-medium text-gray-500", children: "Source:" }),
-              normalizationStatus === "completed" ? /* @__PURE__ */ u3("span", { className: "inline-flex items-center gap-1.5 text-green-700", children: [
+              normStatus === "completed" ? /* @__PURE__ */ u3("span", { className: "inline-flex items-center gap-1.5 text-green-700", children: [
                 /* @__PURE__ */ u3("i", { className: "fas fa-check-circle" }),
                 /* @__PURE__ */ u3("span", { children: "Persisted (Normalized)" })
-              ] }) : normalizationStatus === "processing" ? /* @__PURE__ */ u3("span", { className: "inline-flex items-center gap-1.5 text-amber-600", children: [
+              ] }) : normStatus === "processing" ? /* @__PURE__ */ u3("span", { className: "inline-flex items-center gap-1.5 text-amber-600", children: [
                 /* @__PURE__ */ u3("i", { className: "fas fa-spinner fa-spin" }),
                 /* @__PURE__ */ u3("span", { children: "Normalizing..." })
-              ] }) : normalizationStatus === "failed" ? /* @__PURE__ */ u3("span", { className: "inline-flex items-center gap-1.5 text-red-600", children: [
+              ] }) : normStatus === "failed" ? /* @__PURE__ */ u3("span", { className: "inline-flex items-center gap-1.5 text-red-600", children: [
                 /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-triangle" }),
                 /* @__PURE__ */ u3("span", { children: "Normalization Failed (using original)" })
-              ] }) : normalizationStatus === "skipped" ? /* @__PURE__ */ u3("span", { className: "inline-flex items-center gap-1.5 text-gray-500", children: [
+              ] }) : normStatus === "skipped" ? /* @__PURE__ */ u3("span", { className: "inline-flex items-center gap-1.5 text-gray-500", children: [
                 /* @__PURE__ */ u3("i", { className: "fas fa-forward" }),
                 /* @__PURE__ */ u3("span", { children: "Skipped (using original)" })
               ] }) : /* @__PURE__ */ u3("span", { className: "inline-flex items-center gap-1.5 text-gray-500", children: [
@@ -8574,18 +9455,18 @@ function OverlayViewerIsland(props) {
             ]
           }
         ),
-        /* @__PURE__ */ u3("div", { className: "flex-1 flex overflow-hidden", children: [
+        /* @__PURE__ */ u3("div", { className: "flex-1 flex overflow-hidden min-h-0", children: [
           /* @__PURE__ */ u3(
             "div",
             {
-              className: `${styles2.documentPane} ${showResults ? `[--pane-width:${splitPos}%]` : `[--pane-width:100%]`}`,
+              className: `${OverlayViewerIsland_default.documentPane} ${showResults ? `[--pane-width:${splitPos}%]` : `[--pane-width:100%]`}`,
               children: /* @__PURE__ */ u3(
                 "div",
                 {
                   ref: containerRef,
                   "data-testid": "overlay-container",
                   "data-draw-mode": isDrawMode ? "active" : "inactive",
-                  className: `relative flex-1 overflow-hidden ${panMode ? panActiveRef.current ? "cursor-grabbing" : "cursor-grab" : isDrawMode ? "cursor-crosshair" : "cursor-default"} ${isDrawMode ? "touch-none ring-2 ring-inset ring-[#b87333]/50" : "touch-auto"}`,
+                  className: `${OverlayViewerIsland_default.overlayContainer} ${panMode ? panActiveRef.current ? "cursor-grabbing" : "cursor-grab" : isDrawMode ? "cursor-crosshair" : "cursor-default"} ${isDrawMode ? "touch-none ring-2 ring-inset ring-[#b87333]/50" : "touch-auto"}`,
                   onPointerDown: handlePointerDown,
                   onPointerMove: handlePointerMove,
                   onPointerUp: handlePointerUp,
@@ -8609,84 +9490,101 @@ function OverlayViewerIsland(props) {
                       {
                         ref: viewportRef,
                         "data-testid": "overlay-viewport",
-                        className: `${styles2.viewport} [--viewport-transform:translate(${translateX}px, ${translateY}px) scale(${scale})]`,
-                        children: [
-                          imageUrl && !imageError ? /* @__PURE__ */ u3(
-                            "img",
-                            {
-                              ref: imageRef,
-                              alt: `Document ${docId} page ${page}`,
-                              className: `w-full h-full object-contain object-left-top pointer-events-none select-none ${imageLoaded ? "block" : "hidden"}`,
-                              "data-testid": "overlay-document-image",
-                              draggable: false,
-                              crossOrigin: "anonymous",
-                              onDragStart: (e3) => e3.preventDefault()
-                            }
-                          ) : null,
-                          imageUrl && !imageLoaded && !imageError && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center", "data-testid": "overlay-loading", children: /* @__PURE__ */ u3("div", { className: "text-center", children: [
-                            /* @__PURE__ */ u3("div", { className: "animate-spin rounded-full h-8 w-8 border-b-2 border-copper mx-auto mb-2" }),
-                            /* @__PURE__ */ u3("p", { className: "text-sm text-[#555] font-['Space_Grotesk']", children: "Loading document..." })
-                          ] }) }),
-                          imageError && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center", "data-testid": "image-error", children: /* @__PURE__ */ u3("div", { className: "text-center max-w-md px-4", children: [
-                            /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-triangle text-3xl text-red-500 mb-4" }),
-                            /* @__PURE__ */ u3("p", { className: "font-['Space_Grotesk'] text-[#555] mb-2", children: "Failed to load document" }),
-                            /* @__PURE__ */ u3("p", { className: "text-sm text-[#888] mb-4", children: imageError }),
-                            /* @__PURE__ */ u3(
-                              "button",
-                              {
-                                onClick: handleRetry,
-                                className: "px-4 py-2 bg-copper text-white rounded-md hover:bg-copper/80 transition-colors font-['Space_Grotesk']",
-                                "data-testid": "image-retry-button",
-                                type: "button",
-                                children: [
-                                  /* @__PURE__ */ u3("i", { className: "fas fa-sync-alt mr-2" }),
-                                  "Retry"
-                                ]
-                              }
-                            )
-                          ] }) }),
-                          !imageUrl && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center", children: /* @__PURE__ */ u3("p", { className: "text-sm text-gray-500", children: "No document selected" }) }),
-                          suggestions.map((item, idx) => {
-                            const box = normalizeOverlayBox(item.boundingBox);
-                            if (!box) return null;
-                            return /* @__PURE__ */ u3(
-                              "div",
-                              {
-                                "data-testid": "overlay-ghost-box",
-                                "data-label": item.label,
-                                className: `${styles2.overlayBox} [--box-left:${box.left}%] [--box-top:${box.top}%] [--box-width:${box.width}%] [--box-height:${box.height}%] border-dashed border-2 border-gray-400 bg-gray-100/20`,
-                                title: item.label || "Suggestion",
-                                children: item.label && /* @__PURE__ */ u3("span", { className: "absolute -top-5 left-0 text-xs bg-gray-200 text-gray-700 px-1 rounded", children: item.label })
-                              },
-                              `ghost-${idx}`
-                            );
-                          }),
-                          overlayMode === "document" && visibleOverlays.map((overlay, idx) => {
-                            const box = normalizeOverlayBox(overlay.boundingBox);
-                            if (!box) return null;
-                            const color = overlay.color || "#2563eb";
-                            return /* @__PURE__ */ u3(
-                              "div",
-                              {
-                                "data-testid": "overlay-box",
-                                className: `${styles2.overlayBox} [--box-left:${box.left}%] [--box-top:${box.top}%] [--box-width:${box.width}%] [--box-height:${box.height}%] [--box-color:${color}] [--box-bg:${color}22]`,
-                                children: /* @__PURE__ */ u3("span", { className: `${styles2.overlayLabel} [--box-color:${color}]`, children: overlay.label || "Overlay" })
-                              },
-                              overlay.id || `${overlay.label}-${idx}`
-                            );
-                          }),
-                          /* @__PURE__ */ u3("canvas", { ref: canvasRef, className: "absolute inset-0 pointer-events-none", "data-testid": "annotation-canvas" }),
-                          highlightedRegion && /* @__PURE__ */ u3(
-                            "div",
-                            {
-                              "data-testid": "overlay-highlight-region",
-                              className: `${styles2.highlightRegion} animate-pulse [--region-left:${highlightedRegion.x * 100}%] [--region-top:${highlightedRegion.y * 100}%] [--region-width:${highlightedRegion.width * 100}%] [--region-height:${highlightedRegion.height * 100}%]`
-                            }
-                          )
-                        ]
+                        className: OverlayViewerIsland_default.viewport,
+                        style: {
+                          width: imageDimensions.width > 0 ? `${imageDimensions.width * scale}px` : "100%",
+                          height: imageDimensions.height > 0 ? `${imageDimensions.height * scale}px` : "100%",
+                          minWidth: "100%",
+                          minHeight: "100%"
+                        },
+                        children: /* @__PURE__ */ u3(
+                          "div",
+                          {
+                            "data-testid": "overlay-rotation-layer",
+                            className: OverlayViewerIsland_default.rotationLayer,
+                            style: {
+                              transform: `rotate(${rotationDeg}deg)`,
+                              transformOrigin: "center center"
+                            },
+                            children: [
+                              imageUrl && !imageError ? /* @__PURE__ */ u3(
+                                "img",
+                                {
+                                  ref: imageRef,
+                                  alt: `Document ${docId} page ${page}`,
+                                  className: `${OverlayViewerIsland_default.documentImage} flex-1 min-h-0 pointer-events-none select-none ${imageLoaded ? "block" : "hidden"}`,
+                                  "data-testid": "overlay-document-image",
+                                  draggable: false,
+                                  crossOrigin: "anonymous",
+                                  onDragStart: (e3) => e3.preventDefault()
+                                }
+                              ) : null,
+                              imageUrl && !imageLoaded && !imageError && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center", "data-testid": "overlay-loading", children: /* @__PURE__ */ u3("div", { className: "text-center", children: [
+                                /* @__PURE__ */ u3("div", { className: "animate-spin rounded-full h-8 w-8 border-b-2 border-copper mx-auto mb-2" }),
+                                /* @__PURE__ */ u3("p", { className: "text-sm text-[#555] font-['Space_Grotesk']", children: "Loading document..." })
+                              ] }) }),
+                              imageError && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center", "data-testid": "image-error", children: /* @__PURE__ */ u3("div", { className: "text-center max-w-md px-4", children: [
+                                /* @__PURE__ */ u3("i", { className: "fas fa-exclamation-triangle text-3xl text-red-500 mb-4" }),
+                                /* @__PURE__ */ u3("p", { className: "font-['Space_Grotesk'] text-[#555] mb-2", children: "Failed to load document" }),
+                                /* @__PURE__ */ u3("p", { className: "text-sm text-[#888] mb-4", children: imageError }),
+                                /* @__PURE__ */ u3(
+                                  "button",
+                                  {
+                                    onClick: handleRetry,
+                                    className: "px-4 py-2 bg-copper text-white rounded-md hover:bg-copper/80 transition-colors font-['Space_Grotesk']",
+                                    "data-testid": "image-retry-button",
+                                    type: "button",
+                                    children: [
+                                      /* @__PURE__ */ u3("i", { className: "fas fa-sync-alt mr-2" }),
+                                      "Retry"
+                                    ]
+                                  }
+                                )
+                              ] }) }),
+                              !imageUrl && /* @__PURE__ */ u3("div", { className: "absolute inset-0 flex items-center justify-center", children: /* @__PURE__ */ u3("p", { className: "text-sm text-gray-500", children: "No document selected" }) }),
+                              suggestions.map((item, idx) => {
+                                const box = normalizeOverlayBox(item.boundingBox);
+                                if (!box) return null;
+                                return /* @__PURE__ */ u3(
+                                  "div",
+                                  {
+                                    "data-testid": "overlay-ghost-box",
+                                    "data-label": item.label,
+                                    className: `${OverlayViewerIsland_default.overlayBox} [--box-left:${box.left}%] [--box-top:${box.top}%] [--box-width:${box.width}%] [--box-height:${box.height}%] border-dashed border-2 border-gray-400 bg-gray-100/20`,
+                                    title: item.label || "Suggestion",
+                                    children: item.label && /* @__PURE__ */ u3("span", { className: "absolute -top-5 left-0 text-xs bg-gray-200 text-gray-700 px-1 rounded", children: item.label })
+                                  },
+                                  `ghost-${idx}`
+                                );
+                              }),
+                              overlayMode === "document" && visibleOverlays.map((overlay, idx) => {
+                                const box = normalizeOverlayBox(overlay.boundingBox);
+                                if (!box) return null;
+                                const color = overlay.color || "#2563eb";
+                                return /* @__PURE__ */ u3(
+                                  "div",
+                                  {
+                                    "data-testid": "overlay-box",
+                                    className: `${OverlayViewerIsland_default.overlayBox} [--box-left:${box.left}%] [--box-top:${box.top}%] [--box-width:${box.width}%] [--box-height:${box.height}%] [--box-color:${color}] [--box-bg:${color}22]`,
+                                    children: /* @__PURE__ */ u3("span", { className: `${OverlayViewerIsland_default.overlayLabel} [--box-color:${color}]`, children: overlay.label || "Overlay" })
+                                  },
+                                  overlay.id || `${overlay.label}-${idx}`
+                                );
+                              }),
+                              /* @__PURE__ */ u3("canvas", { ref: canvasRef, className: "absolute inset-0 pointer-events-none", "data-testid": "annotation-canvas" }),
+                              highlightedRegion && /* @__PURE__ */ u3(
+                                "div",
+                                {
+                                  "data-testid": "overlay-highlight-region",
+                                  className: `${OverlayViewerIsland_default.highlightRegion} animate-pulse [--region-left:${highlightedRegion.x * 100}%] [--region-top:${highlightedRegion.y * 100}%] [--region-width:${highlightedRegion.width * 100}%] [--region-height:${highlightedRegion.height * 100}%]`
+                                }
+                              )
+                            ]
+                          }
+                        )
                       }
                     ),
-                    boxes.map((box, idx) => /* @__PURE__ */ u3("div", { className: `${styles2.selectionBoxContainer} [--sel-left:${box.x}px] [--sel-top:${box.y - 24}px]`, children: [
+                    boxes.map((box, idx) => /* @__PURE__ */ u3("div", { className: `${OverlayViewerIsland_default.selectionBoxContainer} [--sel-left:${box.x}px] [--sel-top:${box.y - 24}px]`, children: [
                       /* @__PURE__ */ u3("span", { className: "px-1.5 py-0.5 bg-red-600 text-white text-xs rounded", children: [
                         "Region ",
                         idx + 1
@@ -8717,7 +9615,7 @@ function OverlayViewerIsland(props) {
                             const onSend = (e3) => {
                               const { imageBase64, bbox, page: page2, documentId: documentId2 } = e3.detail || {};
                               const context = { type: "visual", data: { imageBase64, bbox, page: page2 }, documentId: documentId2 };
-                              window.location.href = `/chat?context=${encodeURIComponent(JSON.stringify(context))}`;
+                              window.location.href = `/workspace/doc/${documentId2}?tab=chat&context=${encodeURIComponent(JSON.stringify(context))}`;
                             };
                             window.addEventListener("manual:send-to-chat", onSend, { once: true });
                           },
@@ -8737,7 +9635,46 @@ function OverlayViewerIsland(props) {
                           "Click and drag to select a region for visual search"
                         ]
                       }
-                    )
+                    ),
+                    isMeasureMode && !measureResult && /* @__PURE__ */ u3(
+                      "div",
+                      {
+                        className: "absolute bottom-2 left-2 right-2 p-2 text-center text-xs text-white bg-[#b87333]/80 rounded pointer-events-none",
+                        "data-testid": "measure-instructions",
+                        children: [
+                          /* @__PURE__ */ u3("i", { className: "fas fa-ruler mr-1" }),
+                          "Drag to measure an area"
+                        ]
+                      }
+                    ),
+                    measureResult && /* @__PURE__ */ u3(
+                      "div",
+                      {
+                        className: "absolute bottom-2 left-2 right-2 p-2 text-center text-xs font-bold text-white bg-[#b87333] rounded shadow-lg",
+                        "data-testid": "measure-result",
+                        children: /* @__PURE__ */ u3("div", { className: "flex items-center justify-center gap-4", children: [
+                          /* @__PURE__ */ u3("span", { children: [
+                            "Width: ",
+                            measureResult.width,
+                            "px"
+                          ] }),
+                          /* @__PURE__ */ u3("span", { children: [
+                            "Height: ",
+                            measureResult.height,
+                            "px"
+                          ] }),
+                          /* @__PURE__ */ u3(
+                            "button",
+                            {
+                              onClick: () => setMeasureResult(null),
+                              className: "ml-2 text-white hover:text-white/80",
+                              children: /* @__PURE__ */ u3("i", { className: "fas fa-times" })
+                            }
+                          )
+                        ] })
+                      }
+                    ),
+                    "          "
                   ]
                 }
               )
@@ -8754,7 +9691,7 @@ function OverlayViewerIsland(props) {
           showResults && /* @__PURE__ */ u3(
             "div",
             {
-              className: `${styles2.resultsPanel} [--panel-width:${100 - splitPos}%]`,
+              className: `${OverlayViewerIsland_default.resultsPanel} [--panel-width:${100 - splitPos}%]`,
               "data-testid": "visual-search-results-panel",
               children: [
                 /* @__PURE__ */ u3("div", { className: "p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50", children: [
@@ -8787,7 +9724,7 @@ function OverlayViewerIsland(props) {
                           });
                           window.dispatchEvent(ev);
                         } else {
-                          window.open(`/manual?open=${result.document_id}&page=${result.page}`, "_blank");
+                          window.open(`/workspace/doc/${result.document_id}?tab=visual&page=${result.page}`, "_blank");
                         }
                       },
                       children: [
@@ -10780,15 +11717,15 @@ function usePresence(present) {
     prevAnimationNameRef.current = state === "mounted" ? currentAnimationName : "none";
   }, [state]);
   useLayoutEffect2(() => {
-    const styles3 = stylesRef.current;
+    const styles = stylesRef.current;
     const wasPresent = prevPresentRef.current;
     const hasPresentChanged = wasPresent !== present;
     if (hasPresentChanged) {
       const prevAnimationName = prevAnimationNameRef.current;
-      const currentAnimationName = getAnimationName(styles3);
+      const currentAnimationName = getAnimationName(styles);
       if (present) {
         send("MOUNT");
-      } else if (currentAnimationName === "none" || styles3?.display === "none") {
+      } else if (currentAnimationName === "none" || styles?.display === "none") {
         send("UNMOUNT");
       } else {
         const isAnimating = prevAnimationName !== currentAnimationName;
@@ -10847,8 +11784,8 @@ function usePresence(present) {
     }, [])
   };
 }
-function getAnimationName(styles3) {
-  return styles3?.animationName || "none";
+function getAnimationName(styles) {
+  return styles?.animationName || "none";
 }
 function getElementRef2(element) {
   let getter = Object.getOwnPropertyDescriptor(element.props, "ref")?.get;
@@ -11804,13 +12741,13 @@ var stylesheetSingleton = function() {
 // node_modules/react-style-singleton/dist/es2015/hook.js
 var styleHookSingleton = function() {
   var sheet = stylesheetSingleton();
-  return function(styles3, isDynamic) {
+  return function(styles, isDynamic) {
     y2(function() {
-      sheet.add(styles3);
+      sheet.add(styles);
       return function() {
         sheet.remove();
       };
-    }, [styles3 && isDynamic]);
+    }, [styles && isDynamic]);
   };
 };
 
@@ -11818,8 +12755,8 @@ var styleHookSingleton = function() {
 var styleSingleton = function() {
   var useStyle = styleHookSingleton();
   var Sheet = function(_a) {
-    var styles3 = _a.styles, dynamic = _a.dynamic;
-    useStyle(styles3, dynamic);
+    var styles = _a.styles, dynamic = _a.dynamic;
+    useStyle(styles, dynamic);
     return null;
   };
   return Sheet;
@@ -11927,11 +12864,11 @@ var elementCanBeScrolled = function(node, overflow) {
   if (!(node instanceof Element)) {
     return false;
   }
-  var styles3 = window.getComputedStyle(node);
+  var styles = window.getComputedStyle(node);
   return (
     // not-not-scrollable
-    styles3[overflow] !== "hidden" && // contains scroll inside self
-    !(styles3.overflowY === styles3.overflowX && !alwaysContainsScroll(node) && styles3[overflow] === "visible")
+    styles[overflow] !== "hidden" && // contains scroll inside self
+    !(styles.overflowY === styles.overflowX && !alwaysContainsScroll(node) && styles[overflow] === "visible")
   );
 };
 var elementCouldBeVScrolled = function(node) {
@@ -13042,7 +13979,8 @@ var SettingsSidebarSchema = external_exports.object({
     "ai-provider",
     "expert-models",
     "advanced",
-    "developer"
+    "developer",
+    "prompts"
   ]).optional().default("overview"),
   // Developer mode initial state (can be overridden by localStorage)
   developerModeEnabled: external_exports.boolean().optional().default(false),
@@ -13061,7 +13999,8 @@ var CATEGORIES = [
   { id: "ai-provider", label: "AI Provider", icon: "\u{1F916}" },
   { id: "expert-models", label: "Expert Models", icon: "\u{1F393}" },
   { id: "advanced", label: "Advanced", icon: "\u2699\uFE0F" },
-  { id: "developer", label: "Developer", icon: "\u{1F468}\u200D\u{1F4BB}", requiresDeveloperMode: true }
+  { id: "developer", label: "Developer", icon: "\u{1F468}\u200D\u{1F4BB}", requiresDeveloperMode: true },
+  { id: "prompts", label: "Prompts", icon: "\u{1F4DD}", requiresDeveloperMode: true }
 ];
 function SettingsSidebarIsland(props) {
   const validated = SettingsSidebarSchema.parse(props);
@@ -13158,7 +14097,7 @@ function SettingsSidebarIsland(props) {
     dispatchSettingsEvent("developer:toggled", {
       enabled: newValue
     });
-    if (!newValue && activeCategory === "developer") {
+    if (!newValue && (activeCategory === "developer" || activeCategory === "prompts")) {
       handleCategoryClick("overview");
     }
   };
@@ -14717,38 +15656,236 @@ var EnvironmentVariablesSchema = external_exports.object({
   guidanceTimeout: external_exports.number().int().positive().optional().default(9e4),
   visualRagTimeout: external_exports.number().int().positive().optional().default(3e4)
 });
+var OllamaModelLimitsSchema = external_exports.object({
+  // Text (Base) tier
+  ollamaContextWindow: external_exports.number().int().positive().optional().default(128e3),
+  ollamaMaxResponseTokens: external_exports.number().int().positive().optional().default(4096),
+  // Vision tier (capped at 32k)
+  ollamaVisionContextWindow: external_exports.number().int().positive().max(32768).optional().default(32768),
+  ollamaVisionMaxResponseTokens: external_exports.number().int().positive().optional().default(2048),
+  ollamaVisionImageTokens: external_exports.number().int().positive().optional().default(1024),
+  // Planner tier (capped at 32k)
+  ollamaPlannerContextWindow: external_exports.number().int().positive().max(32768).optional().default(32768),
+  ollamaPlannerMaxResponseTokens: external_exports.number().int().positive().optional().default(2048),
+  // Expert tier
+  ollamaExpertContextWindow: external_exports.number().int().positive().optional().default(128e3),
+  ollamaExpertMaxResponseTokens: external_exports.number().int().positive().optional().default(4096),
+  // Translation tier
+  translationContextWindow: external_exports.number().int().positive().optional().default(128e3)
+});
 var DeveloperSettingsSchema = external_exports.object({
   // Feature flags (auto-save, most don't require restart)
   featureFlags: FeatureFlagsSchema.optional(),
   // Environment variables (manual save, restart required)
   environmentVariables: EnvironmentVariablesSchema.optional(),
+  // Ollama model token limits (manual save, restart required)
+  ollamaModelLimits: OllamaModelLimitsSchema.optional(),
   // Auto-save debounce for feature flags (ms)
   autoSaveDebounceMs: external_exports.number().int().positive().optional().default(500)
 });
 
+// src/islands/components/ToggleSwitch.tsx
+function ToggleSwitch({ id, label, description, checked, onChange, testId }) {
+  return /* @__PURE__ */ u3("div", { className: "flag-row", children: [
+    /* @__PURE__ */ u3("div", { className: "flex-1 min-w-0", children: [
+      /* @__PURE__ */ u3("label", { htmlFor: id, className: "block text-sm font-medium", style: { color: "var(--text-primary)" }, children: label }),
+      /* @__PURE__ */ u3("p", { className: "text-xs", style: { color: "var(--text-muted)" }, children: description })
+    ] }),
+    /* @__PURE__ */ u3(
+      "button",
+      {
+        id,
+        role: "switch",
+        "aria-checked": String(checked),
+        className: "toggle-track",
+        "data-checked": String(checked),
+        onClick: () => onChange(!checked),
+        "data-testid": testId,
+        children: /* @__PURE__ */ u3("span", { className: "toggle-knob" })
+      }
+    )
+  ] });
+}
+
+// src/islands/components/ServiceTopology.tsx
+function ServiceTopology({ nodes, onNodeClick }) {
+  return /* @__PURE__ */ u3("div", { className: "topology-strip", "data-testid": "service-topology", children: nodes.map((node, i4) => /* @__PURE__ */ u3("div", { style: { display: "contents" }, children: [
+    /* @__PURE__ */ u3(
+      "button",
+      {
+        className: "topology-node",
+        onClick: () => onNodeClick?.(node.id),
+        "data-testid": `topology-node-${node.id}`,
+        title: `${node.label}: ${node.status}`,
+        children: [
+          /* @__PURE__ */ u3(
+            "span",
+            {
+              className: "topology-node-dot",
+              "data-status": node.status
+            }
+          ),
+          /* @__PURE__ */ u3("span", { className: "topology-node-label", children: node.label })
+        ]
+      }
+    ),
+    i4 < nodes.length - 1 && /* @__PURE__ */ u3(
+      "span",
+      {
+        className: "topology-connector",
+        "data-connected": String(node.status === "online" && nodes[i4 + 1].status === "online")
+      }
+    )
+  ] }, node.id)) });
+}
+
+// src/islands/components/UsageBar.tsx
+function UsageBar({ value, max, label, unit = "", thresholds = { warn: 60, danger: 80 } }) {
+  const percentage = max > 0 ? Math.min(100, Math.round(value / max * 100)) : 0;
+  const level = percentage >= thresholds.danger ? "danger" : percentage >= thresholds.warn ? "warn" : "ok";
+  return /* @__PURE__ */ u3("div", { className: "space-y-1", children: [
+    label && /* @__PURE__ */ u3("div", { className: "flex justify-between items-baseline text-xs", children: [
+      /* @__PURE__ */ u3("span", { style: { color: "var(--text-muted)" }, children: label }),
+      /* @__PURE__ */ u3("span", { className: "font-medium", style: { fontFamily: "'JetBrains Mono', monospace", color: "var(--text-primary)" }, children: [
+        value,
+        unit,
+        " / ",
+        max,
+        unit
+      ] })
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "usage-bar-track", children: /* @__PURE__ */ u3(
+      "div",
+      {
+        className: "usage-bar-fill",
+        "data-level": level,
+        style: { width: `${percentage}%` }
+      }
+    ) }),
+    /* @__PURE__ */ u3("div", { className: "text-xs text-right", style: { color: "var(--text-muted)" }, children: [
+      percentage,
+      "%"
+    ] })
+  ] });
+}
+
+// src/islands/components/RangeNumberInput.tsx
+function RangeNumberInput({
+  id,
+  label,
+  description,
+  value,
+  min,
+  max,
+  step = 1,
+  unit = "",
+  onChange,
+  testId
+}) {
+  const handleInput = (e3) => {
+    const val = parseFloat(e3.target.value);
+    if (!isNaN(val)) onChange(val);
+  };
+  return /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+    /* @__PURE__ */ u3("div", { className: "flex justify-between items-baseline", children: [
+      /* @__PURE__ */ u3("label", { htmlFor: id, className: "block text-sm font-medium", style: { color: "var(--text-primary)" }, children: label }),
+      unit && /* @__PURE__ */ u3("span", { className: "text-xs", style: { color: "var(--text-muted)" }, children: unit })
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "range-number-group", children: [
+      /* @__PURE__ */ u3(
+        "input",
+        {
+          type: "range",
+          min,
+          max,
+          step,
+          value,
+          onInput: handleInput,
+          "aria-label": `${label} slider`
+        }
+      ),
+      /* @__PURE__ */ u3(
+        "input",
+        {
+          id,
+          type: "number",
+          min,
+          max,
+          step,
+          value,
+          onInput: handleInput,
+          "data-testid": testId
+        }
+      )
+    ] }),
+    /* @__PURE__ */ u3("p", { className: "text-xs", style: { color: "var(--text-muted)" }, children: description })
+  ] });
+}
+
 // src/islands/DeveloperSettingsIsland.tsx
 var STORAGE_KEY_DEVELOPER_MODE2 = "settings:developerMode";
+var FEATURE_FLAG_GROUPS = [
+  {
+    id: "pipeline",
+    label: "AI Pipeline",
+    flags: [
+      { key: "expertPipelineEnabled", label: "Expert Pipeline", description: "Enable domain-specific expert models" },
+      { key: "guidanceServiceEnabled", label: "Guidance Service", description: "Deterministic JSON extraction" },
+      { key: "summaryFallbackEnabled", label: "Summary Fallback", description: "Use summary fallback on errors" }
+    ]
+  },
+  {
+    id: "visual",
+    label: "Visual Analysis",
+    flags: [
+      { key: "visualRagEnabled", label: "Visual RAG", description: "Enable visual document analysis" },
+      { key: "visualRagSidecarEnabled", label: "Visual RAG Sidecar", description: "Use GPU-accelerated sidecar service" },
+      { key: "forceVisualRag", label: "Force Visual RAG", description: "Always use visual analysis" }
+    ]
+  },
+  {
+    id: "integrity",
+    label: "System Integrity",
+    flags: [
+      { key: "metricsEnabled", label: "Model Metrics", description: "Track model performance metrics" },
+      { key: "duplicateDetectionEnabled", label: "Duplicate Detection", description: "Prevent duplicate document processing" },
+      { key: "ocrCheckpointEnabled", label: "OCR Checkpoint", description: "Checkpoint after OCR step" }
+    ]
+  }
+];
+var FLAG_ENV_MAP = {
+  expertPipelineEnabled: "EXPERT_PIPELINE_ENABLED",
+  visualRagEnabled: "ENABLE_VISUAL_RAG",
+  visualRagSidecarEnabled: "ENABLE_VISUAL_RAG_SIDECAR",
+  forceVisualRag: "FORCE_VISUAL_RAG",
+  guidanceServiceEnabled: "GUIDANCE_SERVICE_ENABLED",
+  metricsEnabled: "ENABLE_MODEL_METRICS",
+  duplicateDetectionEnabled: "DUPLICATE_DETECTION_ENABLED",
+  ocrCheckpointEnabled: "OCR_CHECKPOINT_ENABLED",
+  summaryFallbackEnabled: "SUMMARY_FALLBACK_ENABLED"
+};
 function DeveloperSettingsIsland(props) {
   const validated = DeveloperSettingsSchema.parse(props);
   const initialDeveloperMode = (() => {
     if (typeof localStorage === "undefined") return false;
-    const stored = localStorage.getItem(STORAGE_KEY_DEVELOPER_MODE2);
-    return stored === "true";
+    return localStorage.getItem(STORAGE_KEY_DEVELOPER_MODE2) === "true";
   })();
   const [isDeveloperMode, setIsDeveloperMode] = d2(initialDeveloperMode);
   const [featureFlagsExpanded, setFeatureFlagsExpanded] = d2(true);
   const [envVarsExpanded, setEnvVarsExpanded] = d2(false);
+  const [ollamaLimitsExpanded, setOllamaLimitsExpanded] = d2(false);
   const [runtimeStateExpanded, setRuntimeStateExpanded] = d2(false);
-  const [expertPipeline, setExpertPipeline] = d2(validated.featureFlags?.expertPipelineEnabled ?? true);
-  const [visualRag, setVisualRag] = d2(validated.featureFlags?.visualRagEnabled ?? false);
-  const [visualRagSidecar, setVisualRagSidecar] = d2(validated.featureFlags?.visualRagSidecarEnabled ?? false);
-  const [forceVisualRag, setForceVisualRag] = d2(validated.featureFlags?.forceVisualRag ?? false);
-  const [guidanceService, setGuidanceService] = d2(validated.featureFlags?.guidanceServiceEnabled ?? true);
-  const [metrics, setMetrics] = d2(validated.featureFlags?.metricsEnabled ?? true);
-  const [duplicateDetection, setDuplicateDetection] = d2(validated.featureFlags?.duplicateDetectionEnabled ?? true);
-  const [ocrCheckpoint, setOcrCheckpoint] = d2(validated.featureFlags?.ocrCheckpointEnabled ?? true);
-  const [summaryFallback, setSummaryFallback] = d2(validated.featureFlags?.summaryFallbackEnabled ?? true);
-  const [disableAutoProcessing] = d2(validated.environmentVariables?.disableAutomaticProcessing || "no");
+  const [flags, setFlags] = d2({
+    expertPipelineEnabled: validated.featureFlags?.expertPipelineEnabled ?? true,
+    visualRagEnabled: validated.featureFlags?.visualRagEnabled ?? false,
+    visualRagSidecarEnabled: validated.featureFlags?.visualRagSidecarEnabled ?? false,
+    forceVisualRag: validated.featureFlags?.forceVisualRag ?? false,
+    guidanceServiceEnabled: validated.featureFlags?.guidanceServiceEnabled ?? true,
+    metricsEnabled: validated.featureFlags?.metricsEnabled ?? true,
+    duplicateDetectionEnabled: validated.featureFlags?.duplicateDetectionEnabled ?? true,
+    ocrCheckpointEnabled: validated.featureFlags?.ocrCheckpointEnabled ?? true,
+    summaryFallbackEnabled: validated.featureFlags?.summaryFallbackEnabled ?? true
+  });
   const [scanInterval, setScanInterval] = d2(validated.environmentVariables?.scanInterval || "*/30 * * * *");
   const [tokenLimit, setTokenLimit] = d2(validated.environmentVariables?.tokenLimit || 128e3);
   const [responseTokens, setResponseTokens] = d2(validated.environmentVariables?.responseTokens || 4096);
@@ -14756,12 +15893,26 @@ function DeveloperSettingsIsland(props) {
   const [maxVisionPages, setMaxVisionPages] = d2(validated.environmentVariables?.maxVisionPages || 4);
   const [guidanceTimeout, setGuidanceTimeout] = d2(validated.environmentVariables?.guidanceTimeout || 9e4);
   const [visualRagTimeout, setVisualRagTimeout] = d2(validated.environmentVariables?.visualRagTimeout || 3e4);
+  const [ollamaContextWindow, setOllamaContextWindow] = d2(validated.ollamaModelLimits?.ollamaContextWindow || 128e3);
+  const [ollamaMaxResponseTokens, setOllamaMaxResponseTokens] = d2(validated.ollamaModelLimits?.ollamaMaxResponseTokens || 4096);
+  const [ollamaVisionContextWindow, setOllamaVisionContextWindow] = d2(validated.ollamaModelLimits?.ollamaVisionContextWindow || 32768);
+  const [ollamaVisionMaxResponseTokens, setOllamaVisionMaxResponseTokens] = d2(validated.ollamaModelLimits?.ollamaVisionMaxResponseTokens || 2048);
+  const [ollamaVisionImageTokens, setOllamaVisionImageTokens] = d2(validated.ollamaModelLimits?.ollamaVisionImageTokens || 1024);
+  const [ollamaPlannerContextWindow, setOllamaPlannerContextWindow] = d2(validated.ollamaModelLimits?.ollamaPlannerContextWindow || 32768);
+  const [ollamaPlannerMaxResponseTokens, setOllamaPlannerMaxResponseTokens] = d2(validated.ollamaModelLimits?.ollamaPlannerMaxResponseTokens || 2048);
+  const [ollamaExpertContextWindow, setOllamaExpertContextWindow] = d2(validated.ollamaModelLimits?.ollamaExpertContextWindow || 128e3);
+  const [ollamaExpertMaxResponseTokens, setOllamaExpertMaxResponseTokens] = d2(validated.ollamaModelLimits?.ollamaExpertMaxResponseTokens || 4096);
+  const [translationContextWindow, setTranslationContextWindow] = d2(validated.ollamaModelLimits?.translationContextWindow || 128e3);
   const [isDirty2, setIsDirty] = d2(false);
   const [isSaving, setIsSaving] = d2(false);
   const [saveMessage, setSaveMessage] = d2(null);
+  const [isOllamaDirty, setIsOllamaDirty] = d2(false);
+  const [isOllamaSaving, setIsOllamaSaving] = d2(false);
+  const [ollamaSaveMessage, setOllamaSaveMessage] = d2(null);
   const [runtimeState, setRuntimeState] = d2(null);
   const [isLoadingRuntimeState, setIsLoadingRuntimeState] = d2(false);
   const [runtimeStateError, setRuntimeStateError] = d2(null);
+  const [runtimeRefreshKey, setRuntimeRefreshKey] = d2(0);
   const debounceTimerRef = A2(null);
   const refreshIntervalRef = A2(null);
   y2(() => {
@@ -14771,13 +15922,12 @@ function DeveloperSettingsIsland(props) {
       if (!enabled) {
         setFeatureFlagsExpanded(false);
         setEnvVarsExpanded(false);
+        setOllamaLimitsExpanded(false);
         setRuntimeStateExpanded(false);
       }
     };
     document.addEventListener("developer:toggled", handleDeveloperToggle);
-    return () => {
-      document.removeEventListener("developer:toggled", handleDeveloperToggle);
-    };
+    return () => document.removeEventListener("developer:toggled", handleDeveloperToggle);
   }, []);
   y2(() => {
     if (saveMessage) {
@@ -14785,6 +15935,12 @@ function DeveloperSettingsIsland(props) {
       return () => clearTimeout(timer);
     }
   }, [saveMessage]);
+  y2(() => {
+    if (ollamaSaveMessage) {
+      const timer = setTimeout(() => setOllamaSaveMessage(null), 3e3);
+      return () => clearTimeout(timer);
+    }
+  }, [ollamaSaveMessage]);
   const fetchRuntimeState = async () => {
     setIsLoadingRuntimeState(true);
     setRuntimeStateError(null);
@@ -14793,6 +15949,7 @@ function DeveloperSettingsIsland(props) {
       if (response.ok) {
         const data = await response.json();
         setRuntimeState(data);
+        setRuntimeRefreshKey((k4) => k4 + 1);
       } else {
         setRuntimeStateError("Failed to fetch runtime state");
       }
@@ -14805,9 +15962,7 @@ function DeveloperSettingsIsland(props) {
   y2(() => {
     if (runtimeStateExpanded) {
       fetchRuntimeState();
-      refreshIntervalRef.current = setInterval(() => {
-        fetchRuntimeState();
-      }, 1e4);
+      refreshIntervalRef.current = setInterval(fetchRuntimeState, 1e4);
     } else {
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
@@ -14815,68 +15970,26 @@ function DeveloperSettingsIsland(props) {
       }
     }
     return () => {
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-      }
+      if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
     };
   }, [runtimeStateExpanded]);
-  const handleFeatureFlagChange = async (flagName, value) => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
+  const handleFeatureFlagChange = (flagName, value) => {
+    setFlags((prev) => ({ ...prev, [flagName]: value }));
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(async () => {
       try {
-        const settings = {};
-        switch (flagName) {
-          case "expertPipelineEnabled":
-            settings.EXPERT_PIPELINE_ENABLED = value ? "yes" : "no";
-            break;
-          case "visualRagEnabled":
-            settings.ENABLE_VISUAL_RAG = value ? "yes" : "no";
-            break;
-          case "visualRagSidecarEnabled":
-            settings.ENABLE_VISUAL_RAG_SIDECAR = value ? "yes" : "no";
-            break;
-          case "forceVisualRag":
-            settings.FORCE_VISUAL_RAG = value ? "yes" : "no";
-            break;
-          case "guidanceServiceEnabled":
-            settings.GUIDANCE_SERVICE_ENABLED = value ? "yes" : "no";
-            break;
-          case "metricsEnabled":
-            settings.ENABLE_MODEL_METRICS = value ? "yes" : "no";
-            break;
-          case "duplicateDetectionEnabled":
-            settings.DUPLICATE_DETECTION_ENABLED = value ? "yes" : "no";
-            break;
-          case "ocrCheckpointEnabled":
-            settings.OCR_CHECKPOINT_ENABLED = value ? "yes" : "no";
-            break;
-          case "summaryFallbackEnabled":
-            settings.SUMMARY_FALLBACK_ENABLED = value ? "yes" : "no";
-            break;
-        }
+        const envName = FLAG_ENV_MAP[flagName];
+        if (!envName) return;
+        const settings = { [envName]: value ? "yes" : "no" };
         const response = await fetch("/settings/apply", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            category: "developer-feature-flags",
-            settings,
-            requiresRestart: false
-            // Most feature flags don't require restart
-          })
+          body: JSON.stringify({ category: "developer-feature-flags", settings, requiresRestart: false })
         });
-        if (response.ok) {
-          if (typeof document !== "undefined") {
-            document.dispatchEvent(new CustomEvent("settings:changed", {
-              detail: {
-                type: "settings:changed",
-                category: "developer-feature-flags",
-                settings,
-                requiresRestart: false
-              }
-            }));
-          }
+        if (response.ok && typeof document !== "undefined") {
+          document.dispatchEvent(new CustomEvent("settings:changed", {
+            detail: { type: "settings:changed", category: "developer-feature-flags", settings, requiresRestart: false }
+          }));
         }
       } catch (error) {
         console.error("Feature flag auto-save failed:", error);
@@ -14888,7 +16001,6 @@ function DeveloperSettingsIsland(props) {
     setSaveMessage(null);
     try {
       const settings = {
-        DISABLE_AUTOMATIC_PROCESSING: disableAutoProcessing,
         SCAN_INTERVAL: scanInterval,
         TOKEN_LIMIT: tokenLimit.toString(),
         RESPONSE_TOKENS: responseTokens.toString(),
@@ -14900,12 +16012,7 @@ function DeveloperSettingsIsland(props) {
       const response = await fetch("/settings/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          category: "developer-env-vars",
-          settings,
-          requiresRestart: true
-          // Environment variables require restart
-        })
+        body: JSON.stringify({ category: "developer-env-vars", settings, requiresRestart: true })
       });
       const result = await response.json();
       if (response.ok && result.success) {
@@ -14913,27 +16020,13 @@ function DeveloperSettingsIsland(props) {
         setIsDirty(false);
         if (typeof document !== "undefined") {
           document.dispatchEvent(new CustomEvent("settings:changed", {
-            detail: {
-              type: "settings:changed",
-              category: "developer-env-vars",
-              settings,
-              requiresRestart: true
-            }
+            detail: { type: "settings:changed", category: "developer-env-vars", settings, requiresRestart: true }
           }));
           document.dispatchEvent(new CustomEvent("settings:restart-required", {
-            detail: {
-              type: "settings:restart-required",
-              reason: "Developer environment variables changed",
-              settings: ["Environment Variables"]
-            }
+            detail: { type: "settings:restart-required", reason: "Developer environment variables changed", settings: ["Environment Variables"] }
           }));
           document.dispatchEvent(new CustomEvent("settings:saved", {
-            detail: {
-              type: "settings:saved",
-              category: "developer-env-vars",
-              success: true,
-              message: "Environment variables saved successfully"
-            }
+            detail: { type: "settings:saved", category: "developer-env-vars", success: true, message: "Environment variables saved successfully" }
           }));
         }
       } else {
@@ -14946,580 +16039,739 @@ function DeveloperSettingsIsland(props) {
     }
   };
   const markDirty = () => setIsDirty(true);
-  if (!isDeveloperMode) {
-    return null;
-  }
-  return /* @__PURE__ */ u3("div", { className: "developer-settings space-y-6 p-6 max-w-4xl", "data-testid": "developer-settings-root", children: [
-    /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-      /* @__PURE__ */ u3("h2", { className: "text-2xl font-bold", children: "Developer Settings" }),
-      /* @__PURE__ */ u3("p", { className: "text-gray-600", children: "Advanced configuration for developers and power users" }),
-      /* @__PURE__ */ u3("p", { className: "text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded p-2", "data-testid": "developer-warning", children: "\u26A0\uFE0F Warning: These settings can affect system behavior. Only modify if you understand the implications." })
+  const markOllamaDirty = () => setIsOllamaDirty(true);
+  const handleSaveOllamaLimits = async () => {
+    setIsOllamaSaving(true);
+    setOllamaSaveMessage(null);
+    try {
+      const settings = {
+        OLLAMA_CONTEXT_WINDOW: ollamaContextWindow.toString(),
+        OLLAMA_MAX_RESPONSE_TOKENS: ollamaMaxResponseTokens.toString(),
+        OLLAMA_VISION_CONTEXT_WINDOW: ollamaVisionContextWindow.toString(),
+        OLLAMA_VISION_MAX_RESPONSE_TOKENS: ollamaVisionMaxResponseTokens.toString(),
+        OLLAMA_VISION_IMAGE_TOKENS: ollamaVisionImageTokens.toString(),
+        OLLAMA_PLANNER_CONTEXT_WINDOW: ollamaPlannerContextWindow.toString(),
+        OLLAMA_PLANNER_MAX_RESPONSE_TOKENS: ollamaPlannerMaxResponseTokens.toString(),
+        OLLAMA_EXPERT_CONTEXT_WINDOW: ollamaExpertContextWindow.toString(),
+        OLLAMA_EXPERT_MAX_RESPONSE_TOKENS: ollamaExpertMaxResponseTokens.toString(),
+        TRANSLATION_CONTEXT_WINDOW: translationContextWindow.toString()
+      };
+      const response = await fetch("/api/settings/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings)
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        setOllamaSaveMessage("Ollama model limits saved successfully");
+        setIsOllamaDirty(false);
+        if (typeof document !== "undefined") {
+          document.dispatchEvent(new CustomEvent("settings:saved", {
+            detail: { type: "settings:saved", category: "developer-ollama-limits", success: true, message: "Ollama model limits saved" }
+          }));
+          document.dispatchEvent(new CustomEvent("settings:restart-required", {
+            detail: { type: "settings:restart-required", reason: "Ollama model limits changed", settings: ["Ollama Model Limits"] }
+          }));
+        }
+      } else {
+        setOllamaSaveMessage(`Save failed: ${result.message || result.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      setOllamaSaveMessage(`Save failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setIsOllamaSaving(false);
+    }
+  };
+  if (!isDeveloperMode) return null;
+  const topologyNodes = runtimeState ? [
+    { id: "paperless", label: "Paperless-ngx", status: "online" },
+    { id: "qdrant", label: "Qdrant", status: runtimeState.qdrant?.connected ? "online" : "offline" },
+    { id: "visual-rag", label: "Visual RAG", status: runtimeState.sidecars?.visualRag ? "online" : "offline" },
+    { id: "guidance", label: "Guidance", status: runtimeState.sidecars?.guidance ? "online" : "offline" },
+    { id: "bias-engine", label: "Bias Engine", status: runtimeState.sidecars?.biasEngine ? "online" : "offline" }
+  ] : [];
+  const Chevron = ({ open }) => /* @__PURE__ */ u3(
+    "svg",
+    {
+      className: `dev-section-chevron ${open ? "dev-section-chevron--open" : ""}`,
+      fill: "none",
+      viewBox: "0 0 24 24",
+      stroke: "currentColor",
+      children: /* @__PURE__ */ u3("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M19 9l-7 7-7-7" })
+    }
+  );
+  return /* @__PURE__ */ u3("div", { className: "developer-settings space-y-4 p-6 max-w-4xl", "data-testid": "developer-settings-root", children: [
+    /* @__PURE__ */ u3("div", { className: "space-y-2 mb-2", children: [
+      /* @__PURE__ */ u3("h2", { className: "text-2xl font-bold", style: { color: "var(--text-primary)" }, children: "Developer Settings" }),
+      /* @__PURE__ */ u3("p", { className: "text-sm", style: { color: "var(--text-secondary)" }, children: "Advanced configuration for developers and power users" }),
+      /* @__PURE__ */ u3(
+        "div",
+        {
+          className: "flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium",
+          style: { background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.2)", color: "#f59e0b" },
+          "data-testid": "developer-warning",
+          children: [
+            /* @__PURE__ */ u3("svg", { className: "w-4 h-4 flex-shrink-0", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ u3("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" }) }),
+            "These settings can affect system behavior. Only modify if you understand the implications."
+          ]
+        }
+      )
     ] }),
-    /* @__PURE__ */ u3("div", { className: "border rounded-lg", children: [
+    /* @__PURE__ */ u3("div", { className: "dev-section-panel", children: [
       /* @__PURE__ */ u3(
         "button",
         {
           onClick: () => setFeatureFlagsExpanded(!featureFlagsExpanded),
-          className: "w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-t-lg",
+          className: "dev-section-header w-full",
+          "aria-expanded": featureFlagsExpanded,
+          "aria-controls": "feature-flags-content",
           "data-testid": "feature-flags-header",
           children: [
-            /* @__PURE__ */ u3("div", { className: "flex items-center space-x-2", children: [
-              /* @__PURE__ */ u3("h3", { className: "text-lg font-semibold", children: "Feature Flags" }),
-              /* @__PURE__ */ u3("span", { className: "text-xs text-gray-500 italic", "data-testid": "feature-flags-indicator", children: "Auto-saves on change" })
+            /* @__PURE__ */ u3("div", { className: "flex items-center gap-3", children: [
+              /* @__PURE__ */ u3("h3", { children: "Feature Flags" }),
+              /* @__PURE__ */ u3("span", { className: "section-badge section-badge--autosave", "data-testid": "feature-flags-indicator", children: "Auto-saves" })
             ] }),
-            /* @__PURE__ */ u3(
-              "svg",
-              {
-                className: `w-5 h-5 transition-transform ${featureFlagsExpanded ? "rotate-180" : ""}`,
-                fill: "none",
-                viewBox: "0 0 24 24",
-                stroke: "currentColor",
-                children: /* @__PURE__ */ u3("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M19 9l-7 7-7-7" })
-              }
-            )
+            /* @__PURE__ */ u3(Chevron, { open: featureFlagsExpanded })
           ]
         }
       ),
-      featureFlagsExpanded && /* @__PURE__ */ u3("div", { className: "p-4 space-y-4", "data-testid": "feature-flags-content", children: /* @__PURE__ */ u3("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4", children: [
-        /* @__PURE__ */ u3("div", { className: "flex items-center justify-between p-3 border rounded", children: [
-          /* @__PURE__ */ u3("div", { children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "flag-expert-pipeline", className: "block text-sm font-medium text-gray-700", children: "Expert Pipeline" }),
-            /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Enable domain-specific expert models" })
-          ] }),
-          /* @__PURE__ */ u3("label", { className: "relative inline-flex items-center cursor-pointer", children: [
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "flag-expert-pipeline",
-                type: "checkbox",
-                checked: expertPipeline,
-                onChange: (e3) => {
-                  const value = e3.target.checked;
-                  setExpertPipeline(value);
-                  handleFeatureFlagChange("expertPipelineEnabled", value);
-                },
-                className: "sr-only peer",
-                "data-testid": "toggle-expertPipelineEnabled"
-              }
-            ),
-            /* @__PURE__ */ u3("div", { className: "w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" })
-          ] })
-        ] }),
-        /* @__PURE__ */ u3("div", { className: "flex items-center justify-between p-3 border rounded", children: [
-          /* @__PURE__ */ u3("div", { children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "flag-visual-rag", className: "block text-sm font-medium text-gray-700", children: "Visual RAG" }),
-            /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Enable visual document analysis" })
-          ] }),
-          /* @__PURE__ */ u3("label", { className: "relative inline-flex items-center cursor-pointer", children: [
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "flag-visual-rag",
-                type: "checkbox",
-                checked: visualRag,
-                onChange: (e3) => {
-                  const value = e3.target.checked;
-                  setVisualRag(value);
-                  handleFeatureFlagChange("visualRagEnabled", value);
-                },
-                className: "sr-only peer",
-                "data-testid": "toggle-visualRagEnabled"
-              }
-            ),
-            /* @__PURE__ */ u3("div", { className: "w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" })
-          ] })
-        ] }),
-        /* @__PURE__ */ u3("div", { className: "flex items-center justify-between p-3 border rounded", children: [
-          /* @__PURE__ */ u3("div", { children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "flag-visual-rag-sidecar", className: "block text-sm font-medium text-gray-700", children: "Visual RAG Sidecar" }),
-            /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Use GPU-accelerated sidecar service" })
-          ] }),
-          /* @__PURE__ */ u3("label", { className: "relative inline-flex items-center cursor-pointer", children: [
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "flag-visual-rag-sidecar",
-                type: "checkbox",
-                checked: visualRagSidecar,
-                onChange: (e3) => {
-                  const value = e3.target.checked;
-                  setVisualRagSidecar(value);
-                  handleFeatureFlagChange("visualRagSidecarEnabled", value);
-                },
-                className: "sr-only peer",
-                "data-testid": "toggle-visualRagSidecarEnabled"
-              }
-            ),
-            /* @__PURE__ */ u3("div", { className: "w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" })
-          ] })
-        ] }),
-        /* @__PURE__ */ u3("div", { className: "flex items-center justify-between p-3 border rounded", children: [
-          /* @__PURE__ */ u3("div", { children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "flag-force-visual-rag", className: "block text-sm font-medium text-gray-700", children: "Force Visual RAG" }),
-            /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Always use visual analysis" })
-          ] }),
-          /* @__PURE__ */ u3("label", { className: "relative inline-flex items-center cursor-pointer", children: [
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "flag-force-visual-rag",
-                type: "checkbox",
-                checked: forceVisualRag,
-                onChange: (e3) => {
-                  const value = e3.target.checked;
-                  setForceVisualRag(value);
-                  handleFeatureFlagChange("forceVisualRag", value);
-                },
-                className: "sr-only peer",
-                "data-testid": "toggle-forceVisualRag"
-              }
-            ),
-            /* @__PURE__ */ u3("div", { className: "w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" })
-          ] })
-        ] }),
-        /* @__PURE__ */ u3("div", { className: "flex items-center justify-between p-3 border rounded", children: [
-          /* @__PURE__ */ u3("div", { children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "flag-guidance", className: "block text-sm font-medium text-gray-700", children: "Guidance Service" }),
-            /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Deterministic JSON extraction" })
-          ] }),
-          /* @__PURE__ */ u3("label", { className: "relative inline-flex items-center cursor-pointer", children: [
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "flag-guidance",
-                type: "checkbox",
-                checked: guidanceService,
-                onChange: (e3) => {
-                  const value = e3.target.checked;
-                  setGuidanceService(value);
-                  handleFeatureFlagChange("guidanceServiceEnabled", value);
-                },
-                className: "sr-only peer",
-                "data-testid": "toggle-guidanceServiceEnabled"
-              }
-            ),
-            /* @__PURE__ */ u3("div", { className: "w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" })
-          ] })
-        ] }),
-        /* @__PURE__ */ u3("div", { className: "flex items-center justify-between p-3 border rounded", children: [
-          /* @__PURE__ */ u3("div", { children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "flag-metrics", className: "block text-sm font-medium text-gray-700", children: "Model Metrics" }),
-            /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Track model performance metrics" })
-          ] }),
-          /* @__PURE__ */ u3("label", { className: "relative inline-flex items-center cursor-pointer", children: [
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "flag-metrics",
-                type: "checkbox",
-                checked: metrics,
-                onChange: (e3) => {
-                  const value = e3.target.checked;
-                  setMetrics(value);
-                  handleFeatureFlagChange("metricsEnabled", value);
-                },
-                className: "sr-only peer",
-                "data-testid": "toggle-metricsEnabled"
-              }
-            ),
-            /* @__PURE__ */ u3("div", { className: "w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" })
-          ] })
-        ] }),
-        /* @__PURE__ */ u3("div", { className: "flex items-center justify-between p-3 border rounded", children: [
-          /* @__PURE__ */ u3("div", { children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "flag-duplicate-detection", className: "block text-sm font-medium text-gray-700", children: "Duplicate Detection" }),
-            /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Prevent duplicate document processing" })
-          ] }),
-          /* @__PURE__ */ u3("label", { className: "relative inline-flex items-center cursor-pointer", children: [
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "flag-duplicate-detection",
-                type: "checkbox",
-                checked: duplicateDetection,
-                onChange: (e3) => {
-                  const value = e3.target.checked;
-                  setDuplicateDetection(value);
-                  handleFeatureFlagChange("duplicateDetectionEnabled", value);
-                },
-                className: "sr-only peer",
-                "data-testid": "toggle-duplicateDetectionEnabled"
-              }
-            ),
-            /* @__PURE__ */ u3("div", { className: "w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" })
-          ] })
-        ] }),
-        /* @__PURE__ */ u3("div", { className: "flex items-center justify-between p-3 border rounded", children: [
-          /* @__PURE__ */ u3("div", { children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "flag-ocr-checkpoint", className: "block text-sm font-medium text-gray-700", children: "OCR Checkpoint" }),
-            /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Checkpoint after OCR step" })
-          ] }),
-          /* @__PURE__ */ u3("label", { className: "relative inline-flex items-center cursor-pointer", children: [
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "flag-ocr-checkpoint",
-                type: "checkbox",
-                checked: ocrCheckpoint,
-                onChange: (e3) => {
-                  const value = e3.target.checked;
-                  setOcrCheckpoint(value);
-                  handleFeatureFlagChange("ocrCheckpointEnabled", value);
-                },
-                className: "sr-only peer",
-                "data-testid": "toggle-ocrCheckpointEnabled"
-              }
-            ),
-            /* @__PURE__ */ u3("div", { className: "w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" })
-          ] })
-        ] }),
-        /* @__PURE__ */ u3("div", { className: "flex items-center justify-between p-3 border rounded", children: [
-          /* @__PURE__ */ u3("div", { children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "flag-summary-fallback", className: "block text-sm font-medium text-gray-700", children: "Summary Fallback" }),
-            /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Use summary fallback on errors" })
-          ] }),
-          /* @__PURE__ */ u3("label", { className: "relative inline-flex items-center cursor-pointer", children: [
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "flag-summary-fallback",
-                type: "checkbox",
-                checked: summaryFallback,
-                onChange: (e3) => {
-                  const value = e3.target.checked;
-                  setSummaryFallback(value);
-                  handleFeatureFlagChange("summaryFallbackEnabled", value);
-                },
-                className: "sr-only peer",
-                "data-testid": "toggle-summaryFallbackEnabled"
-              }
-            ),
-            /* @__PURE__ */ u3("div", { className: "w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" })
-          ] })
-        ] })
-      ] }) })
+      featureFlagsExpanded && /* @__PURE__ */ u3("div", { id: "feature-flags-content", "data-testid": "feature-flags-content", children: FEATURE_FLAG_GROUPS.map((group, gi) => /* @__PURE__ */ u3("div", { className: "flag-group stagger-child", "data-testid": `flag-group-${group.id}`, children: [
+        /* @__PURE__ */ u3("div", { className: "flag-group-label", children: group.label }),
+        group.flags.map((flag) => /* @__PURE__ */ u3(
+          ToggleSwitch,
+          {
+            id: `flag-${flag.key}`,
+            label: flag.label,
+            description: flag.description,
+            checked: flags[flag.key],
+            onChange: (value) => handleFeatureFlagChange(flag.key, value),
+            testId: `toggle-${flag.key}`
+          },
+          flag.key
+        ))
+      ] }, group.id)) })
     ] }),
-    /* @__PURE__ */ u3("div", { className: "border rounded-lg", children: [
+    /* @__PURE__ */ u3("div", { className: "dev-section-panel", children: [
       /* @__PURE__ */ u3(
         "button",
         {
           onClick: () => setEnvVarsExpanded(!envVarsExpanded),
-          className: "w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-t-lg",
+          className: "dev-section-header w-full",
+          "aria-expanded": envVarsExpanded,
+          "aria-controls": "env-vars-content",
           "data-testid": "env-vars-header",
           children: [
-            /* @__PURE__ */ u3("div", { className: "flex items-center space-x-2", children: [
-              /* @__PURE__ */ u3("h3", { className: "text-lg font-semibold", children: "Environment Variables" }),
-              /* @__PURE__ */ u3("span", { className: "text-xs text-gray-500 italic", "data-testid": "env-vars-indicator", children: "Manual save required" })
+            /* @__PURE__ */ u3("div", { className: "flex items-center gap-3", children: [
+              /* @__PURE__ */ u3("h3", { children: "Environment Variables" }),
+              /* @__PURE__ */ u3("span", { className: "section-badge section-badge--manual", "data-testid": "env-vars-indicator", children: "Manual save" })
             ] }),
-            /* @__PURE__ */ u3(
-              "svg",
-              {
-                className: `w-5 h-5 transition-transform ${envVarsExpanded ? "rotate-180" : ""}`,
-                fill: "none",
-                viewBox: "0 0 24 24",
-                stroke: "currentColor",
-                children: /* @__PURE__ */ u3("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M19 9l-7 7-7-7" })
-              }
-            )
+            /* @__PURE__ */ u3(Chevron, { open: envVarsExpanded })
           ]
         }
       ),
-      envVarsExpanded && /* @__PURE__ */ u3("div", { className: "p-4 space-y-4", "data-testid": "env-vars-content", children: [
-        /* @__PURE__ */ u3("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4", children: [
-          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "scan-interval", className: "block text-sm font-medium text-gray-700", children: "Scan Interval (cron)" }),
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "scan-interval",
-                type: "text",
-                value: scanInterval,
-                onChange: (e3) => {
-                  setScanInterval(e3.target.value);
-                  markDirty();
-                },
-                placeholder: "*/30 * * * *",
-                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                "data-testid": "scan-interval-input"
-              }
-            ),
-            /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Cron expression for document scanning" })
-          ] }),
-          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "token-limit", className: "block text-sm font-medium text-gray-700", children: "Token Limit" }),
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "token-limit",
-                type: "number",
-                value: tokenLimit,
-                onChange: (e3) => {
-                  setTokenLimit(parseInt(e3.target.value));
-                  markDirty();
-                },
-                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                "data-testid": "token-limit-input"
-              }
-            ),
-            /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Maximum context window size" })
-          ] }),
-          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "response-tokens", className: "block text-sm font-medium text-gray-700", children: "Response Tokens" }),
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "response-tokens",
-                type: "number",
-                value: responseTokens,
-                onChange: (e3) => {
-                  setResponseTokens(parseInt(e3.target.value));
-                  markDirty();
-                },
-                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                "data-testid": "response-tokens-input"
-              }
-            ),
-            /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Maximum response length" })
-          ] }),
-          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "text-quality", className: "block text-sm font-medium text-gray-700", children: "Text Quality Threshold (%)" }),
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "text-quality",
-                type: "number",
-                min: "0",
-                max: "100",
-                value: textQualityThreshold,
-                onChange: (e3) => {
-                  setTextQualityThreshold(parseInt(e3.target.value));
-                  markDirty();
-                },
-                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                "data-testid": "text-quality-threshold-input"
-              }
-            ),
-            /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Minimum OCR quality for text extraction" })
-          ] }),
-          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "max-vision-pages", className: "block text-sm font-medium text-gray-700", children: "Max Vision Pages" }),
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "max-vision-pages",
-                type: "number",
-                min: "1",
-                value: maxVisionPages,
-                onChange: (e3) => {
-                  setMaxVisionPages(parseInt(e3.target.value));
-                  markDirty();
-                },
-                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                "data-testid": "max-vision-pages-input"
-              }
-            ),
-            /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Maximum pages for visual analysis" })
-          ] }),
-          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "guidance-timeout", className: "block text-sm font-medium text-gray-700", children: "Guidance Timeout (ms)" }),
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "guidance-timeout",
-                type: "number",
-                min: "1000",
-                value: guidanceTimeout,
-                onChange: (e3) => {
-                  setGuidanceTimeout(parseInt(e3.target.value));
-                  markDirty();
-                },
-                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                "data-testid": "guidance-timeout-input"
-              }
-            ),
-            /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Timeout for guidance service calls" })
-          ] }),
-          /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
-            /* @__PURE__ */ u3("label", { htmlFor: "visual-rag-timeout", className: "block text-sm font-medium text-gray-700", children: "Visual RAG Timeout (ms)" }),
-            /* @__PURE__ */ u3(
-              "input",
-              {
-                id: "visual-rag-timeout",
-                type: "number",
-                min: "1000",
-                value: visualRagTimeout,
-                onChange: (e3) => {
-                  setVisualRagTimeout(parseInt(e3.target.value));
-                  markDirty();
-                },
-                className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                "data-testid": "visual-rag-timeout-input"
-              }
-            ),
-            /* @__PURE__ */ u3("p", { className: "text-xs text-gray-500", children: "Timeout for visual RAG service calls" })
+      envVarsExpanded && /* @__PURE__ */ u3("div", { id: "env-vars-content", "data-testid": "env-vars-content", children: [
+        /* @__PURE__ */ u3("div", { className: "flag-group stagger-child", children: [
+          /* @__PURE__ */ u3("div", { className: "flag-group-label", children: "Timing" }),
+          /* @__PURE__ */ u3("div", { className: "space-y-4 py-2", children: [
+            /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+              /* @__PURE__ */ u3("label", { htmlFor: "scan-interval", className: "block text-sm font-medium", style: { color: "var(--text-primary)" }, children: "Scan Interval (cron)" }),
+              /* @__PURE__ */ u3(
+                "input",
+                {
+                  id: "scan-interval",
+                  type: "text",
+                  value: scanInterval,
+                  onChange: (e3) => {
+                    setScanInterval(e3.target.value);
+                    markDirty();
+                  },
+                  placeholder: "*/30 * * * *",
+                  className: "w-full px-3 py-2 rounded-md text-sm",
+                  style: { border: "1px solid var(--border-color)", background: "var(--card-bg)", color: "var(--text-primary)", fontFamily: "'JetBrains Mono', monospace" },
+                  "data-testid": "scan-interval-input"
+                }
+              ),
+              /* @__PURE__ */ u3("p", { className: "text-xs", style: { color: "var(--text-muted)" }, children: "Cron expression for document scanning" })
+            ] }),
+            /* @__PURE__ */ u3("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4", children: [
+              /* @__PURE__ */ u3(
+                RangeNumberInput,
+                {
+                  id: "guidance-timeout",
+                  label: "Guidance Timeout",
+                  description: "Timeout for guidance service calls",
+                  value: guidanceTimeout,
+                  min: 1e3,
+                  max: 3e5,
+                  step: 1e3,
+                  unit: "ms",
+                  onChange: (v3) => {
+                    setGuidanceTimeout(v3);
+                    markDirty();
+                  },
+                  testId: "guidance-timeout-input"
+                }
+              ),
+              /* @__PURE__ */ u3(
+                RangeNumberInput,
+                {
+                  id: "visual-rag-timeout",
+                  label: "Visual RAG Timeout",
+                  description: "Timeout for visual RAG service calls",
+                  value: visualRagTimeout,
+                  min: 1e3,
+                  max: 3e5,
+                  step: 1e3,
+                  unit: "ms",
+                  onChange: (v3) => {
+                    setVisualRagTimeout(v3);
+                    markDirty();
+                  },
+                  testId: "visual-rag-timeout-input"
+                }
+              )
+            ] })
           ] })
         ] }),
-        /* @__PURE__ */ u3("div", { className: "border-t pt-4", children: [
+        /* @__PURE__ */ u3("div", { className: "flag-group stagger-child", children: [
+          /* @__PURE__ */ u3("div", { className: "flag-group-label", children: "Token Budget" }),
+          /* @__PURE__ */ u3("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4 py-2", children: [
+            /* @__PURE__ */ u3(
+              RangeNumberInput,
+              {
+                id: "token-limit",
+                label: "Token Limit",
+                description: "Maximum context window size",
+                value: tokenLimit,
+                min: 1024,
+                max: 256e3,
+                step: 1024,
+                onChange: (v3) => {
+                  setTokenLimit(v3);
+                  markDirty();
+                },
+                testId: "token-limit-input"
+              }
+            ),
+            /* @__PURE__ */ u3(
+              RangeNumberInput,
+              {
+                id: "response-tokens",
+                label: "Response Tokens",
+                description: "Maximum response length",
+                value: responseTokens,
+                min: 256,
+                max: 32768,
+                step: 256,
+                onChange: (v3) => {
+                  setResponseTokens(v3);
+                  markDirty();
+                },
+                testId: "response-tokens-input"
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ u3("div", { className: "flag-group stagger-child", children: [
+          /* @__PURE__ */ u3("div", { className: "flag-group-label", children: "Quality" }),
+          /* @__PURE__ */ u3("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4 py-2", children: [
+            /* @__PURE__ */ u3("div", { className: "space-y-2", children: [
+              /* @__PURE__ */ u3("label", { htmlFor: "text-quality", className: "block text-sm font-medium", style: { color: "var(--text-primary)" }, children: "Text Quality Threshold" }),
+              /* @__PURE__ */ u3("div", { className: "range-number-group", children: [
+                /* @__PURE__ */ u3(
+                  "input",
+                  {
+                    type: "range",
+                    min: 0,
+                    max: 100,
+                    value: textQualityThreshold,
+                    onInput: (e3) => {
+                      setTextQualityThreshold(parseInt(e3.target.value));
+                      markDirty();
+                    },
+                    "aria-label": "Text quality slider"
+                  }
+                ),
+                /* @__PURE__ */ u3(
+                  "input",
+                  {
+                    id: "text-quality",
+                    type: "number",
+                    min: 0,
+                    max: 100,
+                    value: textQualityThreshold,
+                    onInput: (e3) => {
+                      setTextQualityThreshold(parseInt(e3.target.value));
+                      markDirty();
+                    },
+                    "data-testid": "text-quality-threshold-input"
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ u3("div", { className: "usage-bar-track", style: { marginTop: "0.25rem" }, children: /* @__PURE__ */ u3(
+                "div",
+                {
+                  className: "usage-bar-fill",
+                  "data-level": textQualityThreshold >= 80 ? "ok" : textQualityThreshold >= 40 ? "warn" : "danger",
+                  style: { width: `${textQualityThreshold}%` }
+                }
+              ) }),
+              /* @__PURE__ */ u3("p", { className: "text-xs", style: { color: "var(--text-muted)" }, children: [
+                "Minimum OCR quality for text extraction (",
+                textQualityThreshold,
+                "%)"
+              ] })
+            ] }),
+            /* @__PURE__ */ u3(
+              RangeNumberInput,
+              {
+                id: "max-vision-pages",
+                label: "Max Vision Pages",
+                description: "Maximum pages for visual analysis",
+                value: maxVisionPages,
+                min: 1,
+                max: 20,
+                step: 1,
+                onChange: (v3) => {
+                  setMaxVisionPages(v3);
+                  markDirty();
+                },
+                testId: "max-vision-pages-input"
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ u3("div", { className: "save-bar", children: [
           /* @__PURE__ */ u3(
             "button",
             {
               onClick: handleSaveEnvVars,
               disabled: !isDirty2 || isSaving,
-              className: "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed",
+              className: "save-bar-btn",
               "data-testid": "save-env-vars-button",
-              children: isSaving ? "Saving..." : "Save Environment Variables"
+              children: isSaving ? /* @__PURE__ */ u3(k, { children: [
+                /* @__PURE__ */ u3("span", { className: "inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" }),
+                "Saving..."
+              ] }) : "Save Environment Variables"
             }
           ),
           saveMessage && /* @__PURE__ */ u3(
-            "div",
+            "span",
             {
-              className: "mt-3 p-3 rounded bg-blue-50 border border-blue-200 text-blue-800",
+              className: "text-sm font-medium",
+              style: { color: saveMessage.startsWith("Save failed") ? "#ef4444" : "#22c55e" },
               "data-testid": "save-message",
               children: saveMessage
             }
           ),
-          /* @__PURE__ */ u3("p", { className: "mt-2 text-sm text-gray-500", children: "\u26A0\uFE0F Changing environment variables requires a restart to take effect" })
+          isDirty2 && /* @__PURE__ */ u3("span", { className: "text-xs", style: { color: "#f59e0b", marginLeft: "auto" }, children: "Unsaved changes - restart required" })
         ] })
       ] })
     ] }),
-    /* @__PURE__ */ u3("div", { className: "border rounded-lg", children: [
+    /* @__PURE__ */ u3("div", { className: "dev-section-panel", children: [
+      /* @__PURE__ */ u3(
+        "button",
+        {
+          onClick: () => setOllamaLimitsExpanded(!ollamaLimitsExpanded),
+          className: "dev-section-header w-full",
+          "aria-expanded": ollamaLimitsExpanded,
+          "aria-controls": "ollama-limits-content",
+          "data-testid": "ollama-limits-header",
+          children: [
+            /* @__PURE__ */ u3("div", { className: "flex items-center gap-3", children: [
+              /* @__PURE__ */ u3("h3", { children: "Ollama Model Limits" }),
+              /* @__PURE__ */ u3("span", { className: "local-badge", "data-testid": "ollama-limits-local-badge", children: [
+                /* @__PURE__ */ u3("svg", { className: "w-3 h-3", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ u3("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" }) }),
+                "Local"
+              ] }),
+              /* @__PURE__ */ u3("span", { className: "section-badge section-badge--manual", children: "Manual save" })
+            ] }),
+            /* @__PURE__ */ u3(Chevron, { open: ollamaLimitsExpanded })
+          ]
+        }
+      ),
+      ollamaLimitsExpanded && /* @__PURE__ */ u3("div", { id: "ollama-limits-content", "data-testid": "ollama-limits-content", children: [
+        /* @__PURE__ */ u3(
+          "div",
+          {
+            className: "mx-5 mt-4 p-3 rounded-lg text-xs",
+            style: { background: "rgba(20, 184, 166, 0.06)", border: "1px solid rgba(20, 184, 166, 0.15)", color: "var(--text-secondary)" },
+            children: [
+              "These limits apply to ",
+              /* @__PURE__ */ u3("strong", { style: { color: "#14b8a6" }, children: "locally-hosted Ollama models" }),
+              " only. Cloud providers (OpenAI, Azure) manage their own token limits."
+            ]
+          }
+        ),
+        /* @__PURE__ */ u3("div", { className: "tier-rail mx-5 my-4", children: [
+          /* @__PURE__ */ u3("div", { className: "tier-group stagger-child", "data-testid": "tier-text", children: [
+            /* @__PURE__ */ u3("div", { className: "tier-label", children: "Text (Base)" }),
+            /* @__PURE__ */ u3("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4", children: [
+              /* @__PURE__ */ u3(
+                RangeNumberInput,
+                {
+                  id: "ollama-context-window",
+                  label: "Context Window",
+                  description: "Maximum context for text models",
+                  value: ollamaContextWindow,
+                  min: 1024,
+                  max: 256e3,
+                  step: 1024,
+                  unit: "tokens",
+                  onChange: (v3) => {
+                    setOllamaContextWindow(v3);
+                    markOllamaDirty();
+                  },
+                  testId: "tier-text-context-window"
+                }
+              ),
+              /* @__PURE__ */ u3(
+                RangeNumberInput,
+                {
+                  id: "ollama-max-response",
+                  label: "Max Response Tokens",
+                  description: "Maximum response length",
+                  value: ollamaMaxResponseTokens,
+                  min: 256,
+                  max: 32768,
+                  step: 256,
+                  unit: "tokens",
+                  onChange: (v3) => {
+                    setOllamaMaxResponseTokens(v3);
+                    markOllamaDirty();
+                  },
+                  testId: "tier-text-max-response"
+                }
+              )
+            ] })
+          ] }),
+          /* @__PURE__ */ u3("div", { className: "tier-group stagger-child", "data-testid": "tier-vision", children: [
+            /* @__PURE__ */ u3("div", { className: "tier-label", children: [
+              "Vision",
+              /* @__PURE__ */ u3("span", { className: "tier-cap-badge", children: "capped 32k" })
+            ] }),
+            /* @__PURE__ */ u3("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4", children: [
+              /* @__PURE__ */ u3(
+                RangeNumberInput,
+                {
+                  id: "ollama-vision-context",
+                  label: "Context Window",
+                  description: "Maximum context for vision models",
+                  value: ollamaVisionContextWindow,
+                  min: 1024,
+                  max: 32768,
+                  step: 1024,
+                  unit: "tokens",
+                  onChange: (v3) => {
+                    setOllamaVisionContextWindow(v3);
+                    markOllamaDirty();
+                  },
+                  testId: "tier-vision-context-window"
+                }
+              ),
+              /* @__PURE__ */ u3(
+                RangeNumberInput,
+                {
+                  id: "ollama-vision-response",
+                  label: "Max Response Tokens",
+                  description: "Maximum response length",
+                  value: ollamaVisionMaxResponseTokens,
+                  min: 256,
+                  max: 8192,
+                  step: 256,
+                  unit: "tokens",
+                  onChange: (v3) => {
+                    setOllamaVisionMaxResponseTokens(v3);
+                    markOllamaDirty();
+                  },
+                  testId: "tier-vision-max-response"
+                }
+              )
+            ] }),
+            /* @__PURE__ */ u3("div", { className: "mt-3", style: { maxWidth: "20rem" }, children: /* @__PURE__ */ u3(
+              RangeNumberInput,
+              {
+                id: "ollama-vision-image",
+                label: "Image Token Overhead",
+                description: "Token cost per image in vision context",
+                value: ollamaVisionImageTokens,
+                min: 128,
+                max: 4096,
+                step: 128,
+                unit: "tokens/image",
+                onChange: (v3) => {
+                  setOllamaVisionImageTokens(v3);
+                  markOllamaDirty();
+                },
+                testId: "tier-vision-image-tokens"
+              }
+            ) })
+          ] }),
+          /* @__PURE__ */ u3("div", { className: "tier-group stagger-child", "data-testid": "tier-planner", children: [
+            /* @__PURE__ */ u3("div", { className: "tier-label", children: [
+              "Planner",
+              /* @__PURE__ */ u3("span", { className: "tier-cap-badge", children: "capped 32k" })
+            ] }),
+            /* @__PURE__ */ u3("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4", children: [
+              /* @__PURE__ */ u3(
+                RangeNumberInput,
+                {
+                  id: "ollama-planner-context",
+                  label: "Context Window",
+                  description: "Maximum context for planner models",
+                  value: ollamaPlannerContextWindow,
+                  min: 1024,
+                  max: 32768,
+                  step: 1024,
+                  unit: "tokens",
+                  onChange: (v3) => {
+                    setOllamaPlannerContextWindow(v3);
+                    markOllamaDirty();
+                  },
+                  testId: "tier-planner-context-window"
+                }
+              ),
+              /* @__PURE__ */ u3(
+                RangeNumberInput,
+                {
+                  id: "ollama-planner-response",
+                  label: "Max Response Tokens",
+                  description: "Maximum response length",
+                  value: ollamaPlannerMaxResponseTokens,
+                  min: 256,
+                  max: 8192,
+                  step: 256,
+                  unit: "tokens",
+                  onChange: (v3) => {
+                    setOllamaPlannerMaxResponseTokens(v3);
+                    markOllamaDirty();
+                  },
+                  testId: "tier-planner-max-response"
+                }
+              )
+            ] })
+          ] }),
+          /* @__PURE__ */ u3("div", { className: "tier-group stagger-child", "data-testid": "tier-expert", children: [
+            /* @__PURE__ */ u3("div", { className: "tier-label", children: "Expert" }),
+            /* @__PURE__ */ u3("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4", children: [
+              /* @__PURE__ */ u3(
+                RangeNumberInput,
+                {
+                  id: "ollama-expert-context",
+                  label: "Context Window",
+                  description: "Maximum context for expert models",
+                  value: ollamaExpertContextWindow,
+                  min: 1024,
+                  max: 256e3,
+                  step: 1024,
+                  unit: "tokens",
+                  onChange: (v3) => {
+                    setOllamaExpertContextWindow(v3);
+                    markOllamaDirty();
+                  },
+                  testId: "tier-expert-context-window"
+                }
+              ),
+              /* @__PURE__ */ u3(
+                RangeNumberInput,
+                {
+                  id: "ollama-expert-response",
+                  label: "Max Response Tokens",
+                  description: "Maximum response length",
+                  value: ollamaExpertMaxResponseTokens,
+                  min: 256,
+                  max: 32768,
+                  step: 256,
+                  unit: "tokens",
+                  onChange: (v3) => {
+                    setOllamaExpertMaxResponseTokens(v3);
+                    markOllamaDirty();
+                  },
+                  testId: "tier-expert-max-response"
+                }
+              )
+            ] })
+          ] }),
+          /* @__PURE__ */ u3("div", { className: "tier-group stagger-child", "data-testid": "tier-translation", children: [
+            /* @__PURE__ */ u3("div", { className: "tier-label", children: "Translation" }),
+            /* @__PURE__ */ u3("div", { style: { maxWidth: "20rem" }, children: /* @__PURE__ */ u3(
+              RangeNumberInput,
+              {
+                id: "translation-context",
+                label: "Context Window",
+                description: "Maximum context for translation",
+                value: translationContextWindow,
+                min: 1024,
+                max: 256e3,
+                step: 1024,
+                unit: "tokens",
+                onChange: (v3) => {
+                  setTranslationContextWindow(v3);
+                  markOllamaDirty();
+                },
+                testId: "tier-translation-context-window"
+              }
+            ) })
+          ] })
+        ] }),
+        /* @__PURE__ */ u3("div", { className: "save-bar", children: [
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              onClick: handleSaveOllamaLimits,
+              disabled: !isOllamaDirty || isOllamaSaving,
+              className: "save-bar-btn",
+              "data-testid": "save-ollama-limits-button",
+              children: isOllamaSaving ? /* @__PURE__ */ u3(k, { children: [
+                /* @__PURE__ */ u3("span", { className: "inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" }),
+                "Saving..."
+              ] }) : "Save Ollama Limits"
+            }
+          ),
+          ollamaSaveMessage && /* @__PURE__ */ u3(
+            "span",
+            {
+              className: "text-sm font-medium",
+              style: { color: ollamaSaveMessage.startsWith("Save failed") ? "#ef4444" : "#22c55e" },
+              "data-testid": "ollama-save-message",
+              children: ollamaSaveMessage
+            }
+          ),
+          isOllamaDirty && /* @__PURE__ */ u3("span", { className: "text-xs", style: { color: "#f59e0b", marginLeft: "auto" }, children: "Unsaved changes - restart required" })
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ u3("div", { className: "dev-section-panel", children: [
       /* @__PURE__ */ u3(
         "button",
         {
           onClick: () => setRuntimeStateExpanded(!runtimeStateExpanded),
-          className: "w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-t-lg",
+          className: "dev-section-header w-full",
+          "aria-expanded": runtimeStateExpanded,
+          "aria-controls": "runtime-state-content",
           "data-testid": "runtime-state-header",
           children: [
-            /* @__PURE__ */ u3("div", { className: "flex items-center space-x-2", children: [
-              /* @__PURE__ */ u3("h3", { className: "text-lg font-semibold", children: "Runtime State" }),
-              /* @__PURE__ */ u3("span", { className: "text-xs text-gray-500 italic", children: "Read-only, auto-refreshes" })
+            /* @__PURE__ */ u3("div", { className: "flex items-center gap-3", children: [
+              /* @__PURE__ */ u3("h3", { children: "Runtime State" }),
+              /* @__PURE__ */ u3("span", { className: "section-badge section-badge--readonly", children: "Read-only" })
             ] }),
-            /* @__PURE__ */ u3(
-              "svg",
-              {
-                className: `w-5 h-5 transition-transform ${runtimeStateExpanded ? "rotate-180" : ""}`,
-                fill: "none",
-                viewBox: "0 0 24 24",
-                stroke: "currentColor",
-                children: /* @__PURE__ */ u3("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M19 9l-7 7-7-7" })
-              }
-            )
+            /* @__PURE__ */ u3(Chevron, { open: runtimeStateExpanded })
           ]
         }
       ),
-      runtimeStateExpanded && /* @__PURE__ */ u3("div", { className: "p-4 space-y-4", "data-testid": "runtime-state-content", children: [
-        /* @__PURE__ */ u3("div", { className: "flex items-center justify-between mb-4", children: [
-          /* @__PURE__ */ u3("p", { className: "text-sm text-gray-600", children: "Auto-refreshes every 10 seconds" }),
+      runtimeStateExpanded && /* @__PURE__ */ u3("div", { id: "runtime-state-content", "data-testid": "runtime-state-content", children: [
+        /* @__PURE__ */ u3("div", { className: "flex items-center justify-between px-5 py-3", style: { borderBottom: "1px solid var(--border-color)" }, children: [
+          /* @__PURE__ */ u3("p", { className: "text-xs", style: { color: "var(--text-muted)" }, children: "Auto-refreshes every 10 seconds" }),
           /* @__PURE__ */ u3(
             "button",
             {
               onClick: fetchRuntimeState,
               disabled: isLoadingRuntimeState,
-              className: "px-3 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed",
+              className: "save-bar-btn",
+              style: { padding: "0.25rem 0.75rem", fontSize: "0.75rem", background: "var(--bg-secondary)", color: "var(--text-primary)", border: "1px solid var(--border-color)" },
               "data-testid": "refresh-runtime-state-button",
-              children: isLoadingRuntimeState ? "Refreshing..." : "Refresh Now"
+              children: [
+                isLoadingRuntimeState ? /* @__PURE__ */ u3("span", { className: "inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" }) : /* @__PURE__ */ u3("svg", { className: "w-3 h-3", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ u3("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) }),
+                "Refresh"
+              ]
             }
           )
         ] }),
-        runtimeStateError && /* @__PURE__ */ u3("div", { className: "p-3 bg-red-50 border border-red-200 rounded text-red-800", "data-testid": "runtime-state-error", children: [
-          "Error: ",
-          runtimeStateError
-        ] }),
-        runtimeState && /* @__PURE__ */ u3("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4", children: [
-          runtimeState.circuitBreaker && /* @__PURE__ */ u3("div", { className: "p-3 border rounded", "data-testid": "circuit-breaker-status", children: [
-            /* @__PURE__ */ u3("h4", { className: "text-sm font-semibold text-gray-700 mb-2", children: "Circuit Breaker" }),
-            /* @__PURE__ */ u3("div", { className: "space-y-1 text-sm", children: [
-              /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-                /* @__PURE__ */ u3("span", { className: "text-gray-600", children: "State:" }),
-                /* @__PURE__ */ u3("span", { className: `font-medium ${runtimeState.circuitBreaker.state === "CLOSED" ? "text-green-600" : "text-red-600"}`, children: runtimeState.circuitBreaker.state })
+        runtimeStateError && /* @__PURE__ */ u3("div", { className: "mx-5 mt-3 p-3 rounded-lg text-sm", style: { background: "rgba(239, 68, 68, 0.08)", color: "#ef4444" }, "data-testid": "runtime-state-error", children: runtimeStateError }),
+        runtimeState && topologyNodes.length > 0 && /* @__PURE__ */ u3(ServiceTopology, { nodes: topologyNodes }),
+        runtimeState && /* @__PURE__ */ u3("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-3 p-5 pt-0", children: [
+          runtimeState.circuitBreaker && /* @__PURE__ */ u3("div", { className: "runtime-detail-card stagger-child", "data-testid": "circuit-breaker-status", children: [
+            /* @__PURE__ */ u3("h4", { children: "Circuit Breaker" }),
+            /* @__PURE__ */ u3("div", { className: "runtime-kv", children: [
+              /* @__PURE__ */ u3("span", { className: "runtime-kv-label", children: "State" }),
+              /* @__PURE__ */ u3("span", { className: `runtime-kv-value ${runtimeState.circuitBreaker.state === "CLOSED" ? "status-ok" : "status-error"}`, children: runtimeState.circuitBreaker.state })
+            ] }),
+            /* @__PURE__ */ u3("div", { className: "runtime-kv", children: [
+              /* @__PURE__ */ u3("span", { className: "runtime-kv-label", children: "Failures" }),
+              /* @__PURE__ */ u3("span", { className: "runtime-kv-value", children: runtimeState.circuitBreaker.failures || 0 })
+            ] }),
+            /* @__PURE__ */ u3("div", { className: "runtime-kv", children: [
+              /* @__PURE__ */ u3("span", { className: "runtime-kv-label", children: "Successes" }),
+              /* @__PURE__ */ u3("span", { className: "runtime-kv-value", children: runtimeState.circuitBreaker.successes || 0 })
+            ] })
+          ] }),
+          runtimeState.vram && /* @__PURE__ */ u3("div", { className: "runtime-detail-card stagger-child", "data-testid": "vram-status", children: [
+            /* @__PURE__ */ u3("h4", { children: "VRAM Usage" }),
+            /* @__PURE__ */ u3(
+              UsageBar,
+              {
+                value: runtimeState.vram.utilization || 0,
+                max: 100,
+                unit: "%"
+              }
+            ),
+            /* @__PURE__ */ u3("div", { className: "mt-2", children: [
+              /* @__PURE__ */ u3("div", { className: "runtime-kv", children: [
+                /* @__PURE__ */ u3("span", { className: "runtime-kv-label", children: "Used" }),
+                /* @__PURE__ */ u3("span", { className: "runtime-kv-value", children: runtimeState.vram.used || "N/A" })
               ] }),
-              /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-                /* @__PURE__ */ u3("span", { className: "text-gray-600", children: "Failures:" }),
-                /* @__PURE__ */ u3("span", { children: runtimeState.circuitBreaker.failures || 0 })
-              ] }),
-              /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-                /* @__PURE__ */ u3("span", { className: "text-gray-600", children: "Successes:" }),
-                /* @__PURE__ */ u3("span", { children: runtimeState.circuitBreaker.successes || 0 })
+              /* @__PURE__ */ u3("div", { className: "runtime-kv", children: [
+                /* @__PURE__ */ u3("span", { className: "runtime-kv-label", children: "Total" }),
+                /* @__PURE__ */ u3("span", { className: "runtime-kv-value", children: runtimeState.vram.total || "N/A" })
               ] })
             ] })
           ] }),
-          runtimeState.vram && /* @__PURE__ */ u3("div", { className: "p-3 border rounded", "data-testid": "vram-status", children: [
-            /* @__PURE__ */ u3("h4", { className: "text-sm font-semibold text-gray-700 mb-2", children: "VRAM Usage" }),
-            /* @__PURE__ */ u3("div", { className: "space-y-1 text-sm", children: [
-              /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-                /* @__PURE__ */ u3("span", { className: "text-gray-600", children: "Used:" }),
-                /* @__PURE__ */ u3("span", { children: runtimeState.vram.used || "N/A" })
-              ] }),
-              /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-                /* @__PURE__ */ u3("span", { className: "text-gray-600", children: "Total:" }),
-                /* @__PURE__ */ u3("span", { children: runtimeState.vram.total || "N/A" })
-              ] }),
-              /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-                /* @__PURE__ */ u3("span", { className: "text-gray-600", children: "Utilization:" }),
-                /* @__PURE__ */ u3("span", { className: `font-medium ${(runtimeState.vram.utilization || 0) > 80 ? "text-red-600" : "text-green-600"}`, children: [
-                  runtimeState.vram.utilization || 0,
-                  "%"
-                ] })
-              ] })
+          runtimeState.qdrant && /* @__PURE__ */ u3("div", { className: "runtime-detail-card stagger-child", "data-testid": "qdrant-status", children: [
+            /* @__PURE__ */ u3("h4", { children: "Qdrant Vector Store" }),
+            /* @__PURE__ */ u3("div", { className: "runtime-kv", children: [
+              /* @__PURE__ */ u3("span", { className: "runtime-kv-label", children: "Status" }),
+              /* @__PURE__ */ u3("span", { className: `runtime-kv-value ${runtimeState.qdrant.connected ? "status-ok" : "status-error"}`, children: runtimeState.qdrant.connected ? "Connected" : "Disconnected" })
+            ] }),
+            /* @__PURE__ */ u3("div", { className: "runtime-kv", children: [
+              /* @__PURE__ */ u3("span", { className: "runtime-kv-label", children: "Collections" }),
+              /* @__PURE__ */ u3("span", { className: "runtime-kv-value", children: runtimeState.qdrant.collections || 0 })
+            ] }),
+            /* @__PURE__ */ u3("div", { className: "runtime-kv", children: [
+              /* @__PURE__ */ u3("span", { className: "runtime-kv-label", children: "Documents" }),
+              /* @__PURE__ */ u3("span", { className: "runtime-kv-value", children: runtimeState.qdrant.documents || 0 })
             ] })
           ] }),
-          runtimeState.qdrant && /* @__PURE__ */ u3("div", { className: "p-3 border rounded", "data-testid": "qdrant-status", children: [
-            /* @__PURE__ */ u3("h4", { className: "text-sm font-semibold text-gray-700 mb-2", children: "Qdrant Vector Store" }),
-            /* @__PURE__ */ u3("div", { className: "space-y-1 text-sm", children: [
-              /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-                /* @__PURE__ */ u3("span", { className: "text-gray-600", children: "Status:" }),
-                /* @__PURE__ */ u3("span", { className: `font-medium ${runtimeState.qdrant.connected ? "text-green-600" : "text-red-600"}`, children: runtimeState.qdrant.connected ? "Connected" : "Disconnected" })
-              ] }),
-              /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-                /* @__PURE__ */ u3("span", { className: "text-gray-600", children: "Collections:" }),
-                /* @__PURE__ */ u3("span", { children: runtimeState.qdrant.collections || 0 })
-              ] }),
-              /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-                /* @__PURE__ */ u3("span", { className: "text-gray-600", children: "Documents:" }),
-                /* @__PURE__ */ u3("span", { children: runtimeState.qdrant.documents || 0 })
-              ] })
+          runtimeState.sidecars && /* @__PURE__ */ u3("div", { className: "runtime-detail-card stagger-child", "data-testid": "sidecar-status", children: [
+            /* @__PURE__ */ u3("h4", { children: "AI Sidecars" }),
+            /* @__PURE__ */ u3("div", { className: "runtime-kv", children: [
+              /* @__PURE__ */ u3("span", { className: "runtime-kv-label", children: "Visual RAG" }),
+              /* @__PURE__ */ u3("span", { className: `runtime-kv-value ${runtimeState.sidecars.visualRag ? "status-ok" : "status-muted"}`, children: runtimeState.sidecars.visualRag ? "Running" : "Offline" })
+            ] }),
+            /* @__PURE__ */ u3("div", { className: "runtime-kv", children: [
+              /* @__PURE__ */ u3("span", { className: "runtime-kv-label", children: "Guidance" }),
+              /* @__PURE__ */ u3("span", { className: `runtime-kv-value ${runtimeState.sidecars.guidance ? "status-ok" : "status-muted"}`, children: runtimeState.sidecars.guidance ? "Running" : "Offline" })
+            ] }),
+            /* @__PURE__ */ u3("div", { className: "runtime-kv", children: [
+              /* @__PURE__ */ u3("span", { className: "runtime-kv-label", children: "Bias Engine" }),
+              /* @__PURE__ */ u3("span", { className: `runtime-kv-value ${runtimeState.sidecars.biasEngine ? "status-ok" : "status-muted"}`, children: runtimeState.sidecars.biasEngine ? "Running" : "Offline" })
             ] })
           ] }),
-          runtimeState.sidecars && /* @__PURE__ */ u3("div", { className: "p-3 border rounded", "data-testid": "sidecar-status", children: [
-            /* @__PURE__ */ u3("h4", { className: "text-sm font-semibold text-gray-700 mb-2", children: "AI Sidecars" }),
-            /* @__PURE__ */ u3("div", { className: "space-y-1 text-sm", children: [
-              /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-                /* @__PURE__ */ u3("span", { className: "text-gray-600", children: "Visual RAG:" }),
-                /* @__PURE__ */ u3("span", { className: `font-medium ${runtimeState.sidecars.visualRag ? "text-green-600" : "text-gray-400"}`, children: runtimeState.sidecars.visualRag ? "Running" : "Offline" })
+          runtimeState.backgroundSync && /* @__PURE__ */ u3("div", { className: "runtime-detail-card stagger-child md:col-span-2", "data-testid": "background-sync-status", children: [
+            /* @__PURE__ */ u3("h4", { children: "Background Sync" }),
+            /* @__PURE__ */ u3("div", { className: "grid grid-cols-2 gap-x-4", children: [
+              /* @__PURE__ */ u3("div", { className: "runtime-kv", children: [
+                /* @__PURE__ */ u3("span", { className: "runtime-kv-label", children: "Last Sync" }),
+                /* @__PURE__ */ u3("span", { className: "runtime-kv-value", children: runtimeState.backgroundSync.lastSync || "Never" })
               ] }),
-              /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-                /* @__PURE__ */ u3("span", { className: "text-gray-600", children: "Guidance:" }),
-                /* @__PURE__ */ u3("span", { className: `font-medium ${runtimeState.sidecars.guidance ? "text-green-600" : "text-gray-400"}`, children: runtimeState.sidecars.guidance ? "Running" : "Offline" })
+              /* @__PURE__ */ u3("div", { className: "runtime-kv", children: [
+                /* @__PURE__ */ u3("span", { className: "runtime-kv-label", children: "Next Sync" }),
+                /* @__PURE__ */ u3("span", { className: "runtime-kv-value", children: runtimeState.backgroundSync.nextSync || "Not scheduled" })
               ] }),
-              /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-                /* @__PURE__ */ u3("span", { className: "text-gray-600", children: "Bias Engine:" }),
-                /* @__PURE__ */ u3("span", { className: `font-medium ${runtimeState.sidecars.biasEngine ? "text-green-600" : "text-gray-400"}`, children: runtimeState.sidecars.biasEngine ? "Running" : "Offline" })
-              ] })
-            ] })
-          ] }),
-          runtimeState.backgroundSync && /* @__PURE__ */ u3("div", { className: "p-3 border rounded col-span-full", "data-testid": "background-sync-status", children: [
-            /* @__PURE__ */ u3("h4", { className: "text-sm font-semibold text-gray-700 mb-2", children: "Background Sync" }),
-            /* @__PURE__ */ u3("div", { className: "grid grid-cols-2 gap-x-4 gap-y-1 text-sm", children: [
-              /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-                /* @__PURE__ */ u3("span", { className: "text-gray-600", children: "Last Sync:" }),
-                /* @__PURE__ */ u3("span", { children: runtimeState.backgroundSync.lastSync || "Never" })
+              /* @__PURE__ */ u3("div", { className: "runtime-kv", children: [
+                /* @__PURE__ */ u3("span", { className: "runtime-kv-label", children: "Status" }),
+                /* @__PURE__ */ u3("span", { className: `runtime-kv-value ${runtimeState.backgroundSync.running ? "status-ok" : "status-muted"}`, children: runtimeState.backgroundSync.running ? "Running" : "Idle" })
               ] }),
-              /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-                /* @__PURE__ */ u3("span", { className: "text-gray-600", children: "Next Sync:" }),
-                /* @__PURE__ */ u3("span", { children: runtimeState.backgroundSync.nextSync || "Not scheduled" })
-              ] }),
-              /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-                /* @__PURE__ */ u3("span", { className: "text-gray-600", children: "Status:" }),
-                /* @__PURE__ */ u3("span", { className: `font-medium ${runtimeState.backgroundSync.running ? "text-blue-600" : "text-gray-600"}`, children: runtimeState.backgroundSync.running ? "Running" : "Idle" })
-              ] }),
-              /* @__PURE__ */ u3("div", { className: "flex justify-between", children: [
-                /* @__PURE__ */ u3("span", { className: "text-gray-600", children: "Documents Processed:" }),
-                /* @__PURE__ */ u3("span", { children: runtimeState.backgroundSync.documentsProcessed || 0 })
+              /* @__PURE__ */ u3("div", { className: "runtime-kv", children: [
+                /* @__PURE__ */ u3("span", { className: "runtime-kv-label", children: "Processed" }),
+                /* @__PURE__ */ u3("span", { className: "runtime-kv-value", children: runtimeState.backgroundSync.documentsProcessed || 0 })
               ] })
             ] })
           ] })
-        ] }),
-        isLoadingRuntimeState && !runtimeState && /* @__PURE__ */ u3("div", { className: "text-center py-8 text-gray-500", "data-testid": "runtime-state-loading", children: "Loading runtime state..." })
+        ] }, runtimeRefreshKey),
+        isLoadingRuntimeState && !runtimeState && /* @__PURE__ */ u3("div", { className: "text-center py-10", style: { color: "var(--text-muted)" }, "data-testid": "runtime-state-loading", children: [
+          /* @__PURE__ */ u3("div", { className: "inline-block w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin mb-3" }),
+          /* @__PURE__ */ u3("div", { className: "text-sm", children: "Loading runtime state..." })
+        ] })
       ] })
     ] })
   ] });
@@ -15551,10 +16803,57 @@ var PresetsManagerSettingsSchema = external_exports.object({
   presetName: external_exports.string().optional()
 });
 
+// src/islands/components/DiffTable.tsx
+function DiffTable({ changes }) {
+  return /* @__PURE__ */ u3("table", { className: "diff-table", "data-testid": "diff-table", children: [
+    /* @__PURE__ */ u3("thead", { children: /* @__PURE__ */ u3("tr", { children: [
+      /* @__PURE__ */ u3("th", { children: "Key" }),
+      /* @__PURE__ */ u3("th", { children: "Current" }),
+      /* @__PURE__ */ u3("th", {}),
+      /* @__PURE__ */ u3("th", { children: "New" })
+    ] }) }),
+    /* @__PURE__ */ u3("tbody", { children: changes.map((change, index) => /* @__PURE__ */ u3("tr", { "data-testid": `diff-item-${index}`, children: [
+      /* @__PURE__ */ u3("td", { children: [
+        /* @__PURE__ */ u3("div", { className: "font-medium", children: change.key }),
+        change.category && /* @__PURE__ */ u3("div", { className: "text-xs", style: { color: "var(--text-muted)" }, children: change.category })
+      ] }),
+      /* @__PURE__ */ u3("td", { children: /* @__PURE__ */ u3("span", { className: "diff-value-old", "data-testid": `current-value-${index}`, children: String(change.currentValue ?? "not set") }) }),
+      /* @__PURE__ */ u3("td", { style: { color: "var(--text-muted)", textAlign: "center", padding: "0 0.25rem" }, children: "\u2192" }),
+      /* @__PURE__ */ u3("td", { children: /* @__PURE__ */ u3("span", { className: "diff-value-new", "data-testid": `new-value-${index}`, children: String(change.newValue) }) })
+    ] }, index)) })
+  ] });
+}
+
+// src/islands/components/CategoryFilter.tsx
+function CategoryFilter({ categories, activeCategory, onSelect }) {
+  return /* @__PURE__ */ u3("div", { className: "category-filter-bar", "data-testid": "category-filter", children: [
+    /* @__PURE__ */ u3(
+      "button",
+      {
+        className: "category-pill",
+        "data-active": String(activeCategory === null),
+        onClick: () => onSelect(null),
+        "data-testid": "category-filter-all",
+        children: "All"
+      }
+    ),
+    categories.map((cat) => /* @__PURE__ */ u3(
+      "button",
+      {
+        className: "category-pill",
+        "data-active": String(activeCategory === cat),
+        onClick: () => onSelect(cat),
+        "data-testid": `category-filter-${cat}`,
+        children: cat.charAt(0).toUpperCase() + cat.slice(1)
+      },
+      cat
+    ))
+  ] });
+}
+
 // src/islands/PresetsManagerIsland.tsx
 function PresetsManagerIsland(props) {
   const validated = PresetsManagerSettingsSchema.parse(props);
-  const [isOpen, setIsOpen] = d2(validated.isOpen || false);
   const [presets, setPresets] = d2([]);
   const [isLoading, setIsLoading] = d2(false);
   const [error, setError] = d2(null);
@@ -15563,20 +16862,17 @@ function PresetsManagerIsland(props) {
   const [isApplying, setIsApplying] = d2(false);
   const [isImportMode, setIsImportMode] = d2(false);
   const [selectedFile, setSelectedFile] = d2(null);
+  const [filterCategory, setFilterCategory] = d2(null);
   const fileInputRef = A2(null);
   y2(() => {
-    if (isOpen) {
-      fetchPresets();
-    }
-  }, [isOpen]);
+    fetchPresets();
+  }, []);
   y2(() => {
     const handlePresetOpen = () => {
-      setIsOpen(true);
+      fetchPresets();
     };
     document.addEventListener("preset:open", handlePresetOpen);
-    return () => {
-      document.removeEventListener("preset:open", handlePresetOpen);
-    };
+    return () => document.removeEventListener("preset:open", handlePresetOpen);
   }, []);
   const fetchPresets = async () => {
     setIsLoading(true);
@@ -15628,30 +16924,18 @@ function PresetsManagerIsland(props) {
         const data = await response.json();
         if (typeof document !== "undefined") {
           document.dispatchEvent(new CustomEvent("preset:loaded", {
-            detail: {
-              presetName: selectedPreset,
-              requiresRestart: data.requiresRestart || false
-            }
+            detail: { presetName: selectedPreset, requiresRestart: data.requiresRestart || false }
           }));
           document.dispatchEvent(new CustomEvent("settings:saved", {
-            detail: {
-              type: "settings:saved",
-              category: "preset",
-              success: true,
-              message: `Preset "${selectedPreset}" applied successfully`
-            }
+            detail: { type: "settings:saved", category: "preset", success: true, message: `Preset "${selectedPreset}" applied successfully` }
           }));
           if (data.requiresRestart) {
             document.dispatchEvent(new CustomEvent("settings:restart-required", {
-              detail: {
-                type: "settings:restart-required",
-                reason: `Preset "${selectedPreset}" applied`,
-                settings: ["Preset"]
-              }
+              detail: { type: "settings:restart-required", reason: `Preset "${selectedPreset}" applied`, settings: ["Preset"] }
             }));
           }
         }
-        handleClose();
+        handleBackToList();
       } else {
         setError("Failed to apply preset");
       }
@@ -15661,15 +16945,7 @@ function PresetsManagerIsland(props) {
       setIsApplying(false);
     }
   };
-  const handleClose = () => {
-    setIsOpen(false);
-    setSelectedPreset(null);
-    setPresetDiff(null);
-    setError(null);
-    setIsImportMode(false);
-    setSelectedFile(null);
-  };
-  const handleCancelDiff = () => {
+  const handleBackToList = () => {
     setSelectedPreset(null);
     setPresetDiff(null);
     setError(null);
@@ -15697,10 +16973,7 @@ function PresetsManagerIsland(props) {
     formData.append("file", file);
     formData.append("preview", "true");
     try {
-      const response = await fetch("/settings/import", {
-        method: "POST",
-        body: formData
-      });
+      const response = await fetch("/settings/import", { method: "POST", body: formData });
       if (response.ok) {
         const data = await response.json();
         setPresetDiff(data.diff);
@@ -15730,32 +17003,20 @@ ${errorData.details.join("\n")}`);
     formData.append("file", selectedFile);
     formData.append("preview", "false");
     try {
-      const response = await fetch("/settings/import", {
-        method: "POST",
-        body: formData
-      });
+      const response = await fetch("/settings/import", { method: "POST", body: formData });
       if (response.ok) {
         const data = await response.json();
         if (typeof document !== "undefined") {
           document.dispatchEvent(new CustomEvent("settings:saved", {
-            detail: {
-              type: "settings:saved",
-              category: "import",
-              success: true,
-              message: `Settings imported successfully (${data.changesCount} changes)`
-            }
+            detail: { type: "settings:saved", category: "import", success: true, message: `Settings imported successfully (${data.changesCount} changes)` }
           }));
           if (data.requiresRestart) {
             document.dispatchEvent(new CustomEvent("settings:restart-required", {
-              detail: {
-                type: "settings:restart-required",
-                reason: "Settings imported",
-                settings: ["Import"]
-              }
+              detail: { type: "settings:restart-required", reason: "Settings imported", settings: ["Import"] }
             }));
           }
         }
-        handleClose();
+        handleBackToList();
       } else {
         const errorData = await response.json();
         setError(errorData.error || "Failed to import settings");
@@ -15766,25 +17027,25 @@ ${errorData.details.join("\n")}`);
       setIsApplying(false);
     }
   };
-  if (!isOpen) {
-    return null;
-  }
-  return /* @__PURE__ */ u3("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50", "data-testid": "presets-modal", children: /* @__PURE__ */ u3("div", { className: "bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden", "data-testid": "presets-modal-content", children: [
-    /* @__PURE__ */ u3("div", { className: "flex items-center justify-between p-6 border-b", children: [
+  const availableCategories = Array.from(new Set(presets.map((p3) => p3.category).filter(Boolean)));
+  const filteredPresets = filterCategory ? presets.filter((p3) => p3.category === filterCategory) : presets;
+  return /* @__PURE__ */ u3("div", { className: "presets-manager space-y-6 p-6 max-w-4xl", "data-testid": "presets-manager-root", children: [
+    /* @__PURE__ */ u3("div", { className: "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4", children: [
       /* @__PURE__ */ u3("div", { children: [
-        /* @__PURE__ */ u3("h2", { className: "text-2xl font-bold", children: "Presets, Import & Export" }),
-        /* @__PURE__ */ u3("p", { className: "text-sm text-gray-600", children: "Load presets, import settings, or export current settings" })
+        /* @__PURE__ */ u3("h2", { className: "text-2xl font-bold", style: { color: "var(--text-primary)" }, children: "Presets & Configuration" }),
+        /* @__PURE__ */ u3("p", { className: "text-sm", style: { color: "var(--text-secondary)" }, children: "Load presets, import settings, or export your current configuration" })
       ] }),
-      /* @__PURE__ */ u3("div", { className: "flex items-center space-x-3", children: [
+      /* @__PURE__ */ u3("div", { className: "flex items-center gap-2", children: [
         /* @__PURE__ */ u3(
           "button",
           {
             onClick: handleImportClick,
-            className: "px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700",
+            className: "save-bar-btn",
+            style: { fontSize: "0.8125rem", padding: "0.4375rem 1rem" },
             "data-testid": "import-settings-button",
             children: [
-              /* @__PURE__ */ u3("svg", { className: "w-4 h-4 inline-block mr-2", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ u3("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" }) }),
-              "Import Settings"
+              /* @__PURE__ */ u3("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ u3("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" }) }),
+              "Import"
             ]
           }
         ),
@@ -15792,96 +17053,110 @@ ${errorData.details.join("\n")}`);
           "button",
           {
             onClick: handleExport,
-            className: "px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700",
+            className: "save-bar-btn",
+            style: { fontSize: "0.8125rem", padding: "0.4375rem 1rem", background: "var(--bg-secondary)", color: "var(--text-primary)", border: "1px solid var(--border-color)" },
             "data-testid": "export-settings-button",
             children: [
-              /* @__PURE__ */ u3("svg", { className: "w-4 h-4 inline-block mr-2", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ u3("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" }) }),
-              "Export Settings"
+              /* @__PURE__ */ u3("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ u3("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" }) }),
+              "Export"
             ]
+          }
+        )
+      ] })
+    ] }),
+    error && /* @__PURE__ */ u3(
+      "div",
+      {
+        className: "p-3 rounded-lg text-sm",
+        style: { background: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.2)", color: "#ef4444" },
+        "data-testid": "error-message",
+        children: error.split("\n").map((line, index) => /* @__PURE__ */ u3("div", { children: line }, index))
+      }
+    ),
+    presetDiff ? /* @__PURE__ */ u3("div", { className: "dev-section-panel", "data-testid": "preset-diff", children: /* @__PURE__ */ u3("div", { className: "p-5 space-y-4", children: [
+      /* @__PURE__ */ u3("div", { children: [
+        /* @__PURE__ */ u3("h3", { className: "text-lg font-bold", style: { color: "var(--text-primary)" }, children: "Review Changes" }),
+        /* @__PURE__ */ u3("p", { className: "text-sm", style: { color: "var(--text-secondary)" }, children: isImportMode ? "The following settings will change when you import this file" : `The following settings will change when you apply "${selectedPreset}"` })
+      ] }),
+      /* @__PURE__ */ u3(DiffTable, { changes: presetDiff.changes }),
+      presetDiff.requiresRestart && /* @__PURE__ */ u3(
+        "div",
+        {
+          className: "p-3 rounded-lg text-sm",
+          style: { background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.25)", color: "#f59e0b" },
+          children: "Applying this preset requires a restart to take effect."
+        }
+      ),
+      /* @__PURE__ */ u3("div", { className: "flex justify-end gap-3 pt-2", children: [
+        /* @__PURE__ */ u3(
+          "button",
+          {
+            onClick: handleBackToList,
+            className: "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+            style: { border: "1px solid var(--border-color)", color: "var(--text-primary)", background: "transparent" },
+            "data-testid": "cancel-diff-button",
+            children: isImportMode ? "Cancel Import" : "Back to Presets"
           }
         ),
         /* @__PURE__ */ u3(
           "button",
           {
-            onClick: handleClose,
-            className: "text-gray-400 hover:text-gray-600",
-            "data-testid": "close-modal-button",
-            "aria-label": "Close",
-            children: /* @__PURE__ */ u3("svg", { className: "w-6 h-6", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ u3("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M6 18L18 6M6 6l12 12" }) })
+            onClick: isImportMode ? handleApplyImport : handleApplyPreset,
+            disabled: isApplying,
+            className: "save-bar-btn",
+            "data-testid": isImportMode ? "apply-import-button" : "apply-preset-button",
+            children: isApplying ? "Applying..." : isImportMode ? "Apply Import" : "Apply Preset"
           }
         )
       ] })
-    ] }),
-    /* @__PURE__ */ u3("div", { className: "p-6 overflow-y-auto max-h-[calc(90vh-200px)]", children: [
-      error && /* @__PURE__ */ u3("div", { className: "mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-800", "data-testid": "error-message", children: error.split("\n").map((line, index) => /* @__PURE__ */ u3("div", { children: line }, index)) }),
-      !presetDiff && /* @__PURE__ */ u3("div", { children: [
-        isLoading ? /* @__PURE__ */ u3("div", { className: "text-center py-8 text-gray-500", "data-testid": "loading-presets", children: "Loading presets..." }) : /* @__PURE__ */ u3("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4", children: presets.map((preset) => /* @__PURE__ */ u3(
-          "button",
+    ] }) }) : (
+      /* Preset Gallery */
+      /* @__PURE__ */ u3("div", { children: [
+        availableCategories.length > 0 && /* @__PURE__ */ u3(
+          CategoryFilter,
           {
-            onClick: () => handleSelectPreset(preset.name),
-            className: "p-4 border-2 rounded-lg text-left hover:border-blue-500 hover:bg-blue-50 transition-colors",
-            "data-testid": `preset-${preset.name}`,
-            children: /* @__PURE__ */ u3("div", { className: "flex items-start space-x-3", children: [
-              preset.icon && /* @__PURE__ */ u3("span", { className: "text-3xl", children: preset.icon }),
-              /* @__PURE__ */ u3("div", { className: "flex-1", children: [
-                /* @__PURE__ */ u3("h3", { className: "font-semibold text-lg", children: preset.displayName }),
-                /* @__PURE__ */ u3("p", { className: "text-sm text-gray-600", children: preset.description }),
-                preset.category && /* @__PURE__ */ u3("span", { className: "inline-block mt-2 px-2 py-1 text-xs bg-gray-200 rounded", children: preset.category })
-              ] })
-            ] })
-          },
-          preset.name
-        )) }),
-        !isLoading && presets.length === 0 && /* @__PURE__ */ u3("div", { className: "text-center py-8 text-gray-500", "data-testid": "no-presets", children: "No presets available" })
-      ] }),
-      presetDiff && /* @__PURE__ */ u3("div", { "data-testid": "preset-diff", children: [
-        /* @__PURE__ */ u3("div", { className: "mb-4", children: [
-          /* @__PURE__ */ u3("h3", { className: "text-lg font-semibold", children: "Review Changes" }),
-          /* @__PURE__ */ u3("p", { className: "text-sm text-gray-600", children: isImportMode ? "The following settings will be changed when you import this file" : `The following settings will be changed when you apply "${selectedPreset}"` })
-        ] }),
-        /* @__PURE__ */ u3("div", { className: "space-y-2 mb-6", children: presetDiff.changes.map((change, index) => /* @__PURE__ */ u3(
-          "div",
-          {
-            className: "p-3 bg-gray-50 border rounded",
-            "data-testid": `diff-item-${index}`,
-            children: /* @__PURE__ */ u3("div", { className: "flex justify-between items-start", children: [
-              /* @__PURE__ */ u3("div", { className: "flex-1", children: [
-                /* @__PURE__ */ u3("div", { className: "font-medium text-sm", children: change.key }),
-                change.category && /* @__PURE__ */ u3("div", { className: "text-xs text-gray-500", children: change.category })
-              ] }),
-              /* @__PURE__ */ u3("div", { className: "flex items-center space-x-2 text-sm", children: [
-                /* @__PURE__ */ u3("span", { className: "text-red-600", "data-testid": `current-value-${index}`, children: String(change.currentValue ?? "not set") }),
-                /* @__PURE__ */ u3("span", { className: "text-gray-400", children: "\u2192" }),
-                /* @__PURE__ */ u3("span", { className: "text-green-600 font-medium", "data-testid": `new-value-${index}`, children: String(change.newValue) })
-              ] })
-            ] })
-          },
-          index
-        )) }),
-        presetDiff.requiresRestart && /* @__PURE__ */ u3("div", { className: "mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-yellow-800", children: "\u26A0\uFE0F Applying this preset will require a restart" }),
-        /* @__PURE__ */ u3("div", { className: "flex justify-end space-x-3", children: [
-          /* @__PURE__ */ u3(
+            categories: availableCategories,
+            activeCategory: filterCategory,
+            onSelect: setFilterCategory
+          }
+        ),
+        isLoading ? /* @__PURE__ */ u3("div", { className: "text-center py-12", style: { color: "var(--text-muted)" }, "data-testid": "loading-presets", children: [
+          /* @__PURE__ */ u3("div", { className: "inline-block w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin mb-3" }),
+          /* @__PURE__ */ u3("div", { className: "text-sm", children: "Loading presets..." })
+        ] }) : /* @__PURE__ */ u3("div", { className: "space-y-3", children: [
+          filteredPresets.map((preset, i4) => /* @__PURE__ */ u3(
             "button",
             {
-              onClick: handleCancelDiff,
-              className: "px-4 py-2 border rounded hover:bg-gray-50",
-              "data-testid": "cancel-diff-button",
-              children: isImportMode ? "Cancel Import" : "Back to Presets"
-            }
-          ),
-          /* @__PURE__ */ u3(
-            "button",
-            {
-              onClick: isImportMode ? handleApplyImport : handleApplyPreset,
-              disabled: isApplying,
-              className: "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed",
-              "data-testid": isImportMode ? "apply-import-button" : "apply-preset-button",
-              children: isApplying ? "Applying..." : isImportMode ? "Apply Import" : "Apply Preset"
-            }
-          )
+              onClick: () => handleSelectPreset(preset.name),
+              className: "preset-card w-full text-left stagger-child",
+              style: { animationDelay: `${i4 * 40}ms` },
+              "data-testid": `preset-${preset.name}`,
+              children: [
+                preset.icon && /* @__PURE__ */ u3("span", { className: "text-2xl flex-shrink-0 mt-0.5", children: preset.icon }),
+                /* @__PURE__ */ u3("div", { className: "flex-1 min-w-0", children: [
+                  /* @__PURE__ */ u3("h3", { className: "font-semibold text-sm", style: { color: "var(--text-primary)" }, children: preset.displayName }),
+                  /* @__PURE__ */ u3("p", { className: "text-xs mt-0.5", style: { color: "var(--text-secondary)" }, children: preset.description }),
+                  preset.category && /* @__PURE__ */ u3(
+                    "span",
+                    {
+                      className: "inline-block mt-1.5 px-2 py-0.5 rounded text-xs font-medium",
+                      style: { background: "var(--bg-secondary)", color: "var(--text-muted)" },
+                      children: preset.category
+                    }
+                  )
+                ] }),
+                /* @__PURE__ */ u3("svg", { className: "w-4 h-4 flex-shrink-0 mt-1", style: { color: "var(--text-muted)" }, fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ u3("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M9 5l7 7-7 7" }) })
+              ]
+            },
+            preset.name
+          )),
+          !isLoading && filteredPresets.length === 0 && /* @__PURE__ */ u3("div", { className: "text-center py-12", style: { color: "var(--text-muted)" }, "data-testid": "no-presets", children: [
+            /* @__PURE__ */ u3("div", { className: "text-3xl mb-2", children: "\u{1F4E6}" }),
+            /* @__PURE__ */ u3("div", { className: "text-sm", children: filterCategory ? `No presets in "${filterCategory}" category` : "No presets available" })
+          ] })
         ] })
       ] })
-    ] }),
+    ),
     /* @__PURE__ */ u3(
       "input",
       {
@@ -15894,7 +17169,7 @@ ${errorData.details.join("\n")}`);
         "data-testid": "file-input"
       }
     )
-  ] }) });
+  ] });
 }
 
 // src/islands/ExportPanelIsland.tsx
@@ -16931,7 +18206,7 @@ function AIAnalysisIsland(props) {
       documentId: documentId2,
       analysisType: "chat"
     });
-    window.location.href = `/chat?open=${documentId2}`;
+    window.location.href = `/workspace/doc/${documentId2}?tab=chat`;
   }, [documentId2]);
   const isDisabled = !documentId2 || isAnalyzing;
   const visualDisabled = isDisabled || gpuState !== "ready";
@@ -17091,6 +18366,7 @@ function AIAnalysisIsland(props) {
 
 // src/islands/ChatWorkspaceIsland.tsx
 var CHAT_MODE_STORAGE_KEY = "paperless-ai-chat-mode";
+var REINGEST_TIMEOUT_MS = 1e4;
 var safeMarkdown = (text) => {
   const marked = window.marked;
   if (marked && typeof marked.parse === "function") {
@@ -17120,7 +18396,6 @@ function ChatWorkspaceIsland(props) {
   const [messageInput, setMessageInput] = d2("");
   const [isStreaming, setIsStreaming] = d2(false);
   const [streamError, setStreamError] = d2(null);
-  const [activeTab, setActiveTab] = d2("chat");
   const [docPreview, setDocPreview] = d2({
     title: "",
     content: "",
@@ -17158,6 +18433,10 @@ function ChatWorkspaceIsland(props) {
   const [visualRagStatus, setVisualRagStatus] = d2("checking");
   const [guidedStep, setGuidedStep] = d2("Select a document to begin.");
   const [statusMessage, setStatusMessage] = d2(null);
+  const [textReingestBusy, setTextReingestBusy] = d2(false);
+  const [textReingestStatus, setTextReingestStatus] = d2(
+    null
+  );
   const [chatContext, setChatContext] = d2([]);
   const chatEndRef = A2(null);
   const chatHistoryRef = A2(null);
@@ -17328,12 +18607,8 @@ function ChatWorkspaceIsland(props) {
       setGuidedStep("Ask your first question to start the analysis.");
       return;
     }
-    if (activeTab === "visual") {
-      setGuidedStep("Inspect visual evidence and compare with the chat.");
-      return;
-    }
     setGuidedStep("Refine your request or capture a decision.");
-  }, [selectedDocumentId, chatMessages.length, activeTab]);
+  }, [selectedDocumentId, chatMessages.length]);
   y2(() => {
     if (chatEndRef.current) {
       chatEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -17481,6 +18756,9 @@ function ChatWorkspaceIsland(props) {
       setSelectedDocumentTitle("");
     }
   }, [selectedDocumentId]);
+  y2(() => {
+    setTextReingestStatus(null);
+  }, [selectedDocumentId, chatMode]);
   const sendMessage = q2(async () => {
     if (!messageInput.trim()) return;
     if (chatMode === "document" && !selectedDocumentId) return;
@@ -17612,11 +18890,45 @@ function ChatWorkspaceIsland(props) {
       setIsStreaming(false);
     }
   }, [messageInput, selectedDocumentId, selectedModel, chatMode, chatContext, chatMessages, docPreview]);
-  const tabs = T2(() => [
-    { id: "chat", label: "Chat" },
-    { id: "document", label: "Document" },
-    { id: "visual", label: "Visual" }
-  ], []);
+  const handleTextReingest = q2(async () => {
+    if (!selectedDocumentId || textReingestBusy) return;
+    const confirmed = window.confirm(
+      "This will re-index the document text. Continue?"
+    );
+    if (!confirmed) return;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(
+      () => controller.abort(),
+      REINGEST_TIMEOUT_MS
+    );
+    setTextReingestBusy(true);
+    setTextReingestStatus(
+      `Reingesting text index for document #${selectedDocumentId}...`
+    );
+    try {
+      const response = await fetch(`/api/rag/reingest/${selectedDocumentId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force: true }),
+        signal: controller.signal
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          payload.error || `Request failed (${response.status})`
+        );
+      }
+      setTextReingestStatus(
+        payload.message || `Text reingest started for document #${selectedDocumentId}.`
+      );
+    } catch (reingestError) {
+      const message = reingestError instanceof Error ? reingestError.message : String(reingestError);
+      setTextReingestStatus(`Text reingest failed: ${message}`);
+    } finally {
+      window.clearTimeout(timeoutId);
+      setTextReingestBusy(false);
+    }
+  }, [selectedDocumentId, textReingestBusy]);
   return /* @__PURE__ */ u3("div", { "data-testid": "chat-workspace-root", "data-hydrated": "true", className: "sg-shell", children: [
     /* @__PURE__ */ u3("div", { className: "guided-rail", "data-testid": "chat-guided-rail", children: [
       /* @__PURE__ */ u3("div", { className: "guided-rail__label", children: "Guided Rail" }),
@@ -17696,363 +19008,338 @@ function ChatWorkspaceIsland(props) {
         ] })
       ] })
     ] }) }),
-    /* @__PURE__ */ u3("div", { className: "material-card sg-card sg-card--workspace", children: [
-      /* @__PURE__ */ u3("div", { className: "sg-tabs", children: tabs.map((tab) => /* @__PURE__ */ u3(
-        "button",
-        {
-          type: "button",
-          "data-testid": `chat-tab-${tab.id}`,
-          className: `sg-tab ${activeTab === tab.id ? "sg-tab--active" : ""}`,
-          onClick: () => setActiveTab(tab.id),
-          children: tab.label
-        },
-        tab.id
-      )) }),
-      activeTab === "chat" && /* @__PURE__ */ u3("div", { className: "sg-tab-panel", children: [
-        /* @__PURE__ */ u3("div", { className: "mb-4 flex flex-wrap items-center gap-3 p-3 bg-[#f5f0e8] rounded-lg border border-[#e5e0d8]", "data-testid": "chat-mode-toggle", children: [
-          /* @__PURE__ */ u3("span", { className: "text-sm font-medium text-[#555]", children: "Chat Mode:" }),
-          /* @__PURE__ */ u3("div", { className: "flex gap-2", children: [
-            /* @__PURE__ */ u3(
-              "button",
-              {
-                type: "button",
-                onClick: () => setChatMode("rag"),
-                className: `px-3 py-1.5 text-sm rounded-md transition-colors ${chatMode === "rag" ? "bg-[#b87333] text-white" : "bg-white text-[#555] border border-[#e5e0d8] hover:bg-[#fdfaf6]"}`,
-                "data-testid": "chat-mode-rag",
-                title: "Text-only semantic search across all documents",
-                children: "\u{1F4DD} Text Search"
-              }
-            ),
-            /* @__PURE__ */ u3(
-              "button",
-              {
-                type: "button",
-                onClick: () => setChatMode("visual-rag"),
-                disabled: !visualRagAvailable && visualRagStatus !== "initializing",
-                className: `px-3 py-1.5 text-sm rounded-md transition-colors ${chatMode === "visual-rag" ? "bg-[#b87333] text-white" : "bg-white text-[#555] border border-[#e5e0d8] hover:bg-[#fdfaf6]"} disabled:opacity-50 disabled:cursor-not-allowed`,
-                "data-testid": "chat-mode-visual-rag",
-                title: visualRagStatus === "initializing" ? "Visual-RAG sidecar initializing (GPU warmup)" : !visualRagAvailable ? "Visual-RAG sidecar unavailable" : "Hybrid text + visual search (tables, charts, images)",
-                children: [
-                  "\u{1F3A8} Visual Search",
-                  visualRagStatus === "initializing" && /* @__PURE__ */ u3("span", { className: "ml-1 animate-pulse", children: "\u23F3" })
-                ]
-              }
-            ),
-            /* @__PURE__ */ u3(
-              "button",
-              {
-                type: "button",
-                onClick: () => setChatMode("document"),
-                disabled: !isDocumentLoaded,
-                className: `px-3 py-1.5 text-sm rounded-md transition-colors ${chatMode === "document" ? "bg-[#b87333] text-white" : "bg-white text-[#555] border border-[#e5e0d8] hover:bg-[#fdfaf6]"} disabled:opacity-50 disabled:cursor-not-allowed`,
-                "data-testid": "chat-mode-document",
-                title: !isDocumentLoaded ? "Load a document to use Document Chat" : "Chat about the selected document",
-                children: "\u{1F4C4} Document Chat"
-              }
-            )
-          ] }),
-          chatMode === "document" && isDocumentLoaded && /* @__PURE__ */ u3("span", { className: "ml-auto text-xs text-[#888]", "data-testid": "chat-mode-doc-indicator", children: [
-            "Chatting about: ",
-            /* @__PURE__ */ u3("strong", { children: selectedDocumentTitle || `Doc #${selectedDocumentId}` })
-          ] }),
-          chatMode === "rag" && /* @__PURE__ */ u3("span", { className: "ml-auto text-xs text-[#888]", "data-testid": "chat-mode-rag-indicator", children: "Searching documents by text content" }),
-          chatMode === "visual-rag" && /* @__PURE__ */ u3("span", { className: "ml-auto text-xs text-[#888]", "data-testid": "chat-mode-visual-indicator", children: visualRagStatus === "initializing" ? /* @__PURE__ */ u3("span", { className: "text-orange-600", children: "\u23F3 GPU warming up (~30s)..." }) : !visualRagAvailable ? /* @__PURE__ */ u3("span", { className: "text-orange-600", children: "\u26A0\uFE0F Visual-RAG unavailable - using text fallback" }) : "Searching by visual content (tables, charts, images)" })
-        ] }),
-        chatMode === "rag" && /* @__PURE__ */ u3("div", { className: "sg-chat-panel", children: [
+    /* @__PURE__ */ u3("div", { className: "material-card sg-card sg-card--workspace", children: /* @__PURE__ */ u3("div", { className: "sg-tab-panel", children: [
+      /* @__PURE__ */ u3("div", { className: "mb-4 flex flex-wrap items-center gap-3 p-3 bg-[#f5f0e8] rounded-lg border border-[#e5e0d8]", "data-testid": "chat-mode-toggle", children: [
+        /* @__PURE__ */ u3("span", { className: "text-sm font-medium text-[#555]", children: "Chat Mode:" }),
+        /* @__PURE__ */ u3("div", { className: "flex gap-2", children: [
           /* @__PURE__ */ u3(
-            "div",
+            "button",
             {
-              ref: chatHistoryRef,
-              className: "sg-chat-history",
-              "data-testid": "chat-history",
+              type: "button",
+              onClick: () => setChatMode("rag"),
+              className: `px-3 py-1.5 text-sm rounded-md transition-colors ${chatMode === "rag" ? "bg-[#b87333] text-white" : "bg-white text-[#555] border border-[#e5e0d8] hover:bg-[#fdfaf6]"}`,
+              "data-testid": "chat-mode-rag",
+              title: "Text-only semantic search across all documents",
+              children: "\u{1F4DD} Text Search"
+            }
+          ),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              type: "button",
+              onClick: () => setChatMode("visual-rag"),
+              disabled: !visualRagAvailable && visualRagStatus !== "initializing",
+              className: `px-3 py-1.5 text-sm rounded-md transition-colors ${chatMode === "visual-rag" ? "bg-[#b87333] text-white" : "bg-white text-[#555] border border-[#e5e0d8] hover:bg-[#fdfaf6]"} disabled:opacity-50 disabled:cursor-not-allowed`,
+              "data-testid": "chat-mode-visual-rag",
+              title: visualRagStatus === "initializing" ? "Visual-RAG sidecar initializing (GPU warmup)" : !visualRagAvailable ? "Visual-RAG sidecar unavailable" : "Hybrid text + visual search (tables, charts, images)",
               children: [
-                chatMessages.length === 0 && /* @__PURE__ */ u3("div", { className: "sg-empty", "data-testid": "chat-rag-empty", children: "Ask a question to search across all your documents." }),
-                chatMessages.map((msg) => /* @__PURE__ */ u3(
-                  "div",
-                  {
-                    className: `sg-message sg-message--${msg.role} ${msg.isError ? "sg-message--error" : ""}`,
-                    "data-testid": `chat-message-${msg.role}`,
-                    ref: (el) => {
-                      if (msg.role === "assistant" && el) {
-                        highlightBlocks(el);
-                      }
-                    },
-                    children: [
-                      /* @__PURE__ */ u3("div", { dangerouslySetInnerHTML: { __html: safeMarkdown(msg.content) } }),
-                      msg.role === "assistant" && msg.sources && msg.sources.length > 0 && /* @__PURE__ */ u3("div", { className: "mt-3 pt-3 border-t border-[#e5e0d8]", "data-testid": "chat-sources", children: [
-                        /* @__PURE__ */ u3("div", { className: "text-xs font-medium text-[#888] mb-2", children: "Sources:" }),
-                        /* @__PURE__ */ u3("div", { className: "space-y-1", children: msg.sources.map((source, sidx) => /* @__PURE__ */ u3(
-                          "a",
-                          {
-                            href: `/workspace/doc/${source.documentId}`,
-                            className: "block text-xs text-[#b87333] hover:underline",
-                            target: "_blank",
-                            rel: "noopener noreferrer",
-                            "data-testid": `chat-source-${sidx}`,
-                            children: [
-                              "\u{1F4C4} ",
-                              source.title || `Document #${source.documentId}`,
-                              source.page ? ` (Page ${source.page})` : ""
-                            ]
-                          },
-                          sidx
-                        )) })
-                      ] })
-                    ]
-                  },
-                  msg.id
-                )),
-                streamError && /* @__PURE__ */ u3("div", { className: "sg-message sg-message--error", "data-testid": "chat-error", children: streamError }),
-                /* @__PURE__ */ u3("div", { ref: chatEndRef })
+                "\u{1F3A8} Visual Search",
+                visualRagStatus === "initializing" && /* @__PURE__ */ u3("span", { className: "ml-1 animate-pulse", children: "\u23F3" })
               ]
             }
           ),
-          /* @__PURE__ */ u3("div", { className: "sg-chat-input", children: [
-            /* @__PURE__ */ u3(
-              "textarea",
-              {
-                "data-testid": "chat-input",
-                className: "sg-textarea",
-                placeholder: 'Ask questions across all documents... (e.g., "Find invoices over $1000")',
-                value: messageInput,
-                onInput: (e3) => setMessageInput(e3.target.value),
-                onKeyDown: (e3) => {
-                  if (e3.key === "Enter" && !e3.shiftKey) {
-                    e3.preventDefault();
-                    if (!isStreaming) void sendMessage();
-                  }
-                },
-                rows: 2
-              }
-            ),
-            /* @__PURE__ */ u3(
-              "button",
-              {
-                "data-testid": "chat-send-button",
-                type: "button",
-                className: "sg-primary",
-                disabled: !messageInput.trim() || isStreaming || !selectedModel,
-                onClick: () => void sendMessage(),
-                children: isStreaming ? "Searching..." : "Search"
-              }
-            )
-          ] })
-        ] }),
-        chatMode === "visual-rag" && /* @__PURE__ */ u3("div", { className: "sg-chat-panel", children: [
           /* @__PURE__ */ u3(
-            "div",
+            "button",
             {
-              ref: chatHistoryRef,
-              className: "sg-chat-history",
-              "data-testid": "chat-history-visual",
-              children: [
-                chatMessages.length === 0 && /* @__PURE__ */ u3("div", { className: "sg-empty", "data-testid": "chat-visual-empty", children: "Search for visual content like tables, charts, and images across your documents." }),
-                chatMessages.map((msg) => /* @__PURE__ */ u3(
-                  "div",
-                  {
-                    className: `sg-message sg-message--${msg.role} ${msg.isError ? "sg-message--error" : ""}`,
-                    "data-testid": `chat-message-${msg.role}`,
-                    ref: (el) => {
-                      if (msg.role === "assistant" && el) {
-                        highlightBlocks(el);
-                      }
-                    },
-                    children: [
-                      /* @__PURE__ */ u3("div", { dangerouslySetInnerHTML: { __html: safeMarkdown(msg.content) } }),
-                      msg.role === "assistant" && msg.searchMode && /* @__PURE__ */ u3("div", { className: "mt-2 text-xs text-[#888]", children: msg.searchMode === "hybrid" ? "\u{1F3A8} Hybrid search" : "\u{1F4DD} Text fallback" }),
-                      msg.role === "assistant" && msg.sources && msg.sources.length > 0 && /* @__PURE__ */ u3("div", { className: "mt-3 pt-3 border-t border-[#e5e0d8]", "data-testid": "chat-sources-visual", children: [
-                        /* @__PURE__ */ u3("div", { className: "text-xs font-medium text-[#888] mb-2", children: "Sources:" }),
-                        /* @__PURE__ */ u3("div", { className: "space-y-2", children: msg.sources.map((source, sidx) => /* @__PURE__ */ u3("div", { className: "flex items-start gap-3", children: [
-                          source.thumbnailUrl && /* @__PURE__ */ u3(
-                            "a",
-                            {
-                              href: `/workspace/doc/${source.documentId}${source.page ? `?page=${source.page}` : ""}`,
-                              target: "_blank",
-                              rel: "noopener noreferrer",
-                              className: "flex-shrink-0",
-                              "data-testid": `chat-source-thumbnail-${sidx}`,
-                              children: /* @__PURE__ */ u3(
-                                "img",
-                                {
-                                  src: source.thumbnailUrl,
-                                  alt: `Page ${source.page || 1} thumbnail`,
-                                  className: "w-12 h-16 object-cover rounded border border-[#e5e0d8] hover:border-[#b87333] transition-colors",
-                                  loading: "lazy"
-                                }
-                              )
-                            }
-                          ),
-                          /* @__PURE__ */ u3("div", { className: "flex flex-col gap-1", children: [
-                            /* @__PURE__ */ u3(
-                              "a",
-                              {
-                                href: `/workspace/doc/${source.documentId}`,
-                                className: "text-xs text-[#b87333] hover:underline",
-                                target: "_blank",
-                                rel: "noopener noreferrer",
-                                "data-testid": `chat-source-visual-${sidx}`,
-                                children: [
-                                  "\u{1F4C4} ",
-                                  source.title || `Document #${source.documentId}`,
-                                  source.page ? ` (p${source.page})` : ""
-                                ]
-                              }
-                            ),
-                            (source.visualScore !== void 0 || source.textScore !== void 0) && /* @__PURE__ */ u3("span", { className: "text-xs text-[#999]", children: [
-                              source.visualScore !== void 0 && /* @__PURE__ */ u3("span", { className: "mr-2", children: [
-                                "Visual: ",
-                                Math.round(source.visualScore * 100),
-                                "%"
-                              ] }),
-                              source.textScore !== void 0 && /* @__PURE__ */ u3("span", { children: [
-                                "Text: ",
-                                Math.round(source.textScore * 100),
-                                "%"
-                              ] })
-                            ] })
-                          ] })
-                        ] }, sidx)) })
-                      ] })
-                    ]
-                  },
-                  msg.id
-                )),
-                streamError && /* @__PURE__ */ u3("div", { className: "sg-message sg-message--error", "data-testid": "chat-error-visual", children: streamError }),
-                /* @__PURE__ */ u3("div", { ref: chatEndRef })
-              ]
+              type: "button",
+              onClick: () => setChatMode("document"),
+              disabled: !isDocumentLoaded,
+              className: `px-3 py-1.5 text-sm rounded-md transition-colors ${chatMode === "document" ? "bg-[#b87333] text-white" : "bg-white text-[#555] border border-[#e5e0d8] hover:bg-[#fdfaf6]"} disabled:opacity-50 disabled:cursor-not-allowed`,
+              "data-testid": "chat-mode-document",
+              title: !isDocumentLoaded ? "Load a document to use Document Chat" : "Chat about the selected document",
+              children: "\u{1F4C4} Document Chat"
             }
-          ),
-          /* @__PURE__ */ u3("div", { className: "sg-chat-input", children: [
-            /* @__PURE__ */ u3(
-              "textarea",
-              {
-                "data-testid": "chat-input-visual",
-                className: "sg-textarea",
-                placeholder: 'Search by visual content... (e.g., "Find documents with tables" or "Show invoices with charts")',
-                value: messageInput,
-                onInput: (e3) => setMessageInput(e3.target.value),
-                onKeyDown: (e3) => {
-                  if (e3.key === "Enter" && !e3.shiftKey) {
-                    e3.preventDefault();
-                    if (!isStreaming) void sendMessage();
-                  }
-                },
-                rows: 2
-              }
-            ),
-            /* @__PURE__ */ u3(
-              "button",
-              {
-                "data-testid": "chat-send-button-visual",
-                type: "button",
-                className: "sg-primary",
-                disabled: !messageInput.trim() || isStreaming || !selectedModel,
-                onClick: () => void sendMessage(),
-                children: isStreaming ? "Searching..." : "Visual Search"
-              }
-            )
-          ] })
+          )
         ] }),
-        chatMode === "document" && !selectedDocumentId && /* @__PURE__ */ u3("div", { className: "sg-empty", "data-testid": "chat-empty-state", children: "Select a document above to start a conversation." }),
-        chatMode === "document" && selectedDocumentId && /* @__PURE__ */ u3("div", { className: "sg-chat-panel", children: [
+        chatMode === "document" && isDocumentLoaded && /* @__PURE__ */ u3("span", { className: "ml-auto text-xs text-[#888]", "data-testid": "chat-mode-doc-indicator", children: [
+          "Chatting about: ",
+          /* @__PURE__ */ u3("strong", { children: selectedDocumentTitle || `Doc #${selectedDocumentId}` })
+        ] }),
+        chatMode === "rag" && /* @__PURE__ */ u3("span", { className: "ml-auto text-xs text-[#888]", "data-testid": "chat-mode-rag-indicator", children: "Searching documents by text content" }),
+        chatMode === "visual-rag" && /* @__PURE__ */ u3("span", { className: "ml-auto text-xs text-[#888]", "data-testid": "chat-mode-visual-indicator", children: visualRagStatus === "initializing" ? /* @__PURE__ */ u3("span", { className: "text-orange-600", children: "\u23F3 GPU warming up (~30s)..." }) : !visualRagAvailable ? /* @__PURE__ */ u3("span", { className: "text-orange-600", children: "\u26A0\uFE0F Visual-RAG unavailable - using text fallback" }) : "Searching by visual content (tables, charts, images)" })
+      ] }),
+      chatMode === "rag" && /* @__PURE__ */ u3("div", { className: "sg-chat-panel", children: [
+        /* @__PURE__ */ u3("div", { className: "mb-2 flex items-center justify-between", children: [
+          /* @__PURE__ */ u3("span", { className: "text-xs text-[#777]", children: "Text Search" }),
           /* @__PURE__ */ u3(
-            "div",
+            "button",
             {
-              ref: chatHistoryRef,
-              className: "sg-chat-history",
-              "data-testid": "chat-history",
-              children: [
-                chatMessages.map((msg) => /* @__PURE__ */ u3(
-                  "div",
-                  {
-                    className: `sg-message sg-message--${msg.role}`,
-                    "data-testid": `chat-message-${msg.role}`,
-                    ref: (el) => {
-                      if (msg.role === "assistant" && el) {
-                        highlightBlocks(el);
-                      }
-                    },
-                    dangerouslySetInnerHTML: {
-                      __html: msg.role === "assistant" ? safeMarkdown(msg.content).replace(/\[visual:(\d+)\/(\d+)\/(.*?)\]/g, (match, docId, pg, bbox) => {
-                        return `<a href="/workspace/doc/${docId}?tab=visual&page=${pg}" class="text-blue-600 hover:underline inline-flex items-center gap-1" title="View in Workspace"><i class="fas fa-search"></i> Visual Reference (Page ${pg})</a>`;
-                      }) : msg.content
+              type: "button",
+              className: "rounded-md border border-[#e5e0d8] px-2 py-1 text-xs text-[#666] hover:bg-[#f5f0e8] disabled:opacity-60 disabled:cursor-not-allowed",
+              "data-testid": "chat-reingest-text-btn",
+              disabled: !selectedDocumentId || textReingestBusy,
+              onClick: () => void handleTextReingest(),
+              title: !selectedDocumentId ? "Select a document first" : "Re-index text embeddings for this document",
+              children: textReingestBusy ? "Reingesting..." : "Reingest Text"
+            }
+          )
+        ] }),
+        textReingestStatus && /* @__PURE__ */ u3(
+          "div",
+          {
+            className: "mb-2 text-xs text-[#8a5a2f]",
+            "data-testid": "chat-reingest-text-status",
+            children: textReingestStatus
+          }
+        ),
+        /* @__PURE__ */ u3(
+          "div",
+          {
+            ref: chatHistoryRef,
+            className: "sg-chat-history",
+            "data-testid": "chat-history",
+            children: [
+              chatMessages.length === 0 && /* @__PURE__ */ u3("div", { className: "sg-empty", "data-testid": "chat-rag-empty", children: "Ask a question to search across all your documents." }),
+              chatMessages.map((msg) => /* @__PURE__ */ u3(
+                "div",
+                {
+                  className: `sg-message sg-message--${msg.role} ${msg.isError ? "sg-message--error" : ""}`,
+                  "data-testid": `chat-message-${msg.role}`,
+                  ref: (el) => {
+                    if (msg.role === "assistant" && el) {
+                      highlightBlocks(el);
                     }
                   },
-                  msg.id
-                )),
-                streamError && /* @__PURE__ */ u3("div", { className: "sg-message sg-message--error", children: streamError }),
-                /* @__PURE__ */ u3("div", { ref: chatEndRef })
-              ]
+                  children: [
+                    /* @__PURE__ */ u3("div", { dangerouslySetInnerHTML: { __html: safeMarkdown(msg.content) } }),
+                    msg.role === "assistant" && msg.sources && msg.sources.length > 0 && /* @__PURE__ */ u3("div", { className: "mt-3 pt-3 border-t border-[#e5e0d8]", "data-testid": "chat-sources", children: [
+                      /* @__PURE__ */ u3("div", { className: "text-xs font-medium text-[#888] mb-2", children: "Sources:" }),
+                      /* @__PURE__ */ u3("div", { className: "space-y-1", children: msg.sources.map((source, sidx) => /* @__PURE__ */ u3(
+                        "a",
+                        {
+                          href: `/workspace/doc/${source.documentId}`,
+                          className: "block text-xs text-[#b87333] hover:underline",
+                          target: "_blank",
+                          rel: "noopener noreferrer",
+                          "data-testid": `chat-source-${sidx}`,
+                          children: [
+                            "\u{1F4C4} ",
+                            source.title || `Document #${source.documentId}`,
+                            source.page ? ` (Page ${source.page})` : ""
+                          ]
+                        },
+                        sidx
+                      )) })
+                    ] })
+                  ]
+                },
+                msg.id
+              )),
+              streamError && /* @__PURE__ */ u3("div", { className: "sg-message sg-message--error", "data-testid": "chat-error", children: streamError }),
+              /* @__PURE__ */ u3("div", { ref: chatEndRef })
+            ]
+          }
+        ),
+        /* @__PURE__ */ u3("div", { className: "sg-chat-input", children: [
+          /* @__PURE__ */ u3(
+            "textarea",
+            {
+              "data-testid": "chat-input",
+              className: "sg-textarea",
+              placeholder: 'Ask questions across all documents... (e.g., "Find invoices over $1000")',
+              value: messageInput,
+              onInput: (e3) => setMessageInput(e3.target.value),
+              onKeyDown: (e3) => {
+                if (e3.key === "Enter" && !e3.shiftKey) {
+                  e3.preventDefault();
+                  if (!isStreaming) void sendMessage();
+                }
+              },
+              rows: 2
             }
           ),
-          /* @__PURE__ */ u3("div", { className: "sg-chat-input", children: [
-            /* @__PURE__ */ u3(
-              "textarea",
-              {
-                "data-testid": "chat-input",
-                className: "sg-textarea",
-                placeholder: 'Ask questions about this document... (e.g., "What is the due date?")',
-                value: messageInput,
-                onInput: (e3) => setMessageInput(e3.target.value),
-                onKeyDown: (e3) => {
-                  if (e3.key === "Enter" && !e3.shiftKey) {
-                    e3.preventDefault();
-                    if (!isStreaming) void sendMessage();
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              "data-testid": "chat-send-button",
+              type: "button",
+              className: "sg-primary",
+              disabled: !messageInput.trim() || isStreaming || !selectedModel,
+              onClick: () => void sendMessage(),
+              children: isStreaming ? "Searching..." : "Search"
+            }
+          )
+        ] })
+      ] }),
+      chatMode === "visual-rag" && /* @__PURE__ */ u3("div", { className: "sg-chat-panel", children: [
+        /* @__PURE__ */ u3(
+          "div",
+          {
+            ref: chatHistoryRef,
+            className: "sg-chat-history",
+            "data-testid": "chat-history-visual",
+            children: [
+              chatMessages.length === 0 && /* @__PURE__ */ u3("div", { className: "sg-empty", "data-testid": "chat-visual-empty", children: "Search for visual content like tables, charts, and images across your documents." }),
+              chatMessages.map((msg) => /* @__PURE__ */ u3(
+                "div",
+                {
+                  className: `sg-message sg-message--${msg.role} ${msg.isError ? "sg-message--error" : ""}`,
+                  "data-testid": `chat-message-${msg.role}`,
+                  ref: (el) => {
+                    if (msg.role === "assistant" && el) {
+                      highlightBlocks(el);
+                    }
+                  },
+                  children: [
+                    /* @__PURE__ */ u3("div", { dangerouslySetInnerHTML: { __html: safeMarkdown(msg.content) } }),
+                    msg.role === "assistant" && msg.searchMode && /* @__PURE__ */ u3("div", { className: "mt-2 text-xs text-[#888]", children: msg.searchMode === "hybrid" ? "\u{1F3A8} Hybrid search" : "\u{1F4DD} Text fallback" }),
+                    msg.role === "assistant" && msg.sources && msg.sources.length > 0 && /* @__PURE__ */ u3("div", { className: "mt-3 pt-3 border-t border-[#e5e0d8]", "data-testid": "chat-sources-visual", children: [
+                      /* @__PURE__ */ u3("div", { className: "text-xs font-medium text-[#888] mb-2", children: "Sources:" }),
+                      /* @__PURE__ */ u3("div", { className: "space-y-2", children: msg.sources.map((source, sidx) => /* @__PURE__ */ u3("div", { className: "flex items-start gap-3", children: [
+                        source.thumbnailUrl && /* @__PURE__ */ u3(
+                          "a",
+                          {
+                            href: `/workspace/doc/${source.documentId}${source.page ? `?page=${source.page}` : ""}`,
+                            target: "_blank",
+                            rel: "noopener noreferrer",
+                            className: "flex-shrink-0",
+                            "data-testid": `chat-source-thumbnail-${sidx}`,
+                            children: /* @__PURE__ */ u3(
+                              "img",
+                              {
+                                src: source.thumbnailUrl,
+                                alt: `Page ${source.page || 1} thumbnail`,
+                                className: "w-12 h-16 object-cover rounded border border-[#e5e0d8] hover:border-[#b87333] transition-colors",
+                                loading: "lazy"
+                              }
+                            )
+                          }
+                        ),
+                        /* @__PURE__ */ u3("div", { className: "flex flex-col gap-1", children: [
+                          /* @__PURE__ */ u3(
+                            "a",
+                            {
+                              href: `/workspace/doc/${source.documentId}`,
+                              className: "text-xs text-[#b87333] hover:underline",
+                              target: "_blank",
+                              rel: "noopener noreferrer",
+                              "data-testid": `chat-source-visual-${sidx}`,
+                              children: [
+                                "\u{1F4C4} ",
+                                source.title || `Document #${source.documentId}`,
+                                source.page ? ` (p${source.page})` : ""
+                              ]
+                            }
+                          ),
+                          (source.visualScore !== void 0 || source.textScore !== void 0) && /* @__PURE__ */ u3("span", { className: "text-xs text-[#999]", children: [
+                            source.visualScore !== void 0 && /* @__PURE__ */ u3("span", { className: "mr-2", children: [
+                              "Visual: ",
+                              Math.round(source.visualScore * 100),
+                              "%"
+                            ] }),
+                            source.textScore !== void 0 && /* @__PURE__ */ u3("span", { children: [
+                              "Text: ",
+                              Math.round(source.textScore * 100),
+                              "%"
+                            ] })
+                          ] })
+                        ] })
+                      ] }, sidx)) })
+                    ] })
+                  ]
+                },
+                msg.id
+              )),
+              streamError && /* @__PURE__ */ u3("div", { className: "sg-message sg-message--error", "data-testid": "chat-error-visual", children: streamError }),
+              /* @__PURE__ */ u3("div", { ref: chatEndRef })
+            ]
+          }
+        ),
+        /* @__PURE__ */ u3("div", { className: "sg-chat-input", children: [
+          /* @__PURE__ */ u3(
+            "textarea",
+            {
+              "data-testid": "chat-input-visual",
+              className: "sg-textarea",
+              placeholder: 'Search by visual content... (e.g., "Find documents with tables" or "Show invoices with charts")',
+              value: messageInput,
+              onInput: (e3) => setMessageInput(e3.target.value),
+              onKeyDown: (e3) => {
+                if (e3.key === "Enter" && !e3.shiftKey) {
+                  e3.preventDefault();
+                  if (!isStreaming) void sendMessage();
+                }
+              },
+              rows: 2
+            }
+          ),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              "data-testid": "chat-send-button-visual",
+              type: "button",
+              className: "sg-primary",
+              disabled: !messageInput.trim() || isStreaming || !selectedModel,
+              onClick: () => void sendMessage(),
+              children: isStreaming ? "Searching..." : "Visual Search"
+            }
+          )
+        ] })
+      ] }),
+      chatMode === "document" && !selectedDocumentId && /* @__PURE__ */ u3("div", { className: "sg-empty", "data-testid": "chat-empty-state", children: "Select a document above to start a conversation." }),
+      chatMode === "document" && selectedDocumentId && /* @__PURE__ */ u3("div", { className: "sg-chat-panel", children: [
+        /* @__PURE__ */ u3(
+          "div",
+          {
+            ref: chatHistoryRef,
+            className: "sg-chat-history",
+            "data-testid": "chat-history",
+            children: [
+              chatMessages.map((msg) => /* @__PURE__ */ u3(
+                "div",
+                {
+                  className: `sg-message sg-message--${msg.role}`,
+                  "data-testid": `chat-message-${msg.role}`,
+                  ref: (el) => {
+                    if (msg.role === "assistant" && el) {
+                      highlightBlocks(el);
+                    }
+                  },
+                  dangerouslySetInnerHTML: {
+                    __html: msg.role === "assistant" ? safeMarkdown(msg.content).replace(/\[visual:(\d+)\/(\d+)\/(.*?)\]/g, (match, docId, pg, bbox) => {
+                      return `<a href="/workspace/doc/${docId}?tab=visual&page=${pg}" class="text-blue-600 hover:underline inline-flex items-center gap-1" title="View in Workspace"><i class="fas fa-search"></i> Visual Reference (Page ${pg})</a>`;
+                    }) : msg.content
                   }
                 },
-                rows: 2
-              }
-            ),
-            /* @__PURE__ */ u3(
-              "button",
-              {
-                "data-testid": "chat-send-button",
-                type: "button",
-                className: "sg-primary",
-                disabled: !messageInput.trim() || isStreaming,
-                onClick: () => void sendMessage(),
-                children: isStreaming ? "Sending..." : "Send"
-              }
-            )
-          ] })
-        ] })
-      ] }),
-      activeTab === "document" && /* @__PURE__ */ u3("div", { className: "sg-tab-panel", "data-testid": "chat-document-panel", children: [
-        !selectedDocumentId && /* @__PURE__ */ u3("div", { className: "sg-empty", children: "Select a document to preview." }),
-        selectedDocumentId && /* @__PURE__ */ u3("div", { className: "sg-document-preview", children: [
-          /* @__PURE__ */ u3("div", { className: "sg-document-header", children: [
-            /* @__PURE__ */ u3("div", { children: [
-              /* @__PURE__ */ u3("h3", { className: "sg-display", children: docPreview.title || selectedDocumentTitle }),
-              /* @__PURE__ */ u3("p", { className: "sg-helper", children: docPreview.tags.length ? `Tags: ${docPreview.tags.join(", ")}` : "No tags yet." })
-            ] }),
-            /* @__PURE__ */ u3(
-              "a",
-              {
-                "data-testid": "chat-open-history",
-                href: `/history/doc/${selectedDocumentId}`,
-                className: "sg-link",
-                children: "Open in history"
-              }
-            )
-          ] }),
-          /* @__PURE__ */ u3("div", { className: "sg-document-content", children: docPreview.content || "No content available." })
-        ] })
-      ] }),
-      activeTab === "visual" && /* @__PURE__ */ u3("div", { className: "sg-tab-panel", "data-testid": "chat-visual-panel", children: [
-        !selectedDocumentId && /* @__PURE__ */ u3("div", { className: "sg-empty", children: "Select a document to review visual overlays." }),
-        selectedDocumentId && /* @__PURE__ */ u3("div", { className: "sg-visual-panel", children: /* @__PURE__ */ u3(
-          OverlayViewerIsland,
-          {
-            documentId: selectedDocumentId,
-            page: 1,
-            originalUrl: docPreview.originalUrl || void 0,
-            pageCount: docPreview.pageCount,
-            overlayMode: "document",
-            showLegend: true
+                msg.id
+              )),
+              streamError && /* @__PURE__ */ u3("div", { className: "sg-message sg-message--error", children: streamError }),
+              /* @__PURE__ */ u3("div", { ref: chatEndRef })
+            ]
           }
-        ) })
+        ),
+        /* @__PURE__ */ u3("div", { className: "sg-chat-input", children: [
+          /* @__PURE__ */ u3(
+            "textarea",
+            {
+              "data-testid": "chat-input",
+              className: "sg-textarea",
+              placeholder: 'Ask questions about this document... (e.g., "What is the due date?")',
+              value: messageInput,
+              onInput: (e3) => setMessageInput(e3.target.value),
+              onKeyDown: (e3) => {
+                if (e3.key === "Enter" && !e3.shiftKey) {
+                  e3.preventDefault();
+                  if (!isStreaming) void sendMessage();
+                }
+              },
+              rows: 2
+            }
+          ),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              "data-testid": "chat-send-button",
+              type: "button",
+              className: "sg-primary",
+              disabled: !messageInput.trim() || isStreaming,
+              onClick: () => void sendMessage(),
+              children: isStreaming ? "Sending..." : "Send"
+            }
+          )
+        ] })
       ] })
-    ] })
+    ] }) })
   ] });
 }
 
@@ -19285,7 +20572,7 @@ function DocumentContentIsland(props) {
           {
             onClick: () => {
               const context = { type: "text", data: { text: content.substring(0, 5e3) }, documentId: documentId2 };
-              window.location.href = `/chat?context=${encodeURIComponent(JSON.stringify(context))}`;
+              window.location.href = `/workspace/doc/${documentId2}?tab=chat&context=${encodeURIComponent(JSON.stringify(context))}`;
             },
             className: "px-2 py-1 border rounded text-xs bg-white border-gray-300 hover:bg-gray-50 text-green-600",
             title: "Send to Chat",
@@ -19376,6 +20663,29 @@ function dispatchEventSafe8(name, detail) {
     if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") window.dispatchEvent(new CustomEvent(name, { detail }));
   } catch (err) {
   }
+}
+function buildReprocessSocketUrl(documentId2) {
+  if (typeof window === "undefined" || !window.location) return null;
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}/ws/reprocess/${documentId2}`;
+}
+var REPROCESS_FRIENDLY_MESSAGES = {
+  visual_rag_unavailable: "GPU Preparing: visual search is temporarily unavailable. Using text-based extraction fallback.",
+  model_unavailable: "GPU Preparing: visual search is temporarily unavailable. Using text-based extraction fallback.",
+  pipeline_timeout: "Vision model is taking longer than expected. Retrying with exponential backoff.",
+  qdrant_connection_failed: "Vector search is temporarily unavailable because the circuit breaker is open. Please try again later.",
+  invalid_document_format: "This document format is not supported. Please upload a PDF or image file."
+};
+function resolveReprocessUserMessage(payload) {
+  const explicit = payload.userMessage;
+  if (typeof explicit === "string" && explicit.trim().length > 0) {
+    return explicit;
+  }
+  const reasonCode = payload.reasonCode ? String(payload.reasonCode) : "";
+  if (reasonCode && REPROCESS_FRIENDLY_MESSAGES[reasonCode]) {
+    return REPROCESS_FRIENDLY_MESSAGES[reasonCode];
+  }
+  return String(payload.error || "Re-analysis failed");
 }
 function UnifiedWorkspaceIsland(props) {
   const [isDirty2, setIsDirty] = d2(false);
@@ -19588,19 +20898,73 @@ function UnifiedWorkspaceIsland(props) {
       const detail = e3?.detail || {};
       const { documentId: documentId2 } = detail;
       if (String(documentId2) !== String(props.document?.id)) return;
+      let progressSocket = null;
+      let hasProgressSocket = false;
       try {
         window.dispatchEvent(new CustomEvent("workspace:reprocess-started", {
           detail: { documentId: documentId2 }
         }));
+        dispatchEventSafe8("workspace:reprocess-progress", {
+          documentId: documentId2,
+          stage: "queued",
+          label: "Queued for re-analysis",
+          status: "in_progress",
+          percentage: 5,
+          details: null,
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        });
+        const socketUrl = buildReprocessSocketUrl(String(documentId2));
+        if (socketUrl && typeof window !== "undefined" && window.WebSocket) {
+          try {
+            progressSocket = new window.WebSocket(socketUrl);
+            progressSocket.onmessage = (message) => {
+              try {
+                const payload = JSON.parse(message.data || "{}");
+                hasProgressSocket = true;
+                dispatchEventSafe8("workspace:reprocess-progress", payload);
+              } catch {
+              }
+            };
+            progressSocket.onerror = () => {
+              dispatchEventSafe8("workspace:reprocess-progress", {
+                documentId: documentId2,
+                stage: "visual_extraction",
+                label: "Running expert pipeline stages",
+                status: "in_progress",
+                percentage: 30,
+                details: { source: "fallback" },
+                timestamp: (/* @__PURE__ */ new Date()).toISOString()
+              });
+            };
+          } catch {
+          }
+        }
         const response = await fetch(`/api/documents/${documentId2}/reprocess`, {
           method: "POST",
           headers: { "Content-Type": "application/json" }
         });
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || "Reprocess failed");
+          const apiError = new Error(
+            resolveReprocessUserMessage(errorData)
+          );
+          apiError.reasonCode = errorData.reasonCode;
+          apiError.errorKey = errorData.errorKey;
+          apiError.userMessage = resolveReprocessUserMessage(errorData);
+          throw apiError;
         }
         const result = await response.json();
+        if (!hasProgressSocket) {
+          dispatchEventSafe8("workspace:reprocess-progress", {
+            documentId: documentId2,
+            stage: "completed",
+            label: "Re-analysis complete",
+            status: "completed",
+            percentage: 100,
+            details: null,
+            timestamp: (/* @__PURE__ */ new Date()).toISOString()
+          });
+        }
         window.dispatchEvent(new CustomEvent("workspace:reprocess-complete", {
           detail: {
             documentId: documentId2,
@@ -19617,23 +20981,49 @@ function UnifiedWorkspaceIsland(props) {
             documentId: documentId2,
             fields: result.extractedFields,
             tags: result.smartTags,
-            classification: result.classification
+            classification: result.classificationDetails || result.classification
           }
         }));
       } catch (err) {
         console.error("[UnifiedWorkspace] Reprocess failed:", err);
+        const reprocessError = err;
+        const userMessage = reprocessError.userMessage || reprocessError.message || "Re-analysis failed";
+        dispatchEventSafe8("workspace:reprocess-progress", {
+          documentId: documentId2,
+          stage: "failed",
+          label: userMessage,
+          status: "failed",
+          percentage: 100,
+          details: {
+            error: reprocessError.message,
+            userMessage,
+            reasonCode: reprocessError.reasonCode || null,
+            errorKey: reprocessError.errorKey || null
+          },
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        });
         window.dispatchEvent(new CustomEvent("workspace:reprocess-failed", {
-          detail: { documentId: documentId2, error: err.message }
+          detail: {
+            documentId: documentId2,
+            error: userMessage,
+            userMessage,
+            reasonCode: reprocessError.reasonCode || null,
+            errorKey: reprocessError.errorKey || null
+          }
         }));
+      } finally {
+        if (progressSocket) {
+          try {
+            progressSocket.close();
+          } catch {
+          }
+        }
       }
     };
     window.addEventListener("workspace:reprocess-request", handleReprocessRequest);
     return () => window.removeEventListener("workspace:reprocess-request", handleReprocessRequest);
   }, [props.document?.id]);
-  return /* @__PURE__ */ u3("div", { className: "h-full w-full flex flex-col p-8", "data-hydrated": "true", children: /* @__PURE__ */ u3("div", { className: "flex-1 border-2 border-dashed border-[#e5e0d8] rounded-lg flex items-center justify-center relative", children: [
-    /* @__PURE__ */ u3("p", { className: "font-['Space_Grotesk'] text-[#888]", children: "Document Viewer Area Placeholder" }),
-    props.document?.id ? /* @__PURE__ */ u3("div", { "data-testid": "workspace-state-badge", "data-state": isDirty2 ? "unsaved" : "clean", className: "absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-semibold bg-white border", "aria-live": "polite", "aria-atomic": "true", children: isDirty2 ? "Unsaved Changes" : "Saved" }) : null
-  ] }) });
+  return /* @__PURE__ */ u3("div", { "data-testid": "unified-workspace-root", "data-hydrated": "true", style: { display: "none" } });
 }
 
 // src/islands/DashboardChartsIsland.tsx
@@ -19924,7 +21314,9 @@ function DocumentContextBarIsland(props) {
           documentId: id,
           page: 1,
           originalUrl: docData.originalUrl || null,
-          pageCount: docData.pageCount || 1
+          pageCount: docData.pageCount || 1,
+          persistedNormalizedUrl: docData.persistedNormalizedUrl || null,
+          normalizationStatus: docData.normalizationStatus || null
         }
       }));
       window.dispatchEvent(new CustomEvent("workspace:document-switched", {
@@ -20344,15 +21736,173 @@ function DocumentContextBarIsland(props) {
 }
 
 // src/islands/VisualTabIsland.tsx
+var FetchError = class extends Error {
+  constructor(message, status, responseData) {
+    super(message);
+    __publicField(this, "status");
+    __publicField(this, "responseData");
+    this.status = status;
+    this.responseData = responseData;
+  }
+};
+var CHAT_SESSION_PREFIX = "paperless:visual-chat:";
+var SEARCH_TIMEOUT_MS = 5e3;
+var REINGEST_TIMEOUT_MS2 = 1e4;
+var MAX_IMAGE_ATTACHMENTS = 3;
+var MAX_RESULTS = 6;
+var makeMessageId = (prefix = "msg") => {
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+};
+var clamp01 = (value) => {
+  if (Number.isNaN(value)) return 0;
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
+};
+var getChatSessionKey = (documentId2) => {
+  return `${CHAT_SESSION_PREFIX}${documentId2}`;
+};
+var formatPercent = (value) => {
+  return Math.round(clamp01(value) * 100);
+};
+var readFileAsDataUrl = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      if (result) {
+        resolve(result);
+      } else {
+        reject(new Error("Failed to read file"));
+      }
+    };
+    reader.onerror = () => {
+      reject(new Error("Failed to read file"));
+    };
+    reader.readAsDataURL(file);
+  });
+};
+var parseDataUrlBase64 = (dataUrl) => {
+  const parts = dataUrl.split(",");
+  return parts.length > 1 ? parts[1] : dataUrl;
+};
+var normalizeBox = (box) => {
+  if (!box || typeof box !== "object") {
+    return void 0;
+  }
+  if (Array.isArray(box) && box.length === 4) {
+    const [ymin, xmin, ymax, xmax] = box.map(Number);
+    if ([ymin, xmin, ymax, xmax].every(Number.isFinite)) {
+      return {
+        x: clamp01(xmin > 1 ? xmin / 1e3 : xmin),
+        y: clamp01(ymin > 1 ? ymin / 1e3 : ymin),
+        width: clamp01((xmax - xmin) / (xmax > 1 ? 1e3 : 1)),
+        height: clamp01((ymax - ymin) / (ymax > 1 ? 1e3 : 1))
+      };
+    }
+  }
+  const source = box;
+  const x4 = Number(source.x);
+  const y3 = Number(source.y);
+  const width = Number(source.width);
+  const height = Number(source.height);
+  if ([x4, y3, width, height].every(Number.isFinite)) {
+    return {
+      x: clamp01(x4),
+      y: clamp01(y3),
+      width: clamp01(width),
+      height: clamp01(height)
+    };
+  }
+  return void 0;
+};
+var normalizeConfidence = (raw, fallback) => {
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    return clamp01(fallback);
+  }
+  if (parsed <= 1) {
+    return clamp01(parsed);
+  }
+  return clamp01(1 - Math.exp(-parsed / 6));
+};
+var mergeSources = (current, incoming) => {
+  if (current === incoming) return current;
+  if (current === "hybrid" || incoming === "hybrid") return "hybrid";
+  if (current === "text" && incoming === "visual" || current === "visual" && incoming === "text") {
+    return "hybrid";
+  }
+  if (current === "text-fallback" && incoming === "visual" || current === "visual" && incoming === "text-fallback") {
+    return "hybrid";
+  }
+  return incoming;
+};
+var sourceLabel = (source) => {
+  if (source === "text-fallback") return "Text Fallback";
+  if (source === "visual") return "Visual";
+  if (source === "text") return "Text";
+  return "Hybrid";
+};
+var parseResultSource = (raw) => {
+  const value = String(raw || "").toLowerCase();
+  if (value === "visual") return "visual";
+  if (value === "text") return "text";
+  if (value === "text-fallback") return "text-fallback";
+  return "hybrid";
+};
+async function postJsonWithTimeout(url, body, timeoutMs = SEARCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+    const rawText = await response.text();
+    let responseData = {};
+    try {
+      responseData = rawText ? JSON.parse(rawText) : {};
+    } catch (_error) {
+      responseData = { rawText };
+    }
+    if (!response.ok) {
+      throw new FetchError(
+        `Request failed (${response.status})`,
+        response.status,
+        responseData
+      );
+    }
+    return responseData;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 function VisualTabIsland(props) {
   const [currentDocumentId, setCurrentDocumentId] = d2(props.documentId ?? null);
   const [fields, setFields] = d2(props.fields || []);
   const [overlays, setOverlays] = d2(props.overlays || []);
+  y2(() => {
+    if (props.documentId !== void 0) setCurrentDocumentId(props.documentId);
+    if (props.fields !== void 0) setFields(props.fields);
+    if (props.overlays !== void 0) setOverlays(props.overlays);
+  }, [props.documentId, props.fields, props.overlays]);
   const [isDrawMode, setIsDrawMode] = d2(false);
   const [activeFieldId, setActiveFieldId] = d2(null);
   const [loading, setLoading] = d2(false);
   const [error, setError] = d2(null);
   const [deleteInProgress, setDeleteInProgress] = d2(null);
+  const [chatInput, setChatInput] = d2("");
+  const [chatHistory, setChatHistory] = d2([]);
+  const [chatBusy, setChatBusy] = d2(false);
+  const [chatStatus, setChatStatus] = d2(null);
+  const [visualReingestBusy, setVisualReingestBusy] = d2(false);
+  const [overlayAttachments, setOverlayAttachments] = d2([]);
+  const [imageAttachments, setImageAttachments] = d2([]);
+  const [isDragOver, setIsDragOver] = d2(false);
+  const chatHistoryRef = A2(null);
+  const fileInputRef = A2(null);
   y2(() => {
     try {
       window.__visual_tab_mounted = true;
@@ -20367,6 +21917,32 @@ function VisualTabIsland(props) {
       }
     };
   }, []);
+  const missingFields = T2(
+    () => fields.filter((f4) => !f4.isMapped),
+    [fields]
+  );
+  const mappedFields = T2(
+    () => fields.filter((f4) => f4.isMapped),
+    [fields]
+  );
+  const toOverlayAttachment = q2((overlay) => {
+    return {
+      kind: "overlay",
+      id: String(overlay.id),
+      label: overlay.label,
+      pageNumber: overlay.pageNumber,
+      bbox: normalizeBox(overlay.bbox)
+    };
+  }, []);
+  const addOverlayAttachment = q2((overlay) => {
+    const attachment = toOverlayAttachment(overlay);
+    setOverlayAttachments((prev) => {
+      if (prev.some((item) => item.id === attachment.id)) {
+        return prev;
+      }
+      return [...prev, attachment];
+    });
+  }, [toOverlayAttachment]);
   y2(() => {
     const handleDocumentSwitched = (e3) => {
       const detail = e3?.detail || {};
@@ -20377,6 +21953,10 @@ function VisualTabIsland(props) {
         setOverlays([]);
         setIsDrawMode(false);
         setActiveFieldId(null);
+        setChatInput("");
+        setOverlayAttachments([]);
+        setImageAttachments([]);
+        setChatStatus(null);
         console.log(`[VisualTab] Document switched to ${documentId2}`);
       }
     };
@@ -20417,6 +21997,42 @@ function VisualTabIsland(props) {
     };
     void fetchData();
   }, [currentDocumentId]);
+  y2(() => {
+    if (!currentDocumentId) {
+      setChatHistory([]);
+      return;
+    }
+    try {
+      const raw = window.sessionStorage.getItem(getChatSessionKey(currentDocumentId));
+      if (!raw) {
+        setChatHistory([]);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      setChatHistory(Array.isArray(parsed.messages) ? parsed.messages : []);
+    } catch (storageError) {
+      const msg = storageError instanceof Error ? storageError.message : String(storageError);
+      console.warn("[VisualTabIsland] Failed to restore chat session:", msg);
+      setChatHistory([]);
+    }
+  }, [currentDocumentId]);
+  y2(() => {
+    if (!currentDocumentId) return;
+    try {
+      window.sessionStorage.setItem(
+        getChatSessionKey(currentDocumentId),
+        JSON.stringify({ messages: chatHistory })
+      );
+    } catch (storageError) {
+      const msg = storageError instanceof Error ? storageError.message : String(storageError);
+      console.warn("[VisualTabIsland] Failed to persist chat session:", msg);
+    }
+  }, [currentDocumentId, chatHistory]);
+  y2(() => {
+    if (chatHistoryRef.current) {
+      chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight;
+    }
+  }, [chatHistory, chatBusy]);
   const handleLabelField = q2((fieldId) => {
     setActiveFieldId(fieldId);
     setIsDrawMode(true);
@@ -20441,8 +22057,8 @@ function VisualTabIsland(props) {
       });
       if (response.ok) {
         setOverlays((prev) => prev.filter((o3) => o3.id !== overlayId));
-        if (props.documentId) {
-          const fieldsRes = await fetch(`/api/visual-overlays/missing-fields/${props.documentId}`);
+        if (currentDocumentId) {
+          const fieldsRes = await fetch(`/api/visual-overlays/missing-fields/${currentDocumentId}`);
           if (fieldsRes.ok) {
             const fieldsData = await fieldsRes.json();
             setFields(fieldsData.fields || []);
@@ -20460,7 +22076,7 @@ function VisualTabIsland(props) {
     } finally {
       setDeleteInProgress(null);
     }
-  }, [props.documentId]);
+  }, [currentDocumentId]);
   const handleVisualSearch = q2(() => {
     setActiveFieldId(null);
     setIsDrawMode(true);
@@ -20472,25 +22088,25 @@ function VisualTabIsland(props) {
     const handleDrawComplete = async (e3) => {
       const detail = e3?.detail || {};
       const { bbox, page, purpose, fieldId, imageBase64 } = detail;
-      if (purpose === "label-field" && fieldId && props.documentId) {
+      if (purpose === "label-field" && fieldId && currentDocumentId) {
         try {
           const response = await fetch("/api/visual-overlays", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              documentId: props.documentId,
+              documentId: currentDocumentId,
               fieldId,
               bbox,
               pageNumber: page
             })
           });
           if (response.ok) {
-            const overlaysRes = await fetch(`/api/visual-overlays/document/${props.documentId}`);
+            const overlaysRes = await fetch(`/api/visual-overlays/document/${currentDocumentId}`);
             if (overlaysRes.ok) {
               const overlaysData = await overlaysRes.json();
               setOverlays(overlaysData.overlays || []);
             }
-            const fieldsRes = await fetch(`/api/visual-overlays/missing-fields/${props.documentId}`);
+            const fieldsRes = await fetch(`/api/visual-overlays/missing-fields/${currentDocumentId}`);
             if (fieldsRes.ok) {
               const fieldsData = await fieldsRes.json();
               setFields(fieldsData.fields || []);
@@ -20506,7 +22122,7 @@ function VisualTabIsland(props) {
         }
       } else if (purpose === "visual-search") {
         window.dispatchEvent(new CustomEvent("visual-search-requested", {
-          detail: { bbox, page, documentId: props.documentId, imageBase64 }
+          detail: { bbox, page, documentId: currentDocumentId, imageBase64 }
         }));
       }
       setIsDrawMode(false);
@@ -20514,7 +22130,7 @@ function VisualTabIsland(props) {
     };
     window.addEventListener("overlay:draw-complete", handleDrawComplete);
     return () => window.removeEventListener("overlay:draw-complete", handleDrawComplete);
-  }, [props.documentId]);
+  }, [currentDocumentId]);
   y2(() => {
     const handleCancelDraw = () => {
       setIsDrawMode(false);
@@ -20537,9 +22153,282 @@ function VisualTabIsland(props) {
     window.addEventListener("overlay:draw-mode-changed", handleDrawModeChanged);
     return () => window.removeEventListener("overlay:draw-mode-changed", handleDrawModeChanged);
   }, [activeFieldId]);
-  const missingFields = fields.filter((f4) => !f4.isMapped);
-  const mappedFields = fields.filter((f4) => f4.isMapped);
-  if (!props.documentId) {
+  const normalizeResult = q2(
+    (raw, fallbackSource) => {
+      const docIdRaw = raw.docId ?? raw.doc_id ?? raw.documentId;
+      const parsedDocId = Number(docIdRaw);
+      const docId = Number.isFinite(parsedDocId) ? parsedDocId : null;
+      const pageNumberRaw = raw.pageNum ?? raw.page_num ?? raw.page ?? raw.metadata?.page_number;
+      const parsedPageNumber = Number(pageNumberRaw);
+      const pageNumber = Number.isFinite(parsedPageNumber) && parsedPageNumber > 0 ? parsedPageNumber : 1;
+      const source = parseResultSource(raw.source || fallbackSource);
+      const title = String(raw.title || `Document #${docId ?? "?"}`);
+      const confidence = normalizeConfidence(
+        raw.confidence ?? raw.visualScore ?? raw.textScore ?? raw.fusedScore ?? raw.score,
+        0.5
+      );
+      const overlaysRaw = Array.isArray(raw.overlays) ? raw.overlays : [];
+      const firstOverlay = overlaysRaw[0] || null;
+      const overlayData = firstOverlay?.overlayData || {};
+      const overlayBox = normalizeBox(raw.bbox) || normalizeBox(raw.box) || normalizeBox(overlayData.boundingBox) || normalizeBox(overlayData.bbox) || normalizeBox(overlayData.box) || normalizeBox(firstOverlay?.bbox) || normalizeBox(firstOverlay?.box);
+      const resultId = `${docId ?? "unknown"}-${pageNumber}-${Math.round(confidence * 1e3)}`;
+      const snippet = String(raw.snippet || raw.content || "");
+      return {
+        id: resultId,
+        docId,
+        title,
+        pageNumber,
+        confidence,
+        source,
+        snippet: snippet || void 0,
+        bbox: overlayBox
+      };
+    },
+    []
+  );
+  const combineResults = q2((groups) => {
+    const merged = /* @__PURE__ */ new Map();
+    groups.flat().forEach((result) => {
+      const key = `${result.docId ?? "unknown"}:${result.pageNumber}`;
+      const existing = merged.get(key);
+      if (!existing) {
+        merged.set(key, result);
+        return;
+      }
+      merged.set(key, {
+        ...existing,
+        confidence: Math.max(existing.confidence, result.confidence),
+        source: mergeSources(existing.source, result.source),
+        snippet: existing.snippet || result.snippet,
+        bbox: existing.bbox || result.bbox
+      });
+    });
+    return Array.from(merged.values()).sort((a3, b3) => b3.confidence - a3.confidence).slice(0, MAX_RESULTS);
+  }, []);
+  const executeHybridSearch = q2(async (query) => {
+    const overlayContext = overlayAttachments.map((attachment) => `${attachment.label} (page ${attachment.pageNumber})`).join(", ");
+    const effectiveQuery = overlayContext ? `${query}
+
+Overlay context: ${overlayContext}` : query;
+    let gpuPreparing = false;
+    let baseResults = [];
+    let baseSource = "hybrid";
+    try {
+      const response = await postJsonWithTimeout("/api/visual-rag/search", {
+        query: effectiveQuery,
+        mode: "hybrid",
+        k: 8,
+        includeOverlays: true
+      });
+      baseResults = (response.results || []).map(
+        (raw) => normalizeResult(raw, "hybrid")
+      );
+    } catch (searchError) {
+      const isSidecar503 = searchError instanceof FetchError && searchError.status === 503;
+      if (!isSidecar503) {
+        throw searchError;
+      }
+      gpuPreparing = true;
+      baseSource = "text-fallback";
+      const fallbackResponse = await postJsonWithTimeout("/api/visual-rag/search", {
+        query: effectiveQuery,
+        mode: "text",
+        k: 8,
+        includeOverlays: true
+      });
+      baseResults = (fallbackResponse.results || []).map(
+        (raw) => normalizeResult(raw, "text-fallback")
+      );
+    }
+    const imageResults = [];
+    for (const image of imageAttachments) {
+      try {
+        const response = await postJsonWithTimeout("/api/visual-rag/search/visual", {
+          image: image.base64,
+          collection: "visual_pages",
+          k: 5
+        });
+        const normalized = (response.results || []).map(
+          (raw) => normalizeResult(raw, "visual")
+        );
+        imageResults.push(...normalized);
+      } catch (visualError) {
+        const msg = visualError instanceof Error ? visualError.message : String(visualError);
+        console.warn("[VisualTabIsland] Image search failed:", msg);
+      }
+    }
+    const combinedResults = combineResults([baseResults, imageResults]);
+    return {
+      query: effectiveQuery,
+      gpuPreparing,
+      results: combinedResults,
+      source: combinedResults.length > 0 ? combinedResults[0].source : baseSource
+    };
+  }, [combineResults, imageAttachments, normalizeResult, overlayAttachments]);
+  const handleShowInDocument = q2((result) => {
+    if (!result.docId) return;
+    if (result.docId !== currentDocumentId) {
+      window.dispatchEvent(new CustomEvent("overlay:document-changed", {
+        detail: {
+          documentId: result.docId,
+          page: result.pageNumber,
+          originalUrl: null
+        }
+      }));
+      window.dispatchEvent(new CustomEvent("workspace:document-switched", {
+        detail: {
+          documentId: result.docId,
+          document: {
+            id: result.docId,
+            title: result.title,
+            pageCount: result.pageNumber
+          }
+        }
+      }));
+      setCurrentDocumentId(result.docId);
+    }
+    if (result.bbox) {
+      window.dispatchEvent(new CustomEvent("overlay:highlight-region", {
+        detail: {
+          bbox: result.bbox,
+          page: result.pageNumber
+        }
+      }));
+    }
+  }, [currentDocumentId]);
+  const handleSendSearch = q2(async () => {
+    const text = chatInput.trim();
+    if (!text || chatBusy || !currentDocumentId) return;
+    const attachmentSummary = [
+      ...overlayAttachments.map((item) => ({
+        kind: item.kind,
+        label: `${item.label} (p${item.pageNumber})`
+      })),
+      ...imageAttachments.map((item) => ({
+        kind: item.kind,
+        label: item.name
+      }))
+    ];
+    const userMessage = {
+      id: makeMessageId("user"),
+      role: "user",
+      content: text,
+      createdAt: Date.now(),
+      attachments: attachmentSummary
+    };
+    setChatHistory((prev) => [...prev, userMessage]);
+    setChatInput("");
+    setChatBusy(true);
+    setChatStatus(null);
+    try {
+      const response = await executeHybridSearch(text);
+      const results = response.results;
+      const topConfidence = results.length ? results.slice(0, 3).reduce((acc, item) => acc + item.confidence, 0) / Math.min(results.length, 3) : void 0;
+      const assistantMessage = {
+        id: makeMessageId("assistant"),
+        role: "assistant",
+        content: results.length > 0 ? `Found ${results.length} matching result${results.length === 1 ? "" : "s"}.` : "No matching results found for that request.",
+        createdAt: Date.now(),
+        source: response.source,
+        confidence: topConfidence,
+        results
+      };
+      setChatHistory((prev) => [...prev, assistantMessage]);
+      if (response.gpuPreparing) {
+        const statusMessage = {
+          id: makeMessageId("system"),
+          role: "system",
+          content: "GPU preparing: visual sidecar unavailable, using text fallback.",
+          createdAt: Date.now(),
+          source: "text-fallback"
+        };
+        setChatHistory((prev) => [...prev, statusMessage]);
+        setChatStatus("GPU Preparing: using text fallback while visual sidecar initializes.");
+      }
+    } catch (searchError) {
+      const msg = searchError instanceof Error ? searchError.message : String(searchError);
+      setChatStatus(`Search failed: ${msg}`);
+      const errorMessage = {
+        id: makeMessageId("system"),
+        role: "system",
+        content: `Search failed: ${msg}`,
+        createdAt: Date.now(),
+        source: "text-fallback"
+      };
+      setChatHistory((prev) => [...prev, errorMessage]);
+    } finally {
+      setChatBusy(false);
+      setOverlayAttachments([]);
+      setImageAttachments([]);
+    }
+  }, [
+    chatBusy,
+    chatInput,
+    currentDocumentId,
+    executeHybridSearch,
+    imageAttachments,
+    overlayAttachments
+  ]);
+  const handleClearChat = q2(() => {
+    setChatHistory([]);
+    setChatInput("");
+    setChatStatus(null);
+    setOverlayAttachments([]);
+    setImageAttachments([]);
+  }, []);
+  const handleReingestVisual = q2(async () => {
+    if (!currentDocumentId || visualReingestBusy) return;
+    const confirmed = window.confirm(
+      "This will re-analyze the document visually. Continue?"
+    );
+    if (!confirmed) return;
+    setVisualReingestBusy(true);
+    setChatStatus(`Reingesting visual index for document #${currentDocumentId}...`);
+    try {
+      const response = await postJsonWithTimeout(
+        `/api/visual-rag/reingest/${currentDocumentId}`,
+        { force: true },
+        REINGEST_TIMEOUT_MS2
+      );
+      const overlays2 = Number(response.overlayCount || 0);
+      const pages = Number(response.pagesProcessed || 0);
+      setChatStatus(
+        `Visual reingest complete for document #${currentDocumentId} (${overlays2} overlays, ${pages} pages).`
+      );
+    } catch (reingestError) {
+      const msg = reingestError instanceof Error ? reingestError.message : String(reingestError);
+      setChatStatus(`Visual reingest failed: ${msg}`);
+    } finally {
+      setVisualReingestBusy(false);
+    }
+  }, [currentDocumentId, visualReingestBusy]);
+  const addImageAttachments = q2(async (files) => {
+    if (!files || files.length === 0) return;
+    const selectedFiles = Array.from(files).slice(0, MAX_IMAGE_ATTACHMENTS);
+    const prepared = [];
+    for (const file of selectedFiles) {
+      try {
+        const dataUrl = await readFileAsDataUrl(file);
+        prepared.push({
+          kind: "image",
+          id: makeMessageId("img"),
+          name: file.name,
+          base64: parseDataUrlBase64(dataUrl),
+          previewDataUrl: dataUrl
+        });
+      } catch (readError) {
+        const msg = readError instanceof Error ? readError.message : String(readError);
+        console.warn("[VisualTabIsland] Failed to attach image:", msg);
+      }
+    }
+    if (prepared.length > 0) {
+      setImageAttachments((prev) => {
+        const next = [...prev, ...prepared];
+        return next.slice(0, MAX_IMAGE_ATTACHMENTS);
+      });
+    }
+  }, []);
+  if (!currentDocumentId) {
     return /* @__PURE__ */ u3("div", { className: "visual-tab-panel p-4", "data-testid": "visual-tab-panel", children: /* @__PURE__ */ u3("div", { className: "text-center text-[#888] py-8", children: [
       /* @__PURE__ */ u3("i", { className: "fas fa-eye text-4xl mb-4 block opacity-50", "aria-hidden": "true" }),
       /* @__PURE__ */ u3("p", { children: "Select a document to view visual overlays" })
@@ -20586,6 +22475,236 @@ function VisualTabIsland(props) {
     ) });
   }
   return /* @__PURE__ */ u3("div", { className: "visual-tab-panel", "data-testid": "visual-tab-panel", children: [
+    /* @__PURE__ */ u3("div", { className: "mb-6 rounded-lg border border-[#e5e0d8] bg-white", children: [
+      /* @__PURE__ */ u3("div", { className: "flex items-center justify-between border-b border-[#f0ece5] px-3 py-2", children: [
+        /* @__PURE__ */ u3("h3", { className: "text-sm font-semibold text-[#2c2c2c] font-['Space_Grotesk']", children: "Visual Chat" }),
+        /* @__PURE__ */ u3("div", { className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              type: "button",
+              className: "rounded-md border border-[#e5e0d8] px-2 py-1 text-xs text-[#666] hover:bg-[#f5f0e8] disabled:opacity-60",
+              "data-testid": "visual-chat-reingest-btn",
+              disabled: visualReingestBusy,
+              onClick: () => void handleReingestVisual(),
+              children: visualReingestBusy ? "Reingesting..." : "Reingest Visual"
+            }
+          ),
+          /* @__PURE__ */ u3(
+            "button",
+            {
+              type: "button",
+              className: "rounded-md border border-[#e5e0d8] px-2 py-1 text-xs text-[#666] hover:bg-[#f5f0e8]",
+              "data-testid": "visual-chat-clear-btn",
+              onClick: handleClearChat,
+              children: "Clear"
+            }
+          )
+        ] })
+      ] }),
+      /* @__PURE__ */ u3("div", { className: "p-3", children: [
+        /* @__PURE__ */ u3(
+          "div",
+          {
+            ref: chatHistoryRef,
+            className: "max-h-64 space-y-2 overflow-y-auto rounded-md bg-[#fdfaf6] p-2",
+            "data-testid": "visual-chat-history",
+            children: [
+              chatHistory.length === 0 && /* @__PURE__ */ u3("div", { className: "rounded-md border border-dashed border-[#e5e0d8] bg-white p-3 text-xs text-[#666]", children: "Ask a natural-language visual query. Attach overlays or upload images to enrich hybrid search." }),
+              chatHistory.map((message) => /* @__PURE__ */ u3(
+                "div",
+                {
+                  className: message.role === "user" ? "ml-6 rounded-lg bg-[#b87333] px-3 py-2 text-sm text-white" : message.role === "system" ? "rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900" : "mr-6 rounded-lg border border-[#e5e0d8] bg-white px-3 py-2 text-sm text-[#2c2c2c]",
+                  "data-testid": `visual-chat-message-${message.role}`,
+                  children: [
+                    /* @__PURE__ */ u3("p", { children: message.content }),
+                    message.attachments && message.attachments.length > 0 && /* @__PURE__ */ u3("div", { className: "mt-2 flex flex-wrap gap-1", children: message.attachments.map((attachment, idx) => /* @__PURE__ */ u3(
+                      "span",
+                      {
+                        className: "rounded-full border border-white/40 px-2 py-0.5 text-[11px]",
+                        children: [
+                          attachment.kind === "overlay" ? "\u{1F4CD}" : "\u{1F5BC}\uFE0F",
+                          " ",
+                          attachment.label
+                        ]
+                      },
+                      `${message.id}-attachment-${idx}`
+                    )) }),
+                    message.role === "assistant" && /* @__PURE__ */ u3("div", { className: "mt-2 text-xs text-[#666]", children: [
+                      /* @__PURE__ */ u3("span", { children: [
+                        "Source: ",
+                        sourceLabel(message.source || "hybrid")
+                      ] }),
+                      message.confidence !== void 0 && /* @__PURE__ */ u3("span", { className: "ml-2", children: [
+                        "Confidence: ",
+                        formatPercent(message.confidence),
+                        "%"
+                      ] })
+                    ] }),
+                    message.results && message.results.length > 0 && /* @__PURE__ */ u3("div", { className: "mt-2 space-y-2", children: message.results.map((result) => /* @__PURE__ */ u3(
+                      "div",
+                      {
+                        className: "rounded-md border border-[#eee6dc] bg-[#fffdfa] p-2",
+                        "data-testid": `visual-chat-result-${result.id}`,
+                        children: [
+                          /* @__PURE__ */ u3("div", { className: "flex items-start justify-between gap-2", children: [
+                            /* @__PURE__ */ u3("div", { className: "min-w-0", children: [
+                              /* @__PURE__ */ u3("div", { className: "truncate text-xs font-semibold text-[#2c2c2c]", children: result.title }),
+                              /* @__PURE__ */ u3("div", { className: "text-[11px] text-[#777]", children: [
+                                "Page ",
+                                result.pageNumber,
+                                " \u2022 ",
+                                sourceLabel(result.source)
+                              ] })
+                            ] }),
+                            /* @__PURE__ */ u3("span", { className: "text-[11px] text-[#555]", children: [
+                              formatPercent(result.confidence),
+                              "%"
+                            ] })
+                          ] }),
+                          result.snippet && /* @__PURE__ */ u3("p", { className: "mt-1 line-clamp-2 text-[11px] text-[#666]", children: result.snippet }),
+                          /* @__PURE__ */ u3(
+                            "button",
+                            {
+                              type: "button",
+                              className: "mt-2 rounded-md border border-[#e5e0d8] px-2 py-1 text-xs text-[#2c2c2c] hover:bg-[#f5f0e8]",
+                              "data-testid": `visual-chat-show-document-${result.id}`,
+                              onClick: () => handleShowInDocument(result),
+                              children: "Show in Document"
+                            }
+                          )
+                        ]
+                      },
+                      `${message.id}-${result.id}`
+                    )) })
+                  ]
+                },
+                message.id
+              ))
+            ]
+          }
+        ),
+        (overlayAttachments.length > 0 || imageAttachments.length > 0) && /* @__PURE__ */ u3("div", { className: "mt-2 flex flex-wrap gap-1", "data-testid": "visual-chat-attachments", children: [
+          overlayAttachments.map((attachment) => /* @__PURE__ */ u3(
+            "button",
+            {
+              type: "button",
+              className: "rounded-full border border-[#d9cdbf] bg-[#fdfaf6] px-2 py-1 text-[11px] text-[#5b4a36]",
+              "data-testid": `visual-chat-overlay-attachment-${attachment.id}`,
+              onClick: () => {
+                setOverlayAttachments(
+                  (prev) => prev.filter((item) => item.id !== attachment.id)
+                );
+              },
+              children: [
+                "\u{1F4CD} ",
+                attachment.label,
+                " \xD7"
+              ]
+            },
+            attachment.id
+          )),
+          imageAttachments.map((attachment) => /* @__PURE__ */ u3(
+            "button",
+            {
+              type: "button",
+              className: "rounded-full border border-[#d9cdbf] bg-[#fdfaf6] px-2 py-1 text-[11px] text-[#5b4a36]",
+              "data-testid": `visual-chat-image-attachment-${attachment.id}`,
+              onClick: () => {
+                setImageAttachments(
+                  (prev) => prev.filter((item) => item.id !== attachment.id)
+                );
+              },
+              children: [
+                "\u{1F5BC}\uFE0F ",
+                attachment.name,
+                " \xD7"
+              ]
+            },
+            attachment.id
+          ))
+        ] }),
+        /* @__PURE__ */ u3(
+          "div",
+          {
+            className: `mt-2 rounded-md border p-2 ${isDragOver ? "border-[#b87333] bg-[#fdf2e8]" : "border-[#e5e0d8] bg-[#fdfaf6]"}`,
+            "data-testid": "visual-chat-dropzone",
+            onDragOver: (event) => {
+              event.preventDefault();
+              setIsDragOver(true);
+            },
+            onDragLeave: () => setIsDragOver(false),
+            onDrop: (event) => {
+              event.preventDefault();
+              setIsDragOver(false);
+              void addImageAttachments(event.dataTransfer?.files || null);
+            },
+            children: [
+              /* @__PURE__ */ u3("div", { className: "flex items-end gap-2", children: [
+                /* @__PURE__ */ u3(
+                  "textarea",
+                  {
+                    value: chatInput,
+                    onInput: (event) => {
+                      setChatInput(event.target.value);
+                    },
+                    onKeyDown: (event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        void handleSendSearch();
+                      }
+                    },
+                    rows: 2,
+                    className: "min-h-[56px] flex-1 rounded-md border border-[#e5e0d8] bg-white px-3 py-2 text-sm text-[#2c2c2c] focus:border-[#b87333] focus:outline-none",
+                    placeholder: "Ask a visual question...",
+                    "data-testid": "visual-chat-input"
+                  }
+                ),
+                /* @__PURE__ */ u3(
+                  "button",
+                  {
+                    type: "button",
+                    className: "rounded-md border border-[#e5e0d8] bg-white px-3 py-2 text-xs text-[#444] hover:bg-[#f5f0e8]",
+                    "data-testid": "visual-chat-upload-btn",
+                    onClick: () => fileInputRef.current?.click(),
+                    children: "Upload"
+                  }
+                ),
+                /* @__PURE__ */ u3(
+                  "button",
+                  {
+                    type: "button",
+                    className: "rounded-md bg-[#b87333] px-3 py-2 text-xs font-medium text-white hover:bg-[#a06028] disabled:opacity-60",
+                    "data-testid": "visual-chat-search-btn",
+                    disabled: !chatInput.trim() || chatBusy,
+                    onClick: () => void handleSendSearch(),
+                    children: chatBusy ? "Searching..." : "Search"
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ u3(
+                "input",
+                {
+                  ref: fileInputRef,
+                  type: "file",
+                  accept: "image/*",
+                  multiple: true,
+                  className: "hidden",
+                  "data-testid": "visual-chat-file-input",
+                  onChange: (event) => {
+                    const input = event.target;
+                    void addImageAttachments(input.files);
+                    input.value = "";
+                  }
+                }
+              ),
+              chatStatus && /* @__PURE__ */ u3("p", { className: "mt-2 text-xs text-[#8a5a2f]", "data-testid": "visual-chat-status", children: chatStatus }),
+              /* @__PURE__ */ u3("p", { className: "mt-1 text-[11px] text-[#777]", children: "Drag and drop image files here, or use Upload. Click overlays below to attach them to your query." })
+            ]
+          }
+        )
+      ] })
+    ] }),
     missingFields.length > 0 && /* @__PURE__ */ u3("div", { className: "mb-6", children: [
       /* @__PURE__ */ u3("h3", { className: "text-sm font-semibold mb-3 text-[#2c2c2c] font-['Space_Grotesk']", children: [
         "Missing Field Overlays (",
@@ -20646,22 +22765,42 @@ function VisualTabIsland(props) {
                 "Mapped to overlay"
               ] })
             ] }),
-            /* @__PURE__ */ u3(
-              "button",
-              {
-                onClick: () => {
-                  const overlay = overlays.find((o3) => o3.id === field.overlayId);
-                  if (overlay) handleViewOverlay(overlay);
-                },
-                className: "px-3 py-1.5 bg-white border border-[#e5e0d8] rounded-md text-xs font-medium hover:bg-[#f5f0e8] transition-colors",
-                "data-testid": `view-mapped-${field.id}`,
-                "aria-label": `View ${field.label} overlay`,
-                children: [
-                  /* @__PURE__ */ u3("i", { className: "fas fa-eye mr-1", "aria-hidden": "true" }),
-                  "View"
-                ]
-              }
-            )
+            /* @__PURE__ */ u3("div", { className: "flex items-center", children: [
+              /* @__PURE__ */ u3(
+                "button",
+                {
+                  onClick: () => {
+                    const overlay = overlays.find((o3) => o3.id === field.overlayId);
+                    if (overlay) handleViewOverlay(overlay);
+                  },
+                  className: "px-3 py-1.5 bg-white border border-[#e5e0d8] rounded-md text-xs font-medium hover:bg-[#f5f0e8] transition-colors",
+                  "data-testid": `view-mapped-${field.id}`,
+                  "aria-label": `View ${field.label} overlay`,
+                  children: [
+                    /* @__PURE__ */ u3("i", { className: "fas fa-eye mr-1", "aria-hidden": "true" }),
+                    "View"
+                  ]
+                }
+              ),
+              /* @__PURE__ */ u3(
+                "button",
+                {
+                  onClick: () => {
+                    const overlay = overlays.find((o3) => o3.id === field.overlayId);
+                    if (overlay) {
+                      addOverlayAttachment(overlay);
+                    }
+                  },
+                  className: "ml-2 px-3 py-1.5 bg-white border border-[#e5e0d8] rounded-md text-xs font-medium hover:bg-[#f5f0e8] transition-colors",
+                  "data-testid": `attach-mapped-${field.id}`,
+                  "aria-label": `Attach ${field.label} overlay`,
+                  children: [
+                    /* @__PURE__ */ u3("i", { className: "fas fa-paperclip mr-1", "aria-hidden": "true" }),
+                    "Attach"
+                  ]
+                }
+              )
+            ] })
           ]
         },
         field.id
@@ -20678,6 +22817,11 @@ function VisualTabIsland(props) {
         {
           className: "p-3 bg-white border border-[#e5e0d8] rounded-lg",
           "data-testid": `overlay-${overlay.id}`,
+          onClick: (event) => {
+            const target = event.target;
+            if (target.closest("button")) return;
+            addOverlayAttachment(overlay);
+          },
           children: /* @__PURE__ */ u3("div", { className: "flex justify-between items-start", children: [
             /* @__PURE__ */ u3("div", { className: "flex-1 min-w-0", children: [
               /* @__PURE__ */ u3("div", { className: "text-sm font-medium text-[#2c2c2c] truncate", children: overlay.label }),
@@ -20690,6 +22834,16 @@ function VisualTabIsland(props) {
               ] })
             ] }),
             /* @__PURE__ */ u3("div", { className: "flex gap-2 ml-2 flex-shrink-0", children: [
+              /* @__PURE__ */ u3(
+                "button",
+                {
+                  onClick: () => addOverlayAttachment(overlay),
+                  className: "px-2 py-1 bg-white text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#f5f0e8] transition-colors",
+                  "data-testid": `attach-overlay-${overlay.id}`,
+                  "aria-label": `Attach ${overlay.label} overlay`,
+                  children: /* @__PURE__ */ u3("i", { className: "fas fa-paperclip", "aria-hidden": "true" })
+                }
+              ),
               /* @__PURE__ */ u3(
                 "button",
                 {
@@ -20749,6 +22903,44 @@ var STORAGE_KEY = "paperless:context-sidebar.activeTab";
 function ContextSidebarIsland(props) {
   const initial = typeof window !== "undefined" && window.localStorage && window.localStorage.getItem(STORAGE_KEY) || props.activeTab || "metadata";
   const [activeTab, setActiveTab] = d2(initial);
+  const [currentDocument, setCurrentDocument] = d2(props.document);
+  const [currentVisual, setCurrentVisual] = d2(props.visual);
+  const [currentChat, setCurrentChat] = d2(props.chat);
+  y2(() => {
+    setCurrentDocument(props.document);
+    setCurrentVisual(props.visual);
+    setCurrentChat(props.chat);
+  }, [props.document, props.visual, props.chat]);
+  y2(() => {
+    const handler = (e3) => {
+      const detail = e3.detail || {};
+      const docData = detail.document;
+      if (!docData) return;
+      console.info("[ContextSidebarIsland] Handling workspace:document-switched for doc:", docData.id);
+      const updatedDoc = {
+        id: docData.id,
+        title: docData.title,
+        correspondent: docData.correspondent,
+        content: docData.content || "",
+        documentDomain: docData.documentDomain,
+        tagItems: docData.tagItems,
+        availableTags: docData.availableTags,
+        fieldProfile: docData.fieldProfile,
+        customFields: docData.customFields || []
+      };
+      setCurrentDocument(updatedDoc);
+      if (detail.visual) {
+        setCurrentVisual(detail.visual);
+      } else {
+        setCurrentVisual({ fields: [], overlays: [] });
+      }
+      if (detail.chat) {
+        setCurrentChat(detail.chat);
+      }
+    };
+    window.addEventListener("workspace:document-switched", handler);
+    return () => window.removeEventListener("workspace:document-switched", handler);
+  }, []);
   const tabRefs = A2({});
   y2(() => {
     tabs.forEach((t3) => {
@@ -20843,14 +23035,19 @@ function ContextSidebarIsland(props) {
       activeTab === "metadata" && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-metadata", "aria-labelledby": "tab-metadata", "data-testid": "tab-panel-metadata", children: [
         /* @__PURE__ */ u3("div", { className: "mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg", "data-testid": "panel-header-metadata", children: /* @__PURE__ */ u3("p", { className: "text-sm text-purple-800", children: [
           /* @__PURE__ */ u3("i", { className: "fas fa-wand-magic-sparkles mr-2" }),
-          "AI-powered metadata extraction and suggestions"
+          "AI metadata editing, manual reprocess, and live progress"
         ] }) }),
         /* @__PURE__ */ u3(
           SmartMetadataIsland,
           {
-            documentId: props.document?.id,
-            metadata: props.document,
-            customFields: props.document?.customFields || props.visual?.fields
+            documentId: currentDocument?.id,
+            metadata: currentDocument,
+            selectedTags: currentDocument?.tagItems,
+            availableTags: currentDocument?.availableTags,
+            customFields: currentDocument?.customFields,
+            visualFields: currentVisual?.fields,
+            fieldProfile: currentDocument?.fieldProfile,
+            documentDomain: currentDocument?.documentDomain
           }
         )
       ] }),
@@ -20859,9 +23056,9 @@ function ContextSidebarIsland(props) {
           /* @__PURE__ */ u3("i", { className: "fas fa-file-lines mr-2" }),
           "Tesseract OCR extracted text (read-only)"
         ] }) }),
-        /* @__PURE__ */ u3(DocumentContentIsland, { documentId: props.document?.id, content: props.document?.content || "" })
+        /* @__PURE__ */ u3(DocumentContentIsland, { documentId: currentDocument?.id, content: currentDocument?.content || "" })
       ] }),
-      activeTab === "chat" && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-chat", "aria-labelledby": "tab-chat", "data-testid": "tab-panel-chat", children: /* @__PURE__ */ u3(ChatWorkspaceIsland, { documents: props.availableDocuments || [], openDocumentId: props.document?.id, ...props.chat }) }),
+      activeTab === "chat" && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-chat", "aria-labelledby": "tab-chat", "data-testid": "tab-panel-chat", children: /* @__PURE__ */ u3(ChatWorkspaceIsland, { documents: props.availableDocuments || [], openDocumentId: currentDocument?.id, ...currentChat }) }),
       activeTab === "visual" && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-visual", "aria-labelledby": "tab-visual", "data-testid": "tab-panel-visual", children: [
         /* @__PURE__ */ u3("div", { className: "mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg", "data-testid": "panel-header-visual", children: /* @__PURE__ */ u3("p", { className: "text-sm text-amber-800", children: [
           /* @__PURE__ */ u3("i", { className: "fas fa-draw-polygon mr-2" }),
@@ -20870,13 +23067,13 @@ function ContextSidebarIsland(props) {
         /* @__PURE__ */ u3(
           VisualTabIsland,
           {
-            documentId: props.document?.id,
-            fields: props.visual?.fields,
-            overlays: props.visual?.overlays
+            documentId: currentDocument?.id,
+            fields: currentVisual?.fields,
+            overlays: currentVisual?.overlays
           }
         )
       ] }),
-      activeTab === "debug" && isAdmin && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-debug", "aria-labelledby": "tab-debug", "data-testid": "tab-panel-debug", children: /* @__PURE__ */ u3("pre", { className: "text-xs whitespace-pre-wrap text-gray-700", "data-testid": "debug-content", children: JSON.stringify({ document: props.document, chat: props.chat, visual: props.visual }, null, 2) }) })
+      activeTab === "debug" && isAdmin && /* @__PURE__ */ u3("div", { role: "tabpanel", id: "panel-debug", "aria-labelledby": "tab-debug", "data-testid": "tab-panel-debug", children: /* @__PURE__ */ u3("pre", { className: "text-xs whitespace-pre-wrap text-gray-700", "data-testid": "debug-content", children: JSON.stringify({ document: currentDocument, chat: currentChat, visual: currentVisual }, null, 2) }) })
     ] })
   ] });
 }
@@ -21141,3 +23338,4 @@ export {
   mountIslands,
   registerIsland
 };
+//# sourceMappingURL=island-runtime.js.map

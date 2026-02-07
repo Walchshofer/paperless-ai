@@ -257,6 +257,13 @@ class ExpertPipelineExecutor {
     return normalized || 'general';
   }
 
+  /**
+   * Generate a domain-aware natural language query for a missing field.
+   * @param {Object} field - Field definition with fieldId, displayName, visualLabels
+   * @param {string} domain - Document domain (financial, medical, legal, general)
+   * @returns {string} Natural language query for the visual search
+   * @private
+   */
   _generateQueryForField(field, domain) {
     try {
       const { visualQueryGenerator } = require('./VisualQueryGenerator');
@@ -300,6 +307,15 @@ class ExpertPipelineExecutor {
     return templates[domain] || templates.general;
   }
 
+  /**
+   * Build visual search queries for missing required fields.
+   * Uses VisualQueryGenerator for priority calculation when available.
+   * @param {Array<Object>} missingFields - Missing field definitions from field mapping
+   * @param {string} domain - Document domain
+   * @param {Array<Object>} [extractedFields=[]] - Already-extracted fields for priority scoring
+   * @returns {Array<Object>} Query objects with question, field_target, priority, confidence
+   * @private
+   */
   _buildMissingFieldQueries(missingFields, domain, extractedFields = []) {
     const required = Array.isArray(missingFields) ? missingFields : [];
 
@@ -330,6 +346,14 @@ class ExpertPipelineExecutor {
     }));
   }
 
+  /**
+   * Merge seed queries with generated queries, deduplicating by field_target.
+   * Seed queries take precedence over generated ones.
+   * @param {Array<Object>} seedQueries - Queries from pipeline config
+   * @param {Array<Object>} generatedQueries - Queries from _buildMissingFieldQueries
+   * @returns {Array<Object>} Deduplicated merged query array
+   * @private
+   */
   _mergeMissingFieldQueries(seedQueries, generatedQueries) {
     const merged = [];
     const seen = new Set();
@@ -401,6 +425,15 @@ class ExpertPipelineExecutor {
     return fields;
   }
 
+  /**
+   * Map visual extraction results to Paperless custom fields using FieldMappingService.
+   * Performs field validation and tracks coverage of required fields.
+   * @param {Object} extractionResults - Raw visual extraction output with fields array
+   * @param {string} domain - Document domain for field definitions
+   * @param {Object} fieldMappingService - FieldMappingService instance
+   * @returns {{ mappedFields: Array, missingFields: Array, mappingStats: Object, mappingLatencyMs: number }}
+   * @private
+   */
   _applyFieldMapping(extractionResults, domain, fieldMappingService) {
     const mappingStart = Date.now();
     const requiredFields = fieldMappingService.getRequiredFields(domain);
@@ -673,7 +706,17 @@ class ExpertPipelineExecutor {
   }
 
   /**
-   * Execute a single pipeline stage
+   * Execute a single pipeline stage with conditional logic, retry, and validation.
+   *
+   * Dispatches to specialised handlers based on stage.type:
+   * VALIDATION, PRE_VISION_NORMALIZATION, TEXT_EXTRACTION (parallel OCR),
+   * VISUAL_QUERY_GENERATION, VISUAL_QUERY_EXECUTION, or default LLM stage.
+   *
+   * @param {Object} stage - Stage definition from pipeline config
+   * @param {ExecutionContext} context - Current pipeline execution context
+   * @param {Object} pipeline - Parent pipeline definition
+   * @returns {Promise<{ status: string, output?: *, abort: boolean }>} Stage result
+   * @private
    */
   async _executeStage(stage, context, pipeline) {
     const stageStart = Date.now();
@@ -4236,7 +4279,7 @@ async function processDocument(document, ollamaService, options = {}) {
 
         if (Object.keys(customFields).length > 0) {
           // Normalize values to avoid sending raw numbers / objects to Paperless
-          const { normalizeCustomFieldValue } = require('../../customFieldUtils');
+          const { normalizeCustomFieldValue } = require('../customFieldUtils');
           for (const k of Object.keys(customFields)) {
             customFields[k] = normalizeCustomFieldValue(customFields[k]);
           }

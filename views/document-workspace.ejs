@@ -78,6 +78,7 @@
                 </a>
                 <div class="h-6 w-[1px] bg-[#e5e0d8] mx-2 hidden sm:block"></div>
                 <!-- Document Title Island Anchor -->
+                <!-- Document Switcher Island (ID-only in header for navigation) -->
                 <div 
                     data-island="document-context-bar-island" 
                     data-testid="document-context-bar"
@@ -87,10 +88,9 @@
                         availableDocuments: vm.availableDocuments || [],
                         status: (doc && doc.status) ? doc.status : 'saved'
                     }) %>"
+                    class="flex items-center"
                 >
-                    <h2 class="font-['Space_Grotesk'] font-medium truncate max-w-[300px]">
-                        <%= (doc && doc.title) ? doc.title : 'Select a document...' %>
-                    </h2>
+                    <span class="text-xs font-bold font-mono text-copper/60 px-2 py-0.5 border border-copper/20 rounded">WORKSPACE</span>
                 </div>
             </div>
 
@@ -105,15 +105,44 @@
             </div>
         </header>
 
+        <!-- Document Title Banner (Prominent shared context) -->
+        <div class="bg-[#f8f3eb] border-b-2 border-copper/30 px-6 py-3 flex items-center justify-between shadow-sm">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 bg-copper/10 rounded-lg flex items-center justify-center border border-copper/20">
+                    <i class="fas fa-file-invoice text-copper text-xl"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-3">
+                        <h1 class="font-['Fraunces'] font-bold text-xl text-[#1a1a1a] tracking-tight truncate max-w-[700px]" data-testid="prominent-document-title">
+                            <%= (doc && doc.title) ? doc.title : 'Select a document...' %>
+                        </h1>
+                        <span class="text-xs font-bold font-mono bg-copper/10 text-copper px-2 py-0.5 rounded-full border border-copper/20">#<%= doc ? doc.id : '---' %></span>
+                    </div>
+                    <div class="flex items-center gap-4 mt-0.5 text-[11px] text-[#6b5a4a] font-medium uppercase tracking-wider">
+                        <span class="flex items-center gap-1.5"><i class="fas fa-calendar-alt text-copper/60"></i> Created: <%= doc ? (doc.createdDate || new Date().toLocaleDateString()) : 'N/A' %></span>
+                        <span class="flex items-center gap-1.5"><i class="fas fa-sync text-copper/60"></i> Status: <%= doc ? doc.status : 'Idle' %></span>
+                    </div>
+                </div>
+            </div>
+            <div class="hidden md:flex items-center gap-2">
+                <span class="text-[10px] font-bold text-copper/40 uppercase tracking-widest mr-2">Shared Workspace Context</span>
+                <div class="h-8 w-[1px] bg-copper/20 mx-2"></div>
+                <div class="flex -space-x-2">
+                    <div class="w-8 h-8 rounded-full border-2 border-white bg-copper text-white flex items-center justify-center text-xs font-bold" title="AI Assistant active">AI</div>
+                    <div class="w-8 h-8 rounded-full border-2 border-white bg-gray-200 text-[#555] flex items-center justify-center text-xs font-bold" title="<%= user.username %>"><%= user.username.substring(0,1).toUpperCase() %></div>
+                </div>
+            </div>
+        </div>
+
         <!-- Body -->
         <div class="workspace-body">
             <!-- Viewer Area (1fr) -->
-            <main class="relative bg-[#f5f0e8] overflow-hidden flex flex-col">
+            <main class="relative bg-[#f5f0e8] overflow-hidden flex flex-col min-h-0">
                 <!-- Document Viewer with Overlay Support - Always rendered to listen for document changes -->
                 <div
                     data-island="overlay-viewer-island"
                     data-testid="overlay-viewer-island"
-                    class="h-full w-full"
+                    class="h-full w-full flex flex-col min-h-0"
                     data-props="<%= JSON.stringify({
                         documentId: doc ? doc.id : null,
                         page: 1,

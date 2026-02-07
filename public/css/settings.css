@@ -1,5 +1,729 @@
 /* Settings Page Specific Styles */
 
+/* ── Font Imports ── */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&family=IBM+Plex+Sans:wght@400;500&display=swap');
+
+/* ── Developer & Advanced Section Panel ── */
+.dev-section-panel {
+    position: relative;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: inset 0 0 0 1px var(--border-color),
+                inset 0 2px 4px rgba(0,0,0,0.06);
+    border-radius: 8px;
+    overflow: hidden;
+}
+[data-theme="dark"] .dev-section-panel {
+    box-shadow: inset 0 0 0 1px var(--border-color),
+                inset 0 2px 8px rgba(0,0,0,0.3);
+}
+[data-theme="dark"] .dev-section-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg width='4' height='4' viewBox='0 0 4 4' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 3h1v1H1V3zm2-2h1v1H3V1z' fill='%23ffffff' fill-opacity='0.08'/%3E%3C/svg%3E");
+    opacity: 0.03;
+    pointer-events: none;
+    border-radius: inherit;
+    z-index: 0;
+}
+.dev-section-panel > * {
+    position: relative;
+    z-index: 1;
+}
+
+/* ── Section Headers (collapsible) ── */
+.dev-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s ease;
+}
+.dev-section-header:hover {
+    background: var(--hover-bg);
+}
+.dev-section-header h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 0.9375rem;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+}
+.dev-section-header .section-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+}
+.section-badge--autosave {
+    background: rgba(20, 184, 166, 0.12);
+    color: #14b8a6;
+}
+.section-badge--manual {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+}
+.section-badge--readonly {
+    background: rgba(100, 116, 139, 0.12);
+    color: var(--text-muted);
+}
+.dev-section-chevron {
+    width: 1.25rem;
+    height: 1.25rem;
+    transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+.dev-section-chevron--open {
+    transform: rotate(180deg);
+}
+
+/* ── Toggle Switch (spring animation) ── */
+.toggle-track {
+    position: relative;
+    width: 2.75rem;
+    height: 1.5rem;
+    border-radius: 9999px;
+    background: var(--border-color);
+    cursor: pointer;
+    transition: background-color 200ms ease;
+    flex-shrink: 0;
+}
+.toggle-track[data-checked="true"] {
+    background-color: #14b8a6;
+}
+.toggle-track:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.35);
+}
+[data-theme="dark"] .toggle-track {
+    background: #475569;
+}
+[data-theme="dark"] .toggle-track[data-checked="true"] {
+    background-color: #14b8a6;
+}
+.toggle-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.toggle-track[data-checked="true"] .toggle-knob {
+    transform: translateX(1.25rem);
+}
+
+/* ── Flag Group Containers ── */
+.flag-group {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.flag-group:last-child {
+    border-bottom: none;
+}
+.flag-group-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+}
+.flag-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    gap: 1rem;
+}
+.flag-row + .flag-row {
+    border-top: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+}
+
+/* ── Stagger Reveal Animation ── */
+@keyframes stagger-reveal {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.stagger-child {
+    animation: stagger-reveal 250ms ease-out both;
+}
+.stagger-child:nth-child(1) { animation-delay: 0ms; }
+.stagger-child:nth-child(2) { animation-delay: 40ms; }
+.stagger-child:nth-child(3) { animation-delay: 80ms; }
+.stagger-child:nth-child(4) { animation-delay: 120ms; }
+.stagger-child:nth-child(5) { animation-delay: 160ms; }
+.stagger-child:nth-child(6) { animation-delay: 200ms; }
+.stagger-child:nth-child(7) { animation-delay: 240ms; }
+.stagger-child:nth-child(8) { animation-delay: 280ms; }
+.stagger-child:nth-child(9) { animation-delay: 320ms; }
+
+/* ── Usage Bar (VRAM, quality threshold) ── */
+.usage-bar-track {
+    height: 6px;
+    background: var(--bg-secondary);
+    border-radius: 3px;
+    overflow: hidden;
+}
+[data-theme="dark"] .usage-bar-track {
+    background: #334155;
+}
+.usage-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 500ms ease, background-color 300ms;
+}
+.usage-bar-fill[data-level="ok"] { background: #22c55e; }
+.usage-bar-fill[data-level="warn"] { background: #f59e0b; }
+.usage-bar-fill[data-level="danger"] { background: #ef4444; }
+
+/* ── Service Topology ── */
+.topology-strip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 1.5rem 1rem;
+    overflow-x: auto;
+}
+.topology-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 150ms;
+    min-width: 5rem;
+    text-align: center;
+}
+.topology-node:hover {
+    background: var(--hover-bg);
+}
+.topology-node-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.topology-node-dot[data-status="online"] {
+    background: #22c55e;
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+.topology-node-dot[data-status="offline"] {
+    background: #64748b;
+}
+.topology-node-dot[data-status="error"] {
+    background: #ef4444;
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+}
+.topology-node-label {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+.topology-connector {
+    width: 2rem;
+    height: 2px;
+    flex-shrink: 0;
+}
+.topology-connector[data-connected="true"] {
+    background: #22c55e;
+}
+.topology-connector[data-connected="false"] {
+    background: var(--border-color);
+    background-image: repeating-linear-gradient(
+        90deg,
+        var(--border-color) 0,
+        var(--border-color) 4px,
+        transparent 4px,
+        transparent 8px
+    );
+    background-color: transparent;
+}
+
+/* ── Range + Number Input Combo ── */
+.range-number-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.range-number-group input[type="range"] {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--border-color);
+    border-radius: 2px;
+    outline: none;
+}
+.range-number-group input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #14b8a6;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.range-number-group input[type="number"] {
+    width: 5.5rem;
+    padding: 0.375rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--card-bg);
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8125rem;
+    text-align: right;
+}
+.range-number-group input[type="number"]:focus {
+    outline: none;
+    border-color: #14b8a6;
+    box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.15);
+}
+
+/* ── Refresh Pulse ── */
+@keyframes value-pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+.value-refreshed {
+    animation: value-pulse 600ms ease-out;
+}
+
+/* ── Diff Table (presets) ── */
+.diff-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8125rem;
+}
+.diff-table th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 2px solid var(--border-color);
+}
+.diff-table td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+}
+.diff-value-old {
+    background: rgba(239, 68, 68, 0.08);
+    color: #ef4444;
+    padding: 0.125rem 0.375rem;
+    border-radius: 3px;
+    text-decoration: line-through;
+}
+.diff-value-new {
+    background: rgba(34, 197, 94, 0.08);
+    color: #22c55e;
+    padding: 0.125rem 0.375rem;
+    border-radius: 3px;
+}
+[data-theme="dark"] .diff-value-old {
+    background: rgba(239, 68, 68, 0.15);
+}
+[data-theme="dark"] .diff-value-new {
+    background: rgba(34, 197, 94, 0.15);
+}
+
+/* ── Category Filter Pills ── */
+.category-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-bottom: 1.25rem;
+}
+.category-pill {
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 150ms ease;
+}
+.category-pill:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+}
+.category-pill[data-active="true"] {
+    background: #14b8a6;
+    color: white;
+    border-color: #14b8a6;
+}
+
+/* ── Preset Cards (enhanced) ── */
+.preset-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 150ms, box-shadow 150ms, background-color 150ms;
+    background: var(--card-bg);
+}
+.preset-card:hover {
+    border-color: #14b8a6;
+    box-shadow: 0 0 0 1px #14b8a6;
+    background: color-mix(in srgb, #14b8a6 5%, var(--card-bg));
+}
+
+/* ── Save Bar ── */
+.save-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+.save-bar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1.25rem;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 0.875rem;
+    border: none;
+    cursor: pointer;
+    transition: all 150ms ease;
+    background: #14b8a6;
+    color: white;
+}
+.save-bar-btn:hover:not(:disabled) {
+    background: #0d9488;
+}
+.save-bar-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ── Developer / Presets Typography ── */
+.developer-settings h2,
+.developer-settings h3,
+.presets-manager h2,
+.presets-manager h3 {
+    font-family: 'JetBrains Mono', monospace;
+}
+.developer-settings,
+.presets-manager {
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ── Runtime Detail Cards ── */
+.runtime-detail-card {
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--card-bg);
+}
+.runtime-detail-card h4 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+.runtime-kv {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.25rem 0;
+    font-size: 0.8125rem;
+}
+.runtime-kv-label {
+    color: var(--text-secondary);
+}
+.runtime-kv-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+/* ── Status Colors (reusable) ── */
+.status-ok { color: #22c55e; }
+.status-warn { color: #f59e0b; }
+.status-error { color: #ef4444; }
+.status-muted { color: var(--text-muted); }
+
+/* ── Inheritance Rail (Ollama Token Limits) ── */
+.tier-rail {
+    position: relative;
+    padding-left: 2rem;
+}
+.tier-rail::before {
+    content: '';
+    position: absolute;
+    left: 0.75rem;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: #14b8a6;
+    border-radius: 2px;
+    opacity: 0.3;
+}
+.tier-group {
+    position: relative;
+    padding: 1rem 0 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.tier-group:last-child {
+    border-bottom: none;
+}
+.tier-group::before {
+    content: '';
+    position: absolute;
+    left: -1.25rem;
+    top: 1.75rem;
+    width: 1.25rem;
+    height: 3px;
+    background: #14b8a6;
+    border-radius: 2px;
+    opacity: 0.3;
+}
+.tier-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.tier-cap-badge {
+    display: inline-flex;
+    padding: 0.0625rem 0.375rem;
+    border-radius: 3px;
+    font-size: 0.625rem;
+    font-weight: 500;
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    letter-spacing: 0.02em;
+}
+.local-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    background: rgba(20, 184, 166, 0.12);
+    color: #14b8a6;
+    letter-spacing: 0.03em;
+}
+
+/* ── Prompt Editor (Prompts Management) ── */
+.prompts-settings {
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.prompts-settings h2,
+.prompts-settings h3 {
+    font-family: 'JetBrains Mono', monospace;
+}
+.domain-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.25rem;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s ease;
+}
+.domain-group-header:hover {
+    background: var(--hover-bg);
+}
+.domain-group-header h3 {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+}
+.domain-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 0.375rem;
+    border-radius: 9999px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    background: rgba(20, 184, 166, 0.12);
+    color: #14b8a6;
+}
+.prompt-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.625rem 1.25rem 0.625rem 2rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+.prompt-row:hover {
+    background: var(--hover-bg);
+}
+.prompt-row[data-active="true"] {
+    background: color-mix(in srgb, #14b8a6 5%, var(--card-bg));
+    border-left: 3px solid #14b8a6;
+    padding-left: calc(2rem - 3px);
+}
+.prompt-id-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.prompt-modified-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #14b8a6;
+    flex-shrink: 0;
+}
+.prompt-editor-panel {
+    padding: 1.25rem 1.25rem 1.25rem 2rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--card-bg);
+    animation: stagger-reveal 250ms ease-out both;
+}
+.prompt-metadata-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-bottom: 1rem;
+}
+.prompt-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+}
+.prompt-badge--domain {
+    background: rgba(20, 184, 166, 0.08);
+    border-color: rgba(20, 184, 166, 0.2);
+    color: #14b8a6;
+}
+.prompt-badge--model {
+    background: rgba(100, 116, 139, 0.08);
+    border-color: rgba(100, 116, 139, 0.2);
+    color: var(--text-muted);
+}
+.template-var-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.5rem;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    background: rgba(20, 184, 166, 0.1);
+    color: #14b8a6;
+    border: 1px solid rgba(20, 184, 166, 0.2);
+}
+.mono-textarea {
+    width: 100%;
+    min-height: 8rem;
+    max-height: 24rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--card-bg);
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    resize: vertical;
+    tab-size: 2;
+}
+.mono-textarea:focus {
+    outline: none;
+    border-color: #14b8a6;
+    box-shadow: inset 0 0 0 1px #14b8a6,
+                0 0 0 2px rgba(20, 184, 166, 0.15);
+}
+[data-theme="dark"] .mono-textarea {
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.3);
+}
+[data-theme="dark"] .mono-textarea:focus {
+    box-shadow: inset 0 0 0 1px #14b8a6,
+                0 0 0 2px rgba(20, 184, 166, 0.15),
+                inset 0 2px 6px rgba(0,0,0,0.3);
+}
+.prompt-actions-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+    margin-top: 1rem;
+}
+.prompt-reset-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 150ms ease;
+}
+.prompt-reset-btn:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+    border-color: #ef4444;
+}
+
 /* Modern Input Styles */
 .modern-input {
     width: 100%;
@@ -307,6 +1031,66 @@ hr {
     background-color: var(--token-usage-bg); /* Use theme variable for active state bg */
     color: var(--accent-primary);
     font-weight: 500;
+}
+
+/* ── Dark Mode: Phase 2 Components ── */
+[data-theme="dark"] .tier-rail::before,
+[data-theme="dark"] .tier-group::before {
+    opacity: 0.45;
+}
+[data-theme="dark"] .tier-cap-badge {
+    background: rgba(245, 158, 11, 0.18);
+}
+[data-theme="dark"] .local-badge {
+    background: rgba(20, 184, 166, 0.18);
+}
+[data-theme="dark"] .domain-group-header {
+    background: var(--bg-secondary);
+}
+[data-theme="dark"] .domain-count-badge {
+    background: rgba(20, 184, 166, 0.18);
+}
+[data-theme="dark"] .prompt-row[data-active="true"] {
+    background: color-mix(in srgb, #14b8a6 8%, var(--card-bg));
+}
+[data-theme="dark"] .prompt-editor-panel {
+    background: var(--card-bg);
+    box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);
+}
+[data-theme="dark"] .prompt-badge {
+    background: var(--bg-secondary);
+    border-color: color-mix(in srgb, var(--border-color) 60%, transparent);
+}
+[data-theme="dark"] .prompt-badge--domain {
+    background: rgba(20, 184, 166, 0.12);
+    border-color: rgba(20, 184, 166, 0.3);
+}
+[data-theme="dark"] .prompt-badge--model {
+    background: rgba(100, 116, 139, 0.15);
+    border-color: rgba(100, 116, 139, 0.3);
+}
+[data-theme="dark"] .template-var-pill {
+    background: rgba(20, 184, 166, 0.15);
+    border-color: rgba(20, 184, 166, 0.3);
+}
+[data-theme="dark"] .prompt-reset-btn:hover {
+    background: rgba(239, 68, 68, 0.08);
+}
+
+/* ── Firefox Range Slider Thumb ── */
+.range-number-group input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #14b8a6;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.range-number-group input[type="range"]::-moz-range-track {
+    height: 4px;
+    background: var(--border-color);
+    border-radius: 2px;
 }
 
 /* Responsive adjustments for specific settings components */

@@ -1,7 +1,6 @@
 import { h, Fragment } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ChatWorkspaceContract } from '../ui/contracts/ChatWorkspace.contract';
-import OverlayViewerIsland from './OverlayViewerIsland';
 
 type ChatMode = 'rag' | 'visual-rag' | 'document';
 type ChatMessageRole = 'user' | 'assistant' | 'system' | 'status';
@@ -100,7 +99,6 @@ export default function ChatWorkspaceIsland(
   const [messageInput, setMessageInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamError, setStreamError] = useState(null as string | null);
-  const [activeTab, setActiveTab] = useState('chat' as 'chat' | 'document' | 'visual');
   const [docPreview, setDocPreview] = useState({
     title: '',
     content: '',
@@ -394,13 +392,8 @@ export default function ChatWorkspaceIsland(
       return;
     }
 
-    if (activeTab === 'visual') {
-      setGuidedStep('Inspect visual evidence and compare with the chat.');
-      return;
-    }
-
     setGuidedStep('Refine your request or capture a decision.');
-  }, [selectedDocumentId, chatMessages.length, activeTab]);
+  }, [selectedDocumentId, chatMessages.length]);
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -800,13 +793,7 @@ export default function ChatWorkspaceIsland(
     }
   }, [selectedDocumentId, textReingestBusy]);
 
-  const tabs = useMemo(() => (
-    [
-      { id: 'chat', label: 'Chat' },
-      { id: 'document', label: 'Document' },
-      { id: 'visual', label: 'Visual' }
-    ] as const
-  ), []);
+
 
   return (
     <div data-testid="chat-workspace-root" data-hydrated="true" className="sg-shell">
@@ -924,22 +911,7 @@ export default function ChatWorkspaceIsland(
       </div>
 
       <div className="material-card sg-card sg-card--workspace">
-        <div className="sg-tabs">
-          {tabs.map((tab: { id: string; label: string }) => (
-            <button
-              key={tab.id}
-              type="button"
-              data-testid={`chat-tab-${tab.id}`}
-              className={`sg-tab ${activeTab === tab.id ? 'sg-tab--active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {activeTab === 'chat' && (
-          <div className="sg-tab-panel">
+        <div className="sg-tab-panel">
             {/* Chat Mode Toggle */}
             <div className="mb-4 flex flex-wrap items-center gap-3 p-3 bg-[#f5f0e8] rounded-lg border border-[#e5e0d8]" data-testid="chat-mode-toggle">
               <span className="text-sm font-medium text-[#555]">Chat Mode:</span>
@@ -1326,63 +1298,6 @@ export default function ChatWorkspaceIsland(
               </div>
             )}
           </div>
-        )}
-
-        {activeTab === 'document' && (
-          <div className="sg-tab-panel" data-testid="chat-document-panel">
-            {!selectedDocumentId && (
-              <div className="sg-empty">Select a document to preview.</div>
-            )}
-            {selectedDocumentId && (
-              <div className="sg-document-preview">
-                <div className="sg-document-header">
-                  <div>
-                    <h3 className="sg-display">
-                      {docPreview.title || selectedDocumentTitle}
-                    </h3>
-                    <p className="sg-helper">
-                      {docPreview.tags.length
-                        ? `Tags: ${docPreview.tags.join(', ')}`
-                        : 'No tags yet.'}
-                    </p>
-                  </div>
-                  <a
-                    data-testid="chat-open-history"
-                    href={`/history/doc/${selectedDocumentId}`}
-                    className="sg-link"
-                  >
-                    Open in history
-                  </a>
-                </div>
-                <div className="sg-document-content">
-                  {docPreview.content || 'No content available.'}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'visual' && (
-          <div className="sg-tab-panel" data-testid="chat-visual-panel">
-            {!selectedDocumentId && (
-              <div className="sg-empty">
-                Select a document to review visual overlays.
-              </div>
-            )}
-            {selectedDocumentId && (
-              <div className="sg-visual-panel">
-                <OverlayViewerIsland
-                  documentId={selectedDocumentId}
-                  page={1}
-                  originalUrl={docPreview.originalUrl || undefined}
-                  pageCount={docPreview.pageCount}
-                  overlayMode="document"
-                  showLegend={true}
-                />
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

@@ -32,7 +32,7 @@ const FinancialPipeline = {
             executionMode: ExecutionMode.SEQUENTIAL,
             inputMapping: {},
             outputKey: 'ocr',
-            timeout: 30000,
+            timeout: 60000,
             retryCount: 1
         },
         {
@@ -128,7 +128,7 @@ const FinancialPipeline = {
                 extraction: 'stages.financial_extraction.output'
             },
             outputKey: 'visual_execution',
-            timeout: 30000,
+            timeout: 60000,
             retryCount: 1,
             executorConfig: {
                 timeoutBudget: 500,

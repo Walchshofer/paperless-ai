@@ -54,7 +54,45 @@ function buildPaperlessDocumentUrl(documentId, pathSuffix = '', apiUrlOverride) 
   return `${baseUrl}/documents/${docId}${suffix}`;
 }
 
+/**
+ * Build a proxied Paperless document URL that goes through the paperless-ai server.
+ * This is useful for browser-side access when Paperless is on an internal network.
+ * @param {number|string} documentId - The Paperless document ID.
+ * @param {string} [pathSuffix] - Optional path suffix (e.g. "/download/original/").
+ * @returns {string|null} The relative proxied URL (e.g. "/api/proxied/paperless/documents/123/download/original/").
+ */
+function buildPaperlessProxyUrl(documentId, pathSuffix = '') {
+  const docId = String(documentId || '').trim();
+  if (!docId) {
+    return null;
+  }
+
+  let suffix = pathSuffix ? String(pathSuffix).trim() : '';
+  if (suffix && !suffix.startsWith('/')) {
+    suffix = `/${suffix}`;
+  }
+
+  // Proxied URL will be /api/proxied/paperless/documents/123/
+  // The proxy in server.js will prepend /api before forwarding to webserver
+  return `/api/proxied/paperless/documents/${docId}${suffix}`;
+}
+
+/**
+ * Build a proxied Paperless preview URL (image format).
+ * @param {number|string} documentId - The Paperless document ID.
+ * @returns {string|null} The relative proxied preview URL.
+ */
+function buildPaperlessProxyPreviewUrl(documentId) {
+  const docId = String(documentId || '').trim();
+  if (!docId) {
+    return null;
+  }
+  return `/api/proxied/paperless/documents/${docId}/preview/`;
+}
+
 module.exports = {
   getPaperlessBaseUrl,
-  buildPaperlessDocumentUrl
+  buildPaperlessDocumentUrl,
+  buildPaperlessProxyUrl,
+  buildPaperlessProxyPreviewUrl
 };

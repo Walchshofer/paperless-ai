@@ -31,7 +31,7 @@ const GeneralPipeline = {
             executionMode: ExecutionMode.SEQUENTIAL,
             inputMapping: {},
             outputKey: 'ocr',
-            timeout: 30000,
+            timeout: 60000,
             retryCount: 1
         },
         {
@@ -48,7 +48,7 @@ const GeneralPipeline = {
                 filename: 'document.filename'
             },
             outputKey: 'general_classification',
-            timeout: 30000,
+            timeout: 60000,
             retryCount: 1
         },
         {
@@ -87,7 +87,7 @@ const GeneralPipeline = {
                 extractor_output: 'stages.general_extraction.output'
             },
             outputKey: 'routing_recommendation',
-            timeout: 30000
+            timeout: 60000
         },
         {
             id: 'visual_query_generation',
@@ -116,7 +116,7 @@ const GeneralPipeline = {
                 extraction: 'stages.general_extraction.output'
             },
             outputKey: 'visual_execution',
-            timeout: 30000,
+            timeout: 60000,
             retryCount: 1,
             executorConfig: {
                 timeoutBudget: 500,

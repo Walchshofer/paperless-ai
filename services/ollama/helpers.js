@@ -75,6 +75,11 @@ module.exports = {
         };
     },
 
+    /**
+     * Derive a human-readable fallback reason from validation results.
+     * @param {Object} validation - Validation result with missingFields, lowConfidenceFields, score
+     * @returns {string} Reason code: 'missing_fields' | 'low_confidence' | 'low_score' | 'unknown'
+     */
     _deriveFallbackReason(validation) {
         if (!validation) return 'unknown';
         if (validation.missingFields && validation.missingFields.length > 0) {
@@ -89,6 +94,13 @@ module.exports = {
         return 'unknown';
     },
 
+    /**
+     * Store health biomarker metrics from extraction results into HealthMetricsService.
+     * Only persists when biomarkers are present and the document is classified as medical.
+     * @param {number} documentId - Paperless document ID
+     * @param {Object} extractionResult - Extraction output with optional biomarkers array
+     * @param {Object} plannerResult - Planner classification with category field
+     */
     _persistHealthMetrics(documentId, extractionResult, plannerResult) {
         try {
             const biomarkers = extractionResult?.biomarkers;
@@ -114,6 +126,13 @@ module.exports = {
         }
     },
 
+    /**
+     * Build routing metadata (pipeline mode, models, expert options) from planner classification.
+     * Resolves the recommended model, analysis model, and expert pipeline based on
+     * category, modality, and confidence thresholds from routing config.
+     * @param {Object} plannerResult - Planner response with category, confidence, modality
+     * @returns {Object} Routing metadata with pipeline, models, and expert flags
+     */
     _buildRoutingMetadata(plannerResult) {
         const category = (plannerResult?.category || 'general').toLowerCase();
         const categoryConfig = routingConfig.categories[category] || routingConfig.categories.general;
@@ -159,6 +178,13 @@ module.exports = {
         };
     },
 
+    /**
+     * Resolve Ollama context window and response token limits for a given tier and model.
+     * Priority: per-model overrides > tier-specific config > base text config > env TOKEN_LIMIT.
+     * @param {string} [kind='text'] - Token limit tier: 'text' | 'vision' | 'planner' | 'expert' | 'translation'
+     * @param {string|null} [modelName=null] - Optional model name for per-model overrides
+     * @returns {{ contextWindow: number, maxResponseTokens: number, source: string, modelKey: string|null }}
+     */
     _resolveOllamaLimits(kind = 'text', modelName = null) {
         const limits = config.ollama?.limits || {};
         const base = limits.text || {};
@@ -199,18 +225,38 @@ module.exports = {
         };
     },
 
+    /**
+     * Calculate the effective context window by applying a safety factor to the raw limit.
+     * GPT-OSS models use 90% factor; standard Ollama models use 80%.
+     * @param {number|string} [contextWindowOverride] - Override for the raw context window
+     * @returns {number} Effective context window in tokens
+     */
     _getEffectiveContextWindow(contextWindowOverride) {
         const maxLimit = parseInt(contextWindowOverride || config.tokenLimit || '16384', 10);
         const factor = this.isGptOss ? 0.90 : 0.80;
         return Math.floor(maxLimit * factor);
     },
 
+    /**
+     * Calculate the optimal num_ctx value for an Ollama request.
+     * Clamps to the effective context window to prevent OOM errors.
+     * @param {number} promptTokenCount - Estimated prompt token count
+     * @param {number} responseTokens - Reserved response tokens
+     * @param {number|string} [contextWindowOverride] - Context window override
+     * @returns {number} num_ctx value to pass to Ollama
+     */
     _calculateNumCtx(promptTokenCount, responseTokens, contextWindowOverride) {
         const total = promptTokenCount + responseTokens;
         const safeLimit = this._getEffectiveContextWindow(contextWindowOverride);
         return Math.min(total, safeLimit);
     },
 
+    /**
+     * Safely stringify a value with circular reference protection, embedding omission, and truncation.
+     * @param {*} value - Value to serialize
+     * @param {number} [maxLength=8000] - Maximum output length before truncation
+     * @returns {string} JSON string or String(value) fallback
+     */
     _safeStringify(value, maxLength = 8000) {
         try {
             const seen = new WeakSet();
@@ -246,11 +292,22 @@ module.exports = {
         }
     },
 
+    /**
+     * Log an Ollama response at debug level with safe serialization.
+     * @param {string} prefix - Log prefix for identification
+     * @param {*} data - Response data to log
+     */
     _logOllamaResponse(prefix, data) {
         const dump = this._safeStringify(data);
         logger.debug(`[DEBUG] ${prefix} ${dump}`);
     },
 
+    /**
+     * Extract the raw text content from various Ollama response formats.
+     * Checks response.response, message.content, and thinking fields in order.
+     * @param {Object} responseData - Raw Ollama API response
+     * @returns {string|null} Extracted text or null if none found
+     */
     _extractRawOllamaText(responseData) {
         if (typeof responseData?.response === 'string' && responseData.response.trim().length > 0) {
             return responseData.response;
@@ -264,6 +321,11 @@ module.exports = {
         return null;
     },
 
+    /**
+     * Strip reasoning tags, large arrays, and truncate oversized text for JSON repair.
+     * @param {string} rawText - Raw text that may contain thinking tags and large arrays
+     * @returns {string} Cleaned text suitable for JSON parsing
+     */
     _sanitizeRepairText(rawText) {
         let cleaned = rawText || '';
         // Strip Dragon/Claude/other reasoning tags and their contents
@@ -280,6 +342,10 @@ module.exports = {
         return cleaned.trim();
     },
 
+    /**
+     * Build a fallback document when AI extraction fails and user review is needed.
+     * @returns {Object} Document with 'User Review Required' title and 'USER REVIEW' tag
+     */
     _buildUserReviewFallback() {
         return {
             title: 'User Review Required',
@@ -292,6 +358,12 @@ module.exports = {
         };
     },
 
+    /**
+     * Apply sensible defaults for note-type documents (correspondent='AI User', date=today).
+     * Only triggers for document types: note, memo, list, notiz, notizen.
+     * @param {Object} document - Document to check and augment
+     * @returns {Object} Document with defaults applied if it's a note type
+     */
     _applyNoteDefaults(document) {
         if (!document || typeof document !== 'object') return document;
         const documentType = document.document_type ? String(document.document_type).toLowerCase() : '';
@@ -305,6 +377,12 @@ module.exports = {
         };
     },
 
+    /**
+     * Normalize date values from various formats to YYYY-MM-DD.
+     * Handles Date objects, ISO strings, DD.MM.YYYY, and other parseable formats.
+     * @param {Date|string|null} value - Date value in any supported format
+     * @returns {string|null} Date in YYYY-MM-DD format, or null if unparseable
+     */
     _normalizeDateInput(value) {
         if (!value) return null;
         if (value instanceof Date && !Number.isNaN(value.valueOf())) {
@@ -326,6 +404,13 @@ module.exports = {
         return null;
     },
 
+    /**
+     * Apply legacy vision-mode fallbacks for document type, date, language, and verification tags.
+     * Used when vision analysis returns incomplete results.
+     * @param {Object} document - Extracted document data
+     * @param {Object} [options={}] - Options with optional documentCreated date
+     * @returns {Object} Document with fallback values applied
+     */
     _applyLegacyVisionFallbacks(document, options = {}) {
         if (!document || typeof document !== 'object') return document;
 
@@ -364,13 +449,19 @@ module.exports = {
         return updated;
     },
 
+    /**
+     * Normalize extraction output to a canonical document shape with safe defaults.
+     * Ensures tags is an array, custom_fields values are normalized, and missing fields are null.
+     * @param {Object} data - Raw extraction output
+     * @returns {Object} Normalized document with tags, correspondent, title, dates, type, language, custom_fields
+     */
     _normalize(data) {
         const normalizedData = (data && typeof data === 'object') ? data : {};
         const customFields = (normalizedData && typeof normalizedData.custom_fields === 'object' && !Array.isArray(normalizedData.custom_fields))
             ? normalizedData.custom_fields
             : {};
 
-        const { normalizeCustomFieldValue } = require('../../customFieldUtils');
+        const { normalizeCustomFieldValue } = require('../customFieldUtils');
         const normalizedCustomFields = {};
         for (const k of Object.keys(customFields || {})) {
             normalizedCustomFields[k] = normalizeCustomFieldValue(customFields[k]);
@@ -387,6 +478,10 @@ module.exports = {
         };
     },
 
+    /**
+     * Return an empty document template with all fields set to null/defaults.
+     * @returns {Object} Empty document shape matching the canonical extraction format
+     */
     _emptyDocument() {
         return {
             title: null,
@@ -399,6 +494,12 @@ module.exports = {
         };
     },
 
+    /**
+     * Validate a planner response for required fields and allowed values.
+     * Checks category against allowed list and modality for medical documents.
+     * @param {Object} response - Planner response to validate
+     * @returns {{ valid: boolean, errors: string[] }} Validation result
+     */
     _validatePlannerResponse(response) {
         const errors = [];
         const allowedCategories = ['financial', 'medical', 'legal', 'technical', 'personal', 'general'];

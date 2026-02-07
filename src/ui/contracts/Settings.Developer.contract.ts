@@ -50,12 +50,38 @@ const EnvironmentVariablesSchema = z.object({
   visualRagTimeout: z.number().int().positive().optional().default(30000),
 });
 
+// Ollama Model Token Limits (all local models)
+const OllamaModelLimitsSchema = z.object({
+  // Text (Base) tier
+  ollamaContextWindow: z.number().int().positive().optional().default(128000),
+  ollamaMaxResponseTokens: z.number().int().positive().optional().default(4096),
+
+  // Vision tier (capped at 32k)
+  ollamaVisionContextWindow: z.number().int().positive().max(32768).optional().default(32768),
+  ollamaVisionMaxResponseTokens: z.number().int().positive().optional().default(2048),
+  ollamaVisionImageTokens: z.number().int().positive().optional().default(1024),
+
+  // Planner tier (capped at 32k)
+  ollamaPlannerContextWindow: z.number().int().positive().max(32768).optional().default(32768),
+  ollamaPlannerMaxResponseTokens: z.number().int().positive().optional().default(2048),
+
+  // Expert tier
+  ollamaExpertContextWindow: z.number().int().positive().optional().default(128000),
+  ollamaExpertMaxResponseTokens: z.number().int().positive().optional().default(4096),
+
+  // Translation tier
+  translationContextWindow: z.number().int().positive().optional().default(128000),
+});
+
 export const DeveloperSettingsSchema = z.object({
   // Feature flags (auto-save, most don't require restart)
   featureFlags: FeatureFlagsSchema.optional(),
 
   // Environment variables (manual save, restart required)
   environmentVariables: EnvironmentVariablesSchema.optional(),
+
+  // Ollama model token limits (manual save, restart required)
+  ollamaModelLimits: OllamaModelLimitsSchema.optional(),
 
   // Auto-save debounce for feature flags (ms)
   autoSaveDebounceMs: z.number().int().positive().optional().default(500),

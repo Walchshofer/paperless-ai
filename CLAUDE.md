@@ -74,6 +74,25 @@ do not copy into docs or logs).
 | `TEXT_RAG_URL` | `http://text-rag:8004` | Text RAG service endpoint |
 | `REDIS_URL` | `redis://broker:6379` | Redis endpoint for Visual Query Cache |
 
+### Ollama Model Token Limits
+
+Configurable via Developer Settings UI (`/settings` > Developer Settings > Ollama Model Limits):
+
+| Variable | Default | Tier | Description |
+|----------|---------|------|-------------|
+| `OLLAMA_CONTEXT_WINDOW` | 128000 | Text (Base) | Context window for text models |
+| `OLLAMA_MAX_RESPONSE_TOKENS` | 4096 | Text (Base) | Max response tokens for text models |
+| `OLLAMA_VISION_CONTEXT_WINDOW` | 32768 | Vision | Context window for vision models (capped 32k) |
+| `OLLAMA_VISION_MAX_RESPONSE_TOKENS` | 2048 | Vision | Max response tokens for vision models |
+| `OLLAMA_VISION_IMAGE_TOKENS` | 1024 | Vision | Token overhead per image in vision context |
+| `OLLAMA_PLANNER_CONTEXT_WINDOW` | 32768 | Planner | Context window for planner models (capped 32k) |
+| `OLLAMA_PLANNER_MAX_RESPONSE_TOKENS` | 2048 | Planner | Max response tokens for planner models |
+| `OLLAMA_EXPERT_CONTEXT_WINDOW` | 128000 | Expert | Context window for expert models |
+| `OLLAMA_EXPERT_MAX_RESPONSE_TOKENS` | 4096 | Expert | Max response tokens for expert models |
+| `TRANSLATION_CONTEXT_WINDOW` | 128000 | Translation | Context window for translation models |
+
+**Note**: These limits apply to locally-hosted Ollama models only. Cloud providers (OpenAI, Azure) manage their own token limits.
+
 ## Visual Query Cache
 
 Visual RAG queries are cached in Redis to reduce latency and improve performance.
@@ -108,6 +127,61 @@ const client = new VisualSearchClient({ cacheEnabled: true });
 # Redis connection
 REDIS_URL=redis://broker:6379
 ```
+
+## Prompts Management API
+
+Admin-only API for managing expert pipeline prompt templates.
+
+### Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/prompts` | List all registered prompts with domain counts |
+| GET | `/api/prompts/:id` | Get specific prompt by ID |
+| PUT | `/api/prompts/:id` | Update prompt (systemPrompt, userTemplate, config) |
+| POST | `/api/prompts/:id/reset` | Reset prompt to built-in default |
+
+### Prompt Structure
+
+```javascript
+{
+  id: "SYS_ROUTER_V1",
+  version: "1.0.0",
+  domain: "System",  // System | Medical | Financial | Legal | General
+  model: "qwen3-vl:8b",
+  modelType: "multimodal",  // multimodal | text_only
+  systemPrompt: "...",
+  userTemplate: "...",  // Uses {{variable}} syntax
+  config: {
+    temperature: 0.2,
+    maxTokens: 2048,
+    topK: 40,
+    topP: 0.9
+  },
+  templateVariables: ["source_system", "filename", ...],
+  isModified: false  // true if custom override exists
+}
+```
+
+### Persistence
+
+- **Storage**: `data/prompts.json`
+- **Load Time**: Server startup (`server.js:1465-1490`)
+- **Format**: `{ overrides: { PROMPT_ID: { systemPrompt, userTemplate, config } }, metadata: { lastModified } }`
+- **UI**: `/settings` > Prompts (admin-only)
+
+### UI Features
+
+- Domain-grouped accordion (System, Medical, Financial, Legal, General)
+- Inline editor with template variable detection
+- Modified indicator (orange dot) for customized prompts
+- Save Changes / Reset to Default actions
+- Unsaved changes warning
+
+**Implementation**:
+- API: `C:\Users\pwalc\MyApps\paperless-ai\routes\api\prompts.js`
+- UI: `C:\Users\pwalc\MyApps\paperless-ai\src\islands\PromptsSettingsIsland.tsx`
+- Contract: `C:\Users\pwalc\MyApps\paperless-ai\src\ui\contracts\Settings.Prompts.contract.ts`
 
 ## Monitoring
 

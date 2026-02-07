@@ -18,6 +18,8 @@ import logging
 import os
 import threading
 import time
+import uuid
+import hashlib
 from datetime import datetime, timezone
 from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
@@ -48,10 +50,11 @@ from prometheus_fastapi_instrumentator import Instrumentator  # type: ignore
 # --- Configuration ---
 # Only ColQwen3-4B models are allowed (ticket:005.1)
 ALLOWED_MODELS = {
-    "TomoroAI/tomoro-colqwen3-embed-4b",     # Primary model (320-dim)
-    "TomoroAI/tomoro-colqwen3-4b-awq",       # Legacy AWQ (deprecated)
+    "TomoroAI/tomoro-colqwen3-embed-4b",         # Primary model (320-dim)
+    "TomoroAI/tomoro-ai-colqwen3-embed-4b-awq",  # Production AWQ (ticket:005.x)
+    "TomoroAI/tomoro-colqwen3-4b-awq",           # Legacy AWQ (deprecated)
 }
-DEFAULT_MODEL = "TomoroAI/tomoro-colqwen3-embed-4b"
+DEFAULT_MODEL = "TomoroAI/tomoro-ai-colqwen3-embed-4b-awq"
 MODEL_ID = os.getenv("VISUAL_RAG_MODEL", DEFAULT_MODEL)
 MODEL_REVISION = os.getenv("MODEL_REVISION", "main")
 EXPECTED_EMBEDDING_DIM = 320  # ColQwen3 native dimension
@@ -872,7 +875,11 @@ async def _process_images(
                 page_count = len(pil_images)
                 for page_idx in range(page_count):
                     page_number = page_idx + 1
-                    point_id = f"{doc_id}:{page_number}"
+                    # Qdrant requires UUID or integer ID (ticket:005.x fix)
+                    # Create a deterministic UUID from doc_id and page_number
+                    seed = f"{doc_id}:{page_number}"
+                    point_id = str(uuid.UUID(hashlib.md5(seed.encode()).hexdigest()))
+                    
                     page_vector: List[float] = (
                         page_vectors[page_idx]
                         .view(EXPECTED_EMBEDDING_DIM)

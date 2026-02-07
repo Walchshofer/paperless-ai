@@ -4,13 +4,7 @@ import type { FeedbackControlsContract } from '../ui/contracts/FeedbackControls.
 
 type FeedbackState = 'up' | 'down' | null;
 
-let styles: Record<string, string> = {};
-try {
-   
-  styles = require('./FeedbackControlsIsland.module.css');
-} catch (e) {
-  // Server/test: CSS module may not be available at runtime
-}
+import styles from './FeedbackControlsIsland.module.css';
 
 function dispatchEventSafe(name: string, detail?: unknown) {
   if (typeof document === 'undefined') return;

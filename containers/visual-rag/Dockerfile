@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /build
 
+# Pre-install build tools
+RUN pip install --no-cache-dir setuptools wheel packaging
+
 # SINGLE-SHOT INSTALL: 
 # Groups all packages to resolve dependencies once. 
 # Explicitly uses cu124 wheels as they are currently the stable target for Torch 2.8.0.
@@ -45,7 +48,7 @@ RUN pip install --no-cache-dir \
     "autoawq==0.2.9" \
     "auto-round==0.9.2" \
     "byaldi>=0.0.7" \
-    setuptools wheel packaging psutil
+    psutil
 
 # FLASH-ATTN: Hardware-specific compilation must happen after Torch is installed.
 # Use many cores for native builds (WSL2 now gives you 32 CPUs)
@@ -61,7 +64,8 @@ ENV HF_HOME=/root/.cache/huggingface
 ENV PYTHONPATH=/usr/local/lib/python3.10/dist-packages:/app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.10 python3-pip poppler-utils libgl1-mesa-glx libglib2.0-0 \
+    python3.10 python3-pip python3.10-dev poppler-utils libgl1-mesa-glx libglib2.0-0 \
+    gcc g++ build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

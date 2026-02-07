@@ -131,10 +131,10 @@ const baseTokenLimit = parseEnvInt(process.env.TOKEN_LIMIT, 128000);
 const baseResponseTokens = parseEnvInt(process.env.RESPONSE_TOKENS, 4096);
 const ollamaTextContextWindow = parseEnvInt(process.env.OLLAMA_CONTEXT_WINDOW, baseTokenLimit);
 const ollamaTextMaxResponseTokens = parseEnvInt(process.env.OLLAMA_MAX_RESPONSE_TOKENS, baseResponseTokens);
-const ollamaVisionContextWindow = parseEnvInt(process.env.OLLAMA_VISION_CONTEXT_WINDOW, ollamaTextContextWindow);
+const ollamaVisionContextWindow = Math.min(parseEnvInt(process.env.OLLAMA_VISION_CONTEXT_WINDOW, ollamaTextContextWindow), 32768); // Cap vision context to 32k
 const ollamaVisionMaxResponseTokens = parseEnvInt(process.env.OLLAMA_VISION_MAX_RESPONSE_TOKENS, 2048);
-const ollamaPlannerContextWindow = parseEnvInt(process.env.OLLAMA_PLANNER_CONTEXT_WINDOW, ollamaVisionContextWindow);
-const ollamaPlannerMaxResponseTokens = parseEnvInt(process.env.OLLAMA_PLANNER_MAX_RESPONSE_TOKENS, 700);
+const ollamaPlannerContextWindow = Math.min(parseEnvInt(process.env.OLLAMA_PLANNER_CONTEXT_WINDOW, ollamaVisionContextWindow), 32768); // Cap planner context to 32k
+const ollamaPlannerMaxResponseTokens = parseEnvInt(process.env.OLLAMA_PLANNER_MAX_RESPONSE_TOKENS, 2048);
 const ollamaExpertContextWindow = parseEnvInt(process.env.OLLAMA_EXPERT_CONTEXT_WINDOW, ollamaTextContextWindow);
 const ollamaExpertMaxResponseTokens = parseEnvInt(process.env.OLLAMA_EXPERT_MAX_RESPONSE_TOKENS, ollamaTextMaxResponseTokens);
 const ollamaVisionImageTokenOverhead = parseEnvInt(process.env.OLLAMA_VISION_IMAGE_TOKENS, 1024);
@@ -714,6 +714,12 @@ const _originalConfig = module.exports;
 // creating many proxy instances for the same logical path.
 const _proxyByPath = new Map();
 
+/**
+ * Traverse the original (unproxied) config object by dot-path segments.
+ * @param {string[]} pathParts - Path segments, e.g. ['ollama', 'apiUrl']
+ * @returns {*} The value at the path, or undefined if not found
+ * @private
+ */
 function _getFromOriginal(pathParts) {
   let cur = _originalConfig;
   for (const p of pathParts) {
@@ -722,6 +728,20 @@ function _getFromOriginal(pathParts) {
   return cur;
 }
 
+/**
+ * Create a nested Proxy that layers runtime overrides on top of the original config.
+ * Proxies are cached by path key to avoid duplicate instances.
+ *
+ * Management helpers exposed on the root proxy:
+ * - updateRuntime(key, value) - Set a runtime override by dot-path
+ * - clearRuntimeOverrides() - Remove all runtime overrides
+ * - getRuntimeOverrides() - Get a deep copy of current overrides
+ * - getRaw(pathStr?) - Access original unproxied config values
+ *
+ * @param {string[]} path - Current path segments within the config tree
+ * @returns {Proxy} Proxied config object with override support
+ * @private
+ */
 function createNestedProxy(path = []) {
   const pathKey = path.join('.');
   if (_proxyByPath.has(pathKey)) return _proxyByPath.get(pathKey);

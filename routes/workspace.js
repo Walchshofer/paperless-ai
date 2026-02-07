@@ -5,7 +5,9 @@ const documentModel = require('../services/documentModel.js');
 const configFile = require('../config/config.js');
 const { UnifiedWorkspaceSchema } = require('../src/ui/contracts/UnifiedWorkspace.contract.js');
 const {
-  buildPaperlessDocumentUrl
+  buildPaperlessDocumentUrl,
+  buildPaperlessProxyUrl,
+  buildPaperlessProxyPreviewUrl
 } = require('../services/utils/paperlessUrl');
 const { authenticate } = require('../middleware/auth');
 const { fieldMappingService } = require('../services/experts/FieldMappingService');
@@ -312,10 +314,11 @@ router.get('/doc/:id', async (req, res) => {
         pageCount: document.page_count || 1,
         currentPage: 1,
         mimeType: document.mime_type,
-        originalUrl: buildPaperlessDocumentUrl(
+        originalUrl: buildPaperlessProxyUrl(
           document.id,
           '/download/original/'
         ),
+        previewUrl: buildPaperlessProxyPreviewUrl(document.id),
         persistedNormalizedUrl: persistedNormalizedUrl,
         normalizationStatus: normalizationStatus,
         normalizedUrl: persistedNormalizedUrl || `/api/normalized/${document.id}/1`,
@@ -501,10 +504,11 @@ router.get('/api/doc/:id', async (req, res) => {
       availableTags,
       pageCount: document.page_count || 1,
       mimeType: document.mime_type,
-      originalUrl: buildPaperlessDocumentUrl(
+      originalUrl: buildPaperlessProxyUrl(
         document.id,
         '/download/original/'
       ),
+      previewUrl: buildPaperlessProxyPreviewUrl(document.id),
       persistedNormalizedUrl: persistedNormalizedUrl,
       normalizationStatus: normalizationStatus,
       normalizedUrl: persistedNormalizedUrl || `/api/normalized/${document.id}/1`,

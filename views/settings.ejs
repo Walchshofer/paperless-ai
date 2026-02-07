@@ -6,6 +6,9 @@
     <title>Settings - Paperless-AI</title>
     <script src="https://cdn.tailwindcss.com/3.4.16"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/dashboard.css">
     <link rel="stylesheet" href="css/settings.css">
     <style>
@@ -168,8 +171,6 @@
                                 }) %>'
                             ></div>
 
-                            </div>
-                            </div>
                         </div>
 
                         <!-- Developer Settings Island (Admin Only) -->
@@ -197,6 +198,21 @@
                             <div
                                 data-island="presets-manager-island"
                                 data-testid="presets-manager-island"
+                                data-props='{}'
+                            ></div>
+                        </div>
+                        <% } %>
+
+                        <!-- Prompts Settings Island (Admin Only) -->
+                        <% if (vm.user && vm.user.isAdmin) { %>
+                        <div
+                            class="settings-section"
+                            data-settings-category="prompts"
+                            data-testid="settings-section-prompts"
+                        >
+                            <div
+                                data-island="prompts-settings-island"
+                                data-testid="prompts-settings-island"
                                 data-props='{}'
                             ></div>
                         </div>
@@ -310,7 +326,8 @@
             '/js/dist/connection-settings.island.js',
             '/js/dist/ai-provider.island.js',
             '/js/dist/developer-settings.island.js',
-            '/js/dist/presets-manager.island.js'
+            '/js/dist/presets-manager.island.js',
+            '/js/dist/prompts-settings.island.js'
         ]
     }) %>
 </body>

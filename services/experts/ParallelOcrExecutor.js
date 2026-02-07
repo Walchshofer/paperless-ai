@@ -28,8 +28,8 @@ const { mergeOcrResults, scoreOcrQuality } = require('./utils/ocrQuality');
 const DEFAULT_CONFIG = {
     visualOcr: {
         enabled: config.visualOCR?.enabled !== false,
-        timeout: 500,           // 500ms soft timeout
-        hardTimeout: 1000,      // 1000ms hard timeout
+        timeout: 30000,          // 30s soft timeout (VLM loading)
+        hardTimeout: 60000,      // 60s hard timeout (VLM inference)
         model: config.ollama?.visionModel || 'qwen3-vl:8b',
         failureThreshold: 3,
         cooldownPeriod: 30000

@@ -13,7 +13,8 @@ export const SettingsSidebarSchema = z.object({
     'ai-provider',
     'expert-models',
     'advanced',
-    'developer'
+    'developer',
+    'prompts'
   ]).optional().default('overview'),
 
   // Developer mode initial state (can be overridden by localStorage)

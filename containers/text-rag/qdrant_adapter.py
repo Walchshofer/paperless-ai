@@ -226,12 +226,12 @@ class QdrantAdapter:
                 if conditions:
                     query_filter = Filter(must=conditions)
 
-            results = self.client.search(
+            results = self.client.query_points(
                 collection_name=self.collection_name,
-                query_vector=query_embedding,
+                query=query_embedding,
                 query_filter=query_filter,
                 limit=k
-            )
+            ).points
 
             return [
                 {

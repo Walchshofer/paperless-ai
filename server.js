@@ -250,6 +250,11 @@ app.use('/grafana', createProxyMiddleware({
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Silence Chrome devtools 404
+app.get('/.well-known/appspecific/com.chrome.devtools.json', (req, res) => {
+  res.status(204).end();
+});
+
 // Legacy route retirement middleware: returns 410 for /chat, /manual, /rag
 app.use(legacyRedirectMiddleware);
 
@@ -792,6 +797,10 @@ app.use('/api/feedback', feedbackRoutes);
 
 // Mount Settings API routes (for islands)
 app.use('/api/settings', settingsApiRoutes);
+
+// Mount Prompts API routes (prompt template management)
+const promptsApiRoutes = require('./routes/api/prompts');
+app.use('/api/prompts', promptsApiRoutes);
 
 // Mount Documents API routes (reprocess endpoint for Expert Pipeline)
 app.use('/api/documents', documentsApiRoutes);
@@ -1451,6 +1460,34 @@ async function startServer() {
     } catch (err) {
       console.error(err.message);
       process.exit(1);
+    }
+
+    // Load prompt overrides from data/prompts.json if it exists
+    try {
+      const promptsFs = require('fs').promises;
+      const promptsPath = require('path').join(__dirname, 'data', 'prompts.json');
+      const promptsContent = await promptsFs.readFile(promptsPath, 'utf8');
+      const promptsData = JSON.parse(promptsContent);
+      if (promptsData.overrides && typeof promptsData.overrides === 'object') {
+        const { promptRegistry } = require('./services/prompts/PromptRegistry');
+        let loadedCount = 0;
+        for (const [promptId, fields] of Object.entries(promptsData.overrides)) {
+          if (promptRegistry.has(promptId)) {
+            const current = promptRegistry.get(promptId);
+            const updated = { ...current, ...fields };
+            promptRegistry.register(updated, { overwrite: true });
+            loadedCount++;
+          }
+        }
+        if (loadedCount > 0) {
+          console.log(`[PromptOverrides] Loaded ${loadedCount} prompt override(s) from data/prompts.json`);
+        }
+      }
+    } catch (e) {
+      // No overrides file or parse error - this is normal on first run
+      if (e.code !== 'ENOENT') {
+        console.warn('[PromptOverrides] Failed to load prompt overrides:', e.message);
+      }
     }
 
     const server = app.listen(port, () => {

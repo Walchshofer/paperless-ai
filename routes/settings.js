@@ -311,6 +311,18 @@ router.get('/settings', authenticate, async (req, res) => {
         maxVisionPages: Number(process.env.MAX_VISION_PAGES || 4),
         guidanceTimeout: Number(process.env.GUIDANCE_TIMEOUT || 90000),
         visualRagTimeout: Number(process.env.VISUAL_RAG_TIMEOUT || 30000)
+      },
+      ollamaModelLimits: {
+        ollamaContextWindow: Number(settingsConfig.OLLAMA_CONTEXT_WINDOW) || 128000,
+        ollamaMaxResponseTokens: Number(settingsConfig.OLLAMA_MAX_RESPONSE_TOKENS) || 4096,
+        ollamaVisionContextWindow: Number(settingsConfig.OLLAMA_VISION_CONTEXT_WINDOW) || 32768,
+        ollamaVisionMaxResponseTokens: Number(settingsConfig.OLLAMA_VISION_MAX_RESPONSE_TOKENS) || 2048,
+        ollamaVisionImageTokens: Number(process.env.OLLAMA_VISION_IMAGE_TOKENS) || 1024,
+        ollamaPlannerContextWindow: Number(process.env.OLLAMA_PLANNER_CONTEXT_WINDOW) || 32768,
+        ollamaPlannerMaxResponseTokens: Number(process.env.OLLAMA_PLANNER_MAX_RESPONSE_TOKENS) || 2048,
+        ollamaExpertContextWindow: Number(settingsConfig.OLLAMA_EXPERT_CONTEXT_WINDOW) || 128000,
+        ollamaExpertMaxResponseTokens: Number(settingsConfig.OLLAMA_EXPERT_MAX_RESPONSE_TOKENS) || 4096,
+        translationContextWindow: Number(settingsConfig.TRANSLATION_CONTEXT_WINDOW) || 128000,
       }
     }
   };

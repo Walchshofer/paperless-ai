@@ -32,7 +32,7 @@ const LegalPipeline = {
             executionMode: ExecutionMode.SEQUENTIAL,
             inputMapping: {},
             outputKey: 'ocr',
-            timeout: 30000,
+            timeout: 60000,
             retryCount: 1
         },
         {
@@ -112,7 +112,7 @@ const LegalPipeline = {
                 extraction: 'stages.legal_extraction.output'
             },
             outputKey: 'visual_execution',
-            timeout: 30000,
+            timeout: 60000,
             retryCount: 1,
             executorConfig: {
                 timeoutBudget: 500,

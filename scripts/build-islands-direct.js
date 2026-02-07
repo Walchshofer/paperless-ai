@@ -5,37 +5,10 @@
  */
 const path = require('path');
 const fs = require('fs');
-const { spawnSync } = require('child_process');
+const esbuild = require('esbuild');
 
 const projectRoot = path.resolve(__dirname, '..');
 const distDir = path.join(projectRoot, 'public', 'js', 'dist');
-
-function resolveEsbuildBin() {
-  const envBin = process.env.ESBUILD_BINARY_PATH;
-  if (envBin && fs.existsSync(envBin)) return envBin;
-
-  if (process.platform === 'win32') {
-    try {
-      return require.resolve('@esbuild/win32-x64/esbuild.exe');
-    } catch (err) {
-      // fall through to local bin
-    }
-    const localCmd = path.join(projectRoot, 'node_modules', '.bin', 'esbuild.cmd');
-    if (fs.existsSync(localCmd)) return localCmd;
-  } else {
-    const localBin = path.join(projectRoot, 'node_modules', '.bin', 'esbuild');
-    if (fs.existsSync(localBin)) return localBin;
-  }
-
-  throw new Error('Unable to locate esbuild binary. Set ESBUILD_BINARY_PATH.');
-}
-
-function cleanDist() {
-  if (fs.existsSync(distDir)) {
-    fs.rmSync(distDir, { recursive: true, force: true });
-  }
-  fs.mkdirSync(distDir, { recursive: true });
-}
 
 const entries = {
   'island-runtime': 'src/islands/runtime.browser.tsx',
@@ -59,6 +32,7 @@ const entries = {
   'restart-banner': 'src/islands/RestartBannerIsland.tsx',
   'developer-settings': 'src/islands/DeveloperSettingsIsland.tsx',
   'presets-manager': 'src/islands/PresetsManagerIsland.tsx',
+  'prompts-settings': 'src/islands/PromptsSettingsIsland.tsx',
   'manual-workspace': 'src/islands/ManualWorkspaceIsland.tsx',
   'view-mode-toggle': 'src/islands/ViewModeToggleIsland.tsx',
   'document-content': 'src/islands/DocumentContentIsland.tsx',
@@ -69,39 +43,60 @@ const entries = {
   'resizable-layout': 'src/islands/ResizableLayoutIsland.tsx'
 };
 
-const commonArgs = [
-  '--bundle',
-  '--format=esm',
-  '--platform=browser',
-  '--target=es2020',
-  '--jsx=automatic',
-  '--jsx-import-source=preact',
-  '--alias:react=preact/compat',
-  '--alias:react-dom=preact/compat',
-];
+function cleanDist() {
+  if (fs.existsSync(distDir)) {
+    fs.rmSync(distDir, { recursive: true, force: true });
+  }
+  fs.mkdirSync(distDir, { recursive: true });
+}
 
-function run() {
-  const esbuildBin = resolveEsbuildBin();
+async function run() {
   cleanDist();
+  console.log('Building islands using esbuild JS API...');
 
+  const entryPoints = {};
   for (const [name, input] of Object.entries(entries)) {
     const outfile = name === 'island-runtime'
       ? path.join(distDir, 'island-runtime.js')
       : path.join(distDir, `${name}.island.js`);
-    const args = [path.join(projectRoot, input), ...commonArgs, `--outfile=${outfile}`];
-    const result = spawnSync(esbuildBin, args, {
-      cwd: projectRoot,
-      stdio: 'inherit',
+    entryPoints[outfile] = path.join(projectRoot, input);
+  }
+
+  try {
+    const result = await esbuild.build({
+      entryPoints: Object.entries(entries).map(([name, input]) => ({
+        in: path.join(projectRoot, input),
+        out: name === 'island-runtime' ? 'island-runtime' : `${name}.island`
+      })),
+      bundle: true,
+      outdir: distDir,
+      format: 'esm',
+      platform: 'browser',
+      target: 'es2020',
+      jsx: 'automatic',
+      jsxImportSource: 'preact',
+      alias: {
+        'react': 'preact/compat',
+        'react-dom': 'preact/compat',
+      },
+      loader: {
+        '.module.css': 'local-css',
+        '.css': 'css',
+        '.png': 'file',
+        '.svg': 'file',
+        '.jpg': 'file',
+      },
+      minify: process.env.NODE_ENV === 'production',
+      sourcemap: true,
+      metafile: true,
+      logLevel: 'info',
     });
-    if (result.status !== 0) {
-      process.exit(result.status || 1);
-    }
+
+    console.log('Build completed successfully.');
+  } catch (err) {
+    console.error('Build failed:', err);
+    process.exit(1);
   }
 }
 
-try {
-  run();
-} catch (err) {
-  console.error(err && err.message ? err.message : err);
-  process.exit(1);
-}
+run();

@@ -1,15 +1,8 @@
 import { h, Fragment } from 'preact';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'preact/hooks';
 import type { OverlayViewerContract, OverlayItem } from '../ui/contracts/OverlayViewer.contract';
-import { clampTranslate as utilsClampTranslate } from './overlay-utils';
 
-let styles: Record<string, string> = {};
-try {
-
-  styles = require('./OverlayViewerIsland.module.css') as Record<string, string>;
-} catch (_e: unknown) {
-  // Fallback for SSR/tests
-}
+import styles from './OverlayViewerIsland.module.css';
 
 // Types for document change events
 interface DocumentChangeDetail {
@@ -81,6 +74,7 @@ export interface OverlayViewerProps extends Partial<OverlayViewerContract> {
   suggestions?: OverlayItem[];
   // Normalization support
   persistedNormalizedUrl?: string;
+  previewUrl?: string;
   normalizationStatus?: 'pending' | 'processing' | 'completed' | 'failed' | 'skipped';
 }
 
@@ -99,7 +93,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     showLegend = false,
     allowSelection = true,
     mode = 'visual-search',
-    suggestions = [],
+    suggestions: initialSuggestions = [],
     persistedNormalizedUrl,
     normalizationStatus,
   } = props;
@@ -108,41 +102,56 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const canvasRef = useRef(null as HTMLCanvasElement | null);
   const imageRef = useRef(null as HTMLImageElement | null);
 
-  // Allow dynamic updates from page-level events
-  const [docId, setDocId] = useState(initialDocumentId ?? null);
-  const [page, setPage] = useState(initialPage);
-  const [originalUrl, setOriginalUrl] = useState(initialOriginalUrl ?? null);
-  const [pageCount, setPageCount] = useState(props?.pageCount ?? null);
-  const [persistedNormUrl, setPersistedNormalizedUrl] = useState(persistedNormalizedUrl ?? null);
-  const [normStatus, setNormalizationStatus] = useState(normalizationStatus ?? null);
+  // Reactive state mirrored from props/events to ensure UI updates during in-place document switches
+  const [docId, setDocId] = useState<number | null>(initialDocumentId ?? null);
+  const [page, setPage] = useState<number>(initialPage);
+  const [originalUrl, setOriginalUrl] = useState<string | null>(initialOriginalUrl ?? null);
+  const [pageCount, setPageCount] = useState<number | null>(props?.pageCount ?? null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(props?.previewUrl ?? null);
+  const [persistedNormUrl, setPersistedNormalizedUrl] = useState<string | null>(persistedNormalizedUrl ?? null);
+  const [normStatus, setNormalizationStatus] = useState<string | null>(normalizationStatus ?? null);
+  const [suggestions, setSuggestions] = useState<OverlayItem[]>(initialSuggestions);
 
-  // Sync state with props change (essential for SPA-like navigation without full reload)
+  // Sync state with props change (essential if parent re-renders with new document data)
   useEffect(() => {
-    if (initialDocumentId !== undefined) setDocId(initialDocumentId ?? null);
-    if (initialPage !== undefined) setPage(initialPage);
-    if (initialOriginalUrl !== undefined) setOriginalUrl(initialOriginalUrl);
-    if (props.pageCount !== undefined) setPageCount(props.pageCount);
-    if (props.persistedNormalizedUrl !== undefined) setPersistedNormalizedUrl(props.persistedNormalizedUrl ?? null);
-    if (props.normalizationStatus !== undefined) setNormalizationStatus(props.normalizationStatus ?? null);
+    setDocId(props.documentId ?? null);
+    setPage(props.page ?? 1);
+    setOriginalUrl(props.originalUrl ?? null);
+    setPageCount(props.pageCount ?? null);
+    setPreviewUrl(props.previewUrl ?? null);
+    setPersistedNormalizedUrl(props.persistedNormalizedUrl ?? null);
+    setNormalizationStatus(props.normalizationStatus ?? null);
+    setSuggestions(props.suggestions ?? []);
   }, [
-    initialDocumentId,
-    initialPage,
-    initialOriginalUrl,
+    props.documentId,
+    props.page,
+    props.originalUrl,
     props.pageCount,
+    props.previewUrl,
     props.persistedNormalizedUrl,
-    props.normalizationStatus
+    props.normalizationStatus,
+    props.suggestions
   ]);
 
-  // Listen for page/document change events from the page and update in-place
+  // Listen for global document change events (essential for SPA-like navigation without full reload)
   useEffect(() => {
     const handler = (e: Event) => {
-      const d: DocumentChangeDetail & { persistedNormalizedUrl?: string | null; normalizationStatus?: string | null } = (e as CustomEvent).detail || {};
+      const d: DocumentChangeDetail & { 
+        persistedNormalizedUrl?: string | null; 
+        normalizationStatus?: string | null;
+        previewUrl?: string | null;
+        suggestions?: OverlayItem[];
+      } = (e as CustomEvent).detail || {};
+      
       if (d.documentId !== undefined && d.documentId !== null) setDocId(d.documentId);
       if (d.page !== undefined && d.page !== null) setPage(Number(d.page));
+      
       // Accept either camelCase `originalUrl` or snake_case `original_url` from different emitters
       if (Object.prototype.hasOwnProperty.call(d, 'originalUrl')) setOriginalUrl(d.originalUrl ?? null);
       else if (Object.prototype.hasOwnProperty.call(d, 'original_url')) setOriginalUrl(d.original_url ?? null);
+      
       if (Object.prototype.hasOwnProperty.call(d, 'pageCount')) setPageCount(d.pageCount === null ? null : Number(d.pageCount));
+      if (Object.prototype.hasOwnProperty.call(d, 'previewUrl')) setPreviewUrl(d.previewUrl ?? null);
       
       // Update normalization fields
       if (Object.prototype.hasOwnProperty.call(d, 'persistedNormalizedUrl')) {
@@ -151,31 +160,33 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       if (Object.prototype.hasOwnProperty.call(d, 'normalizationStatus')) {
         setNormalizationStatus(d.normalizationStatus ?? null);
       }
+      
+      // Update suggestions if provided in the event
+      if (Object.prototype.hasOwnProperty.call(d, 'suggestions') && Array.isArray(d.suggestions)) {
+        setSuggestions(d.suggestions);
+      } else if (d.documentId !== undefined && d.documentId !== docId) {
+        // Clear suggestions when switching documents if new ones aren't provided
+        setSuggestions([]);
+      }
     };
 
     window.addEventListener('overlay:document-changed', handler as EventListener);
+    
+    // Also listen for full document switched events to update the prominent title in the EJS banner
+    const titleHandler = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      if (detail.document?.title) {
+        const titleEl = document.querySelector('[data-testid="prominent-document-title"]');
+        if (titleEl) titleEl.textContent = detail.document.title;
+      }
+    };
+    window.addEventListener('workspace:document-switched', titleHandler as EventListener);
+
     return () => {
       window.removeEventListener('overlay:document-changed', handler as EventListener);
+      window.removeEventListener('workspace:document-switched', titleHandler as EventListener);
     };
-  }, []);
-
-  useEffect(() => {
-    if (initialDocumentId !== undefined && initialDocumentId !== null) {
-      setDocId(initialDocumentId);
-    }
-    if (initialOriginalUrl !== undefined) {
-      setOriginalUrl(initialOriginalUrl);
-    }
-    if (props.pageCount !== undefined) {
-      setPageCount(props.pageCount);
-    }
-    if (persistedNormalizedUrl !== undefined) {
-      setPersistedNormalizedUrl(persistedNormalizedUrl);
-    }
-    if (normalizationStatus !== undefined) {
-      setNormalizationStatus(normalizationStatus);
-    }
-  }, [initialDocumentId, initialOriginalUrl, props.pageCount, persistedNormalizedUrl, normalizationStatus]);
+  }, [docId]);
 
 
 
@@ -214,6 +225,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const [currentBox, setCurrentBox] = useState(null as BoundingBox | null);
   const currentBoxRef = useRef(null as BoundingBox | null);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const [imageError, setImageError] = useState(null as string | null);
   const [warning, setWarning] = useState(null as string | null);
   // Image loading state: 'loading' | 'loaded' | 'error'
@@ -234,9 +246,6 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const viewportRef = useRef(null as HTMLDivElement | null);
   const [scale, setScale] = useState(1);
   const scaleRef = useRef(1);
-  const [translateX, setTranslateX] = useState(0);
-  const [translateY, setTranslateY] = useState(0);
-  const translateRef = useRef({ x: 0, y: 0 });
   const [rotationDeg, setRotationDeg] = useState(0);
   const [panMode, setPanMode] = useState(false);
   const panActiveRef = useRef(false);
@@ -274,39 +283,9 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     setScale(clamped);
   }, []);
 
-  const clampTranslate = useCallback((tx: number, ty: number, s: number) => {
-    const container = containerRef.current;
-    if (!container) return { x: tx, y: ty };
 
-    const cw = container.clientWidth;
-    const ch = container.clientHeight;
 
-    const img = imageRef.current;
-    const natW = img && img.naturalWidth ? img.naturalWidth : null;
-    const natH = img && img.naturalHeight ? img.naturalHeight : null;
 
-    try {
-            const clamped = utilsClampTranslate(tx, ty, s, cw, ch, natW, natH, 'contain');
-      return { x: clamped.x, y: clamped.y };
-    } catch (_e: unknown) {
-      const minX = Math.min(0, cw - cw * s);
-      const maxX = 0;
-      const minY = Math.min(0, ch - ch * s);
-      const maxY = 0;
-
-      const cx = Math.min(maxX, Math.max(minX, tx));
-      const cy = Math.min(maxY, Math.max(minY, ty));
-
-      return { x: cx, y: cy };
-    }
-  }, []);
-
-  const applyTranslate = useCallback((x: number, y: number) => {
-    const clamped = clampTranslate(x, y, scaleRef.current || 1);
-    translateRef.current = { x: clamped.x, y: clamped.y };
-    setTranslateX(clamped.x);
-    setTranslateY(clamped.y);
-  }, [clampTranslate]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -334,11 +313,17 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           const cx = bbox.x + bbox.width / 2;
           const cy = bbox.y + bbox.height / 2;
           
-          const tx = (cw / 2) - (cx * cw * newScale);
-          const ty = (ch / 2) - (cy * ch * newScale);
-          
           applyScale(newScale);
-          applyTranslate(tx, ty);
+          
+          // Scroll to center the region
+          setTimeout(() => {
+            if (containerRef.current) {
+              const fullW = imageDimensions.width * newScale;
+              const fullH = imageDimensions.height * newScale;
+              containerRef.current.scrollLeft = (cx * fullW) - (cw / 2);
+              containerRef.current.scrollTop = (cy * fullH) - (ch / 2);
+            }
+          }, 50);
         }
 
         setTimeout(() => setHighlightedRegion(null), 5000);
@@ -346,7 +331,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     };
     window.addEventListener('overlay:highlight-region', handler as EventListener);
     return () => window.removeEventListener('overlay:highlight-region', handler as EventListener);
-  }, [page, applyScale, applyTranslate]);
+  }, [page, applyScale]);
 
   // Listen for draw mode activation from Visual Tab
   useEffect(() => {
@@ -425,15 +410,21 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     const next = getFitScale('width');
     if (next === null) return;
     applyScale(next);
-    applyTranslate(0, 0);
-  }, [getFitScale, applyScale, applyTranslate]);
+    if (containerRef.current) {
+      containerRef.current.scrollLeft = 0;
+      containerRef.current.scrollTop = 0;
+    }
+  }, [getFitScale, applyScale]);
 
   const fitToHeight = useCallback(() => {
     const next = getFitScale('height');
     if (next === null) return;
     applyScale(next);
-    applyTranslate(0, 0);
-  }, [getFitScale, applyScale, applyTranslate]);
+    if (containerRef.current) {
+      containerRef.current.scrollLeft = 0;
+      containerRef.current.scrollTop = 0;
+    }
+  }, [getFitScale, applyScale]);
 
   const rotateClockwise = useCallback(() => {
     setRotationDeg((prev) => (prev + 90) % 360);
@@ -455,36 +446,46 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
   const resetView = useCallback(() => {
     applyScale(1);
-    applyTranslate(0, 0);
+    if (containerRef.current) {
+      containerRef.current.scrollLeft = 0;
+      containerRef.current.scrollTop = 0;
+    }
     setRotationDeg(0);
-  }, [applyScale, applyTranslate]);
+  }, [applyScale]);
 
   const zoomIn = useCallback(() => applyScale(scaleRef.current + SCALE_STEP), [applyScale]);
   const zoomOut = useCallback(() => applyScale(scaleRef.current - SCALE_STEP), [applyScale]);
 
   const handleWheel = useCallback((e: WheelEvent) => {
-    if (!viewportRef.current || !containerRef.current) return;
+    if (!viewportRef.current || !containerRef.current || imageDimensions.width === 0) return;
     const delta = -e.deltaY;
     const factor = e.ctrlKey || e.metaKey ? 0.0015 : 0.0025;
     const s = scaleRef.current || 1;
     const nextS = Math.min(MAX_SCALE, Math.max(MIN_SCALE, s * (1 + delta * factor)));
     if (Math.abs(nextS - s) < 1e-5) return;
 
-    const rect = containerRef.current.getBoundingClientRect();
-    const rawX = e.clientX - rect.left;
-    const rawY = e.clientY - rect.top;
+    const container = containerRef.current;
+    const rect = container.getBoundingClientRect();
+    
+    // Position of mouse relative to the container
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
 
-    const sx = nextS / s;
-    const currentTx = translateRef.current.x || 0;
-    const currentTy = translateRef.current.y || 0;
-    const nextTx = currentTx * sx + rawX * (1 - sx);
-    const nextTy = currentTy * sx + rawY * (1 - sx);
+    // Position of mouse relative to the document (unscaled)
+    const docX = (mouseX + container.scrollLeft) / s;
+    const docY = (mouseY + container.scrollTop) / s;
 
     applyScale(nextS);
-    applyTranslate(nextTx, nextTy);
+
+    // Adjust scroll to keep the same document point under the mouse
+    // We do this in next frame to allow the viewport dimensions to update
+    requestAnimationFrame(() => {
+      container.scrollLeft = (docX * nextS) - mouseX;
+      container.scrollTop = (docY * nextS) - mouseY;
+    });
 
     e.preventDefault();
-  }, [applyScale, applyTranslate]);
+  }, [applyScale, imageDimensions]);
 
   const togglePanMode = useCallback(() => {
     const next = !panMode;
@@ -585,8 +586,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     setMeasureResult(null);
   }, [docId, page]);
 
-  // Image loading effect with fallback mechanism
-  // Uses fetch with credentials to ensure auth cookies are sent
+// Image loading effect with fallback mechanism
   useEffect(() => {
     if (!imageUrl) {
       setImageLoadState('error');
@@ -600,163 +600,87 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     setImageLoadState('loading');
     
     let cancelled = false;
-    let currentObjectUrl: string | null = null;
-
-    const loadImage = async () => {
-      console.info(`[OverlayViewerIsland] Attempting to load image from ${imageSource} source: ${imageUrl}`);
-      try {
-        // Use fetch with credentials to include auth cookies
-        const response = await fetch(imageUrl, {
-          credentials: 'include',
-          headers: {
-            'Accept': '*/*'
-          }
-        });
-
-        if (!response.ok) {
-          console.warn(`[OverlayViewerIsland] Fetch failed for ${imageSource}: ${response.status} ${response.statusText}`);
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const blob = await response.blob();
-        if (cancelled) {
-          console.info(`[OverlayViewerIsland] Loading cancelled for ${imageSource}`);
-          return;
-        }
-
-        currentObjectUrl = URL.createObjectURL(blob);
-
-        // Load into Image to get dimensions and validate
-        const img = new Image();
-
-        img.onload = () => {
-          if (cancelled) {
-            console.info(`[OverlayViewerIsland] img.onload cancelled for ${imageSource}`);
-            if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
-            return;
-          }
-
-          if (imageRef.current) {
-            imageRef.current.src = currentObjectUrl!;
-            console.info(`[OverlayViewerIsland] Image src updated from ${imageSource}`);
-            try {
-              const area = (img.naturalWidth || 0) * (img.naturalHeight || 0);
-              if (area > 20000000) {
-                setWarning('Large document image detected. Rendering may be slow.');
-              }
-            } catch (err: unknown) {
-              const msg = err instanceof Error ? err.message : String(err);
-              console.warn('[OverlayViewerIsland] Failed to compute image area for warning detection:', msg);
-            }
-
-            // Auto-fit to width after layout completes
-            const applyAutoFit = () => {
-              const container = containerRef.current;
-              if (container && img.naturalWidth > 0 && img.naturalHeight > 0) {
-                const containerWidth = container.clientWidth;
-
-                if (containerWidth > 0) {
-                  const fitScale = Math.min(
-                    MAX_SCALE,
-                    Math.max(MIN_SCALE, containerWidth / img.naturalWidth)
-                  );
-
-                  let contentTop = 0;
-                  try {
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    if (ctx) {
-                      const sampleScale = Math.min(1, 300 / img.naturalHeight);
-                      canvas.width = Math.floor(img.naturalWidth * sampleScale);
-                      canvas.height = Math.floor(img.naturalHeight * sampleScale);
-                      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-                      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                      const data = imageData.data;
-                      const darkThreshold = 200;
-                      const minDarkPixelsPerRow = Math.max(3, Math.floor(canvas.width * 0.05));
-
-                      for (let y = 0; y < canvas.height; y++) {
-                        let darkCount = 0;
-                        for (let x = 0; x < canvas.width; x++) {
-                          const idx = (y * canvas.width + x) * 4;
-                          const r = data[idx], g = data[idx + 1], b = data[idx + 2];
-                          const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-                          if (luminance < darkThreshold) {
-                            darkCount++;
-                            if (darkCount >= minDarkPixelsPerRow) {
-                              contentTop = (y / sampleScale);
-                              contentTop = Math.max(0, contentTop - img.naturalHeight * 0.01);
-                              break;
-                            }
-                          }
-                        }
-                        if (contentTop > 0) break;
-                      }
-                      // Clear canvas data
-                      canvas.width = 0;
-                      canvas.height = 0;
-                    }
-                  } catch (e) {
-                    console.warn('[OverlayViewerIsland] Content detection failed:', e);
-                  }
-
-                  scaleRef.current = fitScale;
-                  setScale(fitScale);
-                  const scrollY = -contentTop * fitScale;
-                  translateRef.current = { x: 0, y: scrollY };
-                  setTranslateX(0);
-                  setTranslateY(scrollY);
-                }
-              }
-            };
-
-            requestAnimationFrame(() => requestAnimationFrame(applyAutoFit));
-          }
-          setImageLoaded(true);
-          setImageLoadState('loaded');
-          setImageError(null);
-        };
-
-        img.onerror = () => {
-          if (cancelled) return;
-          console.warn(`[OverlayViewerIsland] img.onerror for ${imageSource}`);
-          if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
-          handleImageError();
-        };
-
-        img.src = currentObjectUrl;
-
-      } catch (err) {
-        if (cancelled) return;
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[OverlayViewerIsland] loadImage failed for ${imageSource}:`, msg);
-        handleImageError();
-      }
-    };
 
     const handleImageError = () => {
-      console.warn(`[OverlayViewerIsland] handleImageError for source ${imageSource}`);
+      if (cancelled) return;
+      console.warn(`[OverlayViewerIsland] handleImageError for source ${imageSource}: ${imageUrl}`);
+      
       if (imageSource === 'normalized' && originalUrlWithPage) {
         console.info(`[OverlayViewerIsland] Falling back from normalized to original source`);
         setImageSource('original');
         return;
       }
+      
       setImageError(`Failed to load document image from ${imageSource === 'normalized' ? 'visual-rag' : 'paperless'}`);
       setImageLoadState('error');
       setImageLoaded(false);
     };
 
-    loadImage();
+    // Load into Image to get dimensions and validate
+    const img = new Image();
+
+    img.onload = () => {
+      if (cancelled) return;
+
+      console.info(`[OverlayViewerIsland] Image pre-loaded: ${imageUrl}`);
+      
+      const naturalWidth = img.naturalWidth || 0;
+      const naturalHeight = img.naturalHeight || 0;
+      setImageDimensions({ width: naturalWidth, height: naturalHeight });
+
+      try {
+        const area = naturalWidth * naturalHeight;
+        if (area > 20000000) {
+          setWarning('Large document image detected. Rendering may be slow.');
+        }
+      } catch (err: unknown) {
+        console.warn('[OverlayViewerIsland] Failed to compute image area:', err);
+      }
+
+      if (imageRef.current) {
+        // Now set the actual src in DOM
+        imageRef.current.src = imageUrl;
+        
+        // Auto-fit to width after layout completes
+        const applyAutoFit = () => {
+          const container = containerRef.current;
+          if (container && naturalWidth > 0 && naturalHeight > 0) {
+            const containerWidth = container.clientWidth;
+
+            if (containerWidth > 0) {
+              const fitScale = Math.min(
+                MAX_SCALE,
+                Math.max(MIN_SCALE, containerWidth / naturalWidth)
+              );
+
+              scaleRef.current = fitScale;
+              setScale(fitScale);
+              if (containerRef.current) {
+                containerRef.current.scrollLeft = 0;
+                containerRef.current.scrollTop = 0;
+              }
+            }
+          }
+        };
+
+        requestAnimationFrame(() => requestAnimationFrame(applyAutoFit));
+      }
+      
+      setImageLoaded(true);
+      setImageLoadState('loaded');
+      setImageError(null);
+    };
+
+    img.onerror = () => {
+      handleImageError();
+    };
+
+    img.src = imageUrl;
 
     return () => {
       cancelled = true;
-      if (currentObjectUrl) {
-        URL.revokeObjectURL(currentObjectUrl);
-      }
-      if (imageRef.current) {
-        imageRef.current.src = '';
-      }
+      img.onload = null;
+      img.onerror = null;
     };
   }, [imageUrl, imageSource, originalUrlWithPage, retryCount]);
 
@@ -923,8 +847,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         clientX = (e as MouseEvent).clientX;
         clientY = (e as MouseEvent).clientY;
       }
-      const tx = translateRef.current.x || 0;
-      const ty = translateRef.current.y || 0;
+      const tx = containerRef.current ? -containerRef.current.scrollLeft : 0;
+      const ty = containerRef.current ? -containerRef.current.scrollTop : 0;
       const s = scaleRef.current || 1;
       const rawX = clientX - rect.left;
       const rawY = clientY - rect.top;
@@ -1302,18 +1226,18 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           e.preventDefault();
         }
       }
-      else if (e.key.startsWith('Arrow') && panMode) {
+      else if (e.key.startsWith('Arrow') && panMode && containerRef.current) {
         const step = 20;
-        if (e.key === 'ArrowLeft') applyTranslate(translateRef.current.x + step, translateRef.current.y);
-        if (e.key === 'ArrowRight') applyTranslate(translateRef.current.x - step, translateRef.current.y);
-        if (e.key === 'ArrowUp') applyTranslate(translateRef.current.x, translateRef.current.y + step);
-        if (e.key === 'ArrowDown') applyTranslate(translateRef.current.x, translateRef.current.y - step);
+        if (e.key === 'ArrowLeft') containerRef.current.scrollLeft -= step;
+        if (e.key === 'ArrowRight') containerRef.current.scrollLeft += step;
+        if (e.key === 'ArrowUp') containerRef.current.scrollTop -= step;
+        if (e.key === 'ArrowDown') containerRef.current.scrollTop += step;
         e.preventDefault();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [zoomIn, zoomOut, resetView, togglePanMode, toggleDrawMode, panMode, isDrawMode, selectionEnabled, applyTranslate]);
+  }, [zoomIn, zoomOut, resetView, togglePanMode, toggleDrawMode, panMode, isDrawMode, selectionEnabled]);
 
   const handlePointerDown = useCallback((e: PointerEvent) => {
     if (panMode) {
@@ -1330,19 +1254,21 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   }, [handleMouseDown, panMode]);
 
   const handlePointerMove = useCallback((e: PointerEvent) => {
-    if (panActiveRef.current && lastPanPointRef.current) {
+    if (panActiveRef.current && lastPanPointRef.current && containerRef.current) {
       const last = lastPanPointRef.current;
       const dx = e.clientX - last.x;
       const dy = e.clientY - last.y;
-      const nextX = (translateRef.current.x || 0) + dx;
-      const nextY = (translateRef.current.y || 0) + dy;
-      applyTranslate(nextX, nextY);
+      
+      // Pan by scrolling the container
+      containerRef.current.scrollLeft -= dx;
+      containerRef.current.scrollTop -= dy;
+      
       lastPanPointRef.current = { x: e.clientX, y: e.clientY };
       e.preventDefault();
       return;
     }
     handleMouseMove(e as PointerEvent);
-  }, [handleMouseMove, applyTranslate]);
+  }, [handleMouseMove]);
 
   const handlePointerUp = useCallback((e: PointerEvent) => {
     if (panActiveRef.current) {
@@ -1405,7 +1331,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       data-has-boxes={boxes.length}
       data-has-warning={warning ? 'true' : 'false'}
       data-original-url={originalUrl || ''}
-      className="h-full flex flex-col overflow-hidden"
+      className="h-full w-full flex flex-col overflow-hidden min-h-0"
     >
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 p-2 border-b border-gray-200 bg-white z-10" data-testid="overlay-toolbar">
@@ -1631,7 +1557,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       )}
 
       {/* Split View Container */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Left Pane: Document Viewer */}
         <div
             className={`${styles.documentPane} ${showResults ? `[--pane-width:${splitPos}%]` : `[--pane-width:100%]`}`}
@@ -1640,7 +1566,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             ref={containerRef}
             data-testid="overlay-container"
             data-draw-mode={isDrawMode ? 'active' : 'inactive'}
-            className={`relative flex-1 overflow-hidden ${panMode ? (panActiveRef.current ? 'cursor-grabbing' : 'cursor-grab') : (isDrawMode ? 'cursor-crosshair' : 'cursor-default')} ${isDrawMode ? 'touch-none ring-2 ring-inset ring-[#b87333]/50' : 'touch-auto'}`}
+            className={`${styles.overlayContainer} ${panMode ? (panActiveRef.current ? 'cursor-grabbing' : 'cursor-grab') : (isDrawMode ? 'cursor-crosshair' : 'cursor-default')} ${isDrawMode ? 'touch-none ring-2 ring-inset ring-[#b87333]/50' : 'touch-auto'}`}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
@@ -1657,11 +1583,17 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             <div
               ref={viewportRef}
               data-testid="overlay-viewport"
-              className={`${styles.viewport} [--viewport-transform:translate(${translateX}px, ${translateY}px) scale(${scale})]`}
+              className={styles.viewport}
+              style={{ 
+                width: imageDimensions.width > 0 ? `${imageDimensions.width * scale}px` : '100%',
+                height: imageDimensions.height > 0 ? `${imageDimensions.height * scale}px` : '100%',
+                minWidth: '100%',
+                minHeight: '100%'
+              }}
             >
               <div
                 data-testid="overlay-rotation-layer"
-                className="absolute inset-0"
+                className={styles.rotationLayer}
                 style={{
                   transform: `rotate(${rotationDeg}deg)`,
                   transformOrigin: 'center center',
@@ -1671,7 +1603,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                 <img
                   ref={imageRef}
                   alt={`Document ${docId} page ${page}`}
-                  className={`w-full h-full object-contain object-left-top pointer-events-none select-none ${imageLoaded ? 'block' : 'hidden'}`}
+                  className={`${styles.documentImage} flex-1 min-h-0 pointer-events-none select-none ${imageLoaded ? 'block' : 'hidden'}`}
                   data-testid="overlay-document-image"
                   draggable={false}
                   crossOrigin="anonymous"

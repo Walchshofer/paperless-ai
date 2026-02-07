@@ -59,7 +59,7 @@ class VisualSearchClient {
         this._active = 0;
         this._queue = [];
         // Use a more tolerant default for query timeout to avoid circuit breaker opens during model warm-up
-        this.queryTimeout = options.queryTimeout || config.visualRagSidecar?.queryTimeout || 2000;
+        this.queryTimeout = options.queryTimeout || config.visualRagSidecar?.queryTimeout || 10000;
 
         this.client = axios.create({
             baseURL: this.baseUrl,
@@ -72,7 +72,7 @@ class VisualSearchClient {
         // Initialize Circuit Breaker (use short query-level timeout by default)
         // Support custom options from constructor for testing (ticket:014.1)
         this.circuitBreaker = new CircuitBreaker('visual-rag', {
-            failureThreshold: options.failureThreshold || config.visualRagSidecar?.failureThreshold || 3,
+            failureThreshold: options.failureThreshold || config.visualRagSidecar?.failureThreshold || 10,
             cooldownPeriod: options.cooldownMs || config.visualRagSidecar?.cooldownPeriod || 30000,
             timeout: this.queryTimeout,
             hardTimeout: Math.max(1000, this.queryTimeout * 2)
@@ -110,7 +110,7 @@ class VisualSearchClient {
             // Use retry helper to tolerate transient startup timing
             // Health checks are more tolerant: use a longer timeout than query timeout
             const health = await this._retry(() => this.health({ timeout: Math.max(3000, this.timeout) }), this.retries);
-            this._available = health.model_loaded;
+            this._available = health.model_loaded || health.init?.model_loaded || (health.status === 'healthy');
             this._lastHealthCheck = now;
             if (this.metricsCollector?.recordSidecarAvailability) {
                 this.metricsCollector.recordSidecarAvailability('visual-rag', this._available);
@@ -229,6 +229,18 @@ class VisualSearchClient {
         }
     }
 
+    /**
+     * Search indexed documents visually using a query image.
+     * Results are cached using SHA-256 hash of the image as key.
+     * @param {string} base64Image - Base64-encoded query image
+     * @param {Object} [options={}] - Search options
+     * @param {number} [options.k=5] - Number of results to return
+     * @param {boolean} [options.includeBase64=false] - Include page images in results
+     * @param {string} [options.requestId] - Request ID for distributed tracing
+     * @param {number} [options.documentId] - Document ID for cache scoping
+     * @param {string} [options.domain] - Document domain for cache scoping
+     * @returns {Promise<Object>} Search results with scores and page references
+     */
     async searchImage(base64Image, options = {}) {
         const { k = 5, includeBase64 = false, requestId, documentId, domain } = options;
 

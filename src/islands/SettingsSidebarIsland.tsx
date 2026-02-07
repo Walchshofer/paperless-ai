@@ -20,6 +20,7 @@ const CATEGORIES: Category[] = [
   { id: 'expert-models', label: 'Expert Models', icon: '🎓' },
   { id: 'advanced', label: 'Advanced', icon: '⚙️' },
   { id: 'developer', label: 'Developer', icon: '👨‍💻', requiresDeveloperMode: true },
+  { id: 'prompts', label: 'Prompts', icon: '📝', requiresDeveloperMode: true },
 ];
 
 /**
@@ -172,7 +173,7 @@ export default function SettingsSidebarIsland(
     });
 
     // If disabling developer mode and currently on developer category, switch to overview
-    if (!newValue && activeCategory === 'developer') {
+    if (!newValue && (activeCategory === 'developer' || activeCategory === 'prompts')) {
       handleCategoryClick('overview');
     }
   };

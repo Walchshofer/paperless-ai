@@ -2,7 +2,7 @@ import os
 import traceback
 from typing import Any, Dict, List, Optional, cast
 
-from fastapi import Depends, FastAPI, HTTPException  # type: ignore
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from prometheus_fastapi_instrumentator import Instrumentator  # type: ignore
 
@@ -186,7 +186,7 @@ async def check_for_updates() -> Dict[str, Any]:
 
 @app.post("/indexing/start")  # type: ignore
 async def start_indexing(
-    request: IndexingRequest, background_tasks: Any
+    request: IndexingRequest, background_tasks: BackgroundTasks
 ) -> Dict[str, str]:
     """Start indexing process"""
     if global_state.indexing_status.running:
@@ -208,9 +208,9 @@ async def start_indexing(
 
 @app.post("/initialize")  # type: ignore
 async def initialize_system(
+    background_tasks: BackgroundTasks,
     force: bool = False,
-    background: bool = True,
-    background_tasks: Optional[Any] = None,
+    background: bool = True
 ) -> Dict[str, Any]:
     """Initialize the system and check environment variables"""
     env_vars = {

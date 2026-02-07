@@ -13,7 +13,7 @@ const router = express.Router();
 const { authenticateApi } = require('../../middleware/auth');
 const AIServiceFactory = require('../../services/aiServiceFactory');
 const paperlessService = require('../../services/paperlessService');
-const DocumentProcessor = require('../../services/integration/DocumentProcessor');
+const { DocumentProcessor } = require('../../services/integration/DocumentProcessor');
 const logger = require('../../services/logger');
 const documentModel = require('../../services/documentModel');
 const {
@@ -25,6 +25,11 @@ const {
 // All routes require authentication
 router.use(authenticateApi);
 
+/**
+ * Convert a raw key (snake_case / kebab-case) to a Title Case display label.
+ * @param {string} rawKey - Raw field key
+ * @returns {string} Title-cased label
+ */
 function toDisplayLabel(rawKey) {
   return String(rawKey || '')
     .replace(/[_-]+/g, ' ')
@@ -32,6 +37,12 @@ function toDisplayLabel(rawKey) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+/**
+ * Map a custom_fields object to an array of extracted field objects for workspace UI.
+ * @param {Object} customFields - Key-value pairs of custom field data
+ * @param {number} [confidence=0.5] - Default confidence score for mapped fields
+ * @returns {Array<Object>} Array of extracted field objects with fieldId, label, value
+ */
 function mapCustomFieldsToExtractedFields(customFields, confidence = 0.5) {
   if (!customFields || typeof customFields !== 'object') {
     return [];
@@ -49,6 +60,13 @@ function mapCustomFieldsToExtractedFields(customFields, confidence = 0.5) {
   }));
 }
 
+/**
+ * Resolve tag values (strings or objects) to full tag objects using the available tags list.
+ * Unmatched names get synthetic negative IDs.
+ * @param {Array<string|Object>} tagValues - Tag names or tag objects from AI extraction
+ * @param {Array<Object>} [availableTags=[]] - Known Paperless tags with id and name
+ * @returns {Array<Object>} Resolved tag objects with id and name
+ */
 function mapSuggestedTagsToObjects(tagValues, availableTags = []) {
   if (!Array.isArray(tagValues) || tagValues.length === 0) return [];
 
@@ -72,6 +90,12 @@ function mapSuggestedTagsToObjects(tagValues, availableTags = []) {
   });
 }
 
+/**
+ * Extract classification label and detail from a nested pipeline result payload.
+ * Handles both flat and double-nested classification shapes.
+ * @param {Object} resultPayload - Pipeline execution result
+ * @returns {{ label: string, detail: Object|null }} Classification label and detail object
+ */
 function resolveClassification(resultPayload) {
   const raw = resultPayload?.classification || null;
   const detail = raw && typeof raw === 'object'
@@ -83,6 +107,14 @@ function resolveClassification(resultPayload) {
   return { label, detail };
 }
 
+/**
+ * Build a prepared document object with resolved PDF paths for pipeline processing.
+ * Resolves archive vs original file paths using PAPERLESS_MEDIA_ROOT.
+ * @param {Object} document - Raw Paperless document data
+ * @param {number} documentId - Paperless document ID
+ * @param {string} [ocrText=''] - Pre-fetched OCR text content
+ * @returns {Object} Prepared document with id, content, pdf_path, pdf_path_abs, etc.
+ */
 function buildPreparedDocument(document, documentId, ocrText = '') {
   const archiveFileName = document.archive_file_name ||
     document.archive_filename ||
@@ -128,6 +160,12 @@ const REPROCESS_REASON_TO_ERROR_KEY = Object.freeze({
   pipeline_execution_failed: 'pipeline-execution-failed'
 });
 
+/**
+ * Check if a MIME type is supported for reprocessing (PDF or image/*).
+ * Null/empty values are treated as supported (permissive default).
+ * @param {string|null} mimeType - Document MIME type
+ * @returns {boolean} True if supported or unknown
+ */
 function isSupportedReprocessMime(mimeType) {
   if (!mimeType) return true;
   const normalized = String(mimeType).trim().toLowerCase();
@@ -138,6 +176,12 @@ function isSupportedReprocessMime(mimeType) {
   );
 }
 
+/**
+ * Normalize an error into a standard reprocess reason code string.
+ * Inspects error.code and error.message to classify the failure.
+ * @param {Error} error - The error from pipeline execution
+ * @returns {string} Reason code (e.g. 'document_not_found', 'pipeline_timeout')
+ */
 function normalizeReprocessReasonCode(error) {
   const message = String(error?.message || '').toLowerCase();
 
@@ -184,6 +228,11 @@ function normalizeReprocessReasonCode(error) {
   return 'pipeline_execution_failed';
 }
 
+/**
+ * Map a reason code to its corresponding error key for message lookup.
+ * @param {string} reasonCode - Normalized reason code from normalizeReprocessReasonCode
+ * @returns {string} Error key for REPROCESS_ERROR_MESSAGES
+ */
 function resolveReprocessErrorKey(reasonCode) {
   return (
     REPROCESS_REASON_TO_ERROR_KEY[reasonCode] ||
@@ -191,6 +240,13 @@ function resolveReprocessErrorKey(reasonCode) {
   );
 }
 
+/**
+ * Resolve a user-facing error message from a reason code.
+ * Falls back to the generic pipeline-execution-failed message.
+ * @param {string} reasonCode - Normalized reason code
+ * @param {string} [fallbackMessage] - Custom fallback if no match found
+ * @returns {string} Human-readable error message
+ */
 function resolveReprocessUserMessage(reasonCode, fallbackMessage) {
   const errorKey = resolveReprocessErrorKey(reasonCode);
   return (
@@ -200,6 +256,11 @@ function resolveReprocessUserMessage(reasonCode, fallbackMessage) {
   );
 }
 
+/**
+ * Map a reason code to the appropriate HTTP status code.
+ * @param {string} reasonCode - Normalized reason code
+ * @returns {number} HTTP status code (404, 415, 503, or 500)
+ */
 function resolveReprocessStatusCode(reasonCode) {
   if (reasonCode === 'document_not_found') return 404;
   if (reasonCode === 'invalid_document_format') return 415;
@@ -207,6 +268,13 @@ function resolveReprocessStatusCode(reasonCode) {
   return 500;
 }
 
+/**
+ * Publish a reprocess progress update to the SSE progress broker.
+ * Validates stage name against REPROCESS_STAGE_DEFINITIONS before publishing.
+ * @param {number} documentId - Paperless document ID
+ * @param {Object} [update={}] - Progress update with stage name and optional details
+ * @returns {Object|null} Published event, or null if stage is invalid
+ */
 function publishReprocessProgress(documentId, update = {}) {
   const stageName = String(update.stage || '').toLowerCase();
   if (!stageName || !REPROCESS_STAGE_DEFINITIONS[stageName]) {

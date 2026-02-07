@@ -515,6 +515,7 @@ Example output format:
         'general_classifier',
         'general_extractor',
         'general_extractor_v2',
+        'cross_pipeline_router',
         # Phase 5.5: Visual query generation
         'visual_query_generator_de',
         'financial_visual_query_generator_de',
@@ -588,6 +589,9 @@ Example output format:
         elif template_name == 'general_extractor_v2':
             from templates.general_de import GeneralTemplatesDE
             return GeneralTemplatesDE.get_general_extractor_v2()
+        elif template_name == 'cross_pipeline_router':
+            from templates.general_de import GeneralTemplatesDE
+            return GeneralTemplatesDE.get_cross_pipeline_router()
         elif template_name == 'visual_query_generator_de':
             from templates.general_de import GeneralTemplatesDE
             return GeneralTemplatesDE.get_visual_query_generator()
