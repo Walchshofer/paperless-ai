@@ -159,6 +159,8 @@ router.get('/settings', authenticate, async (req, res) => {
   const legalVisionModel = process.env.LEGAL_VISION_MODEL || 'qwen3-vl:8b';
   const legalAnalysisModel = process.env.LEGAL_ANALYSIS_MODEL || 'gpt-oss';
   const legalOrchestratorModel = process.env.LEGAL_ORCHESTRATOR_MODEL || orchestratorModel;
+  const translationModel = process.env.TRANSLATION_MODEL || process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b';
+  const guidanceModel = process.env.GUIDANCE_MODEL || process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b';
   let settingsConfig = {
     PAPERLESS_API_URL: (process.env.PAPERLESS_API_URL || 'http://localhost:8000').replace(/\/api$/, ''),
     PAPERLESS_API_TOKEN: process.env.PAPERLESS_API_TOKEN || '',
@@ -290,6 +292,119 @@ router.get('/settings', authenticate, async (req, res) => {
       role: req.user.role,
       isAdmin: req.user.isAdmin
     },
+    aiProvider: {
+      provider: settingsConfig.AI_PROVIDER || 'ollama',
+      openai: {
+        apiKey: settingsConfig.PAPERLESS_OPENAI_API_KEY || ''
+      },
+      ollama: {
+        apiUrl: settingsConfig.OLLAMA_API_URL || 'http://localhost:11434',
+        model: settingsConfig.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b',
+        visionModel: process.env.OLLAMA_VISION_MODEL || 'qwen3-vl:8b',
+        plannerModel: plannerModel,
+        routerModel: routerModel,
+        orchestratorModel: orchestratorModel,
+        translationModel: translationModel,
+        guidanceModel: guidanceModel,
+        visionKeepAlive: process.env.VISION_KEEP_ALIVE || '5m',
+        textKeepAlive: process.env.TEXT_KEEP_ALIVE || '2m',
+        routerKeepAlive: process.env.ROUTER_KEEP_ALIVE || '5m',
+        limits: {
+          text: {
+            contextWindow: Number(settingsConfig.OLLAMA_CONTEXT_WINDOW) || 128000,
+            maxResponseTokens: Number(settingsConfig.OLLAMA_MAX_RESPONSE_TOKENS) || 4096,
+          },
+          vision: {
+            contextWindow: Math.min(Number(settingsConfig.OLLAMA_VISION_CONTEXT_WINDOW) || 32768, 32768),
+            maxResponseTokens: Number(settingsConfig.OLLAMA_VISION_MAX_RESPONSE_TOKENS) || 2048,
+          },
+          planner: {
+            contextWindow: Math.min(Number(process.env.OLLAMA_PLANNER_CONTEXT_WINDOW) || 32768, 32768),
+            maxResponseTokens: Number(process.env.OLLAMA_PLANNER_MAX_RESPONSE_TOKENS) || 2048,
+          },
+          expert: {
+            contextWindow: Number(settingsConfig.OLLAMA_EXPERT_CONTEXT_WINDOW) || 128000,
+            maxResponseTokens: Number(settingsConfig.OLLAMA_EXPERT_MAX_RESPONSE_TOKENS) || 4096,
+          },
+          translation: {
+            contextWindow: Number(settingsConfig.TRANSLATION_CONTEXT_WINDOW) || 128000,
+          },
+          imageTokenOverhead: Number(process.env.OLLAMA_VISION_IMAGE_TOKENS) || 1024,
+        },
+      },
+      custom: {
+        apiUrl: settingsConfig.CUSTOM_BASE_URL || '',
+        apiKey: settingsConfig.CUSTOM_API_KEY || '',
+        model: settingsConfig.CUSTOM_MODEL || '',
+      },
+      azure: {
+        apiKey: settingsConfig.AZURE_API_KEY || '',
+        endpoint: settingsConfig.AZURE_ENDPOINT || '',
+        deploymentName: settingsConfig.AZURE_DEPLOYMENT_NAME || '',
+        apiVersion: settingsConfig.AZURE_API_VERSION || '2023-05-15',
+      },
+      availableModels: availableModels || {},
+      promptRegistry: {
+        'defaultText': 'GEN_FALLBACK_V1',
+        'router': 'SYS_ROUTER_V1',
+        'orchestrator': 'SYS_ORCHESTRATOR_V1',
+        'medicalVision': 'MED_RADIOLOGY_V1',
+        'medicalAnalysis': 'MED_DOCTOR_V1',
+        'medicalRadiology': 'MED_INTEGRATOR_V1',
+        'financialAnalysis': 'FIN_EXTRACT_V1',
+        'financialReasoning': 'FIN_REASONER_V1',
+        'financialVat': 'FIN_VAT_EXPERT_V1',
+        'legalOrchestrator': 'LEGAL_ORCHESTRATOR_V1',
+        'legalAnalysis': 'LEGAL_EXTRACTOR_V1',
+      },
+      expertPipelineEnabled: settingsConfig.EXPERT_PIPELINE_ENABLED === 'yes',
+      expertModels: {
+        medical: {
+          vision: settingsConfig.MEDICAL_VISION_MODEL || 'llava-med-v1.6',
+          analysis: settingsConfig.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3',
+          radiology: settingsConfig.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.6',
+        },
+        financial: {
+          vision: settingsConfig.FINANCIAL_VISION_MODEL || 'llm-pro-finance-8b',
+          analysis: settingsConfig.FINANCIAL_ANALYSIS_MODEL || 'fino1-8b',
+          reasoning: settingsConfig.FINANCIAL_REASONING_MODEL || 'llm-pro-finance-8b',
+          vatExpert: settingsConfig.FINANCIAL_VAT_EXPERT || 'llm-pro-finance-8b',
+        },
+        legal: {
+          vision: settingsConfig.LEGAL_VISION_MODEL || 'qwen3-vl:8b',
+          analysis: settingsConfig.LEGAL_ANALYSIS_MODEL || 'gpt-oss',
+          orchestrator: settingsConfig.LEGAL_ORCHESTRATOR_MODEL || '',
+        },
+      },
+      defaults: {
+        ollama: {
+          apiUrl: 'http://localhost:11434',
+          model: 'sauerkraut-llama3.1:8b',
+          visionModel: 'qwen3-vl:8b',
+          routerModel: 'qwen3-vl:8b',
+          plannerModel: 'qwen3-vl:8b',
+          orchestratorModel: 'nemotron-orchestrator:8b',
+          translationModel: '',
+          guidanceModel: '',
+          visionKeepAlive: '5m',
+          textKeepAlive: '2m',
+          routerKeepAlive: '5m',
+          limits: {
+            text: { contextWindow: 128000, maxResponseTokens: 4096 },
+            vision: { contextWindow: 32768, maxResponseTokens: 2048 },
+            planner: { contextWindow: 32768, maxResponseTokens: 2048 },
+            expert: { contextWindow: 128000, maxResponseTokens: 4096 },
+            translation: { contextWindow: 128000 },
+            imageTokenOverhead: 1024,
+          }
+        },
+        expert: {
+          medical: { vision: 'llava-med-v1.6', analysis: 'medtext-llama3', radiology: 'llava-med-v1.6' },
+          financial: { analysis: 'fino1-8b', reasoning: 'llm-pro-finance-8b', vision: 'llm-pro-finance-8b', vatExpert: 'llm-pro-finance-8b' },
+          legal: { vision: 'qwen3-vl:8b', analysis: 'gpt-oss', orchestrator: '' }
+        }
+      },
+    },
     developer: {
       featureFlags: {
         expertPipelineEnabled: settingsConfig.EXPERT_PIPELINE_ENABLED === 'yes',
@@ -311,18 +426,6 @@ router.get('/settings', authenticate, async (req, res) => {
         maxVisionPages: Number(process.env.MAX_VISION_PAGES || 4),
         guidanceTimeout: Number(process.env.GUIDANCE_TIMEOUT || 90000),
         visualRagTimeout: Number(process.env.VISUAL_RAG_TIMEOUT || 30000)
-      },
-      ollamaModelLimits: {
-        ollamaContextWindow: Number(settingsConfig.OLLAMA_CONTEXT_WINDOW) || 128000,
-        ollamaMaxResponseTokens: Number(settingsConfig.OLLAMA_MAX_RESPONSE_TOKENS) || 4096,
-        ollamaVisionContextWindow: Number(settingsConfig.OLLAMA_VISION_CONTEXT_WINDOW) || 32768,
-        ollamaVisionMaxResponseTokens: Number(settingsConfig.OLLAMA_VISION_MAX_RESPONSE_TOKENS) || 2048,
-        ollamaVisionImageTokens: Number(process.env.OLLAMA_VISION_IMAGE_TOKENS) || 1024,
-        ollamaPlannerContextWindow: Number(process.env.OLLAMA_PLANNER_CONTEXT_WINDOW) || 32768,
-        ollamaPlannerMaxResponseTokens: Number(process.env.OLLAMA_PLANNER_MAX_RESPONSE_TOKENS) || 2048,
-        ollamaExpertContextWindow: Number(settingsConfig.OLLAMA_EXPERT_CONTEXT_WINDOW) || 128000,
-        ollamaExpertMaxResponseTokens: Number(settingsConfig.OLLAMA_EXPERT_MAX_RESPONSE_TOKENS) || 4096,
-        translationContextWindow: Number(settingsConfig.TRANSLATION_CONTEXT_WINDOW) || 128000,
       }
     }
   };
@@ -516,6 +619,7 @@ router.get('/settings', authenticate, async (req, res) => {
  *                   type: string
  *                   example: "Failed to update settings: Database error"
  */
+
 router.post('/settings', express.json(), authenticateApi, requireAdmin, async (req, res) => {
   try {
     const {

@@ -17,7 +17,6 @@ const CATEGORIES: Category[] = [
   { id: 'overview', label: 'Overview', icon: '📊' },
   { id: 'connection', label: 'Connection', icon: '🔌' },
   { id: 'ai-provider', label: 'AI Provider', icon: '🤖' },
-  { id: 'expert-models', label: 'Expert Models', icon: '🎓' },
   { id: 'advanced', label: 'Advanced', icon: '⚙️' },
   { id: 'developer', label: 'Developer', icon: '👨‍💻', requiresDeveloperMode: true },
   { id: 'prompts', label: 'Prompts', icon: '📝', requiresDeveloperMode: true },
@@ -47,8 +46,6 @@ export default function SettingsSidebarIsland(
     const stored = localStorage.getItem(STORAGE_KEY_LAST_CATEGORY);
     return stored || validated.activeCategory || 'overview';
   });
-
-  const [aiProvider, setAiProvider] = useState(validated.aiProvider || 'ollama');
 
   const toggleRef = useRef(null as HTMLButtonElement | null);
 
@@ -113,53 +110,14 @@ export default function SettingsSidebarIsland(
     return () => win.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-
-    const handleSettingsChanged = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      const nextProvider = customEvent.detail?.settings?.AI_PROVIDER;
-      if (nextProvider) {
-        setAiProvider(String(nextProvider));
-      }
-    };
-
-    document.addEventListener('settings:changed', handleSettingsChanged);
-    return () =>
-      document.removeEventListener('settings:changed', handleSettingsChanged);
-  }, []);
-
-  useEffect(() => {
-    if (aiProvider === 'ollama') return;
-    if (activeCategory !== 'expert-models') return;
-
-    const nextCategory = 'ai-provider';
-    setActiveCategory(nextCategory);
-
-    dispatchSettingsEvent('settings:category-changed', {
-      category: nextCategory,
-    });
-
-    if (typeof window !== 'undefined') {
-      window.location.hash = nextCategory;
-    }
-  }, [aiProvider, activeCategory]);
-
   const handleCategoryClick = (categoryId: string) => {
-    // If user clicked Expert Models, redirect into AI Provider section (focus expert models)
-    const targetCategory = categoryId === 'expert-models' ? 'ai-provider' : categoryId;
+    setActiveCategory(categoryId);
 
-    setActiveCategory(targetCategory);
-
-    // Dispatch category change event - include focus when expert models requested
-    const detail: Record<string, string> = { category: targetCategory };
-    if (categoryId === 'expert-models') detail.focus = 'expert-models';
-
-    dispatchSettingsEvent('settings:category-changed', detail);
+    dispatchSettingsEvent('settings:category-changed', { category: categoryId });
 
     // Update URL hash
     if (typeof window !== 'undefined') {
-      window.location.hash = targetCategory;
+      window.location.hash = categoryId;
     }
   };
 
@@ -180,9 +138,6 @@ export default function SettingsSidebarIsland(
 
   // Filter categories based on developer mode
   const visibleCategories = CATEGORIES.filter((cat) => {
-    // If category is hidden, it shouldn't be in the DOM at all for accessibility
-    // (avoiding display:none on list items which can be flaky with some screen readers)
-    if (cat.id === 'expert-models' && aiProvider !== 'ollama') return false;
     return !cat.requiresDeveloperMode || developerMode;
   });
 

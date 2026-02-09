@@ -3,6 +3,33 @@ const { waitForIsland } = require('../helpers/island-waits');
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL || process.env.PAPERLESS_BASE_URL || 'http://localhost:3000';
 
+// Ensure tests don't trigger external GitHub fetches
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => { window.__DISABLE_GITHUB_FETCH__ = true; });
+});
+
+/**
+ * Helper: navigate to AI Provider > Ollama tab and wait for the embedded Expert Models to appear.
+ * Expert Models are now embedded inside AIProviderIsland's Ollama tab (Section 4: Domain Expert Models).
+ */
+async function navigateToExpertModels(page: import('@playwright/test').Page) {
+  await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
+  await waitForIsland(page, 'ai-provider-island', 10000);
+
+  // Select Ollama as provider on the General tab
+  const providerSelect = page.locator('[data-testid="provider-select"]');
+  if ((await providerSelect.count()) > 0) {
+    await providerSelect.selectOption('ollama');
+  }
+
+  // Switch to the Ollama tab to reveal embedded Expert Models
+  await page.click('[data-testid="tab-ollama"]');
+  await expect(page.locator('[data-testid="tab-content-ollama"]')).toBeVisible();
+
+  // Wait for the embedded ExpertModelsIsland to render
+  await expect(page.locator('[data-testid="expert-models-root"]')).toBeVisible({ timeout: 10000 });
+}
+
 test.describe('ExpertModelsIsland smoke test', () => {
   test('expert models hidden when provider is not Ollama', async ({ page }) => {
     await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
@@ -12,10 +39,6 @@ test.describe('ExpertModelsIsland smoke test', () => {
     const providerSelect = page.locator('[data-testid="provider-select"]');
     if ((await providerSelect.count()) > 0) {
       await providerSelect.selectOption('openai');
-      await page.evaluate(() => {
-        const el = document.getElementById('provider') as HTMLSelectElement | null;
-        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
-      });
     }
 
     // Open the Ollama tab
@@ -32,26 +55,7 @@ test.describe('ExpertModelsIsland smoke test', () => {
       if (msg.type() === 'error') consoleErrors.push(msg.text());
     });
 
-    // Navigate to AI Provider (Expert Models are embedded into the Ollama provider section)
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
-
-    // Wait for AI Provider island to mount
-    await waitForIsland(page, 'ai-provider-island', 10000);
-
-    // Ensure provider is Ollama (make the embedded section visible)
-    const providerSelect = page.locator('[data-testid="provider-select"]');
-    if ((await providerSelect.count()) > 0) {
-      await providerSelect.selectOption('ollama');
-      // Dispatch change to ensure settings page picks it up
-      await page.evaluate(() => {
-        const el = document.getElementById('provider') as HTMLSelectElement | null;
-        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-    }
-
-
-    // Wait for expert models island mount
-    await waitForIsland(page, 'expert-models-island', 10000);
+    await navigateToExpertModels(page);
 
     // Verify root element
     await expect(page.locator('[data-testid="expert-models-root"]')).toBeVisible();
@@ -82,28 +86,17 @@ test.describe('ExpertModelsIsland smoke test', () => {
   });
 
   test('expert models persist across provider toggle', async ({ page }) => {
-    // Navigate to AI Provider and ensure Ollama selected
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
-    await waitForIsland(page, 'ai-provider-island', 10000);
-
-    const providerSelect = page.locator('[data-testid="provider-select"]');
-    if ((await providerSelect.count()) > 0) {
-      await providerSelect.selectOption('ollama');
-      await page.evaluate(() => {
-        const el = document.getElementById('provider') as HTMLSelectElement | null;
-        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-    }
-
-    // Wait for Expert Models island
-    await waitForIsland(page, 'expert-models-island', 10000);
+    await navigateToExpertModels(page);
 
     // Fill fields and save
     await page.fill('[data-testid="medical-vision-input"]', 'persist-med');
+
+    // Switch to financial tab first to fill that field too
+    await page.click('[data-testid="tab-financial"]');
     await page.fill('[data-testid="financial-analysis-input"]', 'persist-fin');
 
     // Intercept save and respond success
-    await page.route('**/settings/apply', async (route) => {
+    await page.route('**/api/settings/save', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
     });
 
@@ -116,30 +109,21 @@ test.describe('ExpertModelsIsland smoke test', () => {
     const parsed = JSON.parse(saved as string);
     expect(parsed.medicalVision).toBe('persist-med');
 
-    // Switch provider away and back
+    // Switch provider away (go back to General tab)
+    await page.click('[data-testid="tab-general"]');
+    const providerSelect = page.locator('[data-testid="provider-select"]');
     await providerSelect.selectOption('openai');
-    await page.evaluate(() => { const el = document.getElementById('provider') as HTMLSelectElement | null; if (el) el.dispatchEvent(new Event('change', { bubbles: true })); });
 
-    // Switch back to Ollama and confirm Expert Models again
+    // Switch back to Ollama and confirm Expert Models still have persisted values
     await providerSelect.selectOption('ollama');
-    await page.evaluate(() => { const el = document.getElementById('provider') as HTMLSelectElement | null; if (el) el.dispatchEvent(new Event('change', { bubbles: true })); });
-
-    await waitForIsland(page, 'expert-models-island', 10000);
+    await page.click('[data-testid="tab-ollama"]');
+    await expect(page.locator('[data-testid="expert-models-root"]')).toBeVisible({ timeout: 5000 });
+    await page.click('[data-testid="tab-medical"]');
     await expect(page.locator('[data-testid="medical-vision-input"]')).toHaveValue('persist-med');
   });
 
   test('tab navigation switches content correctly', async ({ page }) => {
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
-    await waitForIsland(page, 'ai-provider-island', 10000);
-    const providerSelect = page.locator('[data-testid="provider-select"]');
-    if ((await providerSelect.count()) > 0) {
-      await providerSelect.selectOption('ollama');
-      await page.evaluate(() => {
-        const el = document.getElementById('provider') as HTMLSelectElement | null;
-        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-    }
-    await waitForIsland(page, 'expert-models-island', 10000);
+    await navigateToExpertModels(page);
 
     // Default tab should be Medical
     await expect(page.locator('[data-testid="tab-content-medical"]')).toBeVisible();
@@ -167,17 +151,7 @@ test.describe('ExpertModelsIsland smoke test', () => {
   });
 
   test('expert pipeline toggle works', async ({ page }) => {
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
-    await waitForIsland(page, 'ai-provider-island', 10000);
-    const providerSelect = page.locator('[data-testid="provider-select"]');
-    if ((await providerSelect.count()) > 0) {
-      await providerSelect.selectOption('ollama');
-      await page.evaluate(() => {
-        const el = document.getElementById('provider') as HTMLSelectElement | null;
-        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-    }
-    await waitForIsland(page, 'expert-models-island', 10000);
+    await navigateToExpertModels(page);
 
     const toggle = page.locator('[data-testid="expert-pipeline-toggle"]');
 
@@ -208,17 +182,7 @@ test.describe('ExpertModelsIsland smoke test', () => {
   });
 
   test('medical tab: all fields work', async ({ page }) => {
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
-    await waitForIsland(page, 'ai-provider-island', 10000);
-    const providerSelect = page.locator('[data-testid="provider-select"]');
-    if ((await providerSelect.count()) > 0) {
-      await providerSelect.selectOption('ollama');
-      await page.evaluate(() => {
-        const el = document.getElementById('provider') as HTMLSelectElement | null;
-        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-    }
-    await waitForIsland(page, 'expert-models-island', 10000);
+    await navigateToExpertModels(page);
 
     // Medical tab should be active by default
     await expect(page.locator('[data-testid="tab-content-medical"]')).toBeVisible();
@@ -245,17 +209,7 @@ test.describe('ExpertModelsIsland smoke test', () => {
   });
 
   test('financial tab: all fields work', async ({ page }) => {
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
-    await waitForIsland(page, 'ai-provider-island', 10000);
-    const providerSelect = page.locator('[data-testid="provider-select"]');
-    if ((await providerSelect.count()) > 0) {
-      await providerSelect.selectOption('ollama');
-      await page.evaluate(() => {
-        const el = document.getElementById('provider') as HTMLSelectElement | null;
-        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-    }
-    await waitForIsland(page, 'expert-models-island', 10000);
+    await navigateToExpertModels(page);
 
     // Click Financial tab
     await page.click('[data-testid="tab-financial"]');
@@ -284,17 +238,7 @@ test.describe('ExpertModelsIsland smoke test', () => {
   });
 
   test('legal tab: all fields work including optional orchestrator', async ({ page }) => {
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
-    await waitForIsland(page, 'ai-provider-island', 10000);
-    const providerSelect = page.locator('[data-testid="provider-select"]');
-    if ((await providerSelect.count()) > 0) {
-      await providerSelect.selectOption('ollama');
-      await page.evaluate(() => {
-        const el = document.getElementById('provider') as HTMLSelectElement | null;
-        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-    }
-    await waitForIsland(page, 'expert-models-island', 10000);
+    await navigateToExpertModels(page);
 
     // Click Legal tab
     await page.click('[data-testid="tab-legal"]');
@@ -321,17 +265,7 @@ test.describe('ExpertModelsIsland smoke test', () => {
   });
 
   test('save button shows loading state and dispatches events', async ({ page }) => {
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
-    await waitForIsland(page, 'ai-provider-island', 10000);
-    const providerSelect = page.locator('[data-testid="provider-select"]');
-    if ((await providerSelect.count()) > 0) {
-      await providerSelect.selectOption('ollama');
-      await page.evaluate(() => {
-        const el = document.getElementById('provider') as HTMLSelectElement | null;
-        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-    }
-    await waitForIsland(page, 'expert-models-island', 10000);
+    await navigateToExpertModels(page);
 
     // Listen for settings events
     const events: string[] = [];
@@ -352,7 +286,7 @@ test.describe('ExpertModelsIsland smoke test', () => {
     });
 
     // Intercept save API call
-    await page.route('**/settings/apply', async (route) => {
+    await page.route('**/api/settings/save', async (route) => {
       await new Promise(resolve => setTimeout(resolve, 300));
       await route.fulfill({
         status: 200,
@@ -400,17 +334,7 @@ test.describe('ExpertModelsIsland smoke test', () => {
   });
 
   test('save button disabled when form not dirty', async ({ page }) => {
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
-    await waitForIsland(page, 'ai-provider-island', 10000);
-    const providerSelect = page.locator('[data-testid="provider-select"]');
-    if ((await providerSelect.count()) > 0) {
-      await providerSelect.selectOption('ollama');
-      await page.evaluate(() => {
-        const el = document.getElementById('provider') as HTMLSelectElement | null;
-        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-    }
-    await waitForIsland(page, 'expert-models-island', 10000);
+    await navigateToExpertModels(page);
 
     // Initially, save button should be disabled (not dirty)
     await expect(page.locator('[data-testid="expert-models-root"] [data-testid="expert-models-save-button"]')).toBeDisabled();
@@ -424,17 +348,7 @@ test.describe('ExpertModelsIsland smoke test', () => {
   });
 
   test('all three tabs maintain independent state', async ({ page }) => {
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
-    await waitForIsland(page, 'ai-provider-island', 10000);
-    const providerSelect = page.locator('[data-testid="provider-select"]');
-    if ((await providerSelect.count()) > 0) {
-      await providerSelect.selectOption('ollama');
-      await page.evaluate(() => {
-        const el = document.getElementById('provider') as HTMLSelectElement | null;
-        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-    }
-    await waitForIsland(page, 'expert-models-island', 10000);
+    await navigateToExpertModels(page);
 
     // Fill medical fields
     await page.fill('[data-testid="medical-vision-input"]', 'medical-test');
@@ -461,17 +375,7 @@ test.describe('ExpertModelsIsland smoke test', () => {
   });
 
   test('restart warning message is displayed', async ({ page }) => {
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
-    await waitForIsland(page, 'ai-provider-island', 10000);
-    const providerSelect = page.locator('[data-testid="provider-select"]');
-    if ((await providerSelect.count()) > 0) {
-      await providerSelect.selectOption('ollama');
-      await page.evaluate(() => {
-        const el = document.getElementById('provider') as HTMLSelectElement | null;
-        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-    }
-    await waitForIsland(page, 'expert-models-island', 10000);
+    await navigateToExpertModels(page);
 
     // Verify restart warning is visible
     await expect(page.locator('text=Changing expert models requires a restart')).toBeVisible();

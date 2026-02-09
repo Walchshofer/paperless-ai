@@ -119,8 +119,7 @@
                         data-island="settings-sidebar-island"
                         data-testid="settings-sidebar-island"
                         data-props='<%- JSON.stringify({
-                            activeCategory: "overview",
-                            aiProvider: vm.settings.AI_PROVIDER || "ollama"
+                            activeCategory: "overview"
                         }) %>'
                     ></div>
 
@@ -150,7 +149,24 @@
                                 data-testid="connection-settings-island"
                                 data-props='<%- JSON.stringify({
                                     paperlessApiUrl: vm.settings.PAPERLESS_API_URL || "",
-                                    paperlessUsername: vm.settings.PAPERLESS_USERNAME || ""
+                                    paperlessApiToken: vm.settings.PAPERLESS_API_TOKEN ? "***hidden***" : "",
+                                    paperlessUsername: vm.settings.PAPERLESS_USERNAME || "",
+                                    ollamaApiUrl: vm.settings.OLLAMA_API_URL || "",
+                                    openaiApiKey: vm.settings.PAPERLESS_OPENAI_API_KEY ? "***hidden***" : "",
+                                    azureEndpoint: vm.settings.AZURE_ENDPOINT || "",
+                                    azureApiKey: vm.settings.AZURE_API_KEY ? "***hidden***" : "",
+                                    customApiUrl: vm.settings.CUSTOM_BASE_URL || "",
+                                    customApiKey: vm.settings.CUSTOM_API_KEY ? "***hidden***" : "",
+                                    qdrantHost: vm.settings.QDRANT_HOST || "qdrant",
+                                    qdrantPort: vm.settings.QDRANT_PORT || "6333",
+                                    qdrantApiKey: vm.settings.QDRANT_API_KEY ? "***hidden***" : "",
+                                    externalApiEnabled: vm.settings.EXTERNAL_API_ENABLED === "yes",
+                                    externalApiUrl: vm.settings.EXTERNAL_API_URL || "",
+                                    externalApiMethod: vm.settings.EXTERNAL_API_METHOD || "GET",
+                                    externalApiHeaders: vm.settings.EXTERNAL_API_HEADERS || "{}",
+                                    externalApiBody: vm.settings.EXTERNAL_API_BODY || "{}",
+                                    externalApiTimeout: parseInt(vm.settings.EXTERNAL_API_TIMEOUT || "5000", 10),
+                                    externalApiTransform: vm.settings.EXTERNAL_API_TRANSFORM || ""
                                 }) %>'
                             ></div>
                         </div>
@@ -164,11 +180,7 @@
                             <div
                                 data-island="ai-provider-island"
                                 data-testid="ai-provider-island"
-                                data-props='<%- JSON.stringify({
-                                    provider: vm.settings.AI_PROVIDER || "ollama",
-                                    ollamaUrl: vm.settings.OLLAMA_API_URL || "",
-                                    ollamaModel: vm.settings.OLLAMA_MODEL || ""
-                                }) %>'
+                                data-props='<%- JSON.stringify(vm.aiProvider || {}) %>'
                             ></div>
 
                         </div>
@@ -231,7 +243,6 @@
             if (!sections.length) return;
 
             const storageKey = 'settings:lastCategory';
-            let provider = '<%= vm.settings.AI_PROVIDER || "ollama" %>';
             let activeCategory = (function getInitialCategory() {
                 const hash = window.location.hash.slice(1);
                 if (hash) return hash;
@@ -242,19 +253,12 @@
                 }
             })();
 
-            function expertAvailable() {
-                return provider === 'ollama';
-            }
-
             function normalizeCategory(category) {
                 if (!category) return 'overview';
                 const exists = sections.some(function (section) {
                     return section.getAttribute('data-settings-category') === category;
                 });
                 if (!exists) return 'overview';
-                if (category === 'expert-models' && !expertAvailable()) {
-                    return 'ai-provider';
-                }
                 return category;
             }
 
@@ -262,10 +266,8 @@
                 activeCategory = normalizeCategory(activeCategory);
 
                 sections.forEach(function (section) {
-                    const category = section.getAttribute('data-settings-category');
-                    const isActive = category === activeCategory;
-                    const expertBlocked = category === 'expert-models' && !expertAvailable();
-                    section.classList.toggle('hidden', expertBlocked || !isActive);
+                    var category = section.getAttribute('data-settings-category');
+                    section.classList.toggle('hidden', category !== activeCategory);
                 });
 
                 try {
@@ -285,30 +287,15 @@
             syncCategoryEvent();
 
             document.addEventListener('settings:category-changed', function (e) {
-                const nextCategory = e?.detail?.category;
+                var nextCategory = e && e.detail ? e.detail.category : null;
                 if (nextCategory) {
                     activeCategory = nextCategory;
                     applyCategory();
                 }
             });
 
-            document.addEventListener('settings:changed', function (e) {
-                const nextProvider = e?.detail?.settings?.AI_PROVIDER;
-                if (!nextProvider) return;
-
-                provider = String(nextProvider);
-                const normalized = normalizeCategory(activeCategory);
-                const categoryChanged = normalized !== activeCategory;
-                activeCategory = normalized;
-                applyCategory();
-                if (categoryChanged) {
-                    syncCategoryEvent();
-                }
-            });
-
-
             window.addEventListener('hashchange', function () {
-                const hash = window.location.hash.slice(1);
+                var hash = window.location.hash.slice(1);
                 if (hash) {
                     activeCategory = hash;
                     applyCategory();

@@ -92,14 +92,10 @@ export default function ExpertModelsIsland(props: Partial<ExpertModelsSettings>)
         settings.LEGAL_ORCHESTRATOR_MODEL = legalOrchestrator;
       }
 
-      const response = await fetch('/settings/apply', {
+      const response = await fetch('/api/settings/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category: 'expert-models',
-          settings,
-          requiresRestart: true // Expert model changes require restart
-        })
+        body: JSON.stringify(settings)
       });
 
       const result = await response.json();
@@ -107,6 +103,16 @@ export default function ExpertModelsIsland(props: Partial<ExpertModelsSettings>)
       if (response.ok && result.success) {
         setSaveMessage('Expert models settings saved successfully');
         setIsDirty(false);
+
+        // Persist to localStorage for state recovery across re-mounts
+        try {
+          window.localStorage.setItem('expert-models-settings', JSON.stringify({
+            medicalVision, medicalAnalysis, medicalRadiology,
+            financialAnalysis, financialReasoning, financialVision, financialVatExpert,
+            legalVision, legalAnalysis, legalOrchestrator,
+            expertPipelineEnabled,
+          }));
+        } catch (_e) { /* ignore */ }
 
         // Dispatch events
         if (typeof document !== 'undefined') {

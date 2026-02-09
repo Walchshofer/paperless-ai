@@ -523,6 +523,8 @@ Example output format:
         'legal_visual_query_generator_de',
         # Phase 6: Normalization geometry
         'normalization_geometry',
+        # System tools
+        'prompt_validator',
     }
 
     def get_template_func(template_name: str):
@@ -609,6 +611,9 @@ Example output format:
                 get_analyze_document_geometry
             )
             return get_analyze_document_geometry()
+        elif template_name == 'prompt_validator':
+            from templates.system_tools import SystemToolsTemplates
+            return SystemToolsTemplates.get_prompt_validator()
         else:
             raise ValueError(f"Unknown template: {template_name}")
 

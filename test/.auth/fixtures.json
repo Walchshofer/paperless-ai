@@ -1,10 +1,13 @@
 {
   "docId": 74,
   "historyDocId": 74,
-  "title": "E2E Feedback 1770164540884",
+  "title": "Ihr nächster Termin",
   "correspondentId": 55,
-  "tagIds": [],
-  "created": "2025-12-20",
+  "tagIds": [
+    146,
+    173
+  ],
+  "created": "2026-02-07",
   "source": "doc:74",
   "paperlessApiUrl": "http://localhost:8000/api"
 }

@@ -19,7 +19,7 @@ test.describe('Settings Phase 2 Integration Tests', () => {
     await expect(page.locator('[data-testid="restart-banner-root"]')).not.toBeVisible();
 
     // Intercept save API call
-    await page.route('**/settings/apply', async (route) => {
+    await page.route('**/api/settings/save', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -59,7 +59,7 @@ test.describe('Settings Phase 2 Integration Tests', () => {
     await waitForIsland(page, 'restart-banner-island', 10000);
 
     // Intercept save API call
-    await page.route('**/settings/apply', async (route) => {
+    await page.route('**/api/settings/save', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -97,7 +97,7 @@ test.describe('Settings Phase 2 Integration Tests', () => {
     await waitForIsland(page, 'restart-banner-island', 10000);
 
     // Intercept save API call
-    await page.route('**/settings/apply', async (route) => {
+    await page.route('**/api/settings/save', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -133,7 +133,7 @@ test.describe('Settings Phase 2 Integration Tests', () => {
     await waitForIsland(page, 'restart-banner-island', 10000);
 
     // Intercept save API calls
-    await page.route('**/settings/apply', async (route) => {
+    await page.route('**/api/settings/save', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -336,7 +336,7 @@ test.describe('Settings Phase 2 Integration Tests', () => {
     });
 
     // Intercept save API call
-    await page.route('**/settings/apply', async (route) => {
+    await page.route('**/api/settings/save', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

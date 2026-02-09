@@ -162,8 +162,8 @@ router.get('/api/runtime/state', authenticateApi, requireAdmin, async (req, res)
       },
       qdrant: {
         connected: false,
-        collections: 0,
-        documents: 0
+        documents: 0,
+        details: []
       },
       sidecars: {
         visualRag: false,
@@ -178,14 +178,31 @@ router.get('/api/runtime/state', authenticateApi, requireAdmin, async (req, res)
       }
     };
 
-    // Check Qdrant status
+    // Check Qdrant status (per-collection details)
+    const COLLECTION_LABELS = {
+      document_embeddings: 'Text RAG',
+      visual_pages: 'Visual RAG',
+      visual_overlays: 'Document Overlays'
+    };
     try {
-      if (qdrantAdapter && typeof qdrantAdapter.getCollectionInfo === 'function') {
-        const collections = await qdrantAdapter.getCollectionInfo();
-        if (collections) {
-          runtimeState.qdrant.connected = true;
-          runtimeState.qdrant.collections = Array.isArray(collections) ? collections.length : 0;
-          runtimeState.qdrant.documents = collections.reduce((sum, col) => sum + (col.points_count || 0), 0);
+      if (qdrantAdapter && typeof qdrantAdapter.getCollections === 'function') {
+        const result = await qdrantAdapter.getCollections();
+        const collectionList = (result && result.collections) ? result.collections : [];
+        runtimeState.qdrant.connected = true;
+        for (const col of collectionList) {
+          try {
+            const info = await qdrantAdapter.getCollection(col.name);
+            runtimeState.qdrant.details.push({
+              name: col.name,
+              label: COLLECTION_LABELS[col.name] || col.name,
+              vectors: info.points_count || 0,
+              status: info.status || 'unknown'
+            });
+            // document_embeddings is 1:1 with documents
+            if (col.name === 'document_embeddings') {
+              runtimeState.qdrant.documents = info.points_count || 0;
+            }
+          } catch (_) { /* skip individual collection errors */ }
         }
       }
     } catch (qdrantError) {

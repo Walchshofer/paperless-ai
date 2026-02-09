@@ -191,7 +191,7 @@ test.describe('ConnectionSettingsIsland smoke test', () => {
     });
 
     // Intercept save API call
-    await page.route('**/settings/apply', async (route) => {
+    await page.route('**/api/settings/save', async (route) => {
       await new Promise(resolve => setTimeout(resolve, 300));
       await route.fulfill({
         status: 200,

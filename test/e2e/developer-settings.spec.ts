@@ -17,20 +17,16 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe('DeveloperSettingsIsland E2E Tests', () => {
+  /** Click a ToggleSwitch button (role="switch") and wait for the state change */
   const clickToggle = async (page: Page, id: string) => {
-    const input = page.locator(`[data-testid="${id}"]`);
-    const visible = input.locator('xpath=following-sibling::*[1]');
-    try {
-      await visible.click({ timeout: 3000 });
-    } catch (_e) {
-      await page.evaluate((tid: string) => {
-        const el = document.querySelector(`[data-testid="${tid}"]`) as HTMLInputElement | null;
-        if (el) {
-          el.checked = !el.checked;
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      }, id);
-    }
+    const btn = page.locator(`[data-testid="${id}"]`);
+    await btn.click();
+  };
+
+  /** Check if a ToggleSwitch button is in the "checked" state via aria-checked */
+  const isToggleChecked = async (page: Page, id: string): Promise<boolean> => {
+    const val = await page.locator(`[data-testid="${id}"]`).getAttribute('aria-checked');
+    return val === 'true';
   };
 
   test('island mounts correctly', async ({ page }) => {
@@ -45,8 +41,8 @@ test.describe('DeveloperSettingsIsland E2E Tests', () => {
     // Verify warning banner is visible
     const warning = page.locator('[data-testid="developer-warning"]');
     await expect(warning).toBeVisible();
-    // Text changed; assert it contains a generic warning marker rather than exact copy
-    await expect(warning).toContainText('Warning');
+    // Assert warning text content
+    await expect(warning).toContainText('affect system behavior');
 
     await page.screenshot({
       path: 'test-results/playwright-developer/screenshot-mount.png',
@@ -71,7 +67,7 @@ test.describe('DeveloperSettingsIsland E2E Tests', () => {
     await expect(flagsContent).toBeVisible();
 
     // Verify auto-save indicator
-    await expect(page.locator('[data-testid="feature-flags-indicator"]')).toContainText('Auto-saves on change');
+    await expect(page.locator('[data-testid="feature-flags-indicator"]')).toContainText('Auto-saves');
 
     // Click to collapse
     await page.click('[data-testid="feature-flags-header"]');
@@ -95,7 +91,7 @@ test.describe('DeveloperSettingsIsland E2E Tests', () => {
     await expect(flagsContent).toBeVisible();
 
     let saveCallCount = 0;
-    await page.route('**/settings/apply', async (route) => {
+    await page.route('**/api/settings/save', async (route) => {
       const requestBody = route.request().postDataJSON();
 
       if (requestBody.category === 'developer-feature-flags') {
@@ -112,7 +108,7 @@ test.describe('DeveloperSettingsIsland E2E Tests', () => {
       }
     });
 
-    // Toggle expertPipelineEnabled using visible control (sibling div) or JS fallback
+    // Toggle expertPipelineEnabled (button role="switch")
     await clickToggle(page, 'toggle-expertPipelineEnabled');
 
     // Wait for debounce (500ms) + network
@@ -152,12 +148,12 @@ test.describe('DeveloperSettingsIsland E2E Tests', () => {
       const toggle = page.locator(`[data-testid="toggle-${flag}"]`);
       await expect(toggle).toBeVisible();
 
-      // Verify toggle is clickable
-      const isChecked = await toggle.isChecked();
+      // Verify toggle is clickable (ToggleSwitch is a button with aria-checked)
+      const wasChecked = await isToggleChecked(page, `toggle-${flag}`);
       await clickToggle(page, `toggle-${flag}`);
       await page.waitForTimeout(100);
-      const isNowChecked = await toggle.isChecked();
-      expect(isNowChecked).toBe(!isChecked);
+      const nowChecked = await isToggleChecked(page, `toggle-${flag}`);
+      expect(nowChecked).toBe(!wasChecked);
     }
 
     await page.screenshot({
@@ -182,7 +178,7 @@ test.describe('DeveloperSettingsIsland E2E Tests', () => {
     await expect(envContent).toBeVisible();
 
     // Verify manual save indicator
-    await expect(page.locator('[data-testid="env-vars-indicator"]')).toContainText('Manual save required');
+    await expect(page.locator('[data-testid="env-vars-indicator"]')).toContainText('Manual save');
 
     // Click to collapse
     await page.click('[data-testid="env-vars-header"]');
@@ -257,7 +253,7 @@ test.describe('DeveloperSettingsIsland E2E Tests', () => {
       });
     });
 
-    await page.route('**/settings/apply', async (route) => {
+    await page.route('**/api/settings/save', async (route) => {
       const requestBody = route.request().postDataJSON();
 
       if (requestBody.category === 'developer-env-vars') {
@@ -315,7 +311,7 @@ test.describe('DeveloperSettingsIsland E2E Tests', () => {
     await page.goto(`${BASE}/settings#developer`, { waitUntil: 'networkidle' });
     await waitForIsland(page, 'developer-settings-island', 10000);
 
-    await page.route('**/settings/apply', async (route) => {
+    await page.route('**/api/settings/save', async (route) => {
       await new Promise(resolve => setTimeout(resolve, 500));
       await route.fulfill({
         status: 200,
@@ -432,8 +428,8 @@ test.describe('DeveloperSettingsIsland E2E Tests', () => {
     const bgColor = await warning.evaluate((el) => window.getComputedStyle(el).backgroundColor);
     expect(bgColor).toBeTruthy();
 
-    // Check warning icon or text
-    await expect(warning).toContainText('Warning');
+    // Check warning text content
+    await expect(warning).toContainText('affect system behavior');
 
     await page.screenshot({
       path: 'test-results/playwright-developer/screenshot-warning-banner.png',

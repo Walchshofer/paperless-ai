@@ -41,6 +41,23 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
 
+  // Validation feedback state
+  const [validationResult, setValidationResult] = useState<{
+    errors?: string[];
+    warnings?: string[];
+    suggestions?: string[];
+    quality_score?: number;
+    syntax_valid?: boolean;
+    detected_variables?: string[];
+    unrecognized_variables?: string[];
+  } | null>(null);
+
+  // Test modal state
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [testVariables, setTestVariables] = useState<Record<string, string>>({});
+  const [testResult, setTestResult] = useState<any>(null);
+  const [isTesting, setIsTesting] = useState(false);
+
   // Fetch prompts on mount
   useEffect(() => {
     fetchPrompts();
@@ -108,12 +125,15 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
     setEditConfig({ ...prompt.config });
     setIsEditorDirty(false);
     setSaveMessage(null);
+    setValidationResult(null);
+    setShowTestModal(false);
   };
 
   const handleSave = async () => {
     if (!activePromptId) return;
     setIsSaving(true);
     setSaveMessage(null);
+    setValidationResult(null);
     try {
       const response = await fetch(`/api/prompts/${activePromptId}`, {
         method: 'PUT',
@@ -132,11 +152,20 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
         );
         setIsEditorDirty(false);
         setSaveMessage('Saved successfully');
+        // Show warnings from validation (non-blocking)
+        if (data.validation) {
+          setValidationResult(data.validation);
+        }
         // Notify other islands
         if (typeof document !== 'undefined' && typeof CustomEvent === 'function') {
           document.dispatchEvent(new CustomEvent('settings:saved', { detail: { category: 'prompts', promptId: activePromptId } }));
           document.dispatchEvent(new CustomEvent('settings:restart-required', { detail: { reason: 'Prompt template modified' } }));
         }
+      } else if (response.status === 422) {
+        // Validation errors - save was blocked
+        const errData = await response.json();
+        setValidationResult(errData.validation || null);
+        setSaveMessage('Save blocked: validation errors found');
       } else {
         const errData = await response.json();
         setSaveMessage(`Save failed: ${errData.error || 'Unknown error'}`);
@@ -186,7 +215,45 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
     }
   };
 
-  const markEditorDirty = () => setIsEditorDirty(true);
+  const markEditorDirty = () => {
+    setIsEditorDirty(true);
+    setValidationResult(null);
+  };
+
+  const handleTest = async () => {
+    if (!activePromptId) return;
+    setIsTesting(true);
+    setTestResult(null);
+    try {
+      const response = await fetch(`/api/prompts/${activePromptId}/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          variables: testVariables,
+          systemPrompt: editSystemPrompt,
+          userTemplate: editUserTemplate,
+        }),
+      });
+      const data = await response.json();
+      setTestResult(data);
+    } catch (err) {
+      setTestResult({ success: false, error: err instanceof Error ? err.message : 'Test failed' });
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const openTestModal = () => {
+    // Pre-populate test variables with placeholder values
+    const vars = extractVars(editSystemPrompt + ' ' + editUserTemplate);
+    const initial: Record<string, string> = {};
+    for (const v of vars) {
+      initial[v] = testVariables[v] || `sample_${v}`;
+    }
+    setTestVariables(initial);
+    setTestResult(null);
+    setShowTestModal(true);
+  };
 
   // Group prompts by domain
   const groupedPrompts: Record<string, PromptEntry[]> = {};
@@ -408,6 +475,69 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                           </div>
                         </div>
 
+                        {/* Validation Feedback */}
+                        {validationResult && (
+                          <div className="mb-4 space-y-2" data-testid="prompt-validation-feedback">
+                            {/* Errors */}
+                            {validationResult.errors && validationResult.errors.length > 0 && (
+                              <div
+                                className="p-3 rounded-lg text-sm"
+                                style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444' }}
+                                data-testid="prompt-validation-errors"
+                              >
+                                <div className="font-medium mb-1">Validation Errors</div>
+                                <ul className="list-disc list-inside space-y-0.5">
+                                  {validationResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                                </ul>
+                              </div>
+                            )}
+                            {/* Warnings */}
+                            {validationResult.warnings && validationResult.warnings.length > 0 && (
+                              <div
+                                className="p-3 rounded-lg text-sm"
+                                style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.2)', color: '#f59e0b' }}
+                                data-testid="prompt-validation-warnings"
+                              >
+                                <div className="font-medium mb-1">Warnings</div>
+                                <ul className="list-disc list-inside space-y-0.5">
+                                  {validationResult.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                                </ul>
+                              </div>
+                            )}
+                            {/* Suggestions */}
+                            {validationResult.suggestions && validationResult.suggestions.length > 0 && (
+                              <div
+                                className="p-3 rounded-lg text-sm"
+                                style={{ background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)', color: '#3b82f6' }}
+                                data-testid="prompt-validation-suggestions"
+                              >
+                                <div className="font-medium mb-1">Suggestions</div>
+                                <ul className="list-disc list-inside space-y-0.5">
+                                  {validationResult.suggestions.map((s, i) => <li key={i}>{s}</li>)}
+                                </ul>
+                              </div>
+                            )}
+                            {/* Quality Score */}
+                            {validationResult.quality_score !== undefined && (
+                              <div className="flex items-center gap-2" data-testid="prompt-quality-score">
+                                <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Quality:</span>
+                                <div className="flex-1 h-2 rounded-full" style={{ background: 'rgba(255,255,255,0.1)', maxWidth: '120px' }}>
+                                  <div
+                                    className="h-2 rounded-full transition-all"
+                                    style={{
+                                      width: `${Math.round(validationResult.quality_score * 100)}%`,
+                                      background: validationResult.quality_score >= 0.7 ? '#22c55e' : validationResult.quality_score >= 0.5 ? '#f59e0b' : '#ef4444',
+                                    }}
+                                  />
+                                </div>
+                                <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+                                  {Math.round(validationResult.quality_score * 100)}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {/* Actions Bar */}
                         <div className="prompt-actions-bar">
                           <button
@@ -431,6 +561,14 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                             data-testid={`prompt-reset-${prompt.id.toLowerCase().replace(/_/g, '-')}`}
                           >
                             {isResetting ? 'Resetting...' : 'Reset to Default'}
+                          </button>
+
+                          <button
+                            onClick={openTestModal}
+                            className="prompt-reset-btn"
+                            data-testid={`prompt-test-${prompt.id.toLowerCase().replace(/_/g, '-')}`}
+                          >
+                            Test
                           </button>
 
                           {saveMessage && (
@@ -457,6 +595,142 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Test Modal */}
+      {showTestModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ background: 'rgba(0,0,0,0.5)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowTestModal(false); }}
+          data-testid="prompt-test-modal"
+        >
+          <div
+            className="rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto p-6 space-y-4"
+            style={{ background: 'var(--bg-primary, #1a1a2e)', border: '1px solid rgba(255,255,255,0.1)' }}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+                Test Prompt: {activePromptId}
+              </h3>
+              <button
+                onClick={() => setShowTestModal(false)}
+                className="text-sm px-2 py-1 rounded"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Close
+              </button>
+            </div>
+
+            {/* Variable Inputs */}
+            {Object.keys(testVariables).length > 0 && (
+              <div>
+                <div className="flag-group-label" style={{ marginBottom: '0.5rem' }}>Template Variables</div>
+                <div className="space-y-2">
+                  {Object.entries(testVariables).map(([key, val]) => (
+                    <div key={key} className="flex items-center gap-2">
+                      <span className="template-var-pill text-xs" style={{ minWidth: '120px' }}>{`{{${key}}}`}</span>
+                      <input
+                        type="text"
+                        value={val}
+                        className="mono-textarea"
+                        style={{ height: 'auto', padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
+                        onInput={(e: Event) => {
+                          const v = (e.target as HTMLInputElement).value;
+                          setTestVariables(prev => ({ ...prev, [key]: v }));
+                        }}
+                        data-testid={`test-var-${key}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Run Test */}
+            <button
+              onClick={handleTest}
+              disabled={isTesting}
+              className="save-bar-btn"
+              data-testid="prompt-test-run"
+            >
+              {isTesting ? (
+                <>
+                  <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Running...
+                </>
+              ) : 'Run Test'}
+            </button>
+
+            {/* Test Results */}
+            {testResult && (
+              <div className="space-y-3" data-testid="prompt-test-results">
+                {/* Status badges */}
+                <div className="flex flex-wrap gap-2">
+                  <span className="prompt-badge" style={{ background: testResult.success ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: testResult.success ? '#22c55e' : '#ef4444' }}>
+                    {testResult.success ? 'Success' : 'Failed'}
+                  </span>
+                  {testResult.source && <span className="prompt-badge">{testResult.source}</span>}
+                  {testResult.duration !== undefined && <span className="prompt-badge">{testResult.duration}ms</span>}
+                  {testResult.tokenEstimate && <span className="prompt-badge">~{testResult.tokenEstimate} tokens</span>}
+                  {testResult.jsonValid !== null && (
+                    <span className="prompt-badge" style={{ background: testResult.jsonValid ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: testResult.jsonValid ? '#22c55e' : '#ef4444' }}>
+                      JSON {testResult.jsonValid ? 'Valid' : 'Invalid'}
+                    </span>
+                  )}
+                </div>
+
+                {/* Missing variables */}
+                {testResult.missingVariables && testResult.missingVariables.length > 0 && (
+                  <div
+                    className="p-2 rounded-lg text-xs"
+                    style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.2)', color: '#f59e0b' }}
+                  >
+                    Missing variables: {testResult.missingVariables.join(', ')}
+                  </div>
+                )}
+
+                {/* Rendered template preview */}
+                {testResult.renderedTemplate && (
+                  <div>
+                    <div className="flag-group-label" style={{ marginBottom: '0.25rem' }}>Rendered Template</div>
+                    <pre
+                      className="mono-textarea"
+                      style={{ height: 'auto', maxHeight: '200px', overflow: 'auto', fontSize: '0.75rem', whiteSpace: 'pre-wrap' }}
+                    >
+                      {testResult.renderedTemplate}
+                    </pre>
+                  </div>
+                )}
+
+                {/* Test output */}
+                {testResult.testResult && (
+                  <div>
+                    <div className="flag-group-label" style={{ marginBottom: '0.25rem' }}>Validation Output</div>
+                    <pre
+                      className="mono-textarea"
+                      style={{ height: 'auto', maxHeight: '200px', overflow: 'auto', fontSize: '0.75rem', whiteSpace: 'pre-wrap' }}
+                    >
+                      {typeof testResult.testResult === 'string'
+                        ? testResult.testResult
+                        : JSON.stringify(testResult.testResult, null, 2)}
+                    </pre>
+                  </div>
+                )}
+
+                {/* Error */}
+                {testResult.error && (
+                  <div
+                    className="p-2 rounded-lg text-sm"
+                    style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444' }}
+                  >
+                    {testResult.error}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

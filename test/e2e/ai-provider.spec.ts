@@ -156,9 +156,13 @@ test.describe('AIProviderIsland smoke test', () => {
     await expect(page.locator('[data-testid="ollama-text-model-input"]')).toBeVisible();
     await expect(page.locator('[data-testid="ollama-vision-model-input"]')).toBeVisible();
 
-    // Verify token limit fields (auto-save)
-    await expect(page.locator('[data-testid="ollama-text-context-input"]')).toBeVisible();
-    await expect(page.locator('[data-testid="ollama-text-max-tokens-input"]')).toBeVisible();
+    // Verify token limits section exists (collapsed by default)
+    await expect(page.locator('[data-testid="token-limits-section"]')).toBeVisible();
+
+    // Expand token limits section to see fields
+    await page.click('[data-testid="token-limits-section-header"]');
+    await expect(page.locator('[data-testid="tier-text-context-window"]')).toBeVisible();
+    await expect(page.locator('[data-testid="tier-text-max-response"]')).toBeVisible();
 
     // Fill in API URL
     await page.fill('[data-testid="ollama-api-url-input"]', 'http://localhost:11434');
@@ -178,17 +182,14 @@ test.describe('AIProviderIsland smoke test', () => {
     });
   });
 
-  test('ollama tab: token limits trigger auto-save', async ({ page }) => {
+  test('ollama tab: token limits manual save works', async ({ page }) => {
     await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
     await waitForIsland(page, 'ai-provider-island', 10000);
 
-    // Intercept auto-save API call
-    let autoSaveCalled = false;
-    await page.route('**/settings/apply', async (route) => {
-      const postData = route.request().postDataJSON();
-      if (postData && postData.requiresRestart === false) {
-        autoSaveCalled = true;
-      }
+    // Intercept save API call
+    let saveCalled = false;
+    await page.route('**/api/settings/save', async (route) => {
+      saveCalled = true;
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -199,14 +200,27 @@ test.describe('AIProviderIsland smoke test', () => {
     // Click Ollama tab
     await page.click('[data-testid="tab-ollama"]');
 
-    // Change token limit (should trigger auto-save after debounce)
-    await page.fill('[data-testid="ollama-text-context-input"]', '100000');
+    // Expand token limits section
+    await page.click('[data-testid="token-limits-section-header"]');
 
-    // Wait for debounce + auto-save
-    await page.waitForTimeout(1500);
+    // Verify save button starts disabled (no changes yet)
+    const saveBtn = page.locator('[data-testid="save-token-limits-button"]');
+    await expect(saveBtn).toBeVisible();
+    await expect(saveBtn).toBeDisabled();
 
-    // Verify auto-save was called
-    expect(autoSaveCalled).toBe(true);
+    // Change a token limit value (data-testid is directly on the input)
+    const contextInput = page.locator('[data-testid="tier-text-context-window"]');
+    await contextInput.fill('100000');
+
+    // Save button should now be enabled
+    await expect(saveBtn).toBeEnabled();
+
+    // Click save
+    await saveBtn.click();
+    await page.waitForTimeout(500);
+
+    // Verify save was called
+    expect(saveCalled).toBe(true);
   });
 
   test('custom tab: all fields work', async ({ page }) => {
@@ -290,7 +304,7 @@ test.describe('AIProviderIsland smoke test', () => {
     });
 
     // Intercept save API call
-    await page.route('**/settings/apply', async (route) => {
+    await page.route('**/api/settings/save', async (route) => {
       await new Promise(resolve => setTimeout(resolve, 300));
       await route.fulfill({
         status: 200,

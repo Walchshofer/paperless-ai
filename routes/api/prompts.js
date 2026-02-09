@@ -15,6 +15,52 @@ const fs = require('fs').promises;
 const path = require('path');
 const { authenticateApi, requireAdmin } = require('../../middleware/auth');
 
+let guidanceClient = null;
+
+/** Get or create GuidanceClient singleton (lazy init) */
+function getGuidanceClient() {
+  if (!guidanceClient) {
+    try {
+      const { GuidanceClient } = require('../../services/guidance/GuidanceClient');
+      guidanceClient = new GuidanceClient();
+    } catch (err) {
+      logger.warn('[Prompts API] GuidanceClient not available:', err.message);
+    }
+  }
+  return guidanceClient;
+}
+
+/**
+ * Validate a prompt template via guidance service.
+ * Returns { errors, warnings, ... } or null if guidance unavailable.
+ */
+async function validatePromptTemplate(systemPrompt, userTemplate, promptEntry) {
+  const client = getGuidanceClient();
+  if (!client) return null;
+
+  try {
+    const available = await client.isAvailable();
+    if (!available) return null;
+
+    const knownVars = promptEntry.templateVariables || extractTemplateVars(
+      (systemPrompt || '') + ' ' + (userTemplate || '')
+    );
+
+    const result = await client.generate('prompt_validator', {
+      system_prompt: systemPrompt || '',
+      user_template: userTemplate || '',
+      known_variables: knownVars,
+      prompt_id: promptEntry.id,
+      domain: promptEntry.domain,
+    }, { temperature: 0.1 });
+
+    return result?.generated?.output || null;
+  } catch (err) {
+    logger.warn('[Prompts API] Prompt validation failed (non-blocking):', err.message);
+    return null;
+  }
+}
+
 const OVERRIDES_FILE = path.join(__dirname, '../../data/prompts.json');
 
 /** Extract {{variable}} names from text */
@@ -168,6 +214,29 @@ router.put('/:id', express.json(), authenticateApi, requireAdmin, async (req, re
       }
     }
 
+    // Validate prompt template via guidance service (pre-save)
+    const validation = await validatePromptTemplate(
+      systemPrompt !== undefined ? systemPrompt : current.systemPrompt,
+      userTemplate !== undefined ? userTemplate : (current.userTemplate || current.userPromptTemplate),
+      current
+    );
+
+    // Block save if validation returns errors
+    if (validation && validation.errors && validation.errors.length > 0) {
+      return res.status(422).json({
+        error: 'Prompt validation failed',
+        validation: {
+          errors: validation.errors,
+          warnings: validation.warnings || [],
+          suggestions: validation.suggestions || [],
+          quality_score: validation.quality_score,
+          syntax_valid: validation.syntax_valid,
+          detected_variables: validation.detected_variables || [],
+          unrecognized_variables: validation.unrecognized_variables || [],
+        },
+      });
+    }
+
     // Build updated prompt
     const updated = {
       ...current,
@@ -199,7 +268,18 @@ router.put('/:id', express.json(), authenticateApi, requireAdmin, async (req, re
     logger.info(`[Prompts API] Updated prompt: ${id}`);
 
     const result = promptRegistry.get(id);
-    res.json({ success: true, prompt: formatPrompt(result, true) });
+    const response = { success: true, prompt: formatPrompt(result, true) };
+
+    // Include validation warnings in success response (non-blocking)
+    if (validation && validation.warnings && validation.warnings.length > 0) {
+      response.validation = {
+        warnings: validation.warnings,
+        suggestions: validation.suggestions || [],
+        quality_score: validation.quality_score,
+      };
+    }
+
+    res.json(response);
   } catch (error) {
     logger.error('[Prompts API] Update failed:', error);
     res.status(500).json({ error: error.message });
@@ -236,6 +316,119 @@ router.post('/:id/reset', authenticateApi, requireAdmin, async (req, res) => {
     res.json({ success: true, prompt: formatPrompt(result, false) });
   } catch (error) {
     logger.error('[Prompts API] Reset failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/prompts/:id/test
+ * Dry-run test a prompt with sample variables
+ */
+router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!promptRegistry.has(id)) {
+      return res.status(404).json({ error: `Prompt not found: ${id}` });
+    }
+
+    const prompt = promptRegistry.get(id);
+    const { variables = {}, systemPrompt, userTemplate } = req.body;
+
+    // Use provided overrides or current prompt values
+    const testSystemPrompt = systemPrompt !== undefined ? systemPrompt : prompt.systemPrompt;
+    const testUserTemplate = userTemplate !== undefined ? userTemplate : (prompt.userTemplate || prompt.userPromptTemplate || '');
+
+    // Render the user template with provided variables
+    let renderedTemplate = testUserTemplate;
+    const detectedVars = extractTemplateVars(testSystemPrompt + ' ' + testUserTemplate);
+    const missingVars = [];
+
+    for (const varName of detectedVars) {
+      const placeholder = `{{${varName}}}`;
+      if (variables[varName] !== undefined) {
+        renderedTemplate = renderedTemplate.split(placeholder).join(String(variables[varName]));
+      } else {
+        missingVars.push(varName);
+      }
+    }
+
+    // Also render system prompt variables
+    let renderedSystemPrompt = testSystemPrompt;
+    for (const varName of detectedVars) {
+      const placeholder = `{{${varName}}}`;
+      if (variables[varName] !== undefined) {
+        renderedSystemPrompt = renderedSystemPrompt.split(placeholder).join(String(variables[varName]));
+      }
+    }
+
+    const startTime = Date.now();
+    let testResult = null;
+    let source = 'template-render';
+    let tokenEstimate = null;
+
+    // Attempt LLM call via guidance service if available
+    const client = getGuidanceClient();
+    if (client) {
+      try {
+        const available = await client.isAvailable();
+        if (available) {
+          // Find the guidance template name for this prompt
+          const { getFallbackPromptId } = require('../../services/guidance/GuidanceClient');
+          // Try to invoke a test generation
+          const genResult = await client.generate('prompt_validator', {
+            system_prompt: renderedSystemPrompt,
+            user_template: renderedTemplate,
+            known_variables: detectedVars,
+            prompt_id: id,
+            domain: prompt.domain,
+          }, {
+            temperature: prompt.config?.temperature ?? 0.2,
+          });
+
+          testResult = genResult?.generated?.output || null;
+          source = 'guidance-service';
+        }
+      } catch (err) {
+        logger.warn('[Prompts API] Test LLM call failed:', err.message);
+        source = 'template-render-only';
+      }
+    }
+
+    const duration = Date.now() - startTime;
+
+    // Estimate token count (rough: ~4 chars per token)
+    const totalChars = renderedSystemPrompt.length + renderedTemplate.length;
+    tokenEstimate = Math.ceil(totalChars / 4);
+
+    // Check if output looks like valid JSON
+    let jsonValid = null;
+    if (testResult) {
+      try {
+        if (typeof testResult === 'string') {
+          JSON.parse(testResult);
+        }
+        jsonValid = true;
+      } catch {
+        jsonValid = typeof testResult === 'object';
+      }
+    }
+
+    res.json({
+      success: true,
+      promptId: id,
+      source,
+      duration,
+      renderedSystemPrompt,
+      renderedTemplate,
+      detectedVariables: detectedVars,
+      missingVariables: missingVars,
+      providedVariables: Object.keys(variables),
+      tokenEstimate,
+      testResult,
+      jsonValid,
+    });
+  } catch (error) {
+    logger.error('[Prompts API] Test failed:', error);
     res.status(500).json({ error: error.message });
   }
 });

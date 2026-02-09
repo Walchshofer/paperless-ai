@@ -2,20 +2,67 @@ import { h } from 'preact';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import type { AIProviderSettings } from '../ui/contracts/Settings.AIProvider.contract';
 import { AIProviderSettingsSchema } from '../ui/contracts/Settings.AIProvider.contract';
+import { RangeNumberInput } from './components/RangeNumberInput';
 
 /**
  * AIProviderIsland - AI Provider configuration with internal tabs
  *
  * Supports OpenAI, Ollama, Custom, and Azure providers with tabbed interface.
- * Implements mixed save semantics:
- * - Auto-save for non-critical fields (token limits) with debounce
- * - Manual save for critical fields (provider selection, API keys, URLs)
- * - Flushes pending debounced saves on unmount
+ * The Ollama tab consolidates all local model settings:
+ *   - Connection, Base Models, System Pipeline Models, Domain Expert Models,
+ *     Token Limits (moved from Developer Settings), and Advanced Services.
  */
 import ExpertModelsIsland from './ExpertModelsIsland';
 
 interface AIProviderProps extends Partial<AIProviderSettings> {
   expertModels?: Record<string, unknown>;
+}
+
+/** Inline tooltip: renders a circled "?" with hover text */
+function Tooltip({ text }: { text: string }) {
+  return (
+    <span className="ai-tooltip-wrapper" data-testid="tooltip">
+      <span className="ai-tooltip-icon" tabIndex={0} aria-label={text}>?</span>
+      <span className="ai-tooltip-content">{text}</span>
+    </span>
+  );
+}
+
+/** Collapsible section header */
+function CollapsibleSection({
+  id, title, badge, expanded, onToggle, children, testId
+}: {
+  id: string;
+  title: string;
+  badge?: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: preact.ComponentChildren;
+  testId: string;
+}) {
+  return (
+    <div className="ollama-collapsible-section" data-testid={testId}>
+      <button
+        onClick={onToggle}
+        className="ollama-collapsible-header w-full"
+        aria-expanded={expanded}
+        aria-controls={id}
+        data-testid={`${testId}-header`}
+      >
+        <div className="flex items-center gap-2">
+          <h4 className="text-md font-medium" style={{ color: 'var(--text-primary)' }}>{title}</h4>
+          {badge && <span className="section-badge section-badge--manual">{badge}</span>}
+        </div>
+        <svg
+          className={`ollama-chevron ${expanded ? 'ollama-chevron--open' : ''}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {expanded && <div id={id} className="ollama-collapsible-body">{children}</div>}
+    </div>
+  );
 }
 
 export default function AIProviderIsland(props: AIProviderProps) {
@@ -28,41 +75,52 @@ export default function AIProviderIsland(props: AIProviderProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null as string | null);
 
-  // OpenAI state
-  const [openaiApiKey, setOpenaiApiKey] = useState(validated.openai?.apiKey || '');
-
-  // Ollama state
-  const [ollamaApiUrl, setOllamaApiUrl] = useState(validated.ollama?.apiUrl || 'http://localhost:11434');
+  // Ollama state - Base Models
   const [ollamaModel, setOllamaModel] = useState(validated.ollama?.model || 'sauerkraut-llama3.1:8b');
   const [ollamaVisionModel, setOllamaVisionModel] = useState(validated.ollama?.visionModel || 'qwen3-vl:8b');
-  const [ollamaPlannerModel, setOllamaPlannerModel] = useState(validated.ollama?.plannerModel || '');
+
+  // Ollama state - System Pipeline Models
   const [ollamaRouterModel, setOllamaRouterModel] = useState(validated.ollama?.routerModel || '');
+  const [ollamaPlannerModel, setOllamaPlannerModel] = useState(validated.ollama?.plannerModel || '');
   const [ollamaOrchestratorModel, setOllamaOrchestratorModel] = useState(validated.ollama?.orchestratorModel || '');
+
+  // Ollama state - Advanced Services
+  const [ollamaTranslationModel, setOllamaTranslationModel] = useState(validated.ollama?.translationModel || '');
+  const [ollamaGuidanceModel, setOllamaGuidanceModel] = useState(validated.ollama?.guidanceModel || '');
+
+  // Ollama state - Keep-alive
   const [ollamaVisionKeepAlive, setOllamaVisionKeepAlive] = useState(validated.ollama?.visionKeepAlive || '5m');
   const [ollamaTextKeepAlive, setOllamaTextKeepAlive] = useState(validated.ollama?.textKeepAlive || '2m');
   const [ollamaRouterKeepAlive, setOllamaRouterKeepAlive] = useState(validated.ollama?.routerKeepAlive || '5m');
 
-  // Ollama token limits (auto-save fields)
+  // Ollama token limits (consolidated from Developer Settings)
   const [ollamaTextContextWindow, setOllamaTextContextWindow] = useState(validated.ollama?.limits?.text?.contextWindow || 128000);
   const [ollamaTextMaxTokens, setOllamaTextMaxTokens] = useState(validated.ollama?.limits?.text?.maxResponseTokens || 4096);
-  const [ollamaVisionContextWindow, setOllamaVisionContextWindow] = useState(validated.ollama?.limits?.vision?.contextWindow || 128000);
+  const [ollamaVisionContextWindow, setOllamaVisionContextWindow] = useState(validated.ollama?.limits?.vision?.contextWindow || 32768);
   const [ollamaVisionMaxTokens, setOllamaVisionMaxTokens] = useState(validated.ollama?.limits?.vision?.maxResponseTokens || 2048);
-  const [ollamaPlannerContextWindow, setOllamaPlannerContextWindow] = useState(validated.ollama?.limits?.planner?.contextWindow || 128000);
-  const [ollamaPlannerMaxTokens, setOllamaPlannerMaxTokens] = useState(validated.ollama?.limits?.planner?.maxResponseTokens || 700);
+  const [ollamaPlannerContextWindow, setOllamaPlannerContextWindow] = useState(validated.ollama?.limits?.planner?.contextWindow || 32768);
+  const [ollamaPlannerMaxTokens, setOllamaPlannerMaxTokens] = useState(validated.ollama?.limits?.planner?.maxResponseTokens || 2048);
   const [ollamaExpertContextWindow, setOllamaExpertContextWindow] = useState(validated.ollama?.limits?.expert?.contextWindow || 128000);
   const [ollamaExpertMaxTokens, setOllamaExpertMaxTokens] = useState(validated.ollama?.limits?.expert?.maxResponseTokens || 4096);
   const [ollamaImageTokenOverhead, setOllamaImageTokenOverhead] = useState(validated.ollama?.limits?.imageTokenOverhead || 1024);
+  const [translationContextWindow, setTranslationContextWindow] = useState(validated.ollama?.limits?.translation?.contextWindow || 128000);
 
   // Custom provider state
-  const [customApiUrl, setCustomApiUrl] = useState(validated.custom?.apiUrl || '');
-  const [customApiKey, setCustomApiKey] = useState(validated.custom?.apiKey || '');
   const [customModel, setCustomModel] = useState(validated.custom?.model || '');
 
   // Azure state
-  const [azureApiKey, setAzureApiKey] = useState(validated.azure?.apiKey || '');
-  const [azureEndpoint, setAzureEndpoint] = useState(validated.azure?.endpoint || '');
   const [azureDeploymentName, setAzureDeploymentName] = useState(validated.azure?.deploymentName || '');
   const [azureApiVersion, setAzureApiVersion] = useState(validated.azure?.apiVersion || '2023-05-15');
+
+  // Collapsible section states for Ollama tab
+  const [systemModelsExpanded, setSystemModelsExpanded] = useState(false);
+  const [tokenLimitsExpanded, setTokenLimitsExpanded] = useState(false);
+  const [advancedServicesExpanded, setAdvancedServicesExpanded] = useState(false);
+
+  // Token limits dirty/saving state (separate from main save)
+  const [isTokenLimitsDirty, setIsTokenLimitsDirty] = useState(false);
+  const [isTokenLimitsSaving, setIsTokenLimitsSaving] = useState(false);
+  const [tokenLimitsSaveMessage, setTokenLimitsSaveMessage] = useState(null as string | null);
 
   // Debounce timer for auto-save fields
   const debounceTimerRef = useRef(null as number | null);
@@ -73,13 +131,20 @@ export default function AIProviderIsland(props: AIProviderProps) {
   // Accessible announcement text for Expert Models visibility changes
   const [expertAnnouncement, setExpertAnnouncement] = useState(null as string | null);
 
-  // Auto-clear save message
+  // Auto-clear save messages
   useEffect(() => {
     if (saveMessage) {
       const timer = setTimeout(() => setSaveMessage(null), 3000);
       return () => clearTimeout(timer);
     }
   }, [saveMessage]);
+
+  useEffect(() => {
+    if (tokenLimitsSaveMessage) {
+      const timer = setTimeout(() => setTokenLimitsSaveMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [tokenLimitsSaveMessage]);
 
   // Flush pending auto-save on unmount
   useEffect(() => {
@@ -94,27 +159,22 @@ export default function AIProviderIsland(props: AIProviderProps) {
   const flushAutoSave = () => {
     if (!hasPendingAutoSave.current) return;
 
-    // Only auto-save token limits
     const autoSaveSettings = {
-      OLLAMA_CONTEXT_WINDOW: ollamaTextContextWindow,
-      OLLAMA_MAX_RESPONSE_TOKENS: ollamaTextMaxTokens,
-      OLLAMA_VISION_CONTEXT_WINDOW: ollamaVisionContextWindow,
-      OLLAMA_VISION_MAX_RESPONSE_TOKENS: ollamaVisionMaxTokens,
-      OLLAMA_PLANNER_CONTEXT_WINDOW: ollamaPlannerContextWindow,
-      OLLAMA_PLANNER_MAX_RESPONSE_TOKENS: ollamaPlannerMaxTokens,
-      OLLAMA_EXPERT_CONTEXT_WINDOW: ollamaExpertContextWindow,
-      OLLAMA_EXPERT_MAX_RESPONSE_TOKENS: ollamaExpertMaxTokens,
-      OLLAMA_VISION_IMAGE_TOKENS: ollamaImageTokenOverhead,
+      OLLAMA_CONTEXT_WINDOW: ollamaTextContextWindow.toString(),
+      OLLAMA_MAX_RESPONSE_TOKENS: ollamaTextMaxTokens.toString(),
+      OLLAMA_VISION_CONTEXT_WINDOW: ollamaVisionContextWindow.toString(),
+      OLLAMA_VISION_MAX_RESPONSE_TOKENS: ollamaVisionMaxTokens.toString(),
+      OLLAMA_PLANNER_CONTEXT_WINDOW: ollamaPlannerContextWindow.toString(),
+      OLLAMA_PLANNER_MAX_RESPONSE_TOKENS: ollamaPlannerMaxTokens.toString(),
+      OLLAMA_EXPERT_CONTEXT_WINDOW: ollamaExpertContextWindow.toString(),
+      OLLAMA_EXPERT_MAX_RESPONSE_TOKENS: ollamaExpertMaxTokens.toString(),
+      OLLAMA_VISION_IMAGE_TOKENS: ollamaImageTokenOverhead.toString(),
     };
 
-    fetch('/settings/apply', {
+    fetch('/api/settings/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        category: 'ai-provider',
-        settings: autoSaveSettings,
-        requiresRestart: false // Token limits don't require restart
-      })
+      body: JSON.stringify(autoSaveSettings)
     }).catch(err => console.error('Auto-save failed:', err));
 
     hasPendingAutoSave.current = false;
@@ -130,7 +190,7 @@ export default function AIProviderIsland(props: AIProviderProps) {
     }, validated.autoSaveDebounceMs || 1000) as unknown as number;
   };
 
-    const handleSave = async () => {
+  const handleSave = async () => {
     setIsSaving(true);
     setSaveMessage(null);
 
@@ -147,36 +207,29 @@ export default function AIProviderIsland(props: AIProviderProps) {
 
       // Add provider-specific settings
       if (provider === 'openai') {
-        settings.PAPERLESS_OPENAI_API_KEY = openaiApiKey;
+        // API Key moved to Connection Center
       } else if (provider === 'ollama') {
-        settings.OLLAMA_API_URL = ollamaApiUrl;
         settings.OLLAMA_MODEL = ollamaModel;
         settings.OLLAMA_VISION_MODEL = ollamaVisionModel;
         if (ollamaPlannerModel) settings.PLANNER_MODEL = ollamaPlannerModel;
         if (ollamaRouterModel) settings.ROUTER_MODEL = ollamaRouterModel;
         if (ollamaOrchestratorModel) settings.ORCHESTRATOR_MODEL = ollamaOrchestratorModel;
+        if (ollamaTranslationModel) settings.TRANSLATION_MODEL = ollamaTranslationModel;
+        if (ollamaGuidanceModel) settings.GUIDANCE_MODEL = ollamaGuidanceModel;
         settings.VISION_KEEP_ALIVE = ollamaVisionKeepAlive;
         settings.TEXT_KEEP_ALIVE = ollamaTextKeepAlive;
         settings.ROUTER_KEEP_ALIVE = ollamaRouterKeepAlive;
       } else if (provider === 'custom') {
-        settings.CUSTOM_BASE_URL = customApiUrl;
-        settings.CUSTOM_API_KEY = customApiKey;
         settings.CUSTOM_MODEL = customModel;
       } else if (provider === 'azure') {
-        settings.AZURE_API_KEY = azureApiKey;
-        settings.AZURE_ENDPOINT = azureEndpoint;
         settings.AZURE_DEPLOYMENT_NAME = azureDeploymentName;
         settings.AZURE_API_VERSION = azureApiVersion;
       }
 
-      const response = await fetch('/settings/apply', {
+      const response = await fetch('/api/settings/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category: 'ai-provider',
-          settings,
-          requiresRestart: true // Provider changes require restart
-        })
+        body: JSON.stringify(settings)
       });
 
       const result = await response.json();
@@ -185,7 +238,6 @@ export default function AIProviderIsland(props: AIProviderProps) {
         setSaveMessage('AI provider settings saved successfully');
         setIsDirty(false);
 
-        // Dispatch events
         if (typeof document !== 'undefined') {
           document.dispatchEvent(new CustomEvent('settings:changed', {
             detail: {
@@ -223,7 +275,54 @@ export default function AIProviderIsland(props: AIProviderProps) {
     }
   };
 
+  const handleSaveTokenLimits = async () => {
+    setIsTokenLimitsSaving(true);
+    setTokenLimitsSaveMessage(null);
+    try {
+      const settings: Record<string, string> = {
+        OLLAMA_CONTEXT_WINDOW: ollamaTextContextWindow.toString(),
+        OLLAMA_MAX_RESPONSE_TOKENS: ollamaTextMaxTokens.toString(),
+        OLLAMA_VISION_CONTEXT_WINDOW: ollamaVisionContextWindow.toString(),
+        OLLAMA_VISION_MAX_RESPONSE_TOKENS: ollamaVisionMaxTokens.toString(),
+        OLLAMA_VISION_IMAGE_TOKENS: ollamaImageTokenOverhead.toString(),
+        OLLAMA_PLANNER_CONTEXT_WINDOW: ollamaPlannerContextWindow.toString(),
+        OLLAMA_PLANNER_MAX_RESPONSE_TOKENS: ollamaPlannerMaxTokens.toString(),
+        OLLAMA_EXPERT_CONTEXT_WINDOW: ollamaExpertContextWindow.toString(),
+        OLLAMA_EXPERT_MAX_RESPONSE_TOKENS: ollamaExpertMaxTokens.toString(),
+        TRANSLATION_CONTEXT_WINDOW: translationContextWindow.toString(),
+      };
+
+      const response = await fetch('/api/settings/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setTokenLimitsSaveMessage('Token limits saved successfully');
+        setIsTokenLimitsDirty(false);
+        if (typeof document !== 'undefined') {
+          document.dispatchEvent(new CustomEvent('settings:saved', {
+            detail: { type: 'settings:saved', category: 'ollama-token-limits', success: true, message: 'Token limits saved' }
+          }));
+          document.dispatchEvent(new CustomEvent('settings:restart-required', {
+            detail: { type: 'settings:restart-required', reason: 'Ollama token limits changed', settings: ['Token Limits'] }
+          }));
+        }
+      } else {
+        setTokenLimitsSaveMessage(`Save failed: ${result.message || result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      setTokenLimitsSaveMessage(`Save failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsTokenLimitsSaving(false);
+    }
+  };
+
   const markDirty = () => setIsDirty(true);
+  const markTokenLimitsDirty = () => setIsTokenLimitsDirty(true);
 
   // Accessible announcement for Expert Models when provider changes
   useEffect(() => {
@@ -269,71 +368,57 @@ export default function AIProviderIsland(props: AIProviderProps) {
     } catch (err) { /* ignore */ }
   }, [provider]);
 
+  /** Model input field with tooltip */
+  const ModelInput = ({
+    id, label, tooltip, value, onChange, placeholder, testId, required = false
+  }: {
+    id: string; label: string; tooltip: string; value: string;
+    onChange: (v: string) => void; placeholder: string; testId: string; required?: boolean;
+  }) => (
+    <div className="space-y-2">
+      <label htmlFor={id} className="flex items-center gap-1 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+        {label}
+        {required && <span style={{ color: '#ef4444' }}>*</span>}
+        <Tooltip text={tooltip} />
+      </label>
+      <input
+        id={id}
+        type="text"
+        value={value}
+        onChange={(e: Event) => { onChange((e.target as HTMLInputElement).value); markDirty(); }}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 rounded-md text-sm"
+        style={{ border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }}
+        data-testid={testId}
+      />
+    </div>
+  );
+
   return (
     <div className="ai-provider-settings space-y-6 p-6 max-w-4xl" data-testid="ai-provider-root">
       <div className="space-y-2">
-        <h2 className="text-2xl font-bold">AI Provider Settings</h2>
-        <p className="text-gray-600">Configure AI provider and model settings</p>
+        <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>AI Provider Settings</h2>
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Configure AI provider and model settings</p>
       </div>
 
       {/* Tab Navigation */}
-      <div className="border-b border-gray-200">
+      <div style={{ borderBottom: '1px solid var(--border-color)' }}>
         <nav className="-mb-px flex space-x-8" data-testid="ai-provider-tabs">
-          <button
-            onClick={() => setActiveTab('general')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'general'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-            data-testid="tab-general"
-          >
-            General
-          </button>
-          <button
-            onClick={() => setActiveTab('openai')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'openai'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-            data-testid="tab-openai"
-          >
-            OpenAI
-          </button>
-          <button
-            onClick={() => setActiveTab('ollama')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'ollama'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-            data-testid="tab-ollama"
-          >
-            Ollama
-          </button>
-          <button
-            onClick={() => setActiveTab('custom')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'custom'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-            data-testid="tab-custom"
-          >
-            Custom
-          </button>
-          <button
-            onClick={() => setActiveTab('azure')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'azure'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-            data-testid="tab-azure"
-          >
-            Azure
-          </button>
+          {(['general', 'openai', 'ollama', 'custom', 'azure'] as ProviderTab[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === tab
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent hover:border-gray-300'
+              }`}
+              style={activeTab !== tab ? { color: 'var(--text-secondary)' } : undefined}
+              data-testid={`tab-${tab}`}
+            >
+              {tab === 'general' ? 'General' : tab === 'openai' ? 'OpenAI' : tab === 'ollama' ? 'Ollama' : tab === 'custom' ? 'Custom' : 'Azure'}
+            </button>
+          ))}
         </nav>
       </div>
 
@@ -342,10 +427,10 @@ export default function AIProviderIsland(props: AIProviderProps) {
         {/* General Tab */}
         {activeTab === 'general' && (
           <div className="space-y-4" data-testid="tab-content-general">
-            <h3 className="text-lg font-semibold">Provider Selection</h3>
+            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Provider Selection</h3>
             <div className="space-y-2">
-              <label htmlFor="provider" className="block text-sm font-medium text-gray-700">
-                Active AI Provider <span className="text-red-500">*</span>
+              <label htmlFor="provider" className="block text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                Active AI Provider <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <select
                 id="provider"
@@ -354,7 +439,8 @@ export default function AIProviderIsland(props: AIProviderProps) {
                   setProvider((e.target as HTMLSelectElement).value as ProviderTab);
                   markDirty();
                 }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 rounded-md"
+                style={{ border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }}
                 data-testid="provider-select"
               >
                 <option value="openai">OpenAI</option>
@@ -362,15 +448,15 @@ export default function AIProviderIsland(props: AIProviderProps) {
                 <option value="custom">Custom Provider</option>
                 <option value="azure">Azure OpenAI</option>
               </select>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 Select which AI provider to use for document processing
               </p>
             </div>
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded">
-              <p className="text-sm text-blue-800">
+            <div className="mt-4 p-4 rounded" style={{ background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+              <p className="text-sm" style={{ color: 'var(--text-primary)' }}>
                 <span className="font-medium">Current provider:</span> {provider}
               </p>
-              <p className="text-sm text-blue-700 mt-1">
+              <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
                 Configure provider-specific settings in the respective tab
               </p>
             </div>
@@ -380,211 +466,399 @@ export default function AIProviderIsland(props: AIProviderProps) {
         {/* OpenAI Tab */}
         {activeTab === 'openai' && (
           <div className="space-y-4" data-testid="tab-content-openai">
-            <h3 className="text-lg font-semibold">OpenAI Configuration</h3>
-            <div className="space-y-2">
-              <label htmlFor="openai-api-key" className="block text-sm font-medium text-gray-700">
-                API Key <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="openai-api-key"
-                type="password"
-                value={openaiApiKey}
-                onChange={(e: Event) => {
-                  setOpenaiApiKey((e.target as HTMLInputElement).value);
-                  markDirty();
-                }}
-                placeholder="sk-..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                data-testid="openai-api-key-input"
-              />
-              <p className="text-xs text-gray-500">
-                Your OpenAI API key from platform.openai.com
+            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>OpenAI Configuration</h3>
+            <div className="p-4 rounded-md border border-blue-100 bg-blue-50/30 dark:border-blue-900/30 dark:bg-blue-900/10">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                <i className="fas fa-info-circle mr-2"></i>
+                The OpenAI API Key has been moved to the centralized <strong>Connection Center</strong>.
               </p>
+              <button 
+                onClick={() => window.location.hash = 'connection'}
+                className="mt-3 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Go to Connection Center →
+              </button>
             </div>
           </div>
         )}
 
-        {/* Ollama Tab */}
+        {/* ━━━ Ollama Tab ━━━ */}
         {activeTab === 'ollama' && (
           <div className="space-y-6" data-testid="tab-content-ollama">
-            <h3 className="text-lg font-semibold">Ollama Configuration</h3>
+            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Ollama Configuration</h3>
 
-            {/* Connection Settings */}
-            <div className="space-y-4">
-              <h4 className="text-md font-medium">Connection</h4>
-              <div className="space-y-2">
-                <label htmlFor="ollama-api-url" className="block text-sm font-medium text-gray-700">
-                  API URL <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="ollama-api-url"
-                  type="url"
-                  value={ollamaApiUrl}
-                  onChange={(e: Event) => {
-                    setOllamaApiUrl((e.target as HTMLInputElement).value);
-                    markDirty();
-                  }}
-                  placeholder="http://localhost:11434"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  data-testid="ollama-api-url-input"
+            {/* ── Section 1: Connection ── */}
+            <div className="p-4 rounded-md border border-blue-100 bg-blue-50/30 dark:border-blue-900/30 dark:bg-blue-900/10 mb-4">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                <i className="fas fa-info-circle mr-2"></i>
+                Ollama connection parameters (API URL) are now managed in the <strong>Connection Center</strong>.
+              </p>
+              <button 
+                onClick={() => window.location.hash = 'connection'}
+                className="mt-3 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Go to Connection Center →
+              </button>
+            </div>
+
+            {/* ── Section 2: Base Models ── */}
+            <div className="space-y-4" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+              <h4 className="text-md font-medium" style={{ color: 'var(--text-primary)' }}>Base Models</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ModelInput
+                  id="ollama-text-model"
+                  label="Default Text Model"
+                  tooltip="General-purpose text model used for chat, fallback extraction, and translation"
+                  value={ollamaModel}
+                  onChange={setOllamaModel}
+                  placeholder="sauerkraut-llama3.1:8b"
+                  testId="ollama-text-model-input"
+                />
+                <ModelInput
+                  id="ollama-vision-model"
+                  label="Default Vision Model"
+                  tooltip="Multimodal model for document image analysis and visual extraction"
+                  value={ollamaVisionModel}
+                  onChange={setOllamaVisionModel}
+                  placeholder="qwen3-vl:8b"
+                  testId="ollama-vision-model-input"
                 />
               </div>
             </div>
 
-            {/* Model Settings */}
-            <div className="space-y-4">
-              <h4 className="text-md font-medium">Models</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label htmlFor="ollama-text-model" className="block text-sm font-medium text-gray-700">
-                    Text Model
-                  </label>
-                  <input
-                    id="ollama-text-model"
-                    type="text"
-                    value={ollamaModel}
-                    onChange={(e: Event) => {
-                      setOllamaModel((e.target as HTMLInputElement).value);
-                      markDirty();
-                    }}
-                    placeholder="sauerkraut-llama3.1:8b"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    data-testid="ollama-text-model-input"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="ollama-vision-model" className="block text-sm font-medium text-gray-700">
-                    Vision Model
-                  </label>
-                  <input
-                    id="ollama-vision-model"
-                    type="text"
-                    value={ollamaVisionModel}
-                    onChange={(e: Event) => {
-                      setOllamaVisionModel((e.target as HTMLInputElement).value);
-                      markDirty();
-                    }}
-                    placeholder="qwen3-vl:8b"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    data-testid="ollama-vision-model-input"
-                  />
-                </div>
+            {/* ── Section 3: System Pipeline Models (collapsible) ── */}
+            <CollapsibleSection
+              id="system-pipeline-models"
+              title="System Pipeline Models"
+              expanded={systemModelsExpanded}
+              onToggle={() => setSystemModelsExpanded(!systemModelsExpanded)}
+              testId="system-pipeline-section"
+            >
+              <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
+                Models used by the internal expert pipeline stages. Leave blank to use defaults.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ModelInput
+                  id="ollama-router-model"
+                  label="Router Model"
+                  tooltip="Classifies incoming documents to the correct domain expert. Uses vision for layout analysis."
+                  value={ollamaRouterModel}
+                  onChange={setOllamaRouterModel}
+                  placeholder="qwen3-vl:8b (default)"
+                  testId="ollama-router-model-input"
+                />
+                <ModelInput
+                  id="ollama-planner-model"
+                  label="Planner Model"
+                  tooltip="Plans document extraction strategy and determines required analysis stages"
+                  value={ollamaPlannerModel}
+                  onChange={setOllamaPlannerModel}
+                  placeholder="qwen3-vl:8b (default)"
+                  testId="ollama-planner-model-input"
+                />
+                <ModelInput
+                  id="ollama-orchestrator-model"
+                  label="Orchestrator Model"
+                  tooltip="Coordinates multi-stage expert pipeline execution and result merging"
+                  value={ollamaOrchestratorModel}
+                  onChange={setOllamaOrchestratorModel}
+                  placeholder="nemotron-orchestrator:8b (default)"
+                  testId="ollama-orchestrator-model-input"
+                />
               </div>
-            </div>
+            </CollapsibleSection>
 
-            {/* Token Limits - Auto-save fields */}
-            <div className="space-y-4 border-t pt-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-md font-medium">Token Limits</h4>
-                <span className="text-xs text-gray-500 italic">Auto-saves on change</span>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label htmlFor="ollama-text-context" className="block text-sm font-medium text-gray-700">
-                    Text Context Window
-                  </label>
-                  <input
-                    id="ollama-text-context"
-                    type="number"
-                    value={ollamaTextContextWindow}
-                    onChange={(e: Event) => {
-                      setOllamaTextContextWindow(parseInt((e.target as HTMLInputElement).value));
-                      handleAutoSaveField();
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    data-testid="ollama-text-context-input"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="ollama-text-max-tokens" className="block text-sm font-medium text-gray-700">
-                    Text Max Response Tokens
-                  </label>
-                  <input
-                    id="ollama-text-max-tokens"
-                    type="number"
-                    value={ollamaTextMaxTokens}
-                    onChange={(e: Event) => {
-                      setOllamaTextMaxTokens(parseInt((e.target as HTMLInputElement).value));
-                      handleAutoSaveField();
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    data-testid="ollama-text-max-tokens-input"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Expert Models: Ollama-only; integrated here to prevent accidental overrides */}
-            <div className="mt-6" ref={expertRef}>
+            {/* ── Section 4: Domain Expert Models ── */}
+            <div className="mt-2" ref={expertRef}>
               <div role="status" aria-live="polite" className="sr-only" data-testid="expert-models-announcement">{expertAnnouncement}</div>
               {provider === 'ollama' ? (
                 <div data-testid="expert-models-area">
-                  <h4 className="text-md font-medium">Expert Models (Ollama)</h4>
                   <ExpertModelsIsland {...(props.expertModels || {})} />
                 </div>
               ) : (
-                <div data-testid="expert-models-locked" role="region" aria-labelledby="expert-locked-label" aria-disabled="true" className="p-3 bg-yellow-50 border border-yellow-200 rounded">
-                  <p id="expert-locked-label" className="text-sm text-yellow-800">Expert models are available only when <strong>Ollama</strong> is selected as the AI provider.</p>
-                  <button data-testid="switch-to-ollama-btn" aria-label="Switch to Ollama provider to enable Expert Models" type="button" onClick={() => { setProvider('ollama'); markDirty(); }} className="mt-2 px-3 py-1 bg-yellow-200 rounded">Switch to Ollama</button>
+                <div data-testid="expert-models-locked" role="region" aria-labelledby="expert-locked-label" aria-disabled="true"
+                  className="p-3 rounded"
+                  style={{ background: 'rgba(245, 158, 11, 0.06)', border: '1px solid rgba(245, 158, 11, 0.2)' }}
+                >
+                  <p id="expert-locked-label" className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    Expert models are available only when <strong>Ollama</strong> is selected as the AI provider.
+                  </p>
+                  <button
+                    data-testid="switch-to-ollama-btn"
+                    aria-label="Switch to Ollama provider to enable Expert Models"
+                    type="button"
+                    onClick={() => { setProvider('ollama'); markDirty(); }}
+                    className="mt-2 px-3 py-1 rounded text-sm"
+                    style={{ background: 'rgba(245, 158, 11, 0.15)', color: 'var(--text-primary)' }}
+                  >
+                    Switch to Ollama
+                  </button>
                 </div>
               )}
             </div>
+
+            {/* ── Section 5: Token Limits (consolidated from Developer Settings) ── */}
+            <CollapsibleSection
+              id="ollama-token-limits"
+              title="Token Limits"
+              badge="Manual save"
+              expanded={tokenLimitsExpanded}
+              onToggle={() => setTokenLimitsExpanded(!tokenLimitsExpanded)}
+              testId="token-limits-section"
+            >
+              {/* Info Notice */}
+              <div
+                className="p-3 rounded-lg text-xs mb-4"
+                style={{ background: 'rgba(20, 184, 166, 0.06)', border: '1px solid rgba(20, 184, 166, 0.15)', color: 'var(--text-secondary)' }}
+              >
+                These limits apply to <strong style={{ color: '#14b8a6' }}>locally-hosted Ollama models</strong> only.
+                Cloud providers (OpenAI, Azure) manage their own token limits.
+              </div>
+
+              <div className="tier-rail">
+                {/* TEXT (BASE) */}
+                <div className="tier-group" data-testid="tier-text">
+                  <div className="tier-label">
+                    Text (Base)
+                    <Tooltip text="Context and response limits for the default text model used in chat and fallback extraction" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <RangeNumberInput
+                      id="ollama-context-window"
+                      label="Context Window"
+                      description="Maximum context for text models"
+                      value={ollamaTextContextWindow}
+                      min={1024} max={256000} step={1024} unit="tokens"
+                      onChange={(v) => { setOllamaTextContextWindow(v); markTokenLimitsDirty(); }}
+                      testId="tier-text-context-window"
+                    />
+                    <RangeNumberInput
+                      id="ollama-max-response"
+                      label="Max Response Tokens"
+                      description="Maximum response length"
+                      value={ollamaTextMaxTokens}
+                      min={256} max={32768} step={256} unit="tokens"
+                      onChange={(v) => { setOllamaTextMaxTokens(v); markTokenLimitsDirty(); }}
+                      testId="tier-text-max-response"
+                    />
+                  </div>
+                </div>
+
+                {/* VISION */}
+                <div className="tier-group" data-testid="tier-vision">
+                  <div className="tier-label">
+                    Vision
+                    <span className="tier-cap-badge">capped 32k</span>
+                    <Tooltip text="Limits for vision/multimodal models used in document image analysis and visual extraction" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <RangeNumberInput
+                      id="ollama-vision-context"
+                      label="Context Window"
+                      description="Maximum context for vision models"
+                      value={ollamaVisionContextWindow}
+                      min={1024} max={32768} step={1024} unit="tokens"
+                      onChange={(v) => { setOllamaVisionContextWindow(v); markTokenLimitsDirty(); }}
+                      testId="tier-vision-context-window"
+                    />
+                    <RangeNumberInput
+                      id="ollama-vision-response"
+                      label="Max Response Tokens"
+                      description="Maximum response length"
+                      value={ollamaVisionMaxTokens}
+                      min={256} max={8192} step={256} unit="tokens"
+                      onChange={(v) => { setOllamaVisionMaxTokens(v); markTokenLimitsDirty(); }}
+                      testId="tier-vision-max-response"
+                    />
+                  </div>
+                  <div className="mt-3" style={{ maxWidth: '20rem' }}>
+                    <RangeNumberInput
+                      id="ollama-vision-image"
+                      label="Image Token Overhead"
+                      description="Token cost per image in vision context"
+                      value={ollamaImageTokenOverhead}
+                      min={128} max={4096} step={128} unit="tokens/image"
+                      onChange={(v) => { setOllamaImageTokenOverhead(v); markTokenLimitsDirty(); }}
+                      testId="tier-vision-image-tokens"
+                    />
+                  </div>
+                </div>
+
+                {/* PLANNER */}
+                <div className="tier-group" data-testid="tier-planner">
+                  <div className="tier-label">
+                    Planner
+                    <span className="tier-cap-badge">capped 32k</span>
+                    <Tooltip text="Limits for the planner model that determines extraction strategy for each document" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <RangeNumberInput
+                      id="ollama-planner-context"
+                      label="Context Window"
+                      description="Maximum context for planner models"
+                      value={ollamaPlannerContextWindow}
+                      min={1024} max={32768} step={1024} unit="tokens"
+                      onChange={(v) => { setOllamaPlannerContextWindow(v); markTokenLimitsDirty(); }}
+                      testId="tier-planner-context-window"
+                    />
+                    <RangeNumberInput
+                      id="ollama-planner-response"
+                      label="Max Response Tokens"
+                      description="Maximum response length"
+                      value={ollamaPlannerMaxTokens}
+                      min={256} max={8192} step={256} unit="tokens"
+                      onChange={(v) => { setOllamaPlannerMaxTokens(v); markTokenLimitsDirty(); }}
+                      testId="tier-planner-max-response"
+                    />
+                  </div>
+                </div>
+
+                {/* EXPERT */}
+                <div className="tier-group" data-testid="tier-expert">
+                  <div className="tier-label">
+                    Expert
+                    <Tooltip text="Limits for domain expert models (Medical, Financial, Legal) used in specialized extraction" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <RangeNumberInput
+                      id="ollama-expert-context"
+                      label="Context Window"
+                      description="Maximum context for expert models"
+                      value={ollamaExpertContextWindow}
+                      min={1024} max={256000} step={1024} unit="tokens"
+                      onChange={(v) => { setOllamaExpertContextWindow(v); markTokenLimitsDirty(); }}
+                      testId="tier-expert-context-window"
+                    />
+                    <RangeNumberInput
+                      id="ollama-expert-response"
+                      label="Max Response Tokens"
+                      description="Maximum response length"
+                      value={ollamaExpertMaxTokens}
+                      min={256} max={32768} step={256} unit="tokens"
+                      onChange={(v) => { setOllamaExpertMaxTokens(v); markTokenLimitsDirty(); }}
+                      testId="tier-expert-max-response"
+                    />
+                  </div>
+                </div>
+
+                {/* TRANSLATION */}
+                <div className="tier-group" data-testid="tier-translation">
+                  <div className="tier-label">
+                    Translation
+                    <Tooltip text="Context window for the translation model. Falls back to the base text model if no dedicated translation model is set." />
+                  </div>
+                  <div style={{ maxWidth: '20rem' }}>
+                    <RangeNumberInput
+                      id="translation-context"
+                      label="Context Window"
+                      description="Maximum context for translation"
+                      value={translationContextWindow}
+                      min={1024} max={256000} step={1024} unit="tokens"
+                      onChange={(v) => { setTranslationContextWindow(v); markTokenLimitsDirty(); }}
+                      testId="tier-translation-context-window"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Save Bar */}
+              <div className="save-bar">
+                <button
+                  onClick={handleSaveTokenLimits}
+                  disabled={!isTokenLimitsDirty || isTokenLimitsSaving}
+                  className="save-bar-btn"
+                  data-testid="save-token-limits-button"
+                >
+                  {isTokenLimitsSaving ? (
+                    <>
+                      <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Saving...
+                    </>
+                  ) : 'Save Token Limits'}
+                </button>
+
+                {tokenLimitsSaveMessage && (
+                  <span
+                    className="text-sm font-medium"
+                    style={{ color: tokenLimitsSaveMessage.startsWith('Save failed') ? '#ef4444' : '#22c55e' }}
+                    data-testid="token-limits-save-message"
+                  >
+                    {tokenLimitsSaveMessage}
+                  </span>
+                )}
+
+                {isTokenLimitsDirty && (
+                  <span className="text-xs" style={{ color: '#f59e0b', marginLeft: 'auto' }}>
+                    Unsaved changes - restart required
+                  </span>
+                )}
+              </div>
+            </CollapsibleSection>
+
+            {/* ── Section 6: Advanced Services (collapsible) ── */}
+            <CollapsibleSection
+              id="advanced-services"
+              title="Advanced Services"
+              expanded={advancedServicesExpanded}
+              onToggle={() => setAdvancedServicesExpanded(!advancedServicesExpanded)}
+              testId="advanced-services-section"
+            >
+              <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
+                Dedicated models for specialized services. Leave blank to use the default text model.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ModelInput
+                  id="ollama-translation-model"
+                  label="Translation Model"
+                  tooltip="Model for translating non-English documents. Falls back to base text model if left blank."
+                  value={ollamaTranslationModel}
+                  onChange={setOllamaTranslationModel}
+                  placeholder="(uses default text model)"
+                  testId="ollama-translation-model-input"
+                />
+                <ModelInput
+                  id="ollama-guidance-model"
+                  label="Guidance Model"
+                  tooltip="Model for deterministic JSON extraction via the guidance service"
+                  value={ollamaGuidanceModel}
+                  onChange={setOllamaGuidanceModel}
+                  placeholder="(uses default text model)"
+                  testId="ollama-guidance-model-input"
+                />
+              </div>
+            </CollapsibleSection>
           </div>
         )}
 
         {/* Custom Tab */}
         {activeTab === 'custom' && (
           <div className="space-y-4" data-testid="tab-content-custom">
-            <h3 className="text-lg font-semibold">Custom Provider Configuration</h3>
+            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Custom Provider Configuration</h3>
+            <div className="p-4 rounded-md border border-blue-100 bg-blue-50/30 dark:border-blue-900/30 dark:bg-blue-900/10">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                <i className="fas fa-info-circle mr-2"></i>
+                Custom endpoint URLs and API Keys are now managed in the <strong>Connection Center</strong>.
+              </p>
+              <button 
+                onClick={() => window.location.hash = 'connection'}
+                className="mt-3 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Go to Connection Center →
+              </button>
+            </div>
             <div className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="custom-api-url" className="block text-sm font-medium text-gray-700">
-                  API Base URL <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="custom-api-url"
-                  type="url"
-                  value={customApiUrl}
-                  onChange={(e: Event) => {
-                    setCustomApiUrl((e.target as HTMLInputElement).value);
-                    markDirty();
-                  }}
-                  placeholder="https://api.example.com/v1"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  data-testid="custom-api-url-input"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="custom-api-key" className="block text-sm font-medium text-gray-700">
-                  API Key <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="custom-api-key"
-                  type="password"
-                  value={customApiKey}
-                  onChange={(e: Event) => {
-                    setCustomApiKey((e.target as HTMLInputElement).value);
-                    markDirty();
-                  }}
-                  placeholder="Enter API key"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  data-testid="custom-api-key-input"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="custom-model" className="block text-sm font-medium text-gray-700">
-                  Model Name <span className="text-red-500">*</span>
+                <label htmlFor="custom-model" className="block text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                  Model Name <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
                   id="custom-model"
                   type="text"
                   value={customModel}
-                  onChange={(e: Event) => {
-                    setCustomModel((e.target as HTMLInputElement).value);
-                    markDirty();
-                  }}
+                  onChange={(e: Event) => { setCustomModel((e.target as HTMLInputElement).value); markDirty(); }}
                   placeholder="model-name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 rounded-md"
+                  style={{ border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }}
                   data-testid="custom-model-input"
                 />
               </div>
@@ -595,73 +869,47 @@ export default function AIProviderIsland(props: AIProviderProps) {
         {/* Azure Tab */}
         {activeTab === 'azure' && (
           <div className="space-y-4" data-testid="tab-content-azure">
-            <h3 className="text-lg font-semibold">Azure OpenAI Configuration</h3>
+            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Azure OpenAI Configuration</h3>
+            <div className="p-4 rounded-md border border-blue-100 bg-blue-50/30 dark:border-blue-900/30 dark:bg-blue-900/10 mb-4">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                <i className="fas fa-info-circle mr-2"></i>
+                Azure Endpoints and API Keys are now managed in the <strong>Connection Center</strong>.
+              </p>
+              <button 
+                onClick={() => window.location.hash = 'connection'}
+                className="mt-3 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Go to Connection Center →
+              </button>
+            </div>
             <div className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="azure-endpoint" className="block text-sm font-medium text-gray-700">
-                  Endpoint <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="azure-endpoint"
-                  type="url"
-                  value={azureEndpoint}
-                  onChange={(e: Event) => {
-                    setAzureEndpoint((e.target as HTMLInputElement).value);
-                    markDirty();
-                  }}
-                  placeholder="https://your-resource.openai.azure.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  data-testid="azure-endpoint-input"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="azure-api-key" className="block text-sm font-medium text-gray-700">
-                  API Key <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="azure-api-key"
-                  type="password"
-                  value={azureApiKey}
-                  onChange={(e: Event) => {
-                    setAzureApiKey((e.target as HTMLInputElement).value);
-                    markDirty();
-                  }}
-                  placeholder="Enter Azure API key"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  data-testid="azure-api-key-input"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="azure-deployment" className="block text-sm font-medium text-gray-700">
-                  Deployment Name <span className="text-red-500">*</span>
+                <label htmlFor="azure-deployment" className="block text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                  Deployment Name <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
                   id="azure-deployment"
                   type="text"
                   value={azureDeploymentName}
-                  onChange={(e: Event) => {
-                    setAzureDeploymentName((e.target as HTMLInputElement).value);
-                    markDirty();
-                  }}
+                  onChange={(e: Event) => { setAzureDeploymentName((e.target as HTMLInputElement).value); markDirty(); }}
                   placeholder="your-deployment-name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 rounded-md"
+                  style={{ border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }}
                   data-testid="azure-deployment-input"
                 />
               </div>
               <div className="space-y-2">
-                <label htmlFor="azure-api-version" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="azure-api-version" className="block text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
                   API Version
                 </label>
                 <input
                   id="azure-api-version"
                   type="text"
                   value={azureApiVersion}
-                  onChange={(e: Event) => {
-                    setAzureApiVersion((e.target as HTMLInputElement).value);
-                    markDirty();
-                  }}
+                  onChange={(e: Event) => { setAzureApiVersion((e.target as HTMLInputElement).value); markDirty(); }}
                   placeholder="2023-05-15"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 rounded-md"
+                  style={{ border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }}
                   data-testid="azure-api-version-input"
                 />
               </div>
@@ -671,7 +919,7 @@ export default function AIProviderIsland(props: AIProviderProps) {
       </div>
 
       {/* Save Section */}
-      <div className="border-t pt-4">
+      <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
         <button
           onClick={handleSave}
           disabled={!isDirty || isSaving}
@@ -683,15 +931,20 @@ export default function AIProviderIsland(props: AIProviderProps) {
 
         {saveMessage && (
           <div
-            className="mt-3 p-3 rounded bg-blue-50 border border-blue-200 text-blue-800"
+            className="mt-3 p-3 rounded text-sm"
+            style={{
+              background: saveMessage.startsWith('Save failed') ? 'rgba(239, 68, 68, 0.08)' : 'rgba(59, 130, 246, 0.06)',
+              border: saveMessage.startsWith('Save failed') ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(59, 130, 246, 0.2)',
+              color: saveMessage.startsWith('Save failed') ? '#ef4444' : 'var(--text-primary)'
+            }}
             data-testid="save-message"
           >
             {saveMessage}
           </div>
         )}
 
-        <p className="mt-2 text-sm text-gray-500">
-          ⚠️ Changing AI provider settings requires a restart to take effect
+        <p className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+          Changing AI provider settings requires a restart to take effect
         </p>
       </div>
     </div>

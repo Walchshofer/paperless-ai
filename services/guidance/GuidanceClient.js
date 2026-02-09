@@ -535,7 +535,10 @@ const TEMPLATE_TO_PROMPT_FALLBACK = {
     'legal_visual_query_generator_de': 'VISUAL_QUERY_GENERATOR_V1',
 
     // Normalization
-    'normalization_geometry': 'SYS_ROUTER_V1'
+    'normalization_geometry': 'SYS_ROUTER_V1',
+
+    // System tools
+    'prompt_validator': 'GEN_FALLBACK_V1'
 };
 
 /**

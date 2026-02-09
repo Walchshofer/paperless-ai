@@ -12,6 +12,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const axios = require('axios');
 const { authenticateApi, requireAdmin } = require('../../middleware/auth');
+const setupService = require('../../services/setupService');
 
 // Environment file path
 const ENV_FILE_PATH = path.join(__dirname, '../../data/runtime.env');
@@ -38,29 +39,49 @@ router.get('/config', authenticateApi, requireAdmin, async (req, res) => {
 
         res.json({
             connection: {
+                // Paperless
                 paperlessApiUrl: envContent.PAPERLESS_API_URL || process.env.PAPERLESS_API_URL || '',
-                paperlessApiToken: envContent.PAPERLESS_API_TOKEN ? '***hidden***' : '',
-                paperlessUsername: envContent.PAPERLESS_USERNAME || process.env.PAPERLESS_USERNAME || ''
+                paperlessApiToken: (envContent.PAPERLESS_API_TOKEN || process.env.PAPERLESS_API_TOKEN) ? '***hidden***' : '',
+                paperlessUsername: envContent.PAPERLESS_USERNAME || process.env.PAPERLESS_USERNAME || '',
+                
+                // AI Providers
+                ollamaApiUrl: envContent.OLLAMA_API_URL || process.env.OLLAMA_API_URL || 'http://localhost:11434',
+                openaiApiKey: (envContent.PAPERLESS_OPENAI_API_KEY || process.env.PAPERLESS_OPENAI_API_KEY) ? '***hidden***' : '',
+                azureEndpoint: envContent.AZURE_ENDPOINT || process.env.AZURE_ENDPOINT || '',
+                azureApiKey: (envContent.AZURE_API_KEY || process.env.AZURE_API_KEY) ? '***hidden***' : '',
+                customApiUrl: envContent.CUSTOM_BASE_URL || process.env.CUSTOM_BASE_URL || '',
+                customApiKey: (envContent.CUSTOM_API_KEY || process.env.CUSTOM_API_KEY) ? '***hidden***' : '',
+
+                // Vector Store
+                qdrantHost: envContent.QDRANT_HOST || process.env.QDRANT_HOST || 'qdrant',
+                qdrantPort: envContent.QDRANT_PORT || process.env.QDRANT_PORT || '6333',
+                qdrantApiKey: (envContent.QDRANT_API_KEY || process.env.QDRANT_API_KEY) ? '***hidden***' : '',
+
+                // External API
+                externalApiEnabled: (envContent.EXTERNAL_API_ENABLED || process.env.EXTERNAL_API_ENABLED) === 'yes',
+                externalApiUrl: envContent.EXTERNAL_API_URL || process.env.EXTERNAL_API_URL || '',
+                externalApiMethod: envContent.EXTERNAL_API_METHOD || process.env.EXTERNAL_API_METHOD || 'GET',
+                externalApiHeaders: envContent.EXTERNAL_API_HEADERS || process.env.EXTERNAL_API_HEADERS || '{}',
+                externalApiBody: envContent.EXTERNAL_API_BODY || process.env.EXTERNAL_API_BODY || '{}',
+                externalApiTimeout: parseInt(envContent.EXTERNAL_API_TIMEOUT || process.env.EXTERNAL_API_TIMEOUT || '5000', 10),
+                externalApiTransform: envContent.EXTERNAL_API_TRANSFORM || process.env.EXTERNAL_API_TRANSFORM || ''
             },
             aiProvider: {
                 provider: envContent.AI_PROVIDER || process.env.AI_PROVIDER || 'ollama',
                 openai: {
-                    apiKey: envContent.PAPERLESS_OPENAI_API_KEY ? '***hidden***' : '',
                     model: envContent.PAPERLESS_OPENAI_MODEL || process.env.PAPERLESS_OPENAI_MODEL || 'gpt-4'
                 },
                 ollama: {
-                    url: envContent.OLLAMA_API_URL || process.env.OLLAMA_API_URL || 'http://localhost:11434',
                     model: envContent.OLLAMA_MODEL || process.env.OLLAMA_MODEL || ''
                 },
                 azure: {
-                    endpoint: envContent.AZURE_ENDPOINT || '',
                     deploymentName: envContent.AZURE_DEPLOYMENT_NAME || ''
                 }
             },
             processing: {
-                addAiProcessedTag: envContent.ADD_AI_PROCESSED_TAG === 'yes',
-                processExistingDocuments: envContent.PROCESS_EXISTING_DOCUMENTS === 'yes',
-                scanInterval: parseInt(envContent.SCAN_INTERVAL, 10) || 60
+                addAiProcessedTag: (envContent.ADD_AI_PROCESSED_TAG || process.env.ADD_AI_PROCESSED_TAG) === 'yes',
+                processExistingDocuments: (envContent.PROCESS_EXISTING_DOCUMENTS || process.env.PROCESS_EXISTING_DOCUMENTS) === 'yes',
+                scanInterval: envContent.SCAN_INTERVAL || process.env.SCAN_INTERVAL || '*/30 * * * *'
             },
             version: config.PAPERLESS_AI_VERSION || 'unknown'
         });
@@ -120,6 +141,52 @@ router.post('/test-connection', authenticateApi, requireAdmin, async (req, res) 
 });
 
 /**
+ * POST /api/settings/test-ollama
+ * Test connection to Ollama API
+ */
+router.post('/test-ollama', authenticateApi, requireAdmin, async (req, res) => {
+    try {
+        const { url } = req.body;
+        if (!url) return res.status(400).json({ success: false, message: 'Ollama URL is required' });
+
+        const isValid = await setupService.validateOllamaConfig(url);
+        if (isValid) {
+            res.json({ success: true, message: 'Ollama connection successful!' });
+        } else {
+            res.json({ success: false, message: 'Ollama connection failed. Check URL and ensure service is running.' });
+        }
+    } catch (error) {
+        logger.error('[Settings API] Ollama test failed:', error.message);
+        res.json({ success: false, message: error.message });
+    }
+});
+
+/**
+ * POST /api/settings/test-qdrant
+ * Test connection to Qdrant Vector Store
+ */
+router.post('/test-qdrant', authenticateApi, requireAdmin, async (req, res) => {
+    try {
+        const { host, port, apiKey } = req.body;
+        const qdrantUrl = `http://${host || 'qdrant'}:${port || '6333'}/healthz`;
+        
+        const response = await axios.get(qdrantUrl, {
+            headers: apiKey ? { 'api-key': apiKey } : {},
+            timeout: 5000
+        });
+
+        if (response.status === 200) {
+            res.json({ success: true, message: 'Qdrant connection successful!' });
+        } else {
+            res.json({ success: false, message: `Qdrant returned status: ${response.status}` });
+        }
+    } catch (error) {
+        logger.error('[Settings API] Qdrant test failed:', error.message);
+        res.json({ success: false, message: `Qdrant unreachable: ${error.message}` });
+    }
+});
+
+/**
  * POST /api/settings/save
  * Save settings (partial update)
  */
@@ -165,16 +232,31 @@ router.post('/save', express.json(), authenticateApi, requireAdmin, async (req, 
         await fs.writeFile(ENV_FILE_PATH, envLines.join('\n'), 'utf8');
 
         // Determine if restart is required
+        // Most settings in the Expert Pipeline environment require a full process restart to reload config
         const restartRequired = Object.keys(updates).some(key =>
             ['PAPERLESS_API_URL', 'PAPERLESS_API_TOKEN', 'AI_PROVIDER',
-             'OLLAMA_API_URL', 'PAPERLESS_OPENAI_API_KEY'].includes(key)
+             'OLLAMA_API_URL', 'PAPERLESS_OPENAI_API_KEY', 'EXPERT_PIPELINE_ENABLED',
+             'OLLAMA_MODEL', 'OLLAMA_VISION_MODEL', 'PLANNER_MODEL', 'ROUTER_MODEL',
+             'ORCHESTRATOR_MODEL', 'MEDICAL_VISION_MODEL', 'MEDICAL_ANALYSIS_MODEL',
+             'MEDICAL_RADIOLOGY_MODEL', 'FINANCIAL_ANALYSIS_MODEL', 'FINANCIAL_REASONING_MODEL',
+             'FINANCIAL_VISION_MODEL', 'FINANCIAL_VAT_EXPERT', 'LEGAL_VISION_MODEL',
+             'LEGAL_ANALYSIS_MODEL', 'LEGAL_ORCHESTRATOR_MODEL',
+             'AZURE_ENDPOINT', 'AZURE_API_KEY', 'CUSTOM_BASE_URL', 'CUSTOM_API_KEY',
+             'QDRANT_HOST', 'QDRANT_PORT', 'QDRANT_API_KEY'].includes(key)
         );
 
         res.json({
             success: true,
-            message: restartRequired ? 'Settings saved. Restart required.' : 'Settings saved.',
+            message: restartRequired ? 'Settings saved. Restarting...' : 'Settings saved.',
             restartRequired
         });
+
+        if (restartRequired) {
+            logger.info('[Settings API] Restarting server due to configuration change...');
+            setTimeout(() => {
+                process.exit(0);
+            }, 1000);
+        }
     } catch (error) {
         logger.error('[Settings API] Save failed:', error);
         res.status(500).json({ error: error.message });

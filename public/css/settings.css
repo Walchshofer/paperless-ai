@@ -1093,6 +1093,95 @@ hr {
     border-radius: 2px;
 }
 
+/* ── Tooltip Component ── */
+.ai-tooltip-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.25rem;
+}
+.ai-tooltip-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    background: var(--border-color);
+    color: var(--text-muted);
+    font-size: 0.625rem;
+    font-weight: 700;
+    cursor: help;
+    line-height: 1;
+}
+.ai-tooltip-content {
+    display: none;
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 0.5rem);
+    transform: translateX(-50%);
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    background: var(--bg-primary, #1e293b);
+    color: var(--text-primary, #f1f5f9);
+    font-size: 0.75rem;
+    line-height: 1.4;
+    white-space: normal;
+    width: max-content;
+    max-width: 20rem;
+    z-index: 50;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    pointer-events: none;
+}
+.ai-tooltip-wrapper:hover .ai-tooltip-content,
+.ai-tooltip-wrapper:focus-within .ai-tooltip-content {
+    display: block;
+}
+
+/* ── Collapsible Sections (Ollama tab) ── */
+.ollama-collapsible-section {
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+.ollama-collapsible-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: var(--bg-secondary, #f8fafc);
+    border: none;
+    cursor: pointer;
+    text-align: left;
+}
+.ollama-collapsible-header:hover {
+    background: var(--card-bg, #f1f5f9);
+}
+.ollama-collapsible-body {
+    padding: 1rem;
+}
+.ollama-chevron {
+    width: 1.25rem;
+    height: 1.25rem;
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+.ollama-chevron--open {
+    transform: rotate(180deg);
+}
+
+[data-theme="dark"] .ollama-collapsible-header {
+    background: rgba(255,255,255,0.03);
+}
+[data-theme="dark"] .ollama-collapsible-header:hover {
+    background: rgba(255,255,255,0.06);
+}
+[data-theme="dark"] .ai-tooltip-content {
+    background: #0f172a;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
 /* Responsive adjustments for specific settings components */
 @media (max-width: 768px) {
     .tag-input-container {

@@ -64,7 +64,11 @@ const FLAG_ENV_MAP: Record<string, string> = {
 interface RuntimeStateData {
   circuitBreaker?: { state: string; failures?: number; successes?: number };
   vram?: { used?: string; total?: string; utilization?: number };
-  qdrant?: { connected?: boolean; collections?: number; documents?: number };
+  qdrant?: {
+    connected?: boolean;
+    documents?: number;
+    details?: Array<{ name: string; label: string; vectors: number; status: string }>;
+  };
   sidecars?: { visualRag?: boolean; guidance?: boolean; biasEngine?: boolean };
   backgroundSync?: { lastSync?: string; nextSync?: string; running?: boolean; documentsProcessed?: number };
 }
@@ -82,7 +86,6 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
   // Section collapse state
   const [featureFlagsExpanded, setFeatureFlagsExpanded] = useState(true);
   const [envVarsExpanded, setEnvVarsExpanded] = useState(false);
-  const [ollamaLimitsExpanded, setOllamaLimitsExpanded] = useState(false);
   const [runtimeStateExpanded, setRuntimeStateExpanded] = useState(false);
 
   // Feature flags state - stored as a single object for cleaner management
@@ -107,26 +110,9 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
   const [guidanceTimeout, setGuidanceTimeout] = useState(validated.environmentVariables?.guidanceTimeout || 90000);
   const [visualRagTimeout, setVisualRagTimeout] = useState(validated.environmentVariables?.visualRagTimeout || 30000);
 
-  // Ollama model limits state
-  const [ollamaContextWindow, setOllamaContextWindow] = useState(validated.ollamaModelLimits?.ollamaContextWindow || 128000);
-  const [ollamaMaxResponseTokens, setOllamaMaxResponseTokens] = useState(validated.ollamaModelLimits?.ollamaMaxResponseTokens || 4096);
-  const [ollamaVisionContextWindow, setOllamaVisionContextWindow] = useState(validated.ollamaModelLimits?.ollamaVisionContextWindow || 32768);
-  const [ollamaVisionMaxResponseTokens, setOllamaVisionMaxResponseTokens] = useState(validated.ollamaModelLimits?.ollamaVisionMaxResponseTokens || 2048);
-  const [ollamaVisionImageTokens, setOllamaVisionImageTokens] = useState(validated.ollamaModelLimits?.ollamaVisionImageTokens || 1024);
-  const [ollamaPlannerContextWindow, setOllamaPlannerContextWindow] = useState(validated.ollamaModelLimits?.ollamaPlannerContextWindow || 32768);
-  const [ollamaPlannerMaxResponseTokens, setOllamaPlannerMaxResponseTokens] = useState(validated.ollamaModelLimits?.ollamaPlannerMaxResponseTokens || 2048);
-  const [ollamaExpertContextWindow, setOllamaExpertContextWindow] = useState(validated.ollamaModelLimits?.ollamaExpertContextWindow || 128000);
-  const [ollamaExpertMaxResponseTokens, setOllamaExpertMaxResponseTokens] = useState(validated.ollamaModelLimits?.ollamaExpertMaxResponseTokens || 4096);
-  const [translationContextWindow, setTranslationContextWindow] = useState(validated.ollamaModelLimits?.translationContextWindow || 128000);
-
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null as string | null);
-
-  // Ollama limits dirty/saving state
-  const [isOllamaDirty, setIsOllamaDirty] = useState(false);
-  const [isOllamaSaving, setIsOllamaSaving] = useState(false);
-  const [ollamaSaveMessage, setOllamaSaveMessage] = useState(null as string | null);
 
   // Runtime state
   const [runtimeState, setRuntimeState] = useState(null as RuntimeStateData | null);
@@ -145,7 +131,6 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
       if (!enabled) {
         setFeatureFlagsExpanded(false);
         setEnvVarsExpanded(false);
-        setOllamaLimitsExpanded(false);
         setRuntimeStateExpanded(false);
       }
     };
@@ -160,13 +145,6 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
       return () => clearTimeout(timer);
     }
   }, [saveMessage]);
-
-  useEffect(() => {
-    if (ollamaSaveMessage) {
-      const timer = setTimeout(() => setOllamaSaveMessage(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [ollamaSaveMessage]);
 
   // Fetch runtime state
   const fetchRuntimeState = async () => {
@@ -216,10 +194,10 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
 
         const settings: Record<string, string> = { [envName]: value ? 'yes' : 'no' };
 
-        const response = await fetch('/settings/apply', {
+        const response = await fetch('/api/settings/save', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ category: 'developer-feature-flags', settings, requiresRestart: false })
+          body: JSON.stringify(settings)
         });
 
         if (response.ok && typeof document !== 'undefined') {
@@ -247,10 +225,10 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
         VISUAL_RAG_TIMEOUT: visualRagTimeout.toString(),
       };
 
-      const response = await fetch('/settings/apply', {
+      const response = await fetch('/api/settings/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: 'developer-env-vars', settings, requiresRestart: true })
+        body: JSON.stringify(settings)
       });
 
       const result = await response.json();
@@ -280,53 +258,6 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
   };
 
   const markDirty = () => setIsDirty(true);
-  const markOllamaDirty = () => setIsOllamaDirty(true);
-
-  const handleSaveOllamaLimits = async () => {
-    setIsOllamaSaving(true);
-    setOllamaSaveMessage(null);
-    try {
-      const settings: Record<string, string> = {
-        OLLAMA_CONTEXT_WINDOW: ollamaContextWindow.toString(),
-        OLLAMA_MAX_RESPONSE_TOKENS: ollamaMaxResponseTokens.toString(),
-        OLLAMA_VISION_CONTEXT_WINDOW: ollamaVisionContextWindow.toString(),
-        OLLAMA_VISION_MAX_RESPONSE_TOKENS: ollamaVisionMaxResponseTokens.toString(),
-        OLLAMA_VISION_IMAGE_TOKENS: ollamaVisionImageTokens.toString(),
-        OLLAMA_PLANNER_CONTEXT_WINDOW: ollamaPlannerContextWindow.toString(),
-        OLLAMA_PLANNER_MAX_RESPONSE_TOKENS: ollamaPlannerMaxResponseTokens.toString(),
-        OLLAMA_EXPERT_CONTEXT_WINDOW: ollamaExpertContextWindow.toString(),
-        OLLAMA_EXPERT_MAX_RESPONSE_TOKENS: ollamaExpertMaxResponseTokens.toString(),
-        TRANSLATION_CONTEXT_WINDOW: translationContextWindow.toString(),
-      };
-
-      const response = await fetch('/api/settings/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings)
-      });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        setOllamaSaveMessage('Ollama model limits saved successfully');
-        setIsOllamaDirty(false);
-        if (typeof document !== 'undefined') {
-          document.dispatchEvent(new CustomEvent('settings:saved', {
-            detail: { type: 'settings:saved', category: 'developer-ollama-limits', success: true, message: 'Ollama model limits saved' }
-          }));
-          document.dispatchEvent(new CustomEvent('settings:restart-required', {
-            detail: { type: 'settings:restart-required', reason: 'Ollama model limits changed', settings: ['Ollama Model Limits'] }
-          }));
-        }
-      } else {
-        setOllamaSaveMessage(`Save failed: ${result.message || result.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      setOllamaSaveMessage(`Save failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsOllamaSaving(false);
-    }
-  };
 
   if (!isDeveloperMode) return null;
 
@@ -591,240 +522,6 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
         )}
       </div>
 
-      {/* ━━━ Ollama Model Limits Section ━━━ */}
-      <div className="dev-section-panel">
-        <button
-          onClick={() => setOllamaLimitsExpanded(!ollamaLimitsExpanded)}
-          className="dev-section-header w-full"
-          aria-expanded={ollamaLimitsExpanded}
-          aria-controls="ollama-limits-content"
-          data-testid="ollama-limits-header"
-        >
-          <div className="flex items-center gap-3">
-            <h3>Ollama Model Limits</h3>
-            <span className="local-badge" data-testid="ollama-limits-local-badge">
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-              Local
-            </span>
-            <span className="section-badge section-badge--manual">Manual save</span>
-          </div>
-          <Chevron open={ollamaLimitsExpanded} />
-        </button>
-
-        {ollamaLimitsExpanded && (
-          <div id="ollama-limits-content" data-testid="ollama-limits-content">
-            {/* Info Notice */}
-            <div
-              className="mx-5 mt-4 p-3 rounded-lg text-xs"
-              style={{ background: 'rgba(20, 184, 166, 0.06)', border: '1px solid rgba(20, 184, 166, 0.15)', color: 'var(--text-secondary)' }}
-            >
-              These limits apply to <strong style={{ color: '#14b8a6' }}>locally-hosted Ollama models</strong> only. Cloud providers (OpenAI, Azure) manage their own token limits.
-            </div>
-
-            {/* Inheritance Rail */}
-            <div className="tier-rail mx-5 my-4">
-              {/* TEXT (BASE) */}
-              <div className="tier-group stagger-child" data-testid="tier-text">
-                <div className="tier-label">Text (Base)</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <RangeNumberInput
-                    id="ollama-context-window"
-                    label="Context Window"
-                    description="Maximum context for text models"
-                    value={ollamaContextWindow}
-                    min={1024}
-                    max={256000}
-                    step={1024}
-                    unit="tokens"
-                    onChange={(v) => { setOllamaContextWindow(v); markOllamaDirty(); }}
-                    testId="tier-text-context-window"
-                  />
-                  <RangeNumberInput
-                    id="ollama-max-response"
-                    label="Max Response Tokens"
-                    description="Maximum response length"
-                    value={ollamaMaxResponseTokens}
-                    min={256}
-                    max={32768}
-                    step={256}
-                    unit="tokens"
-                    onChange={(v) => { setOllamaMaxResponseTokens(v); markOllamaDirty(); }}
-                    testId="tier-text-max-response"
-                  />
-                </div>
-              </div>
-
-              {/* VISION (capped 32k) */}
-              <div className="tier-group stagger-child" data-testid="tier-vision">
-                <div className="tier-label">
-                  Vision
-                  <span className="tier-cap-badge">capped 32k</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <RangeNumberInput
-                    id="ollama-vision-context"
-                    label="Context Window"
-                    description="Maximum context for vision models"
-                    value={ollamaVisionContextWindow}
-                    min={1024}
-                    max={32768}
-                    step={1024}
-                    unit="tokens"
-                    onChange={(v) => { setOllamaVisionContextWindow(v); markOllamaDirty(); }}
-                    testId="tier-vision-context-window"
-                  />
-                  <RangeNumberInput
-                    id="ollama-vision-response"
-                    label="Max Response Tokens"
-                    description="Maximum response length"
-                    value={ollamaVisionMaxResponseTokens}
-                    min={256}
-                    max={8192}
-                    step={256}
-                    unit="tokens"
-                    onChange={(v) => { setOllamaVisionMaxResponseTokens(v); markOllamaDirty(); }}
-                    testId="tier-vision-max-response"
-                  />
-                </div>
-                <div className="mt-3" style={{ maxWidth: '20rem' }}>
-                  <RangeNumberInput
-                    id="ollama-vision-image"
-                    label="Image Token Overhead"
-                    description="Token cost per image in vision context"
-                    value={ollamaVisionImageTokens}
-                    min={128}
-                    max={4096}
-                    step={128}
-                    unit="tokens/image"
-                    onChange={(v) => { setOllamaVisionImageTokens(v); markOllamaDirty(); }}
-                    testId="tier-vision-image-tokens"
-                  />
-                </div>
-              </div>
-
-              {/* PLANNER (capped 32k) */}
-              <div className="tier-group stagger-child" data-testid="tier-planner">
-                <div className="tier-label">
-                  Planner
-                  <span className="tier-cap-badge">capped 32k</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <RangeNumberInput
-                    id="ollama-planner-context"
-                    label="Context Window"
-                    description="Maximum context for planner models"
-                    value={ollamaPlannerContextWindow}
-                    min={1024}
-                    max={32768}
-                    step={1024}
-                    unit="tokens"
-                    onChange={(v) => { setOllamaPlannerContextWindow(v); markOllamaDirty(); }}
-                    testId="tier-planner-context-window"
-                  />
-                  <RangeNumberInput
-                    id="ollama-planner-response"
-                    label="Max Response Tokens"
-                    description="Maximum response length"
-                    value={ollamaPlannerMaxResponseTokens}
-                    min={256}
-                    max={8192}
-                    step={256}
-                    unit="tokens"
-                    onChange={(v) => { setOllamaPlannerMaxResponseTokens(v); markOllamaDirty(); }}
-                    testId="tier-planner-max-response"
-                  />
-                </div>
-              </div>
-
-              {/* EXPERT */}
-              <div className="tier-group stagger-child" data-testid="tier-expert">
-                <div className="tier-label">Expert</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <RangeNumberInput
-                    id="ollama-expert-context"
-                    label="Context Window"
-                    description="Maximum context for expert models"
-                    value={ollamaExpertContextWindow}
-                    min={1024}
-                    max={256000}
-                    step={1024}
-                    unit="tokens"
-                    onChange={(v) => { setOllamaExpertContextWindow(v); markOllamaDirty(); }}
-                    testId="tier-expert-context-window"
-                  />
-                  <RangeNumberInput
-                    id="ollama-expert-response"
-                    label="Max Response Tokens"
-                    description="Maximum response length"
-                    value={ollamaExpertMaxResponseTokens}
-                    min={256}
-                    max={32768}
-                    step={256}
-                    unit="tokens"
-                    onChange={(v) => { setOllamaExpertMaxResponseTokens(v); markOllamaDirty(); }}
-                    testId="tier-expert-max-response"
-                  />
-                </div>
-              </div>
-
-              {/* TRANSLATION */}
-              <div className="tier-group stagger-child" data-testid="tier-translation">
-                <div className="tier-label">Translation</div>
-                <div style={{ maxWidth: '20rem' }}>
-                  <RangeNumberInput
-                    id="translation-context"
-                    label="Context Window"
-                    description="Maximum context for translation"
-                    value={translationContextWindow}
-                    min={1024}
-                    max={256000}
-                    step={1024}
-                    unit="tokens"
-                    onChange={(v) => { setTranslationContextWindow(v); markOllamaDirty(); }}
-                    testId="tier-translation-context-window"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Save Bar */}
-            <div className="save-bar">
-              <button
-                onClick={handleSaveOllamaLimits}
-                disabled={!isOllamaDirty || isOllamaSaving}
-                className="save-bar-btn"
-                data-testid="save-ollama-limits-button"
-              >
-                {isOllamaSaving ? (
-                  <>
-                    <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Saving...
-                  </>
-                ) : 'Save Ollama Limits'}
-              </button>
-
-              {ollamaSaveMessage && (
-                <span
-                  className="text-sm font-medium"
-                  style={{ color: ollamaSaveMessage.startsWith('Save failed') ? '#ef4444' : '#22c55e' }}
-                  data-testid="ollama-save-message"
-                >
-                  {ollamaSaveMessage}
-                </span>
-              )}
-
-              {isOllamaDirty && (
-                <span className="text-xs" style={{ color: '#f59e0b', marginLeft: 'auto' }}>
-                  Unsaved changes - restart required
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* ━━━ Runtime State Section ━━━ */}
       <div className="dev-section-panel">
         <button
@@ -933,13 +630,33 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                       </span>
                     </div>
                     <div className="runtime-kv">
-                      <span className="runtime-kv-label">Collections</span>
-                      <span className="runtime-kv-value">{runtimeState.qdrant.collections || 0}</span>
-                    </div>
-                    <div className="runtime-kv">
-                      <span className="runtime-kv-label">Documents</span>
+                      <span className="runtime-kv-label">Indexed Documents</span>
                       <span className="runtime-kv-value">{runtimeState.qdrant.documents || 0}</span>
                     </div>
+                    {runtimeState.qdrant.details && runtimeState.qdrant.details.length > 0 && (
+                      <table style={{ width: '100%', marginTop: '0.5rem', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--border-color, #e5e7eb)' }}>
+                            <th style={{ textAlign: 'left', padding: '0.35rem 0.5rem', fontWeight: 500, color: 'var(--text-muted)' }}>Collection</th>
+                            <th style={{ textAlign: 'right', padding: '0.35rem 0.5rem', fontWeight: 500, color: 'var(--text-muted)' }}>Vectors</th>
+                            <th style={{ textAlign: 'right', padding: '0.35rem 0.5rem', fontWeight: 500, color: 'var(--text-muted)' }}>Health</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {runtimeState.qdrant.details.map((col) => (
+                            <tr key={col.name} style={{ borderBottom: '1px solid var(--border-color, #e5e7eb)' }}>
+                              <td style={{ padding: '0.35rem 0.5rem' }}>{col.label}</td>
+                              <td style={{ textAlign: 'right', padding: '0.35rem 0.5rem', fontVariantNumeric: 'tabular-nums' }}>{col.vectors.toLocaleString()}</td>
+                              <td style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>
+                                <span className={col.status === 'green' ? 'status-ok' : 'status-error'}>
+                                  {col.status === 'green' ? 'OK' : col.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 )}
 
