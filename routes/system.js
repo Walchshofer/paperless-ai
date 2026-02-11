@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const documentModel = require('../services/documentModel.js');
+const setupService = require('../services/setupService.js');
+const configFile = require('../config/config');
 const logger = require('../services/logger');
 const { qdrantAdapter } = require('../services/visual-rag-client/QdrantAdapter');
 const axios = require('axios');
@@ -336,6 +338,38 @@ router.post('/api/key-regenerate', authenticateApi, requireAdmin, async (req, re
     console.error('API key regeneration error:', error);
     res.status(500).json({ error: 'Error regenerating API key' });
   }
+});
+
+/**
+ * @swagger
+ * /settings:
+ *   get:
+ *     summary: Application settings page (Shell)
+ *     description: Renders the modern island-based settings page shell.
+ *     tags:
+ *       - Navigation
+ *     responses:
+ *       200:
+ *         description: Settings page rendered successfully
+ */
+router.get(['/settings', '/settings/*'], authenticate, async (req, res) => {
+  const vm = {
+    page: 'settings',
+    version: configFile.PAPERLESS_AI_VERSION || 'unknown',
+    user: {
+      username: req.user.username,
+      role: req.user.role,
+      isAdmin: req.user.isAdmin
+    },
+    settings: {
+      API_KEY: process.env.API_KEY || ''
+    },
+    connection: {},
+    aiProvider: {},
+    developer: {}
+  };
+
+  res.render('settings', { vm });
 });
 
 /**

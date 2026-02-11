@@ -295,6 +295,8 @@ def create_app():
     #
     # WORKAROUND (from https://github.com/BerriAI/litellm/issues/6683):
     # Direct Ollama API call with images in separate array
+    # NOTE: raw_prompt removed from here to allow it to use standard Guidance path (3)
+    # which has better variable handling for arbitrary prompts.
     VISION_TEMPLATES = {'normalization_geometry'}
 
     def strip_base64_header(image_b64: str) -> str:
@@ -525,6 +527,7 @@ Example output format:
         'normalization_geometry',
         # System tools
         'prompt_validator',
+        'raw_prompt',
     }
 
     def get_template_func(template_name: str):
@@ -614,6 +617,9 @@ Example output format:
         elif template_name == 'prompt_validator':
             from templates.system_tools import SystemToolsTemplates
             return SystemToolsTemplates.get_prompt_validator()
+        elif template_name == 'raw_prompt':
+            from templates.system_tools import SystemToolsTemplates
+            return SystemToolsTemplates.get_raw_prompt_executor()
         else:
             raise ValueError(f"Unknown template: {template_name}")
 
@@ -793,60 +799,65 @@ Example output format:
                 # - image params are ignored
                 # See: https://github.com/BerriAI/litellm/issues/6683
                 if template_name in VISION_TEMPLATES:
-                    template_start = time.time()
-
-                    app.logger.info({
-                        'event': 'vision_template_start',
-                        'template': template_name,
-                        'model': model,
-                        'mode': 'direct_ollama_bypass'
-                    })
-
-                    # Import schema and prompts from template module
-                    from schemas.NormalizationSchema import (
-                        NormalizationGeometry,
-                    )
-                    from templates.normalization_geometry import USER_PROMPTS
-
-                    schema_json = NormalizationGeometry.model_json_schema()
-                    image_b64 = variables.get('document_image_b64', '')
-                    language = variables.get('language', 'de')
-                    prompt = USER_PROMPTS.get(language, USER_PROMPTS['en'])
-
                     try:
+                        template_start = time.time()
+
+                        app.logger.info({
+                            'event': 'vision_template_start',
+                            'template': template_name,
+                            'model': model,
+                            'mode': 'direct_ollama_bypass'
+                        })
+
+                        # Import schema and prompts from template module
+                        from schemas.NormalizationSchema import (
+                            NormalizationGeometry,
+                        )
+                        image_b64 = variables.get('document_image_b64', '')
+                        
+                        if template_name == 'normalization_geometry':
+                            from templates.normalization_geometry import USER_PROMPTS
+                            from schemas.NormalizationSchema import NormalizationGeometry
+                            schema_json = NormalizationGeometry.model_json_schema()
+                            language = variables.get('language', 'de')
+                            prompt = USER_PROMPTS.get(language, USER_PROMPTS['en'])
+                        else:
+                            # Raw prompt bypass logic
+                            schema_json = {} # No schema enforcement for raw prompt
+                            
+                            # FIX: If no image is present, WE MUST USE Standard Guidance!
+                            # The vision bypass is ONLY for multimodal requests to avoid LiteLLM multimodal bugs.
+                            if not variables.get('document_image_b64'):
+                                 app.logger.info("Raw prompt without image - falling back to standard guidance")
+                                 # Skip this entire block to fall through to standard guidance path (3)
+                                 raise ValueError("FALLBACK_TO_GUIDANCE")
+
+                            prompt = variables.get('user_prompt', '')
+                            if variables.get('system_prompt'):
+                                # Combine for direct Ollama bypass (it hates system messages with vision)
+                                prompt = f"SYSTEM INSTRUCTIONS:\n{variables['system_prompt']}\n\nUSER REQUEST:\n{prompt}"
+
                         generated = call_ollama_vision(
                             model=model,
                             image_b64=image_b64,
                             prompt=prompt,
                             schema_json=schema_json,
                             temperature=temperature,
-                            # Large buffer for thinking models
-                            max_tokens=2000
+                            max_tokens=variables.get('max_tokens', 4000)
                         )
                         json_valid = True
                         template_latency_seconds = time.time() - template_start
 
-                        app.logger.info({
-                            'event': 'vision_template_complete',
-                            'template': template_name,
-                            'latency_seconds': round(
-                                template_latency_seconds, 2
-                            )
-                        })
-
-                        # Validate with Pydantic
-                        try:
-                            NormalizationGeometry.model_validate(generated)
-                            validation = {
-                                'valid': True, 'errors': [], 'warnings': []
-                            }
-
-                        except Exception as val_err:
-                            validation = {
-                                'valid': False,
-                                'errors': [str(val_err)],
-                                'warnings': []
-                            }
+                        # Validate with Pydantic only for geometry
+                        if template_name == 'normalization_geometry':
+                            try:
+                                NormalizationGeometry.model_validate(generated)
+                                validation = {'valid': True, 'errors': [], 'warnings': []}
+                            except Exception as val_err:
+                                validation = {'valid': False, 'errors': [str(val_err)], 'warnings': []}
+                        else:
+                            # Raw prompt always valid
+                            validation = {'valid': True, 'errors': [], 'warnings': []}
 
                         # Cache and return
                         if use_cache:
@@ -866,7 +877,14 @@ Example output format:
                             'validation': validation,
                             'source': 'generated'
                         })
-
+                    except ValueError as ve:
+                        if str(ve) == "FALLBACK_TO_GUIDANCE":
+                            # Explicit fallback - proceed to standard guidance path (3)
+                            pass
+                        else:
+                            app.logger.error(f"Vision template error: {ve}")
+                            tracker.set_status('error')
+                            return jsonify({'error': str(ve)}), 500
                     except Exception as vision_err:
                         app.logger.error(
                             f"Vision template failed: {vision_err}"
@@ -936,13 +954,45 @@ Example output format:
                 if output_payload is not None:
                     try:
                         if isinstance(output_payload, str):
+                            # FIX: Handle thinking models (like nemotron) which wrap output in <think> tags
+                            import re
+                            # Robust JSON extraction: look for first { and last } after any thinking tags
+                            # If <think> exists, search only after </think>
+                            search_text = output_payload
+                            if "</think>" in output_payload:
+                                search_text = output_payload.split("</think>", 1)[1]
+                            
+                            json_match = re.search(r'\{.*\}', search_text, re.DOTALL)
+                            actual_content = json_match.group(0) if json_match else search_text
+                            
                             if (
-                                '"suggested_tags"' in output_payload
-                                or '"missing_tags"' in output_payload
+                                '"suggested_tags"' in actual_content
+                                or '"missing_tags"' in actual_content
                             ):
                                 has_tag_fields = True
-                            generated = json.loads(output_payload)
-                            json_valid = True
+                            
+                            try:
+                                generated = json.loads(actual_content)
+                                json_valid = True
+                            except json.JSONDecodeError as exc:
+                                app.logger.error(
+                                    "JSON parse failed for %s output (%s)",
+                                    template_name,
+                                    exc,
+                                )
+                                json_valid = False
+                                generated = {"output": actual_content}
+                                if has_tag_fields:
+                                    tag_info = extract_tag_lists({})
+                                    record_tag_generation(
+                                        template=template_name,
+                                        domain=_infer_domain(template_name),
+                                        json_valid=json_valid,
+                                        latency_seconds=template_latency_seconds,
+                                        suggested_tags=tag_info["suggested_tags"],
+                                        missing_tags=tag_info["missing_tags"],
+                                        logger=app.logger,
+                                    )
                         elif isinstance(output_payload, dict):
                             generated = output_payload
                             if (
@@ -954,26 +1004,14 @@ Example output format:
                         else:
                             generated = {"output": output_payload}
                             json_valid = False
-                    except json.JSONDecodeError as exc:
+                    except Exception as exc:
                         app.logger.error(
-                            "JSON parse failed for %s output (%s)",
+                            "Unexpected extraction error for %s (%s)",
                             template_name,
                             exc,
                         )
-                        json_valid = False
-                        if has_tag_fields:
-                            tag_info = extract_tag_lists({})
-                            record_tag_generation(
-                                template=template_name,
-                                domain=_infer_domain(template_name),
-                                json_valid=json_valid,
-                                latency_seconds=template_latency_seconds,
-                                suggested_tags=tag_info["suggested_tags"],
-                                missing_tags=tag_info["missing_tags"],
-                                logger=app.logger,
-                            )
                         tracker.set_status('error')
-                        error_resp = {'error': 'Failed to parse JSON output'}
+                        error_resp = {'error': f'Extraction failed: {str(exc)}'}
                         return jsonify(error_resp), 500
                 else:
                     if 'medical' in template_name:

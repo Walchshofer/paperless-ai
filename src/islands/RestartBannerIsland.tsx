@@ -52,14 +52,18 @@ export default function RestartBannerIsland(props: Partial<RestartBannerSettings
   const handleRestart = async () => {
     // Trigger restart via API
     try {
-      const response = await fetch('/api/restart', {
+      const response = await fetch('/api/settings/restart', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
 
       if (response.ok) {
-        // Optionally show a "Restarting..." message
-        setReason('Restarting...');
+        // Show "Restarting..." message
+        setReason('System reboot initiated. Reconnecting in 5s...');
+        // Refresh page after a short delay to reconnect
+        setTimeout(() => {
+          window.location.reload();
+        }, 5000);
       }
     } catch (error) {
       console.error('Failed to trigger restart:', error);

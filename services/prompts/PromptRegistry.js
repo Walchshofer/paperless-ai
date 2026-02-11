@@ -730,7 +730,7 @@ const MED_INTEGRATOR_V1 = {
     id: 'MED_INTEGRATOR_V1',
     version: '1.0.0',
     domain: DomainType.MEDICAL,
-    model: 'medtext-llama3:latest',
+    model: MODEL_NAMES.medicalText,
     modelType: ModelType.TEXT_ONLY,
     
     systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>

@@ -193,8 +193,8 @@ services:
 
   text-rag:
     build:
-      context: .
-      dockerfile: containers/text-rag/Dockerfile
+      context: ./containers/text-rag
+      dockerfile: Dockerfile
     container_name: text_rag
     restart: unless-stopped
     depends_on:

@@ -37,17 +37,9 @@ const EnvironmentVariablesSchema = z.object({
   disableAutomaticProcessing: z.string().optional().default('no'),
   scanInterval: z.string().optional().default('*/30 * * * *'),
 
-  // Token limits
-  tokenLimit: z.number().int().positive().optional().default(128000),
-  responseTokens: z.number().int().positive().optional().default(4096),
+  // Token limits, textQualityThreshold, maxVisionPages moved to AI Provider settings
 
-  // Visual RAG settings
-  textQualityThreshold: z.number().int().min(0).max(100).optional().default(60),
-  maxVisionPages: z.number().int().positive().optional().default(4),
-
-  // Timeouts
-  guidanceTimeout: z.number().int().positive().optional().default(90000),
-  visualRagTimeout: z.number().int().positive().optional().default(30000),
+  // Timeouts moved to Connection Center
 });
 
 export const DeveloperSettingsSchema = z.object({

@@ -44,16 +44,8 @@
                     </div>
                 </div>
 
-                <!-- Settings islands scaffolding (P1.3): Restart banner + Overview + Sidebar -->
+                <!-- Settings islands scaffolding (P1.3): Restart banner -->
                 <div data-island="restart-banner-island" data-testid="restart-banner-island" data-props='{"visible": true}'></div>
-                <div data-island="overview-dashboard-island" data-testid="overview-dashboard-island" data-props='{}'></div>
-                <div data-island="settings-sidebar-island" data-testid="settings-sidebar-island" data-props='{}'></div>
-
-                <!-- Phase 3: Developer Settings Island -->
-                <div data-island="developer-settings-island" data-testid="developer-settings-island" data-props='{}'></div>
-
-                <!-- Phase 4: Presets Manager Island -->
-                <div data-island="presets-manager-island" data-testid="presets-manager-island" data-props='{}'></div>
 
                 <!-- Main Form Card -->
                 <div class="material-card">
@@ -103,6 +95,7 @@
                                                id="username" 
                                                name="username"
                                                class="modern-input"
+                                               data-testid="setup-username-input"
                                                required>
                                     </div>
                             
@@ -113,6 +106,7 @@
                                                    id="password" 
                                                    name="password"
                                                    class="modern-input"
+                                                   data-testid="setup-password-input"
                                                    required>
                                             <button type="button" class="password-toggle" data-input="password" data-testid="password-toggle-password">
                                                 <i class="fas fa-eye"></i>
@@ -128,6 +122,7 @@
                                                    id="confirmPassword" 
                                                    name="confirmPassword"
                                                    class="modern-input"
+                                                   data-testid="setup-confirm-password-input"
                                                    required>
                                             <button type="button" class="password-toggle" data-input="confirmPassword" data-testid="password-toggle-confirmPassword">
                                                 <i class="fas fa-eye"></i>
@@ -163,6 +158,7 @@
                                                value="<%= vm.PAPERLESS_API_URL %>"
                                                class="modern-input"
                                                placeholder="http://your-paperless-instance:8000"
+                                               data-testid="setup-paperless-url-input"
                                                required>
                                     </div>
 
@@ -174,6 +170,7 @@
                                                    name="paperlessToken"
                                                    value="<%= vm.PAPERLESS_API_TOKEN %>"
                                                    class="modern-input"
+                                                   data-testid="setup-paperless-token-input"
                                                    required>
                                             <button type="button" class="password-toggle" data-input="paperlessToken" data-testid="password-toggle-paperlessToken">
                                                 <i class="fas fa-eye"></i>
@@ -188,6 +185,7 @@
                                                name="paperlessUsername"
                                                value="<%= vm.PAPERLESS_USERNAME %>"
                                                class="modern-input"
+                                               data-testid="setup-paperless-username-input"
                                                required>
                                     </div>
                                 </div>
@@ -207,7 +205,8 @@
                                         <label for="aiProvider">AI Provider</label>
                                         <select id="aiProvider" 
                                                 name="aiProvider"
-                                                class="modern-input">
+                                                class="modern-input"
+                                                data-testid="setup-ai-provider-select">
                                             <option value="openai" <%= vm.AI_PROVIDER === 'openai' ? 'selected' : '' %>>
                                                 OpenAI (ChatGPT)
                                             </option>
@@ -232,7 +231,8 @@
                                                        id="openaiKey" 
                                                        name="openaiKey"
                                                        value="<%= vm.PAPERLESS_OPENAI_API_KEY %>"
-                                                       class="modern-input">
+                                                       class="modern-input"
+                                                       data-testid="setup-openai-key-input">
                                                 <button type="button" class="password-toggle" data-input="openaiKey" data-testid="password-toggle-openaiKey">
                                                     <i class="fas fa-eye"></i>
                                                 </button>
@@ -243,7 +243,8 @@
                                             <label for="openaiModel">OpenAI Model</label>
                                             <select id="openaiModel" 
                                                     name="openaiModel"
-                                                    class="modern-input">
+                                                    class="modern-input"
+                                                    data-testid="setup-openai-model-select">
                                                 <option value="gpt-3.5-turbo-0125" <%= vm.PAPERLESS_OPENAI_MODEL === 'gpt-3.5-turbo-0125' ? 'selected' : '' %>>GPT-3.5 Turbo</option>
                                                 <option value="gpt-4o" <%= vm.PAPERLESS_OPENAI_MODEL === 'gpt-4o' ? 'selected' : '' %>>GPT-4o</option>
                                                 <option value="o3-mini" <%= vm.PAPERLESS_OPENAI_MODEL === 'o3-mini' ? 'selected' : '' %>>o3-mini</option>
@@ -260,7 +261,8 @@
                                                    id="ollamaUrl" 
                                                    name="ollamaUrl"
                                                    value="<%= vm.OLLAMA_API_URL %>"
-                                                   class="modern-input">
+                                                   class="modern-input"
+                                                   data-testid="setup-ollama-url-input">
                                         </div>
                                         
                                         <div class="form-group">
@@ -269,7 +271,8 @@
                                                    id="ollamaModel" 
                                                    name="ollamaModel"
                                                    value="<%= vm.OLLAMA_MODEL %>"
-                                                   class="modern-input">
+                                                   class="modern-input"
+                                                   data-testid="setup-ollama-model-input">
                                         </div>
 
                                         <div class="form-group">
@@ -279,7 +282,8 @@
                                                    name="ollamaContextWindow"
                                                    value="<%= vm.OLLAMA_CONTEXT_WINDOW %>"
                                                    class="modern-input"
-                                                   placeholder="8192">
+                                                   placeholder="8192"
+                                                   data-testid="setup-ollama-text-context-input">
                                         </div>
 
                                         <div class="form-group">
@@ -289,7 +293,8 @@
                                                    name="ollamaMaxResponseTokens"
                                                    value="<%= vm.OLLAMA_MAX_RESPONSE_TOKENS %>"
                                                    class="modern-input"
-                                                   placeholder="2048">
+                                                   placeholder="2048"
+                                                   data-testid="setup-ollama-text-max-tokens-input">
                                         </div>
 
                                         <div class="form-group">
@@ -299,7 +304,8 @@
                                                    name="ollamaVisionContextWindow"
                                                    value="<%= vm.OLLAMA_VISION_CONTEXT_WINDOW %>"
                                                    class="modern-input"
-                                                   placeholder="16384">
+                                                   placeholder="16384"
+                                                   data-testid="setup-ollama-vision-context-input">
                                         </div>
 
                                         <div class="form-group">
@@ -309,7 +315,8 @@
                                                    name="ollamaVisionMaxResponseTokens"
                                                    value="<%= vm.OLLAMA_VISION_MAX_RESPONSE_TOKENS %>"
                                                    class="modern-input"
-                                                   placeholder="2048">
+                                                   placeholder="2048"
+                                                   data-testid="setup-ollama-vision-max-tokens-input">
                                         </div>
 
                                         <div class="form-group">
@@ -319,7 +326,8 @@
                                                    name="ollamaExpertContextWindow"
                                                    value="<%= vm.OLLAMA_EXPERT_CONTEXT_WINDOW %>"
                                                    class="modern-input"
-                                                   placeholder="8192">
+                                                   placeholder="8192"
+                                                   data-testid="setup-ollama-expert-context-input">
                                         </div>
 
                                         <div class="form-group">
@@ -329,7 +337,8 @@
                                                    name="ollamaExpertMaxResponseTokens"
                                                    value="<%= vm.OLLAMA_EXPERT_MAX_RESPONSE_TOKENS %>"
                                                    class="modern-input"
-                                                   placeholder="2048">
+                                                   placeholder="2048"
+                                                   data-testid="setup-ollama-expert-max-tokens-input">
                                         </div>
 
                                         <div class="form-group">
@@ -339,7 +348,8 @@
                                                    name="translationContextWindow"
                                                    value="<%= vm.TRANSLATION_CONTEXT_WINDOW %>"
                                                    class="modern-input"
-                                                   placeholder="8192">
+                                                   placeholder="8192"
+                                                   data-testid="setup-translation-context-input">
                                         </div>
 
                                         <div class="form-group">
@@ -349,7 +359,9 @@
                                                    name="translationMaxTokens"
                                                    value="<%= vm.TRANSLATION_MAX_TOKENS %>"
                                                    class="modern-input"
-                                                   placeholder="512">
+                                                   placeholder="512"
+                                                   data-testid="setup-translation-max-tokens-input">
+                                        </div>
                                         </div>
                                     </div>
 
@@ -362,7 +374,8 @@
                                                    name="customBaseUrl"
                                                    value="<%= vm.CUSTOM_BASE_URL %>"
                                                    class="modern-input"
-                                                   placeholder="https://api.example.com">
+                                                   placeholder="https://api.example.com"
+                                                   data-testid="setup-custom-base-url-input">
                                         </div>
                                         
                                         <div class="form-group">
@@ -372,7 +385,8 @@
                                                        id="customApiKey" 
                                                        name="customApiKey"
                                                        value="<%= vm.CUSTOM_API_KEY %>"
-                                                       class="modern-input">
+                                                       class="modern-input"
+                                                       data-testid="setup-custom-api-key-input">
                                                 <button type="button" class="password-toggle" data-input="customApiKey" data-testid="password-toggle-customApiKey">
                                                     <i class="fas fa-eye"></i>
                                                 </button>
@@ -386,7 +400,8 @@
                                                    name="customModel"
                                                    value="<%= vm.CUSTOM_MODEL %>"
                                                    class="modern-input"
-                                                   placeholder="Enter model name">
+                                                   placeholder="Enter model name"
+                                                   data-testid="setup-custom-model-input">
                                         </div>
                                     </div>
 
@@ -400,7 +415,8 @@
                                                    name="azureEndpoint"
                                                    value="<%= vm.AZURE_ENDPOINT %>"
                                                    class="modern-input"
-                                                   placeholder="https://api.example.com">
+                                                   placeholder="https://api.example.com"
+                                                   data-testid="setup-azure-endpoint-input">
                                         </div>
                                         
                                         <div class="form-group">
@@ -410,7 +426,8 @@
                                                        id="azureApiKey" 
                                                        name="azureApiKey"
                                                        value="<%= vm.AZURE_API_KEY %>"
-                                                       class="modern-input">
+                                                       class="modern-input"
+                                                       data-testid="setup-azure-api-key-input">
                                                 <button type="button" class="password-toggle" data-input="azureApiKey" data-testid="password-toggle-azureApiKey">
                                                     <i class="fas fa-eye"></i>
                                                 </button>
@@ -424,7 +441,8 @@
                                                    name="azureDeploymentName"
                                                    value="<%= vm.AZURE_DEPLOYMENT_NAME %>"
                                                    class="modern-input"
-                                                   placeholder="Enter deployment name">
+                                                   placeholder="Enter deployment name"
+                                                   data-testid="setup-azure-deployment-input">
                                         </div>
 
                                         <div class="form-group">
@@ -434,7 +452,9 @@
                                                    name="azureApiVersion"
                                                    value="<%= vm.AZURE_API_VERSION %>"
                                                    class="modern-input"
-                                                   placeholder="Enter API version">
+                                                   placeholder="Enter API version"
+                                                   data-testid="setup-azure-api-version-input">
+                                        </div>
                                         </div>
                                     </div>
 
@@ -445,7 +465,8 @@
                                                name="tokenLimit"
                                                value="<%= vm.TOKEN_LIMIT %>"
                                                class="modern-input"
-                                               placeholder="Enter token limit of model">
+                                               placeholder="Enter token limit of model"
+                                               data-testid="setup-token-limit-input">
                                     </div>
                         
                                     <div class="form-group">
@@ -455,7 +476,8 @@
                                                name="responseTokens"
                                                value="<%= vm.RESPONSE_TOKENS %>"
                                                class="modern-input"
-                                               placeholder="Enter approximate token amount for the response">
+                                               placeholder="Enter approximate token amount for the response"
+                                               data-testid="setup-response-tokens-input">
                                     </div>
                                 </div>
                             </section>
@@ -474,7 +496,8 @@
                                             <label for="useExistingData">Use existing Correspondents and Tags?</label>
                                             <select id="useExistingData"
                                                     name="useExistingData"
-                                                    class="modern-input">
+                                                    class="modern-input"
+                                                    data-testid="setup-use-existing-data-select">
                                                 <option value="no" <%= vm.USE_EXISTING_DATA === 'no' ? 'selected' : '' %>>No</option>
                                                 <option value="yes" <%= vm.USE_EXISTING_DATA === 'yes' ? 'selected' : '' %>>Yes</option>
                                             </select>
@@ -488,6 +511,7 @@
                                                         id="pipelineTagReplace"
                                                         name="pipelineTagReplace"
                                                         class="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                                        data-testid="setup-pipeline-tag-replace-checkbox"
                                                         <%= vm.PIPELINE_TAG_REPLACE === 'yes' ? 'checked' : '' %>>
                                                     <div class="ml-3">
                                                         <div class="flex items-center font-medium">
@@ -507,6 +531,7 @@
                                                    name="scanInterval"
                                                    value="<%= vm.SCAN_INTERVAL %>"
                                                    class="modern-input"
+                                                   data-testid="setup-scan-interval-input"
                                                    required>
                                             <p class="help-text">Default: every 30 minutes</p>
                                         </div>
@@ -515,7 +540,8 @@
                                             <label for="showTags">Process only specific pre tagged documents?</label>
                                             <select id="showTags" 
                                                     name="showTags" 
-                                                    class="modern-input">
+                                                    class="modern-input"
+                                                    data-testid="setup-show-tags-select">
                                                 <option value="no" <%= vm.PROCESS_PREDEFINED_DOCUMENTS === 'no' ? 'selected' : '' %>>No</option>
                                                 <option value="yes" <%= vm.PROCESS_PREDEFINED_DOCUMENTS === 'yes' ? 'selected' : '' %>>Yes</option>
                                             </select>
@@ -529,6 +555,7 @@
                                                     <input type="text" 
                                                         id="tagInput" 
                                                         class="modern-input"
+                                                        data-testid="setup-tag-input"
                                                         placeholder="Enter a tag and press Enter">
                                                     <button type="button" 
                                                             class="material-button add-tag-btn"
@@ -557,7 +584,8 @@
                                             <label for="aiProcessedTag">Add AI-processed tag to documents?</label>
                                             <select id="aiProcessedTag" 
                                                     name="aiProcessedTag" 
-                                                    class="modern-input">
+                                                    class="modern-input"
+                                                    data-testid="setup-ai-processed-tag-select">
                                                 <option value="no" <%= vm.ADD_AI_PROCESSED_TAG === 'no' ? 'selected' : '' %>>No</option>
                                                 <option value="yes" <%= vm.ADD_AI_PROCESSED_TAG === 'yes' ? 'selected' : '' %>>Yes</option>
                                             </select>
@@ -571,6 +599,7 @@
                                                     name="aiTagName"
                                                     value="<%= vm.AI_PROCESSED_TAG_NAME || 'ai-processed' %>"
                                                     class="modern-input"
+                                                    data-testid="setup-ai-tag-name-input"
                                                     placeholder="ai-processed">
                                                 <p class="help-text">This tag will be added to documents after AI processing</p>
                                             </div>
@@ -581,7 +610,8 @@
                                             <label for="usePromptTags">Use specific tags in prompt?</label>
                                             <select id="usePromptTags" 
                                                     name="usePromptTags" 
-                                                    class="modern-input">
+                                                    class="modern-input"
+                                                    data-testid="setup-use-prompt-tags-select">
                                                 <option value="no" <%= vm.USE_PROMPT_TAGS === 'no' ? 'selected' : '' %>>No</option>
                                                 <option value="yes" <%= vm.USE_PROMPT_TAGS === 'yes' ? 'selected' : '' %>>Yes</option>
                                             </select>
@@ -594,6 +624,7 @@
                                                     <input type="text" 
                                                         id="promptTagInput" 
                                                         class="modern-input"
+                                                        data-testid="setup-prompt-tag-input"
                                                         placeholder="Enter a tag and press Enter">
                                                     <button type="button" 
                                                             class="material-button add-prompt-tag-btn"
@@ -625,6 +656,7 @@
                                                         id="disableAutomaticProcessing" 
                                                         name="disableAutomaticProcessing" 
                                                         class="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                                        data-testid="setup-disable-automatic-processing-checkbox"
                                                         <%= vm.DISABLE_AUTOMATIC_PROCESSING === 'yes' ? 'checked' : '' %>>
                                                     <div class="ml-3">
                                                         <div class="flex items-center font-medium">
@@ -652,6 +684,7 @@
                                                             id="activateTagging" 
                                                             name="activateTagging" 
                                                             class="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                                            data-testid="setup-activate-tagging-checkbox"
                                                             <%= vm.ACTIVATE_TAGGING === 'yes' ? 'checked' : '' %>>
                                                         <div class="ml-3">
                                                             <div class="flex items-center font-medium">
@@ -669,6 +702,7 @@
                                                             id="activateCorrespondents" 
                                                             name="activateCorrespondents" 
                                                             class="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                                            data-testid="setup-activate-correspondents-checkbox"
                                                             <%= vm.ACTIVATE_CORRESPONDENTS === 'yes' ? 'checked' : '' %>>
                                                         <div class="ml-3">
                                                             <div class="flex items-center font-medium">
@@ -686,6 +720,7 @@
                                                             id="activateDocumentType" 
                                                             name="activateDocumentType" 
                                                             class="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                                            data-testid="setup-activate-document-type-checkbox"
                                                             <%= vm.ACTIVATE_DOCUMENT_TYPE === 'yes' ? 'checked' : '' %>>
                                                         <div class="ml-3">
                                                             <div class="flex items-center font-medium">
@@ -703,6 +738,7 @@
                                                             id="activateTitle" 
                                                             name="activateTitle" 
                                                             class="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                                            data-testid="setup-activate-title-checkbox"
                                                             <%= vm.ACTIVATE_TITLE === 'yes' ? 'checked' : '' %>>
                                                         <div class="ml-3">
                                                             <div class="flex items-center font-medium">
@@ -720,6 +756,7 @@
                                                             id="activateCustomFields" 
                                                             name="activateCustomFields" 
                                                             class="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                                            data-testid="setup-activate-custom-fields-checkbox"
                                                             <%= vm.ACTIVATE_CUSTOM_FIELDS === 'yes' ? 'checked' : '' %>>
                                                         <div class="ml-3">
                                                             <div class="flex items-center font-medium">
@@ -780,11 +817,12 @@
                                                     <input type="text" 
                                                         id="newFieldName" 
                                                         class="modern-input w-full" 
+                                                        data-testid="setup-new-field-name-input"
                                                         placeholder="Enter field name...">
                                                 </div>
                                                 
                                                 <div class="col-span-2">
-                                                    <select id="newFieldType" class="modern-input w-full" onchange="toggleCurrencySelect()">
+                                                    <select id="newFieldType" class="modern-input w-full" data-testid="setup-new-field-type-select" onchange="toggleCurrencySelect()">
                                                         <option value="string">Text</option>
                                                         <option value="float">Number</option>
                                                         <option value="integer">Integer</option>
@@ -793,7 +831,7 @@
                                                 </div>
 
                                                 <div class="col-span-2">
-                                                    <select id="currencyCode" class="modern-input w-full" style="display: none;">
+                                                    <select id="currencyCode" class="modern-input w-full" data-testid="setup-currency-code-select" style="display: none;">
                                                         <option value="EUR">EUR</option>
                                                         <option value="USD">USD</option>
                                                         <option value="GBP">GBP</option>
@@ -836,6 +874,7 @@
                                                      name="systemPrompt"
                                                      rows="8"
                                                      class="modern-input"
+                                                     data-testid="setup-system-prompt-textarea"
                                                      placeholder="Describe how the AI should analyze your documents..."><%= vm.SYSTEM_PROMPT %></textarea>
                                             <button id="systemPromptBtn" type="button" data-testid="system-prompt-btn" 
                                                     class="material-button example-btn">

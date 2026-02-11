@@ -32,24 +32,24 @@ type MatchType = 'exact' | 'fuzzy' | 'none';
 
 const DOMAIN_FALLBACKS: Record<string, { icon: string; label: string; badge: string }> = {
   financial: {
-    icon: '📋',
-    label: 'Financial Document',
-    badge: 'bg-[#fff1e6] border-[#f3c9a6] text-[#9a3412]'
+    icon: 'fa-file-invoice-dollar',
+    label: 'Financial Protocol',
+    badge: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
   },
   medical: {
-    icon: '🏥',
-    label: 'Medical Document',
-    badge: 'bg-[#ecfdf3] border-[#bbf7d0] text-[#166534]'
+    icon: 'fa-microscope',
+    label: 'Medical Laboratory',
+    badge: 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400'
   },
   legal: {
-    icon: '⚖️',
-    label: 'Legal Document',
-    badge: 'bg-[#f5f3ff] border-[#ddd6fe] text-[#5b21b6]'
+    icon: 'fa-scale-balanced',
+    label: 'Legal Framework',
+    badge: 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400'
   },
   general: {
-    icon: '📄',
+    icon: 'fa-file-lines',
     label: 'General Document',
-    badge: 'bg-[#eff6ff] border-[#bfdbfe] text-[#1d4ed8]'
+    badge: 'bg-cyan-500/10 border-cyan-500/20 text-cyan-600 dark:text-cyan-400'
   }
 };
 
@@ -159,9 +159,9 @@ function resolveDomainMeta(domain: string) {
 }
 
 function resolveMatchLabel(matchType?: MatchType | null): string {
-  if (matchType === 'exact') return 'Exact Match ✓';
-  if (matchType === 'fuzzy') return 'Fuzzy Match ~';
-  return 'No Match ✗';
+  if (matchType === 'exact') return 'Exact Match';
+  if (matchType === 'fuzzy') return 'Fuzzy Match';
+  return 'No Match';
 }
 
 export default function SmartMetadataIsland(props: Partial<SmartMetadataContract & { documentId?: DocumentId; saveDelayMs?: number }>) {
@@ -792,30 +792,31 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
   const hasFailedProgress = reprocessProgress.status === 'failed';
 
   return (
-    <div data-testid="smart-metadata-root" className="flex flex-col gap-4">
+    <div data-testid="smart-metadata-root" className="flex flex-col gap-6">
       {validationError && (
         <div
           data-testid="validation-error"
-          className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-sm text-red-700"
+          className="flex items-center gap-2 px-4 py-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 animate-in fade-in slide-in-from-top-2"
           role="alert"
         >
-          <i className="fas fa-exclamation-circle text-red-500"></i>
+          <i className="fas fa-triangle-exclamation text-rose-500"></i>
           <span>{validationError}</span>
         </div>
       )}
 
-      <div className="rounded-lg border border-[#eee4d7] bg-white/90 shadow-sm p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-xs uppercase tracking-wide text-[#8a6f54]">Smart Metadata</div>
-            <div className="text-lg font-['Fraunces'] text-[#2c2c2c]">Unified Metadata View</div>
+      {/* ── HEADER & DOMAIN ── */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 shadow-sm p-5">
+        <div className="flex items-center justify-between gap-4 mb-6">
+          <div className="space-y-1">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Intelligence Layer</h3>
+            <div className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Unified Metadata Hub</div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <div
               data-testid="document-domain-badge"
-              className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-semibold ${domainMeta.badge}`}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${domainMeta.badge}`}
             >
-              <span>{resolvedProfile.icon || domainMeta.icon}</span>
+              <i className={`fas ${resolvedProfile.icon || domainMeta.icon}`}></i>
               <span>{resolvedProfile.displayName || domainMeta.label}</span>
             </div>
             <button
@@ -823,113 +824,110 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
               data-testid="reprocess-metadata-btn"
               onClick={handleReprocess}
               disabled={isReprocessing || currentDocumentId == null}
-              aria-label="Reprocess document with AI"
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold text-white bg-[#b87333] hover:bg-[#a06028] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-white bg-cyan-600 hover:bg-cyan-700 shadow-lg shadow-cyan-600/20 disabled:opacity-50 disabled:grayscale transition-all"
             >
-              <i className={`fas ${isReprocessing ? 'fa-circle-notch fa-spin' : 'fa-rotate-right'}`}></i>
-              <span>{isReprocessing ? 'Reprocessing...' : 'Reprocess'}</span>
+              <i className={`fas ${isReprocessing ? 'fa-circle-notch fa-spin' : 'fa-wand-sparkles'}`}></i>
+              <span>{isReprocessing ? 'Analyzing...' : 'Reprocess'}</span>
             </button>
           </div>
         </div>
 
-        <div className="grid gap-3 mt-4">
-          <div className="flex flex-col gap-2">
-            <label htmlFor="smart-title-input" className="text-xs text-[#666] flex items-center gap-2">
-              Title
+        {/* ── CORE FIELDS ── */}
+        <div className="grid gap-5">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label htmlFor="smart-title-input" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Document Title</label>
               {requiredMetadataKeys.includes('metadata:title') && (
-                <span className="text-[10px] px-2 py-[2px] rounded-full bg-[#fff3e6] text-[#9a3412] border border-[#f3c9a6]">Required</span>
+                <span className="text-[8px] font-black px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 border border-amber-500/20 uppercase">Required</span>
               )}
-            </label>
+            </div>
             <input
               id="smart-title-input"
-              title="Document title"
-              placeholder="Enter document title"
               data-testid="smart-title-input"
-              className={`w-full border rounded-md px-3 py-2 text-sm ${titleError ? 'border-red-400 bg-red-50' : 'border-[#e5e0d8]'}`}
+              className={`w-full px-4 py-3 rounded-xl border text-sm font-bold transition-all focus:ring-2 focus:ring-cyan-500/20 outline-none ${titleError ? 'border-rose-400 bg-rose-50 dark:bg-rose-900/10 text-rose-900 dark:text-rose-100' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-cyan-50'}`}
               value={localMetadata.title}
               onInput={(e: Event) => onMetaChange('title', (e.target as HTMLInputElement).value)}
             />
-            {titleError && (
-              <span data-testid="title-error" className="text-xs text-red-600">{titleError}</span>
-            )}
+            {titleError && <p className="text-[10px] font-bold text-rose-500 mt-1 uppercase tracking-tight">{titleError}</p>}
           </div>
 
-          <div className="flex flex-col gap-2">
-            <label htmlFor="smart-correspondent-input" className="text-xs text-[#666] flex items-center gap-2">
-              Correspondent
-              {requiredMetadataKeys.includes('metadata:correspondent') && (
-                <span className="text-[10px] px-2 py-[2px] rounded-full bg-[#fff3e6] text-[#9a3412] border border-[#f3c9a6]">Required</span>
-              )}
-            </label>
-            <input
-              id="smart-correspondent-input"
-              title="Correspondent name"
-              placeholder="Enter correspondent name"
-              data-testid="smart-correspondent-input"
-              className={`w-full border rounded-md px-3 py-2 text-sm ${correspondentError ? 'border-red-400 bg-red-50' : 'border-[#e5e0d8]'}`}
-              value={localMetadata.correspondent}
-              onInput={(e: Event) => onMetaChange('correspondent', (e.target as HTMLInputElement).value)}
-            />
-            {correspondentError && (
-              <span data-testid="correspondent-error" className="text-xs text-red-600">{correspondentError}</span>
-            )}
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label htmlFor="smart-correspondent-input" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Correspondent</label>
+                {requiredMetadataKeys.includes('metadata:correspondent') && (
+                  <span className="text-[8px] font-black px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 border border-amber-500/20 uppercase">Required</span>
+                )}
+              </div>
+              <input
+                id="smart-correspondent-input"
+                data-testid="smart-correspondent-input"
+                className={`w-full px-4 py-3 rounded-xl border text-sm font-bold transition-all focus:ring-2 focus:ring-cyan-500/20 outline-none ${correspondentError ? 'border-rose-400 bg-rose-50 dark:bg-rose-900/10 text-rose-900 dark:text-rose-100' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-cyan-50'}`}
+                value={localMetadata.correspondent}
+                onInput={(e: Event) => onMetaChange('correspondent', (e.target as HTMLInputElement).value)}
+              />
+              {correspondentError && <p className="text-[10px] font-bold text-rose-500 mt-1 uppercase tracking-tight">{correspondentError}</p>}
+            </div>
 
-          <div className="flex flex-col gap-2">
-            <label htmlFor="smart-date-input" className="text-xs text-[#666] flex items-center gap-2">
-              Created Date
-              {requiredMetadataKeys.includes('metadata:document_date') && (
-                <span className="text-[10px] px-2 py-[2px] rounded-full bg-[#fff3e6] text-[#9a3412] border border-[#f3c9a6]">Required</span>
-              )}
-            </label>
-            <input
-              id="smart-date-input"
-              type="date"
-              title="Document created date"
-              data-testid="smart-date-input"
-              className={`w-full border rounded-md px-3 py-2 text-sm ${createdDateError ? 'border-red-400 bg-red-50' : 'border-[#e5e0d8]'}`}
-              value={localMetadata.createdDate}
-              onInput={(e: Event) => onMetaChange('createdDate', (e.target as HTMLInputElement).value)}
-            />
-            {createdDateError && (
-              <span data-testid="created-date-error" className="text-xs text-red-600">{createdDateError}</span>
-            )}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label htmlFor="smart-date-input" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Protocol Date</label>
+                {requiredMetadataKeys.includes('metadata:document_date') && (
+                  <span className="text-[8px] font-black px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 border border-amber-500/20 uppercase">Required</span>
+                )}
+              </div>
+              <input
+                id="smart-date-input"
+                type="date"
+                data-testid="smart-date-input"
+                className={`w-full px-4 py-3 rounded-xl border text-sm font-bold transition-all focus:ring-2 focus:ring-cyan-500/20 outline-none ${createdDateError ? 'border-rose-400 bg-rose-50 dark:bg-rose-900/10 text-rose-900 dark:text-rose-100' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-cyan-50'}`}
+                value={localMetadata.createdDate}
+                onInput={(e: Event) => onMetaChange('createdDate', (e.target as HTMLInputElement).value)}
+              />
+              {createdDateError && <p className="text-[10px] font-bold text-rose-500 mt-1 uppercase tracking-tight">{createdDateError}</p>}
+            </div>
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col gap-2" data-testid="tags-container">
-          <label className="text-xs text-[#666]">Tags</label>
-          <div className="flex flex-wrap gap-1 min-h-[32px]">
+        {/* ── TAGS ── */}
+        <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800" data-testid="tags-container">
+          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Classification Tags</label>
+          <div className="flex flex-wrap gap-2 mb-4 min-h-[32px]">
             {localTags.length === 0 && (
-              <span className="text-xs text-[#888]">No tags selected</span>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                No Tags Assigned
+              </div>
             )}
             {localTags.map((tag: SmartTag) => (
               <span
                 key={tag.id}
                 data-testid={`tag-chip-${tag.id}`}
-                className="tag-chip inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs"
-                style={tag.color ? { '--tag-color': tag.color } : undefined}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tight border shadow-sm transition-all hover:scale-105"
+                style={{
+                  backgroundColor: tag.color ? `${tag.color}15` : undefined,
+                  borderColor: tag.color ? `${tag.color}30` : undefined,
+                  color: tag.color || undefined
+                }}
               >
                 {tag.name}
                 <button
                   type="button"
                   data-testid={`tag-remove-${tag.id}`}
                   onClick={() => handleRemoveTag(tag.id)}
-                  className="ml-1 hover:text-red-600"
+                  className="hover:text-rose-500 transition-colors"
                   title={`Remove ${tag.name}`}
                 >
-                  <i className="fas fa-times text-[10px]"></i>
+                  <i className="fas fa-xmark text-[9px]"></i>
                 </button>
               </span>
             ))}
           </div>
           {availableTags.filter((t: SmartTag) => !localTags.some((lt: SmartTag) => lt.id === t.id)).length > 0 && (
-            <div className="flex flex-col gap-1">
-              <label htmlFor="add-tag-select" className="sr-only">Add a tag</label>
+            <div className="relative">
               <select
                 id="add-tag-select"
                 data-testid="add-tag-select"
-                className="w-full border border-[#e5e0d8] rounded-md px-3 py-2 text-sm"
+                className="w-full px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-cyan-500/20 appearance-none transition-all"
                 onChange={(e: Event) => {
                   const val = parseInt((e.target as HTMLSelectElement).value, 10);
                   if (!isNaN(val)) {
@@ -939,276 +937,307 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
                 }}
                 value=""
               >
-                <option value="">Add a tag...</option>
+                <option value="">+ Add Classification Tag</option>
                 {availableTags
                   .filter((t: SmartTag) => !localTags.some((lt: SmartTag) => lt.id === t.id))
                   .map((t: SmartTag) => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
               </select>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                <i className="fas fa-chevron-down text-[10px] text-slate-400"></i>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      <div className="rounded-lg border border-[#eee4d7] bg-white/90 shadow-sm p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-xs uppercase tracking-wide text-[#8a6f54]">Required Fields</div>
-          <div className="text-xs text-[#8a6f54]" data-testid="required-field-count">
-            {requiredFields.length} fields
+      {/* ── REQUIRED FIELDS ── */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between p-5 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <div className="w-1 h-3 bg-indigo-500 rounded-full"></div>
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-slate-100">Domain Requirements</h3>
+          </div>
+          <div className="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-[9px] font-black text-slate-500 dark:text-slate-400" data-testid="required-field-count">
+            {requiredFields.length}
           </div>
         </div>
-        {requiredFields.length === 0 && (
-          <div data-testid="no-required-fields" className="text-xs text-[#888]">
-            No required custom fields for this domain.
-          </div>
-        )}
-        {requiredFields.map((field) => {
-          const fieldKey = String(field.id);
-          const error = validationErrors.get(fieldKey);
-          const confidenceValue = typeof field.confidence === 'number' ? field.confidence : (field.mappingConfidence ?? null);
-          const confidencePercent = confidenceValue !== null ? Math.round(confidenceValue * 100) : null;
-          const matchType = (field.matchType as MatchType) || 'none';
-          return (
-            <div
-              key={fieldKey}
-              className={`mb-3 border rounded-md p-3 ${error ? 'border-red-300 bg-red-50' : 'border-[#f2efe9] bg-[#fffaf3]'}`}
-              data-testid={`required-field-${toTestId(fieldKey)}`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs text-[#444] font-medium">{field.label || fieldKey}</div>
-                  <div className="text-[10px] text-[#8a6f54]">{field.paperlessField || ''}</div>
-                </div>
-                <span
-                  data-testid={`mapping-badge-${toTestId(fieldKey)}`}
-                  className={`text-[10px] px-2 py-1 rounded-full border ${MATCH_BADGES[matchType]}`}
-                >
-                  {resolveMatchLabel(matchType)}
-                </span>
-              </div>
-              <input
-                id={`required-field-value-${fieldKey}`}
-                title={`Value for ${field.label || fieldKey}`}
-                placeholder="Enter value"
-                data-testid={`required-field-value-${toTestId(fieldKey)}`}
-                className={`mt-2 w-full border rounded px-2 py-1 text-sm ${error ? 'border-red-400 bg-red-50' : 'border-[#eae6df]'}`}
-                value={stringifyValue(field.value)}
-                onInput={(e: Event) => updateFieldValue(fieldKey, (e.target as HTMLInputElement).value)}
-              />
-              {error && (
-                <div data-testid={`field-error-${toTestId(fieldKey)}`} className="text-xs text-red-600 mt-1">{error}</div>
-              )}
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <div className="flex-1">
-                  <div className="h-2 rounded-full bg-[#f3e8dc] overflow-hidden" data-testid={`confidence-bar-${toTestId(fieldKey)}`}>
-                    <div
-                      className="h-full bg-[#b87333]"
-                      style={{ width: `${confidencePercent ?? 0}%` }}
-                    ></div>
-                  </div>
-                </div>
-                <div className="text-xs text-[#8a6f54] w-[44px] text-right">
-                  {confidencePercent !== null ? `${confidencePercent}%` : '--'}
-                </div>
-                <button
-                  data-testid={`locate-required-${toTestId(fieldKey)}`}
-                  className="px-2 py-1 text-xs rounded bg-[#f6efe8] border border-[#e5e0d8]"
-                  title="Locate field on document"
-                  onClick={() => onLocate(field.paperlessField || field.id)}
-                >
-                  <i className="fas fa-crosshairs mr-1"></i>
-                  Locate
-                </button>
-              </div>
+        
+        <div className="p-5 space-y-4">
+          {requiredFields.length === 0 && (
+            <div data-testid="no-required-fields" className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center py-4">
+              No domain-specific requirements detected.
             </div>
-          );
-        })}
+          )}
+          {requiredFields.map((field) => {
+            const fieldKey = String(field.id);
+            const error = validationErrors.get(fieldKey);
+            const confidenceValue = typeof field.confidence === 'number' ? field.confidence : (field.mappingConfidence ?? null);
+            const confidencePercent = confidenceValue !== null ? Math.round(confidenceValue * 100) : null;
+            const matchType = (field.matchType as MatchType) || 'none';
+            return (
+              <div
+                key={fieldKey}
+                className={`group rounded-xl border transition-all p-4 ${error ? 'border-rose-200 bg-rose-50/30 dark:border-rose-900/30 dark:bg-rose-950/10' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950/50'}`}
+                data-testid={`required-field-${toTestId(fieldKey)}`}
+              >
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight mb-0.5">{field.label || fieldKey}</div>
+                    <div className="text-[9px] font-mono text-slate-400 uppercase tracking-tighter truncate">{field.paperlessField || ''}</div>
+                  </div>
+                  <span
+                    data-testid={`mapping-badge-${toTestId(fieldKey)}`}
+                    className={`text-[8px] font-black px-2 py-0.5 rounded-md border uppercase tracking-widest ${MATCH_BADGES[matchType]}`}
+                  >
+                    {resolveMatchLabel(matchType)}
+                  </span>
+                </div>
+                <input
+                  id={`required-field-value-${fieldKey}`}
+                  data-testid={`required-field-value-${toTestId(fieldKey)}`}
+                  className={`w-full px-3 py-2 rounded-lg border text-xs font-bold transition-all outline-none focus:ring-2 focus:ring-cyan-500/20 ${error ? 'border-rose-300 bg-rose-50/50 dark:bg-rose-900/20 text-rose-900 dark:text-rose-100' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-cyan-50'}`}
+                  value={stringifyValue(field.value)}
+                  onInput={(e: Event) => updateFieldValue(fieldKey, (e.target as HTMLInputElement).value)}
+                  placeholder="Enter Protocol Value"
+                />
+                {error && <p className="text-[9px] font-bold text-rose-500 mt-1 uppercase tracking-tight">{error}</p>}
+                
+                <div className="mt-4 flex items-center gap-4">
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Certainty</span>
+                      <span className="text-[9px] font-mono text-slate-500">{confidencePercent !== null ? `${confidencePercent}%` : '--'}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden" data-testid={`confidence-bar-${toTestId(fieldKey)}`}>
+                      <div
+                        className={`h-full transition-all duration-500 ${confidencePercent && confidencePercent > 80 ? 'bg-emerald-500' : confidencePercent && confidencePercent > 50 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                        style={{ width: `${confidencePercent ?? 0}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  <button
+                    data-testid={`locate-required-${toTestId(fieldKey)}`}
+                    className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-cyan-500 transition-colors"
+                    title="Locate spatial coordinates"
+                    onClick={() => onLocate(field.paperlessField || field.id)}
+                  >
+                    <i className="fas fa-crosshairs text-xs"></i>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="rounded-lg border border-[#eee4d7] bg-white/90 shadow-sm p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-xs uppercase tracking-wide text-[#8a6f54]">Optional Fields</div>
+      {/* ── OPTIONAL FIELDS ── */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between p-5 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <div className="w-1 h-3 bg-slate-400 rounded-full"></div>
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-slate-100">Extended Data</h3>
+          </div>
           {optionalFields.length > 4 && (
             <button
               type="button"
               data-testid="optional-fields-toggle"
-              className="text-xs text-[#7c5a3a] underline"
+              className="text-[9px] font-black text-cyan-600 hover:text-cyan-700 dark:text-cyan-400 uppercase tracking-widest transition-colors"
               onClick={() => setOptionalExpanded(!optionalExpanded)}
             >
-              {optionalExpanded ? 'Hide extras' : `Show ${hiddenOptionalCount} more`}
+              {optionalExpanded ? 'Contract View' : `Expand +${hiddenOptionalCount}`}
             </button>
           )}
         </div>
-        {optionalFields.length === 0 && (
-          <div data-testid="no-optional-fields" className="text-xs text-[#888]">
-            No optional custom fields for this domain.
-          </div>
-        )}
-        {optionalPreview.map((field) => {
-          const fieldKey = String(field.id);
-          const error = validationErrors.get(fieldKey);
-          const confidenceValue = typeof field.confidence === 'number' ? field.confidence : (field.mappingConfidence ?? null);
-          const confidencePercent = confidenceValue !== null ? Math.round(confidenceValue * 100) : null;
-          const matchType = (field.matchType as MatchType) || 'none';
-          return (
-            <div
-              key={fieldKey}
-              className={`mb-3 border rounded-md p-3 ${error ? 'border-red-300 bg-red-50' : 'border-[#f2efe9]'}`}
-              data-testid={`optional-field-${toTestId(fieldKey)}`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs text-[#444] font-medium">{field.label || fieldKey}</div>
-                  <div className="text-[10px] text-[#8a6f54]">{field.paperlessField || ''}</div>
-                </div>
-                <span
-                  data-testid={`mapping-badge-${toTestId(fieldKey)}`}
-                  className={`text-[10px] px-2 py-1 rounded-full border ${MATCH_BADGES[matchType]}`}
-                >
-                  {resolveMatchLabel(matchType)}
-                </span>
-              </div>
-              <input
-                id={`optional-field-value-${fieldKey}`}
-                title={`Value for ${field.label || fieldKey}`}
-                placeholder="Enter value"
-                data-testid={`optional-field-value-${toTestId(fieldKey)}`}
-                className={`mt-2 w-full border rounded px-2 py-1 text-sm ${error ? 'border-red-400 bg-red-50' : 'border-[#eae6df]'}`}
-                value={stringifyValue(field.value)}
-                onInput={(e: Event) => updateFieldValue(fieldKey, (e.target as HTMLInputElement).value)}
-              />
-              {error && (
-                <div data-testid={`field-error-${toTestId(fieldKey)}`} className="text-xs text-red-600 mt-1">{error}</div>
-              )}
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <div className="flex-1">
-                  <div className="h-2 rounded-full bg-[#f3e8dc] overflow-hidden" data-testid={`confidence-bar-${toTestId(fieldKey)}`}>
-                    <div
-                      className="h-full bg-[#b87333]"
-                      style={{ width: `${confidencePercent ?? 0}%` }}
-                    ></div>
-                  </div>
-                </div>
-                <div className="text-xs text-[#8a6f54] w-[44px] text-right">
-                  {confidencePercent !== null ? `${confidencePercent}%` : '--'}
-                </div>
-                <button
-                  data-testid={`locate-optional-${toTestId(fieldKey)}`}
-                  className="px-2 py-1 text-xs rounded bg-[#f6efe8] border border-[#e5e0d8]"
-                  title="Locate field on document"
-                  onClick={() => onLocate(field.paperlessField || field.id)}
-                >
-                  <i className="fas fa-crosshairs mr-1"></i>
-                  Locate
-                </button>
-              </div>
+        
+        <div className="p-5 space-y-4">
+          {optionalFields.length === 0 && (
+            <div data-testid="no-optional-fields" className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center py-4">
+              No auxiliary fields detected.
             </div>
-          );
-        })}
+          )}
+          {optionalPreview.map((field) => {
+            const fieldKey = String(field.id);
+            const error = validationErrors.get(fieldKey);
+            const confidenceValue = typeof field.confidence === 'number' ? field.confidence : (field.mappingConfidence ?? null);
+            const confidencePercent = confidenceValue !== null ? Math.round(confidenceValue * 100) : null;
+            const matchType = (field.matchType as MatchType) || 'none';
+            return (
+              <div
+                key={fieldKey}
+                className={`group rounded-xl border transition-all p-4 ${error ? 'border-rose-200 bg-rose-50/30 dark:border-rose-900/30 dark:bg-rose-950/10' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950/50'}`}
+                data-testid={`optional-field-${toTestId(fieldKey)}`}
+              >
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight mb-0.5">{field.label || fieldKey}</div>
+                    <div className="text-[9px] font-mono text-slate-400 uppercase tracking-tighter truncate">{field.paperlessField || ''}</div>
+                  </div>
+                  <span
+                    data-testid={`mapping-badge-${toTestId(fieldKey)}`}
+                    className={`text-[8px] font-black px-2 py-0.5 rounded-md border uppercase tracking-widest ${MATCH_BADGES[matchType]}`}
+                  >
+                    {resolveMatchLabel(matchType)}
+                  </span>
+                </div>
+                <input
+                  id={`optional-field-value-${fieldKey}`}
+                  data-testid={`optional-field-value-${toTestId(fieldKey)}`}
+                  className={`w-full px-3 py-2 rounded-lg border text-xs font-bold transition-all outline-none focus:ring-2 focus:ring-cyan-500/20 ${error ? 'border-rose-300 bg-rose-50/50 dark:bg-rose-900/20 text-rose-900 dark:text-rose-100' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-cyan-50'}`}
+                  value={stringifyValue(field.value)}
+                  onInput={(e: Event) => updateFieldValue(fieldKey, (e.target as HTMLInputElement).value)}
+                  placeholder="Enter Metadata Value"
+                />
+                {error && <p className="text-[9px] font-bold text-rose-500 mt-1 uppercase tracking-tight">{error}</p>}
+                
+                <div className="mt-4 flex items-center gap-4">
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Certainty</span>
+                      <span className="text-[9px] font-mono text-slate-500">{confidencePercent !== null ? `${confidencePercent}%` : '--'}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden" data-testid={`confidence-bar-${toTestId(fieldKey)}`}>
+                      <div
+                        className={`h-full transition-all duration-500 ${confidencePercent && confidencePercent > 80 ? 'bg-emerald-500' : confidencePercent && confidencePercent > 50 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                        style={{ width: `${confidencePercent ?? 0}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  <button
+                    data-testid={`locate-optional-${toTestId(fieldKey)}`}
+                    className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-cyan-500 transition-colors"
+                    title="Locate spatial coordinates"
+                    onClick={() => onLocate(field.paperlessField || field.id)}
+                  >
+                    <i className="fas fa-crosshairs text-xs"></i>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="rounded-lg border border-[#eee4d7] bg-white/90 shadow-sm p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-xs uppercase tracking-wide text-[#8a6f54]">Visual Extracted Fields</div>
-          <div className="text-xs text-[#8a6f54]" data-testid="visual-field-count">
-            {mappedVisualFields.length} fields
+      {/* ── VISUAL EXTRACTIONS ── */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between p-5 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <div className="w-1 h-3 bg-amber-500 rounded-full"></div>
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-slate-100">Visual Insights</h3>
+          </div>
+          <div className="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-[9px] font-black text-slate-500 dark:text-slate-400" data-testid="visual-field-count">
+            {mappedVisualFields.length}
           </div>
         </div>
-        {mappedVisualFields.length === 0 && (
-          <div data-testid="no-visual-fields" className="text-xs text-[#888]">
-            No unmapped visual fields detected.
-          </div>
-        )}
-        {mappedVisualFields.map((field) => {
-          const fieldKey = String(field.id);
-          const matchType = (field.matchType as MatchType) || 'none';
-          return (
-            <div
-              key={fieldKey}
-              className="mb-3 border border-[#f2efe9] rounded-md p-3"
-              data-testid={`visual-field-${toTestId(fieldKey)}`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs text-[#444] font-medium">{field.label || fieldKey}</div>
-                  <div className="text-[10px] text-[#8a6f54]">{field.paperlessField || field.paperlessMapping || ''}</div>
-                </div>
-                <span
-                  data-testid={`mapping-badge-${toTestId(fieldKey)}`}
-                  className={`text-[10px] px-2 py-1 rounded-full border ${MATCH_BADGES[matchType]}`}
-                >
-                  {resolveMatchLabel(matchType)}
-                </span>
-              </div>
-              <div className="mt-2 text-xs text-[#555]">
-                {stringifyValue(field.value) || 'No value detected'}
-              </div>
-              <div className="mt-2 flex justify-end">
-                <button
-                  data-testid={`locate-visual-${toTestId(fieldKey)}`}
-                  className="px-2 py-1 text-xs rounded bg-[#f6efe8] border border-[#e5e0d8]"
-                  title="Locate field on document"
-                  onClick={() => onLocate(field.paperlessField || field.id)}
-                >
-                  <i className="fas fa-crosshairs mr-1"></i>
-                  Locate
-                </button>
-              </div>
-              <div className="mt-2 flex gap-1">
-                <button
-                  data-testid={`feedback-up-${toTestId(fieldKey)}`}
-                  className="px-2 py-1 rounded bg-white border border-[#eae6df] text-sm"
-                  onClick={() => onFeedback(field.id, 'up')}
-                  title="Thumbs up"
-                >
-                  <i className="fas fa-thumbs-up"></i>
-                </button>
-                <button
-                  data-testid={`feedback-down-${toTestId(fieldKey)}`}
-                  className="px-2 py-1 rounded bg-white border border-[#eae6df] text-sm"
-                  onClick={() => onFeedback(field.id, 'down')}
-                  title="Thumbs down"
-                >
-                  <i className="fas fa-thumbs-down"></i>
-                </button>
-              </div>
+        
+        <div className="p-5 space-y-4">
+          {mappedVisualFields.length === 0 && (
+            <div data-testid="no-visual-fields" className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center py-4">
+              No raw visual extractions detected.
             </div>
-          );
-        })}
+          )}
+          {mappedVisualFields.map((field) => {
+            const fieldKey = String(field.id);
+            const matchType = (field.matchType as MatchType) || 'none';
+            return (
+              <div
+                key={fieldKey}
+                className="group rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950/50 transition-all p-4"
+                data-testid={`visual-field-${toTestId(fieldKey)}`}
+              >
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight mb-0.5">{field.label || fieldKey}</div>
+                    <div className="text-[9px] font-mono text-slate-400 uppercase tracking-tighter truncate">{field.paperlessField || field.paperlessMapping || ''}</div>
+                  </div>
+                  <span
+                    data-testid={`mapping-badge-${toTestId(fieldKey)}`}
+                    className={`text-[8px] font-black px-2 py-0.5 rounded-md border uppercase tracking-widest ${MATCH_BADGES[matchType]}`}
+                  >
+                    {resolveMatchLabel(matchType)}
+                  </span>
+                </div>
+                <div className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-xs font-mono text-slate-600 dark:text-slate-400 mb-4">
+                  {stringifyValue(field.value) || 'NULL DETECTED'}
+                </div>
+                
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex gap-1">
+                    <button
+                      data-testid={`feedback-up-${toTestId(fieldKey)}`}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-emerald-500 transition-colors"
+                      onClick={() => onFeedback(field.id, 'up')}
+                      title="Confirm Logic"
+                    >
+                      <i className="fas fa-thumbs-up text-[10px]"></i>
+                    </button>
+                    <button
+                      data-testid={`feedback-down-${toTestId(fieldKey)}`}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-500 transition-colors"
+                      onClick={() => onFeedback(field.id, 'down')}
+                      title="Report Inaccuracy"
+                    >
+                      <i className="fas fa-thumbs-down text-[10px]"></i>
+                    </button>
+                  </div>
+                  <button
+                    data-testid={`locate-visual-${toTestId(fieldKey)}`}
+                    className="flex-shrink-0 px-3 py-1.5 rounded-lg flex items-center gap-2 bg-slate-100 dark:bg-slate-800 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-cyan-500 transition-colors"
+                    onClick={() => onLocate(field.paperlessField || field.id)}
+                  >
+                    <i className="fas fa-crosshairs text-[10px]"></i>
+                    Locate
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {showReprocessOverlay && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-in fade-in"
           data-testid="reprocess-progress-overlay"
           role="dialog"
           aria-live="polite"
           aria-modal="true"
         >
-          <div className="w-full max-w-lg rounded-xl bg-white border border-[#e5e0d8] shadow-2xl p-5">
-            <div className="text-base font-semibold text-[#2c2c2c]">
-              Reprocessing Document
+          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
+                <i className="fas fa-dna text-cyan-500 animate-pulse"></i>
+              </div>
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-slate-100">Deep Analysis</h3>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">AI Pipeline Execution in Progress</p>
+              </div>
             </div>
+
             <div
-              className={`mt-1 text-sm ${hasFailedProgress ? 'text-red-700' : 'text-[#7c5a3a]'}`}
+              className={`mb-4 px-4 py-3 rounded-xl border text-xs font-bold uppercase tracking-tight ${hasFailedProgress ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' : 'bg-slate-50 dark:bg-slate-950 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400'}`}
               data-testid="reprocess-progress-label"
             >
+              <i className={`fas ${hasFailedProgress ? 'fa-circle-xmark' : 'fa-terminal'} mr-2`}></i>
               {reprocessProgress.label}
             </div>
 
-            <div className="mt-4 h-2.5 rounded-full bg-[#f3e8dc] overflow-hidden">
-              <div
-                data-testid="reprocess-progress-bar"
-                className={`h-full ${hasFailedProgress ? 'bg-red-500' : 'bg-[#b87333]'}`}
-                style={{ width: `${reprocessProgress.percentage}%` }}
-              ></div>
-            </div>
-            <div className="mt-1 text-xs text-[#8a6f54]" data-testid="reprocess-progress-percent">
-              {reprocessProgress.percentage}%
+            <div className="space-y-2 mb-8">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sync Progress</span>
+                <span className="text-xs font-mono font-bold text-cyan-500" data-testid="reprocess-progress-percent">{reprocessProgress.percentage}%</span>
+              </div>
+              <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden shadow-inner">
+                <div
+                  data-testid="reprocess-progress-bar"
+                  className={`h-full transition-all duration-500 ${hasFailedProgress ? 'bg-rose-500' : 'bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]'}`}
+                  style={{ width: `${reprocessProgress.percentage}%` }}
+                ></div>
+              </div>
             </div>
 
-            <div className="mt-4 space-y-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
               {REPROCESS_STEPS.map((step, index) => {
                 const isFailedStep = hasFailedProgress && index === currentStepIndex;
                 const isDoneStep = !hasFailedProgress && (
@@ -1220,34 +1249,34 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
                   index === currentStepIndex;
 
                 const statusIcon = isFailedStep
-                  ? 'fa-circle-xmark text-red-600'
+                  ? 'fa-circle-xmark text-rose-500'
                   : isDoneStep
-                    ? 'fa-circle-check text-emerald-600'
+                    ? 'fa-circle-check text-emerald-500'
                     : isActiveStep
-                      ? 'fa-hourglass-half text-amber-600'
-                      : 'fa-circle text-gray-300';
+                      ? 'fa-dna fa-spin text-cyan-500'
+                      : 'fa-circle text-slate-200 dark:text-slate-800';
 
                 return (
                   <div
                     key={step.key}
-                    className="flex items-center gap-2 text-sm"
+                    className={`flex items-center gap-3 p-2 rounded-lg border transition-all ${isActiveStep ? 'border-cyan-500/20 bg-cyan-500/5' : 'border-transparent'}`}
                     data-testid={`reprocess-step-${step.key}`}
                   >
-                    <i className={`fas ${statusIcon}`}></i>
-                    <span className="text-[#4a3a2a]">{step.label}</span>
+                    <i className={`fas ${statusIcon} text-[10px]`}></i>
+                    <span className={`text-[10px] font-black uppercase tracking-tight ${isActiveStep ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-400 dark:text-slate-600'}`}>{step.label}</span>
                   </div>
                 );
               })}
             </div>
 
-            <div className="mt-5 flex justify-end">
+            <div className="flex justify-end">
               <button
                 type="button"
                 data-testid="reprocess-overlay-cancel"
-                className="px-3 py-1.5 rounded-md border border-[#e5e0d8] text-sm text-[#4a3a2a] hover:bg-[#f8f3ec]"
+                className="px-6 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                 onClick={() => setShowReprocessOverlay(false)}
               >
-                {isReprocessing ? 'Cancel' : 'Close'}
+                {isReprocessing ? 'Abort' : 'Dismiss'}
               </button>
             </div>
           </div>

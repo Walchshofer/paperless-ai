@@ -242,8 +242,8 @@ body {
     padding: 0;
     min-height: 100vh;
     position: relative;
-    font-family: Arial, sans-serif; 
-    margin: 20px; 
+    font-family: 'IBM Plex Sans', sans-serif; 
+    margin: 0; 
     line-height: 1.6;
 }
 

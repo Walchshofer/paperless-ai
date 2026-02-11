@@ -14,6 +14,7 @@ export const SettingsSchema = z.object({
   TAGS: z.array(z.string()).optional(),
   PROMPT_TAGS: z.array(z.string()).optional(),
   PAPERLESS_AI_VERSION: z.string().optional(),
+  API_KEY: z.string().optional(),
   // allow extra keys for backward/forward compatibility
 }).catchall(z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.string())]));
 
@@ -21,6 +22,11 @@ export const SettingsPageVmSchema = z.object({
   page: z.literal('settings'),
   version: z.string().optional(),
   settings: SettingsSchema,
+  user: z.object({
+    username: z.string(),
+    role: z.string(),
+    isAdmin: z.boolean()
+  }).optional(),
   success: z.string().optional(),
   settingsError: z.string().optional(),
   // Optional fields provided by the server to help the UI render model choices

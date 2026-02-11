@@ -70,11 +70,13 @@ The "shell" of the application. It typically handles:
 -   Navigation Sidebar (often included directly or via partial).
 -   `theme-toggle` logic.
 
-### Settings Page (`views/settings.ejs` + `routes/settings.js`)
-The Settings page is rendered server-side from `routes/settings.js` and must follow the **View Model Contract** rules in this document:
-- The route should call `res.render('settings', { vm })` and expose a single `vm` object.
-- The Zod contract for the settings page lives at `src/ui/contracts/Settings.contract.ts` and must be used as the parse gate before rendering.
+### Settings Page (`views/settings.ejs` + `routes/system.js` + `routes/api/settings.js`)
+The Settings page shell is rendered from `routes/system.js` (GET `/settings`) with a minimal vm.
+Settings data is fetched by Preact islands via `routes/api/settings.js` (GET/POST `/api/settings/*`).
+- The shell route calls `res.render('settings', { vm })` and exposes a minimal `vm` object (user, page, version).
+- The Zod contract for the settings page lives at `src/ui/contracts/Settings.contract.ts`.
 - Templates should reference only `vm.*` fields and include `data-page="settings"` on the root element.
+- Individual settings sections are Preact islands that fetch their own data from the API.
 
 ### 2. Chat Interface (`views/chat.ejs` + `public/js/chat.js`)
 This is the most complex page, featuring the "Visual RAG" capabilities.

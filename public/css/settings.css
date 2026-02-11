@@ -622,10 +622,22 @@
     flex-shrink: 0;
 }
 .prompt-editor-panel {
-    padding: 1.25rem 1.25rem 1.25rem 2rem;
+    position: relative;
     border-bottom: 1px solid var(--border-color);
     background: var(--card-bg);
     animation: stagger-reveal 250ms ease-out both;
+}
+.prompt-editor-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg width='30' height='30' viewBox='0 0 30 30' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0H0V30' stroke='currentColor' stroke-opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+}
+.prompt-editor-panel > * {
+    position: relative;
+    z-index: 1;
 }
 .prompt-metadata-row {
     display: flex;
@@ -990,11 +1002,15 @@ hr {
 
 /* Settings Sidebar */
 .settings-sidebar {
-    background-color: var(--sidebar-bg);
-    border-right: 1px solid var(--border-color);
-    height: 100%;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    height: fit-content;
     display: flex;
     flex-direction: column;
+    position: sticky;
+    top: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 .settings-sidebar-header {

@@ -60,7 +60,7 @@ export const PromptTestResultSchema = z.object({
   detectedVariables: z.array(z.string()),
   missingVariables: z.array(z.string()),
   providedVariables: z.array(z.string()),
-  tokenEstimate: z.number().nullable(),
+  tokenEstimate: z.number(),
   testResult: z.any().nullable(),
   jsonValid: z.boolean().nullable(),
 });

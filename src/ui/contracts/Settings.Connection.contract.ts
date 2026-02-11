@@ -1,8 +1,9 @@
 import { z } from 'zod';
 
-export const import { z } from 'zod';
-
 export const ConnectionSettingsSchema = z.object({
+  // Active Provider (Synced from AI tab)
+  activeProvider: z.string().optional().default('ollama'),
+
   // Paperless-ngx
   paperlessApiUrl: z.string().url().optional(),
   paperlessApiToken: z.string().optional(),
@@ -16,10 +17,26 @@ export const ConnectionSettingsSchema = z.object({
   customApiUrl: z.string().url().optional(),
   customApiKey: z.string().optional(),
 
+  // Sidecar Services
+  visualRagUrl: z.string().optional(),
+  textRagUrl: z.string().optional(),
+  guidanceServiceUrl: z.string().optional(),
+  biasEngineUrl: z.string().optional(),
+  redisUrl: z.string().optional(),
+
   // Vector Store (Qdrant)
   qdrantHost: z.string().optional(),
   qdrantPort: z.string().optional(),
   qdrantApiKey: z.string().optional(),
+
+  // Connection Lifecycle - Keep-alive
+  visionKeepAlive: z.string().optional().default('5m'),
+  textKeepAlive: z.string().optional().default('2m'),
+  routerKeepAlive: z.string().optional().default('5m'),
+
+  // Connection Lifecycle - Timeouts
+  guidanceTimeout: z.number().int().positive().optional().default(90000),
+  visualRagTimeout: z.number().int().positive().optional().default(30000),
 
   // External API
   externalApiEnabled: z.boolean().optional(),
@@ -32,7 +49,5 @@ export const ConnectionSettingsSchema = z.object({
 
   testConnectionTimeoutMs: z.number().int().nonnegative().optional().default(5000),
 });
-
-export type ConnectionSettings = z.infer<typeof ConnectionSettingsSchema>;;
 
 export type ConnectionSettings = z.infer<typeof ConnectionSettingsSchema>;

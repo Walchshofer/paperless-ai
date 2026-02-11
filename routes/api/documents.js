@@ -10,12 +10,13 @@
 const express = require('express');
 const path = require('path');
 const router = express.Router();
-const { authenticateApi } = require('../../middleware/auth');
+const { authenticateApi, requireAdmin } = require('../../middleware/auth');
 const AIServiceFactory = require('../../services/aiServiceFactory');
 const paperlessService = require('../../services/paperlessService');
 const { DocumentProcessor } = require('../../services/integration/DocumentProcessor');
 const logger = require('../../services/logger');
 const documentModel = require('../../services/documentModel');
+const { pdfRenderer } = require('../../services/visual-rag-client/PDFRenderer');
 const {
   REPROCESS_ERROR_MESSAGES,
   REPROCESS_STAGE_DEFINITIONS,
@@ -680,6 +681,96 @@ router.post('/:id/reprocess', async (req, res) => {
 
 /**
  * @swagger
+ * /api/documents/recent:
+ *   get:
+ *     summary: List recent documents for testing
+ *     description: Returns a list of the 20 most recent documents for use in prompt testing.
+ *     tags:
+ *       - Documents
+ *     responses:
+ *       200:
+ *         description: List of documents retrieved successfully
+ */
+router.get('/recent', requireAdmin, async (req, res) => {
+  try {
+    const response = await paperlessService.client.get('documents/', {
+      params: { ordering: '-id', page_size: 20, fields: 'id,title,created,added,mime_type' }
+    });
+    const recent = (response.data?.results || []).map(doc => ({
+      id: doc.id,
+      title: doc.title,
+      created: doc.created || doc.added,
+      mime_type: doc.mime_type
+    }));
+
+    res.json({ success: true, documents: recent });
+  } catch (error) {
+    logger.error('[Documents API] Failed to list recent documents:', error);
+    res.status(500).json({ success: false, error: 'Failed to list recent documents' });
+  }
+});
+
+/**
+ * GET /api/documents/:id/content
+ * Get document OCR content and metadata for prompt testing
+ */
+router.get('/:id/content', requireAdmin, async (req, res) => {
+  try {
+    const documentId = parseInt(req.params.id, 10);
+    if (isNaN(documentId) || documentId <= 0) {
+      return res.status(400).json({ success: false, error: 'Invalid document ID' });
+    }
+
+    const [doc, content] = await Promise.all([
+      paperlessService.getDocument(documentId),
+      paperlessService.getDocumentContent(documentId).catch(() => '')
+    ]);
+
+    if (!doc) {
+      return res.status(404).json({ success: false, error: 'Document not found' });
+    }
+
+    // Render first page at 300 DPI for multimodal prompt testing
+    let renderedPages = [];
+    try {
+      const pdfBuffer = await paperlessService.downloadDocument(documentId);
+      if (pdfBuffer) {
+        const images = await pdfRenderer.renderBuffer(pdfBuffer, {
+          dpi: 300,
+          docId: documentId,
+          maxPages: 1,
+        });
+        renderedPages = (images || []).map(img => ({
+          page: img.page,
+          base64: img.base64,
+          format: img.format || 'png',
+          dpi: 300,
+        }));
+      }
+    } catch (renderErr) {
+      logger.warn('[Documents API] Page render failed for doc %d: %s', documentId, renderErr.message);
+      // Non-fatal: continue without rendered image
+    }
+
+    res.json({
+      success: true,
+      document: {
+        id: doc.id,
+        title: doc.title,
+        content: content || doc.content || '',
+        created: doc.created || doc.added,
+        mime_type: doc.mime_type,
+        renderedPages,
+      }
+    });
+  } catch (error) {
+    logger.error('[Documents API] Failed to get document content:', error);
+    res.status(500).json({ success: false, error: 'Failed to retrieve document content' });
+  }
+});
+
+/**
+ * @swagger
  * /api/documents/{id}/status:
  *   get:
  *     summary: Get document processing status
@@ -763,6 +854,77 @@ router.get('/:id/status', async (req, res) => {
       error: error.message,
       reasonCode: 'status_retrieval_failed'
     });
+  }
+});
+
+/**
+ * GET /api/documents/:id/preview-image
+ * Returns the first page of a document as base64 for prompt testing.
+ */
+router.get('/:id/preview-image', requireAdmin, async (req, res) => {
+  try {
+    const documentId = parseInt(req.params.id, 10);
+    if (isNaN(documentId) || documentId <= 0) {
+      return res.status(400).json({ success: false, error: 'Invalid document ID' });
+    }
+
+    const doc = await paperlessService.getDocument(documentId);
+    if (!doc) {
+      return res.status(404).json({ success: false, error: 'Document not found' });
+    }
+
+    // Priority 1: Check for existing 300dpi normalized image in NormalizationStore
+    const { NormalizationStore } = require('../../services/normalization/NormalizationStore');
+    const normStore = new NormalizationStore();
+    const page1Path = normStore.getPagePath(documentId, 1);
+    const fs = require('fs').promises;
+
+    try {
+      await fs.access(page1Path);
+      const imageBuffer = await fs.readFile(page1Path);
+      logger.info(`[Documents API] Serving persisted 300dpi normalized image for doc ${documentId}`);
+      return res.json({
+        success: true,
+        image_data: `data:image/png;base64,${imageBuffer.toString('base64')}`,
+        source: 'persisted_300dpi'
+      });
+    } catch (err) {
+      logger.info(`[Documents API] No persisted image for doc ${documentId}, falling back to on-demand render`);
+    }
+
+    // Priority 2: Fallback to on-demand render (150dpi)
+    const { pdfRenderer } = require('../../services/visual-rag-client/PDFRenderer');
+    const axios = require('axios');
+    const apiUrl = process.env.PAPERLESS_API_URL;
+    const apiToken = process.env.PAPERLESS_API_TOKEN;
+
+    const pdfResponse = await axios.get(
+      `${apiUrl}/documents/${documentId}/download/`,
+      {
+        headers: { 'Authorization': `Token ${apiToken}` },
+        responseType: 'arraybuffer',
+        timeout: 30000
+      }
+    );
+
+    const images = await pdfRenderer.renderBuffer(Buffer.from(pdfResponse.data), {
+      dpi: 150,
+      maxPages: 1,
+      docId: documentId
+    });
+
+    if (images && images.length > 0) {
+      res.json({
+        success: true,
+        image_data: `data:image/png;base64,${images[0].base64}`,
+        source: 'on_demand_150dpi'
+      });
+    } else {
+      res.status(404).json({ success: false, error: 'Failed to render document image' });
+    }
+  } catch (error) {
+    logger.error('[Documents API] Image preview failed:', error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

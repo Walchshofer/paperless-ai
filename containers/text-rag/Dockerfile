@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Copy requirements first for better caching
-COPY containers/text-rag/requirements.txt .
+COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip \
@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir --upgrade pip \
 RUN python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab'); nltk.download('stopwords')"
 
 # Copy application code
-COPY containers/text-rag/ .
+COPY . .
 
 # Create data directory
 RUN mkdir -p /app/data

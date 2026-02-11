@@ -1,39 +1,62 @@
+# Dependencies & version control
 node_modules
-npm-debug.log
-data
 .git
-.gitignore
-.env
-*.md
-api-test.ps1
-openai_debug.log
-prompt.bak
+
+# Python virtual environments
+.venv
+.venv*/
+__pycache__/
+
+# Test artifacts
+test-results
+coverage
+.playwright-mcp
+screenshots
+
+# IDE & tooling
+.serena
+.claude
+.vscode
+
+# Build outputs (rebuilt inside container)
+dist
+
+# Data & logs (mounted at runtime)
+data
+data_*/
 data_bak/
 data_bak2/
-data_*/
-preview.png
-.env.bak
 data bak/
-.env*
+logs
+
+# Environment & secrets
+.env
+.env.*
+docker-compose.env
 docker-compose-dev.yml
-public/images/
+
+# Documentation (not needed at runtime)
+*.md
+
+# Misc dev/test files
+npm-debug.log
+openai_debug.log
+api-test.ps1
+prompt.bak
+prompt.txt
+preview.png
 delete_all.js
 documents.json
 apitest.js
-logs/*
 api_correspondent.js
-prompt.txt
 api_test_r1.js
 openrouter.js
+main.py.bak
+public/images/
+
+# Legacy
 /chromadb
 rag_config.conf
 indexed.conf
 indexing_complete.flag
-RAGZ_README.md
-/chromadb
-/chromadb/*
-rag_config.conf
-indexed.conf
-main.py.bak
-__pycache__/
 

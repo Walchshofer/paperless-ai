@@ -16,23 +16,26 @@ export default function OverviewDashboardIsland(
   const validated = OverviewDashboardSchema.parse(props);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleNavigate = (category: string) => {
+  const handleNavigate = (category: string, focus?: string) => {
+    const targetCategory = category === 'expert-models' ? 'ai-provider' : category;
+    const targetFocus = category === 'expert-models' ? 'expert-models' : focus;
+
     // Dispatch navigation event
     if (typeof document !== 'undefined') {
       document.dispatchEvent(new CustomEvent('settings:navigate', {
-        detail: { category }
+        detail: { category: targetCategory, focus: targetFocus }
       }));
     }
     // Update URL hash for direct navigation
     if (typeof window !== 'undefined') {
-      window.location.hash = category;
+      window.location.hash = targetCategory;
     }
   };
 
   const handleExport = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/settings/export');
+      const response = await fetch('/api/settings/export');
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -75,6 +78,7 @@ export default function OverviewDashboardIsland(
           <button
             onClick={() => handleNavigate('connection')}
             className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium"
+            data-testid="nav-connection"
           >
             Configure →
           </button>
@@ -95,6 +99,7 @@ export default function OverviewDashboardIsland(
           <button
             onClick={() => handleNavigate('ai-provider')}
             className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium"
+            data-testid="nav-ai-provider"
           >
             Configure →
           </button>
@@ -118,6 +123,7 @@ export default function OverviewDashboardIsland(
           <button
             onClick={() => handleNavigate('expert-models')}
             className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium"
+            data-testid="nav-expert-models"
           >
             Configure →
           </button>
@@ -142,6 +148,7 @@ export default function OverviewDashboardIsland(
           <button
             onClick={() => handleNavigate('advanced')}
             className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium"
+            data-testid="nav-advanced"
           >
             Configure →
           </button>
@@ -156,12 +163,14 @@ export default function OverviewDashboardIsland(
             onClick={handleExport}
             disabled={isLoading}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            data-testid="btn-export-settings"
           >
             {isLoading ? 'Exporting...' : 'Export Settings'}
           </button>
           <button
             onClick={() => handleNavigate('connection')}
             className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+            data-testid="btn-test-connection"
           >
             Test Connection
           </button>

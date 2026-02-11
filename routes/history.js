@@ -12,7 +12,47 @@ const {
 } = require('../src/ui/contracts/HistoryDocument.contract.js');
 const { authenticate } = require('../middleware/auth');
 
-// Apply authentication to all history routes
+/**
+ * TEST-ONLY ENDPOINT: Seed history data for E2E tests
+ * This endpoint is available only for seeding test fixtures and should not be used in production.
+ * MUST be defined BEFORE authenticate middleware to allow global-setup access.
+ * @private
+ */
+router.post('/api/test/seed-history', async (req, res) => {
+  // Only allow in test/development mode
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ error: 'Not available in production' });
+  }
+
+  try {
+    const { documentId, title, correspondent, tagIds, username } = req.body;
+
+    if (!documentId || !username) {
+      return res.status(400).json({ error: 'documentId and username are required' });
+    }
+
+    // Add document to history
+    await documentModel.addToHistory(
+      documentId,
+      tagIds || [],
+      title || `Document ${documentId}`,
+      correspondent || 'Not assigned',
+      username
+    );
+
+    res.json({
+      success: true,
+      message: `Seeded history for document ${documentId}`,
+      documentId,
+      username
+    });
+  } catch (error) {
+    console.error('[ERROR] seeding history:', error);
+    res.status(500).json({ error: 'Failed to seed history data' });
+  }
+});
+
+// Apply authentication to all other history routes
 router.use(authenticate);
 
 // Cache for document type lookups
@@ -669,7 +709,7 @@ router.post('/api/history/reanalyze/:id', async (req, res) => {
 
     const document = await paperlessService.getDocument(documentId);
     if (!document) {
-      return res.status(404).json({ error: 'Document not found' });
+      return res.status(404).json({ error: `Document not found with ID: ${documentId}` });
     }
 
     // Check if Expert Pipeline is enabled - use full DocumentProcessor if so
@@ -741,45 +781,6 @@ router.post('/api/history/reanalyze/:id', async (req, res) => {
   } catch (error) {
     console.error('[ERROR] re-analysing document:', error);
     return res.status(500).json({ error: 'Failed to queue document' });
-  }
-});
-
-/**
- * TEST-ONLY ENDPOINT: Seed history data for E2E tests
- * This endpoint is available only for seeding test fixtures and should not be used in production.
- * @private
- */
-router.post('/api/test/seed-history', async (req, res) => {
-  // Only allow in test/development mode
-  if (process.env.NODE_ENV === 'production') {
-    return res.status(403).json({ error: 'Not available in production' });
-  }
-
-  try {
-    const { documentId, title, correspondent, tagIds, username } = req.body;
-
-    if (!documentId || !username) {
-      return res.status(400).json({ error: 'documentId and username are required' });
-    }
-
-    // Add document to history
-    await documentModel.addToHistory(
-      documentId,
-      tagIds || [],
-      title || `Document ${documentId}`,
-      correspondent || 'Not assigned',
-      username
-    );
-
-    res.json({
-      success: true,
-      message: `Seeded history for document ${documentId}`,
-      documentId,
-      username
-    });
-  } catch (error) {
-    console.error('[ERROR] seeding history:', error);
-    res.status(500).json({ error: 'Failed to seed history data' });
   }
 });
 

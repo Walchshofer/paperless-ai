@@ -74,7 +74,45 @@ interface RuntimeStateData {
 }
 
 export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings>) {
-  const validated = DeveloperSettingsSchema.parse(props);
+  const [isLoading, setIsLoading] = useState(!props.featureFlags);
+  const [configData, setConfigData] = useState<any>(null);
+
+  useEffect(() => {
+    // OPTIMIZATION: Only fetch if we don't have config data yet
+    if (configData) return;
+
+    if (!props.featureFlags) {
+      fetch('/api/settings/config')
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.developer) {
+            setConfigData(data.developer);
+          } else {
+            setConfigData({});
+          }
+          setIsLoading(false);
+        })
+        .catch(err => {
+          console.error('Failed to fetch developer config', err);
+          setConfigData({});
+          setIsLoading(false);
+        });
+    } else {
+      setConfigData(props);
+      setIsLoading(false);
+    }
+  }, [props.featureFlags, props, configData]);
+
+  if (isLoading || !configData) {
+    return (
+      <div className="p-12 text-center text-gray-500 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+        <i className="fas fa-spinner fa-spin mr-2 text-blue-500"></i>
+        Loading developer settings...
+      </div>
+    );
+  }
+
+  const validated = configData;
 
   // Developer mode visibility
   const initialDeveloperMode = ((): boolean => {
@@ -107,8 +145,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
   const [responseTokens, setResponseTokens] = useState(validated.environmentVariables?.responseTokens || 4096);
   const [textQualityThreshold, setTextQualityThreshold] = useState(validated.environmentVariables?.textQualityThreshold || 60);
   const [maxVisionPages, setMaxVisionPages] = useState(validated.environmentVariables?.maxVisionPages || 4);
-  const [guidanceTimeout, setGuidanceTimeout] = useState(validated.environmentVariables?.guidanceTimeout || 90000);
-  const [visualRagTimeout, setVisualRagTimeout] = useState(validated.environmentVariables?.visualRagTimeout || 30000);
+  // guidanceTimeout, visualRagTimeout moved to Connection Center
 
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -221,8 +258,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
         RESPONSE_TOKENS: responseTokens.toString(),
         TEXT_QUALITY_THRESHOLD: textQualityThreshold.toString(),
         MAX_VISION_PAGES: maxVisionPages.toString(),
-        GUIDANCE_TIMEOUT: guidanceTimeout.toString(),
-        VISUAL_RAG_TIMEOUT: visualRagTimeout.toString(),
+        // Timeouts saved via Connection Center
       };
 
       const response = await fetch('/api/settings/save', {
@@ -377,112 +413,35 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Cron expression for document scanning</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <RangeNumberInput
-                    id="guidance-timeout"
-                    label="Guidance Timeout"
-                    description="Timeout for guidance service calls"
-                    value={guidanceTimeout}
-                    min={1000}
-                    max={300000}
-                    step={1000}
-                    unit="ms"
-                    onChange={(v) => { setGuidanceTimeout(v); markDirty(); }}
-                    testId="guidance-timeout-input"
-                  />
-                  <RangeNumberInput
-                    id="visual-rag-timeout"
-                    label="Visual RAG Timeout"
-                    description="Timeout for visual RAG service calls"
-                    value={visualRagTimeout}
-                    min={1000}
-                    max={300000}
-                    step={1000}
-                    unit="ms"
-                    onChange={(v) => { setVisualRagTimeout(v); markDirty(); }}
-                    testId="visual-rag-timeout-input"
-                  />
+                <div className="p-3 rounded-md border border-blue-100 bg-blue-50/30 dark:border-blue-900/30 dark:bg-blue-900/10 mt-2">
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    <i className="fas fa-arrow-right mr-2"></i>
+                    Service timeouts (Guidance, Visual RAG) have been moved to the <strong>Connection Center</strong>.
+                  </p>
+                  <button
+                    onClick={() => { window.location.hash = 'connection'; }}
+                    className="mt-2 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    Go to Connection Center
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* Token Budget Group */}
+            {/* Token Budget & Quality Settings (Relocated) */}
             <div className="flag-group stagger-child">
-              <div className="flag-group-label">Token Budget</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
-                <RangeNumberInput
-                  id="token-limit"
-                  label="Token Limit"
-                  description="Maximum context window size"
-                  value={tokenLimit}
-                  min={1024}
-                  max={256000}
-                  step={1024}
-                  onChange={(v) => { setTokenLimit(v); markDirty(); }}
-                  testId="token-limit-input"
-                />
-                <RangeNumberInput
-                  id="response-tokens"
-                  label="Response Tokens"
-                  description="Maximum response length"
-                  value={responseTokens}
-                  min={256}
-                  max={32768}
-                  step={256}
-                  onChange={(v) => { setResponseTokens(v); markDirty(); }}
-                  testId="response-tokens-input"
-                />
-              </div>
-            </div>
-
-            {/* Quality Group */}
-            <div className="flag-group stagger-child">
-              <div className="flag-group-label">Quality</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
-                <div className="space-y-2">
-                  <label htmlFor="text-quality" className="block text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    Text Quality Threshold
-                  </label>
-                  <div className="range-number-group">
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={textQualityThreshold}
-                      onInput={(e: Event) => { setTextQualityThreshold(parseInt((e.target as HTMLInputElement).value)); markDirty(); }}
-                      aria-label="Text quality slider"
-                    />
-                    <input
-                      id="text-quality"
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={textQualityThreshold}
-                      onInput={(e: Event) => { setTextQualityThreshold(parseInt((e.target as HTMLInputElement).value)); markDirty(); }}
-                      data-testid="text-quality-threshold-input"
-                    />
-                  </div>
-                  <div className="usage-bar-track" style={{ marginTop: '0.25rem' }}>
-                    <div
-                      className="usage-bar-fill"
-                      data-level={textQualityThreshold >= 80 ? 'ok' : textQualityThreshold >= 40 ? 'warn' : 'danger'}
-                      style={{ width: `${textQualityThreshold}%` }}
-                    />
-                  </div>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Minimum OCR quality for text extraction ({textQualityThreshold}%)</p>
-                </div>
-
-                <RangeNumberInput
-                  id="max-vision-pages"
-                  label="Max Vision Pages"
-                  description="Maximum pages for visual analysis"
-                  value={maxVisionPages}
-                  min={1}
-                  max={20}
-                  step={1}
-                  onChange={(v) => { setMaxVisionPages(v); markDirty(); }}
-                  testId="max-vision-pages-input"
-                />
+              <div className="flag-group-label">Token Budget & Quality</div>
+              <div className="p-4 rounded-md border border-blue-100 bg-blue-50/30 dark:border-blue-900/30 dark:bg-blue-900/10 mt-2">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  <i className="fas fa-info-circle mr-2"></i>
+                  Token limits, text quality thresholds, and vision page limits have been moved to the <strong>AI Provider</strong> settings for better grouping.
+                </p>
+                <button
+                  onClick={() => { window.location.hash = 'ai-provider'; }}
+                  className="mt-2 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Go to AI Provider Settings →
+                </button>
               </div>
             </div>
 

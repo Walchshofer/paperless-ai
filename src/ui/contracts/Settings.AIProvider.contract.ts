@@ -4,8 +4,7 @@ import { z } from 'zod';
  * AI Provider Settings Contract
  *
  * Defines the shape of AI provider configuration props for the AIProviderIsland.
- * Supports 5 providers: OpenAI, Ollama, Custom, Azure, and a General tab for provider selection.
- * The Ollama tab includes pipeline-first model configuration with inline expert models.
+ * Connection details (URLs, API Keys) are now managed in the Connection Center.
  */
 
 const TokenLimitsSchema = z.object({
@@ -13,76 +12,82 @@ const TokenLimitsSchema = z.object({
   maxResponseTokens: z.number().int().positive().optional().default(4096),
 });
 
-const OpenAISchema = z.object({
-  apiKey: z.string().optional().default(''),
+const ModelEntrySchema = z.object({
+  name: z.string().optional(),
+  promptId: z.string().optional(),
+  limits: TokenLimitsSchema.optional(),
 });
 
 const OllamaSchema = z.object({
-  apiUrl: z.string().url().optional().default('http://localhost:11434'),
-  model: z.string().optional().default('sauerkraut-llama3.1:8b'),
-  repairModel: z.string().optional(),
-  visionModel: z.string().optional().default('qwen3-vl:8b'),
-  plannerModel: z.string().optional(),
-  routerModel: z.string().optional(),
-  orchestratorModel: z.string().optional(),
-  translationModel: z.string().optional(),
-  guidanceModel: z.string().optional(),
-  visionKeepAlive: z.string().optional().default('5m'),
-  textKeepAlive: z.string().optional().default('2m'),
-  routerKeepAlive: z.string().optional().default('5m'),
-  limits: z.object({
-    text: TokenLimitsSchema.optional(),
-    vision: TokenLimitsSchema.optional(),
-    planner: TokenLimitsSchema.optional(),
-    expert: TokenLimitsSchema.optional(),
-    translation: TokenLimitsSchema.extend({
-      maxResponseTokens: z.number().int().positive().optional(),
-    }).optional(),
-    imageTokenOverhead: z.number().int().nonnegative().optional().default(1024),
-  }).optional(),
+  // Base Models
+  text: ModelEntrySchema.optional(),
+  vision: ModelEntrySchema.optional(),
+  
+  // Pipeline Models
+  router: ModelEntrySchema.optional(),
+  planner: ModelEntrySchema.optional(),
+  orchestrator: ModelEntrySchema.optional(),
+  
+  // Service Models
+  translation: ModelEntrySchema.optional(),
+  guidance: ModelEntrySchema.optional(),
+  
+  // Legacy fields for backward compatibility during transition
+  model: z.string().optional(),
+  visionModel: z.string().optional(),
+  
+  imageTokenOverhead: z.number().int().nonnegative().optional().default(1024),
 });
 
 const CustomSchema = z.object({
-  apiUrl: z.string().optional().default(''),
-  apiKey: z.string().optional().default(''),
-  model: z.string().optional().default(''),
+  model: ModelEntrySchema.optional(),
 });
 
 const AzureSchema = z.object({
-  apiKey: z.string().optional().default(''),
-  endpoint: z.string().optional().default(''),
   deploymentName: z.string().optional().default(''),
   apiVersion: z.string().optional().default('2023-05-15'),
+  model: ModelEntrySchema.optional(),
 });
 
 const ExpertMedicalSchema = z.object({
-  vision: z.string().optional().default('llava-med-v1.6'),
-  analysis: z.string().optional().default('medtext-llama3'),
-  radiology: z.string().optional().default('llava-med-v1.6'),
+  vision: ModelEntrySchema.optional(),
+  analysis: ModelEntrySchema.optional(),
+  radiology: ModelEntrySchema.optional(),
+  integrator: ModelEntrySchema.optional(),
 });
 
 const ExpertFinancialSchema = z.object({
-  vision: z.string().optional().default('llm-pro-finance-8b'),
-  analysis: z.string().optional().default('fino1-8b'),
-  reasoning: z.string().optional().default('llm-pro-finance-8b'),
-  vatExpert: z.string().optional().default('llm-pro-finance-8b'),
+  vision: ModelEntrySchema.optional(),
+  analysis: ModelEntrySchema.optional(),
+  reasoning: ModelEntrySchema.optional(),
+  vatExpert: ModelEntrySchema.optional(),
 });
 
 const ExpertLegalSchema = z.object({
-  vision: z.string().optional().default('qwen3-vl:8b'),
-  analysis: z.string().optional().default('gpt-oss'),
-  orchestrator: z.string().optional().default(''),
+  vision: ModelEntrySchema.optional(),
+  analysis: ModelEntrySchema.optional(),
+  orchestrator: ModelEntrySchema.optional(),
 });
 
 export const AIProviderSettingsSchema = z.object({
   // Provider selection (General tab)
   provider: z.enum(['openai', 'ollama', 'azure', 'custom']).optional().default('openai'),
 
-  // Provider-specific configurations
-  openai: OpenAISchema.optional(),
+  // Provider-specific configurations (non-connection settings only)
   ollama: OllamaSchema.optional(),
   custom: CustomSchema.optional(),
   azure: AzureSchema.optional(),
+
+  // Global Model & Token Settings (Moved from Developer/General)
+  globalLimits: z.object({
+    tokenLimit: z.number().int().positive().optional().default(128000),
+    responseTokens: z.number().int().positive().optional().default(4096),
+  }).optional(),
+
+  qualitySettings: z.object({
+    textQualityThreshold: z.number().int().min(0).max(100).optional().default(60),
+    maxVisionPages: z.number().int().positive().optional().default(4),
+  }).optional(),
 
   // Available Ollama models for dropdown
   availableModels: z.object({

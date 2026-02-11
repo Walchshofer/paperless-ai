@@ -5,7 +5,7 @@ const _tsNodeService = require('ts-node').register({
 const assert = require('assert');
 const path = require('path');
 const { SettingsPageVmSchema } = require('../../src/ui/contracts/Settings.contract.ts');
-const settingsRouter = require('../../routes/settings.js');
+const settingsRouter = require('../../routes/api/settings.js');
 const ModelResolutionService = require('../../services/ModelResolutionService');
 
 describe('Settings route', function() {

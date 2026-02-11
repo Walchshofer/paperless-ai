@@ -224,8 +224,9 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
   }
 
   return (
-    <div data-testid="context-sidebar-root" data-hydrated="true" className="h-full flex flex-col">
-      <div role="tablist" aria-label="Context Sidebar Tabs" className="flex border-b border-[#e5e0d8] bg-[#fdfaf6]">
+    <div data-testid="context-sidebar-root" data-hydrated="true" className="h-full flex flex-col bg-white dark:bg-slate-950">
+      {/* Precision Tab Interface */}
+      <div role="tablist" aria-label="Context Sidebar Tabs" className="flex bg-slate-50 dark:bg-slate-900/50 p-1.5 border-b border-slate-200 dark:border-slate-800">
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -235,7 +236,11 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
             title={tabTooltips[t.key]}
             data-testid={t.testid}
             ref={(el: HTMLButtonElement | null) => { tabRefs.current[t.key] = el; }}
-            className={`flex-1 py-3 text-sm font-['Space_Grotesk'] font-medium ${activeTab === t.key ? 'border-b-2 border-copper text-copper' : 'text-[#888]'}`}
+            className={`flex-1 flex flex-col items-center justify-center py-2.5 rounded-xl transition-all duration-200 group ${
+              activeTab === t.key 
+                ? 'bg-white dark:bg-slate-800 text-cyan-600 dark:text-cyan-400 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700' 
+                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-800/30'
+            }`}
             onClick={() => setActiveTab(t.key)}
             onKeyDown={(e) => {
                if (e.key === 'ArrowRight') {
@@ -251,20 +256,26 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
                }
             }}
           >
-            <i className={`fas ${t.icon} mr-2`}></i>
-            <span className="hidden sm:inline">{t.label}</span>
+            <i className={`fas ${t.icon} text-xs mb-1 transition-transform group-hover:scale-110`}></i>
+            <span className="text-[9px] font-black uppercase tracking-widest">{t.label.split(' ')[0]}</span>
+            {activeTab === t.key && (
+              <div className="mt-1.5 w-4 h-0.5 bg-cyan-500 rounded-full shadow-[0_0_8px_rgba(6,182,212,0.5)]"></div>
+            )}
           </button>
         ))}
       </div>
 
-      <div className="p-4 overflow-auto flex-1">
+      <div className="p-4 overflow-auto flex-1 custom-scrollbar">
         {activeTab === 'metadata' && (
           <div role="tabpanel" id="panel-metadata" aria-labelledby="tab-metadata" data-testid="tab-panel-metadata">
-            <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg" data-testid="panel-header-metadata">
-              <p className="text-sm text-purple-800">
-                <i className="fas fa-wand-magic-sparkles mr-2"></i>
-                AI metadata editing, manual reprocess, and live progress
-              </p>
+            <div className="mb-6 p-4 rounded-xl border border-cyan-100 dark:border-cyan-900/30 bg-cyan-50/30 dark:bg-cyan-900/10 flex items-center gap-3" data-testid="panel-header-metadata">
+              <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center border border-cyan-200 dark:border-cyan-800">
+                <i className="fas fa-wand-magic-sparkles text-xs text-cyan-600 dark:text-cyan-400"></i>
+              </div>
+              <div>
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-cyan-700 dark:text-cyan-300">Intelligent Extraction</h4>
+                <p className="text-[9px] font-bold text-cyan-600/70 dark:text-cyan-400/70 uppercase">AI-assisted metadata synchronization active</p>
+              </div>
             </div>
             <SmartMetadataIsland
               documentId={currentDocument?.id}
@@ -281,29 +292,35 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
 
         {activeTab === 'content' && (
           <div role="tabpanel" id="panel-content" aria-labelledby="tab-content" data-testid="tab-panel-content">
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg" data-testid="panel-header-content">
-              <p className="text-sm text-blue-800">
-                <i className="fas fa-file-lines mr-2"></i>
-                Tesseract OCR extracted text (read-only)
-              </p>
+            <div className="mb-6 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/30 dark:bg-indigo-900/10 flex items-center gap-3" data-testid="panel-header-content">
+              <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
+                <i className="fas fa-file-lines text-xs text-indigo-600 dark:text-indigo-400"></i>
+              </div>
+              <div>
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-700 dark:text-indigo-300">OCR Transcript</h4>
+                <p className="text-[9px] font-bold text-indigo-600/70 dark:text-indigo-400/70 uppercase">Immutable Tesseract extraction layer</p>
+              </div>
             </div>
             <DocumentContentIsland documentId={currentDocument?.id} content={currentDocument?.content || ''} />
           </div>
         )}
 
         {activeTab === 'chat' && (
-          <div role="tabpanel" id="panel-chat" aria-labelledby="tab-chat" data-testid="tab-panel-chat">
+          <div role="tabpanel" id="panel-chat" aria-labelledby="tab-chat" data-testid="tab-panel-chat" className="h-full">
             <ChatWorkspaceIsland documents={props.availableDocuments || []} openDocumentId={currentDocument?.id} {...currentChat} />
           </div>
         )}
 
         {activeTab === 'visual' && (
           <div role="tabpanel" id="panel-visual" aria-labelledby="tab-visual" data-testid="tab-panel-visual">
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg" data-testid="panel-header-visual">
-              <p className="text-sm text-amber-800">
-                <i className="fas fa-draw-polygon mr-2"></i>
-                Visual field overlay labeling and search
-              </p>
+            <div className="mb-6 p-4 rounded-xl border border-amber-100 dark:border-amber-900/30 bg-amber-50/30 dark:bg-amber-900/10 flex items-center gap-3" data-testid="panel-header-visual">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center border border-amber-200 dark:border-amber-800">
+                <i className="fas fa-draw-polygon text-xs text-amber-600 dark:text-amber-400"></i>
+              </div>
+              <div>
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">Spatial Labeling</h4>
+                <p className="text-[9px] font-bold text-amber-600/70 dark:text-amber-400/70 uppercase">Visual overlay and field mapping interface</p>
+              </div>
             </div>
             <VisualTabIsland
               documentId={currentDocument?.id}
@@ -315,7 +332,18 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
 
         {activeTab === 'debug' && isAdmin && (
           <div role="tabpanel" id="panel-debug" aria-labelledby="tab-debug" data-testid="tab-panel-debug">
-            <pre className="text-xs whitespace-pre-wrap text-gray-700" data-testid="debug-content">{JSON.stringify({ document: currentDocument, chat: currentChat, visual: currentVisual }, null, 2)}</pre>
+             <div className="mb-6 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-slate-500/10 flex items-center justify-center border border-slate-200 dark:border-slate-700">
+                <i className="fas fa-bug text-xs text-slate-600 dark:text-slate-400"></i>
+              </div>
+              <div>
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">System Telemetry</h4>
+                <p className="text-[9px] font-bold text-slate-600/70 dark:text-slate-400/70 uppercase">Raw state visualization for diagnostics</p>
+              </div>
+            </div>
+            <pre className="text-[10px] font-mono whitespace-pre-wrap text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800" data-testid="debug-content">
+              {JSON.stringify({ document: currentDocument, chat: currentChat, visual: currentVisual }, null, 2)}
+            </pre>
           </div>
         )}
       </div>

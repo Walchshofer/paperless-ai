@@ -14,12 +14,12 @@ interface Category {
 }
 
 const CATEGORIES: Category[] = [
-  { id: 'overview', label: 'Overview', icon: '📊' },
-  { id: 'connection', label: 'Connection', icon: '🔌' },
-  { id: 'ai-provider', label: 'AI Provider', icon: '🤖' },
-  { id: 'advanced', label: 'Advanced', icon: '⚙️' },
-  { id: 'developer', label: 'Developer', icon: '👨‍💻', requiresDeveloperMode: true },
-  { id: 'prompts', label: 'Prompts', icon: '📝', requiresDeveloperMode: true },
+  { id: 'overview', label: 'Overview', icon: 'fa-chart-pie' },
+  { id: 'connection', label: 'Connection', icon: 'fa-plug-circle-bolt' },
+  { id: 'ai-provider', label: 'AI Provider', icon: 'fa-microchip' },
+  { id: 'advanced', label: 'Advanced', icon: 'fa-sliders' },
+  { id: 'developer', label: 'Developer', icon: 'fa-code-branch', requiresDeveloperMode: true },
+  { id: 'prompts', label: 'Prompts', icon: 'fa-terminal', requiresDeveloperMode: true },
 ];
 
 /**
@@ -81,8 +81,20 @@ export default function SettingsSidebarIsland(
 
     const handleNavigate = (e: Event) => {
       const customEvent = e as CustomEvent;
-      if (customEvent.detail?.category) {
-        setActiveCategory(customEvent.detail.category);
+      const categoryId = customEvent.detail?.category;
+      
+      // OPTIMIZATION: Only update and re-dispatch if category actually changes
+      // to prevent "UI getting stuck" due to rapid event cycles.
+      if (categoryId && categoryId !== activeCategory) {
+        setActiveCategory(categoryId);
+        
+        // Use a short delay to prevent event loops and allow state to settle
+        setTimeout(() => {
+          dispatchSettingsEvent('settings:category-changed', { 
+            category: categoryId,
+            focus: customEvent.detail.focus 
+          });
+        }, 50);
       }
     };
 
@@ -111,14 +123,19 @@ export default function SettingsSidebarIsland(
   }, []);
 
   const handleCategoryClick = (categoryId: string) => {
+    if (categoryId === activeCategory) return;
+    
     setActiveCategory(categoryId);
 
-    dispatchSettingsEvent('settings:category-changed', { category: categoryId });
-
-    // Update URL hash
+    // Update URL hash immediately for UI feedback
     if (typeof window !== 'undefined') {
       window.location.hash = categoryId;
     }
+
+    // Delay event to allow Preact state to settle and prevent synchronous loops
+    setTimeout(() => {
+      dispatchSettingsEvent('settings:category-changed', { category: categoryId });
+    }, 50);
   };
 
   const handleDeveloperToggle = () => {
@@ -142,62 +159,82 @@ export default function SettingsSidebarIsland(
   });
 
   return (
-    <div className="settings-sidebar" data-testid="settings-sidebar-root">
-      {/* Header */}
-      <div className="settings-sidebar-header">
-        <h2 className="settings-sidebar-title">Settings</h2>
+    <div className="settings-sidebar h-full flex flex-col bg-white dark:bg-slate-900/50 border-r border-slate-200 dark:border-slate-800" data-testid="settings-sidebar-root">
+      {/* Precision Header */}
+      <div className="p-6 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-4 bg-cyan-500 rounded-full shadow-[0_0_8px_rgba(6,182,212,0.5)]"></div>
+          <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-900 dark:text-slate-100">Control Center</h2>
+        </div>
       </div>
 
       {/* Category Navigation */}
-      <nav className="flex-1 overflow-y-auto p-2">
-        <ul className="space-y-1">
+      <nav className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+        <ul className="space-y-2">
           {visibleCategories.map(category => (
             <li key={category.id}>
-              <button
-                onClick={() => handleCategoryClick(category.id)}
-                className={`settings-category-btn ${
+              <a
+                href={`#${category.id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleCategoryClick(category.id);
+                }}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
                   activeCategory === category.id
-                    ? 'active'
-                    : ''
+                    ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 ring-1 ring-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.1)]'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/50'
                 }`}
                 data-testid={`category-${category.id}`}
               >
-                <span className="mr-2">{category.icon}</span>
-                {category.label}
-              </button>
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                  activeCategory === category.id 
+                    ? 'bg-cyan-50 text-cyan-600 dark:bg-cyan-900/40 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-700/50' 
+                    : 'bg-slate-100 dark:bg-slate-800/50 text-slate-400 group-hover:bg-slate-200 dark:group-hover:bg-slate-700/50'
+                }`}>
+                  <i className={`fas ${category.icon} text-xs`}></i>
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest">{category.label}</span>
+                {activeCategory === category.id && (
+                  <div className="ml-auto w-1 h-3 bg-cyan-500 rounded-full shadow-[0_0_8px_rgba(6,182,212,0.5)]"></div>
+                )}
+              </a>
             </li>
           ))}
         </ul>
       </nav>
 
-      {/* Footer: Developer Mode Toggle */}
-      <div className="settings-sidebar-footer">
-        <div className="flex items-center justify-between">
-          <label htmlFor="developer-toggle" className="text-sm text-gray-700 cursor-pointer dark:text-gray-300">
-            Developer Mode
-          </label>
+      {/* Footer: Infrastructure Mode Toggle */}
+      <div className="p-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <i className="fas fa-terminal text-[10px] text-slate-400"></i>
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Dev Protocol</span>
+          </div>
           <button
             id="developer-toggle"
             role="switch"
-            aria-checked="false"
+            aria-checked={developerMode}
             ref={(el: HTMLButtonElement | null) => { toggleRef.current = el; }}
             onClick={handleDeveloperToggle}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              developerMode ? 'bg-blue-600' : 'bg-gray-300'
+            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors outline-none focus:ring-2 focus:ring-cyan-500/20 ${
+              developerMode ? 'bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.3)]' : 'bg-slate-200 dark:bg-slate-800'
             }`}
             data-testid="developer-toggle"
           >
             <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
                 developerMode ? 'translate-x-6' : 'translate-x-1'
               }`}
             />
           </button>
         </div>
         {developerMode && (
-          <p className="mt-2 text-xs text-gray-500">
-            👨‍💻 Developer category enabled
-          </p>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+            <i className="fas fa-triangle-exclamation text-[10px] text-amber-500"></i>
+            <p className="text-[9px] font-black uppercase tracking-tight text-amber-600 dark:text-amber-400">
+              High-Privilege Mode
+            </p>
+          </div>
         )}
       </div>
     </div>

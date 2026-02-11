@@ -44,6 +44,7 @@ const PUBLIC_ROUTES = [
   '/api-docs',
   '/api-docs.json',
   '/api-docs/openapi.json',
+  '/api/test/', // Allow test-only seeding endpoints (guarded by NODE_ENV elsewhere)
 ];
 
 /**

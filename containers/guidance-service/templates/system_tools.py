@@ -16,6 +16,7 @@ from typing import Any, Callable, List, Literal, Optional
 try:
     from guidance import (  # type: ignore[import-not-found]
         assistant,
+        gen,
         json as gen_json,
         guidance,
         system,
@@ -162,3 +163,40 @@ class SystemToolsTemplates:
             return lm
 
         return prompt_validator
+
+    @staticmethod
+    def get_raw_prompt_executor() -> Callable:
+        """Return a @guidance decorated raw prompt executor.
+
+        Executes arbitrary prompts with optional image support.
+        Used for fine-tuning and dry-running prompt templates.
+        """
+
+        @guidance
+        def raw_prompt_executor(
+            lm: Any,
+            system_prompt: str = "",
+            user_prompt: str = "",
+            temperature: float = 0.0,
+            max_tokens: int = 4000,
+            **kwargs: Any,
+        ) -> Any:
+            # Note: LiteLLM in Guidance doesn't support multimodal yet,
+            # but we use context managers for future-proofing.
+            if system_prompt:
+                with system():
+                    lm += system_prompt
+
+            with user():
+                lm += user_prompt
+
+            with assistant():
+                lm += gen(
+                    name="output",
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+
+            return lm
+
+        return raw_prompt_executor

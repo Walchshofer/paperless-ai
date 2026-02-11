@@ -44,6 +44,8 @@ export default defineConfig({
         'restart-banner': path.resolve(__dirname, 'src/islands/RestartBannerIsland.tsx'),
         'developer-settings': path.resolve(__dirname, 'src/islands/DeveloperSettingsIsland.tsx'),
         'presets-manager': path.resolve(__dirname, 'src/islands/PresetsManagerIsland.tsx'),
+        'settings-header': path.resolve(__dirname, 'src/islands/SettingsHeaderIsland.tsx'),
+        'prompts-settings': path.resolve(__dirname, 'src/islands/PromptsSettingsIsland.tsx'),
         // 'manual-workspace' removed in Phase C: legacy standalone manual workspace retired
         'view-mode-toggle': path.resolve(__dirname, 'src/islands/ViewModeToggleIsland.tsx'),
         'document-content': path.resolve(__dirname, 'src/islands/DocumentContentIsland.tsx'),
@@ -56,7 +58,7 @@ export default defineConfig({
       formats: ['es'],
       fileName: (format, entryName) => {
         if (entryName === 'island-runtime') return 'island-runtime.js';
-        return `${entryName}.island.js`;
+        return `${entryName}.js`;
       }
     }
   },

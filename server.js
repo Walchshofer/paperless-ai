@@ -13,7 +13,6 @@ const documentsRoutes = require('./routes/documents');
 const historyRoutes = require('./routes/history');
 const processingRoutes = require('./routes/processing');
 const systemRoutes = require('./routes/system');
-const settingsRoutes = require('./routes/settings');
 const documentRoutes = require('./routes/workspace');
 const legacyRedirectMiddleware = require('./middleware/legacy-redirect');
 const duplicateDetector = require('./services/DuplicateDetector');
@@ -29,7 +28,7 @@ if (process.env.RAG_SERVICE_ENABLED === undefined) {
   process.env.RAG_SERVICE_ENABLED = 'false';
 }
 if (process.env.RAG_SERVICE_ENABLED === 'true' && !process.env.RAG_SERVICE_URL) {
-  process.env.RAG_SERVICE_URL = 'http://text_rag:8004';
+  process.env.RAG_SERVICE_URL = 'http://text-rag:8004';
 }
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -781,7 +780,6 @@ app.use('/', documentsRoutes);
 app.use('/', historyRoutes);
 app.use('/', processingRoutes);
 app.use('/', systemRoutes);
-app.use('/', settingsRoutes);
 app.use('/workspace', documentRoutes);
 app.use('/', setupRoutes);
 const ragRoutes = require('./routes/rag');

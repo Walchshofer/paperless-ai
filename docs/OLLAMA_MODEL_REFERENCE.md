@@ -430,7 +430,7 @@ The following environment variables provide per-model token limit overrides. The
 
 ### Fallback Chain
 
-When a specific model environment variable is not set, the system follows a fallback chain defined in `services/prompts/PromptRegistry.js` and `routes/settings.js`. For example:
+When a specific model environment variable is not set, the system follows a fallback chain defined in `services/prompts/PromptRegistry.js` and `routes/api/settings.js`. For example:
 
 - `ROUTER_MODEL` → `OLLAMA_ROUTER_MODEL` → `PLANNER_MODEL` → `qwen3-vl:8b`
 - `MEDICAL_VISION_MODEL` → `OLLAMA_VISION_MODEL` → `llava-med-v1.6`
@@ -438,7 +438,7 @@ When a specific model environment variable is not set, the system follows a fall
 
 ### Vision Context Window Capping
 
-Vision and Planner tier context windows are capped at 32768 tokens to prevent Zod validation errors. This is enforced in `routes/settings.js:315-320`:
+Vision and Planner tier context windows are capped at 32768 tokens to prevent Zod validation errors. This is enforced in `routes/api/settings.js` (settings config builder):
 
 ```javascript
 vision: {
@@ -477,7 +477,8 @@ The `ModelResolutionService` (`services/ModelResolutionService.js`) provides dyn
 | Purpose | File Path |
 |---------|-----------|
 | Prompt Registry | `services/prompts/PromptRegistry.js` |
-| Settings Route (env var reads) | `routes/settings.js:143-251, 295-367` |
+| Settings API (env var reads) | `routes/api/settings.js` |
+| Settings Shell Route | `routes/system.js` (GET `/settings`) |
 | Model Resolution Service | `services/ModelResolutionService.js` |
 | Zod Schema (TypeScript contract) | `src/ui/contracts/Settings.AIProvider.contract.ts` |
 | Ollama Settings Island (UI) | `src/islands/AIProviderIsland.tsx` |

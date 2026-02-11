@@ -19,6 +19,7 @@
             gap: 1.5rem;
             padding: 1.5rem;
             min-height: calc(100vh - 80px);
+            align-items: start;
         }
 
         @media (max-width: 768px) {
@@ -47,17 +48,6 @@
             0% { background-position: 200% 0; }
             100% { background-position: -200% 0; }
         }
-
-        /* Dark mode header fixes */
-        [data-theme="dark"] .content-header {
-            background-color: var(--bg-secondary);
-            color: var(--text-primary);
-        }
-
-        [data-theme="dark"] #apiKeyContainer {
-            background-color: var(--bg-secondary);
-            color: var(--text-primary);
-        }
     </style>
 </head>
 <body class="h-full" data-page="<%= vm.page %>">
@@ -81,33 +71,15 @@
         <!-- Main Content -->
         <main class="main-content">
             <div class="content-wrapper">
-                <!-- Header with API Key -->
-                <div class="content-header flex justify-between items-center px-6 py-4 bg-white dark:bg-gray-800 shadow-sm">
-                    <h2 class="content-title text-2xl font-semibold text-gray-800 dark:text-white">Configuration</h2>
-                    <div class="relative flex items-center space-x-4">
-                        <span class="text-sm text-gray-600 dark:text-gray-300">API-KEY:</span>
-                        <div id="apiKeyContainer"
-                             class="relative w-48 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded cursor-pointer select-none filter blur-sm hover:blur-none transition-all duration-200 truncate"
-                             data-api-key="<%= vm.settings.API_KEY %>"
-                             data-testid="settings-api-key"
-                             title="Click to copy">
-                            <%= vm.settings.API_KEY %>
-                        </div>
-                        <button id="regenerateBtn"
-                                data-testid="settings-regenerate-btn"
-                                class="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center space-x-2">
-                            <i class="fas fa-sync-alt" id="regenerateIcon"></i>
-                            <span>Regenerate</span>
-                        </button>
-                        <div id="copyNotification"
-                             class="absolute right-0 top-12 w-64 bg-green-50 dark:bg-green-900 text-green-800 dark:text-green-100 border border-green-200 dark:border-green-700 rounded-lg p-3 hidden z-50">
-                            <div class="flex items-center">
-                                <i class="fas fa-check-circle mr-2"></i>
-                                <span>API key copied to clipboard!</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <!-- Settings Header Island -->
+                <div 
+                    data-island="settings-header-island" 
+                    data-testid="settings-header-island" 
+                    data-props='<%- JSON.stringify({
+                        apiKey: vm.settings.API_KEY || "Generating...",
+                        isAdmin: vm.user && vm.user.isAdmin
+                    }) %>'
+                ></div>
 
                 <!-- Restart Banner Island (fixed at top) -->
                 <div data-island="restart-banner-island" data-testid="restart-banner-island" data-props='{"visible": false}'></div>
@@ -118,16 +90,15 @@
                     <div
                         data-island="settings-sidebar-island"
                         data-testid="settings-sidebar-island"
-                        data-props='<%- JSON.stringify({
-                            activeCategory: "overview"
-                        }) %>'
+                        data-props='{}'
                     ></div>
 
                     <!-- Main Settings Content -->
-                    <div class="space-y-6">
+                    <div class="space-y-6 flex-1 min-w-0">
                         <!-- Overview Dashboard Island -->
                         <div
-                            class="settings-section"
+                            class="settings-section active"
+                            id="overview"
                             data-settings-category="overview"
                             data-testid="settings-section-overview"
                         >
@@ -140,62 +111,44 @@
 
                         <!-- Connection Settings Island -->
                         <div
-                            class="settings-section"
+                            class="settings-section hidden"
+                            id="connection"
                             data-settings-category="connection"
                             data-testid="settings-section-connection"
                         >
                             <div
                                 data-island="connection-settings-island"
                                 data-testid="connection-settings-island"
-                                data-props='<%- JSON.stringify({
-                                    paperlessApiUrl: vm.settings.PAPERLESS_API_URL || "",
-                                    paperlessApiToken: vm.settings.PAPERLESS_API_TOKEN ? "***hidden***" : "",
-                                    paperlessUsername: vm.settings.PAPERLESS_USERNAME || "",
-                                    ollamaApiUrl: vm.settings.OLLAMA_API_URL || "",
-                                    openaiApiKey: vm.settings.PAPERLESS_OPENAI_API_KEY ? "***hidden***" : "",
-                                    azureEndpoint: vm.settings.AZURE_ENDPOINT || "",
-                                    azureApiKey: vm.settings.AZURE_API_KEY ? "***hidden***" : "",
-                                    customApiUrl: vm.settings.CUSTOM_BASE_URL || "",
-                                    customApiKey: vm.settings.CUSTOM_API_KEY ? "***hidden***" : "",
-                                    qdrantHost: vm.settings.QDRANT_HOST || "qdrant",
-                                    qdrantPort: vm.settings.QDRANT_PORT || "6333",
-                                    qdrantApiKey: vm.settings.QDRANT_API_KEY ? "***hidden***" : "",
-                                    externalApiEnabled: vm.settings.EXTERNAL_API_ENABLED === "yes",
-                                    externalApiUrl: vm.settings.EXTERNAL_API_URL || "",
-                                    externalApiMethod: vm.settings.EXTERNAL_API_METHOD || "GET",
-                                    externalApiHeaders: vm.settings.EXTERNAL_API_HEADERS || "{}",
-                                    externalApiBody: vm.settings.EXTERNAL_API_BODY || "{}",
-                                    externalApiTimeout: parseInt(vm.settings.EXTERNAL_API_TIMEOUT || "5000", 10),
-                                    externalApiTransform: vm.settings.EXTERNAL_API_TRANSFORM || ""
-                                }) %>'
+                                data-props='{}'
                             ></div>
                         </div>
 
-                        <!-- AI Provider Island (includes embedded Expert Models when Ollama is selected) -->
+                        <!-- AI Provider Island -->
                         <div
-                            class="settings-section"
+                            class="settings-section hidden"
+                            id="ai-provider"
                             data-settings-category="ai-provider"
                             data-testid="settings-section-ai-provider"
                         >
                             <div
                                 data-island="ai-provider-island"
                                 data-testid="ai-provider-island"
-                                data-props='<%- JSON.stringify(vm.aiProvider || {}) %>'
+                                data-props='{}'
                             ></div>
-
                         </div>
 
                         <!-- Developer Settings Island (Admin Only) -->
                         <% if (vm.user && vm.user.isAdmin) { %>
                         <div
-                            class="settings-section"
+                            class="settings-section hidden"
+                            id="developer"
                             data-settings-category="developer"
                             data-testid="settings-section-developer"
                         >
                             <div
                                 data-island="developer-settings-island"
                                 data-testid="developer-settings-island"
-                                data-props='<%- JSON.stringify(vm.developer || {}) %>'
+                                data-props='{}'
                             ></div>
                         </div>
                         <% } %>
@@ -203,7 +156,8 @@
                         <!-- Presets Manager Island (Admin Only) -->
                         <% if (vm.user && vm.user.isAdmin) { %>
                         <div
-                            class="settings-section"
+                            class="settings-section hidden"
+                            id="advanced"
                             data-settings-category="advanced"
                             data-testid="settings-section-advanced"
                         >
@@ -218,7 +172,8 @@
                         <!-- Prompts Settings Island (Admin Only) -->
                         <% if (vm.user && vm.user.isAdmin) { %>
                         <div
-                            class="settings-section"
+                            class="settings-section hidden"
+                            id="prompts"
                             data-settings-category="prompts"
                             data-testid="settings-section-prompts"
                         >
@@ -232,89 +187,54 @@
                     </div>
                 </div>
             </div>
+            </div>
         </main>
     </div>
 
-    <script src="/js/shared-utilities.js"></script>
-
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const sections = Array.from(document.querySelectorAll('[data-settings-category]'));
-            if (!sections.length) return;
-
-            const storageKey = 'settings:lastCategory';
-            let activeCategory = (function getInitialCategory() {
-                const hash = window.location.hash.slice(1);
-                if (hash) return hash;
-                try {
-                    return localStorage.getItem(storageKey) || 'overview';
-                } catch (err) {
-                    return 'overview';
-                }
-            })();
-
-            function normalizeCategory(category) {
-                if (!category) return 'overview';
-                const exists = sections.some(function (section) {
-                    return section.getAttribute('data-settings-category') === category;
+        // Simple client-side routing for settings sections
+        document.addEventListener('DOMContentLoaded', () => {
+            const sections = document.querySelectorAll('.settings-section');
+            
+            function showSection(categoryId) {
+                sections.forEach(section => {
+                    if (section.id === categoryId || section.dataset.settingsCategory === categoryId) {
+                        section.classList.remove('hidden');
+                        section.classList.add('active');
+                    } else {
+                        section.classList.add('hidden');
+                        section.classList.remove('active');
+                    }
                 });
-                if (!exists) return 'overview';
-                return category;
             }
 
-            function applyCategory() {
-                activeCategory = normalizeCategory(activeCategory);
-
-                sections.forEach(function (section) {
-                    var category = section.getAttribute('data-settings-category');
-                    section.classList.toggle('hidden', category !== activeCategory);
-                });
-
-                try {
-                    localStorage.setItem(storageKey, activeCategory);
-                } catch (err) {
-                    // Ignore storage failures in restricted environments.
-                }
-            }
-
-            function syncCategoryEvent() {
-                document.dispatchEvent(new CustomEvent('settings:category-changed', {
-                    detail: { category: activeCategory }
-                }));
-            }
-
-            applyCategory();
-            syncCategoryEvent();
-
-            document.addEventListener('settings:category-changed', function (e) {
-                var nextCategory = e && e.detail ? e.detail.category : null;
-                if (nextCategory) {
-                    activeCategory = nextCategory;
-                    applyCategory();
+            // Listen for category change events from the sidebar island
+            document.addEventListener('settings:category-changed', (e) => {
+                if (e.detail && e.detail.category) {
+                    showSection(e.detail.category);
                 }
             });
 
-            window.addEventListener('hashchange', function () {
-                var hash = window.location.hash.slice(1);
-                if (hash) {
-                    activeCategory = hash;
-                    applyCategory();
-                }
-            });
+            // Initial section from hash
+            const initialHash = window.location.hash.slice(1);
+            if (initialHash) {
+                showSection(initialHash);
+            }
         });
     </script>
 
     <!-- Island Runtime -->
     <%- include('partials/island-loader', { 
         bundles: [
-            '/js/dist/overview-dashboard.island.js',
-            '/js/dist/settings-sidebar.island.js',
-            '/js/dist/restart-banner.island.js',
-            '/js/dist/connection-settings.island.js',
-            '/js/dist/ai-provider.island.js',
-            '/js/dist/developer-settings.island.js',
-            '/js/dist/presets-manager.island.js',
-            '/js/dist/prompts-settings.island.js'
+            '/js/dist/settings-header.js',
+            '/js/dist/overview-dashboard.js',
+            '/js/dist/settings-sidebar.js',
+            '/js/dist/restart-banner.js',
+            '/js/dist/connection-settings.js',
+            '/js/dist/ai-provider.js',
+            '/js/dist/developer-settings.js',
+            '/js/dist/presets-manager.js',
+            '/js/dist/prompts-settings.js'
         ]
     }) %>
 </body>

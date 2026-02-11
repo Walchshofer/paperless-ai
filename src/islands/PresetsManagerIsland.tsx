@@ -22,6 +22,7 @@ export default function PresetsManagerIsland(props: Partial<PresetsManagerSettin
   const [isApplying, setIsApplying] = useState(false);
   const [isImportMode, setIsImportMode] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null as File | null);
+  const [fileContent, setFileContent] = useState(null as string | null);
   const [filterCategory, setFilterCategory] = useState(null as string | null);
   const fileInputRef = useRef(null as HTMLInputElement | null);
 
@@ -43,7 +44,7 @@ export default function PresetsManagerIsland(props: Partial<PresetsManagerSettin
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('/settings/presets');
+      const response = await fetch('/api/settings/presets');
       if (response.ok) {
         const data = await response.json();
         setPresets(data.presets || []);
@@ -61,7 +62,7 @@ export default function PresetsManagerIsland(props: Partial<PresetsManagerSettin
     setSelectedPreset(presetName);
     setError(null);
     try {
-      const response = await fetch(`/settings/presets/${presetName}`, {
+      const response = await fetch(`/api/settings/presets/${presetName}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ preview: true })
@@ -82,7 +83,7 @@ export default function PresetsManagerIsland(props: Partial<PresetsManagerSettin
     setIsApplying(true);
     setError(null);
     try {
-      const response = await fetch(`/settings/presets/${selectedPreset}`, {
+      const response = await fetch(`/api/settings/presets/${selectedPreset}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ preview: false })
@@ -119,10 +120,11 @@ export default function PresetsManagerIsland(props: Partial<PresetsManagerSettin
     setError(null);
     setIsImportMode(false);
     setSelectedFile(null);
+    setFileContent(null);
   };
 
   const handleExport = () => {
-    window.location.href = '/settings/export';
+    window.location.href = '/api/settings/export';
   };
 
   const handleImportClick = () => {
@@ -143,12 +145,16 @@ export default function PresetsManagerIsland(props: Partial<PresetsManagerSettin
     setIsImportMode(true);
     setError(null);
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('preview', 'true');
+    // Read file content client-side and send as JSON
+    const text = await file.text();
+    setFileContent(text);
 
     try {
-      const response = await fetch('/settings/import', { method: 'POST', body: formData });
+      const response = await fetch('/api/settings/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: text, filename: file.name, preview: true })
+      });
       if (response.ok) {
         const data = await response.json();
         setPresetDiff(data.diff);
@@ -161,27 +167,29 @@ export default function PresetsManagerIsland(props: Partial<PresetsManagerSettin
         }
         setIsImportMode(false);
         setSelectedFile(null);
+        setFileContent(null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
       setIsImportMode(false);
       setSelectedFile(null);
+      setFileContent(null);
     }
 
     target.value = '';
   };
 
   const handleApplyImport = async () => {
-    if (!selectedFile) return;
+    if (!fileContent) return;
     setIsApplying(true);
     setError(null);
 
-    const formData = new FormData();
-    formData.append('file', selectedFile);
-    formData.append('preview', 'false');
-
     try {
-      const response = await fetch('/settings/import', { method: 'POST', body: formData });
+      const response = await fetch('/api/settings/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: fileContent, filename: selectedFile?.name, preview: false })
+      });
       if (response.ok) {
         const data = await response.json();
         if (typeof document !== 'undefined') {

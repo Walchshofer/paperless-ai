@@ -14,6 +14,17 @@ const logger = require('../../services/logger');
 const fs = require('fs').promises;
 const path = require('path');
 const { authenticateApi, requireAdmin } = require('../../middleware/auth');
+const AIServiceFactory = require('../../services/aiServiceFactory');
+
+/** Strip data URI prefix (e.g. "data:image/png;base64,") if present */
+function stripBase64Header(data) {
+  if (!data || typeof data !== 'string') return data;
+  const commaIdx = data.indexOf(',');
+  if (commaIdx > 0 && commaIdx < 100 && data.startsWith('data:')) {
+    return data.slice(commaIdx + 1);
+  }
+  return data;
+}
 
 let guidanceClient = null;
 
@@ -54,7 +65,7 @@ async function validatePromptTemplate(systemPrompt, userTemplate, promptEntry) {
       domain: promptEntry.domain,
     }, { temperature: 0.1 });
 
-    return result?.generated?.output || null;
+    return result?.generated || null;
   } catch (err) {
     logger.warn('[Prompts API] Prompt validation failed (non-blocking):', err.message);
     return null;
@@ -276,6 +287,9 @@ router.put('/:id', express.json(), authenticateApi, requireAdmin, async (req, re
         warnings: validation.warnings,
         suggestions: validation.suggestions || [],
         quality_score: validation.quality_score,
+        syntax_valid: validation.syntax_valid,
+        detected_variables: validation.detected_variables || [],
+        unrecognized_variables: validation.unrecognized_variables || [],
       };
     }
 
@@ -332,7 +346,7 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
     }
 
     const prompt = promptRegistry.get(id);
-    const { variables = {}, systemPrompt, userTemplate } = req.body;
+    const { variables = {}, systemPrompt, userTemplate, mode = 'validate' } = req.body;
 
     // Use provided overrides or current prompt values
     const testSystemPrompt = systemPrompt !== undefined ? systemPrompt : prompt.systemPrompt;
@@ -365,32 +379,75 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
     let testResult = null;
     let source = 'template-render';
     let tokenEstimate = null;
+    let guidanceMetadata = null;
 
-    // Attempt LLM call via guidance service if available
-    const client = getGuidanceClient();
-    if (client) {
+    // Extract image data from variables (set by frontend for multimodal tests)
+    const rawImageData = variables.__image_data || variables.image_data || variables.document_image_b64 || null;
+    const isMultimodal = prompt.modelType === 'multimodal';
+
+    // MULTIMODAL VISION PATH: Call Ollama vision API directly
+    // The guidance service cannot handle images (raw_prompt_executor drops them via **kwargs)
+    // so for multimodal prompts with image data, we bypass guidance and call Ollama directly
+    if (isMultimodal && rawImageData && mode === 'execute') {
       try {
-        const available = await client.isAvailable();
-        if (available) {
-          // Find the guidance template name for this prompt
-          const { getFallbackPromptId } = require('../../services/guidance/GuidanceClient');
-          // Try to invoke a test generation
-          const genResult = await client.generate('prompt_validator', {
-            system_prompt: renderedSystemPrompt,
-            user_template: renderedTemplate,
-            known_variables: detectedVars,
-            prompt_id: id,
-            domain: prompt.domain,
-          }, {
-            temperature: prompt.config?.temperature ?? 0.2,
-          });
+        const ollamaService = AIServiceFactory.getService();
+        if (ollamaService && typeof ollamaService._callOllamaVisionAPI === 'function') {
+          const cleanImage = stripBase64Header(rawImageData);
+          const combinedPrompt = renderedSystemPrompt + '\n\n' + renderedTemplate;
 
-          testResult = genResult?.generated?.output || null;
-          source = 'guidance-service';
+          const visionResult = await ollamaService._callOllamaVisionAPI(
+            combinedPrompt,
+            cleanImage,
+            {
+              model: prompt.model,
+              temperature: 0.0,
+              kind: 'vision',
+              num_predict: prompt.config?.maxTokens || 1024,
+            }
+          );
+
+          testResult = visionResult?.response || null;
+          source = 'ollama-vision';
+          guidanceMetadata = {
+            model: visionResult?.model || prompt.model,
+            eval_count: visionResult?.eval_count,
+            truncated: visionResult?._truncated || false,
+          };
+        } else {
+          logger.warn('[Prompts API] Ollama vision not available for multimodal test');
+          source = 'template-render-only';
         }
       } catch (err) {
-        logger.warn('[Prompts API] Test LLM call failed:', err.message);
+        logger.warn('[Prompts API] Vision test call failed:', err.message);
         source = 'template-render-only';
+      }
+    }
+
+    // TEXT PATH: Use guidance service for validation or text-only execution
+    if (source === 'template-render') {
+      const client = getGuidanceClient();
+      if (client) {
+        try {
+          const available = await client.isAvailable();
+          if (available) {
+            const genResult = await client.generate('prompt_validator', {
+              system_prompt: renderedSystemPrompt,
+              user_template: renderedTemplate,
+              known_variables: detectedVars,
+              prompt_id: id,
+              domain: prompt.domain,
+            }, {
+              temperature: 0.0,
+            });
+
+            testResult = genResult?.generated || null;
+            source = 'guidance-service';
+            guidanceMetadata = genResult?.metadata || null;
+          }
+        } catch (err) {
+          logger.warn('[Prompts API] Test LLM call failed:', err.message);
+          source = 'template-render-only';
+        }
       }
     }
 
@@ -416,6 +473,7 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
     res.json({
       success: true,
       promptId: id,
+      model: prompt.model,
       source,
       duration,
       renderedSystemPrompt,
@@ -426,10 +484,11 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
       tokenEstimate,
       testResult,
       jsonValid,
+      guidanceMetadata,
     });
   } catch (error) {
     logger.error('[Prompts API] Test failed:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Test execution failed' });
   }
 });
 

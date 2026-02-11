@@ -72,6 +72,7 @@ class GuidanceClient {
         });
 
         this._available = null;  // Cached availability status
+        this._availableCheckedAt = 0; // TTL timestamp
 
         logger.info({
             event: 'guidance_client_initialized',
@@ -88,7 +89,8 @@ class GuidanceClient {
     async isAvailable() {
         if (!this.config.enabled) return false;
 
-        if (this._available !== null) {
+        const now = Date.now();
+        if (this._available !== null && (now - this._availableCheckedAt) < 60000) {
             return this._available;
         }
 
@@ -97,6 +99,7 @@ class GuidanceClient {
                 timeout: 5000
             });
             this._available = response.data?.status === 'ok';
+            this._availableCheckedAt = now;
             return this._available;
         } catch (error) {
             logger.warn({
@@ -105,6 +108,7 @@ class GuidanceClient {
                 error: error.message
             });
             this._available = false;
+            this._availableCheckedAt = now;
             return false;
         }
     }

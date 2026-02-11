@@ -8,10 +8,9 @@ Read **only what you need**, but for any non-trivial work you must start with th
 
 1. `docs/EXPERT_PIPELINE_DECISION_TABLE.md` — pipeline gates, retries, contracts.
 2. `docs/PROMPT_REGISTRY_GUIDANCE_INTERACTION.md` — PromptRegistry authority, Guidance optimization, fallback mapping.
-3. `.github/architecture/coding-standards.md` — code style, logging, error handling.
-4. `.github/architecture/pipeline-contract.md` — pipeline contract invariants.
-5. `.github/architecture/service-boundaries.md` — service responsibilities and boundaries.
-6. `docs/QDRANT_MIGRATION.md` — Hybrid SOT Authority (Postgres Metadata / Qdrant Vectors).
+3. `.claude/architecture/coding-standards.md` — code style, logging, error handling.
+4. `.claude/architecture/pipeline-contract.md` — pipeline contract invariants.
+5. `docs/QDRANT_MIGRATION.md` — Hybrid SOT Authority (Postgres Metadata / Qdrant Vectors).
 
 **Rule:** If a proposed change conflicts with Tier 0, Tier 0 wins.
 

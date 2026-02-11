@@ -32,6 +32,7 @@ const entries = {
   'restart-banner': 'src/islands/RestartBannerIsland.tsx',
   'developer-settings': 'src/islands/DeveloperSettingsIsland.tsx',
   'presets-manager': 'src/islands/PresetsManagerIsland.tsx',
+  'settings-header': 'src/islands/SettingsHeaderIsland.tsx',
   'prompts-settings': 'src/islands/PromptsSettingsIsland.tsx',
   'manual-workspace': 'src/islands/ManualWorkspaceIsland.tsx',
   'view-mode-toggle': 'src/islands/ViewModeToggleIsland.tsx',
@@ -58,7 +59,7 @@ async function run() {
   for (const [name, input] of Object.entries(entries)) {
     const outfile = name === 'island-runtime'
       ? path.join(distDir, 'island-runtime.js')
-      : path.join(distDir, `${name}.island.js`);
+      : path.join(distDir, `${name}.js`);
     entryPoints[outfile] = path.join(projectRoot, input);
   }
 
@@ -66,7 +67,7 @@ async function run() {
     const result = await esbuild.build({
       entryPoints: Object.entries(entries).map(([name, input]) => ({
         in: path.join(projectRoot, input),
-        out: name === 'island-runtime' ? 'island-runtime' : `${name}.island`
+        out: name === 'island-runtime' ? 'island-runtime' : `${name}`
       })),
       bundle: true,
       outdir: distDir,

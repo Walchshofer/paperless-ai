@@ -578,7 +578,13 @@ router.get('/setup', async (req, res) => {
       QDRANT_HOST: process.env.QDRANT_HOST || 'qdrant',
       QDRANT_PORT: process.env.QDRANT_PORT || '6333',
       QDRANT_API_KEY: process.env.QDRANT_API_KEY || '',
-      VECTOR_STORE: process.env.VECTOR_STORE || 'qdrant'
+      VECTOR_STORE: process.env.VECTOR_STORE || 'qdrant',
+      ACTIVATE_TAGGING: process.env.ACTIVATE_TAGGING || 'yes',
+      ACTIVATE_CORRESPONDENTS: process.env.ACTIVATE_CORRESPONDENTS || 'yes',
+      ACTIVATE_DOCUMENT_TYPE: process.env.ACTIVATE_DOCUMENT_TYPE || 'yes',
+      ACTIVATE_TITLE: process.env.ACTIVATE_TITLE || 'yes',
+      ACTIVATE_CUSTOM_FIELDS: process.env.ACTIVATE_CUSTOM_FIELDS || 'yes',
+      CUSTOM_FIELDS: process.env.CUSTOM_FIELDS || '{"custom_fields":[]}'
     };
 
     // Check both configuration and users

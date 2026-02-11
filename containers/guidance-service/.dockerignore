@@ -1,0 +1,11 @@
+# Test and documentation (not needed at runtime)
+tests/
+docs/
+
+# Python bytecode cache
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/

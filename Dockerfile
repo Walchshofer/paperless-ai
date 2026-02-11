@@ -17,22 +17,18 @@ RUN apt-get update && \
 # Install PM2 process manager globally
 RUN npm install pm2 -g
 
-# Copy package files for dependency installation
+# Copy package files and install dependencies first (layer cache)
 COPY package*.json ./
 
-# Copy Tailwind/PostCSS config and Tailwind input file needed for building CSS before full source copy
-COPY tailwind.config.cjs postcss.config.cjs src/styles/tailwind-input.css ./src/styles/tailwind-input.css
-
-# Build Tailwind CSS using npx (no package.json mutation required)
-RUN npx tailwindcss -i src/styles/tailwind-input.css -o public/css/tailwind.css --minify || true && npm cache clean --force
+ARG NPM_OMIT_DEV=1
+RUN npm install --no-audit --no-fund || \
+    npm install --legacy-peer-deps --no-audit --no-fund
 
 # Copy application source code
 COPY . .
 
-# Install dependencies (include dev deps for bundling)
-ARG NPM_OMIT_DEV=1
-RUN npm install --no-audit --no-fund || \
-    npm install --legacy-peer-deps --no-audit --no-fund || true
+# Build Tailwind CSS (needs deps installed + source files for content scanning)
+RUN npx tailwindcss -i src/styles/tailwind-input.css -o public/css/tailwind.css --minify
 
 # Build Islands
 RUN npm run build:islands
