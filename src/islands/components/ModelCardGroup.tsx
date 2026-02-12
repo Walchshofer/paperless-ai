@@ -1,10 +1,10 @@
-import { h } from 'preact';
+import { h, ComponentChildren } from 'preact';
 
 interface ModelCardGroupProps {
   id: string;
   title: string;
   description?: string;
-  children: preact.ComponentChildren;
+  children: ComponentChildren;
   testId: string;
 }
 

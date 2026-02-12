@@ -169,6 +169,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: CI Preflight Check (Qdrant)
+        env:
+          QDRANT_URL: ${{ env.QDRANT_URL }}
+          SIDECAR_URL: 'http://localhost:8001' # Optional if sidecar not in this job
+        run: |
+          node scripts/ci/preflight-alpha9.js
+
       - name: Initialize test collections
         run: |
           node -e "

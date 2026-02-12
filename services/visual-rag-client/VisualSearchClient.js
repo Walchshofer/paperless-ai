@@ -368,7 +368,10 @@ class VisualSearchClient {
             
             if (cached) {
                 logger.debug('[VisualSearchClient] Returning cached result for Alpha-9 query');
-                return cached;
+                return {
+                    ...cached,
+                    results: this._normalizeAlpha9Results(cached.results || [])
+                };
             }
         }
 
@@ -431,12 +434,7 @@ class VisualSearchClient {
             }
 
             const result = {
-                results: (data.results || []).map(r => ({
-                    docId: r.doc_id,
-                    score: r.score,
-                    pageNum: r.page_num,
-                    thumbnailUrl: r.thumbnail_url
-                })),
+                results: this._normalizeAlpha9Results(data.results || []),
                 scoreType: data.score_type || 'maxsim',
                 collectionUsed: data.collection_used || collection,
                 executionTimeMs: data.execution_time_ms || durationMs,
@@ -804,6 +802,65 @@ class VisualSearchClient {
     // =========================================================================
     // Helpers
     // =========================================================================
+
+    /**
+     * Normalize thumbnail URL to app-routable endpoints.
+     * Sidecar can return "/thumbnails/:id", which is not served by Node.
+     * @private
+     * @param {string|undefined|null} thumbnailUrl
+     * @param {number|string|undefined|null} docId
+     * @returns {string|undefined}
+     */
+    _normalizeThumbnailUrl(thumbnailUrl, docId) {
+        if (typeof thumbnailUrl === 'string' && thumbnailUrl.trim() !== '') {
+            const cleanUrl = thumbnailUrl.trim();
+
+            const sidecarMatch = cleanUrl.match(/^\/thumbnails\/(\d+)(?:[/?#].*)?$/);
+            if (sidecarMatch) {
+                return `/thumb/${sidecarMatch[1]}`;
+            }
+
+            const paperlessApiMatch = cleanUrl.match(
+                /^\/api\/documents\/(\d+)\/thumb\/?$/
+            );
+            if (paperlessApiMatch) {
+                return `/thumb/${paperlessApiMatch[1]}`;
+            }
+
+            return cleanUrl;
+        }
+
+        if (docId !== null && docId !== undefined && docId !== '') {
+            return `/thumb/${docId}`;
+        }
+
+        return undefined;
+    }
+
+    /**
+     * Normalize Alpha-9 result rows from sidecar/cache into app-safe shape.
+     * @private
+     * @param {Array<Object>} results
+     * @returns {Array<Object>}
+     */
+    _normalizeAlpha9Results(results) {
+        if (!Array.isArray(results)) {
+            return [];
+        }
+
+        return results.map((row = {}) => {
+            const docId = row.doc_id ?? row.docId;
+            return {
+                docId,
+                score: row.score,
+                pageNum: row.page_num ?? row.pageNum,
+                thumbnailUrl: this._normalizeThumbnailUrl(
+                    row.thumbnail_url ?? row.thumbnailUrl,
+                    docId
+                )
+            };
+        });
+    }
 
     /**
      * Wrap axios errors with context

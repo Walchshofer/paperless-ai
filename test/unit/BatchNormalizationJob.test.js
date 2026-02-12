@@ -320,7 +320,7 @@ describe('BatchNormalizationJob', () => {
 
             assert(result.stats.startTime);
             assert(result.stats.endTime);
-            assert(result.stats.duration);
+            assert(result.stats.duration >= 0);
             assert.strictEqual(typeof result.stats.duration, 'number');
         });
     });

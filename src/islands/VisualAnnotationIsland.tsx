@@ -479,12 +479,12 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
 
   // Export annotations handler
   const handleExportAnnotations = useCallback(() => {
-    if (annotations.length === 0 || !documentId) return;
+    if (annotations.length === 0 || !props.documentId) return;
     
     // Dispatch export event
     const event = new CustomEvent('export:annotations-requested', {
       detail: {
-        documentId,
+        documentId: props.documentId,
         annotations,
         format: 'json'
       }

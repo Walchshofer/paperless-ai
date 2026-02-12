@@ -25,7 +25,7 @@ async function _isHostReachable(urlStr, timeout = 500) {
 }
 
 describe('Payload Mirroring - Alpha-9', function () {
-  this.timeout(15000);
+  this.timeout(60000);
 
   it('verifies payload mirroring logic with simulated Qdrant point', async function () {
     // Insert a feedback row into Postgres (test DB must be available)

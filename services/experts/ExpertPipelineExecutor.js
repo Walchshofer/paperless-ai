@@ -1092,7 +1092,7 @@ class ExpertPipelineExecutor {
 
         try {
           const streamingThreshold = parseInt(
-            process.env.GUIDANCE_STREAMING_THRESHOLD || '2000',
+            context.options?.streamingThreshold || process.env.GUIDANCE_STREAMING_THRESHOLD || '2000',
             10
           );
           const tokenCount = calculateTokens(textForContext || '');
@@ -1109,7 +1109,18 @@ class ExpertPipelineExecutor {
           const guidanceResult = await guidanceClient.generate(resolvedTemplate, variables, {
             model: modelName,
             temperature: templateTemperature,
-            stream: enableStreaming
+            stream: enableStreaming,
+            onProgress: (update) => {
+              if (update.stage === 'thinking') {
+                this._emitProgress(context, {
+                  stage: 'expert_thinking',
+                  details: {
+                    stageId: stage.id,
+                    model: modelName
+                  }
+                });
+              }
+            }
           });
 
           if (guidanceResult.success) {
@@ -1220,7 +1231,7 @@ class ExpertPipelineExecutor {
     const modelOptions = promptRegistry.getOptions(promptId);
 
     const timeout = stage.timeout || this.options.defaultTimeout;
-    const response = await this._callOllamaWithTimeout(stage.model, messages, modelOptions, timeout);
+    const response = await this._callOllamaWithTimeout(stage.model, messages, modelOptions, timeout, context);
 
     return this._parseResponse(response, stage);
   }
@@ -2617,23 +2628,72 @@ class ExpertPipelineExecutor {
   /**
    * Call Ollama API with timeout
    */
-  async _callOllamaWithTimeout(model, messages, options, timeout) {
+  async _callOllamaWithTimeout(model, messages, options, timeout, context = null) {
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error(`LLM call timed out after ${timeout}ms`)), timeout);
     });
 
-    const llmPromise = this._callOllama(model, messages, options);
+    const llmPromise = this._callOllama(model, messages, options, context);
     return Promise.race([llmPromise, timeoutPromise]);
   }
 
   /**
    * Call Ollama API (integrates with existing ollamaService pattern in the codebase)
    */
-  async _callOllama(model, messages, options) {
+  async _callOllama(model, messages, options, context = null) {
     const resolvedOptions = this._applyOllamaLimits(model, messages, options);
     truncationMetrics.recordRequest('expert', model);
 
+    // THOUGHT: Should we stream for thinking models to show progress?
+    const isThinkingModel = model.toLowerCase().includes('qwen3') || 
+                            model.toLowerCase().includes('nemotron') ||
+                            model.toLowerCase().includes('llava-med');
+    const shouldStream = isThinkingModel && context;
+
     if (this.ollamaService && typeof this.ollamaService.chat === 'function') {
+      if (shouldStream) {
+        // STREAMING PATH for progress reporting
+        const response = await this.ollamaService.chat({
+          model,
+          messages,
+          options: resolvedOptions,
+          stream: true
+        });
+
+        let fullContent = '';
+        let hasThinkingEmitted = false;
+
+        // Note: This assumes ollamaService.chat returns a stream if stream: true
+        // If it doesn't, we'd need to update ollamaService.js
+        if (response && typeof response.on === 'function') {
+          return new Promise((resolve, reject) => {
+            response.on('data', (chunk) => {
+              const data = JSON.parse(chunk.toString());
+              const content = data.message?.content || '';
+              fullContent += content;
+
+              if (fullContent.includes('<think>') && !hasThinkingEmitted) {
+                hasThinkingEmitted = true;
+                this._emitProgress(context, {
+                  stage: 'expert_thinking',
+                  details: { model }
+                });
+              }
+              
+              if (data.done) {
+                resolve({
+                  message: { content: fullContent },
+                  done: true,
+                  done_reason: data.done_reason,
+                  eval_count: data.eval_count
+                });
+              }
+            });
+            response.on('error', reject);
+          });
+        }
+      }
+
       const response = await this.ollamaService.chat({
         model,
         messages,
@@ -2658,6 +2718,52 @@ class ExpertPipelineExecutor {
 
     // Fallback: Direct HTTP call to Ollama
     const ollamaHost = config.ollama?.apiUrl || process.env.OLLAMA_HOST || 'http://localhost:11434';
+    
+    if (shouldStream) {
+       const response = await axios.post(`${ollamaHost}/api/chat`, {
+          model,
+          messages,
+          options: resolvedOptions,
+          stream: true
+        }, { responseType: 'stream' });
+
+        let fullContent = '';
+        let hasThinkingEmitted = false;
+
+        return new Promise((resolve, reject) => {
+          response.data.on('data', (chunk) => {
+            // Ollama sends multiple JSON objects, one per line
+            const lines = chunk.toString().split('\n');
+            for (const line of lines) {
+              if (!line.trim()) continue;
+              try {
+                const data = JSON.parse(line);
+                const content = data.message?.content || '';
+                fullContent += content;
+
+                if (fullContent.includes('<think>') && !hasThinkingEmitted) {
+                  hasThinkingEmitted = true;
+                  this._emitProgress(context, {
+                    stage: 'expert_thinking',
+                    details: { model }
+                  });
+                }
+                
+                if (data.done) {
+                  resolve({
+                    message: { content: fullContent },
+                    done: true,
+                    done_reason: data.done_reason,
+                    eval_count: data.eval_count
+                  });
+                }
+              } catch (e) {}
+            }
+          });
+          response.data.on('error', reject);
+        });
+    }
+
     const response = await axios.post(`${ollamaHost}/api/chat`, {
       model,
       messages,
@@ -3531,7 +3637,9 @@ class ExpertPipelineExecutor {
         const routerResponse = await executor._callOllama(
           MODEL_NAMES.router,
           routerMessages,
-          promptRegistry.getOptions('SYS_ROUTER_V1')
+          promptRegistry.getOptions('SYS_ROUTER_V1'),
+          // Pass null or a dummy context if we don't have a full one yet for router
+          null 
         );
 
         return await executor._parseResponse(routerResponse, { id: 'router', model: MODEL_NAMES.router });

@@ -30,6 +30,27 @@ describe('Normalized Image Serving API (Unit Tests)', function() {
     const originalAccess = require('fs').promises.access;
     require('fs').promises.access = mockAccessFn;
 
+    // Mock auth middleware so route behavior is testable in isolation.
+    const authPath = require.resolve('../../middleware/auth');
+    const originalAuth = require.cache[authPath];
+    require.cache[authPath] = {
+      id: authPath,
+      filename: authPath,
+      loaded: true,
+      exports: {
+        authenticateApi: (req, _res, next) => {
+          req.user = { id: 1, role: 'admin' };
+          next();
+        },
+      },
+    };
+
+    // Stub sendFile to avoid dependency on real files in unit tests.
+    app.response.sendFile = function sendFileStub() {
+      this.status(200);
+      this.end();
+    };
+
     // Clear cached route module
     delete require.cache[require.resolve('../../routes/api/normalized')];
 
@@ -40,6 +61,11 @@ describe('Normalized Image Serving API (Unit Tests)', function() {
     // Return cleanup function
     return () => {
       require('fs').promises.access = originalAccess;
+      if (originalAuth) {
+        require.cache[authPath] = originalAuth;
+      } else {
+        delete require.cache[authPath];
+      }
     };
   }
 

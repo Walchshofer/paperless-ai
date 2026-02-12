@@ -40,6 +40,7 @@ type OllamaModelGroup = {
     label: string;
     model: string;
     placeholder?: boolean;
+    provider?: string;
   }>;
 };
 
@@ -83,6 +84,19 @@ const highlightBlocks = (container: HTMLElement | null) => {
 };
 
 const makeId = () => `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+const isVisionCapableModel = (modelName: string | null | undefined) => {
+  const model = String(modelName || '').toLowerCase();
+  if (!model) return false;
+  return (
+    model.includes('vl') ||
+    model.includes('vision') ||
+    model.includes('llava') ||
+    model.includes('pixtral') ||
+    model.includes('gpt-4o') ||
+    model.includes('gemini')
+  );
+};
 
 export default function ChatWorkspaceIsland(
   props: Partial<ChatWorkspaceContract>
@@ -165,29 +179,59 @@ export default function ChatWorkspaceIsland(
 
   const aiProvider = props.aiProvider || 'ollama';
 
-  // Filter models by current provider
+  // Filter models by current provider and active chat mode.
   const filteredModelOptions = useMemo(() => {
     const currentProvider = props.modelConfig?.currentProvider || aiProvider || 'ollama';
 
     if (!modelOptions || modelOptions.length === 0) return [];
 
-    // Filter groups that match the current provider
-    return modelOptions.filter((group: OllamaModelGroup) => {
-      const groupLabel = group.label.toLowerCase();
-      const providerName = currentProvider.toLowerCase();
+    const providerName = currentProvider.toLowerCase();
 
-      // Match provider name in group label
-      // e.g., "Ollama models" matches "ollama"
-      // "Expert models" is provider-agnostic, always show
-      // "Installed models" show for all providers
-      return (
-        groupLabel.includes(providerName) ||
-        groupLabel.includes('expert') ||
-        groupLabel.includes('installed') ||
-        groupLabel.includes('configured')
-      );
-    });
-  }, [modelOptions, props.modelConfig?.currentProvider, aiProvider]);
+    // 1) Filter model entries by provider.
+    // Keep legacy group-label matching as a fallback for older payloads.
+    const providerFiltered = modelOptions
+      .map((group: OllamaModelGroup) => {
+        const groupLabel = group.label.toLowerCase();
+        const models = group.models.filter((entry) => {
+          if (entry.provider) {
+            const entryProvider = entry.provider.toLowerCase();
+            return (
+              entryProvider === providerName ||
+              entryProvider === 'expert'
+            );
+          }
+          return (
+            groupLabel.includes(providerName) ||
+            groupLabel.includes('expert') ||
+            groupLabel.includes('installed') ||
+            groupLabel.includes('configured')
+          );
+        });
+        return { ...group, models };
+      })
+      .filter((group) => group.models.length > 0);
+
+    // 2) Mode-specific availability:
+    // Document mode supports multimodal context, so surface only vision-capable
+    // models. Other modes keep provider-filtered options.
+    if (chatMode !== 'document') {
+      return providerFiltered;
+    }
+
+    return providerFiltered
+      .map((group) => ({
+        ...group,
+        models: group.models.filter((entry) =>
+          isVisionCapableModel(entry.model)
+        )
+      }))
+      .filter((group) => group.models.length > 0);
+  }, [
+    modelOptions,
+    props.modelConfig?.currentProvider,
+    aiProvider,
+    chatMode
+  ]);
 
   // Update selected model when provider changes
   useEffect(() => {
@@ -327,24 +371,82 @@ export default function ChatWorkspaceIsland(
   // Prefer server-provided modelConfig when available; otherwise fall back to Ollama-only discovery
   useEffect(() => {
     if (props.modelConfig && props.modelConfig.providers) {
-      // Build groups from providers
+      // Build groups by capability for better intuition (P3-T2)
       const providers = props.modelConfig.providers || {};
-      const groups: OllamaModelGroup[] = Object.keys(providers).flatMap((provider) => {
-        const models = Array.isArray(providers[provider]) ? (providers[provider] as string[]) : [];
-        if (!models.length) return [];
-        return [{
-          label: `${provider} models`,
-          models: models.map((m: string) => ({ label: m, model: m }))
-        }];
-      });
+      const providerModels = Object.entries(providers).flatMap(
+        ([providerName, entries]) => (entries || []).map((modelName) => ({
+          provider: providerName,
+          model: modelName,
+        }))
+      );
+      const expertRaw = (props.modelConfig.expertModels || []) as Array<{ label?: string; model: string }>;
+      
+      const groups: OllamaModelGroup[] = [];
 
-      // Expert models (if provided as array of entries)
-      type ExpertModelEntry = { label?: string; model: string };
-      const expertRaw = props.modelConfig.expertModels;
-      if (Array.isArray(expertRaw) && expertRaw.length) {
+      // 1. Reasoning Models (High capability)
+      const reasoningModels = providerModels.filter(entry => 
+        entry.model.toLowerCase().includes('llama3.1') || 
+        entry.model.toLowerCase().includes('qwen') || 
+        entry.model.toLowerCase().includes('o1') ||
+        entry.model.toLowerCase().includes('thought')
+      );
+      if (reasoningModels.length) {
         groups.push({
-          label: 'Expert models',
-          models: (expertRaw as ExpertModelEntry[]).map((entry: ExpertModelEntry) => ({ label: entry.label ? `${entry.label} (${entry.model})` : entry.model, model: entry.model }))
+          label: 'Reasoning Models',
+          models: reasoningModels.map(entry => ({
+            label: entry.model,
+            model: entry.model,
+            provider: entry.provider,
+          }))
+        });
+      }
+
+      // 2. Vision / Multimodal Models
+      const visionModels = providerModels.filter(entry => 
+        entry.model.toLowerCase().includes('vl') || 
+        entry.model.toLowerCase().includes('vision') || 
+        entry.model.toLowerCase().includes('llava') ||
+        entry.model.toLowerCase().includes('pixtral')
+      );
+      if (visionModels.length) {
+        groups.push({
+          label: 'Multimodal / Vision Models',
+          models: visionModels.map(entry => ({
+            label: entry.model,
+            model: entry.model,
+            provider: entry.provider,
+          }))
+        });
+      }
+
+      // 3. Expert Models
+      if (expertRaw.length) {
+        groups.push({
+          label: 'Expert Specialized Models',
+          models: expertRaw.map(entry => ({
+            label: entry.label ? `${entry.label} (${entry.model})` : entry.model,
+            model: entry.model,
+            provider: 'expert',
+          }))
+        });
+      }
+
+      // 4. Other Models (Catch-all)
+      const categorized = new Set([
+        ...reasoningModels.map((entry) => `${entry.provider}:${entry.model}`),
+        ...visionModels.map((entry) => `${entry.provider}:${entry.model}`),
+      ]);
+      const others = providerModels.filter((entry) => (
+        !categorized.has(`${entry.provider}:${entry.model}`)
+      ));
+      if (others.length) {
+        groups.push({
+          label: 'General Purpose Models',
+          models: others.map(entry => ({
+            label: entry.model,
+            model: entry.model,
+            provider: entry.provider,
+          }))
         });
       }
 
@@ -431,40 +533,66 @@ export default function ChatWorkspaceIsland(
         return model && !installedSet.has(model) && !expertSet.has(model);
       });
 
+      // Group models by capability for intuition (P3-T2)
       const groups: OllamaModelGroup[] = [];
-      if (installedSet.size) {
+      const allAvailable = Array.from(new Set([...Array.from(installedSet), ...placeholderEntries]));
+
+      // 1. Reasoning Models
+      const reasoning = allAvailable.filter(m => 
+        m.toLowerCase().includes('llama3.1') || m.toLowerCase().includes('qwen') || m.toLowerCase().includes('o1') || m.toLowerCase().includes('thought')
+      );
+      if (reasoning.length) {
         groups.push({
-          label: 'Installed models',
-          models: Array.from(installedSet).map((model: string) => ({
-            label: model,
-            model,
-          })),
+          label: 'Reasoning Models',
+          models: reasoning.map(m => ({
+            label: m,
+            model: m,
+            placeholder: placeholderEntries.includes(m),
+            provider: 'ollama',
+          }))
         });
       }
 
+      // 2. Vision Models
+      const vision = allAvailable.filter(m => 
+        m.toLowerCase().includes('vl') || m.toLowerCase().includes('vision') || m.toLowerCase().includes('llava')
+      );
+      if (vision.length) {
+        groups.push({
+          label: 'Multimodal / Vision Models',
+          models: vision.map(m => ({
+            label: m,
+            model: m,
+            placeholder: placeholderEntries.includes(m),
+            provider: 'ollama',
+          }))
+        });
+      }
+
+      // 3. Expert Models (Explicitly registered)
       if (expertEntries.length) {
         groups.push({
-          label: 'Expert models',
+          label: 'Expert Specialized Models',
           models: expertEntries.map((entry: ExpertModelEntry) => ({
-            label: entry.label
-              ? `${entry.label} (${entry.model})`
-              : entry.model,
+            label: entry.label ? `${entry.label} (${entry.model})` : entry.model,
             model: entry.model,
+            provider: 'expert',
           })),
         });
       }
 
-      if (placeholderEntries.length) {
-        const placeholderLabel = data.providerMismatch
-          ? 'Configured models (lazy load)'
-          : 'Configured models (not verified)';
+      // 4. Others
+      const categorized = new Set([...reasoning, ...vision, ...expertEntries.map(e => e.model)]);
+      const others = allAvailable.filter(m => !categorized.has(m));
+      if (others.length) {
         groups.push({
-          label: placeholderLabel,
-          models: placeholderEntries.map((model: string) => ({
-            label: `${model} (lazy load)`,
-            model,
-            placeholder: true,
-          })),
+          label: 'General Purpose Models',
+          models: others.map(m => ({ 
+            label: m, 
+            model: m, 
+            placeholder: placeholderEntries.includes(m),
+            provider: 'ollama',
+          }))
         });
       }
 
@@ -613,6 +741,35 @@ export default function ChatWorkspaceIsland(
         ? '/api/chat/visual-rag'
         : '/api/chat/document';
       
+      // Multimodal logic: Check if selected model is vision-capable (P3-T3)
+      const isVisionCapable = isVisionCapableModel(selectedModel);
+      
+      let multimodalContext = [...chatContext];
+      
+      // In document mode with a vision model, auto-attach document image if not present
+      if (chatMode === 'document' && isVisionCapable && selectedDocumentId) {
+        const hasImage = multimodalContext.some(ctx => ctx.type === 'visual' && ctx.imageBase64);
+        if (!hasImage) {
+          try {
+            // Fetch document image context
+            const imgResp = await fetch(`/api/documents/${selectedDocumentId}/content`);
+            if (imgResp.ok) {
+              const imgData = await imgResp.json();
+              const firstPageB64 = imgData.document?.renderedPages?.[0]?.base64;
+              if (firstPageB64) {
+                multimodalContext.push({
+                  type: 'visual',
+                  documentId: selectedDocumentId,
+                  data: { imageBase64: firstPageB64, page: 1 }
+                });
+              }
+            }
+          } catch (e) {
+            console.warn('[Chat] Failed to auto-attach document image for vision model', e);
+          }
+        }
+      }
+
       // Build request payload based on mode
       let payload;
       if (chatMode === 'rag' || chatMode === 'visual-rag') {
@@ -632,7 +789,7 @@ export default function ChatWorkspaceIsland(
             content: docPreview.content,
             page: docPreview.pageCount
           },
-          context: chatContext.length > 0 ? chatContext.map((c: ChatContextItem) => ({
+          context: multimodalContext.length > 0 ? multimodalContext.map((c: ChatContextItem) => ({
             type: c.type,
             page: c.data?.page,
             excerpt: c.data?.text,
@@ -876,12 +1033,14 @@ export default function ChatWorkspaceIsland(
                     }}
                   >
                     {filteredModelOptions.length === 0 && (
-                      <option value="">NO_MODELS_DETECTED</option>
+                      <option value="">
+                        {`NO_MODELS_FOR_${chatMode.toUpperCase().replace('-', '_')}`}
+                      </option>
                     )}
                     {filteredModelOptions.map((group: OllamaModelGroup) => (
-                      <optgroup label={group.label.toUpperCase()} key={group.label} className="text-[10px] font-black tracking-widest bg-slate-100 dark:bg-slate-900">
+                      <optgroup label={group.label.toUpperCase()} key={group.label} data-testid={`model-group-${group.label.toLowerCase().replace(/\s+/g, '-')}`} className="text-[10px] font-black tracking-widest bg-slate-100 dark:bg-slate-900">
                         {group.models.map((model: { label: string; model: string; placeholder?: boolean }) => (
-                          <option value={model.model} key={model.model} className="text-sm font-bold">
+                          <option value={model.model} key={model.model} data-testid={`model-option-${model.model}`} className="text-sm font-bold">
                             {model.label}
                           </option>
                         ))}
@@ -892,10 +1051,25 @@ export default function ChatWorkspaceIsland(
                     <i className="fas fa-chevron-down text-xs"></i>
                   </div>
                 </div>
+                {/* Text RAG Status */}
                 {((props.textRagStatus && props.textRagStatus.available === false) || (localTextRagStatus && localTextRagStatus.available === false)) && (
                   <div data-testid="chat-text-rag-status" className="text-[9px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1.5">
                     <i className="fas fa-triangle-exclamation"></i>
-                    Vector-RAG Unavailable
+                    Text Search Indexing Unavailable
+                  </div>
+                )}
+                
+                {/* Visual RAG Status (P3-T1) */}
+                {visualRagStatus === 'unavailable' && (
+                  <div data-testid="chat-visual-rag-status" className="text-[9px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1.5">
+                    <i className="fas fa-camera-slash"></i>
+                    Visual Discovery Sidecar Offline
+                  </div>
+                )}
+                {visualRagStatus === 'initializing' && (
+                  <div data-testid="chat-visual-rag-status" className="text-[9px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-1.5 animate-pulse">
+                    <i className="fas fa-bolt-lightning"></i>
+                    GPU Warming Up (~30s)
                   </div>
                 )}
               </div>
@@ -1020,7 +1194,7 @@ export default function ChatWorkspaceIsland(
                     }}
                   />
                   
-                  {/* Sources Display */}
+                  {/* Sources Display (P3-T4) */}
                   {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
                     <div className="mt-4 space-y-3" data-testid="chat-sources">
                       <div className="flex items-center gap-2">
@@ -1029,26 +1203,36 @@ export default function ChatWorkspaceIsland(
                         <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800"></div>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {msg.sources.map((source, sidx) => (
-                          <div key={sidx} className="flex items-center gap-3 p-2 rounded-xl bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:border-cyan-500/30">
-                            {source.thumbnailUrl && (
-                              <a href={`/workspace/doc/${source.documentId}${source.page ? `?page=${source.page}` : ''}`} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
-                                <img src={source.thumbnailUrl} alt="source" className="w-10 h-12 object-cover rounded border border-slate-200 dark:border-slate-700" loading="lazy" />
-                              </a>
-                            )}
-                            <div className="min-w-0 flex-1 flex flex-col gap-0.5">
-                              <a href={`/workspace/doc/${source.documentId}`} className="text-[10px] font-bold text-slate-900 dark:text-slate-100 hover:text-cyan-500 truncate" target="_blank" rel="noopener noreferrer">
-                                {source.title || `DOC_${source.documentId}`}
-                              </a>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[8px] font-black text-slate-400 uppercase">{source.page ? `Page ${source.page}` : 'Metadata'}</span>
-                                {source.visualScore !== undefined && (
-                                  <span className="text-[8px] font-black text-cyan-500 uppercase">VISUAL: {Math.round(source.visualScore * 100)}%</span>
-                                )}
+                        {msg.sources.map((source, sidx) => {
+                          const workspaceUrl = `/workspace/doc/${source.documentId}?tab=${source.visualScore !== undefined ? 'visual' : 'metadata'}${source.page ? `&page=${source.page}` : ''}`;
+                          return (
+                            <div key={sidx} data-testid={`chat-source-${source.documentId}-${sidx}`} className="flex items-center gap-3 p-2 rounded-xl bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:border-cyan-500/30">
+                              {source.thumbnailUrl ? (
+                                <a href={workspaceUrl} data-testid={`chat-source-thumb-${source.documentId}`} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                                  <img src={source.thumbnailUrl} alt="source" className="w-10 h-12 object-cover rounded border border-slate-200 dark:border-slate-700" loading="lazy" />
+                                </a>
+                              ) : (
+                                <div className="w-10 h-12 rounded border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
+                                  <i className="fas fa-file-invoice text-slate-400 text-xs"></i>
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+                                <a href={workspaceUrl} data-testid={`chat-source-title-${source.documentId}`} className="text-[10px] font-bold text-slate-900 dark:text-slate-100 hover:text-cyan-500 truncate" target="_blank" rel="noopener noreferrer">
+                                  {source.title || `DOC_${source.documentId}`}
+                                </a>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[8px] font-black text-slate-400 uppercase">{source.page ? `Page ${source.page}` : 'Metadata'}</span>
+                                  {source.visualScore !== undefined && (
+                                    <span className="text-[8px] font-black text-cyan-500 uppercase">VISUAL: {Math.round(source.visualScore * 100)}%</span>
+                                  )}
+                                  {source.textScore !== undefined && (
+                                    <span className="text-[8px] font-black text-indigo-500 uppercase">TEXT: {Math.round(source.textScore * 100)}%</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}

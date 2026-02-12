@@ -28,6 +28,161 @@ async function generateChatFallback(aiService, prompt, options) {
   throw new Error('AI service does not support text generation');
 }
 
+function getUpstreamStatus(error) {
+  return error?.response?.status || error?.status || error?.statusCode || null;
+}
+
+function getUpstreamErrorMessage(error) {
+  if (typeof error?.response?.data?.error === 'string') {
+    return error.response.data.error;
+  }
+  if (typeof error?.message === 'string') {
+    return error.message;
+  }
+  return null;
+}
+
+function isModelNotFoundError(error) {
+  const status = getUpstreamStatus(error);
+  const message = (getUpstreamErrorMessage(error) || '').toLowerCase();
+  return status === 404 && message.includes('model') &&
+    message.includes('not found');
+}
+
+function getIndexedDocumentCount(status) {
+  if (!status || typeof status !== 'object') {
+    return 0;
+  }
+
+  const nestedCount = Number(
+    status.indexing_status && status.indexing_status.documents_count
+  );
+  if (Number.isFinite(nestedCount) && nestedCount > 0) {
+    return nestedCount;
+  }
+
+  const topLevelCount = Number(status.documents_count);
+  if (Number.isFinite(topLevelCount) && topLevelCount > 0) {
+    return topLevelCount;
+  }
+
+  return 0;
+}
+
+function isRagServiceAvailable(status) {
+  if (!status || typeof status !== 'object') {
+    return false;
+  }
+
+  if (status.disabled === true || status.server_up === false) {
+    return false;
+  }
+
+  const indexedDocumentCount = getIndexedDocumentCount(status);
+
+  return Boolean(
+    status.server_up && (
+      status.index_ready ||
+      status.data_loaded ||
+      status.qdrant_ready ||
+      indexedDocumentCount > 0
+    )
+  );
+}
+
+function getResultDocumentId(result) {
+  if (!result || typeof result !== 'object') return null;
+  const metadata = result.metadata || {};
+  const rawId = [
+    result.documentId,
+    result.document_id,
+    result.doc_id,
+    result.docId,
+    metadata.documentId,
+    metadata.document_id,
+    metadata.doc_id,
+    metadata.docId,
+    result.id
+  ].find((value) => value !== undefined && value !== null && value !== '');
+
+  if (rawId === null || rawId === undefined) {
+    return null;
+  }
+
+  const parsed = Number(rawId);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return null;
+}
+
+function getResultSnippet(result) {
+  if (!result || typeof result !== 'object') return '';
+  return result.snippet || result.content || result.excerpt || '';
+}
+
+function getResultTitle(result, documentId, titleMap = new Map()) {
+  const metadata = result && typeof result === 'object'
+    ? (result.metadata || {})
+    : {};
+
+  const rawTitle = [
+    result?.title,
+    result?.documentTitle,
+    metadata.title,
+    metadata.document_title,
+    metadata.documentTitle
+  ].find((value) => typeof value === 'string' && value.trim().length > 0);
+
+  if (rawTitle) {
+    return rawTitle.trim();
+  }
+  if (documentId && titleMap.has(documentId)) {
+    return titleMap.get(documentId);
+  }
+  return documentId ? `Document #${documentId}` : 'Untitled';
+}
+
+async function resolveMissingDocumentTitles(searchResults) {
+  const titleMap = new Map();
+  if (!Array.isArray(searchResults) || searchResults.length === 0) {
+    return titleMap;
+  }
+
+  const missingDocIds = new Set();
+  searchResults.forEach((result) => {
+    const docId = getResultDocumentId(result);
+    if (!docId) return;
+    const candidate = getResultTitle(result, docId);
+    if (!candidate || candidate === `Document #${docId}`) {
+      missingDocIds.add(docId);
+    }
+  });
+
+  if (!missingDocIds.size) {
+    return titleMap;
+  }
+
+  const paperlessService = require('../../services/paperlessService');
+  await Promise.all(
+    Array.from(missingDocIds).map(async (docId) => {
+      try {
+        const document = await paperlessService.getDocument(docId);
+        const title = typeof document?.title === 'string'
+          ? document.title.trim()
+          : '';
+        if (title) {
+          titleMap.set(docId, title);
+        }
+      } catch (error) {
+        // Missing titles should never fail chat response generation.
+      }
+    })
+  );
+
+  return titleMap;
+}
+
 /**
  * @swagger
  * /api/chat/rag:
@@ -119,31 +274,40 @@ router.post('/rag', authenticateApi, async (req, res) => {
     const ragService = require('../../services/ragService');
     const ragStatus = await ragService.checkStatus();
 
-    if (!ragStatus.server_up || !ragStatus.index_ready) {
+    const ragAvailable = isRagServiceAvailable(ragStatus);
+
+    // Graceful degradation: keep chat available even while text index warms up.
+    let searchResults = [];
+    let searchMode = 'rag';
+    if (!ragAvailable) {
       console.warn('[RAG Chat] RAG service not available:', ragStatus);
-      return res.status(503).json({
-        error: 'RAG service is not available',
-        details: ragStatus.error || 'Service not ready'
-      });
+      searchMode = 'text-fallback';
+    } else {
+      // Search for relevant documents
+      try {
+        const searchResponse = await ragService.search(message, {
+          max_results: 5
+        });
+        searchResults = Array.isArray(searchResponse)
+          ? searchResponse
+          : (searchResponse.results || []);
+      } catch (searchError) {
+        console.error('[RAG Chat] Search error:', searchError.message);
+        // Continue with empty results rather than failing
+        searchMode = 'text-fallback';
+      }
     }
 
-    // Search for relevant documents
-    let searchResults = [];
-    try {
-      const searchResponse = await ragService.search(message, {
-        max_results: 5
-      });
-      searchResults = Array.isArray(searchResponse)
-        ? searchResponse
-        : (searchResponse.results || []);
-    } catch (searchError) {
-      console.error('[RAG Chat] Search error:', searchError.message);
-      // Continue with empty results rather than failing
-    }
+    const titleMap = await resolveMissingDocumentTitles(searchResults);
 
     // Build context from search results
     const context = searchResults
-      .map(r => `[Document: ${r.title || 'Untitled'} (ID: ${r.doc_id || r.documentId})]\n${r.snippet || r.content || ''}`)
+      .map((result) => {
+        const docId = getResultDocumentId(result);
+        const title = getResultTitle(result, docId, titleMap);
+        return `[Document: ${title} (ID: ${docId || 'unknown'})]\n` +
+          `${getResultSnippet(result)}`;
+      })
       .join('\n\n');
 
     // Build conversation messages
@@ -178,6 +342,10 @@ ${context || 'No relevant documents found.'}`;
       });
       response = result.content || result.message?.content || result;
     } catch (chatError) {
+      if (isModelNotFoundError(chatError) ||
+          getUpstreamStatus(chatError) === 503) {
+        throw chatError;
+      }
       console.warn('[RAG Chat] Chat API failed, trying generate:', chatError.message);
       // Fallback to generate API
       const prompt = `${systemPrompt}\n\nUser: ${message}\n\nAssistant:`;
@@ -189,20 +357,41 @@ ${context || 'No relevant documents found.'}`;
     }
 
     // Format sources for response
-    const sources = searchResults.map(r => ({
-      documentId: r.doc_id || r.documentId,
-      title: r.title || `Document #${r.doc_id || r.documentId}`,
-      page: r.page || 1,
-      confidence: r.score || r.confidence || 0.5
-    }));
+    const sources = searchResults.map((result) => {
+      const docId = getResultDocumentId(result);
+      return {
+        documentId: docId,
+        title: getResultTitle(result, docId, titleMap),
+        page: result.page || result.pageNum || 1,
+        confidence: result.score || result.confidence || 0.5
+      };
+    });
 
     res.json({
       response: typeof response === 'string' ? response : JSON.stringify(response),
       sources,
-      mode: 'rag'
+      mode: searchMode
     });
 
   } catch (error) {
+    const upstreamStatus = getUpstreamStatus(error);
+    if (isModelNotFoundError(error) || upstreamStatus === 503) {
+      const selectedModel = req.body?.model || 'unknown';
+      const details = getUpstreamErrorMessage(error) ||
+        'Selected model is unavailable';
+      console.warn('[RAG Chat] model_unavailable', {
+        reasonCode: 'model_unavailable',
+        model: selectedModel,
+        upstreamStatus,
+        details
+      });
+      return res.status(503).json({
+        error: 'AI model unavailable',
+        reasonCode: 'model_unavailable',
+        model: selectedModel,
+        details
+      });
+    }
     console.error('[RAG Chat] Error:', error);
     res.status(500).json({
       error: error.message || 'Failed to process RAG chat request'
@@ -314,7 +503,7 @@ router.post('/visual-rag', authenticateApi, async (req, res) => {
         // Fallback to text-only
         const ragService = require('../../services/ragService');
         const ragStatus = await ragService.checkStatus();
-        if (ragStatus.server_up && ragStatus.index_ready) {
+        if (isRagServiceAvailable(ragStatus)) {
           const ragResults = await ragService.search(message, { max_results: 5 });
           searchResults = Array.isArray(ragResults) ? ragResults : (ragResults.results || []);
         }
@@ -324,7 +513,7 @@ router.post('/visual-rag', authenticateApi, async (req, res) => {
       // Text-only fallback
       const ragService = require('../../services/ragService');
       const ragStatus = await ragService.checkStatus();
-      if (ragStatus.server_up && ragStatus.index_ready) {
+      if (isRagServiceAvailable(ragStatus)) {
         const ragResults = await ragService.search(message, { max_results: 5 });
         searchResults = Array.isArray(ragResults) ? ragResults : (ragResults.results || []);
       }
@@ -333,10 +522,17 @@ router.post('/visual-rag', authenticateApi, async (req, res) => {
       console.warn('[Visual RAG Chat] No search sources available');
     }
 
+    const titleMap = await resolveMissingDocumentTitles(searchResults);
+
     // Build context from search results
     const context = searchResults
-      .map(r => `[Document: ${r.title || 'Untitled'} (ID: ${r.doc_id || r.documentId})]\\n${r.snippet || r.content || ''}`)
-      .join('\\n\\n');
+      .map((result) => {
+        const docId = getResultDocumentId(result);
+        const title = getResultTitle(result, docId, titleMap);
+        return `[Document: ${title} (ID: ${docId || 'unknown'})]\n` +
+          `${getResultSnippet(result)}`;
+      })
+      .join('\n\n');
 
     // Build conversation messages
     const conversationHistory = Array.isArray(history)
@@ -370,6 +566,10 @@ ${context || 'No relevant documents found.'}`;
       });
       response = result.content || result.message?.content || result;
     } catch (chatError) {
+      if (isModelNotFoundError(chatError) ||
+          getUpstreamStatus(chatError) === 503) {
+        throw chatError;
+      }
       console.warn('[Visual RAG Chat] Chat API failed, trying generate:', chatError.message);
       const prompt = `${systemPrompt}\\n\\nUser: ${message}\\n\\nAssistant:`;
       const result = await generateChatFallback(aiService, prompt, {
@@ -380,15 +580,15 @@ ${context || 'No relevant documents found.'}`;
     }
 
     // Format sources for response with visual scores and thumbnails
-    const sources = searchResults.map(r => {
-      const docId = r.doc_id || r.documentId;
+    const sources = searchResults.map((result) => {
+      const docId = getResultDocumentId(result);
       return {
         documentId: docId,
-        title: r.title || `Document #${docId}`,
-        page: r.page || 1,
-        confidence: r.score || r.confidence || 0.5,
-        visualScore: r.visualScore,
-        textScore: r.textScore,
+        title: getResultTitle(result, docId, titleMap),
+        page: result.page || result.pageNum || 1,
+        confidence: result.score || result.confidence || 0.5,
+        visualScore: result.visualScore,
+        textScore: result.textScore,
         // Include thumbnail URL for visual results
         thumbnailUrl: docId ? `/documents/${docId}/thumbnail` : undefined
       };
@@ -401,6 +601,24 @@ ${context || 'No relevant documents found.'}`;
     });
 
   } catch (error) {
+    const upstreamStatus = getUpstreamStatus(error);
+    if (isModelNotFoundError(error) || upstreamStatus === 503) {
+      const selectedModel = req.body?.model || 'unknown';
+      const details = getUpstreamErrorMessage(error) ||
+        'Selected model is unavailable';
+      console.warn('[Visual RAG Chat] model_unavailable', {
+        reasonCode: 'model_unavailable',
+        model: selectedModel,
+        upstreamStatus,
+        details
+      });
+      return res.status(503).json({
+        error: 'AI model unavailable',
+        reasonCode: 'model_unavailable',
+        model: selectedModel,
+        details
+      });
+    }
     console.error('[Visual RAG Chat] Error:', error);
     res.status(500).json({
       error: error.message || 'Failed to process visual RAG chat request'
@@ -472,7 +690,7 @@ ${context || 'No relevant documents found.'}`;
  */
 router.post('/document', authenticateApi, async (req, res) => {
   try {
-    const { message, model, documentId, documentContext } = req.body;
+    const { message, model, documentId, documentContext, context: requestContext } = req.body;
 
     if (!documentId) {
       return res.status(400).json({ error: 'Document ID is required for document chat' });
@@ -510,24 +728,46 @@ If the information requested is not in the document, say so clearly.
 
 ${context}`;
 
+    // Multimodal support: extract images from context
+    const images = (requestContext || [])
+      .filter(ctx => ctx.type === 'visual' && ctx.imageBase64)
+      .map(ctx => ctx.imageBase64);
+
     const messages = [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: message }
+      { 
+        role: 'user', 
+        content: message,
+        ...(images.length > 0 ? { images } : {})
+      }
     ];
+
+    const selectedModel = model || configFile.ollama?.model || 'llama3.2';
+    if (images.length > 0) {
+      console.log('[Document Chat] multimodal_payload', {
+        model: selectedModel,
+        images: ['<redacted>'],
+        imageCount: images.length
+      });
+    }
 
     let response;
     try {
       const result = await aiService.chat({
-        model: model || configFile.ollama?.model || 'llama3.2',
+        model: selectedModel,
         messages,
         stream: false
       });
       response = result.content || result.message?.content || result;
     } catch (chatError) {
+      if (isModelNotFoundError(chatError) ||
+          getUpstreamStatus(chatError) === 503) {
+        throw chatError;
+      }
       console.warn('[Document Chat] Chat API failed, trying generate:', chatError.message);
       const prompt = `${systemPrompt}\n\nQuestion: ${message}\n\nAnswer:`;
       const result = await generateChatFallback(aiService, prompt, {
-        model: model || configFile.ollama?.model || 'llama3.2',
+        model: selectedModel,
         temperature: 0.7
       });
       response = result.response || result;
@@ -541,6 +781,25 @@ ${context}`;
     });
 
   } catch (error) {
+    const upstreamStatus = getUpstreamStatus(error);
+    if (isModelNotFoundError(error) || upstreamStatus === 503) {
+      const selectedModel = req.body?.model || configFile.ollama?.model ||
+        'llama3.2';
+      const details = getUpstreamErrorMessage(error) ||
+        'Selected model is unavailable';
+      console.warn('[Document Chat] model_unavailable', {
+        reasonCode: 'model_unavailable',
+        model: selectedModel,
+        upstreamStatus,
+        details
+      });
+      return res.status(503).json({
+        error: 'AI model unavailable',
+        reasonCode: 'model_unavailable',
+        model: selectedModel,
+        details
+      });
+    }
     console.error('[Document Chat] Error:', error);
     res.status(500).json({
       error: error.message || 'Failed to process document chat request'
@@ -614,8 +873,10 @@ router.get('/status', authenticateApi, async (req, res) => {
 
     res.json({
       rag: {
-        available: ragStatus.server_up && ragStatus.index_ready,
+        available: isRagServiceAvailable(ragStatus),
         indexReady: ragStatus.index_ready,
+        qdrantReady: Boolean(ragStatus.qdrant_ready),
+        documentsCount: getIndexedDocumentCount(ragStatus),
         serverUp: ragStatus.server_up,
         error: ragStatus.error
       },

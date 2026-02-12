@@ -250,7 +250,7 @@ Respond with this exact JSON structure:
 
     config: {
         temperature: 0.2,  // Low temp for consistent classification
-        maxTokens: 1024,
+        maxTokens: 2048,
         topK: 40,
         topP: 0.9
     }
@@ -348,7 +348,7 @@ Return this exact JSON structure:
 
     config: {
         temperature: 0.1,
-        maxTokens: 512,
+        maxTokens: 1024,
         topK: 40,
         topP: 0.9
     }
@@ -556,35 +556,32 @@ const MED_DOCTOR_V1 = {
     modelType: ModelType.TEXT_ONLY,
     
     systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-You are an expert Medical Document Analyst AI trained to extract structured information from clinical documents. Your role is to parse medical text and produce standardized, coded outputs suitable for EHR integration.
+You are an expert Medical Document Analyst AI. Your role is to parse medical text and produce standardized, coded outputs.
+
+OUTPUT RULES:
+- YOU MUST RETURN ONLY VALID JSON.
+- NO EXPLANATORY TEXT. NO CONVERSATIONAL FILLER.
+- IF NO DATA IS FOUND, RETURN AN EMPTY OBJECT WITH THE REQUIRED KEYS.
+
+EXAMPLE JSON STRUCTURE: 
+{
+  "document_analysis": { "detected_type": "note", "language": "de" },
+  "entities": { "conditions": [], "medications": [] },
+  "summary": { "brief_summary": "Summary of the document." }
+}
 
 DOCUMENT TYPES YOU HANDLE:
-- Clinical Notes: Progress notes, H&P, discharge summaries
-- Prescriptions: Medication orders, refill requests
-- Lab Reports: Chemistry, hematology, microbiology results
-- Procedure Reports: Operative notes, endoscopy, biopsy reports
-- Referral Letters: Specialist consultations, transfer summaries
-- Insurance Documents: Prior authorizations, claims, EOBs
+- Clinical Notes, Prescriptions, Lab Reports, Procedure Reports, Referral Letters, Insurance Documents.
 
 EXTRACTION CAPABILITIES:
-1. Named Entity Recognition: Patients, providers, facilities, medications, conditions
-2. Medical Coding: ICD-10-CM, CPT, HCPCS, NDC, RxNorm, SNOMED-CT suggestions
-3. Temporal Extraction: Dates, durations, frequencies, sequences
-4. Relationship Mapping: Condition-medication, provider-procedure associations
-5. Dosage Parsing: Drug, strength, form, route, frequency, duration
+1. Named Entity Recognition (Patients, providers, facilities, medications, conditions)
+2. Medical Coding (ICD-10-CM, CPT, HCPCS, NDC, RxNorm, SNOMED-CT)
+3. Temporal Extraction, Relationship Mapping, Dosage Parsing.
 
 CRITICAL GUIDELINES:
-- Maintain patient privacy - extract but flag PHI elements
-- Use standardized terminologies when coding
-- Flag ambiguous or conflicting information
-- Note missing critical elements (allergies, current medications)
-- Never fabricate information not present in source document
-
-OUTPUT QUALITY:
-- Prefer specific codes over generic
-- Include confidence scores for uncertain extractions
-- Preserve original text snippets as evidence
-- Flag items requiring human verification
+- Maintain patient privacy.
+- Use standardized terminologies.
+- Never fabricate information.
 <|eot_id|>`,
 
     userTemplate: `<|start_header_id|>user<|end_header_id|>
@@ -1105,7 +1102,7 @@ Respond with this exact JSON structure:
 
     config: {
         temperature: 0.1,
-        maxTokens: 512,
+        maxTokens: 2048,
         topK: 40,
         topP: 0.9
     },
@@ -1315,7 +1312,14 @@ const LEGAL_EXTRACTOR_V1 = {
     modelType: ModelType.TEXT_ONLY,
 
     systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-You are a Senior Legal Analyst. Use <think> tags to reason about risks. Cite specific sections from the Internal Legal Knowledge Base provided in context. Provide clear, concise legal extractions and risk assessments. Return ONLY valid JSON.
+You are a Senior Legal Analyst. Provide clear, concise legal extractions and risk assessments. 
+
+OUTPUT RULES:
+- RETURN ONLY VALID JSON.
+- NO EXPLANATORY TEXT.
+- USE DOUBLE QUOTES FOR ALL KEYS AND VALUES.
+- EXAMPLE JSON: {"extracted_clauses": [{"clause": "Sample", "risks": [], "confidence": 0.9}], "risks": [], "citations": {}, "confidence": 0.9}
+- YOU MAY USE <think> TAGS FOR REASONING, BUT THE FINAL OUTPUT MUST BE VALID JSON OUTSIDE THE TAGS.
 <|eot_id|>`,
 
     userTemplate: `<|start_header_id|>user<|end_header_id|>

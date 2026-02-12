@@ -1,4 +1,5 @@
 import { h } from 'preact';
+/* global describe, it, before, after, beforeEach, afterEach, expect, assert, sinon, page, browser, context, test */
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import {
   SmartMetadataSchema,

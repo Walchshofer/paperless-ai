@@ -59,7 +59,7 @@ async function run() {
   for (const [name, input] of Object.entries(entries)) {
     const outfile = name === 'island-runtime'
       ? path.join(distDir, 'island-runtime.js')
-      : path.join(distDir, `${name}.js`);
+      : path.join(distDir, `${name}.island.js`);
     entryPoints[outfile] = path.join(projectRoot, input);
   }
 
@@ -67,7 +67,7 @@ async function run() {
     const result = await esbuild.build({
       entryPoints: Object.entries(entries).map(([name, input]) => ({
         in: path.join(projectRoot, input),
-        out: name === 'island-runtime' ? 'island-runtime' : `${name}`
+        out: name === 'island-runtime' ? 'island-runtime' : `${name}.island`
       })),
       bundle: true,
       outdir: distDir,

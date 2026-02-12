@@ -58,5 +58,10 @@ function clampTranslate(tx, ty, s, containerW, containerH, imageNatW, imageNatH,
   return { x: cx, y: cy, contentW, contentH };
 }
 
-// ESM exports (for Vite bundler and modern imports)
-export { computeUnscaledFromRaw, clampTranslate };
+// Export for both Node.js (tests) and Browser (Vite)
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { computeUnscaledFromRaw, clampTranslate };
+} else {
+  // Fallback for direct browser usage if not using a bundler
+  window.OverlayUtils = { computeUnscaledFromRaw, clampTranslate };
+}

@@ -8,7 +8,13 @@ const UnifiedWorkspaceIsland = require('../../src/islands/UnifiedWorkspaceIsland
 const { JSDOM } = require('jsdom');
 let _dom;
 function ensureDom() {
-  if (typeof global.document !== 'undefined') return;
+  if (typeof global.document !== 'undefined') {
+    if (global.window && global.window.CustomEvent) {
+      global.CustomEvent = global.window.CustomEvent;
+      global.Event = global.window.Event;
+    }
+    return;
+  }
   _dom = new JSDOM('<!doctype html><html><body></body></html>');
   global.window = _dom.window;
   global.document = _dom.window.document;
@@ -52,7 +58,13 @@ describe('UnifiedWorkspaceIsland - metadata:locate-field', () => {
       } catch (err) { done(err); }
     });
 
-    window.dispatchEvent(new window.CustomEvent('metadata:locate-field', { detail: { fieldId: 'total_amount' } }));
+    setTimeout(() => {
+      window.dispatchEvent(
+        new window.CustomEvent('metadata:locate-field', {
+          detail: { fieldId: 'total_amount' }
+        })
+      );
+    }, 0);
   });
 
   it('resolves overlay by paperlessMapping', (done) => {
@@ -74,7 +86,13 @@ describe('UnifiedWorkspaceIsland - metadata:locate-field', () => {
       } catch (err) { done(err); }
     });
 
-    window.dispatchEvent(new window.CustomEvent('metadata:locate-field', { detail: { fieldId: 'inv_total' } }));
+    setTimeout(() => {
+      window.dispatchEvent(
+        new window.CustomEvent('metadata:locate-field', {
+          detail: { fieldId: 'inv_total' }
+        })
+      );
+    }, 0);
   });
 
   it('emits handled:false when no mapping found', async () => {

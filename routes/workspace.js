@@ -12,6 +12,8 @@ const {
 const { authenticate } = require('../middleware/auth');
 const { fieldMappingService } = require('../services/experts/FieldMappingService');
 const { domainResolver } = require('../services/visual-rag-client/DomainResolver');
+const { normalizeOverlayBoundingBox } = require('../services/visual-rag-client/overlayCoordinates');
+const modelResolutionService = require('../services/ModelResolutionService');
 
 // All workspace routes require authentication
 router.use(authenticate);
@@ -23,6 +25,74 @@ try {
     visualOverlayRepository = visualRagClient.visualOverlayRepository;
 } catch (e) {
     console.warn('[Unified Workspace] Visual RAG client not available:', e.message);
+}
+
+async function buildChatModelConfig(options = {}) {
+  const resolver = options.resolver || modelResolutionService;
+  const runtimeConfig = options.runtimeConfig || configFile;
+  const env = options.env || process.env;
+
+  const currentProvider = String(
+    runtimeConfig.aiProvider || env.AI_PROVIDER || 'ollama'
+  ).toLowerCase();
+
+  let providers = {};
+  try {
+    const discoveredProviders = await resolver.getAllModels();
+    if (discoveredProviders && typeof discoveredProviders === 'object') {
+      providers = Object.fromEntries(
+        Object.entries(discoveredProviders).map(([name, models]) => [
+          String(name).toLowerCase(),
+          Array.isArray(models) ? models.filter(Boolean) : []
+        ])
+      );
+    }
+  } catch (error) {
+    console.warn(
+      '[Unified Workspace] Could not resolve provider models:',
+      error.message
+    );
+  }
+
+  // Ensure the current provider key always exists for deterministic UI logic.
+  if (!providers[currentProvider]) {
+    providers[currentProvider] = [];
+  }
+
+  let expertModels = [];
+  try {
+    const rawExperts = resolver.getExpertModels();
+    if (Array.isArray(rawExperts)) {
+      const seen = new Set();
+      expertModels = rawExperts
+        .map((entry) => {
+          if (!entry || !entry.model) return null;
+          const model = String(entry.model).trim();
+          if (!model || seen.has(model)) return null;
+          seen.add(model);
+          const labelParts = [entry.category, entry.role]
+            .filter(Boolean)
+            .map((part) => String(part));
+          return {
+            model,
+            label: labelParts.length ? labelParts.join(' · ') : model,
+            category: entry.category || undefined
+          };
+        })
+        .filter(Boolean);
+    }
+  } catch (error) {
+    console.warn(
+      '[Unified Workspace] Could not resolve expert models:',
+      error.message
+    );
+  }
+
+  return {
+    providers,
+    expertModels,
+    currentProvider
+  };
 }
 
 /**
@@ -225,22 +295,12 @@ router.get('/doc/:id', async (req, res) => {
         // Format overlays for Visual Tab (with bbox)
         formattedOverlays = overlays.map(o => {
           const data = o.overlayData || {};
-          // Normalize bounding box format
-          let bbox = { x: 0, y: 0, width: 0, height: 0 };
-          if (data.boundingBox) {
-            bbox = data.boundingBox;
-          } else if (data.bbox) {
-            bbox = data.bbox;
-          } else if (data.box && Array.isArray(data.box)) {
-            // Legacy format: [ymin, xmin, ymax, xmax] in 0-1000 scale
-            const [ymin, xmin, ymax, xmax] = data.box;
-            bbox = {
-              x: xmin / 1000,
-              y: ymin / 1000,
-              width: (xmax - xmin) / 1000,
-              height: (ymax - ymin) / 1000
-            };
-          }
+          const bbox = normalizeOverlayBoundingBox(data) || {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0
+          };
           return {
             id: String(o.id),
             label: data.label || o.semanticLabel || 'Unknown',
@@ -293,6 +353,8 @@ router.get('/doc/:id', async (req, res) => {
     const persistedNormalizedUrl = getCustomField('ai_normalized_url');
     const normalizationStatus = getCustomField('ai_normalization_status') || 'pending';
 
+    const chatModelConfig = await buildChatModelConfig();
+
     const vm = {
       version: configFile.PAPERLESS_AI_VERSION || '1.0.0',
       config: {
@@ -333,6 +395,7 @@ router.get('/doc/:id', async (req, res) => {
       chat: {
         aiProvider: process.env.AI_PROVIDER || 'ollama',
         ollamaDefaultModel: process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b',
+        modelConfig: chatModelConfig,
       },
       visual: {
         fields: visualFields,
@@ -593,13 +656,20 @@ router.get('/', async (req, res) => {
       if (allDocs && allDocs.length > 0) return res.redirect(`/workspace/doc/${allDocs[0].id}`);
     }
 
+    const chatModelConfig = await buildChatModelConfig();
+
     res.render('document-workspace', {
       vm: UnifiedWorkspaceSchema.parse({
         version: configFile.PAPERLESS_AI_VERSION || '1.0.0',
         config: { disableGithubFetch: process.env.DISABLE_GITHUB_FETCH || 'no' },
         document: null,
         availableDocuments: availableDocs,
-        chat: {},
+        chat: {
+          aiProvider: process.env.AI_PROVIDER || 'ollama',
+          ollamaDefaultModel:
+            process.env.OLLAMA_MODEL || 'sauerkraut-llama3.1:8b',
+          modelConfig: chatModelConfig,
+        },
         visual: { fields: [], overlayCount: 0 },
         ui: { activeTab: 'metadata', sidebarCollapsed: false },
         user: {
@@ -614,3 +684,4 @@ router.get('/', async (req, res) => {
 });
 
 module.exports = router;
+module.exports._buildChatModelConfig = buildChatModelConfig;

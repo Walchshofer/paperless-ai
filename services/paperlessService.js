@@ -759,30 +759,6 @@ class PaperlessService {
     } catch (e) { return false; }
   }
 
-  async getTagCount() {
-    this.initialize();
-    try {
-      const response = await this.client.get('tags/', { params: { count: true } });
-      return response.data.count;
-    } catch (e) { return 0; }
-  }
-
-  async getCorrespondentCount() {
-    this.initialize();
-    try {
-      const response = await this.client.get('correspondents/', { params: { count: true } });
-      return response.data.count;
-    } catch (e) { return 0; }
-  }
-
-  async getDocumentCount() {
-    this.initialize();
-    try {
-      const response = await this.client.get('documents/', { params: { count: true } });
-      return response.data.count;
-    } catch (e) { return 0; }
-  }
-
   async getThumbnailImage(documentId) {
     this.initialize();
     try {

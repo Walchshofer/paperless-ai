@@ -1,10 +1,10 @@
-<div class="dashboard">
+<div class="dashboard" data-testid="dashboard-root">
   <h1>Paperless-AI Dashboard</h1>
 
   <div class="documents">
     <% if (documents && documents.length > 0) { %>
       <% documents.forEach(function(doc) { %>
-        <div class="document">
+        <div class="document" data-testid="document-item">
           <h3><%= doc.title %></h3>
           <p><strong>Created at:</strong> <%= new Date(doc.created).toLocaleDateString('de-DE') %></p>
           <p><strong>Tags:</strong>

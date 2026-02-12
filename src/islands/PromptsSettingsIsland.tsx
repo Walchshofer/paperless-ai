@@ -1,4 +1,4 @@
-import { h, Fragment, ComponentChildren } from 'preact';
+import { h, ComponentChildren } from 'preact';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import type { PromptsSettings, PromptEntry, PromptConfig } from '../ui/contracts/Settings.Prompts.contract';
 import { PromptsSettingsSchema } from '../ui/contracts/Settings.Prompts.contract';
@@ -100,6 +100,11 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
   const [showTestModal, setShowTestModal] = useState(false);
   const [testVariables, setTestVariables] = useState<Record<string, string>>({});
   const [testResult, setTestResult] = useState<any>(null);
+  const [testStreamingResult, setTestStreamingResult] = useState<{
+    fullText: string;
+    thinking: string;
+    metadata: any;
+  } | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [testSource, setTestSource] = useState<'mock' | 'document'>('mock');
   const [recentDocuments, setRecentDocuments] = useState<any[]>([]);
@@ -213,30 +218,30 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
     setDocError(null);
     setTestImage(null);
     try {
-      const response = await fetch(`/api/documents/${docId}/content`);
-      if (!response.ok) {
-        setDocError('Failed to load document');
-        return;
+      const [contentRes, imageRes] = await Promise.all([
+        fetch(`/api/documents/${docId}/content`),
+        fetch(`/api/documents/${docId}/preview-image`)
+      ]);
+
+      if (contentRes.ok) {
+        const { document } = await contentRes.json();
+        setSelectedDocumentData(document);
+        // Auto-populate variables from document
+        const vars = { ...testVariables };
+        const docContent = document.content || '';
+        
+        if (vars.hasOwnProperty('text_chunk')) vars['text_chunk'] = docContent;
+        if (vars.hasOwnProperty('filename')) vars['filename'] = document.title;
+        if (vars.hasOwnProperty('created_date')) vars['created_date'] = document.created;
+        if (vars.hasOwnProperty('content')) vars['content'] = docContent;
+        if (vars.hasOwnProperty('doc_title')) vars['doc_title'] = document.title;
+        
+        setTestVariables(vars);
       }
 
-      const { document: doc } = await response.json();
-      setSelectedDocumentData(doc);
-
-      // Auto-populate variables from document content
-      const vars = { ...testVariables };
-      const docContent = doc.content || '';
-      if (vars.hasOwnProperty('text_chunk')) vars['text_chunk'] = docContent;
-      if (vars.hasOwnProperty('filename')) vars['filename'] = doc.title;
-      if (vars.hasOwnProperty('created_date')) vars['created_date'] = doc.created;
-      if (vars.hasOwnProperty('content')) vars['content'] = docContent;
-      if (vars.hasOwnProperty('doc_title')) vars['doc_title'] = doc.title;
-      setTestVariables(vars);
-
-      // Extract rendered 300 DPI image from content endpoint response
-      const firstPage = doc.renderedPages?.[0];
-      if (firstPage?.base64) {
-        // Store raw base64 for sending to backend (Ollama expects raw)
-        setTestImage(firstPage.base64);
+      if (imageRes.ok) {
+        const { image_data } = await imageRes.json();
+        setTestImage(image_data);
       }
     } catch (err) {
       setDocError('Document data fetch error');
@@ -369,8 +374,44 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
     if (!activePromptId) return;
     setIsTesting(true);
     setTestResult(null);
+    setTestStreamingResult(null);
+
+    // Validation mode uses standard fetch
+    if (testMode === 'validate') {
+      try {
+        const response = await fetch(`/api/prompts/${activePromptId}/test`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            variables: {
+              ...testVariables,
+              ...(testImage ? { __image_data: testImage } : {}),
+            },
+            systemPrompt: editSystemPrompt,
+            userTemplate: editUserTemplate,
+            mode: testMode,
+          }),
+        });
+        
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({ error: 'Test request failed' }));
+          setTestResult({ success: false, error: errData.error || `HTTP ${response.status}` });
+          return;
+        }
+
+        const data = await response.json();
+        setTestResult(data);
+      } catch (err) {
+        setTestResult({ success: false, error: err instanceof Error ? err.message : 'Test failed' });
+      } finally {
+        setIsTesting(false);
+      }
+      return;
+    }
+
+    // Execution mode uses SSE streaming
     try {
-      const response = await fetch(`/api/prompts/${activePromptId}/test`, {
+      const response = await fetch(`/api/prompts/${activePromptId}/test/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -380,21 +421,64 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
           },
           systemPrompt: editSystemPrompt,
           userTemplate: editUserTemplate,
-          mode: testMode,
         }),
       });
-      
+
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({ error: 'Test request failed' }));
-        setTestResult({ success: false, error: errData.error || `HTTP ${response.status}` });
+        setTestResult({ success: false, error: `Stream failed: ${response.status}` });
+        setIsTesting(false);
         return;
       }
 
-      const data = await response.json();
-      setTestResult(data);
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No body reader');
+
+      let currentText = '';
+      let currentThinking = '';
+      let metadata = null;
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+        
+        let currentEvent = '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.replace('event: ', '').trim();
+          } else if (line.startsWith('data: ')) {
+            const dataStr = line.replace('data: ', '').trim();
+            try {
+              const data = JSON.parse(dataStr);
+              if (currentEvent === 'metadata') {
+                metadata = data;
+              } else if (currentEvent === 'token') {
+                currentText += data.text;
+                setTestStreamingResult({ fullText: currentText, thinking: currentThinking, metadata });
+              } else if (currentEvent === 'thinking') {
+                currentThinking += data.text;
+                setTestStreamingResult({ fullText: currentText, thinking: currentThinking, metadata });
+              } else if (currentEvent === 'done') {
+                setTestResult({
+                  success: true,
+                  ...metadata,
+                  ...data,
+                  testResult: currentText || data.testResult // Use streaming text or final result
+                });
+                setIsTesting(false);
+              } else if (currentEvent === 'error') {
+                setTestResult({ success: false, error: data.error });
+                setIsTesting(false);
+              }
+            } catch (e) { /* ignore parse errors for partial chunks */ }
+          }
+        }
+      }
     } catch (err) {
-      setTestResult({ success: false, error: err instanceof Error ? err.message : 'Test failed' });
-    } finally {
+      setTestResult({ success: false, error: err instanceof Error ? err.message : 'Streaming failed' });
       setIsTesting(false);
     }
   };
@@ -441,6 +525,8 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
     { name: 'legal_context', description: 'Internal legal knowledge base snippets', domains: ['Legal'] },
   ];
 
+  // Group prompts by base ID (e.g. SYS_ROUTER_V1 -> SYS_ROUTER) handled by the helper function at top level or component scope
+  
   // Group prompts by domain
   const groupedPrompts: Record<string, Record<string, PromptEntry[]>> = {};
   for (const domain of DOMAIN_ORDER) {
@@ -874,7 +960,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                                         className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[10px] uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-750 transition-all active:scale-[0.98]"
                                         data-testid={`prompt-test-${activePromptId.toLowerCase().replace(/_/g, '-')}`}
                                       >
-                                        <i className="fas fa-flask text-[10px] text-indigo-500"></i>
+                                        <i className="fas fa-vial text-[10px] text-indigo-500"></i>
                                         Test Lab
                                       </button>
                                       <button
@@ -1001,80 +1087,48 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
             <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
               {/* Source Selection & Document Picker */}
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                      <i className="fas fa-microscope text-[8px]"></i>
-                      Laboratory Source
-                    </h4>
-                    <div className="flex p-0.5 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 w-fit">
-                      <button
-                        onClick={() => {
-                          setTestSource('mock');
-                          setSelectedDocumentId(null);
-                          setSelectedDocumentData(null);
-                          setTestImage(null);
-                          // Re-init variables from template
-                          const vars = extractVars(editSystemPrompt + ' ' + editUserTemplate);
-                          const initial: Record<string, string> = {};
-                          for (const v of vars) {
-                            initial[v] = testVariables[v] || `sample_${v}`;
-                          }
-                          setTestVariables(initial);
-                        }}
-                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-tight rounded-md transition-all ${
-                          testSource === 'mock' 
-                            ? 'bg-white dark:bg-slate-800 text-indigo-500 shadow-sm' 
-                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                        }`}
-                      >
-                        Mock Data
-                      </button>
-                      <button
-                        onClick={() => {
-                          setTestSource('document');
-                          if (recentDocuments.length === 0) fetchRecentDocuments();
-                        }}
-                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-tight rounded-md transition-all ${
-                          testSource === 'document' 
-                            ? 'bg-white dark:bg-slate-800 text-indigo-500 shadow-sm' 
-                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                        }`}
-                      >
-                        Real Document
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                      <i className="fas fa-gears text-[8px]"></i>
-                      Execution Engine
-                    </h4>
-                    <div className="flex p-0.5 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 w-fit">
-                      <button
-                        onClick={() => setTestMode('validate')}
-                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-tight rounded-md transition-all ${
-                          testMode === 'validate' 
-                            ? 'bg-white dark:bg-slate-800 text-cyan-500 shadow-sm' 
-                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                        }`}
-                        title="Analyze template syntax and variable health"
-                      >
-                        Validate
-                      </button>
-                      <button
-                        onClick={() => setTestMode('execute')}
-                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-tight rounded-md transition-all ${
-                          testMode === 'execute' 
-                            ? 'bg-white dark:bg-slate-800 text-rose-500 shadow-sm' 
-                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                        }`}
-                        title="Run actual LLM generation with Guidance raw prompt"
-                      >
-                        Execute
-                      </button>
-                    </div>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <i className="fas fa-microscope text-[8px]"></i>
+                    Laboratory Source
+                  </h4>
+                  <div className="flex p-0.5 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <button
+                      onClick={() => {
+                        setTestSource('mock');
+                        setSelectedDocumentId(null);
+                        setSelectedDocumentData(null);
+                        // Re-init variables from template
+                        const vars = extractVars(editSystemPrompt + ' ' + editUserTemplate);
+                        const initial: Record<string, string> = {};
+                        for (const v of vars) {
+                          initial[v] = testVariables[v] || `sample_${v}`;
+                        }
+                        setTestVariables(initial);
+                      }}
+                      data-testid="test-source-mock"
+                      className={`px-3 py-1 text-[10px] font-bold uppercase tracking-tight rounded-md transition-all ${
+                        testSource === 'mock' 
+                          ? 'bg-white dark:bg-slate-800 text-indigo-500 shadow-sm' 
+                          : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                      }`}
+                    >
+                      Mock Data
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTestSource('document');
+                        if (recentDocuments.length === 0) fetchRecentDocuments();
+                      }}
+                      data-testid="test-source-document"
+                      className={`px-3 py-1 text-[10px] font-bold uppercase tracking-tight rounded-md transition-all ${
+                        testSource === 'document' 
+                          ? 'bg-white dark:bg-slate-800 text-indigo-500 shadow-sm' 
+                          : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                      }`}
+                    >
+                      Real Document
+                    </button>
                   </div>
                 </div>
 
@@ -1107,6 +1161,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                           <button
                             key={doc.id}
                             onClick={() => handleDocumentSelect(doc.id)}
+                            data-testid={`test-subject-doc-${doc.id}`}
                             className={`flex flex-col gap-0.5 p-2 rounded-lg border text-left transition-all ${
                               selectedDocumentId === String(doc.id)
                                 ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20'
@@ -1125,50 +1180,24 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                 )}
               </div>
 
-              {/* Data & Visual Context Area */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Document Data Preview */}
-                <div className="space-y-3">
+              {/* Document Data Preview */}
+              {testSource === 'document' && selectedDocumentData && (
+                <div className="space-y-3 animate-in fade-in slide-in-from-left-4 duration-500">
                   <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
                     <i className="fas fa-eye text-[8px]"></i>
                     Extraction Subject Preview
                   </h4>
-                  <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-3 space-y-2 h-[180px] overflow-hidden flex flex-col">
-                    {selectedDocumentData ? (
-                      <Fragment>
-                        <div className="flex items-center justify-between text-[9px] font-mono text-slate-500">
-                          <span className="truncate flex-1 mr-2">Source: {selectedDocumentData.title}</span>
-                          <span className="flex-shrink-0">{selectedDocumentData.content?.length || 0} chars</span>
-                        </div>
-                        <div className="flex-1 text-[10px] font-mono text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 p-2 rounded border border-slate-100 dark:border-slate-800 overflow-y-auto whitespace-pre-wrap">
-                          {selectedDocumentData.content || 'No text content available.'}
-                        </div>
-                      </Fragment>
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-[10px] text-slate-400 uppercase italic">No Document Loaded</div>
-                    )}
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-3 space-y-2">
+                    <div className="flex items-center justify-between text-[9px] font-mono text-slate-500">
+                      <span>Source: {selectedDocumentData.title}</span>
+                      <span>{selectedDocumentData.content?.length || 0} characters</span>
+                    </div>
+                    <div className="text-[10px] font-mono text-slate-600 dark:text-slate-400 line-clamp-3 bg-white dark:bg-slate-900 p-2 rounded border border-slate-100 dark:border-slate-800">
+                      {selectedDocumentData.content || 'No text content available.'}
+                    </div>
                   </div>
                 </div>
-
-                {/* Visual Context Preview */}
-                <div className="space-y-3">
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <i className="fas fa-image text-[8px]"></i>
-                    Visual Pipeline Context
-                  </h4>
-                  <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-3 h-[180px] overflow-hidden flex flex-col items-center justify-center relative">
-                    {testImage ? (
-                      <img src={testImage.startsWith('data:') ? testImage : `data:image/png;base64,${testImage}`} className="max-h-full max-w-full rounded shadow-md object-contain border border-slate-200 dark:border-slate-700" alt="Document Preview (300 DPI)" />
-                    ) : (
-                      <div className="flex flex-col items-center gap-2 text-slate-400">
-                        <i className="fas fa-camera-slash text-xl opacity-20"></i>
-                        <span className="text-[10px] uppercase font-bold tracking-tighter">No Visual Data</span>
-                      </div>
-                    )}
-                    {testImage && <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-cyan-500/80 text-white text-[8px] font-black uppercase">LIVE_IMAGE</div>}
-                  </div>
-                </div>
-              </div>
+              )}
 
               {/* Variable Inputs Grid */}
               {Object.keys(testVariables).length > 0 && (
@@ -1212,28 +1241,62 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                 </div>
               )}
 
+              {/* Execution Mode Selection */}
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                  <i className="fas fa-microchip text-[8px]"></i>
+                  Execution Strategy
+                </h4>
+                <div className="flex p-0.5 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 w-fit">
+                  <button
+                    onClick={() => setTestMode('validate')}
+                    data-testid="test-mode-validate"
+                    className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-tight rounded-md transition-all ${
+                      testMode === 'validate' 
+                        ? 'bg-white dark:bg-slate-800 text-indigo-500 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700' 
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    Validate Template
+                  </button>
+                  <button
+                    onClick={() => setTestMode('execute')}
+                    data-testid="test-mode-execute"
+                    className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-tight rounded-md transition-all ${
+                      testMode === 'execute' 
+                        ? 'bg-white dark:bg-slate-800 text-rose-500 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700' 
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    Execute Neural Simulation
+                  </button>
+                </div>
+              </div>
+
               {/* Run Control */}
               <div className="flex items-center gap-4 py-4 border-y border-slate-100 dark:border-slate-800">
                 <button
                   onClick={handleTest}
                   disabled={isTesting}
-                  className={`px-6 py-3 rounded-xl disabled:opacity-50 text-white font-bold text-xs uppercase tracking-widest transition-all shadow-lg flex items-center gap-2 ${testMode === 'execute' ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-500/20' : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20'}`}
+                  className={`px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg flex items-center gap-2 text-white ${
+                    testMode === 'execute' 
+                      ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-500/20' 
+                      : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20'
+                  } disabled:opacity-50`}
                   data-testid="prompt-test-run"
                 >
                   {isTesting ? (
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : <i className={`fas ${testMode === 'execute' ? 'fa-play' : 'fa-vial'} text-[10px]`}></i>}
-                  {isTesting ? 'Simulating...' : testMode === 'execute' ? 'Execute Test Run' : 'Execute Validation'}
+                  ) : <i className="fas fa-play text-[10px]"></i>}
+                  {isTesting ? 'Simulating...' : 'Execute Test Run'}
                 </button>
-                <div className="flex-1 text-[10px] text-slate-400 font-medium uppercase tracking-tight">
-                  {isTesting 
-                    ? `Synthesizing ${testMode} protocol output using active weights...` 
-                    : `Ready for ${testMode} simulation. All mutations strictly virtual.`}
+                <div className="flex-1 text-[10px] text-slate-400 font-medium">
+                  {isTesting ? 'Synthesizing output using mock context and active template logic...' : 'Ready for simulation. No changes will be persisted.'}
                 </div>
               </div>
 
               {/* Test Results Display */}
-              {testResult && (
+              {(testResult || (isTesting && testStreamingResult)) && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500" data-testid="prompt-test-results">
                   {/* Critical Error Display */}
                   {!testResult.success && (
@@ -1264,7 +1327,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                     )}
 
                     {/* Guidance Status */}
-                    {testResult.source?.startsWith('guidance-service') && (
+                    {String(testResult.source).includes('guidance-service') && (
                       <div className="px-3 py-1.5 rounded-full border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400 flex items-center gap-2 shadow-sm">
                         <i className="fas fa-shield-halved text-xs"></i>
                         <span className="text-[10px] font-black uppercase tracking-widest">Guidance Active</span>
@@ -1298,14 +1361,27 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                     )}
                   </div>
 
+                  {/* Streaming & Thinking State */}
+                  {isTesting && testStreamingResult && testStreamingResult.thinking && (
+                    <div className="space-y-2 animate-pulse mb-6">
+                      <h5 className="text-[10px] font-bold text-amber-500 uppercase tracking-widest ml-1 flex items-center gap-2">
+                        <i className="fas fa-brain-circuit animate-bounce"></i>
+                        Reasoning & Thought Trace
+                      </h5>
+                      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 font-mono text-[11px] leading-relaxed text-amber-700 dark:text-amber-400/80 max-h-32 overflow-y-auto whitespace-pre-wrap italic">
+                        {testStreamingResult.thinking}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Rendered View */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Reconstructed Prompt</h5>
                       <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-4 font-mono text-[11px] leading-relaxed text-slate-600 dark:text-slate-400 max-h-64 overflow-y-auto whitespace-pre-wrap">
-                        {testResult.renderedSystemPrompt}
+                        {testResult?.renderedSystemPrompt || testStreamingResult?.metadata?.renderedSystemPrompt}
                         <div className="h-px w-full bg-slate-200 dark:bg-slate-800 my-4"></div>
-                        {testResult.renderedTemplate}
+                        {testResult?.renderedTemplate || testStreamingResult?.metadata?.renderedTemplate}
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -1313,9 +1389,13 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                         {testMode === 'execute' ? 'Neural Simulation Output' : 'Validation Diagnostic'}
                       </h5>
                       <div className={`rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-4 font-mono text-[11px] leading-relaxed max-h-64 overflow-y-auto whitespace-pre-wrap shadow-inner ring-1 ring-inset ${testMode === 'execute' ? 'text-rose-900 dark:text-rose-50 ring-rose-500/5' : 'text-slate-900 dark:text-indigo-50 ring-indigo-500/5'}`}>
-                        {typeof testResult.testResult === 'string'
-                          ? testResult.testResult
-                          : JSON.stringify(testResult.testResult, null, 2)}
+                        {isTesting && testStreamingResult 
+                          ? testStreamingResult.fullText 
+                          : testResult 
+                            ? (typeof testResult.testResult === 'string' ? testResult.testResult : JSON.stringify(testResult.testResult, null, 2))
+                            : ''
+                        }
+                        {isTesting && <span className="inline-block w-2 h-4 bg-rose-500 animate-pulse ml-1" />}
                       </div>
                     </div>
                   </div>

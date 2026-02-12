@@ -34,6 +34,12 @@ describe('PreVisionNormalizer', function() {
                 downloadDocument: async (docId) => {
                     return Buffer.from('mock-pdf-buffer');
                 },
+                getDocumentMetadata: async (docId) => {
+                    return {
+                        id: docId,
+                        mime_type: 'application/pdf'
+                    };
+                },
                 getDocument: async (docId) => {
                     return {
                         id: docId,

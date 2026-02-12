@@ -103,6 +103,7 @@ type IslandPropsMap = {
   'document-context-bar-island': DocumentContextBarProps;
   'context-sidebar-island': ContextSidebarProps;
   'resizable-layout-island': ResizableLayoutProps;
+  'expert-models-island': Partial<ExpertModelsSettings>;
 };
 
 // Runtime component shape (using a lightweight functional type for islands)
@@ -153,6 +154,7 @@ registerIsland('dashboard-charts-island', DashboardChartsIsland);
 registerIsland('document-context-bar-island', DocumentContextBarIsland);
 registerIsland('context-sidebar-island', ContextSidebarIsland);
 registerIsland('resizable-layout-island', ResizableLayoutIsland);
+registerIsland('expert-models-island', ExpertModelsIsland);
 
 function parseProps(el: Element): Record<string, unknown> | null {
   const raw = el.getAttribute('data-props') || '{}';

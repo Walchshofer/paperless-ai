@@ -97,7 +97,7 @@ function truncateModel(name: string): string {
   return name.slice(0, 15) + '...';
 }
 
-function getNodeIcon(id: string): preact.VNode {
+function getNodeIcon(id: string): JSX.Element {
   switch (id) {
     case 'document':
       return (

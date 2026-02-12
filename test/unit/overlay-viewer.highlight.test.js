@@ -5,6 +5,13 @@ const { h } = require('preact');
 const OverlayViewerIsland = require('../../src/islands/OverlayViewerIsland').default;
 
 describe('OverlayViewerIsland - overlay:highlight-region handling', () => {
+  beforeEach(() => {
+    if (typeof window !== 'undefined' && window.CustomEvent) {
+      global.CustomEvent = window.CustomEvent;
+      global.Event = window.Event;
+    }
+  });
+
   afterEach(() => {
     try { cleanup(); } catch (e) {}
   });

@@ -31,9 +31,13 @@ describe('NormalizationStore', function() {
 
   // Mock document data
   const testDocId = 12345;
-  const testPage1Buffer = Buffer.from('fake-png-data-page-1');
-  const testPage2Buffer = Buffer.from('fake-png-data-page-2');
-  const testBase64Page = Buffer.from('fake-base64-page').toString('base64');
+  const pngMagic = Buffer.from([0x89, 0x50, 0x4E, 0x47]);
+  const testPage1Buffer = Buffer.concat([pngMagic, Buffer.from('fake-page-1')]);
+  const testPage2Buffer = Buffer.concat([pngMagic, Buffer.from('fake-page-2')]);
+  const testBase64Page = Buffer.concat([
+    pngMagic,
+    Buffer.from('fake-base64-page')
+  ]).toString('base64');
 
   beforeEach(async function() {
     // Create temp directory for test files

@@ -12,13 +12,16 @@ const client = require('prom-client');
 describe('Normalization Metrics', () => {
     let metrics;
 
-    before(() => {
-        // Import metrics module (registers metrics with default registry)
+    beforeEach(() => {
+        // Ensure each test gets a fresh registry and metric instances.
+        client.register.clear();
+        delete require.cache[
+            require.resolve('../../services/metrics/normalizationMetrics')
+        ];
         metrics = require('../../services/metrics/normalizationMetrics');
     });
 
-    after(() => {
-        // Clear registry after tests
+    afterEach(() => {
         client.register.clear();
     });
 
@@ -134,8 +137,9 @@ describe('Normalization Metrics', () => {
         it('should set normalizationPending gauge', async () => {
             metrics.normalizationPending.set(5);
             const metricsOutput = await client.register.metrics();
-            assert.ok(
-                metricsOutput.includes('paperless_ai_normalization_pending 5'),
+            assert.match(
+                metricsOutput,
+                /paperless_ai_normalization_pending(?:\{\})?\s+5(?:\.0+)?/,
                 'Gauge should be set to 5'
             );
         });
@@ -143,15 +147,17 @@ describe('Normalization Metrics', () => {
         it('should update normalizationPending gauge', async () => {
             metrics.normalizationPending.set(10);
             let metricsOutput = await client.register.metrics();
-            assert.ok(
-                metricsOutput.includes('paperless_ai_normalization_pending 10'),
+            assert.match(
+                metricsOutput,
+                /paperless_ai_normalization_pending(?:\{\})?\s+10(?:\.0+)?/,
                 'Gauge should be set to 10'
             );
 
             metrics.normalizationPending.set(3);
             metricsOutput = await client.register.metrics();
-            assert.ok(
-                metricsOutput.includes('paperless_ai_normalization_pending 3'),
+            assert.match(
+                metricsOutput,
+                /paperless_ai_normalization_pending(?:\{\})?\s+3(?:\.0+)?/,
                 'Gauge should be updated to 3'
             );
         });
@@ -159,8 +165,9 @@ describe('Normalization Metrics', () => {
         it('should set normalizationDiskUsage gauge', async () => {
             metrics.normalizationDiskUsage.set(15.3);
             const metricsOutput = await client.register.metrics();
-            assert.ok(
-                metricsOutput.includes('paperless_ai_normalization_disk_mb 15.3'),
+            assert.match(
+                metricsOutput,
+                /paperless_ai_normalization_disk_mb(?:\{\})?\s+15\.3/,
                 'Gauge should be set to 15.3'
             );
         });

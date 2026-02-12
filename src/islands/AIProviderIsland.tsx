@@ -1,4 +1,4 @@
-import { h } from 'preact';
+import { h, ComponentChildren } from 'preact';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import type { AIProviderSettings } from '../ui/contracts/Settings.AIProvider.contract';
 import { AIProviderSettingsSchema } from '../ui/contracts/Settings.AIProvider.contract';
@@ -145,7 +145,7 @@ function CyberLabSection({
   color: 'indigo' | 'cyan' | 'rose' | 'emerald' | 'amber' | 'purple';
   expanded: boolean;
   onToggle: () => void;
-  children: preact.ComponentChildren;
+  children: ComponentChildren;
   testId: string;
   badge?: string | number;
 }) {
@@ -208,7 +208,7 @@ function CyberLabSection({
 }
 
 export default function AIProviderIsland(props: AIProviderProps) {
-  // â”€â”€ CORE STATE â”€â”€
+  // GöÇGöÇ CORE STATE GöÇGöÇ
   const [isLoading, setIsLoading] = useState(!props.provider);
   const [configData, setConfigData] = useState<any>(null);
   
@@ -223,17 +223,17 @@ export default function AIProviderIsland(props: AIProviderProps) {
   const [provider, setProvider] = useState('openai' as string);
   const [developerMode, setDeveloperMode] = useState(false);
 
-  // â”€â”€ GLOBAL SETTINGS â”€â”€
+  // GöÇGöÇ GLOBAL SETTINGS GöÇGöÇ
   const [textQualityThreshold, setTextQualityThreshold] = useState(60);
   const [maxVisionPages, setMaxVisionPages] = useState(4);
 
-  // â”€â”€ OPENAI â”€â”€
+  // GöÇGöÇ OPENAI GöÇGöÇ
   const [openaiModel, setOpenaiModel] = useState({
     name: 'gpt-4o',
     limits: { contextWindow: 128000, maxResponseTokens: 4096 }
   });
 
-  // â”€â”€ OLLAMA CORE â”€â”€
+  // GöÇGöÇ OLLAMA CORE GöÇGöÇ
   const [ollamaText, setOllamaText] = useState({
     name: 'sauerkraut-llama3.1:8b',
     limits: { contextWindow: 128000, maxResponseTokens: 4096 }
@@ -243,7 +243,7 @@ export default function AIProviderIsland(props: AIProviderProps) {
     limits: { contextWindow: 32768, maxResponseTokens: 2048 }
   });
 
-  // â”€â”€ OLLAMA PIPELINE â”€â”€
+  // GöÇGöÇ OLLAMA PIPELINE GöÇGöÇ
   const [ollamaRouter, setOllamaRouter] = useState({
     name: '',
     limits: { contextWindow: 32768, maxResponseTokens: 2048 }
@@ -261,14 +261,14 @@ export default function AIProviderIsland(props: AIProviderProps) {
     limits: { contextWindow: 128000, maxResponseTokens: 4096 }
   });
 
-  // â”€â”€ OLLAMA SPECIALIZED â”€â”€
+  // GöÇGöÇ OLLAMA SPECIALIZED GöÇGöÇ
   const [ollamaTranslation, setOllamaTranslation] = useState({
     name: '',
     limits: { contextWindow: 128000, maxResponseTokens: 4096 }
   });
   const [ollamaImageTokenOverhead, setOllamaImageTokenOverhead] = useState(1024);
 
-  // â”€â”€ EXPERT: MEDICAL â”€â”€
+  // GöÇGöÇ EXPERT: MEDICAL GöÇGöÇ
   const [medVision, setMedVision] = useState({
     name: 'llava-med-v1.6',
     limits: { contextWindow: 32768, maxResponseTokens: 4096 }
@@ -286,7 +286,7 @@ export default function AIProviderIsland(props: AIProviderProps) {
     limits: { contextWindow: 128000, maxResponseTokens: 4096 }
   });
 
-  // â”€â”€ EXPERT: FINANCIAL â”€â”€
+  // GöÇGöÇ EXPERT: FINANCIAL GöÇGöÇ
   const [finVision, setFinVision] = useState({
     name: 'llm-pro-finance-8b',
     limits: { contextWindow: 32768, maxResponseTokens: 4096 }
@@ -304,7 +304,7 @@ export default function AIProviderIsland(props: AIProviderProps) {
     limits: { contextWindow: 128000, maxResponseTokens: 4096 }
   });
 
-  // â”€â”€ EXPERT: LEGAL â”€â”€
+  // GöÇGöÇ EXPERT: LEGAL GöÇGöÇ
   const [legalVision, setLegalVision] = useState({
     name: 'qwen3-vl:8b',
     limits: { contextWindow: 32768, maxResponseTokens: 4096 }
@@ -318,7 +318,7 @@ export default function AIProviderIsland(props: AIProviderProps) {
     limits: { contextWindow: 32768, maxResponseTokens: 2048 }
   });
 
-  // â”€â”€ CUSTOM & AZURE â”€â”€
+  // GöÇGöÇ CUSTOM & AZURE GöÇGöÇ
   const [customModel, setCustomModel] = useState({
     name: '',
     limits: { contextWindow: 128000, maxResponseTokens: 4096 }
@@ -329,7 +329,7 @@ export default function AIProviderIsland(props: AIProviderProps) {
   });
   const [azureApiVersion, setAzureApiVersion] = useState('2023-05-15');
 
-  // â”€â”€ UI INTERACTION STATE â”€â”€
+  // GöÇGöÇ UI INTERACTION STATE GöÇGöÇ
   const expertRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<number | null>(null);
   const hasPendingAutoSave = useRef(false);
@@ -338,7 +338,7 @@ export default function AIProviderIsland(props: AIProviderProps) {
   // Group expansion state (Accordion style)
   const [expandedSection, setExpandedSection] = useState<string | null>('core');
 
-  // â”€â”€ HYDRATION EFFECTS â”€â”€
+  // GöÇGöÇ HYDRATION EFFECTS GöÇGöÇ
 
   useEffect(() => {
     if (configData) return;
@@ -430,7 +430,7 @@ export default function AIProviderIsland(props: AIProviderProps) {
     }
   }, [configData]);
 
-  // â”€â”€ INFRASTRUCTURE HANDLERS â”€â”€
+  // GöÇGöÇ INFRASTRUCTURE HANDLERS GöÇGöÇ
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -522,7 +522,7 @@ export default function AIProviderIsland(props: AIProviderProps) {
     }
   };
 
-  // â”€â”€ RENDER HELPERS â”€â”€
+  // GöÇGöÇ RENDER HELPERS GöÇGöÇ
 
   if (isLoading || !configData) {
     return (
@@ -568,7 +568,7 @@ export default function AIProviderIsland(props: AIProviderProps) {
 
       {/* Content Area */}
       <div className="mt-2 min-h-[400px]">
-        {/* â”â” GENERAL â”â” */}
+        {/* GöüGöü GENERAL GöüGöü */}
         {activeTab === 'general' && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300" data-testid="tab-content-general">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -630,7 +630,7 @@ export default function AIProviderIsland(props: AIProviderProps) {
           </div>
         )}
 
-        {/* â”â” OPENAI â”â” */}
+        {/* GöüGöü OPENAI GöüGöü */}
         {activeTab === 'openai' && (
           <div className="animate-in fade-in slide-in-from-left-2 duration-300 space-y-6" data-testid="tab-content-openai">
             <div className="p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/30 dark:bg-indigo-900/10 flex items-center gap-3" data-testid="connection-center-note">
@@ -665,7 +665,7 @@ export default function AIProviderIsland(props: AIProviderProps) {
           </div>
         )}
 
-        {/* â”â” OLLAMA: THE CYBER LAB â”â” */}
+        {/* GöüGöü OLLAMA: THE CYBER LAB GöüGöü */}
         {activeTab === 'ollama' && (
           <div className="space-y-4 animate-in fade-in zoom-in-95 duration-300" data-testid="tab-content-ollama">
             <div className="p-4 rounded-xl border border-cyan-100 dark:border-cyan-900/30 bg-cyan-50/30 dark:bg-cyan-900/10 flex items-center gap-3 mb-4" data-testid="connection-center-note">
@@ -882,7 +882,7 @@ export default function AIProviderIsland(props: AIProviderProps) {
           </div>
         )}
 
-        {/* â”â” CUSTOM â”â” */}
+        {/* GöüGöü CUSTOM GöüGöü */}
         {activeTab === 'custom' && (
           <div className="animate-in fade-in slide-in-from-right-2 duration-300 space-y-6" data-testid="tab-content-custom">
             <div className="p-4 rounded-xl border border-purple-100 dark:border-purple-900/30 bg-purple-50/30 dark:bg-purple-900/10 flex items-center gap-3" data-testid="connection-center-note">
@@ -917,7 +917,7 @@ export default function AIProviderIsland(props: AIProviderProps) {
           </div>
         )}
 
-        {/* â”â” AZURE â”â” */}
+        {/* GöüGöü AZURE GöüGöü */}
         {activeTab === 'azure' && (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-8" data-testid="tab-content-azure">
             <div className="p-4 rounded-xl border border-blue-100 dark:border-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10 flex items-center gap-3" data-testid="connection-center-note">

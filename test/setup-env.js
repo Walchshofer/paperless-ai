@@ -5,11 +5,64 @@
  * Sets up required environment variables and database schema for integration tests
  */
 
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
+
+function isEnabled(value) {
+    if (!value) return false;
+    const normalized = String(value).toLowerCase();
+    return normalized === '1' || normalized === 'true' ||
+        normalized === 'yes';
+}
+
+function loadProjectEnvFallbacks() {
+    const envPath = path.join(process.cwd(), '.env');
+    if (!fs.existsSync(envPath)) return;
+
+    const parsed = dotenv.parse(fs.readFileSync(envPath));
+    const fallbackKeys = [
+        'POSTGRES_USER',
+        'POSTGRES_PASSWORD',
+        'POSTGRES_DB',
+        'POSTGRES_HOST',
+        'POSTGRES_PORT',
+        'PAPERLESS_DBHOST',
+        'PAPERLESS_DBUSER',
+        'PAPERLESS_DBPASS',
+        'PAPERLESS_DBNAME',
+        'JWT_SECRET'
+    ];
+
+    for (const key of fallbackKeys) {
+        if (!process.env[key] && parsed[key]) {
+            process.env[key] = parsed[key];
+        }
+    }
+
+    const inDocker = fs.existsSync('/.dockerenv');
+    const dbHost = process.env.POSTGRES_HOST || process.env.PAPERLESS_DBHOST;
+    if (!inDocker && ['db', 'paperless_db'].includes(dbHost)) {
+        process.env.POSTGRES_HOST = '127.0.0.1';
+        process.env.PAPERLESS_DBHOST = '127.0.0.1';
+        console.log(
+            '[test/setup-env] normalized DB host to 127.0.0.1 for host test run'
+        );
+    }
+}
+
+loadProjectEnvFallbacks();
+
 // Ensure test runner mode is visible to runtime and enable Guidance by default
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 // Default to enabling Guidance to prevent JSON truncation issues.
 process.env.GUIDANCE_ENABLED = process.env.GUIDANCE_ENABLED || 'true';
 process.env.GUIDANCE_SERVICE_ENABLED = process.env.GUIDANCE_SERVICE_ENABLED || 'no';
+
+if (isEnabled(process.env.TEST_AUTH_MOCK)) {
+    require('./helpers/auth-mock');
+    console.log('[test/setup-env] TEST_AUTH_MOCK enabled');
+}
 
 /**
  * Get required environment variable for tests
@@ -99,6 +152,46 @@ try {
     console.warn('[test/setup-env] Could not patch JSDOM for canvas stub:', e && e.message);
 }
 
+// Polyfill Image for component tests that instantiate `new Image()`.
+try {
+    if (typeof global.Image === 'undefined') {
+        class MockImage {
+            constructor() {
+                this._src = '';
+                this.onload = null;
+                this.onerror = null;
+                this.width = 0;
+                this.height = 0;
+            }
+
+            set src(value) {
+                this._src = value || '';
+                if (typeof this.onload === 'function') {
+                    setTimeout(() => {
+                        try {
+                            this.onload();
+                        } catch {
+                            // Ignore callback errors in test polyfill.
+                        }
+                    }, 0);
+                }
+            }
+
+            get src() {
+                return this._src;
+            }
+        }
+
+        global.Image = MockImage;
+        if (typeof window !== 'undefined') {
+            window.Image = MockImage;
+        }
+        console.log('[test/setup-env] Patched Image for JSDOM');
+    }
+} catch (err) {
+    console.warn('[test/setup-env] Image patch failed:', err && err.message);
+}
+
 // Polyfill JSDOM CustomEvent for tests that dispatch CustomEvent (fixes VisualAnnotation tests)
 try {
     if (typeof global !== 'undefined' && typeof global.CustomEvent === 'undefined') {
@@ -141,8 +234,17 @@ if (process.env.RAG_SERVICE_ENABLED === 'true') {
  * 2. Create direct pg connection as fallback
  */
 (async function ensureTestDbSchema() {
+    if (!isEnabled(process.env.TEST_ENABLE_DB_INIT)) {
+        process.env.PG_AVAILABLE = 'false';
+        console.log(
+            '[test/setup-env] TEST_ENABLE_DB_INIT is not enabled; ' +
+            'skipping database schema initialization'
+        );
+        return;
+    }
+
     // Allow skipping DB init for fast unit-only runs via TEST_SKIP_DB_INIT
-    if (process.env.TEST_SKIP_DB_INIT === 'true' || process.env.TEST_SKIP_DB_INIT === '1' || process.env.TEST_SKIP_DB_INIT === 'yes') {
+    if (isEnabled(process.env.TEST_SKIP_DB_INIT)) {
         process.env.PG_AVAILABLE = 'false';
         console.log('[test/setup-env] TEST_SKIP_DB_INIT is set; skipping database schema initialization');
         return;

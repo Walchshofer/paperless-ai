@@ -10,6 +10,7 @@ RUN apt-get update && \
     g++ \
     curl \
     wget \
+    procps \
     poppler-utils && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

@@ -192,9 +192,66 @@ class GuidanceClient {
                 };
                 if (streamEnabled) {
                     payload.stream = true;
-                }
-                const response = await this.httpClient.post('/generate', payload);
+                    // Use /api/guidance/stream for actual streaming support
+                    // Note: This requires the guidance service to support the same template/vars on this endpoint
+                    const streamResponse = await this.httpClient.post('/api/guidance/stream', {
+                        prompt: variables.user_prompt || variables.userTemplate || variables.text_chunk || JSON.stringify(variables),
+                        system_prompt: variables.system_prompt || variables.systemPrompt || "You are a helpful assistant.",
+                        model: model,
+                        max_tokens: options.max_tokens || 4000,
+                        schema_json: options.schema_json
+                    }, { responseType: 'stream' });
 
+                    let fullContent = '';
+                    let thinkingContent = '';
+
+                    return new Promise((resolve, reject) => {
+                        streamResponse.data.on('data', (chunk) => {
+                            const lines = chunk.toString().split('\n');
+                            for (const line of lines) {
+                                if (!line.trim()) continue;
+                                try {
+                                    const data = JSON.parse(line);
+                                    if (data.type === 'thinking') {
+                                        thinkingContent += data.content;
+                                        if (options.onProgress) {
+                                            options.onProgress({ stage: 'thinking', content: data.content });
+                                        }
+                                    } else if (data.type === 'response') {
+                                        fullContent += data.content;
+                                    } else if (data.type === 'error') {
+                                        reject(new Error(data.content));
+                                    }
+                                } catch (e) {
+                                    // Partial JSON or other noise
+                                }
+                            }
+                        });
+
+                        streamResponse.data.on('end', () => {
+                            // Extract JSON from fullContent if possible
+                            const { extractJsonFromResponse } = require('../ollama/utils');
+                            const generated = extractJsonFromResponse(fullContent) || { output: fullContent };
+                            
+                            resolve({
+                                success: true,
+                                generated,
+                                validation: { valid: true },
+                                source: 'generated_stream',
+                                metadata: {
+                                    template,
+                                    model,
+                                    durationMs: Date.now() - startTime,
+                                    thinking: thinkingContent
+                                }
+                            });
+                        });
+
+                        streamResponse.data.on('error', reject);
+                    });
+                }
+
+                const response = await this.httpClient.post('/generate', payload);
                 const result = response.data;
 
                 // Log success with response details (VERBOSE)

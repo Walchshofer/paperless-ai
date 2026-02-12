@@ -687,8 +687,10 @@ Example output format:
         """Stream thinking model response from Ollama via Guidance"""
         data = request.json or {}
         prompt = data.get("prompt")
+        system_prompt = data.get("system_prompt", "You are a helpful assistant.")
         model_name = data.get("model", "qwen3-vl:8b")
         max_tokens = data.get("max_tokens", 2000)
+        schema_json = data.get("schema_json")
 
         if not prompt:
             return jsonify({'error': 'Prompt required'}), 400
@@ -696,34 +698,59 @@ Example output format:
         def generate_stream():
             try:
                 # Lazy import guidance components to avoid pickle issues
-                from guidance import system, user, assistant, gen
+                from guidance import system, user, assistant, gen, json as gen_json
 
                 # Create fresh LLM instance per request to avoid
                 # pickle issues with thread locks
                 lm = get_lm(model_name)
 
-                with system():
-                    lm_run = lm + "You are a helpful assistant."
+                if system_prompt:
+                    with system():
+                        lm += system_prompt
 
                 with user():
-                    lm_run += prompt
+                    lm += prompt
 
                 with assistant():
-                    lm_run += gen(
-                        name="response",
-                        max_tokens=max_tokens,
-                        temperature=0.7
-                    )
+                    if schema_json:
+                        # Force valid JSON matching the provided schema
+                        # Use stream=True to get incremental chunks
+                        streamer = lm + gen_json(
+                            name="response",
+                            schema=schema_json,
+                            stream=True
+                        )
+                    else:
+                        streamer = lm + gen(
+                            name="response",
+                            max_tokens=max_tokens,
+                            temperature=0.7,
+                            stream=True
+                        )
 
-                response_text = lm_run["response"]
-
-                # Parse thinking and response
-                parts = parse_thinking_parts(response_text)
-
-                for part_type, content in parts:
+                # Iterate through the stream to emit chunks in real-time
+                full_text = ""
+                thinking_emitted = False
+                
+                for chunk in streamer:
+                    chunk_text = chunk.get("response", "")
+                    if not chunk_text:
+                        continue
+                    
+                    # Detect thinking marker in the incremental stream
+                    if not thinking_emitted and ("<think>" in chunk_text or "<think>" in (full_text + chunk_text)):
+                        thinking_emitted = True
+                        yield json.dumps({
+                            "type": "thinking",
+                            "content": "Model is reasoning..."
+                        }) + "\n"
+                    
+                    full_text += chunk_text
+                    
+                    # Also yield the content chunk itself
                     yield json.dumps({
-                        "type": part_type,
-                        "content": content
+                        "type": "response",
+                        "content": chunk_text
                     }) + "\n"
 
             except Exception as e:

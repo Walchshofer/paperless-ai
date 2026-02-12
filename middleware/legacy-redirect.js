@@ -13,6 +13,8 @@ const LEGACY_ROUTES = ['/chat', '/manual', '/rag'];
  * @returns {boolean}
  */
 function isLegacyRoute(path) {
+  // Never retire API routes
+  if (path.startsWith('/api/')) return false;
   return LEGACY_ROUTES.some(r => path === r || path.startsWith(`${r}/`));
 }
 

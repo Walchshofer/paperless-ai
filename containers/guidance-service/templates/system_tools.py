@@ -168,7 +168,7 @@ class SystemToolsTemplates:
     def get_raw_prompt_executor() -> Callable:
         """Return a @guidance decorated raw prompt executor.
 
-        Executes arbitrary prompts with optional image support.
+        Executes arbitrary prompts with optional image support and schema enforcement.
         Used for fine-tuning and dry-running prompt templates.
         """
 
@@ -179,10 +179,9 @@ class SystemToolsTemplates:
             user_prompt: str = "",
             temperature: float = 0.0,
             max_tokens: int = 4000,
+            schema_json: Optional[Any] = None,
             **kwargs: Any,
         ) -> Any:
-            # Note: LiteLLM in Guidance doesn't support multimodal yet,
-            # but we use context managers for future-proofing.
             if system_prompt:
                 with system():
                     lm += system_prompt
@@ -191,11 +190,20 @@ class SystemToolsTemplates:
                 lm += user_prompt
 
             with assistant():
-                lm += gen(
-                    name="output",
-                    temperature=temperature,
-                    max_tokens=max_tokens
-                )
+                if schema_json:
+                    # STRICT MODE: Force valid JSON matching the provided schema
+                    # leverages Guidance token healing and constrained generation
+                    lm += gen_json(
+                        name="output",
+                        schema=schema_json
+                    )
+                else:
+                    # FLEXIBLE MODE: Unconstrained generation
+                    lm += gen(
+                        name="output",
+                        temperature=temperature,
+                        max_tokens=max_tokens
+                    )
 
             return lm
 

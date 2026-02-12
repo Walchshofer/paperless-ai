@@ -38,7 +38,13 @@ const NORMALIZED_BASE_DIR = process.env.NORMALIZED_IMAGES_DIR || '/app/data/norm
  * GET /api/normalized/123/1  → /app/data/normalized/123/page_1.png
  * GET /api/normalized/456    → /app/data/normalized/456/page_1.png
  */
-router.get('/:docId/:page?', authenticateApi, async (req, res) => {
+router.get('/:docId/:page?', authenticateApi, async (req, res, next) => {
+  // Express matches HEAD requests on GET routes by default.
+  // Defer to the explicit HEAD handler below for probe semantics.
+  if (req.method === 'HEAD') {
+    return next();
+  }
+
   const docId = parseInt(req.params.docId, 10);
   const page = parseInt(req.params.page || '1', 10);
 

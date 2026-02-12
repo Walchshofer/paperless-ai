@@ -15,7 +15,7 @@ interface DocumentChangeDetail {
 
 // Types for visual search results
 interface VisualSearchResult {
-  document_id: number;
+  document_id: number | null;
   page: number;
   score: number;
   title?: string;
@@ -82,6 +82,86 @@ export interface OverlayViewerProps extends Partial<OverlayViewerContract> {
 const MIN_SELECTION_SIZE = 20;
 // Minimum selection size (as fraction of container) to be valid
 const MIN_SIZE_FRACTION = 0.01;
+
+const parseSearchNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
+};
+
+const resolveThumbnailSrc = (thumbnail?: string): string | null => {
+  if (!thumbnail) {
+    return null;
+  }
+  const sidecarThumbMatch = thumbnail.match(/^\/thumbnails\/(\d+)(?:[/?#].*)?$/);
+  if (sidecarThumbMatch) {
+    return `/thumb/${sidecarThumbMatch[1]}`;
+  }
+  const paperlessApiThumbMatch = thumbnail.match(
+    /^\/api\/documents\/(\d+)\/thumb\/?$/
+  );
+  if (paperlessApiThumbMatch) {
+    return `/thumb/${paperlessApiThumbMatch[1]}`;
+  }
+  if (
+    thumbnail.startsWith('http://') ||
+    thumbnail.startsWith('https://') ||
+    thumbnail.startsWith('/') ||
+    thumbnail.startsWith('data:')
+  ) {
+    return thumbnail;
+  }
+  return `data:image/jpeg;base64,${thumbnail}`;
+};
+
+const normalizeVisualSearchResults = (results: unknown): VisualSearchResult[] => {
+  if (!Array.isArray(results)) {
+    return [];
+  }
+
+  return results.map((raw) => {
+    const row = raw && typeof raw === 'object'
+      ? (raw as Record<string, unknown>)
+      : {};
+
+    const documentId = parseSearchNumber(
+      row.document_id ?? row.doc_id ?? row.documentId ?? row.docId
+    );
+    const pageNum = parseSearchNumber(
+      row.page ?? row.page_num ?? row.pageNum
+    );
+    const score = parseSearchNumber(row.score) ?? 0;
+    const title =
+      typeof row.title === 'string' && row.title.trim() !== ''
+        ? row.title
+        : undefined;
+    const thumbnail =
+      typeof row.thumbnail === 'string' && row.thumbnail.trim() !== ''
+        ? row.thumbnail
+        : typeof row.thumbnail_url === 'string' &&
+            row.thumbnail_url.trim() !== ''
+          ? row.thumbnail_url
+          : typeof row.thumbnailUrl === 'string' &&
+              row.thumbnailUrl.trim() !== ''
+            ? row.thumbnailUrl
+            : undefined;
+
+    return {
+      document_id: documentId !== null ? Math.trunc(documentId) : null,
+      page: pageNum !== null && pageNum > 0 ? Math.trunc(pageNum) : 1,
+      score,
+      title,
+      thumbnail
+    };
+  });
+};
 
 export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const {
@@ -820,7 +900,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         }
         
         const data = await response.json();
-        setResults(Array.isArray(data.results) ? data.results : []);
+        setResults(normalizeVisualSearchResults(data.results));
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         setResultsError(msg || 'Visual search failed');
@@ -1819,49 +1899,67 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                     </div>
                  )}
                  
-                 {results.map((result: VisualSearchResult, idx: number) => (
-                    <div
-                       key={idx}
-                       className="group border border-gray-200 rounded-lg overflow-hidden hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer bg-white"
-                       onClick={() => {
-                          if (String(result.document_id) === String(docId)) {
-                             setPage(Number(result.page));
-                             const ev = new CustomEvent('overlay:document-changed', {
-                                detail: { documentId: docId, page: Number(result.page), originalUrl, pageCount }
-                             });
-                             window.dispatchEvent(ev);
-                          } else {
-                             window.open(`/workspace/doc/${result.document_id}?tab=visual&page=${result.page}`, '_blank');
-                          }
-                       }}
-                    >
-                       <div className="relative aspect-[3/4] bg-gray-100 overflow-hidden border-b border-gray-100">
-                          {result.thumbnail ? (
-                             <img src={`data:image/jpeg;base64,${result.thumbnail}`} alt="Result" className="w-full h-full object-cover" />
-                          ) : (
-                             <div className="w-full h-full flex items-center justify-center text-gray-300">
-                                <i className="fas fa-file-image text-3xl"></i>
-                             </div>
-                          )}
-                          <div className="absolute top-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm">
-                             Score: {(result.score * 100).toFixed(1)}%
-                          </div>
-                       </div>
-                       <div className="p-2">
-                          <div className="font-medium text-xs text-gray-800 truncate" title={result.title || `Document ${result.document_id}`}>
-                             {result.title || `Document ${result.document_id}`}
-                          </div>
-                          <div className="flex justify-between items-center mt-1">
-                             <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                                Page {result.page}
-                             </span>
-                             {String(result.document_id) !== String(docId) && (
-                                <i className="fas fa-external-link-alt text-[10px] text-gray-400"></i>
-                             )}
-                          </div>
-                       </div>
-                    </div>
-                 ))}
+                 {results.map((result: VisualSearchResult, idx: number) => {
+                    const thumbnailSrc = resolveThumbnailSrc(result.thumbnail);
+                    const documentLabel = result.title ||
+                      (result.document_id !== null
+                        ? `Document ${result.document_id}`
+                        : 'Document ?');
+                    const sameDocument = result.document_id !== null &&
+                      String(result.document_id) === String(docId);
+
+                    return (
+                      <div
+                         key={idx}
+                         className="group border border-gray-200 rounded-lg overflow-hidden hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer bg-white"
+                         onClick={() => {
+                            if (result.document_id === null) {
+                               return;
+                            }
+                            if (sameDocument) {
+                               setPage(Number(result.page));
+                               const ev = new CustomEvent('overlay:document-changed', {
+                                  detail: {
+                                    documentId: docId,
+                                    page: Number(result.page),
+                                    originalUrl,
+                                    pageCount
+                                  }
+                               });
+                               window.dispatchEvent(ev);
+                            } else {
+                               window.open(`/workspace/doc/${result.document_id}?tab=visual&page=${result.page}`, '_blank');
+                            }
+                         }}
+                      >
+                         <div className="relative aspect-[3/4] bg-gray-100 overflow-hidden border-b border-gray-100">
+                            {thumbnailSrc ? (
+                               <img src={thumbnailSrc} alt="Result" className="w-full h-full object-cover" />
+                            ) : (
+                               <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                  <i className="fas fa-file-image text-3xl"></i>
+                               </div>
+                            )}
+                            <div className="absolute top-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm">
+                               Score: {(result.score * 100).toFixed(1)}%
+                            </div>
+                         </div>
+                         <div className="p-2">
+                            <div className="font-medium text-xs text-gray-800 truncate" title={documentLabel}>
+                               {documentLabel}
+                            </div>
+                            <div className="flex justify-between items-center mt-1">
+                               <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                                  Page {result.page}
+                               </span>
+                               {!sameDocument && result.document_id !== null && (
+                                  <i className="fas fa-external-link-alt text-[10px] text-gray-400"></i>
+                               )}
+                            </div>
+                         </div>
+                      </div>
+                    );
+                 })}
               </div>
            </div>
         )}

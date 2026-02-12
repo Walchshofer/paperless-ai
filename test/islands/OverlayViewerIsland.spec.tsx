@@ -1,5 +1,5 @@
 import { h } from 'preact';
-import { render, fireEvent, screen, act, waitFor } from '@testing-library/preact';
+import { render, fireEvent, screen, act, waitFor, within } from '@testing-library/preact';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import OverlayViewerIsland from '../../src/islands/OverlayViewerIsland';
 
@@ -45,7 +45,7 @@ global.Image = class {
   get src() { return this._src; }
 } as unknown as typeof Image;
 
-describe('OverlayViewerIsland (Red Pen Enhancements)', () => {
+describe('OverlayViewerIsland (Draw Mode Enhancements)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     lastLoadedImageUrl = null;
@@ -67,7 +67,11 @@ describe('OverlayViewerIsland (Red Pen Enhancements)', () => {
         Object.defineProperty(containerEl, 'clientHeight', { value: 1000, configurable: true });
     }
 
-    const initialClass = viewport?.getAttribute('class') || '';
+    await waitFor(() => {
+      expect(screen.queryByTestId('overlay-loading')).toBeNull();
+    });
+
+    const initialZoom = screen.getByTestId('overlay-zoom-percentage').textContent;
 
     // Dispatch event
     await act(async () => {
@@ -79,10 +83,10 @@ describe('OverlayViewerIsland (Red Pen Enhancements)', () => {
       }));
     });
 
-    const newClass = viewport?.getAttribute('class') || '';
-    expect(newClass).not.toBe(initialClass);
-    expect(newClass).toContain('translate');
-    expect(newClass).toContain('scale');
+    await waitFor(() => {
+      expect(screen.getByTestId('overlay-highlight-region')).toBeTruthy();
+    });
+    expect(screen.getByTestId('overlay-zoom-percentage').textContent).not.toBe(initialZoom);
   });
 
   it('emits overlay:draw-complete when in draw mode', async () => {
@@ -107,7 +111,7 @@ describe('OverlayViewerIsland (Red Pen Enhancements)', () => {
     Object.defineProperty(overlayContainer!, 'clientHeight', { value: 1000, configurable: true });
 
     // Enable draw mode
-    const toggle = screen.getByTestId('red-pen-toggle');
+    const toggle = screen.getByTestId('draw-mode-btn');
     fireEvent.click(toggle);
 
     // Draw
@@ -263,5 +267,61 @@ describe('OverlayViewerIsland (Image Loading Priority)', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('image-error')).toBeNull();
     });
+  });
+});
+
+describe('OverlayViewerIsland (Visual Search Result Normalization)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    lastLoadedImageUrl = null;
+    shouldFailNormalized = false;
+    shouldFailAll = false;
+  });
+
+  it('normalizes camelCase result payloads and avoids undefined labels', async () => {
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/api/visual-rag/search/visual')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              results: [
+                {
+                  docId: 59,
+                  pageNum: null,
+                  score: 0.207,
+                  thumbnailUrl: '/thumbnails/59'
+                }
+              ]
+            }) as unknown,
+            text: async () => '' as unknown
+          } as unknown as Response);
+        }
+        return Promise.resolve(_mockFetchResponse);
+      }
+    );
+
+    render(<OverlayViewerIsland documentId={40} />);
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('visual-search-requested', {
+        detail: {
+          imageBase64: 'ZmFrZQ==',
+          collection: 'visual_pages'
+        }
+      }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Document 59')).toBeTruthy();
+    });
+
+    const panel = screen.getByTestId('visual-search-results-panel');
+    expect(within(panel).getByText('Page 1')).toBeTruthy();
+    expect(screen.queryByText('Document undefined')).toBeNull();
+    const resultImg = screen.getByAltText('Result') as HTMLImageElement;
+    expect(resultImg.getAttribute('src')).toBe('/thumb/59');
   });
 });

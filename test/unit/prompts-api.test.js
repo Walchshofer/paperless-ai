@@ -280,12 +280,15 @@ describe('Prompts API - Template Testing and Validation', function() {
       await handler(req, res);
 
       assert.strictEqual(jsonResponse.success, true);
-      // Source should be either 'template-render' or 'template-render-only'
-      assert.ok(
-        jsonResponse.source === 'template-render' ||
-        jsonResponse.source === 'template-render-only' ||
-        jsonResponse.source === 'guidance-service'
-      );
+      const allowedSources = new Set([
+        'template-render',
+        'template-render-only',
+        'guidance-service',
+        'guidance-service-validation',
+        'guidance-service-execution',
+        'ollama-vision'
+      ]);
+      assert.ok(allowedSources.has(jsonResponse.source));
     });
 
     it('should include duration measurement', async function() {

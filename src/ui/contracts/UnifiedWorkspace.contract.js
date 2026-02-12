@@ -106,7 +106,7 @@ const UnifiedWorkspaceSchema = z.object({
   }),
 
   ui: z.object({
-    activeTab: z.enum(['metadata', 'content', 'chat', 'debug']).default('metadata'),
+    activeTab: z.enum(['metadata', 'content', 'chat', 'visual', 'debug']).default('metadata'),
     sidebarCollapsed: z.boolean().default(false),
   }).default({}),
 

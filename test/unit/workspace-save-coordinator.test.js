@@ -25,6 +25,13 @@ describe('workspace-save-coordinator', () => {
   });
 
   it('completes successfully when participants ack and complete', (done) => {
+    let finished = false;
+    const finish = (err) => {
+      if (finished) return;
+      finished = true;
+      done(err);
+    };
+
     // Listen for save-begin and then send ack/partial completes
     let saved = false;
     window.addEventListener('workspace:save-begin', function onBegin(e) {
@@ -39,10 +46,17 @@ describe('workspace-save-coordinator', () => {
     window.addEventListener('workspace:save-complete', function onComplete(e) {
       saved = true;
       assert.ok(saved);
-      // confirm workspace state cleared
-      const key = String(e.detail.documentId);
-      assert.strictEqual(window.__workspaceState[key]?.isDirty, false);
-      done();
+    });
+
+    window.addEventListener('sync:success', function onSynced(e) {
+      try {
+        assert.ok(saved);
+        const key = String(e.detail.documentId);
+        assert.strictEqual(window.__workspaceState[key]?.isDirty, false);
+        finish();
+      } catch (err) {
+        finish(err);
+      }
     });
 
     // mark doc dirty

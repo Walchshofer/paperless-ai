@@ -13,6 +13,7 @@
  * Architecture Reference: ticket:007.1, ticket:007.2
  */
 
+require('../helpers/auth-mock');
 const request = require('supertest');
 const assert = require('assert');
 const app = require('../../server');
@@ -307,6 +308,9 @@ describe('Alpha-9 Visual Search API', function () {
             assert.ok(Array.isArray(result.results));
             assert.ok(result.collectionUsed);
             assert.ok(result.scoreType);
+            if (result.results.length > 0) {
+                assert.strictEqual(result.results[0].thumbnailUrl, '/thumb/1');
+            }
         });
 
     });

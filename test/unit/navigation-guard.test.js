@@ -2,8 +2,11 @@ const assert = require('assert');
 const { isDocumentDirty, confirmAndNavigate } = require('../../src/lib/navigation-guard');
 
 describe('navigation-guard helper', () => {
+  let originalWindow;
+
   beforeEach(() => {
-    global.window = global.window || {};
+    originalWindow = global.window;
+    global.window = {};
     global.window.__workspaceState = {};
     global.window.location = { href: '' };
 
@@ -31,7 +34,11 @@ describe('navigation-guard helper', () => {
     delete global.window.addEventListener;
     delete global.window.removeEventListener;
     delete global.window.dispatchEvent;
-    // leave global.window
+    if (typeof originalWindow !== 'undefined') {
+      global.window = originalWindow;
+    } else {
+      delete global.window;
+    }
   });
 
   it('isDocumentDirty returns true when state is dirty', () => {
@@ -60,15 +67,6 @@ describe('navigation-guard helper', () => {
 
     const result = confirmAndNavigate('/document/2', 42);
     assert.strictEqual(result, false);
-  });
-
-  it('confirmAndNavigate navigates when not dirty', () => {
-    global.window.__workspaceState['42'] = { isDirty: false };
-    // No confirm should be called, but set it to fail if called
-    global.window.confirm = () => { throw new Error('confirm should not be called'); };
-    const result = confirmAndNavigate('/document/3', 42);
-    assert.strictEqual(result, true);
-    assert.strictEqual(global.window.location.href, '/document/3');
   });
 
   it('confirmAndNavigate navigates when not dirty', () => {
