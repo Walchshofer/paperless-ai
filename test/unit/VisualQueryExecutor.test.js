@@ -420,6 +420,17 @@ describe('VisualQueryExecutor', () => {
         });
     });
 
+    describe('Overlay Box Normalization', () => {
+        it('interprets legacy overlay arrays as [xmin, ymin, xmax, ymax]', () => {
+            const normalized = executor._normalizeOverlayBox([100, 500, 250, 520]);
+            assert.ok(normalized, 'normalized bbox should exist');
+            assert.strictEqual(normalized.x, 0.1);
+            assert.strictEqual(normalized.y, 0.5);
+            assert.strictEqual(normalized.width, 0.15);
+            assert.strictEqual(normalized.height, 0.02);
+        });
+    });
+
     describe('Graceful Degradation', () => {
         it('should return extraction-only results when circuit breaker is OPEN', async () => {
             // Force circuit breaker to OPEN state

@@ -18,6 +18,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateApi } = require('../../middleware/auth');
+const { normalizeOverlayBoundingBox } = require('../../services/visual-rag-client/overlayCoordinates');
 const logger = require('../../services/logger');
 
 // Visual RAG client - lazy loaded
@@ -207,23 +208,12 @@ router.get('/document/:documentId', async (req, res) => {
     // Transform to UI format
     const formattedOverlays = overlays.map(o => {
       const data = o.overlayData || {};
-
-      // Normalize bounding box format
-      let bbox = { x: 0, y: 0, width: 0, height: 0 };
-      if (data.boundingBox) {
-        bbox = data.boundingBox;
-      } else if (data.bbox) {
-        bbox = data.bbox;
-      } else if (data.box && Array.isArray(data.box)) {
-        // Legacy format: [ymin, xmin, ymax, xmax] in 0-1000 scale
-        const [ymin, xmin, ymax, xmax] = data.box;
-        bbox = {
-          x: xmin / 1000,
-          y: ymin / 1000,
-          width: (xmax - xmin) / 1000,
-          height: (ymax - ymin) / 1000
-        };
-      }
+      const bbox = normalizeOverlayBoundingBox(data) || {
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0
+      };
 
       return {
         id: String(o.id),

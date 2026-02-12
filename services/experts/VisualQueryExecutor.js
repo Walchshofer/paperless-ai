@@ -890,7 +890,7 @@ class VisualQueryExecutor {
     }
 
     /**
-     * Normalize overlay box format [ymin, xmin, ymax, xmax] to { x, y, width, height }
+     * Normalize overlay box format [xmin, ymin, xmax, ymax] to { x, y, width, height }
      * @private
      */
     _normalizeOverlayBox(box) {
@@ -898,12 +898,12 @@ class VisualQueryExecutor {
             return null;
         }
 
-        const [ymin, xmin, ymax, xmax] = box.map(Number);
-        if (![ymin, xmin, ymax, xmax].every(Number.isFinite)) {
+        const [xmin, ymin, xmax, ymax] = box.map(Number);
+        if (![xmin, ymin, xmax, ymax].every(Number.isFinite)) {
             return null;
         }
 
-        const maxVal = Math.max(ymin, xmin, ymax, xmax);
+        const maxVal = Math.max(xmin, ymin, xmax, ymax);
         const scale = maxVal > 1 ? 1000 : 1;
         const x = xmin / scale;
         const y = ymin / scale;

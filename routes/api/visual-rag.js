@@ -14,6 +14,7 @@ const path = require('path');
 const router = express.Router();
 const { ingestionManager, BatchIngestionJob, visualOverlayRepository, pdfRenderer } = require('../../services/visual-rag-client');
 const { getLegendForDomain, DOMAIN_FIELD_SPECS } = require('../../services/visual-rag-client/overlayConfig');
+const { normalizeOverlayBoundingBox } = require('../../services/visual-rag-client/overlayCoordinates');
 const logger = require('../../services/logger');
 const paperlessService = require('../../services/paperlessService');
 const config = require('../../config/config');
@@ -782,20 +783,20 @@ router.get('/overlays/:docId', authenticateApi, async (req, res) => {
         // Transform to UI format
         const formatted = overlays.map(o => {
             const data = o.overlayData || {};
+            const normalizedBbox = normalizeOverlayBoundingBox(data) || {
+                x: 0,
+                y: 0,
+                width: 0,
+                height: 0
+            };
 
-            // Prefer new format fields, fall back to legacy
             return {
                 id: data.id || o.id,
                 label: data.label || o.semanticLabel || 'Unknown',
                 value: data.value || data.text || null,
                 domain: data.domain || 'GENERAL',
                 color: data.color || '#6B7280',
-                boundingBox: data.boundingBox || {
-                    x: data.box?.[1] || data.x_min || 0,
-                    y: data.box?.[0] || data.y_min || 0,
-                    width: (data.box?.[3] - data.box?.[1]) || (data.x_max - data.x_min) || 0,
-                    height: (data.box?.[2] - data.box?.[0]) || (data.y_max - data.y_min) || 0
-                },
+                boundingBox: normalizedBbox,
                 paperlessMapping: data.paperlessMapping || null,
                 isMandatory: data.isMandatory || false,
                 confidence: data.confidence || o.confidence || 0.5,

@@ -12,7 +12,7 @@
  * Overlay Data Format:
  * {
  *   label: "signature",
- *   box: [ymin, xmin, ymax, xmax],  // Coordinates 0-1000
+ *   box: [xmin, ymin, xmax, ymax],  // Coordinates 0-1000
  *   confidence: 0.95
  * }
  *

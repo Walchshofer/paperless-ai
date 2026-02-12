@@ -142,8 +142,8 @@ const normalizeBox = (box: unknown) => {
   }
 
   if (Array.isArray(box) && box.length === 4) {
-    const [ymin, xmin, ymax, xmax] = box.map(Number);
-    if ([ymin, xmin, ymax, xmax].every(Number.isFinite)) {
+    const [xmin, ymin, xmax, ymax] = box.map(Number);
+    if ([xmin, ymin, xmax, ymax].every(Number.isFinite)) {
       return {
         x: clamp01(xmin > 1 ? xmin / 1000 : xmin),
         y: clamp01(ymin > 1 ? ymin / 1000 : ymin),

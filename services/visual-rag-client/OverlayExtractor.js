@@ -19,11 +19,13 @@
  *     isMandatory: false,
  *     confidence: 0.92,
  *     pageNumber: 1,
- *     box: [800, 300, 830, 400]  // Legacy format for backwards compatibility
+ *     box: [300, 800, 400, 830]  // Legacy format [xmin, ymin, xmax, ymax]
  *   }
  * ]
  *
- * Coordinate System: 0-1000 range for both x and y (normalized)
+ * Coordinate System:
+ * - Legacy array `box`: [xmin, ymin, xmax, ymax] in 0-1000 range
+ * - Bounding boxes are normalized downstream to UI 0..1 coordinates
  */
 
 const axios = require('axios');
@@ -55,15 +57,15 @@ Elements to detect:
 
 For each detected element, provide:
 1. label: The element type (signature, date, total, iban, logo, stamp, table, handwriting)
-2. box: Bounding box coordinates as [ymin, xmin, ymax, xmax] in range 0-1000
+2. box: Bounding box coordinates as [xmin, ymin, xmax, ymax] in range 0-1000
 3. confidence: Detection confidence 0.0-1.0
 4. text: (optional) Any readable text within the element
 
 Output ONLY valid JSON array. Example:
 [
-  {"label": "signature", "box": [850, 600, 920, 950], "confidence": 0.95},
-  {"label": "date", "box": [50, 700, 80, 900], "confidence": 0.88, "text": "2024-01-15"},
-  {"label": "total", "box": [750, 400, 800, 600], "confidence": 0.92, "text": "€1,234.56"}
+  {"label": "signature", "box": [600, 850, 950, 920], "confidence": 0.95},
+  {"label": "date", "box": [700, 50, 900, 80], "confidence": 0.88, "text": "2024-01-15"},
+  {"label": "total", "box": [400, 750, 600, 800], "confidence": 0.92, "text": "€1,234.56"}
 ]
 
 If no elements are detected, output: []`;
@@ -317,8 +319,8 @@ class OverlayExtractor {
             return Math.min(1000, Math.max(0, Math.round(v)));
         });
 
-        // Extract coordinates: box = [ymin, xmin, ymax, xmax]
-        const [ymin, xmin, ymax, xmax] = box;
+        // Extract coordinates: box = [xmin, ymin, xmax, ymax]
+        const [xmin, ymin, xmax, ymax] = box;
 
         // Get label (preserve original casing for display)
         const displayLabel = overlay.label.trim();
