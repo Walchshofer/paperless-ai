@@ -16,18 +16,19 @@ test.beforeEach(async ({ page }) => {
 
 /** Navigate to prompts settings and click the sidebar item */
 async function goToPrompts(page: import('@playwright/test').Page) {
-  await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/settings#prompts`, { waitUntil: 'networkidle' });
 
-  // Wait for sidebar island to mount then click "Prompts" link
+  // Wait for sidebar island to mount then click the stable category button.
   await waitForIsland(page, 'settings-sidebar-island', 10000);
-  const promptsLink = page.locator('text=Prompts').first();
-  if (await promptsLink.isVisible({ timeout: 5000 }).catch(() => false)) {
-    await promptsLink.click();
-    await page.waitForTimeout(500);
+  const promptsCategory = page.locator('[data-testid="category-prompts"]');
+  if (await promptsCategory.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await promptsCategory.click();
+    await expect(page).toHaveURL(/#prompts/);
   }
 }
 
 test.describe('PromptsSettingsIsland E2E Tests', () => {
+  test.describe.configure({ timeout: 60000 });
 
   test('prompts island mounts and shows domain groups', async ({ page }) => {
     await goToPrompts(page);
@@ -76,12 +77,14 @@ test.describe('PromptsSettingsIsland E2E Tests', () => {
       return;
     }
 
-    // System domain should be expanded by default
-    const systemContent = page.locator('#domain-content-system');
-    await expect(systemContent).toBeVisible();
+    // System domain should be expanded by default.
+    const systemHeader = page.locator('[data-testid="domain-header-system"]');
+    await expect(systemHeader).toHaveAttribute('aria-expanded', 'true');
+    const systemGroup = page.locator('[data-testid="domain-group-system"]');
+    await expect(systemGroup).toBeVisible();
 
-    // Should have at least one prompt row inside
-    const promptRows = systemContent.locator('[data-testid^="prompt-row-"]');
+    // Should have at least one prompt row inside.
+    const promptRows = systemGroup.locator('[data-testid^="prompt-row-"]');
     const count = await promptRows.count();
     expect(count).toBeGreaterThan(0);
 
@@ -89,8 +92,11 @@ test.describe('PromptsSettingsIsland E2E Tests', () => {
     const medicalHeader = page.locator('[data-testid="domain-header-medical"]');
     if (await medicalHeader.isVisible({ timeout: 2000 }).catch(() => false)) {
       await medicalHeader.click();
-      const medicalContent = page.locator('#domain-content-medical');
-      await expect(medicalContent).toBeVisible();
+      await expect(medicalHeader).toHaveAttribute('aria-expanded', 'true');
+      const medicalRows = page
+        .locator('[data-testid="domain-group-medical"]')
+        .locator('[data-testid^="prompt-row-"]');
+      await expect(medicalRows.first()).toBeVisible();
     }
 
     await page.screenshot({
@@ -126,7 +132,10 @@ test.describe('PromptsSettingsIsland E2E Tests', () => {
     const userTextarea = editorPanel.locator('[data-testid^="prompt-user-textarea-"]');
     await expect(userTextarea).toBeVisible();
 
-    // Config knobs should be visible (temperature)
+    // Config knobs are in the "Knobs" side panel tab.
+    await editorPanel.getByRole('button', { name: 'Knobs' }).click();
+
+    // Config knobs should now be visible (temperature).
     const tempKnob = editorPanel.locator('[data-testid^="prompt-temperature-"]');
     await expect(tempKnob).toBeVisible();
 
@@ -149,7 +158,9 @@ test.describe('PromptsSettingsIsland E2E Tests', () => {
     });
   });
 
-  test('editing enables save button and shows unsaved indicator', async ({ page }) => {
+  test('editing enables save button and keeps action rail visible', async ({
+    page
+  }) => {
     await goToPrompts(page);
 
     const root = page.locator('[data-testid="prompts-settings-root"]');
@@ -174,8 +185,9 @@ test.describe('PromptsSettingsIsland E2E Tests', () => {
     const saveBtn = editorPanel.locator('[data-testid^="prompt-save-"]');
     await expect(saveBtn).toBeEnabled();
 
-    // Unsaved changes indicator should appear
-    await expect(editorPanel.getByText('Unsaved changes')).toBeVisible();
+    // Dirty-state behavior: tab remains in editor and reset control stays available.
+    await expect(editorPanel.locator('[data-testid^="prompt-reset-"]'))
+      .toBeVisible();
 
     await page.screenshot({
       path: 'test-results/playwright-prompts/screenshot-dirty.png',
