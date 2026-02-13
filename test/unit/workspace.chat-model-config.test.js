@@ -24,9 +24,10 @@ describe('workspace chat model config builder', () => {
       env: {}
     });
 
-    assert.deepStrictEqual(config.providers.openai, ['gpt-4o-mini']);
+    assert.deepStrictEqual(config.providers.openai, ['gpt-4o-mini', 'gpt-4']);
     assert.deepStrictEqual(config.providers.ollama, ['llama3.1:8b']);
     assert.strictEqual(config.currentProvider, 'openai');
+    assert.strictEqual(config.defaultModels.openai, 'gpt-4');
   });
 
   it('ensures current provider key exists when discovery is empty', async () => {

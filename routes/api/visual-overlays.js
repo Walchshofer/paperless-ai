@@ -217,10 +217,13 @@ router.get('/document/:documentId', async (req, res) => {
 
       return {
         id: String(o.id),
+        overlayId: String(o.id),
         label: data.label || o.semanticLabel || 'Unknown',
         pageNumber: o.pageNumber || data.pageNumber || 1,
         confidence: data.confidence || o.confidence || 0.5,
-        bbox
+        bbox,
+        paperlessMapping: data.paperlessMapping || data.fieldId || null,
+        paperlessField: data.paperlessField || data.paperlessMapping || data.fieldId || null
       };
     });
 

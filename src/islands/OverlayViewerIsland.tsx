@@ -326,6 +326,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const viewportRef = useRef(null as HTMLDivElement | null);
   const [scale, setScale] = useState(1);
   const scaleRef = useRef(1);
+  const [fitMode, setFitMode] = useState<'width' | 'height' | 'manual'>('width');
+  const fitModeRef = useRef<'width' | 'height' | 'manual'>('width');
   const [rotationDeg, setRotationDeg] = useState(0);
   const [panMode, setPanMode] = useState(false);
   const panActiveRef = useRef(false);
@@ -363,6 +365,10 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     setScale(clamped);
   }, []);
 
+  useEffect(() => {
+    fitModeRef.current = fitMode;
+  }, [fitMode]);
+
 
 
 
@@ -393,6 +399,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           const cx = bbox.x + bbox.width / 2;
           const cy = bbox.y + bbox.height / 2;
           
+          setFitMode('manual');
           applyScale(newScale);
           
           // Scroll to center the region
@@ -489,6 +496,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const fitToWidth = useCallback(() => {
     const next = getFitScale('width');
     if (next === null) return;
+    setFitMode('width');
     applyScale(next);
     if (containerRef.current) {
       containerRef.current.scrollLeft = 0;
@@ -499,6 +507,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const fitToHeight = useCallback(() => {
     const next = getFitScale('height');
     if (next === null) return;
+    setFitMode('height');
     applyScale(next);
     if (containerRef.current) {
       containerRef.current.scrollLeft = 0;
@@ -525,6 +534,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   }, []);
 
   const resetView = useCallback(() => {
+    setFitMode('manual');
     applyScale(1);
     if (containerRef.current) {
       containerRef.current.scrollLeft = 0;
@@ -533,8 +543,14 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     setRotationDeg(0);
   }, [applyScale]);
 
-  const zoomIn = useCallback(() => applyScale(scaleRef.current + SCALE_STEP), [applyScale]);
-  const zoomOut = useCallback(() => applyScale(scaleRef.current - SCALE_STEP), [applyScale]);
+  const zoomIn = useCallback(() => {
+    setFitMode('manual');
+    applyScale(scaleRef.current + SCALE_STEP);
+  }, [applyScale]);
+  const zoomOut = useCallback(() => {
+    setFitMode('manual');
+    applyScale(scaleRef.current - SCALE_STEP);
+  }, [applyScale]);
 
   const handleWheel = useCallback((e: WheelEvent) => {
     if (!viewportRef.current || !containerRef.current || imageDimensions.width === 0) return;
@@ -555,6 +571,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     const docX = (mouseX + container.scrollLeft) / s;
     const docY = (mouseY + container.scrollTop) / s;
 
+    setFitMode('manual');
     applyScale(nextS);
 
     // Adjust scroll to keep the same document point under the mouse
@@ -735,6 +752,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
               scaleRef.current = fitScale;
               setScale(fitScale);
+              setFitMode('width');
               if (containerRef.current) {
                 containerRef.current.scrollLeft = 0;
                 containerRef.current.scrollTop = 0;
@@ -763,6 +781,64 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       img.onerror = null;
     };
   }, [imageUrl, imageSource, originalUrlWithPage, retryCount]);
+
+  // Keep overlays aligned when the viewer pane resizes (sidebar drag, split view,
+  // viewport changes). If user selected fit-width/fit-height, recompute scale.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    if (imageDimensions.width <= 0 || imageDimensions.height <= 0) return;
+
+    const refreshFitScale = () => {
+      const mode = fitModeRef.current;
+      if (mode === 'manual') return;
+      const axis = mode === 'height' ? 'height' : 'width';
+      const next = getFitScale(axis);
+      if (next === null) return;
+
+      const oldScale = scaleRef.current || 1;
+      const currentWidth = container.clientWidth;
+      const currentHeight = container.clientHeight;
+      if (currentWidth <= 0 || currentHeight <= 0) return;
+      const centerX = (container.scrollLeft + currentWidth / 2) / oldScale;
+      const centerY = (container.scrollTop + currentHeight / 2) / oldScale;
+
+      applyScale(next);
+      requestAnimationFrame(() => {
+        const active = containerRef.current;
+        if (!active) return;
+        active.scrollLeft = Math.max(
+          0,
+          (centerX * next) - (active.clientWidth / 2)
+        );
+        active.scrollTop = Math.max(
+          0,
+          (centerY * next) - (active.clientHeight / 2)
+        );
+      });
+    };
+
+    let frame = 0;
+    const schedule = () => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(refreshFitScale);
+    };
+
+    if (typeof window !== 'undefined' && 'ResizeObserver' in window) {
+      const observer = new window.ResizeObserver(() => schedule());
+      observer.observe(container);
+      return () => {
+        if (frame) cancelAnimationFrame(frame);
+        observer.disconnect();
+      };
+    }
+
+    window.addEventListener('resize', schedule);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener('resize', schedule);
+    };
+  }, [applyScale, getFitScale, imageDimensions.height, imageDimensions.width]);
 
   // Retry handler - resets to normalized and increments retry count
   const handleRetry = useCallback(() => {

@@ -9,7 +9,8 @@ const ManualDocumentSchema = z.object({
 const ModelConfigSchema = z.object({
   providers: z.record(z.array(z.string())).optional().default({}),
   expertModels: z.array(z.object({ model: z.string(), label: z.string().optional(), category: z.string().optional() })).optional().default([]),
-  currentProvider: z.string().optional()
+  currentProvider: z.string().optional(),
+  defaultModels: z.record(z.string()).optional().default({})
 });
 
 const TextRagStatusSchema = z.object({
@@ -28,6 +29,7 @@ const UnifiedWorkspaceSchema = z.object({
     content: z.string().nullable(),
     correspondent: z.string().nullable(),
     correspondentId: z.coerce.number().int().nullable(),
+    createdDate: z.string().nullable().optional(),
     documentType: z.string().nullable(),
     documentTypeId: z.coerce.number().int().nullable(),
     documentDomain: z.string().nullable().optional(),
@@ -75,6 +77,8 @@ const UnifiedWorkspaceSchema = z.object({
     mimeType: z.string().nullable(),
     originalUrl: z.string().nullable(),
     normalizedUrl: z.string().nullable(),
+    persistedNormalizedUrl: z.string().nullable().optional(),
+    normalizationStatus: z.enum(['pending', 'processing', 'completed', 'failed', 'skipped']).nullable().optional(),
     status: z.enum(['saved', 'unsaved', 'processing', 'error']).default('saved'),
   }).nullable(),
   
@@ -102,6 +106,21 @@ const UnifiedWorkspaceSchema = z.object({
       isMandatory: z.boolean().default(false),
       pageNumber: z.coerce.number().int().default(1),
     })).default([]),
+    overlays: z.array(z.object({
+      id: z.string().optional(),
+      label: z.string().optional(),
+      pageNumber: z.coerce.number().int().default(1),
+      confidence: z.coerce.number().optional().default(0.5),
+      bbox: z.object({
+        x: z.coerce.number(),
+        y: z.coerce.number(),
+        width: z.coerce.number(),
+        height: z.coerce.number(),
+      }),
+      paperlessMapping: z.string().nullable().optional(),
+      paperlessField: z.string().nullable().optional(),
+      overlayId: z.string().nullable().optional(),
+    })).optional().default([]),
     overlayCount: z.coerce.number().int().default(0),
   }),
 

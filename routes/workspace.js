@@ -59,6 +59,42 @@ async function buildChatModelConfig(options = {}) {
     providers[currentProvider] = [];
   }
 
+  const defaultModels = {
+    ollama: String(
+      runtimeConfig?.ollama?.model || env.OLLAMA_MODEL || ''
+    ).trim(),
+    openai: String(
+      env.PAPERLESS_OPENAI_MODEL ||
+      env.OPENAI_MODEL ||
+      runtimeConfig?.openai?.model ||
+      'gpt-4'
+    ).trim(),
+    azure: String(
+      runtimeConfig?.azure?.deploymentName ||
+      env.AZURE_DEPLOYMENT_NAME ||
+      ''
+    ).trim(),
+    custom: String(
+      runtimeConfig?.custom?.model || env.CUSTOM_MODEL || ''
+    ).trim(),
+  };
+
+  Object.entries(defaultModels).forEach(([providerName, defaultModel]) => {
+    const current = Array.isArray(providers[providerName])
+      ? providers[providerName]
+      : [];
+
+    if (!defaultModel) {
+      providers[providerName] = current.filter(Boolean);
+      return;
+    }
+
+    const merged = Array.from(
+      new Set([...current.filter(Boolean), defaultModel])
+    );
+    providers[providerName] = merged;
+  });
+
   let expertModels = [];
   try {
     const rawExperts = resolver.getExpertModels();
@@ -91,8 +127,36 @@ async function buildChatModelConfig(options = {}) {
   return {
     providers,
     expertModels,
-    currentProvider
+    currentProvider,
+    defaultModels
   };
+}
+
+function normalizeWorkspaceDate(rawDate) {
+  if (!rawDate) return '';
+  const raw = String(rawDate).trim();
+  if (!raw) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const isoMatch = raw.match(/^(\d{4}-\d{2}-\d{2})[T\s].*$/);
+  if (isoMatch) return isoMatch[1];
+  const parts = raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+  if (parts) {
+    const day = Number(parts[1]);
+    const month = Number(parts[2]);
+    let year = Number(parts[3]);
+    if (year < 100) year += year < 70 ? 2000 : 1900;
+    if (
+      Number.isFinite(day) &&
+      Number.isFinite(month) &&
+      month >= 1 &&
+      month <= 12 &&
+      day >= 1 &&
+      day <= 31
+    ) {
+      return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+  return '';
 }
 
 /**
@@ -277,6 +341,12 @@ router.get('/doc/:id', async (req, res) => {
         overlayCount = overlays.length;
         visualFields = overlays.map(o => {
           const data = o.overlayData || {};
+          const bbox = normalizeOverlayBoundingBox(data) || {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0
+          };
           return {
             id: String(o.id),
             overlayId: String(o.id),
@@ -289,7 +359,8 @@ router.get('/doc/:id', async (req, res) => {
             mappingConfidence: data.mappingConfidence ?? null,
             matchType: data.matchType || null,
             isMandatory: data.isMandatory || false,
-            pageNumber: o.pageNumber || 1
+            pageNumber: o.pageNumber || 1,
+            bbox
           };
         });
         // Format overlays for Visual Tab (with bbox)
@@ -303,10 +374,13 @@ router.get('/doc/:id', async (req, res) => {
           };
           return {
             id: String(o.id),
+            overlayId: String(o.id),
             label: data.label || o.semanticLabel || 'Unknown',
             pageNumber: o.pageNumber || data.pageNumber || 1,
             confidence: data.confidence || o.confidence || 0.5,
-            bbox
+            bbox,
+            paperlessMapping: data.paperlessMapping || null,
+            paperlessField: data.paperlessField || data.paperlessMapping || null
           };
         });
       } catch (e) {
@@ -366,6 +440,9 @@ router.get('/doc/:id', async (req, res) => {
         content: content,
         correspondent: correspondentName,
         correspondentId: document.correspondent || null,
+        createdDate: normalizeWorkspaceDate(
+          document.created || document.created_date || document.createdDate
+        ),
         documentType: documentTypeName,
         documentTypeId: document.document_type || null,
         documentDomain: documentDomain,
@@ -554,17 +631,121 @@ router.get('/api/doc/:id', async (req, res) => {
     const persistedNormalizedUrl = getCustomField('ai_normalized_url');
     const normalizationStatus = getCustomField('ai_normalization_status') || 'pending';
 
+    const content = await paperlessService
+      .getDocumentContent(documentId)
+      .catch(() => '');
+
+    let documentDomain = 'general';
+    try {
+      documentDomain = await domainResolver.resolveDomain(documentId, {
+        documentType: documentTypeName,
+        tags: tagNames,
+        content
+      });
+    } catch (e) { /* ignore */ }
+
+    const domainMapping = fieldMappingService.domainMappings?.[documentDomain] || {};
+    const fieldProfile = {
+      domain: documentDomain,
+      displayName: domainMapping.displayName?.en || `${documentDomain} document`,
+      icon: domainMapping.icon || '📄',
+      requiredFields: fieldMappingService
+        .getRequiredFields(documentDomain)
+        .map(field => ({
+          fieldId: field.fieldId,
+          label: field.displayName?.en || field.fieldId,
+          paperlessField: field.paperlessField || null,
+          type: field.type,
+          enum: Array.isArray(field.enum) ? field.enum : undefined,
+          validationRules: field.validationRules || {},
+          isMandatory: true
+        })),
+      optionalFields: fieldMappingService
+        .getOptionalFields(documentDomain)
+        .map(field => ({
+          fieldId: field.fieldId,
+          label: field.displayName?.en || field.fieldId,
+          paperlessField: field.paperlessField || null,
+          type: field.type,
+          enum: Array.isArray(field.enum) ? field.enum : undefined,
+          validationRules: field.validationRules || {},
+          isMandatory: false
+        }))
+    };
+
+    let visualFields = [];
+    let formattedOverlays = [];
+    let overlayCount = 0;
+    if (visualOverlayRepository) {
+      try {
+        const overlays = await visualOverlayRepository.getByDocId(documentId);
+        overlayCount = overlays.length;
+        visualFields = overlays.map(o => {
+          const data = o.overlayData || {};
+          const bbox = normalizeOverlayBoundingBox(data) || {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0
+          };
+          return {
+            id: String(o.id),
+            overlayId: String(o.id),
+            label: data.label || o.semanticLabel || 'Unknown',
+            value: data.value || data.text || null,
+            domain: data.domain || 'GENERAL',
+            confidence: data.confidence || o.confidence || 0.5,
+            paperlessMapping: data.paperlessMapping || null,
+            paperlessField: data.paperlessField || data.paperlessMapping || null,
+            mappingConfidence: data.mappingConfidence ?? null,
+            matchType: data.matchType || null,
+            isMandatory: data.isMandatory || false,
+            pageNumber: o.pageNumber || 1,
+            bbox
+          };
+        });
+        formattedOverlays = overlays.map(o => {
+          const data = o.overlayData || {};
+          const bbox = normalizeOverlayBoundingBox(data) || {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0
+          };
+          return {
+            id: String(o.id),
+            overlayId: String(o.id),
+            label: data.label || o.semanticLabel || 'Unknown',
+            pageNumber: o.pageNumber || data.pageNumber || 1,
+            confidence: data.confidence || o.confidence || 0.5,
+            bbox,
+            paperlessMapping: data.paperlessMapping || null,
+            paperlessField: data.paperlessField || data.paperlessMapping || null
+          };
+        });
+      } catch (e) { /* ignore */ }
+    }
+
     // Build response
     res.json({
       id: document.id,
       title: document.title,
+      content,
       correspondent: correspondentName,
       correspondentId: document.correspondent || null,
+      createdDate: normalizeWorkspaceDate(
+        document.created || document.created_date || document.createdDate
+      ),
       documentType: documentTypeName,
       documentTypeId: document.document_type || null,
+      documentDomain,
+      fieldProfile,
       tags: tagNames,
       tagItems,
       availableTags,
+      customFields: Array.isArray(document.custom_fields)
+        ? document.custom_fields
+        : [],
       pageCount: document.page_count || 1,
       mimeType: document.mime_type,
       originalUrl: buildPaperlessProxyUrl(
@@ -575,6 +756,11 @@ router.get('/api/doc/:id', async (req, res) => {
       persistedNormalizedUrl: persistedNormalizedUrl,
       normalizationStatus: normalizationStatus,
       normalizedUrl: persistedNormalizedUrl || `/api/normalized/${document.id}/1`,
+      visual: {
+        fields: visualFields,
+        overlays: formattedOverlays,
+        overlayCount
+      }
     });
 
   } catch (error) {

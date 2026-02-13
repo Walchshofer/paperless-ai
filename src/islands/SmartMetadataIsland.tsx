@@ -151,6 +151,77 @@ function isEmptyValue(value?: unknown): boolean {
   return false;
 }
 
+function normalizeDateInput(value?: unknown): string {
+  if (value === undefined || value === null) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+  const isoLike = raw.match(/^(\d{4})-(\d{2})-(\d{2})[T\s].*$/);
+  if (isoLike) {
+    return `${isoLike[1]}-${isoLike[2]}-${isoLike[3]}`;
+  }
+
+  const parts = raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+  if (parts) {
+    const first = Number(parts[1]);
+    const second = Number(parts[2]);
+    let year = Number(parts[3]);
+    if (year < 100) {
+      year += year < 70 ? 2000 : 1900;
+    }
+    if (!Number.isFinite(first) || !Number.isFinite(second)) return '';
+
+    const looksLikeMdy = first <= 12 && second > 12;
+    const month = looksLikeMdy ? first : second;
+    const day = looksLikeMdy ? second : first;
+    if (month < 1 || month > 12 || day < 1 || day > 31) return '';
+    return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return '';
+  const yyyy = parsed.getUTCFullYear();
+  const mm = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(parsed.getUTCDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function extractAiMetadataPrefill(
+  visualFields?: SmartField[]
+): { title: string; correspondent: string; createdDate: string } {
+  const defaults = { title: '', correspondent: '', createdDate: '' };
+  if (!Array.isArray(visualFields) || visualFields.length === 0) {
+    return defaults;
+  }
+
+  for (const field of visualFields) {
+    const key = normalizePaperlessKey(
+      field.paperlessField || field.paperlessMapping || ''
+    );
+    if (!key) continue;
+    const value = stringifyValue(field.value);
+    if (isEmptyValue(value)) continue;
+
+    if (!defaults.title && key === 'metadata:title') {
+      defaults.title = value;
+      continue;
+    }
+    if (!defaults.correspondent && key === 'metadata:correspondent') {
+      defaults.correspondent = value;
+      continue;
+    }
+    if (
+      !defaults.createdDate &&
+      (key === 'metadata:document_date' || key === 'metadata:date')
+    ) {
+      defaults.createdDate = normalizeDateInput(value);
+    }
+  }
+
+  return defaults;
+}
+
 function toTestId(value: string | number): string {
   return String(value).toLowerCase().replace(/[^a-z0-9-]+/g, '-');
 }
@@ -166,11 +237,14 @@ function resolveMatchLabel(matchType?: MatchType | null): string {
 }
 
 export default function SmartMetadataIsland(props: Partial<SmartMetadataContract & { documentId?: DocumentId; saveDelayMs?: number }>) {
+  const aiMetadataPrefill = extractAiMetadataPrefill(props.visualFields);
   const [currentDocumentId, setCurrentDocumentId] = useState(props.documentId ?? null);
   const [localMetadata, setLocalMetadata] = useState({
-    title: props.metadata?.title || '',
-    correspondent: props.metadata?.correspondent || '',
-    createdDate: props.metadata?.createdDate || ''
+    title: props.metadata?.title || aiMetadataPrefill.title || '',
+    correspondent: props.metadata?.correspondent || aiMetadataPrefill.correspondent || '',
+    createdDate: normalizeDateInput(
+      props.metadata?.createdDate || aiMetadataPrefill.createdDate
+    )
   } as { title: string; correspondent: string; createdDate: string });
 
   const [localTags, setLocalTags] = useState(() => (
@@ -186,11 +260,14 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
 
   // Sync state when props change (initial load and switches)
   useEffect(() => {
+    const nextPrefill = extractAiMetadataPrefill(props.visualFields);
     if (props.documentId !== undefined) setCurrentDocumentId(props.documentId);
     setLocalMetadata({
-      title: props.metadata?.title || '',
-      correspondent: props.metadata?.correspondent || '',
-      createdDate: props.metadata?.createdDate || ''
+      title: props.metadata?.title || nextPrefill.title || '',
+      correspondent: props.metadata?.correspondent || nextPrefill.correspondent || '',
+      createdDate: normalizeDateInput(
+        props.metadata?.createdDate || nextPrefill.createdDate
+      )
     });
     setLocalTags(Array.isArray(props.selectedTags)
       ? props.selectedTags.map((t: SmartTag) => ({ ...t }))
@@ -485,11 +562,45 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
         isAiGenerated: true
       })) as SmartField[];
 
+    const metadataCandidates = new Map<string, string>();
+    normalized.forEach((field) => {
+      const key = normalizePaperlessKey(field.paperlessField || field.paperlessMapping || '');
+      if (!key.startsWith('metadata:')) return;
+      const value = stringifyValue(field.value);
+      if (isEmptyValue(value)) return;
+      metadataCandidates.set(key, value);
+    });
+
+    const nextMetadata = { ...localMetadata };
+    let metadataUpdated = false;
+
+    const aiTitle = metadataCandidates.get('metadata:title');
+    if (!nextMetadata.title && aiTitle) {
+      nextMetadata.title = aiTitle;
+      metadataUpdated = true;
+    }
+    const aiCorrespondent = metadataCandidates.get('metadata:correspondent');
+    if (!nextMetadata.correspondent && aiCorrespondent) {
+      nextMetadata.correspondent = aiCorrespondent;
+      metadataUpdated = true;
+    }
+    const aiDate = normalizeDateInput(
+      metadataCandidates.get('metadata:document_date') ||
+      metadataCandidates.get('metadata:date')
+    );
+    if (!nextMetadata.createdDate && aiDate) {
+      nextMetadata.createdDate = aiDate;
+      metadataUpdated = true;
+    }
+
     setRequiredMetadataKeys(requiredMetadata);
     setRequiredFields(nextRequired);
     setOptionalFields(nextOptional);
     setMappedVisualFields(remainingVisual);
-    runValidation(localMetadata, nextRequired, nextOptional);
+    if (metadataUpdated) {
+      setLocalMetadata(nextMetadata);
+    }
+    runValidation(metadataUpdated ? nextMetadata : localMetadata, nextRequired, nextOptional);
   };
 
   useEffect(() => {
@@ -516,7 +627,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
         setLocalMetadata({
           title: document?.title || '',
           correspondent: document?.correspondent || '',
-          createdDate: document?.createdDate || ''
+          createdDate: normalizeDateInput(document?.createdDate)
         });
         setLocalTags(Array.isArray(document?.tagItems)
           ? document.tagItems.map((t: SmartTag) => ({ ...t }))

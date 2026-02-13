@@ -13,6 +13,7 @@ export const UnifiedWorkspaceSchema = z.object({
     content: z.string().nullable(),
     correspondent: z.string().nullable(),
     correspondentId: z.number().int().nullable(),
+    createdDate: z.string().nullable().optional(),
     documentType: z.string().nullable(),
     documentTypeId: z.number().int().nullable(),
     documentDomain: z.string().nullable().optional(),
@@ -97,6 +98,21 @@ export const UnifiedWorkspaceSchema = z.object({
       isMandatory: z.boolean(),
       pageNumber: z.number().int(),
     })).default([]),
+    overlays: z.array(z.object({
+      id: z.string().optional(),
+      label: z.string().optional(),
+      pageNumber: z.number().int(),
+      confidence: z.number().optional(),
+      bbox: z.object({
+        x: z.number(),
+        y: z.number(),
+        width: z.number(),
+        height: z.number()
+      }),
+      paperlessMapping: z.string().nullable().optional(),
+      paperlessField: z.string().nullable().optional(),
+      overlayId: z.string().nullable().optional()
+    })).optional().default([]),
     overlayCount: z.number().int().default(0),
   }),
 

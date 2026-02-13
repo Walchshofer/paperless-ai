@@ -17,6 +17,15 @@ const configFile = require('../../config/config');
 
 // Environment file path
 const ENV_FILE_PATH = path.join(__dirname, '../../data/runtime.env');
+const TRUTHY_VALUES = new Set(['1', 'true', 'yes', 'on']);
+
+function isEnabled(value, fallback = false) {
+    if (value === undefined || value === null || value === '') {
+        return fallback;
+    }
+
+    return TRUTHY_VALUES.has(String(value).trim().toLowerCase());
+}
 
 /**
  * GET /api/settings/config
@@ -377,17 +386,35 @@ router.post('/save', express.json(), authenticateApi, requireAdmin, async (req, 
              'MAX_VISION_PAGES', 'PAPERLESS_OPENAI_MODEL', 'CUSTOM_MODEL', 'AZURE_DEPLOYMENT_NAME', 'AZURE_API_VERSION'].includes(key)
         );
 
-        res.json({
-            success: true,
-            message: restartRequired ? 'Settings saved. Restarting...' : 'Settings saved.',
-            restartRequired
-        });
+        const autoRestartEnabled = isEnabled(
+            process.env.SETTINGS_AUTO_RESTART_ENABLED,
+            false
+        );
 
-        if (restartRequired) {
-            logger.info('[Settings API] Restarting server due to configuration change...');
+        const message = restartRequired
+            ? autoRestartEnabled
+                ? 'Settings saved. Restart scheduled.'
+                : 'Settings saved. Restart required to apply changes.'
+            : 'Settings saved.';
+
+        res.json({ success: true, message, restartRequired });
+
+        if (restartRequired && autoRestartEnabled) {
+            logger.info(
+                '[Settings API] Auto-restart enabled. Restarting due to config '
+                + 'change...'
+            );
             setTimeout(() => {
                 process.exit(0);
             }, 1000);
+            return;
+        }
+
+        if (restartRequired) {
+            logger.info(
+                '[Settings API] Restart required; deferred to explicit '
+                + '/api/settings/restart request.'
+            );
         }
     } catch (error) {
         logger.error('[Settings API] Save failed:', error);

@@ -1,0 +1,14 @@
+NAME                   CPU %     MEM USAGE / LIMIT     MEM %
+paperless_ai           0.28%     154.5MiB / 47.05GiB   0.32%
+guidance_service       0.03%     440.6MiB / 47.05GiB   0.91%
+paperless_grafana      0.31%     86.73MiB / 47.05GiB   0.18%
+paperless_webserver    0.06%     721.9MiB / 47.05GiB   1.50%
+text_rag               0.18%     1.353GiB / 47.05GiB   2.88%
+visual_rag             0.41%     2.527GiB / 47.05GiB   5.37%
+bias_engine            0.25%     450.3MiB / 47.05GiB   0.93%
+paperless_prometheus   0.17%     42.64MiB / 47.05GiB   0.09%
+paperless_db           0.00%     49.25MiB / 47.05GiB   0.10%
+paperless_broker       0.24%     10.69MiB / 47.05GiB   0.02%
+paperless_qdrant       0.19%     104.6MiB / 47.05GiB   0.22%
+paperless_gotenberg    0.06%     9.578MiB / 47.05GiB   0.02%
+paperless_tika         0.20%     259.6MiB / 47.05GiB   0.54%

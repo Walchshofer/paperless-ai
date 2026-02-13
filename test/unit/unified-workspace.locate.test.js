@@ -95,6 +95,41 @@ describe('UnifiedWorkspaceIsland - metadata:locate-field', () => {
     }, 0);
   });
 
+  it('matches locate IDs across mapping prefixes and casing', (done) => {
+    const visual = {
+      overlays: [
+        {
+          id: 'ov2',
+          bbox: { x: 0.25, y: 0.3, width: 0.2, height: 0.06 },
+          pageNumber: 3,
+          paperlessMapping: 'invoice_number'
+        }
+      ],
+      fields: []
+    };
+
+    ensureDom();
+    render(h(UnifiedWorkspaceIsland, { visual }));
+
+    window.addEventListener('overlay:highlight-region', function handler(e) {
+      try {
+        const d = e.detail;
+        assert.deepStrictEqual(d.bbox, visual.overlays[0].bbox);
+        assert.strictEqual(d.page, 3);
+        window.removeEventListener('overlay:highlight-region', handler);
+        done();
+      } catch (err) { done(err); }
+    });
+
+    setTimeout(() => {
+      window.dispatchEvent(
+        new window.CustomEvent('metadata:locate-field', {
+          detail: { fieldId: 'custom_field:Invoice Number' }
+        })
+      );
+    }, 0);
+  });
+
   it('emits handled:false when no mapping found', async () => {
     const visual = { overlays: [], fields: [] };
     ensureDom();

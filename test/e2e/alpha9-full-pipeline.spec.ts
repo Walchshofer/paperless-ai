@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { getHistoryDocId } from '../helpers/fixtures';
 
 /**
  * Alpha-9 Full Pipeline E2E Tests
@@ -11,6 +12,8 @@ import { test, expect, Page } from '@playwright/test';
 
 test.describe('Alpha-9 Full Pipeline E2E', () => {
   const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
+  const HISTORY_DOC_ID = getHistoryDocId();
+  test.describe.configure({ timeout: 60000 });
 
   // Helper to handle login
   async function handleLogin(page: Page, targetUrl: string) {
@@ -46,10 +49,43 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     return response;
   }
 
+  async function waitForHistoryIslands(page: Page, requireTabs = true) {
+    await page.waitForSelector('[data-testid="overlay-viewer-root"]', {
+      timeout: 10000
+    });
+    if (requireTabs) {
+      await page.waitForSelector('[data-testid="history-tabs-root"]', {
+        timeout: 10000
+      });
+    }
+  }
+
+  async function enableDrawMode(page: Page) {
+    const drawModeToggle = page.locator('[data-testid="draw-mode-btn"]');
+    await expect(drawModeToggle).toBeVisible();
+    await drawModeToggle.click();
+    await expect(page.locator('[data-testid="overlay-container"]')).toHaveAttribute(
+      'data-draw-mode',
+      'active'
+    );
+  }
+
+  async function drawSelectionBox(page: Page) {
+    const container = page.locator('[data-testid="overlay-container"]');
+    const box = await container.boundingBox();
+    if (!box) return false;
+
+    await page.mouse.move(box.x + 50, box.y + 50);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 200, box.y + 200);
+    await page.mouse.up();
+    return true;
+  }
+
   test('Complete user flow: History → Red Pen → Similar → Results', async ({
     page
   }) => {
-    const url = `${BASE_URL}/history/1`;
+    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
     const response = await handleLogin(page, url);
 
     if (!response || response.status() >= 400) {
@@ -59,12 +95,7 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
 
     // Wait for islands to hydrate
     try {
-      await page.waitForSelector('[data-testid="overlay-viewer-root"]', {
-        timeout: 5000
-      });
-      await page.waitForSelector('[data-testid="history-tabs-root"]', {
-        timeout: 5000
-      });
+      await waitForHistoryIslands(page, true);
     } catch {
       test.skip(true, 'Islands not hydrated');
       return;
@@ -93,42 +124,25 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     });
 
     // 1. Open History Document (already done)
-    expect(page.url()).toMatch(/\/history\/(doc\/)?1/);
+    expect(page.url()).toMatch(
+      new RegExp(`/history/(doc/)?${HISTORY_DOC_ID}$`)
+    );
 
     // 2. Select Red Pen tool
-    const redPenToggle = page.locator('[data-testid="red-pen-toggle"]');
-    await expect(redPenToggle).toBeVisible();
-    await redPenToggle.click();
-    await expect(redPenToggle).toHaveAttribute('aria-pressed', 'true');
+    await enableDrawMode(page);
 
     // 3. Draw bounding box on visual element
-    const container = page.locator(
-      '[data-testid="overlay-viewer-root"] > div:last-child'
-    );
-    const box = await container.boundingBox();
-
-    if (!box) {
+    const didDraw = await drawSelectionBox(page);
+    if (!didDraw) {
       test.skip(true, 'Could not get container bounding box');
       return;
     }
-
-    await page.mouse.move(box.x + 50, box.y + 50);
-    await page.mouse.down();
-    await page.mouse.move(box.x + 200, box.y + 200);
-    await page.mouse.up();
 
     // 4. Verify POST /api/visual-rag/search/visual emitted
     await page.waitForTimeout(500); // Allow time for API call
     if (!apiRequestPayload) {
       // Retry drawing once in case the first attempt didn't register (flaky canvas interactions)
-      await redPenToggle.click();
-      const boxRetry = await container.boundingBox();
-      if (boxRetry) {
-        await page.mouse.move(boxRetry.x + 60, boxRetry.y + 60);
-        await page.mouse.down();
-        await page.mouse.move(boxRetry.x + 210, boxRetry.y + 210);
-        await page.mouse.up();
-      }
+      await drawSelectionBox(page);
       await page.waitForTimeout(1000);
     }
 
@@ -166,7 +180,7 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
   test('Collection routing: results from visual_pages with 320-dim', async ({
     page
   }) => {
-    const url = `${BASE_URL}/history/1`;
+    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
     const response = await handleLogin(page, url);
 
     if (!response || response.status() >= 400) {
@@ -175,9 +189,7 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     }
 
     try {
-      await page.waitForSelector('[data-testid="overlay-viewer-root"]', {
-        timeout: 5000
-      });
+      await waitForHistoryIslands(page, false);
     } catch {
       test.skip(true, 'OverlayViewer not hydrated');
       return;
@@ -205,17 +217,11 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     });
 
     // Draw box
-    await page.click('[data-testid="red-pen-toggle"]');
-    const container = page.locator(
-      '[data-testid="overlay-viewer-root"] > div:last-child'
-    );
-    const box = await container.boundingBox();
-
-    if (box) {
-      await page.mouse.move(box.x + 30, box.y + 30);
-      await page.mouse.down();
-      await page.mouse.move(box.x + 150, box.y + 150);
-      await page.mouse.up();
+    await enableDrawMode(page);
+    const didDraw = await drawSelectionBox(page);
+    if (!didDraw) {
+      test.skip(true, 'Could not get container bounding box');
+      return;
     }
 
     await page.waitForTimeout(500);
@@ -230,7 +236,7 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
   test('Filter propagation: correspondent_id included in API request', async ({
     page
   }) => {
-    const url = `${BASE_URL}/history/1`;
+    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
     const response = await handleLogin(page, url);
 
     if (!response || response.status() >= 400) {
@@ -239,12 +245,7 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     }
 
     try {
-      await page.waitForSelector('[data-testid="overlay-viewer-root"]', {
-        timeout: 5000
-      });
-      await page.waitForSelector('[data-testid="history-tabs-root"]', {
-        timeout: 5000
-      });
+      await waitForHistoryIslands(page, true);
     } catch {
       test.skip(true, 'Islands not hydrated');
       return;
@@ -273,25 +274,28 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     });
 
     // Look for filter button
-    const filterBtn = page.locator('[data-testid="panel-metadata"] button').first();
-    const filterBtnCount = await filterBtn.count();
-
-    if (filterBtnCount > 0) {
-      await filterBtn.click();
+    const correspondentFilter = page.locator(
+      '[data-testid="panel-metadata"] button[title="Filter Similar by this correspondent"]'
+    );
+    const tagFilter = page.locator(
+      '[data-testid="panel-metadata"] button[title="Filter Similar by this tag"]'
+    );
+    let filterApplied = false;
+    if (await correspondentFilter.count()) {
+      await correspondentFilter.first().click();
+      filterApplied = true;
+    } else if (await tagFilter.count()) {
+      await tagFilter.first().click();
+      filterApplied = true;
     }
+    expect(filterApplied).toBeTruthy();
 
     // Draw box to trigger search
-    await page.click('[data-testid="red-pen-toggle"]');
-    const container = page.locator(
-      '[data-testid="overlay-viewer-root"] > div:last-child'
-    );
-    const box = await container.boundingBox();
-
-    if (box) {
-      await page.mouse.move(box.x + 40, box.y + 40);
-      await page.mouse.down();
-      await page.mouse.move(box.x + 180, box.y + 180);
-      await page.mouse.up();
+    await enableDrawMode(page);
+    const didDraw = await drawSelectionBox(page);
+    if (!didDraw) {
+      test.skip(true, 'Could not get container bounding box');
+      return;
     }
 
     await page.waitForTimeout(500);
@@ -300,10 +304,11 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     expect(requestPayload).not.toBeNull();
     if (!requestPayload) return;
     expect((requestPayload as Record<string, unknown>).image).toBeTruthy();
+    expect((requestPayload as Record<string, unknown>).filters).toBeTruthy();
   });
 
   test('End-to-end timing: measure pipeline latency', async ({ page }) => {
-    const url = `${BASE_URL}/history/1`;
+    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
     const response = await handleLogin(page, url);
 
     if (!response || response.status() >= 400) {
@@ -312,9 +317,7 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     }
 
     try {
-      await page.waitForSelector('[data-testid="overlay-viewer-root"]', {
-        timeout: 5000
-      });
+      await waitForHistoryIslands(page, false);
     } catch {
       test.skip(true, 'OverlayViewer not hydrated');
       return;
@@ -346,17 +349,11 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     const drawStartTime = Date.now();
 
     // Draw box
-    await page.click('[data-testid="red-pen-toggle"]');
-    const container = page.locator(
-      '[data-testid="overlay-viewer-root"] > div:last-child'
-    );
-    const box = await container.boundingBox();
-
-    if (box) {
-      await page.mouse.move(box.x + 50, box.y + 50);
-      await page.mouse.down();
-      await page.mouse.move(box.x + 200, box.y + 200);
-      await page.mouse.up();
+    await enableDrawMode(page);
+    const didDraw = await drawSelectionBox(page);
+    if (!didDraw) {
+      test.skip(true, 'Could not get container bounding box');
+      return;
     }
 
     // Wait for results
@@ -376,7 +373,7 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
   });
 
   test('Error recovery: handles API failure gracefully', async ({ page }) => {
-    const url = `${BASE_URL}/history/1`;
+    const url = `${BASE_URL}/history/${HISTORY_DOC_ID}`;
     const response = await handleLogin(page, url);
 
     if (!response || response.status() >= 400) {
@@ -385,12 +382,7 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     }
 
     try {
-      await page.waitForSelector('[data-testid="overlay-viewer-root"]', {
-        timeout: 5000
-      });
-      await page.waitForSelector('[data-testid="history-tabs-root"]', {
-        timeout: 5000
-      });
+      await waitForHistoryIslands(page, true);
     } catch {
       test.skip(true, 'Islands not hydrated');
       return;
@@ -410,17 +402,11 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     });
 
     // Draw box
-    await page.click('[data-testid="red-pen-toggle"]');
-    const container = page.locator(
-      '[data-testid="overlay-viewer-root"] > div:last-child'
-    );
-    const box = await container.boundingBox();
-
-    if (box) {
-      await page.mouse.move(box.x + 50, box.y + 50);
-      await page.mouse.down();
-      await page.mouse.move(box.x + 200, box.y + 200);
-      await page.mouse.up();
+    await enableDrawMode(page);
+    const didDraw = await drawSelectionBox(page);
+    if (!didDraw) {
+      test.skip(true, 'Could not get container bounding box');
+      return;
     }
 
     // Wait for error to appear

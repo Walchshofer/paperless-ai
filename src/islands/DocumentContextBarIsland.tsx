@@ -100,7 +100,8 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
       window.dispatchEvent(new CustomEvent('workspace:document-switched', {
         detail: {
           documentId: id,
-          document: docData
+          document: docData,
+          visual: docData.visual || null
         }
       }));
 

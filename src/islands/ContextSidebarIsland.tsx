@@ -42,6 +42,7 @@ interface DocumentInfo {
   id?: number;
   title?: string;
   correspondent?: string;
+  createdDate?: string;
   content?: string;
   documentDomain?: string;
   tagItems?: TagItem[];
@@ -123,6 +124,7 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
         id: docData.id,
         title: docData.title,
         correspondent: docData.correspondent,
+        createdDate: docData.createdDate,
         content: docData.content || '',
         documentDomain: docData.documentDomain,
         tagItems: docData.tagItems,
@@ -136,6 +138,8 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
       // Update visual info if provided in the switch event
       if (detail.visual) {
         setCurrentVisual(detail.visual);
+      } else if (docData.visual) {
+        setCurrentVisual(docData.visual);
       } else {
         // Reset or fetch visual data for the new document if not in detail
         // For now, if not provided, we might want to clear or keep as is.

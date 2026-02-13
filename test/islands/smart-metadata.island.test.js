@@ -70,6 +70,37 @@ describe('SmartMetadataIsland - basic interactions', function () {
     assert.deepStrictEqual(seen, { fieldId: 'custom_field:invoice_number' });
   });
 
+  it('prefills metadata date from AI-mapped metadata:document_date field', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    const profile = {
+      domain: 'financial',
+      requiredFields: [{ fieldId: 'invoice_date', label: 'Invoice Date', paperlessField: 'metadata:document_date' }],
+      optionalFields: []
+    };
+    const visualFields = [
+      {
+        id: 'overlay-date',
+        label: 'Invoice Date',
+        value: '13.01.2025',
+        paperlessMapping: 'metadata:document_date'
+      }
+    ];
+
+    render(h(SmartMetadataIsland, {
+      documentId: 42,
+      fieldProfile: profile,
+      metadata: { title: 'Doc', correspondent: 'ACME', createdDate: '' },
+      visualFields
+    }), root);
+
+    const dateInput = await waitForSelector(root, '[data-testid="smart-date-input"]');
+    assert.ok(dateInput, 'date input should render');
+    await new Promise((r) => setTimeout(r, 30));
+    assert.strictEqual(dateInput.value, '2025-01-13');
+  });
+
   it('emits feedback:vote when thumbs up/down clicked', async () => {
     const root = document.createElement('div');
     document.body.appendChild(root);

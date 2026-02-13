@@ -129,14 +129,22 @@ export default function ChatWorkspaceIsland(
 
   // Three Chat Mode state - initialize from localStorage if available
   const getInitialChatMode = (): ChatMode => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(CHAT_MODE_STORAGE_KEY);
-      if (stored === 'rag' || stored === 'visual-rag' || stored === 'document') {
-        // Don't restore 'document' mode if no document is loaded
-        if (stored === 'document' && !props.openDocumentId) {
-          return 'rag';
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const stored = window.localStorage.getItem(CHAT_MODE_STORAGE_KEY);
+        if (
+          stored === 'rag' ||
+          stored === 'visual-rag' ||
+          stored === 'document'
+        ) {
+          // Don't restore 'document' mode if no document is loaded
+          if (stored === 'document' && !props.openDocumentId) {
+            return 'rag';
+          }
+          return stored;
         }
-        return stored;
+      } catch (_error) {
+        // Local storage may be unavailable in some test/browser contexts.
       }
     }
     return 'rag';
@@ -146,8 +154,12 @@ export default function ChatWorkspaceIsland(
   // Wrapper to persist chat mode to localStorage
   const setChatMode = (mode: ChatMode) => {
     setChatModeInternal(mode);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(CHAT_MODE_STORAGE_KEY, mode);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        window.localStorage.setItem(CHAT_MODE_STORAGE_KEY, mode);
+      } catch (_error) {
+        // ignore localStorage write failures
+      }
     }
   };
   
@@ -178,14 +190,15 @@ export default function ChatWorkspaceIsland(
   const streamMessageIdRef = useRef(null as string | null);
 
   const aiProvider = props.aiProvider || 'ollama';
+  const activeProvider = (
+    props.modelConfig?.currentProvider || aiProvider || 'ollama'
+  ).toLowerCase();
 
   // Filter models by current provider and active chat mode.
   const filteredModelOptions = useMemo(() => {
-    const currentProvider = props.modelConfig?.currentProvider || aiProvider || 'ollama';
-
     if (!modelOptions || modelOptions.length === 0) return [];
 
-    const providerName = currentProvider.toLowerCase();
+    const providerName = activeProvider;
 
     // 1) Filter model entries by provider.
     // Keep legacy group-label matching as a fallback for older payloads.
@@ -230,13 +243,12 @@ export default function ChatWorkspaceIsland(
     modelOptions,
     props.modelConfig?.currentProvider,
     aiProvider,
-    chatMode
+    chatMode,
+    activeProvider
   ]);
 
   // Update selected model when provider changes
   useEffect(() => {
-    const currentProvider = props.modelConfig?.currentProvider || aiProvider;
-
     // Check if current selected model is valid for new provider
     const isModelValid = filteredModelOptions.some((group: OllamaModelGroup) =>
       group.models.some((m: { model: string }) => m.model === selectedModel)
@@ -247,10 +259,19 @@ export default function ChatWorkspaceIsland(
       const firstModel = filteredModelOptions[0]?.models[0]?.model;
       if (firstModel) {
         setSelectedModel(firstModel);
-        console.log(`[Chat] Provider changed to ${currentProvider}, auto-selected model: ${firstModel}`);
+        console.log(
+          `[Chat] Provider changed to ${activeProvider}, auto-selected model: `
+          + `${firstModel}`
+        );
       }
     }
-  }, [props.modelConfig?.currentProvider, aiProvider, filteredModelOptions, selectedModel]);
+  }, [
+    props.modelConfig?.currentProvider,
+    aiProvider,
+    filteredModelOptions,
+    selectedModel,
+    activeProvider
+  ]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -373,9 +394,10 @@ export default function ChatWorkspaceIsland(
     if (props.modelConfig && props.modelConfig.providers) {
       // Build groups by capability for better intuition (P3-T2)
       const providers = props.modelConfig.providers || {};
+      const providerDefaults = props.modelConfig.defaultModels || {};
       const providerModels = Object.entries(providers).flatMap(
         ([providerName, entries]) => (entries || []).map((modelName) => ({
-          provider: providerName,
+          provider: String(providerName).toLowerCase(),
           model: modelName,
         }))
       );
@@ -453,7 +475,16 @@ export default function ChatWorkspaceIsland(
       setModelOptions(groups);
 
       // Default selection: prefer modelConfig.currentProvider default if present
-      const defaultModel = props.ollamaDefaultModel || (props.modelConfig && props.modelConfig.currentProvider && (providers[props.modelConfig.currentProvider] || [])[0]);
+      const providerKey = (
+        props.modelConfig?.currentProvider || aiProvider || 'ollama'
+      ).toLowerCase();
+      const providerModelsForKey = Array.isArray(providers[providerKey])
+        ? providers[providerKey]
+        : [];
+      const providerDefaultModel = providerDefaults[providerKey];
+      const defaultModel = providerDefaultModel
+        || providerModelsForKey[0]
+        || (providerKey === 'ollama' ? props.ollamaDefaultModel : null);
       if (defaultModel) {
         setSelectedModel(defaultModel);
       } else if (groups.length && groups[0].models.length) {
@@ -985,10 +1016,13 @@ export default function ChatWorkspaceIsland(
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest" htmlFor="chat-model-select">Neural Model</label>
-              <div className="flex items-center gap-2 px-2 py-0.5 bg-indigo-500/10 rounded-md border border-indigo-500/20">
+              <div
+                className="flex items-center gap-2 px-2 py-0.5 bg-indigo-500/10 rounded-md border border-indigo-500/20"
+                data-testid="chat-provider-indicator"
+              >
                 <span className="text-[8px] font-black text-indigo-500 uppercase">Provider:</span>
                 <span className="text-[9px] font-mono font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-tighter">
-                  {props.modelConfig?.currentProvider || aiProvider || 'ollama'}
+                  {activeProvider}
                 </span>
               </div>
             </div>
@@ -1034,7 +1068,7 @@ export default function ChatWorkspaceIsland(
                   >
                     {filteredModelOptions.length === 0 && (
                       <option value="">
-                        {`NO_MODELS_FOR_${chatMode.toUpperCase().replace('-', '_')}`}
+                        {`No models available for ${activeProvider} in ${chatMode} mode`}
                       </option>
                     )}
                     {filteredModelOptions.map((group: OllamaModelGroup) => (

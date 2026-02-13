@@ -146,27 +146,78 @@ async function checkPostgres({ timeoutMs = 90000, intervalMs = 2000 } = {}) {
           // Check docker availability
           try {
             execSync('docker ps', { stdio: 'ignore' });
-            console.info('[e2e] Docker available - attempting to start paperless_db via docker compose');
-            try {
-              execSync('docker compose up -d paperless_db', { stdio: 'inherit' });
-            } catch (e) {
-              // Fallback to old docker-compose command
+            console.info(
+              '[e2e] Docker available - attempting to start DB via '
+              + 'docker compose'
+            );
+
+            const dbServices = ['db', 'paperless_db'];
+            let serviceStarted = false;
+
+            for (const serviceName of dbServices) {
               try {
-                execSync('docker-compose up -d paperless_db', { stdio: 'inherit' });
-              } catch (e2) {
-                console.warn('[e2e] docker-compose start attempt failed:', e2.message || e2);
+                execSync(`docker compose up -d ${serviceName}`, {
+                  stdio: 'inherit'
+                });
+                serviceStarted = true;
+                break;
+              } catch (_composeErr) {
+                // try next service alias
               }
             }
 
-            // If host-level connection fails (no port exposed), try checking readiness inside the container
-            try {
-              execSync('docker exec paperless_db pg_isready', { stdio: 'ignore' });
-              console.info('[e2e] Postgres inside container reports ready (pg_isready)');
-              // We consider DB ready if container reports pg_isready, return early
-              return;
-            } catch (innerErr) {
-              console.warn('[e2e] pg_isready inside container did not report ready:', innerErr.message || innerErr);
+            if (!serviceStarted) {
+              for (const serviceName of dbServices) {
+                try {
+                  execSync(`docker-compose up -d ${serviceName}`, {
+                    stdio: 'inherit'
+                  });
+                  serviceStarted = true;
+                  break;
+                } catch (_legacyComposeErr) {
+                  // try next alias
+                }
+              }
             }
+
+            if (!serviceStarted) {
+              console.warn(
+                '[e2e] Unable to start Postgres service via docker compose '
+                + 'using aliases:',
+                dbServices.join(', ')
+              );
+            }
+
+            // If host-level connection fails (no port exposed), try checking
+            // readiness inside the container.
+            const dbContainers = ['paperless_db', 'db'];
+            let pgReady = false;
+
+            for (const containerName of dbContainers) {
+              try {
+                execSync(`docker exec ${containerName} pg_isready`, {
+                  stdio: 'ignore'
+                });
+                console.info(
+                  `[e2e] Postgres container ${containerName} reports ready `
+                  + '(pg_isready)'
+                );
+                pgReady = true;
+                break;
+              } catch (_innerErr) {
+                // try next container alias
+              }
+            }
+
+            if (pgReady) {
+              // We consider DB ready if the container reports pg_isready.
+              return;
+            }
+
+            console.warn(
+              '[e2e] pg_isready did not report ready for containers:',
+              dbContainers.join(', ')
+            );
           } catch (e) {
             console.warn('[e2e] Docker not available or not running, cannot auto-start Postgres:', e.message || e);
           }

@@ -9,7 +9,8 @@ export const ChatDocumentSchema = z.object({
 export const ModelConfigSchema = z.object({
   providers: z.record(z.array(z.string())).optional().default({}),
   expertModels: z.array(z.object({ model: z.string(), label: z.string().optional(), category: z.string().optional() })).optional().default([]),
-  currentProvider: z.string().optional()
+  currentProvider: z.string().optional(),
+  defaultModels: z.record(z.string()).optional().default({})
 });
 
 export const TextRagStatusSchema = z.object({
