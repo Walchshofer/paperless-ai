@@ -7,7 +7,7 @@ const PASSWORD = 'P2tr3ck!1976';
 test.describe('Production Smoke Tests', () => {
   test.beforeEach(async ({ page }) => {
     // Login
-    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
     await page.fill('input[name="username"], input[type="text"]', USERNAME);
     await page.fill('input[name="password"], input[type="password"]', PASSWORD);
     await page.click('button[type="submit"], input[type="submit"]');
@@ -15,10 +15,8 @@ test.describe('Production Smoke Tests', () => {
   });
 
   test('Dashboard loads and shows correct metrics', async ({ page }) => {
-    await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
-    
-    // Wait for dashboard to load
-    await page.waitForTimeout(2000);
+    await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-page=\"dashboard\"]', { timeout: 20000 });
     
     // Check main heading
     const heading = page.locator('h1, [data-testid="dashboard-heading"]');
@@ -33,8 +31,8 @@ test.describe('Production Smoke Tests', () => {
   });
 
   test('Workspace navigation and document selector works', async ({ page }) => {
-    await page.goto(`${BASE}/workspace`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(2000);
+    await page.goto(`${BASE}/workspace`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-page=\"workspace\"]', { timeout: 20000 });
     
     console.log('Workspace URL:', page.url());
     await page.screenshot({ path: 'test-results/smoke-02-workspace.png', fullPage: true });
@@ -80,8 +78,8 @@ test.describe('Production Smoke Tests', () => {
 
   test('Selected document shows metadata panel', async ({ page }) => {
     // Go directly to a document
-    await page.goto(`${BASE}/workspace/doc/9`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(2000);
+    await page.goto(`${BASE}/workspace/doc/9`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-page=\"document-workspace\"]', { timeout: 20000 });
     
     console.log('Document workspace URL:', page.url());
     
@@ -116,8 +114,8 @@ test.describe('Production Smoke Tests', () => {
   });
 
   test('History page loads', async ({ page }) => {
-    await page.goto(`${BASE}/history`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(2000);
+    await page.goto(`${BASE}/history`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-page=\"history\"]', { timeout: 20000 });
     
     console.log('History URL:', page.url());
     
@@ -145,7 +143,8 @@ test.describe('Production Smoke Tests', () => {
   });
 
   test('Sidebar navigation works', async ({ page }) => {
-    await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-page=\"dashboard\"]', { timeout: 20000 });
     
     // Check sidebar links
     const navLinks = page.locator('.sidebar-nav a, nav a[href]');
@@ -165,7 +164,8 @@ test.describe('Production Smoke Tests', () => {
     const workspaceLink = page.locator('a[href="/workspace"]');
     if (await workspaceLink.count() > 0) {
       await workspaceLink.first().click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForURL('**/workspace*', { timeout: 20000 });
+      await page.waitForSelector('[data-page=\"workspace\"]', { timeout: 20000 });
       console.log('After clicking workspace:', page.url());
       expect(page.url()).toContain('/workspace');
     }

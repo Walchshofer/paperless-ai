@@ -1,0 +1,27 @@
+{
+  "timestamp": "2026-02-14T08:07:10.6056100Z",
+  "source": "tmp/debug_full_after_swr_20260214_085835_playwright.txt",
+  "totals": {
+    "total": 293,
+    "passed": 236,
+    "failed": 17,
+    "skipped": 40
+  },
+  "failedSpecFiles": [
+    "ai-features-deep.spec.ts",
+    "alpha9-full-pipeline.spec.ts",
+    "document-selection.spec.ts",
+    "export-feature-ui.spec.ts",
+    "feedback-comprehensive.spec.ts",
+    "history-links-check.spec.ts",
+    "legacy-routes-verify.spec.ts",
+    "overlay-reflow-locate.spec.ts",
+    "production-smoke.spec.ts",
+    "telemetry_sidecar_verification.spec.ts",
+    "toolbar-cleanup.spec.ts",
+    "unified-workspace-navigation.spec.ts",
+    "verify-sys-router-vision.spec.ts",
+    "verify-ui.spec.ts"
+  ],
+  "failedSpecFileCount": 14
+}

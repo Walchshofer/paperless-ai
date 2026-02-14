@@ -1,0 +1,25 @@
+{
+  "baseline": "tmp/debug_full_after_cache_summary.json",
+  "current": "tmp/debug_full_after_recentcache_summary.json",
+  "totals": {
+    "passed": 12,
+    "failed": -10,
+    "skipped": -2
+  },
+  "failedSpecFileCount": -9,
+  "failedSpecFilesAdded": [
+    "chat-live.spec.ts"
+  ],
+  "failedSpecFilesResolved": [
+    "ai-features-deep.spec.ts",
+    "auth-flow.spec.ts",
+    "blocker-document-viewer.spec.ts",
+    "debug-history-links.spec.ts",
+    "export-feature-ui.spec.ts",
+    "feedback-comprehensive.spec.ts",
+    "legacy-routes-verify.spec.ts",
+    "overlay-viewer-css-fix.spec.ts",
+    "overlay-viewer.interactions.spec.ts",
+    "overlay-viewer.zoompan.draw.spec.ts"
+  ]
+}

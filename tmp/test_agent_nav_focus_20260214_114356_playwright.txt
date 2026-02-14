@@ -1,0 +1,50 @@
+[e2e] Docker available - attempting to start DB via docker compose
+ Container paperless_db  Running
+[e2e] Postgres container paperless_db reports ready (pg_isready)
+[e2e] Login successful, redirected to: http://localhost:3000/dashboard
+[e2e] Setup form/modal detected and removed/closed for test run (non-invasive)
+[e2e] Skipping fixture setup (E2E_SKIP_FIXTURE_SETUP).
+[e2e] Seed endpoint returned 403: {"error":"Not available in production"}
+
+Running 14 tests using 2 workers
+
+[1A[2K[1/14] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:9:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from Dashboard sidebar
+[1A[2K[2/14] [chromium] › test\e2e\document-selection.spec.ts:11:7 › Document Selection in Workspace › Document selection navigates to /workspace/doc/{id} not /document/{id}
+[1A[2K[3/14] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:25:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from History sidebar
+[1A[2K[4/14] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:40:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from History document row
+[1A[2K[5/14] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:63:9 › Unified Workspace - Navigation & Interactions › Mouse interactions › sidebar tab switching with mouse click
+[1A[2K[6/14] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:91:9 › Unified Workspace - Navigation & Interactions › Mouse interactions › document context bar buttons are clickable
+[1A[2K[7/14] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:116:9 › Unified Workspace - Navigation & Interactions › Mouse interactions › document selector dropdown interaction
+[1A[2K[8/14] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:148:9 › Unified Workspace - Navigation & Interactions › Keyboard interactions › tab navigation through sidebar tabs
+[1A[2K[9/14] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:169:9 › Unified Workspace - Navigation & Interactions › Keyboard interactions › escape key closes dropdowns/modals
+[1A[2K[10/14] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:187:9 › Unified Workspace - Navigation & Interactions › Keyboard interactions › form field keyboard input
+[1A[2K[11/14] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:215:9 › Unified Workspace - Navigation & Interactions › Visual state verification › workspace displays document title
+[1A[2K[12/14] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:225:9 › Unified Workspace - Navigation & Interactions › Visual state verification › unsaved changes indicator appears on edit
+[1A[2K[13/14] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:254:9 › Unified Workspace - Navigation & Interactions › Visual state verification › take screenshot for visual verification
+[1A[2K  1) [chromium] › test\e2e\document-selection.spec.ts:11:7 › Document Selection in Workspace › Document selection navigates to /workspace/doc/{id} not /document/{id} 
+
+    TimeoutError: page.waitForSelector: Timeout 20000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('[data-page="document-workspace"]') to be visible[22m
+
+
+      76 |         timeout: 20000
+      77 |       });
+    > 78 |       await page.waitForSelector('[data-page="document-workspace"]', {
+         |                  ^
+      79 |         timeout: 20000
+      80 |       });
+      81 |
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\document-selection.spec.ts:78:18
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\document-selection-Documen-1d19d-ace-doc-id-not-document-id--chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\document-selection-Documen-1d19d-ace-doc-id-not-document-id--chromium\error-context.md
+
+
+[1A[2K[14/14] [chromium] › test\e2e\document-selection.spec.ts:91:7 › Document Selection in Workspace › Verify /workspace/doc/{id} loads document correctly
+[1A[2K  1 failed
+    [chromium] › test\e2e\document-selection.spec.ts:11:7 › Document Selection in Workspace › Document selection navigates to /workspace/doc/{id} not /document/{id} 
+  13 passed (31.2s)

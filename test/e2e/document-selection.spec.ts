@@ -11,8 +11,10 @@ test.describe('Document Selection in Workspace', () => {
   test(
     'Document selection navigates to /workspace/doc/{id} not /document/{id}',
     async ({ page }) => {
-      await page.goto(`${BASE}/workspace`, { waitUntil: 'networkidle' });
-      await page.waitForSelector('[data-page="document-workspace"]', {
+      // /workspace intentionally renders an empty-state shell (no auto-selected doc).
+      // networkidle is fragile here due to long-lived connections; wait for DOM + page id.
+      await page.goto(`${BASE}/workspace`, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('[data-page="workspace"]', {
         timeout: 20000
       });
       await waitForIslandMount(page, 'document-context-bar-island');
@@ -69,8 +71,16 @@ test.describe('Document Selection in Workspace', () => {
       }
 
       await targetOption.scrollIntoViewIfNeeded();
-      await targetOption.click();
-      await page.waitForURL(new RegExp(`/workspace/doc/${targetId}`), {
+      await Promise.all([
+        page.waitForURL(new RegExp(`/workspace/doc/${targetId}`), {
+          timeout: 20000
+        }),
+        targetOption.click()
+      ]);
+
+      // Inline navigation updates URL via pushState; page id stays `workspace`.
+      // Wait for the selector trigger to reflect the selected doc title.
+      await expect(selectorTrigger).not.toContainText('Select Document', {
         timeout: 20000
       });
 

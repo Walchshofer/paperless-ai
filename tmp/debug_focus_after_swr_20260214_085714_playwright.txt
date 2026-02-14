@@ -1,0 +1,190 @@
+[e2e] Docker available - attempting to start DB via docker compose
+ Container paperless_db  Running
+[e2e] Postgres container paperless_db reports ready (pg_isready)
+[e2e] Login successful, redirected to: http://localhost:3000/dashboard
+[e2e] Setup form/modal detected and removed/closed for test run (non-invasive)
+[e2e] Skipping fixture setup (E2E_SKIP_FIXTURE_SETUP).
+[e2e] Seed endpoint returned 403: {"error":"Not available in production"}
+
+Running 28 tests using 5 workers
+
+[1A[2K[1/28] [chromium] › test\e2e\overlay-reflow-locate.spec.ts:44:7 › Workspace overlay reflow and locate wiring › overlay boxes stay aligned during zoom and viewport resize
+[1A[2K[2/28] [chromium] › test\e2e\chat-live.spec.ts:35:7 › Chat Route Live E2E › initializes chat, sends a message, and receives assistant reply (live)
+[1A[2K[3/28] [chromium] › test\e2e\chat-modes.spec.ts:48:7 › Chat Modes (Workspace) › shows mode toggle and all mode buttons
+[1A[2K[4/28] [chromium] › test\e2e\document-selection.spec.ts:11:7 › Document Selection in Workspace › Document selection navigates to /workspace/doc/{id} not /document/{id}
+[1A[2K[5/28] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:9:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from Dashboard sidebar
+[1A[2K[chromium] › test\e2e\chat-live.spec.ts:35:7 › Chat Route Live E2E › initializes chat, sends a message, and receives assistant reply (live)
+[LIVE] /api/ollama/models -> {
+  status: [33m200[39m,
+  data: {
+    provider: [32m'ollama'[39m,
+    providerMismatch: [33mfalse[39m,
+    defaultModel: [32m'gpt-oss:latest'[39m,
+    models: [
+      [32m'huihui_ai/mistral-small-abliterated:24b-instruct-2501-q8_0'[39m,
+      [32m'llava-med-v1.6:latest'[39m,
+      [32m'medtext-llama3:latest'[39m,
+      [32m'koesn/llama3-openbiollm-8b:latest'[39m,
+      [32m'gpt-oss:20b'[39m,
+      [32m'fino1-8b:latest'[39m,
+      [32m'nemotron-orchestrator:8b'[39m,
+      [32m'llm-pro-finance-8b:latest'[39m,
+      [32m'sauerkraut-llama3.1:8b'[39m,
+      [32m'qwen3-vl:8b'[39m
+    ],
+    placeholderModels: [
+      [32m'gpt-oss:latest'[39m,
+      [32m'medtext-llama3'[39m,
+      [32m'llava-med-v1.5'[39m,
+      [32m'fino1-8b'[39m,
+      [32m'llm-pro-finance-8b'[39m
+    ],
+    expertModels: []
+  }
+}
+
+[1A[2K[LIVE] model selection state: {
+  selected: [32m'gpt-oss:latest'[39m,
+  firstSelectable: [32m'qwen3-vl:8b'[39m,
+  optionCount: [33m10[39m
+}
+
+[1A[2K[6/28] [chromium] › test\e2e\chat-modes.spec.ts:60:7 › Chat Modes (Workspace) › defaults to rag mode with rag indicator and placeholder
+[1A[2K[ARTIFACT] Screenshot saved: C:\Users\pwalc\MyApps\paperless-ai\test-output\chat-live.png
+
+[1A[2K[ARTIFACT] JSON saved: C:\Users\pwalc\MyApps\paperless-ai\test-output\chat-live.json
+
+[1A[2K[7/28] [chromium] › test\e2e\chat-modes.spec.ts:69:7 › Chat Modes (Workspace) › enables document mode when a workspace document is loaded
+[1A[2K[8/28] [chromium] › test\e2e\chat-modes.spec.ts:85:7 › Chat Modes (Workspace) › disables document mode when no workspace document is loaded
+[1A[2K[9/28] [chromium] › test\e2e\chat-modes.spec.ts:96:7 › Chat Modes (Workspace) › switches between rag and document mode
+[1A[2K[10/28] [chromium] › test\e2e\overlay-reflow-locate.spec.ts:112:7 › Workspace overlay reflow and locate wiring › smart tab keeps date prefilled and locate button dispatch is wired
+[1A[2K[11/28] [chromium] › test\e2e\chat-modes.spec.ts:115:7 › Chat Modes (Workspace) › exposes visual rag availability state
+[1A[2K  1) [chromium] › test\e2e\unified-workspace-navigation.spec.ts:9:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from Dashboard sidebar 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('[data-page="document-workspace"]').first()
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for locator('[data-page="document-workspace"]').first()[22m
+
+
+      20 |
+      21 |       // Verify we're on the document workspace
+    > 22 |       await expect(page.locator('[data-page="document-workspace"]').first()).toBeVisible();
+         |                                                                              ^
+      23 |     });
+      24 |
+      25 |     test('navigate to workspace from History sidebar', async ({ page }) => {
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\unified-workspace-navigation.spec.ts:22:78
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\unified-workspace-navigati-6a0fe-pace-from-Dashboard-sidebar-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\unified-workspace-navigati-6a0fe-pace-from-Dashboard-sidebar-chromium\error-context.md
+
+
+[1A[2K[12/28] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:25:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from History sidebar
+[1A[2K[13/28] [chromium] › test\e2e\chat-modes.spec.ts:132:7 › Chat Modes (Workspace) › persists chat mode in localStorage
+[1A[2K[14/28] [chromium] › test\e2e\chat-modes.spec.ts:154:7 › Chat Modes (Workspace) › falls back to rag mode when stored mode=document but no document is loaded
+[1A[2K[15/28] [chromium] › test\e2e\chat-modes.spec.ts:169:7 › Chat Modes (Workspace) › send button reflects model availability after input
+[1A[2K[16/28] [chromium] › test\e2e\chat-modes.spec.ts:186:7 › /chat route deprecation › returns 410 for /chat
+[1A[2K[17/28] [chromium] › test\e2e\chat-modes.spec.ts:191:7 › /chat route deprecation › returns 410 for /chat?open=X
+[1A[2K  2) [chromium] › test\e2e\document-selection.spec.ts:11:7 › Document Selection in Workspace › Document selection navigates to /workspace/doc/{id} not /document/{id} 
+
+    TimeoutError: page.waitForSelector: Timeout 20000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('[data-page="document-workspace"]') to be visible[22m
+
+
+      13 |     async ({ page }) => {
+      14 |       await page.goto(`${BASE}/workspace`, { waitUntil: 'networkidle' });
+    > 15 |       await page.waitForSelector('[data-page="document-workspace"]', {
+         |                  ^
+      16 |         timeout: 20000
+      17 |       });
+      18 |       await waitForIslandMount(page, 'document-context-bar-island');
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\document-selection.spec.ts:15:18
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\document-selection-Documen-1d19d-ace-doc-id-not-document-id--chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\document-selection-Documen-1d19d-ace-doc-id-not-document-id--chromium\error-context.md
+
+
+[1A[2K[18/28] [chromium] › test\e2e\document-selection.spec.ts:86:7 › Document Selection in Workspace › Verify /workspace/doc/{id} loads document correctly
+[1A[2K  3) [chromium] › test\e2e\unified-workspace-navigation.spec.ts:25:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from History sidebar 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('[data-page="document-workspace"]').first()
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for locator('[data-page="document-workspace"]').first()[22m
+
+
+      35 |       await page.waitForURL('**/workspace*', { timeout: 10000 });
+      36 |
+    > 37 |       await expect(page.locator('[data-page="document-workspace"]').first()).toBeVisible();
+         |                                                                              ^
+      38 |     });
+      39 |
+      40 |     test('navigate to workspace from History document row', async ({ page }) => {
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\unified-workspace-navigation.spec.ts:37:78
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\unified-workspace-navigati-99d14-kspace-from-History-sidebar-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\unified-workspace-navigati-99d14-kspace-from-History-sidebar-chromium\error-context.md
+
+
+[1A[2K[19/28] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:40:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from History document row
+[1A[2K  4) [chromium] › test\e2e\unified-workspace-navigation.spec.ts:40:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from History document row 
+
+    TimeoutError: page.waitForURL: Timeout 10000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation to "**/workspace*" until "load"
+    ============================================================
+
+      52 |       await viewLink.click();
+      53 |       // Wait for workspace URL (matches /workspace/doc/123)
+    > 54 |       await page.waitForURL('**/workspace*', { timeout: 10000 });
+         |                  ^
+      55 |
+      56 |       await expect(page.locator('[data-page="document-workspace"]')).toBeVisible();
+      57 |     });
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\unified-workspace-navigation.spec.ts:54:18
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\unified-workspace-navigati-e7596-e-from-History-document-row-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\unified-workspace-navigati-e7596-e-from-History-document-row-chromium\error-context.md
+
+
+[1A[2K[20/28] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:63:9 › Unified Workspace - Navigation & Interactions › Mouse interactions › sidebar tab switching with mouse click
+[1A[2K[21/28] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:91:9 › Unified Workspace - Navigation & Interactions › Mouse interactions › document context bar buttons are clickable
+[1A[2K[22/28] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:116:9 › Unified Workspace - Navigation & Interactions › Mouse interactions › document selector dropdown interaction
+[1A[2K[23/28] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:148:9 › Unified Workspace - Navigation & Interactions › Keyboard interactions › tab navigation through sidebar tabs
+[1A[2K[24/28] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:169:9 › Unified Workspace - Navigation & Interactions › Keyboard interactions › escape key closes dropdowns/modals
+[1A[2K[25/28] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:187:9 › Unified Workspace - Navigation & Interactions › Keyboard interactions › form field keyboard input
+[1A[2K[26/28] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:215:9 › Unified Workspace - Navigation & Interactions › Visual state verification › workspace displays document title
+[1A[2K[27/28] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:225:9 › Unified Workspace - Navigation & Interactions › Visual state verification › unsaved changes indicator appears on edit
+[1A[2K[28/28] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:254:9 › Unified Workspace - Navigation & Interactions › Visual state verification › take screenshot for visual verification
+[1A[2K  4 failed
+    [chromium] › test\e2e\document-selection.spec.ts:11:7 › Document Selection in Workspace › Document selection navigates to /workspace/doc/{id} not /document/{id} 
+    [chromium] › test\e2e\unified-workspace-navigation.spec.ts:9:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from Dashboard sidebar 
+    [chromium] › test\e2e\unified-workspace-navigation.spec.ts:25:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from History sidebar 
+    [chromium] › test\e2e\unified-workspace-navigation.spec.ts:40:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from History document row 
+  24 passed (1.1m)

@@ -1,6 +1,6 @@
 {
   "url": "http://localhost:3000/workspace/doc/74",
-  "timestamp": "2026-02-14T06:07:27.581Z",
+  "timestamp": "2026-02-14T07:59:34.903Z",
   "enumeration": [
     {
       "tag": "div",
@@ -88,7 +88,7 @@
       "class": "h-full w-full flex flex-col min-h-0",
       "data-island": "overlay-viewer-island",
       "data-testid": "overlay-viewer-island",
-      "text": "PanDrawMeasureOverlays: 7Mandatory only-63%+Fit WFit H0°ResetPage 1 of 1Source:On-demand Renderdatesendersubjecthandwritinghandwritingtotaltable"
+      "text": "PanDrawMeasureOverlays: 0-63%+Fit WFit H0°ResetPage 1 of 1Source:On-demand Render"
     },
     {
       "tag": "div",
@@ -96,7 +96,7 @@
       "class": "h-full w-full flex flex-col overflow-hidden min-h-0",
       "data-island": null,
       "data-testid": "overlay-viewer-root",
-      "text": "PanDrawMeasureOverlays: 7Mandatory only-63%+Fit WFit H0°ResetPage 1 of 1Source:On-demand Renderdatesendersubjecthandwritinghandwritingtotaltable"
+      "text": "PanDrawMeasureOverlays: 0-63%+Fit WFit H0°ResetPage 1 of 1Source:On-demand Render"
     },
     {
       "tag": "div",
@@ -104,7 +104,7 @@
       "class": "flex flex-wrap items-center gap-2 p-2 border-b border-gray-200 bg-white z-10",
       "data-island": null,
       "data-testid": "overlay-toolbar",
-      "text": "PanDrawMeasureOverlays: 7Mandatory only-63%+Fit WFit H0°ResetPage 1 of 1"
+      "text": "PanDrawMeasureOverlays: 0-63%+Fit WFit H0°ResetPage 1 of 1"
     },
     {
       "tag": "button",
@@ -136,7 +136,7 @@
       "class": null,
       "data-island": null,
       "data-testid": "overlay-count",
-      "text": "Overlays: 7"
+      "text": "Overlays: 0"
     },
     {
       "tag": "button",
@@ -240,7 +240,7 @@
       "class": "OverlayViewerIsland_overlayContainer cursor-default touch-auto",
       "data-island": null,
       "data-testid": "overlay-container",
-      "text": "datesendersubjecthandwritinghandwritingtotaltable"
+      "text": ""
     },
     {
       "tag": "div",
@@ -248,7 +248,7 @@
       "class": "OverlayViewerIsland_viewport",
       "data-island": null,
       "data-testid": "overlay-viewport",
-      "text": "datesendersubjecthandwritinghandwritingtotaltable"
+      "text": ""
     },
     {
       "tag": "div",
@@ -256,7 +256,7 @@
       "class": "OverlayViewerIsland_rotationLayer",
       "data-island": null,
       "data-testid": "overlay-rotation-layer",
-      "text": "datesendersubjecthandwritinghandwritingtotaltable"
+      "text": ""
     },
     {
       "tag": "img",
@@ -265,62 +265,6 @@
       "data-island": null,
       "data-testid": "overlay-document-image",
       "text": ""
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "OverlayViewerIsland_overlayBox [--box-left:55.00000000000001%] [--box-top:18%] [--box-width:5%] [--box-height:4%] [--box-color:#6B7280] [--box-bg:#6B728022]",
-      "data-island": null,
-      "data-testid": "overlay-box",
-      "text": "date"
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "OverlayViewerIsland_overlayBox [--box-left:45%] [--box-top:25%] [--box-width:10%] [--box-height:5%] [--box-color:#6B7280] [--box-bg:#6B728022]",
-      "data-island": null,
-      "data-testid": "overlay-box",
-      "text": "sender"
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "OverlayViewerIsland_overlayBox [--box-left:60%] [--box-top:15%] [--box-width:10%] [--box-height:5%] [--box-color:#6B7280] [--box-bg:#6B728022]",
-      "data-island": null,
-      "data-testid": "overlay-box",
-      "text": "subject"
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "OverlayViewerIsland_overlayBox [--box-left:55.00000000000001%] [--box-top:18%] [--box-width:5%] [--box-height:4%] [--box-color:#6B7280] [--box-bg:#6B728022]",
-      "data-island": null,
-      "data-testid": "overlay-box",
-      "text": "handwriting"
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "OverlayViewerIsland_overlayBox [--box-left:50%] [--box-top:28.000000000000004%] [--box-width:5%] [--box-height:4%] [--box-color:#6B7280] [--box-bg:#6B728022]",
-      "data-island": null,
-      "data-testid": "overlay-box",
-      "text": "handwriting"
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "OverlayViewerIsland_overlayBox [--box-left:50%] [--box-top:28.000000000000004%] [--box-width:5%] [--box-height:4%] [--box-color:#6B7280] [--box-bg:#6B728022]",
-      "data-island": null,
-      "data-testid": "overlay-box",
-      "text": "total"
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "OverlayViewerIsland_overlayBox [--box-left:45%] [--box-top:17%] [--box-width:25%] [--box-height:28.000000000000004%] [--box-color:#6B7280] [--box-bg:#6B728022]",
-      "data-island": null,
-      "data-testid": "overlay-box",
-      "text": "table"
     },
     {
       "tag": "canvas",
@@ -376,7 +320,7 @@
       "class": "h-full flex flex-col",
       "data-island": "context-sidebar-island",
       "data-testid": "context-sidebar",
-      "text": "SmartOCRChatVisualDebugSpatial LabelingVisual overlay and field mapping interfaceVisual ChatReingest VisualClearAsk a natural-language visual query. Attach overlays or upload images to enrich hybrid s"
+      "text": "SmartOCRChatVisualDebugSpatial LabelingVisual overlay and field mapping interfaceLoading visual data..."
     },
     {
       "tag": "div",
@@ -384,7 +328,7 @@
       "class": "h-full flex flex-col bg-white dark:bg-slate-950",
       "data-island": null,
       "data-testid": "context-sidebar-root",
-      "text": "SmartOCRChatVisualDebugSpatial LabelingVisual overlay and field mapping interfaceVisual ChatReingest VisualClearAsk a natural-language visual query. Attach overlays or upload images to enrich hybrid s"
+      "text": "SmartOCRChatVisualDebugSpatial LabelingVisual overlay and field mapping interfaceLoading visual data..."
     },
     {
       "tag": "button",
@@ -432,7 +376,7 @@
       "class": null,
       "data-island": null,
       "data-testid": "tab-panel-visual",
-      "text": "Spatial LabelingVisual overlay and field mapping interfaceVisual ChatReingest VisualClearAsk a natural-language visual query. Attach overlays or upload images to enrich hybrid search.UploadSearchDrag "
+      "text": "Spatial LabelingVisual overlay and field mapping interfaceLoading visual data..."
     },
     {
       "tag": "div",
@@ -445,434 +389,10 @@
     {
       "tag": "div",
       "id": null,
-      "class": "visual-tab-panel",
+      "class": "visual-tab-panel p-4",
       "data-island": null,
       "data-testid": "visual-tab-panel",
-      "text": "Visual ChatReingest VisualClearAsk a natural-language visual query. Attach overlays or upload images to enrich hybrid search.UploadSearchDrag and drop image files here, or use Upload. Click overlays b"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "rounded-md border border-[#e5e0d8] px-2 py-1 text-xs text-[#666] hover:bg-[#f5f0e8] disabled:opacity-60",
-      "data-island": null,
-      "data-testid": "visual-chat-reingest-btn",
-      "text": "Reingest Visual"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "rounded-md border border-[#e5e0d8] px-2 py-1 text-xs text-[#666] hover:bg-[#f5f0e8]",
-      "data-island": null,
-      "data-testid": "visual-chat-clear-btn",
-      "text": "Clear"
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "max-h-64 space-y-2 overflow-y-auto rounded-md bg-[#fdfaf6] p-2",
-      "data-island": null,
-      "data-testid": "visual-chat-history",
-      "text": "Ask a natural-language visual query. Attach overlays or upload images to enrich hybrid search."
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "mt-2 rounded-md border p-2 border-[#e5e0d8] bg-[#fdfaf6]",
-      "data-island": null,
-      "data-testid": "visual-chat-dropzone",
-      "text": "UploadSearchDrag and drop image files here, or use Upload. Click overlays below to attach them to your query."
-    },
-    {
-      "tag": "textarea",
-      "id": null,
-      "class": "min-h-[56px] flex-1 rounded-md border border-[#e5e0d8] bg-white px-3 py-2 text-sm text-[#2c2c2c] focus:border-[#b87333] focus:outline-none",
-      "data-island": null,
-      "data-testid": "visual-chat-input",
-      "text": ""
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "rounded-md border border-[#e5e0d8] bg-white px-3 py-2 text-xs text-[#444] hover:bg-[#f5f0e8]",
-      "data-island": null,
-      "data-testid": "visual-chat-upload-btn",
-      "text": "Upload"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "rounded-md bg-[#b87333] px-3 py-2 text-xs font-medium text-white hover:bg-[#a06028] disabled:opacity-60",
-      "data-island": null,
-      "data-testid": "visual-chat-search-btn",
-      "text": "Search"
-    },
-    {
-      "tag": "input",
-      "id": null,
-      "class": "hidden",
-      "data-island": null,
-      "data-testid": "visual-chat-file-input",
-      "text": ""
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "p-3 bg-[#fdfaf6] border border-[#e5e0d8] rounded-lg flex justify-between items-center",
-      "data-island": null,
-      "data-testid": "missing-field-invoice_number",
-      "text": "Invoice NumberNo overlay mappedLabel"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-3 py-1.5 bg-[#b87333] text-white rounded-md text-xs font-medium hover:bg-[#a06028] transition-colors",
-      "data-island": null,
-      "data-testid": "label-btn-invoice_number",
-      "text": "Label"
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "p-3 bg-[#fdfaf6] border border-[#e5e0d8] rounded-lg flex justify-between items-center",
-      "data-island": null,
-      "data-testid": "missing-field-total_amount",
-      "text": "Total AmountNo overlay mappedLabel"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-3 py-1.5 bg-[#b87333] text-white rounded-md text-xs font-medium hover:bg-[#a06028] transition-colors",
-      "data-island": null,
-      "data-testid": "label-btn-total_amount",
-      "text": "Label"
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "p-3 bg-[#fdfaf6] border border-[#e5e0d8] rounded-lg flex justify-between items-center",
-      "data-island": null,
-      "data-testid": "missing-field-invoice_date",
-      "text": "Invoice DateNo overlay mappedLabel"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-3 py-1.5 bg-[#b87333] text-white rounded-md text-xs font-medium hover:bg-[#a06028] transition-colors",
-      "data-island": null,
-      "data-testid": "label-btn-invoice_date",
-      "text": "Label"
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "p-3 bg-[#fdfaf6] border border-[#e5e0d8] rounded-lg flex justify-between items-center",
-      "data-island": null,
-      "data-testid": "missing-field-vendor_name",
-      "text": "Vendor NameNo overlay mappedLabel"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-3 py-1.5 bg-[#b87333] text-white rounded-md text-xs font-medium hover:bg-[#a06028] transition-colors",
-      "data-island": null,
-      "data-testid": "label-btn-vendor_name",
-      "text": "Label"
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "p-3 bg-[#fdfaf6] border border-[#e5e0d8] rounded-lg flex justify-between items-center",
-      "data-island": null,
-      "data-testid": "missing-field-tax_id",
-      "text": "Tax IDNo overlay mappedLabel"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-3 py-1.5 bg-[#b87333] text-white rounded-md text-xs font-medium hover:bg-[#a06028] transition-colors",
-      "data-island": null,
-      "data-testid": "label-btn-tax_id",
-      "text": "Label"
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "p-3 bg-[#fdfaf6] border border-[#e5e0d8] rounded-lg flex justify-between items-center",
-      "data-island": null,
-      "data-testid": "missing-field-due_date",
-      "text": "Due DateNo overlay mappedLabel"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-3 py-1.5 bg-[#b87333] text-white rounded-md text-xs font-medium hover:bg-[#a06028] transition-colors",
-      "data-island": null,
-      "data-testid": "label-btn-due_date",
-      "text": "Label"
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "p-3 bg-[#fdfaf6] border border-[#e5e0d8] rounded-lg flex justify-between items-center",
-      "data-island": null,
-      "data-testid": "missing-field-subtotal",
-      "text": "SubtotalNo overlay mappedLabel"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-3 py-1.5 bg-[#b87333] text-white rounded-md text-xs font-medium hover:bg-[#a06028] transition-colors",
-      "data-island": null,
-      "data-testid": "label-btn-subtotal",
-      "text": "Label"
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "p-3 bg-[#fdfaf6] border border-[#e5e0d8] rounded-lg flex justify-between items-center",
-      "data-island": null,
-      "data-testid": "missing-field-tax_amount",
-      "text": "Tax AmountNo overlay mappedLabel"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-3 py-1.5 bg-[#b87333] text-white rounded-md text-xs font-medium hover:bg-[#a06028] transition-colors",
-      "data-island": null,
-      "data-testid": "label-btn-tax_amount",
-      "text": "Label"
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "p-3 bg-white border border-[#e5e0d8] rounded-lg",
-      "data-island": null,
-      "data-testid": "overlay-10193",
-      "text": "datePage 1 • Confidence: 90%"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-white text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#f5f0e8] transition-colors",
-      "data-island": null,
-      "data-testid": "attach-overlay-10193",
-      "text": ""
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-[#f5f0e8] text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#ebe5db] transition-colors",
-      "data-island": null,
-      "data-testid": "view-overlay-10193",
-      "text": ""
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 disabled:opacity-50 transition-colors",
-      "data-island": null,
-      "data-testid": "delete-overlay-10193",
-      "text": ""
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "p-3 bg-white border border-[#e5e0d8] rounded-lg",
-      "data-island": null,
-      "data-testid": "overlay-10194",
-      "text": "senderPage 1 • Confidence: 90%"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-white text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#f5f0e8] transition-colors",
-      "data-island": null,
-      "data-testid": "attach-overlay-10194",
-      "text": ""
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-[#f5f0e8] text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#ebe5db] transition-colors",
-      "data-island": null,
-      "data-testid": "view-overlay-10194",
-      "text": ""
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 disabled:opacity-50 transition-colors",
-      "data-island": null,
-      "data-testid": "delete-overlay-10194",
-      "text": ""
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "p-3 bg-white border border-[#e5e0d8] rounded-lg",
-      "data-island": null,
-      "data-testid": "overlay-10195",
-      "text": "subjectPage 1 • Confidence: 90%"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-white text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#f5f0e8] transition-colors",
-      "data-island": null,
-      "data-testid": "attach-overlay-10195",
-      "text": ""
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-[#f5f0e8] text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#ebe5db] transition-colors",
-      "data-island": null,
-      "data-testid": "view-overlay-10195",
-      "text": ""
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 disabled:opacity-50 transition-colors",
-      "data-island": null,
-      "data-testid": "delete-overlay-10195",
-      "text": ""
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "p-3 bg-white border border-[#e5e0d8] rounded-lg",
-      "data-island": null,
-      "data-testid": "overlay-10196",
-      "text": "handwritingPage 1 • Confidence: 90%"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-white text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#f5f0e8] transition-colors",
-      "data-island": null,
-      "data-testid": "attach-overlay-10196",
-      "text": ""
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-[#f5f0e8] text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#ebe5db] transition-colors",
-      "data-island": null,
-      "data-testid": "view-overlay-10196",
-      "text": ""
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 disabled:opacity-50 transition-colors",
-      "data-island": null,
-      "data-testid": "delete-overlay-10196",
-      "text": ""
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "p-3 bg-white border border-[#e5e0d8] rounded-lg",
-      "data-island": null,
-      "data-testid": "overlay-10197",
-      "text": "handwritingPage 1 • Confidence: 80%"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-white text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#f5f0e8] transition-colors",
-      "data-island": null,
-      "data-testid": "attach-overlay-10197",
-      "text": ""
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-[#f5f0e8] text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#ebe5db] transition-colors",
-      "data-island": null,
-      "data-testid": "view-overlay-10197",
-      "text": ""
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 disabled:opacity-50 transition-colors",
-      "data-island": null,
-      "data-testid": "delete-overlay-10197",
-      "text": ""
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "p-3 bg-white border border-[#e5e0d8] rounded-lg",
-      "data-island": null,
-      "data-testid": "overlay-10198",
-      "text": "totalPage 1 • Confidence: 80%"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-white text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#f5f0e8] transition-colors",
-      "data-island": null,
-      "data-testid": "attach-overlay-10198",
-      "text": ""
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-[#f5f0e8] text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#ebe5db] transition-colors",
-      "data-island": null,
-      "data-testid": "view-overlay-10198",
-      "text": ""
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 disabled:opacity-50 transition-colors",
-      "data-island": null,
-      "data-testid": "delete-overlay-10198",
-      "text": ""
-    },
-    {
-      "tag": "div",
-      "id": null,
-      "class": "p-3 bg-white border border-[#e5e0d8] rounded-lg",
-      "data-island": null,
-      "data-testid": "overlay-10199",
-      "text": "tablePage 1 • Confidence: 90%"
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-white text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#f5f0e8] transition-colors",
-      "data-island": null,
-      "data-testid": "attach-overlay-10199",
-      "text": ""
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-[#f5f0e8] text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#ebe5db] transition-colors",
-      "data-island": null,
-      "data-testid": "view-overlay-10199",
-      "text": ""
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 disabled:opacity-50 transition-colors",
-      "data-island": null,
-      "data-testid": "delete-overlay-10199",
-      "text": ""
-    },
-    {
-      "tag": "button",
-      "id": null,
-      "class": "w-full px-4 py-3 bg-[#b87333] text-white rounded-lg font-medium hover:bg-[#a06028] transition-colors flex items-center justify-center gap-2",
-      "data-island": null,
-      "data-testid": "visual-search-btn",
-      "text": "Start Visual Search"
+      "text": "Loading visual data..."
     },
     {
       "tag": "button",

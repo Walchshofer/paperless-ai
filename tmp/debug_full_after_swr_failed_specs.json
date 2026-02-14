@@ -1,0 +1,16 @@
+[
+  "ai-features-deep.spec.ts",
+  "alpha9-full-pipeline.spec.ts",
+  "document-selection.spec.ts",
+  "export-feature-ui.spec.ts",
+  "feedback-comprehensive.spec.ts",
+  "history-links-check.spec.ts",
+  "legacy-routes-verify.spec.ts",
+  "overlay-reflow-locate.spec.ts",
+  "production-smoke.spec.ts",
+  "telemetry_sidecar_verification.spec.ts",
+  "toolbar-cleanup.spec.ts",
+  "unified-workspace-navigation.spec.ts",
+  "verify-sys-router-vision.spec.ts",
+  "verify-ui.spec.ts"
+]

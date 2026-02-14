@@ -1,0 +1,10 @@
+[
+  "alpha9-full-pipeline.spec.ts",
+  "chat-live.spec.ts",
+  "chat-modes.spec.ts",
+  "document-selection.spec.ts",
+  "overlay-reflow-locate.spec.ts",
+  "unified-workspace-navigation.spec.ts",
+  "verify-sys-router-vision.spec.ts",
+  "verify-ui.spec.ts"
+]

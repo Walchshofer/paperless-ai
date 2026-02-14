@@ -1,0 +1,25 @@
+{
+  "baseline": "tmp/debug_full_after_cache_summary.json",
+  "current": "tmp/debug_full_after_swr_summary.json",
+  "totals": {
+    "passed": 3,
+    "failed": -4,
+    "skipped": 1
+  },
+  "failedSpecFileCount": -3,
+  "failedSpecFilesAdded": [
+    "history-links-check.spec.ts",
+    "production-smoke.spec.ts",
+    "telemetry_sidecar_verification.spec.ts",
+    "toolbar-cleanup.spec.ts"
+  ],
+  "failedSpecFilesResolved": [
+    "auth-flow.spec.ts",
+    "blocker-document-viewer.spec.ts",
+    "chat-modes.spec.ts",
+    "debug-history-links.spec.ts",
+    "overlay-viewer-css-fix.spec.ts",
+    "overlay-viewer.interactions.spec.ts",
+    "overlay-viewer.zoompan.draw.spec.ts"
+  ]
+}

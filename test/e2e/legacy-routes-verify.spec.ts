@@ -8,7 +8,7 @@ test.describe('Legacy Route Verification', () => {
 
   test.beforeEach(async ({ page }) => {
     // Login
-    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
     await page.fill('input[name="username"], input[type="text"]', USERNAME);
     await page.fill('input[name="password"], input[type="password"]', PASSWORD);
     await page.click('button[type="submit"], input[type="submit"]');
@@ -29,7 +29,8 @@ test.describe('Legacy Route Verification', () => {
   });
 
   test('Workspace page structure', async ({ page }) => {
-    await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-page=\"document-workspace\"], [data-page=\"workspace\"]', { timeout: 20000 });
 
     console.log('Final URL:', page.url());
 
@@ -55,17 +56,19 @@ test.describe('Legacy Route Verification', () => {
   });
 
   test('Workspace navigation between documents', async ({ page }) => {
-    await page.goto(`${BASE}/history`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/history`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-page=\"history\"]', { timeout: 20000 });
 
     // Find a document link
-    const docLink = page.locator('a[href^="/workspace/"]').first();
+    const docLink = page.locator('[data-testid^=\"history-view-\"]').first();
 
     if (await docLink.count() > 0) {
       const href = await docLink.getAttribute('href');
       console.log('Document link:', href);
 
       await docLink.click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForURL('**/workspace/doc/**', { timeout: 20000 });
+      await page.waitForSelector('[data-page=\"document-workspace\"]', { timeout: 20000 });
 
       console.log('After click URL:', page.url());
 

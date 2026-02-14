@@ -1,0 +1,24 @@
+{
+  "baseline": "tmp/debug_full_after_recentcache_summary.json",
+  "current": "tmp/debug_full_after_swr_summary.json",
+  "totals": {
+    "passed": -9,
+    "failed": 6,
+    "skipped": 3
+  },
+  "failedSpecFileCount": 6,
+  "failedSpecFilesAdded": [
+    "ai-features-deep.spec.ts",
+    "export-feature-ui.spec.ts",
+    "feedback-comprehensive.spec.ts",
+    "history-links-check.spec.ts",
+    "legacy-routes-verify.spec.ts",
+    "production-smoke.spec.ts",
+    "telemetry_sidecar_verification.spec.ts",
+    "toolbar-cleanup.spec.ts"
+  ],
+  "failedSpecFilesResolved": [
+    "chat-live.spec.ts",
+    "chat-modes.spec.ts"
+  ]
+}

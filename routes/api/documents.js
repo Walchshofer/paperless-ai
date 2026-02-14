@@ -25,6 +25,11 @@ const {
 
 // Single-flight guard to avoid overlapping heavy reprocess runs per document.
 const inFlightReprocessJobs = new Map();
+const REPROCESS_RECENT_RESULT_TTL_MS = Math.max(
+  Number(process.env.REPROCESS_RECENT_RESULT_TTL_MS || 30000),
+  0
+);
+const recentReprocessResults = new Map();
 
 // All routes require authentication
 router.use(authenticateApi);
@@ -109,6 +114,42 @@ function resolveClassification(resultPayload) {
     : null;
   const label = detail?.primary_domain || detail?.domain || 'General';
   return { label, detail };
+}
+
+function cloneReprocessPayload(payload) {
+  try {
+    return JSON.parse(JSON.stringify(payload));
+  } catch {
+    return payload;
+  }
+}
+
+function getRecentReprocessResult(documentId) {
+  if (!REPROCESS_RECENT_RESULT_TTL_MS) return null;
+  const cached = recentReprocessResults.get(documentId);
+  if (!cached) return null;
+
+  const ageMs = Date.now() - cached.completedAt;
+  if (ageMs > REPROCESS_RECENT_RESULT_TTL_MS) {
+    recentReprocessResults.delete(documentId);
+    return null;
+  }
+
+  return {
+    ...cached,
+    ageMs,
+    payload: cloneReprocessPayload(cached.payload)
+  };
+}
+
+function setRecentReprocessResult(documentId, statusCode, payload) {
+  if (!REPROCESS_RECENT_RESULT_TTL_MS) return;
+  if (statusCode !== 200 || !payload || payload.success !== true) return;
+  recentReprocessResults.set(documentId, {
+    statusCode,
+    payload: cloneReprocessPayload(payload),
+    completedAt: Date.now()
+  });
 }
 
 /**
@@ -419,6 +460,25 @@ router.post('/:id/reprocess', async (req, res) => {
   // Get username from authenticated request
   const username = req.user?.username || req.user?.name || 'unknown';
 
+  const cachedResult = getRecentReprocessResult(documentId);
+  if (cachedResult) {
+    logger.info({
+      event: 'reprocess_recent_result_cache_hit',
+      documentId,
+      username,
+      ageMs: cachedResult.ageMs
+    });
+    publishReprocessProgress(documentId, {
+      stage: 'completed',
+      details: {
+        source: 'workspace-reprocess',
+        cachedResult: true,
+        cachedAgeMs: cachedResult.ageMs
+      }
+    });
+    return res.status(cachedResult.statusCode).json(cachedResult.payload);
+  }
+
   const activeJob = inFlightReprocessJobs.get(documentId);
   if (activeJob?.promise) {
     logger.info({
@@ -720,6 +780,7 @@ router.post('/:id/reprocess', async (req, res) => {
 
   try {
     const result = await jobPromise;
+    setRecentReprocessResult(documentId, result?.statusCode, result?.payload);
     return res.status(result.statusCode).json(result.payload);
   } finally {
     const current = inFlightReprocessJobs.get(documentId);

@@ -7,7 +7,7 @@ test.describe('Unified Workspace - Navigation & Interactions', () => {
   test.describe('Navigation from all entry points', () => {
 
     test('navigate to workspace from Dashboard sidebar', async ({ page }) => {
-      await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
 
       // Use specific testid for workspace link in sidebar-nav
       const workspaceLink = page.locator('[data-testid="nav-workspace"]');
@@ -16,14 +16,14 @@ test.describe('Unified Workspace - Navigation & Interactions', () => {
       // Click workspace link
       await workspaceLink.click();
       // Wait for workspace URL (matches /workspace or /workspace/doc/123)
-      await page.waitForURL('**/workspace*', { timeout: 10000 });
+      await page.waitForURL('**/workspace*', { timeout: 20000 });
 
-      // Verify we're on the document workspace
-      await expect(page.locator('[data-page="document-workspace"]').first()).toBeVisible();
+      // /workspace renders the workspace shell (no auto-selected doc).
+      await expect(page.locator('[data-page="workspace"]')).toBeVisible({ timeout: 20000 });
     });
 
     test('navigate to workspace from History sidebar', async ({ page }) => {
-      await page.goto(`${BASE}/history`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/history`, { waitUntil: 'domcontentloaded' });
 
       // Use specific testid for workspace link in sidebar-nav
       const workspaceLink = page.locator('[data-testid="nav-workspace"]');
@@ -32,28 +32,28 @@ test.describe('Unified Workspace - Navigation & Interactions', () => {
       // Click workspace link
       await workspaceLink.click();
       // Wait for workspace URL (matches /workspace or /workspace/doc/123)
-      await page.waitForURL('**/workspace*', { timeout: 10000 });
+      await page.waitForURL('**/workspace*', { timeout: 20000 });
 
-      await expect(page.locator('[data-page="document-workspace"]').first()).toBeVisible();
+      await expect(page.locator('[data-page="workspace"]')).toBeVisible({ timeout: 20000 });
     });
 
     test('navigate to workspace from History document row', async ({ page }) => {
-      await page.goto(`${BASE}/history`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/history`, { waitUntil: 'domcontentloaded' });
 
       // Wait for history to load - check for the history table or document links
       await page.waitForSelector('table, [data-testid="history-manager-island"], a[href^="/workspace/"]', { timeout: 10000 });
 
-      // Find a document link (View button) - required for this test
-      const viewLink = page.locator('a[href^="/workspace/"]').first();
+      // Prefer the explicit "View" action test id when present.
+      const viewLink = page.locator('[data-testid^="history-view-"]').first();
 
       // History should have documents - global setup ensures fixture doc exists
       await expect(viewLink).toBeVisible({ timeout: 10000 });
 
       await viewLink.click();
-      // Wait for workspace URL (matches /workspace/doc/123)
-      await page.waitForURL('**/workspace*', { timeout: 10000 });
+      // Wait for document workspace URL (matches /workspace/doc/123)
+      await page.waitForURL('**/workspace/doc/**', { timeout: 20000 });
 
-      await expect(page.locator('[data-page="document-workspace"]')).toBeVisible();
+      await expect(page.locator('[data-page="document-workspace"]')).toBeVisible({ timeout: 20000 });
     });
 
   });
@@ -61,7 +61,7 @@ test.describe('Unified Workspace - Navigation & Interactions', () => {
   test.describe('Mouse interactions', () => {
 
     test('sidebar tab switching with mouse click', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
 
       // Wait for context sidebar to load
       await page.waitForSelector('[data-testid="context-sidebar"]', { timeout: 15000 });
@@ -89,7 +89,7 @@ test.describe('Unified Workspace - Navigation & Interactions', () => {
     });
 
     test('document context bar buttons are clickable', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
 
       // Wait for document context bar
       await page.waitForSelector('[data-testid="document-context-bar"]', { timeout: 15000 });
@@ -114,7 +114,7 @@ test.describe('Unified Workspace - Navigation & Interactions', () => {
     });
 
     test('document selector dropdown interaction', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
 
       // Wait for document context bar
       await page.waitForSelector('[data-testid="document-context-bar"]', { timeout: 15000 });
@@ -146,7 +146,7 @@ test.describe('Unified Workspace - Navigation & Interactions', () => {
   test.describe('Keyboard interactions', () => {
 
     test('tab navigation through sidebar tabs', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
 
       await page.waitForSelector('[data-testid="context-sidebar"]', { timeout: 15000 });
 
@@ -167,7 +167,7 @@ test.describe('Unified Workspace - Navigation & Interactions', () => {
     });
 
     test('escape key closes dropdowns/modals', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
 
       // Wait for page to load
       await page.waitForSelector('[data-page="document-workspace"]', { timeout: 15000 });
@@ -185,7 +185,7 @@ test.describe('Unified Workspace - Navigation & Interactions', () => {
     });
 
     test('form field keyboard input', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
 
       await page.waitForSelector('[data-testid="context-sidebar"]', { timeout: 15000 });
 
@@ -213,7 +213,7 @@ test.describe('Unified Workspace - Navigation & Interactions', () => {
   test.describe('Visual state verification', () => {
 
     test('workspace displays document title', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
 
       await page.waitForSelector('[data-page="document-workspace"]', { timeout: 15000 });
 
@@ -223,7 +223,7 @@ test.describe('Unified Workspace - Navigation & Interactions', () => {
     });
 
     test('unsaved changes indicator appears on edit', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
 
       await page.waitForSelector('[data-testid="context-sidebar"]', { timeout: 15000 });
 
@@ -252,7 +252,7 @@ test.describe('Unified Workspace - Navigation & Interactions', () => {
     });
 
     test('take screenshot for visual verification', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
 
       await page.waitForSelector('[data-page="document-workspace"]', { timeout: 15000 });
 

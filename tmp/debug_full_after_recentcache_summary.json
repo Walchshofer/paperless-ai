@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-02-14T07:53:03.7590768Z",
+  "source": "tmp/debug_full_after_recentcache_20260214_084423_playwright.txt",
+  "totals": {
+    "total": 293,
+    "passed": 245,
+    "failed": 11,
+    "skipped": 37
+  },
+  "failedSpecFiles": [
+    "alpha9-full-pipeline.spec.ts",
+    "chat-live.spec.ts",
+    "chat-modes.spec.ts",
+    "document-selection.spec.ts",
+    "overlay-reflow-locate.spec.ts",
+    "unified-workspace-navigation.spec.ts",
+    "verify-sys-router-vision.spec.ts",
+    "verify-ui.spec.ts"
+  ],
+  "failedSpecFileCount": 8
+}

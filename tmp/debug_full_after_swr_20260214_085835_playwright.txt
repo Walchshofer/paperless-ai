@@ -1,0 +1,2434 @@
+[e2e] Docker available - attempting to start DB via docker compose
+ Container paperless_db  Running
+[e2e] Postgres container paperless_db reports ready (pg_isready)
+[e2e] Login successful, redirected to: http://localhost:3000/dashboard
+[e2e] Setup form/modal detected and removed/closed for test run (non-invasive)
+[e2e] Skipping fixture setup (E2E_SKIP_FIXTURE_SETUP).
+[e2e] Seed endpoint returned 403: {"error":"Not available in production"}
+
+Running 293 tests using 16 workers
+
+[1A[2K[1/293] [chromium] › test\e2e\accessibility.spec.ts:7:7 › Accessibility and Hydration Checks › Workspace page accessibility and hydration
+[1A[2K[2/293] [chromium] › test\e2e\ai-provider.spec.ts:12:7 › AIProviderIsland smoke test › island mounts and displays all tabs
+[1A[2K[3/293] [chromium] › test\e2e\ai-features-deep.spec.ts:17:7 › AI Features Deep Test › Deep dive into AI Chat functionality
+[1A[2K[4/293] [chromium] › test\e2e\chat-model-filtering.spec.ts:17:7 › Chat Model Filtering by Provider › should display provider indicator
+[1A[2K[5/293] [chromium] › test\e2e\blocker-document-viewer.spec.ts:19:7 › Workspace Document Viewer Verification › BLOCKER: Document must render in viewer area
+[1A[2K[6/293] [chromium] › test\e2e\chat-live.spec.ts:35:7 › Chat Route Live E2E › initializes chat, sends a message, and receives assistant reply (live)
+[1A[2K[7/293] [chromium] › test\e2e\alpha9-full-pipeline.spec.ts:85:7 › Alpha-9 Full Pipeline E2E › Complete user flow: History → Red Pen → Similar → Results
+[1A[2K[8/293] [chromium] › test\e2e\connection-center-visual.spec.ts:6:7 › Connection Center Visual Verification › Verify Connection Center layout and context-aware greying
+[1A[2K[9/293] [chromium] › test\e2e\connection-settings.spec.ts:30:7 › ConnectionSettingsIsland smoke test › island mounts and displays all connection fields
+[1A[2K[10/293] [chromium] › test\e2e\confirm-fix.spec.ts:6:5 › confirm SmartMetadataIsland error is resolved
+[1A[2K[11/293] [chromium] › test\e2e\dashboard-reconciliation.spec.ts:32:7 › Dashboard Reconciliation › should update UI when API returns newer data than inline snapshot
+[1A[2K[12/293] [chromium] › test\e2e\check-banner.spec.ts:5:5 › Legacy manual route returns 410
+[1A[2K[13/293] [chromium] › test\e2e\auth-flow.spec.ts:36:7 › Authentication flow › successful login sets JWT cookie
+[1A[2K[14/293] [chromium] › test\e2e\context-sidebar.spec.ts:26:7 › ContextSidebarIsland E2E › island mounts and renders root
+[1A[2K[15/293] [chromium] › test\e2e\chat-modes.spec.ts:48:7 › Chat Modes (Workspace) › shows mode toggle and all mode buttons
+[1A[2K[16/293] [chromium] › test\e2e\debug-history-links.spec.ts:7:5 › Debug all links on history page
+[1A[2K[17/293] [chromium] › test\e2e\developer-settings.spec.ts:64:7 › DeveloperSettingsIsland E2E Tests › island mounts correctly
+[1A[2K[chromium] › test\e2e\connection-center-visual.spec.ts:6:7 › Connection Center Visual Verification › Verify Connection Center layout and context-aware greying
+Navigating to settings...
+
+[1A[2K[chromium] › test\e2e\blocker-document-viewer.spec.ts:19:7 › Workspace Document Viewer Verification › BLOCKER: Document must render in viewer area
+🔐 Logging in...
+
+[1A[2K[chromium] › test\e2e\confirm-fix.spec.ts:6:5 › confirm SmartMetadataIsland error is resolved
+Navigating to http://localhost:3000/workspace/doc/74?tab=metadata
+
+[1A[2K[18/293] [chromium] › test\e2e\accessibility.spec.ts:48:7 › Accessibility and Hydration Checks › Dashboard accessibility
+[1A[2K[19/293] [chromium] › test\e2e\accessibility.spec.ts:66:7 › Accessibility and Hydration Checks › Legacy manual route returns 410
+[1A[2K[chromium] › test\e2e\connection-center-visual.spec.ts:6:7 › Connection Center Visual Verification › Verify Connection Center layout and context-aware greying
+Page loaded, URL: http://localhost:3000/settings
+
+[1A[2KTitle: Settings - Paperless-AI
+
+[1A[2K[20/293] [chromium] › test\e2e\ai-provider.spec.ts:45:7 › AIProviderIsland smoke test › tab navigation switches content correctly
+[1A[2K[21/293] [chromium] › test\e2e\document-selection.spec.ts:11:7 › Document Selection in Workspace › Document selection navigates to /workspace/doc/{id} not /document/{id}
+[1A[2K[22/293] [chromium] › test\e2e\document-viewer-screenshot.spec.ts:17:7 › Document Viewer Screenshot Verification › should display normalized document image in viewer
+[1A[2K[23/293] [chromium] › test\e2e\expert-models.spec.ts:44:7 › AI Provider Expert Labs › mounts ai-provider island and displays all provider tabs
+[1A[2K[24/293] [chromium] › test\e2e\connection-settings.spec.ts:67:7 › ConnectionSettingsIsland smoke test › form validation: buttons disabled when required fields empty
+[1A[2K[25/293] [chromium] › test\e2e\developer-settings.spec.ts:72:7 › DeveloperSettingsIsland E2E Tests › feature flags section expands and collapses
+[1A[2K[chromium] › test\e2e\blocker-document-viewer.spec.ts:19:7 › Workspace Document Viewer Verification › BLOCKER: Document must render in viewer area
+✅ Login successful
+
+[1A[2K
+============================================================
+
+[1A[2K🔴 BLOCKER TEST: Document Viewer Verification
+
+[1A[2K============================================================
+
+[1A[2K
+📂 Step 1: Navigate to workspace...
+
+[1A[2K[chromium] › test\e2e\ai-features-deep.spec.ts:17:7 › AI Features Deep Test › Deep dive into AI Chat functionality
+
+🤖 AI CHAT DEEP TEST
+
+[1A[2K==================================================
+
+[1A[2K[26/293] [chromium] › test\e2e\auth-flow.spec.ts:54:7 › Authentication flow › invalid credentials show an error message
+[1A[2K[27/293] [chromium] › test\e2e\expert-models.spec.ts:54:7 › AI Provider Expert Labs › locks expert labs when provider is not ollama
+[1A[2K[28/293] [chromium] › test\e2e\connection-settings.spec.ts:92:7 › ConnectionSettingsIsland smoke test › test connection button shows loading state
+[1A[2K[29/293] [chromium] › test\e2e\chat-model-filtering.spec.ts:28:7 › Chat Model Filtering by Provider › should show model select dropdown
+[1A[2K[30/293] [chromium] › test\e2e\developer-settings.spec.ts:90:7 › DeveloperSettingsIsland E2E Tests › feature flag toggles trigger auto-save
+[1A[2K[31/293] [chromium] › test\e2e\ai-provider.spec.ts:69:7 › AIProviderIsland smoke test › general tab: provider selection works
+[1A[2K[32/293] [chromium] › test\e2e\alpha9-full-pipeline.spec.ts:180:7 › Alpha-9 Full Pipeline E2E › Collection routing: results from visual_pages with 320-dim
+[1A[2K[chromium] › test\e2e\blocker-document-viewer.spec.ts:19:7 › Workspace Document Viewer Verification › BLOCKER: Document must render in viewer area
+
+📄 Step 2: Select a document...
+
+[1A[2KFound 97 documents
+
+[1A[2KSelecting document #13: "KUNDENBELEG#70"
+
+[1A[2K[chromium] › test\e2e\document-viewer-screenshot.spec.ts:17:7 › Document Viewer Screenshot Verification › should display normalized document image in viewer
+Image src: /api/visual-rag/normalized/74?page=1
+
+[1A[2KImage dimensions: 1272x1752
+
+[1A[2K✅ Screenshot saved to test-results/document-viewer-loaded.png
+
+[1A[2K[33/293] [chromium] › test\e2e\chat-modes.spec.ts:60:7 › Chat Modes (Workspace) › defaults to rag mode with rag indicator and placeholder
+[1A[2K[chromium] › test\e2e\chat-live.spec.ts:35:7 › Chat Route Live E2E › initializes chat, sends a message, and receives assistant reply (live)
+[LIVE] /api/ollama/models -> {
+  status: [33m200[39m,
+  data: {
+    provider: [32m'ollama'[39m,
+    providerMismatch: [33mfalse[39m,
+    defaultModel: [32m'gpt-oss:latest'[39m,
+    models: [
+      [32m'huihui_ai/mistral-small-abliterated:24b-instruct-2501-q8_0'[39m,
+      [32m'llava-med-v1.6:latest'[39m,
+      [32m'medtext-llama3:latest'[39m,
+      [32m'koesn/llama3-openbiollm-8b:latest'[39m,
+      [32m'gpt-oss:20b'[39m,
+      [32m'fino1-8b:latest'[39m,
+      [32m'nemotron-orchestrator:8b'[39m,
+      [32m'llm-pro-finance-8b:latest'[39m,
+      [32m'sauerkraut-llama3.1:8b'[39m,
+      [32m'qwen3-vl:8b'[39m
+    ],
+    placeholderModels: [
+      [32m'gpt-oss:latest'[39m,
+      [32m'medtext-llama3'[39m,
+      [32m'llava-med-v1.5'[39m,
+      [32m'fino1-8b'[39m,
+      [32m'llm-pro-finance-8b'[39m
+    ],
+    expertModels: []
+  }
+}
+
+[1A[2K[LIVE] model selection state: {
+  selected: [32m'gpt-oss:latest'[39m,
+  firstSelectable: [32m'qwen3-vl:8b'[39m,
+  optionCount: [33m10[39m
+}
+
+[1A[2K[34/293] [chromium] › test\e2e\export-feature-ui.spec.ts:14:7 › Export Feature UI Tests › ExportPanelIsland should be present in DOM
+[1A[2K[chromium] › test\e2e\confirm-fix.spec.ts:6:5 › confirm SmartMetadataIsland error is resolved
+Screenshot saved to test-results/fix-confirmation.png
+
+[1A[2K[35/293] [chromium] › test\e2e\auth-flow.spec.ts:68:7 › Authentication flow › session persists after reload
+[1A[2K[chromium] › test\e2e\chat-live.spec.ts:35:7 › Chat Route Live E2E › initializes chat, sends a message, and receives assistant reply (live)
+[ARTIFACT] Screenshot saved: C:\Users\pwalc\MyApps\paperless-ai\test-output\chat-live.png
+
+[1A[2K[36/293] [chromium] › test\e2e\context-sidebar.spec.ts:36:7 › ContextSidebarIsland E2E › tabs switch content and persist selection
+[1A[2K[ARTIFACT] JSON saved: C:\Users\pwalc\MyApps\paperless-ai\test-output\chat-live.json
+
+[1A[2K[37/293] [chromium] › test\e2e\feedback-comprehensive.spec.ts:14:7 › Feedback comprehensive flow › feedback button opens modal and renders form
+[1A[2K[chromium] › test\e2e\debug-history-links.spec.ts:7:5 › Debug all links on history page
+
+Total links on history page: 29
+
+
+[1A[2KLink 1: "Dashboard" -> /dashboard
+
+[1A[2KLink 2: "Workspace" -> /workspace
+
+[1A[2KLink 3: "Chat" -> /workspace/doc/latest?tab=chat
+
+[1A[2KLink 4: "Playground" -> /playground
+
+[1A[2KLink 5: "History" -> /history
+
+[1A[2KLink 6: "Analytics" -> /analytics/visual-queries
+
+[1A[2KLink 7: "Settings" -> /settings
+
+[1A[2KLink 8: "Logout" -> /logout
+
+[1A[2KLink 9: "Star
+    
+    1.2k" -> https://github.com/clusterzx/paperless-ai
+
+[1A[2K[38/293] [chromium] › test\e2e\feedback.flow.spec.ts:7:7 › Feedback Flow E2E › feedback events persist to Postgres with correct fields and request id tracking
+[1A[2KLink 10: "View" -> /workspace/doc/74
+
+[1A[2KLink 11: "Chat" -> /workspace/doc/74
+
+[1A[2KLink 12: "View" -> /workspace/doc/74
+
+[1A[2KLink 13: "Chat" -> /workspace/doc/74
+
+[1A[2KLink 14: "View" -> /workspace/doc/74
+
+[1A[2KLink 15: "Chat" -> /workspace/doc/74
+
+[1A[2KLink 16: "View" -> /workspace/doc/74
+
+[1A[2KLink 17: "Chat" -> /workspace/doc/74
+
+[1A[2KLink 18: "View" -> /workspace/doc/74
+
+[1A[2K[39/293] [chromium] › test\e2e\expert-models.spec.ts:65:7 › AI Provider Expert Labs › shows expert model cards when provider is ollama
+[1A[2KLink 19: "Chat" -> /workspace/doc/74
+
+[1A[2KLink 20: "View" -> /workspace/doc/74
+
+[1A[2KLink 21: "Chat" -> /workspace/doc/74
+
+[1A[2KLink 22: "View" -> /workspace/doc/74
+
+[1A[2KLink 23: "Chat" -> /workspace/doc/74
+
+[1A[2KLink 24: "View" -> /workspace/doc/74
+
+[1A[2KLink 25: "Chat" -> /workspace/doc/74
+
+[1A[2KLink 26: "View" -> /workspace/doc/74
+
+[1A[2KLink 27: "Chat" -> /workspace/doc/74
+
+[1A[2KLink 28: "View" -> /workspace/doc/74
+
+[1A[2KLink 29: "Chat" -> /workspace/doc/74
+
+[1A[2K
+History island found, checking row actions...
+
+[1A[2KRow action links found: 20
+
+[1A[2K  Action 1: testId=history-view-74, href=/workspace/doc/74
+
+[1A[2K  Action 2: testId=history-chat-74, href=/workspace/doc/74
+
+[1A[2K  Action 3: testId=history-view-74, href=/workspace/doc/74
+
+[1A[2K  Action 4: testId=history-chat-74, href=/workspace/doc/74
+
+[1A[2K  Action 5: testId=history-view-74, href=/workspace/doc/74
+
+[1A[2K  Action 6: testId=history-chat-74, href=/workspace/doc/74
+
+[1A[2K
+History-related elements with data-testid: 60
+
+[1A[2K[40/293] [chromium] › test\e2e\history-links-check.spec.ts:7:5 › Check history page links
+[1A[2K  Element 1: div[data-testid="history-manager-island"]
+
+[1A[2K  Element 2: div[data-testid="history-manager-root"]
+
+[1A[2K  Element 3: div[data-testid="history-guided-rail"]
+
+[1A[2K  Element 4: button[data-testid="history-reset-selected"]
+
+[1A[2K  Element 5: button[data-testid="history-reset-all"]
+
+[1A[2K  Element 6: input[data-testid="history-search"]
+
+[1A[2K  Element 7: select[data-testid="history-tag-filter"]
+
+[1A[2K  Element 8: select[data-testid="history-correspondent-filter"]
+
+[1A[2K  Element 9: table[data-testid="history-table"]
+
+[1A[2K  Element 10: input[data-testid="history-select-all"]
+
+[1A[2K  Element 11: input[data-testid="history-select-74"]
+
+[1A[2K  Element 12: a[data-testid="history-view-74"]
+
+[1A[2K  Element 13: button[data-testid="history-visual-74"]
+
+[1A[2K  Element 14: a[data-testid="history-chat-74"]
+
+[1A[2K  Element 15: button[data-testid="history-reanalyze-74"]
+
+[1A[2K  Element 16: input[data-testid="history-select-74"]
+
+[1A[2K  Element 17: a[data-testid="history-view-74"]
+
+[1A[2K  Element 18: button[data-testid="history-visual-74"]
+
+[1A[2K  Element 19: a[data-testid="history-chat-74"]
+
+[1A[2K  Element 20: button[data-testid="history-reanalyze-74"]
+
+[1A[2K  Element 21: input[data-testid="history-select-74"]
+
+[1A[2K  Element 22: a[data-testid="history-view-74"]
+
+[1A[2K  Element 23: button[data-testid="history-visual-74"]
+
+[1A[2K  Element 24: a[data-testid="history-chat-74"]
+
+[1A[2K  Element 25: button[data-testid="history-reanalyze-74"]
+
+[1A[2K  Element 26: input[data-testid="history-select-74"]
+
+[1A[2K  Element 27: a[data-testid="history-view-74"]
+
+[1A[2K  Element 28: button[data-testid="history-visual-74"]
+
+[1A[2K  Element 29: a[data-testid="history-chat-74"]
+
+[1A[2K  Element 30: button[data-testid="history-reanalyze-74"]
+
+[1A[2K[41/293] [chromium] › test\e2e\ai-provider.spec.ts:86:7 › AIProviderIsland smoke test › openai tab: connection note is visible
+[1A[2K  Element 31: input[data-testid="history-select-74"]
+
+[1A[2K  1) [chromium] › test\e2e\alpha9-full-pipeline.spec.ts:180:7 › Alpha-9 Full Pipeline E2E › Collection routing: results from visual_pages with 320-dim 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m"visual_pages"[39m
+    Received: [31mundefined[39m
+
+      231 |
+      232 |     // Verify response indicates visual_pages collection
+    > 233 |     expect((responseData as Record<string, unknown> | null)?.collectionUsed).toBe('visual_pages');
+          |                                                                              ^
+      234 |   });
+      235 |
+      236 |   test('Filter propagation: correspondent_id included in API request', async ({
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\alpha9-full-pipeline.spec.ts:233:78
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\alpha9-full-pipeline-Alpha-7ab7b-m-visual-pages-with-320-dim-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\alpha9-full-pipeline-Alpha-7ab7b-m-visual-pages-with-320-dim-chromium\error-context.md
+
+
+[1A[2K  Element 32: a[data-testid="history-view-74"]
+
+[1A[2K  Element 33: button[data-testid="history-visual-74"]
+
+[1A[2K  Element 34: a[data-testid="history-chat-74"]
+
+[1A[2K  Element 35: button[data-testid="history-reanalyze-74"]
+
+[1A[2K  Element 36: input[data-testid="history-select-74"]
+
+[1A[2K[42/293] [chromium] › test\e2e\connection-settings.spec.ts:122:7 › ConnectionSettingsIsland smoke test › test connection shows error feedback on failure
+[1A[2K  Element 37: a[data-testid="history-view-74"]
+
+[1A[2K  Element 38: button[data-testid="history-visual-74"]
+
+[1A[2K  Element 39: a[data-testid="history-chat-74"]
+
+[1A[2K  Element 40: button[data-testid="history-reanalyze-74"]
+
+[1A[2K  Element 41: input[data-testid="history-select-74"]
+
+[1A[2K  Element 42: a[data-testid="history-view-74"]
+
+[1A[2K  Element 43: button[data-testid="history-visual-74"]
+
+[1A[2K  Element 44: a[data-testid="history-chat-74"]
+
+[1A[2K  Element 45: button[data-testid="history-reanalyze-74"]
+
+[1A[2K  Element 46: input[data-testid="history-select-74"]
+
+[1A[2K  Element 47: a[data-testid="history-view-74"]
+
+[1A[2K  Element 48: button[data-testid="history-visual-74"]
+
+[1A[2K  Element 49: a[data-testid="history-chat-74"]
+
+[1A[2K  Element 50: button[data-testid="history-reanalyze-74"]
+
+[1A[2K  Element 51: input[data-testid="history-select-74"]
+
+[1A[2K  Element 52: a[data-testid="history-view-74"]
+
+[1A[2K  Element 53: button[data-testid="history-visual-74"]
+
+[1A[2K  Element 54: a[data-testid="history-chat-74"]
+
+[1A[2K  Element 55: button[data-testid="history-reanalyze-74"]
+
+[1A[2K  Element 56: input[data-testid="history-select-74"]
+
+[1A[2K  Element 57: a[data-testid="history-view-74"]
+
+[1A[2K  Element 58: button[data-testid="history-visual-74"]
+
+[1A[2K  Element 59: a[data-testid="history-chat-74"]
+
+[1A[2K  Element 60: button[data-testid="history-reanalyze-74"]
+
+[1A[2K[43/293] [chromium] › test\e2e\developer-settings.spec.ts:125:7 › DeveloperSettingsIsland E2E Tests › all feature flags are present and toggleable
+[1A[2K[44/293] [chromium] › test\e2e\history-split-layout.spec.ts:39:7 › History Split Layout - Islands › mounts overlay-viewer-island and history-tabs-island
+[1A[2K[chromium] › test\e2e\blocker-document-viewer.spec.ts:19:7 › Workspace Document Viewer Verification › BLOCKER: Document must render in viewer area
+Current URL: http://localhost:3000/workspace/doc/70
+
+[1A[2K
+🔴 Step 3: BLOCKER - Verify document viewer renders...
+
+[1A[2KSearching for document viewer element...
+
+[1A[2K  ✅ FOUND: canvas (visible)
+
+[1A[2K
+============================================================
+
+[1A[2K✅ BLOCKER PASSED: Document viewer found (canvas)
+
+[1A[2K============================================================
+
+[1A[2K
+📋 Step 4: Verify viewer has actual content...
+
+[1A[2K  Viewer dimensions: 800x463
+
+[1A[2K  ✅ Viewer has reasonable dimensions
+
+[1A[2K
+🔧 Step 5: Test sidebar functionality...
+
+[1A[2K  ✅ Context sidebar present
+
+[1A[2K    - Buttons: 17
+
+[1A[2K    - Inputs: 10
+
+[1A[2K[45/293] [chromium] › test\e2e\alpha9-full-pipeline.spec.ts:236:7 › Alpha-9 Full Pipeline E2E › Filter propagation: correspondent_id included in API request
+[1A[2K  ✅ Tab "metadata" present
+
+[1A[2K  ✅ Tab "chat" present
+
+[1A[2K  ✅ Tab "content" present
+
+[1A[2K
+💬 Step 6: Test Chat functionality...
+
+[1A[2K[46/293] [chromium] › test\e2e\chat-model-filtering.spec.ts:36:7 › Chat Model Filtering by Provider › hides expert models for non-ollama provider payloads
+[1A[2K[47/293] [chromium] › test\e2e\history-split-layout.spec.ts:65:7 › History Split Layout - Islands › history-tabs-island shows three tabs (Text, Metadata, Similar)
+[1A[2K  ✅ Chat input found
+
+[1A[2K  ✅ Test message typed
+
+[1A[2K
+💾 Step 7: Test Save functionality...
+
+[1A[2K  Save button enabled: true
+
+[1A[2K
+============================================================
+
+[1A[2K✅ ALL BLOCKER TESTS PASSED
+
+[1A[2K============================================================
+
+[1A[2K[48/293] [chromium] › test\e2e\island-smoke.spec.ts:27:7 › Island Runtime Smoke › workspace islands mount with hydrated roots
+[1A[2K[chromium] › test\e2e\ai-features-deep.spec.ts:17:7 › AI Features Deep Test › Deep dive into AI Chat functionality
+
+💬 Testing Chat interface...
+
+[1A[2K[49/293] [chromium] › test\e2e\history-split-layout.spec.ts:91:7 › History Split Layout - Islands › tab navigation switches between panels
+[1A[2K[50/293] [chromium] › test\e2e\history-split-layout.spec.ts:125:7 › History Split Layout - Islands › ARIA attributes are present on tabs
+[1A[2K[51/293] [chromium] › test\e2e\expert-models.spec.ts:75:7 › AI Provider Expert Labs › marks form dirty after editing expert model and enables save
+[1A[2K[52/293] [chromium] › test\e2e\history-split-layout.spec.ts:154:7 › History Split Layout - Islands › keyboard navigation (ArrowRight/Left) moves focus and selects tabs
+[1A[2K[53/293] [chromium] › test\e2e\history-split-layout.spec.ts:185:7 › History Split Layout - Islands › visual-search-requested event triggers similar tab population
+[1A[2K[chromium] › test\e2e\export-feature-ui.spec.ts:14:7 › Export Feature UI Tests › ExportPanelIsland should be present in DOM
+✓ ExportPanelIsland is present in DOM
+
+[1A[2K[54/293] [chromium] › test\e2e\export-feature-ui.spec.ts:22:7 › Export Feature UI Tests › OverlayViewerIsland should have export button overlay elements
+[1A[2K[55/293] [chromium] › test\e2e\chat-modes.spec.ts:69:7 › Chat Modes (Workspace) › enables document mode when a workspace document is loaded
+[1A[2K[56/293] [chromium] › test\e2e\history-split-layout.spec.ts:220:7 › History Split Layout - Islands › 503 Initializing state shows GPU loading indicator
+[1A[2K[57/293] [chromium] › test\e2e\island-smoke.spec.ts:61:7 › Island Runtime Smoke › history islands mount with hydrated roots
+[1A[2K[58/293] [chromium] › test\e2e\history-split-layout.spec.ts:273:7 › History Split Layout - Islands › 5-column grid layout is applied
+[1A[2K[59/293] [chromium] › test\e2e\feedback-comprehensive.spec.ts:25:7 › Feedback comprehensive flow › submitting feedback shows success and records corrections
+[1A[2K[60/293] [chromium] › test\e2e\legacy-route-retirement.spec.ts:6:7 › Legacy Route Retirement › legacy routes return 410
+[1A[2K[61/293] [chromium] › test\e2e\legacy-routes-verify.spec.ts:18:7 › Legacy Route Verification › Legacy routes return 410
+[1A[2K[chromium] › test\e2e\ai-features-deep.spec.ts:17:7 › AI Features Deep Test › Deep dive into AI Chat functionality
+Chat workspace island: ❌ not found
+
+[1A[2KFound 1 textarea elements
+
+[1A[2K  Textarea #1: id="null", placeholder="Execute global corpus search query...", data-testid="chat-input"
+
+[1A[2K
+Searching for chat elements:
+
+[1A[2K  ✅ [data-testid="chat-input"]: 1 found
+
+[1A[2K
+Trying to find chat input:
+
+[1A[2K  ✅ Found visible input: textarea:visible
+
+[1A[2K  ✅ Message typed in chat input
+
+[1A[2K  ✅ Send button found
+
+[1A[2K
+🏷️ Testing Smart Tags...
+
+[1A[2K[62/293] [chromium] › test\e2e\ai-provider.spec.ts:97:7 › AIProviderIsland smoke test › ollama tab: model identifier fields work
+[1A[2K[63/293] [chromium] › test\e2e\connection-settings.spec.ts:150:7 › ConnectionSettingsIsland smoke test › save button shows loading state and dispatches events
+[1A[2K[64/293] [chromium] › test\e2e\expert-models.spec.ts:87:7 › AI Provider Expert Labs › save flow dispatches settings events and shows success message
+[1A[2KLooking for tag elements:
+
+[1A[2K  ✅ [data-testid*="tag"]: 9 found
+
+[1A[2K
+📝 Testing Smart Filenaming (Title)...
+
+[1A[2KLooking for title/filenaming elements:
+
+[1A[2K  ✅ [data-testid*="title"]: 2 found
+
+[1A[2K
+👤 Testing Correspondent Selection...
+
+[1A[2KLooking for correspondent elements:
+
+[1A[2K  ✅ [data-testid*="correspondent"]: 1 found
+
+[1A[2K
+💾 Testing Save Functionality...
+
+[1A[2KLooking for save elements:
+
+[1A[2K  ✅ button:has-text("Save"): 1 found (enabled: true)
+
+[1A[2K  ✅ [data-testid*="save"]: 2 found (enabled: true)
+
+[1A[2K
+📊 Testing Context Sidebar in detail...
+
+[1A[2K  Buttons in sidebar: 9
+
+[1A[2K  Inputs in sidebar: 4
+
+[1A[2K    Button #1: "Smart"
+
+[1A[2K    Button #2: "OCR"
+
+[1A[2K    Button #3: "Chat"
+
+[1A[2K    Button #4: "Visual"
+
+[1A[2K    Button #5: "Debug"
+
+[1A[2K
+==================================================
+
+[1A[2K📋 AI FEATURES TEST SUMMARY
+
+[1A[2K==================================================
+
+[1A[2KChat Interface: Present (tab visible)
+
+[1A[2KSmart Tags: Integrated in sidebar
+
+[1A[2KSmart Title/Filenaming: Integrated in sidebar
+
+[1A[2KCorrespondent Selector: Present
+
+[1A[2KSave Functionality: Present
+
+[1A[2K==================================================
+
+[1A[2K[65/293] [chromium] › test\e2e\developer-settings.spec.ts:158:7 › DeveloperSettingsIsland E2E Tests › environment variables section expands and collapses
+[1A[2K[66/293] [chromium] › test\e2e\ai-features-deep.spec.ts:243:7 › AI Features Deep Test › Test History page functionality
+[1A[2K[chromium] › test\e2e\legacy-routes-verify.spec.ts:18:7 › Legacy Route Verification › Legacy routes return 410
+Manual status: [33m410[39m
+
+[1A[2KChat status: [33m410[39m
+
+[1A[2KRAG status: [33m410[39m
+
+[1A[2K[67/293] [chromium] › test\e2e\legacy-routes-verify.spec.ts:31:7 › Legacy Route Verification › Workspace page structure
+[1A[2K[chromium] › test\e2e\export-feature-ui.spec.ts:22:7 › Export Feature UI Tests › OverlayViewerIsland should have export button overlay elements
+✓ OverlayViewerIsland is present
+
+[1A[2K[68/293] [chromium] › test\e2e\chat-modes.spec.ts:85:7 › Chat Modes (Workspace) › disables document mode when no workspace document is loaded
+[1A[2K[69/293] [chromium] › test\e2e\export-feature-ui.spec.ts:37:7 › Export Feature UI Tests › VisualAnnotationIsland should have Export button
+[1A[2K[70/293] [chromium] › test\e2e\developer-settings.spec.ts:176:7 › DeveloperSettingsIsland E2E Tests › environment variables section reflects moved settings IA
+[1A[2K[71/293] [chromium] › test\e2e\chat-model-filtering.spec.ts:76:7 › Chat Model Filtering by Provider › should allow model selection
+[1A[2K[72/293] [chromium] › test\e2e\ai-provider.spec.ts:116:7 › AIProviderIsland smoke test › save button shows loading state and dispatches events
+[1A[2K  2) [chromium] › test\e2e\document-selection.spec.ts:11:7 › Document Selection in Workspace › Document selection navigates to /workspace/doc/{id} not /document/{id} 
+
+    TimeoutError: page.waitForSelector: Timeout 20000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('[data-page="document-workspace"]') to be visible[22m
+
+
+      13 |     async ({ page }) => {
+      14 |       await page.goto(`${BASE}/workspace`, { waitUntil: 'networkidle' });
+    > 15 |       await page.waitForSelector('[data-page="document-workspace"]', {
+         |                  ^
+      16 |         timeout: 20000
+      17 |       });
+      18 |       await waitForIslandMount(page, 'document-context-bar-island');
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\document-selection.spec.ts:15:18
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\document-selection-Documen-1d19d-ace-doc-id-not-document-id--chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\document-selection-Documen-1d19d-ace-doc-id-not-document-id--chromium\error-context.md
+
+
+[1A[2K[73/293] [chromium] › test\e2e\connection-settings.spec.ts:201:7 › ConnectionSettingsIsland smoke test › optional username field works correctly
+[1A[2K[74/293] [chromium] › test\e2e\expert-models.spec.ts:139:7 › AI Provider Expert Labs › provider toggle to openai locks experts, toggling back restores fields
+[1A[2K[75/293] [chromium] › test\e2e\chat-modes.spec.ts:96:7 › Chat Modes (Workspace) › switches between rag and document mode
+[1A[2K[76/293] [chromium] › test\e2e\alpha9-full-pipeline.spec.ts:310:7 › Alpha-9 Full Pipeline E2E › End-to-end timing: measure pipeline latency
+[1A[2K[77/293] [chromium] › test\e2e\document-selection.spec.ts:86:7 › Document Selection in Workspace › Verify /workspace/doc/{id} loads document correctly
+[1A[2K[78/293] [chromium] › test\e2e\manual_annotation_persistence.spec.ts:16:7 › Workspace - Visual overlay persistence › label field creates overlay and delete removes it
+[1A[2K[chromium] › test\e2e\ai-features-deep.spec.ts:243:7 › AI Features Deep Test › Test History page functionality
+
+📜 HISTORY PAGE TEST
+
+[1A[2K==================================================
+
+[1A[2K[79/293] [chromium] › test\e2e\developer-settings.spec.ts:191:7 › DeveloperSettingsIsland E2E Tests › manual save triggers restart-required event
+[1A[2K[80/293] [chromium] › test\e2e\manual_enhancements.spec.ts:19:7 › Workspace Enhancements › Document Content Search
+[1A[2K[81/293] [chromium] › test\e2e\manual_save_payload.spec.ts:6:7 › Workspace - Smart Metadata Save › smart metadata mounts and save triggers update API
+[1A[2K[82/293] [chromium] › test\e2e\feedback-comprehensive.spec.ts:62:7 › Feedback comprehensive flow › feedback modal closes after submission
+[1A[2K[83/293] [chromium] › test\e2e\manual_user_flow.spec.ts:25:7 › Workspace UI - Complete User Flow › metadata edit, tab switch, visual draw mode, save
+[1A[2K[84/293] [chromium] › test\e2e\context-sidebar.spec.ts:87:7 › ContextSidebarIsland E2E › debug tab visibility respects admin flag
+[1A[2K[85/293] [chromium] › test\e2e\auth-flow.spec.ts:83:7 › Authentication flow › protected route redirects to login when unauthenticated
+[1A[2K[86/293] [chromium] › test\e2e\manual_visual_annotation.spec.ts:6:7 › Workspace Visual Tab - Overlay Viewer › mounts overlay viewer and activates draw mode
+[1A[2K[87/293] [chromium] › test\e2e\auth-flow.spec.ts:106:7 › Authentication flow › expired JWT forces re-login
+[1A[2K[88/293] [chromium] › test\e2e\auth-flow.spec.ts:129:7 › Authentication flow › logout clears JWT and redirects to login
+[1A[2K[chromium] › test\e2e\export-feature-ui.spec.ts:37:7 › Export Feature UI Tests › VisualAnnotationIsland should have Export button
+⚠ VisualAnnotationIsland not found on this page
+
+[1A[2K[89/293] [chromium] › test\e2e\export-feature-ui.spec.ts:62:7 › Export Feature UI Tests › DocumentContentIsland should exist
+[1A[2K[90/293] [chromium] › test\e2e\developer-settings.spec.ts:239:7 › DeveloperSettingsIsland E2E Tests › save button shows loading state
+[1A[2K[91/293] [chromium] › test\e2e\manual-enumeration.spec.ts:35:7 › Workspace page enumeration › enumerate elements and verify Smart Metadata fields populated
+[1A[2K[92/293] [chromium] › test\e2e\chat-modes.spec.ts:115:7 › Chat Modes (Workspace) › exposes visual rag availability state
+[1A[2K[chromium] › test\e2e\legacy-routes-verify.spec.ts:31:7 › Legacy Route Verification › Workspace page structure
+Final URL: http://localhost:3000/workspace/doc/74
+
+[1A[2KDocument context bar: present
+
+[1A[2KContext sidebar: present
+
+[1A[2KWorkspace root: present
+
+[1A[2KMetadata tab: present
+
+[1A[2KChat tab: present
+
+[1A[2KContent tab: present
+
+[1A[2K[93/293] [chromium] › test\e2e\legacy-routes-verify.spec.ts:57:7 › Legacy Route Verification › Workspace navigation between documents
+[1A[2K[94/293] [chromium] › test\e2e\manual_annotation_persistence.spec.ts:120:7 › Workspace - Visual overlay persistence › missing fields list updates when overlay is mapped
+[1A[2K[95/293] [chromium] › test\e2e\manual_enhancements.spec.ts:40:7 › Workspace Enhancements › Visual Search Panel
+[1A[2K[96/293] [chromium] › test\e2e\manual_save_payload.spec.ts:37:7 › Workspace - Smart Metadata Save › context sidebar supports keyboard navigation
+[1A[2K  3) [chromium] › test\e2e\history-links-check.spec.ts:7:5 › Check history page links ──────────────
+
+    TimeoutError: page.goto: Timeout 15000ms exceeded.
+    Call log:
+    [2m  - navigating to "http://localhost:3000/history", waiting until "networkidle"[22m
+
+
+      14 |
+      15 |   // Go to history
+    > 16 |   await page.goto(`${BASE}/history`, { waitUntil: 'networkidle' });
+         |              ^
+      17 |
+      18 |   // Wait a moment for islands to hydrate
+      19 |   await page.waitForTimeout(2000);
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\history-links-check.spec.ts:16:14
+
+
+[1A[2K[97/293] [chromium] › test\e2e\alpha9-full-pipeline.spec.ts:375:7 › Alpha-9 Full Pipeline E2E › Error recovery: handles API failure gracefully
+[1A[2K[98/293] [chromium] › test\e2e\manual-overlay-live.spec.ts:7:7 › Workspace Overlay - Live Integration › OverlayViewer responds to real document changes
+[1A[2K[99/293] [chromium] › test\e2e\developer-settings.spec.ts:264:7 › DeveloperSettingsIsland E2E Tests › section collapse state persists during interaction
+[1A[2K[100/293] [chromium] › test\e2e\manual_user_flow.spec.ts:76:7 › Workspace UI - Complete User Flow › feedback:sent event dispatches on thumbs up
+[1A[2K[chromium] › test\e2e\export-feature-ui.spec.ts:62:7 › Export Feature UI Tests › DocumentContentIsland should exist
+⚠ DocumentContentIsland not found on this page
+
+[1A[2K[101/293] [chromium] › test\e2e\export-feature-ui.spec.ts:77:7 › Export Feature UI Tests › Export API routes should be accessible
+[1A[2K[102/293] [chromium] › test\e2e\manual-route-test.spec.ts:24:7 › Manual Route Testing › Dashboard loads correctly
+[1A[2K[103/293] [chromium] › test\e2e\metadata-locate.spec.ts:8:7 › Metadata locate -> Overlay highlight › dispatching metadata:locate-field triggers overlay highlight
+[1A[2K[104/293] [chromium] › test\e2e\auth-flow.spec.ts:144:7 › Authentication flow › API rejects invalid JWT
+[1A[2K[105/293] [chromium] › test\e2e\navigation-blocking.spec.ts:6:5 › navigation is blocked when workspace is dirty (confirm modal)
+[1A[2K  4) [chromium] › test\e2e\feedback-comprehensive.spec.ts:62:7 › Feedback comprehensive flow › feedback modal closes after submission 
+
+    TimeoutError: page.goto: Timeout 15000ms exceeded.
+    Call log:
+    [2m  - navigating to "http://localhost:3000/history/doc/74", waiting until "networkidle"[22m
+
+
+       at ..\helpers\workspace-fixtures.js:17
+
+      15 | async function navigateToHistoryDoc(page, docId) {
+      16 |   const id = docId != null ? docId : getHistoryDocId();
+    > 17 |   await page.goto(`/history/doc/${id}`, { waitUntil: 'networkidle' });
+         |              ^
+      18 |   await page.waitForSelector('[data-page="history-document"]', {
+      19 |     timeout: DEFAULT_TIMEOUT_MS
+      20 |   });
+        at navigateToHistoryDoc (C:\Users\pwalc\MyApps\paperless-ai\test\helpers\workspace-fixtures.js:17:14)
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\feedback-comprehensive.spec.ts:64:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\feedback-comprehensive-Fee-483e2-dal-closes-after-submission-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\feedback-comprehensive-Fee-483e2-dal-closes-after-submission-chromium\error-context.md
+
+
+[1A[2K[106/293] [chromium] › test\e2e\onboarding-wizard-visual.spec.ts:9:7 › Onboarding Wizard Visual Verification › Verify Setup Wizard layout and data-testids
+[1A[2K[chromium] › test\e2e\onboarding-wizard-visual.spec.ts:9:7 › Onboarding Wizard Visual Verification › Verify Setup Wizard layout and data-testids
+Navigating to setup...
+
+[1A[2KREDIRECT: http://localhost:3000/setup -> /dashboard
+
+[1A[2KPage URL: http://localhost:3000/dashboard
+
+
+[1A[2KRedirected away from /setup. System might be already configured.
+[1A[2K[107/293] [chromium] › test\e2e\overlay-reflow-locate.spec.ts:44:7 › Workspace overlay reflow and locate wiring › overlay boxes stay aligned during zoom and viewport resize
+[1A[2K[108/293] [chromium] › test\e2e\feedback-comprehensive.spec.ts:81:7 › Feedback comprehensive flow › request id tracking propagates on feedback events
+[1A[2K[109/293] [chromium] › test\e2e\developer-settings.spec.ts:288:7 › DeveloperSettingsIsland E2E Tests › warning banner displays correctly
+[1A[2K[chromium] › test\e2e\manual-route-test.spec.ts:24:7 › Manual Route Testing › Dashboard loads correctly
+Dashboard URL: http://localhost:3000/dashboard
+
+[1A[2K[110/293] [chromium] › test\e2e\overlay-viewer-css-fix.spec.ts:6:5 › verify Document Viewer container is not empty and CSS modules are mapped
+[1A[2K[111/293] [chromium] › test\e2e\manual-route-test.spec.ts:36:7 › Manual Route Testing › Workspace link navigates correctly
+[1A[2K[chromium] › test\e2e\overlay-viewer-css-fix.spec.ts:6:5 › verify Document Viewer container is not empty and CSS modules are mapped
+Navigating to http://localhost:3000/workspace/doc/74?tab=metadata
+
+[1A[2K[112/293] [chromium] › test\e2e\overlay-viewer.interactions.spec.ts:17:7 › OverlayViewer interactions › toolbar zoom & reset update viewport and reset works
+[1A[2K[113/293] [chromium] › test\e2e\overlay-viewer.keyboard.spec.ts:16:7 › OverlayViewer keyboard shortcuts (E2E) › press + / - / 0 to zoom and Space to toggle pan and ArrowRight to nudge
+[1A[2K[114/293] [chromium] › test\e2e\overlay-viewer.wheel.spec.ts:16:7 › OverlayViewer wheel zoom (E2E) › mouse wheel zooms towards pointer and Ctrl fine control reduces step
+[1A[2K[115/293] [chromium] › test\e2e\chat-modes.spec.ts:132:7 › Chat Modes (Workspace) › persists chat mode in localStorage
+[1A[2K[116/293] [chromium] › test\e2e\overlay-viewer.zoompan.draw.spec.ts:16:7 › OverlayViewer zoom/pan/draw interactions › zoom in, pan via drag, then activate draw mode
+[1A[2K[117/293] [chromium] › test\e2e\overview-dashboard.spec.ts:6:7 › OverviewDashboardIsland smoke test › island mounts and displays summary cards with no console errors
+[1A[2K[118/293] [chromium] › test\e2e\manual_user_flow.spec.ts:128:7 › Cross-Island Event Communication › workspace:save-complete fires on save
+[1A[2K[119/293] [chromium] › test\e2e\postgres_persistence_audit.spec.ts:32:7 › PostgreSQL Persistence Audit › feedback event persists with all required fields
+[1A[2K[chromium] › test\e2e\export-feature-ui.spec.ts:77:7 › Export Feature UI Tests › Export API routes should be accessible
+✓ /api/export/region exists (status: 400)
+
+[1A[2K✓ /api/export/text exists (status: 400)
+
+[1A[2K✓ /api/export/annotations exists (status: 400)
+
+[1A[2K[120/293] [chromium] › test\e2e\production-smoke.spec.ts:17:7 › Production Smoke Tests › Dashboard loads and shows correct metrics
+[1A[2K[121/293] [chromium] › test\e2e\export-feature-ui.spec.ts:99:7 › Export Feature UI Tests › Islands bundle files should exist and be loaded
+[1A[2K  5) [chromium] › test\e2e\ai-features-deep.spec.ts:243:7 › AI Features Deep Test › Test History page functionality 
+
+    TimeoutError: page.goto: Timeout 15000ms exceeded.
+    Call log:
+    [2m  - navigating to "http://localhost:3000/history", waiting until "networkidle"[22m
+
+
+      245 |     console.log('='.repeat(50));
+      246 |     
+    > 247 |     await page.goto(`${BASE}/history`, { waitUntil: 'networkidle' });
+          |                ^
+      248 |     await page.waitForTimeout(2000);
+      249 |     
+      250 |     await page.screenshot({ path: 'test-results/history-01-initial.png', fullPage: true });
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\ai-features-deep.spec.ts:247:16
+
+
+[1A[2K[122/293] [chromium] › test\e2e\prompt-lab-audit.spec.ts:90:7 › Prompt Lab Full Audit (Current Contracts) › prompts settings island mounts and exposes domain groups
+[1A[2K[123/293] [chromium] › test\e2e\prompts-audit.spec.ts:9:7 › Settings Prompts & AI Provider Audit › Capture AI Provider and Prompts sections
+[1A[2K[chromium] › test\e2e\prompts-audit.spec.ts:9:7 › Settings Prompts & AI Provider Audit › Capture AI Provider and Prompts sections
+BROWSER LOG: cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation
+
+[1A[2K[124/293] [chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+[1A[2KBROWSER LOG: cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation
+
+[1A[2KBROWSER LOG: Failed to fetch GitHub stars: TypeError: Failed to fetch
+    at HTMLDocument.<anonymous> (http://localhost:3000/js/shared-utilities.js:88:13)
+
+[1A[2KBROWSER LOG: cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation
+
+[1A[2K[125/293] [chromium] › test\e2e\postgres_persistence_audit.spec.ts:106:7 › PostgreSQL Persistence Audit › multiple feedback events persist atomically
+[1A[2K[126/293] [chromium] › test\e2e\prompt-lab-audit.spec.ts:103:7 › Prompt Lab Full Audit (Current Contracts) › domain prompts open editor panels with current IDs
+[1A[2K[chromium] › test\e2e\overlay-viewer-css-fix.spec.ts:6:5 › verify Document Viewer container is not empty and CSS modules are mapped
+Viewer Bounding Box: { x: [33m0[39m, y: [33m136.5[39m, width: [33m800[39m, height: [33m583.5[39m }
+
+[1A[2KDocument Pane Class Name: OverlayViewerIsland_documentPane [--pane-width:100%]
+
+[1A[2K[chromium] › test\e2e\manual-route-test.spec.ts:36:7 › Manual Route Testing › Workspace link navigates correctly
+Workspace link href: /workspace
+
+[1A[2K[chromium] › test\e2e\overlay-viewer-css-fix.spec.ts:6:5 › verify Document Viewer container is not empty and CSS modules are mapped
+Screenshot saved to test-results/viewer-fix-verification.png
+
+[1A[2K[127/293] [chromium] › test\e2e\prompts-settings.spec.ts:33:7 › PromptsSettingsIsland E2E Tests › prompts island mounts and shows domain groups
+[1A[2K  6) [chromium] › test\e2e\overlay-reflow-locate.spec.ts:44:7 › Workspace overlay reflow and locate wiring › overlay boxes stay aligned during zoom and viewport resize 
+
+    TimeoutError: page.goto: Timeout 15000ms exceeded.
+    Call log:
+    [2m  - navigating to "http://localhost:3000/workspace/doc/40?tab=visual&page=1", waiting until "networkidle"[22m
+
+
+      45 |     page,
+      46 |   }) => {
+    > 47 |     await page.goto(`${BASE}/workspace/doc/${DOC_ID}?tab=visual&page=1`, {
+         |                ^
+      48 |       waitUntil: 'networkidle',
+      49 |     });
+      50 |     await page.waitForSelector('[data-testid="overlay-document-image"]', {
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\overlay-reflow-locate.spec.ts:47:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\overlay-reflow-locate-Work-bd1d7-ng-zoom-and-viewport-resize-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\overlay-reflow-locate-Work-bd1d7-ng-zoom-and-viewport-resize-chromium\error-context.md
+
+
+[1A[2K[128/293] [chromium] › test\e2e\overlay-viewer.interactions.spec.ts:49:7 › OverlayViewer interactions › accessibility: ARIA attributes are valid strings
+[1A[2K[chromium] › test\e2e\manual-route-test.spec.ts:36:7 › Manual Route Testing › Workspace link navigates correctly
+After click URL: http://localhost:3000/workspace
+
+[1A[2K[129/293] [chromium] › test\e2e\postgres_persistence_audit.spec.ts:181:7 › PostgreSQL Persistence Audit › JSONB fields support complex nested structures
+[1A[2K[130/293] [chromium] › test\e2e\manual-route-test.spec.ts:56:7 › Manual Route Testing › Workspace/latest route works
+[1A[2K[131/293] [chromium] › test\e2e\prompts-test-lab.spec.ts:4:7 › Prompt Test Lab Comprehensive Audit › Verify each prompt domain and test execution in Lab
+[1A[2K[132/293] [chromium] › test\e2e\overlay-reflow-locate.spec.ts:112:7 › Workspace overlay reflow and locate wiring › smart tab keeps date prefilled and locate button dispatch is wired
+[1A[2K[chromium] › test\e2e\prompts-test-lab.spec.ts:4:7 › Prompt Test Lab Comprehensive Audit › Verify each prompt domain and test execution in Lab
+[BROWSER WARNING] cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation
+
+[1A[2K[chromium] › test\e2e\export-feature-ui.spec.ts:99:7 › Export Feature UI Tests › Islands bundle files should exist and be loaded
+⚠ overlay-viewer.island.js script tag not found
+
+[1A[2K⚠ visual-annotation.island.js script tag not found
+
+[1A[2K⚠ document-content.island.js script tag not found
+
+[1A[2K⚠ export-panel.island.js script tag not found
+
+[1A[2K[133/293] [chromium] › test\e2e\export-feature-ui.spec.ts:119:7 › Export Feature UI Tests › Export routes are registered in server
+[1A[2K[134/293] [chromium] › test\e2e\qdrant_payload_mirroring.spec.ts:33:7 › Qdrant Payload Mirroring Verification › annotation with bbox is mirrored to Qdrant
+[1A[2K[135/293] [chromium] › test\e2e\postgres_persistence_audit.spec.ts:249:7 › PostgreSQL Persistence Audit › request_id is tracked through the flow
+[1A[2K[136/293] [chromium] › test\e2e\random-document-verification.spec.ts:5:5 › visually confirm 5 random documents rendering in viewer
+[1A[2K[chromium] › test\e2e\qdrant_payload_mirroring.spec.ts:33:7 › Qdrant Payload Mirroring Verification › annotation with bbox is mirrored to Qdrant
+Feedback API response: [33m401[39m {"error":"Authentication required","message":"No valid authentication token provided"}
+
+[1A[2K[137/293] [chromium] › test\e2e\qdrant_payload_mirroring.spec.ts:154:7 › Qdrant Payload Mirroring Verification › feedback events trigger payload mirroring
+[1A[2K[138/293] [chromium] › test\e2e\red-pen-visual-search.spec.ts:40:7 › Red Pen Visual Search Flow › Red Pen toggle enables drawing mode
+[1A[2K[139/293] [chromium] › test\e2e\qdrant_payload_mirroring.spec.ts:219:7 › Qdrant Payload Mirroring Verification › Postgres and Qdrant payloads match
+[1A[2K[140/293] [chromium] › test\e2e\qdrant_payload_mirroring.spec.ts:312:7 › Qdrant Payload Mirroring Verification › visual overlay bbox is stored correctly
+[1A[2K[141/293] [chromium] › test\e2e\redirect-middleware.spec.ts:11:7 › Paperless /documents redirect middleware › redirects /documents/* to Paperless when configured
+[1A[2K[142/293] [chromium] › test\e2e\red-pen-visual-search.spec.ts:71:7 › Red Pen Visual Search Flow › Drawing a box triggers visual-search-requested event
+[1A[2K[143/293] [chromium] › test\e2e\redirect-middleware.spec.ts:31:7 › Paperless /documents redirect middleware › preserves path segments and query params
+[1A[2K[144/293] [chromium] › test\e2e\reingest-verify.spec.ts:25:7 › Reingest Verification › reingest a single document results in Qdrant points
+[1A[2K[chromium] › test\e2e\production-smoke.spec.ts:17:7 › Production Smoke Tests › Dashboard loads and shows correct metrics
+Dashboard contains "document": [33mtrue[39m
+
+[1A[2KDashboard contains "tag": [33mtrue[39m
+
+[1A[2K[145/293] [chromium] › test\e2e\redirect-middleware.spec.ts:55:7 › Paperless /documents redirect middleware › returns 503 with setup instructions when not configured
+[1A[2K[146/293] [chromium] › test\e2e\production-smoke.spec.ts:35:7 › Production Smoke Tests › Workspace navigation and document selector works
+[1A[2K[chromium] › test\e2e\reingest-verify.spec.ts:25:7 › Reingest Verification › reingest a single document results in Qdrant points
+Failed to download PDF for test document - skipping [33m401[39m
+
+[1A[2K[147/293] [chromium] › test\e2e\settings_scaffolding.spec.ts:25:7 › Settings scaffolding smoke › settings islands mount with hydrated roots
+[1A[2K[148/293] [chromium] › test\e2e\settings-integration.spec.ts:43:7 › Settings Integration (Current IA) › restart banner appears when connection settings require restart
+[1A[2K[149/293] [chromium] › test\e2e\red-pen-visual-search.spec.ts:138:7 › Red Pen Visual Search Flow › Small box shows warning message
+[1A[2K[150/293] [chromium] › test\e2e\chat-modes.spec.ts:154:7 › Chat Modes (Workspace) › falls back to rag mode when stored mode=document but no document is loaded
+[1A[2K[151/293] [chromium] › test\e2e\settings-persistence.spec.ts:30:7 › Settings Persistence › Settings page loads all sections
+[1A[2K[152/293] [chromium] › test\e2e\red-pen-visual-search.spec.ts:186:7 › Red Pen Visual Search Flow › Clear boxes button removes all selections
+[1A[2K[153/293] [chromium] › test\e2e\red-pen-visual-search.spec.ts:237:7 › Red Pen Visual Search Flow › 503 Initializing state shows GPU loading indicator
+[1A[2K[154/293] [chromium] › test\e2e\red-pen-visual-search.spec.ts:304:7 › Red Pen Visual Search Flow › Successful search displays MaxSim results
+[1A[2K[chromium] › test\e2e\prompts-audit.spec.ts:9:7 › Settings Prompts & AI Provider Audit › Capture AI Provider and Prompts sections
+Enabling developer mode...
+
+[1A[2KNavigating to AI Provider...
+
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+[Discovery] Scanning System...
+
+[1A[2K[chromium] › test\e2e\prompts-audit.spec.ts:9:7 › Settings Prompts & AI Provider Audit › Capture AI Provider and Prompts sections
+Switching to Ollama tab...
+
+[1A[2K[155/293] [chromium] › test\e2e\red-pen-visual-search.spec.ts:371:7 › Red Pen Visual Search Flow › Full E2E flow: Draw → Search → Switch to Similar tab
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+[Discovery] Found 6 prompts in System
+
+[1A[2K[chromium] › test\e2e\prompts-audit.spec.ts:9:7 › Settings Prompts & AI Provider Audit › Capture AI Provider and Prompts sections
+BROWSER LOG: Ollama tab clicked via evaluate
+
+[1A[2K[156/293] [chromium] › test\e2e\prompts-settings.spec.ts:70:7 › PromptsSettingsIsland E2E Tests › domain accordion expands and shows prompt rows
+[1A[2KWaiting for Ollama tab content...
+
+[1A[2KNavigating to Prompts...
+
+[1A[2K[157/293] [chromium] › test\e2e\chat-modes.spec.ts:169:7 › Chat Modes (Workspace) › send button reflects model availability after input
+[1A[2KOpening Test Modal...
+
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+[Discovery] Scanning Medical...
+
+[1A[2K[chromium] › test\e2e\prompts-audit.spec.ts:9:7 › Settings Prompts & AI Provider Audit › Capture AI Provider and Prompts sections
+Switching to Real Document source...
+
+[1A[2KVerifying Document Picker presence...
+
+[1A[2K  7) [chromium] › test\e2e\legacy-routes-verify.spec.ts:57:7 › Legacy Route Verification › Workspace navigation between documents 
+
+    TimeoutError: page.goto: Timeout 15000ms exceeded.
+    Call log:
+    [2m  - navigating to "http://localhost:3000/history", waiting until "networkidle"[22m
+
+
+      56 |
+      57 |   test('Workspace navigation between documents', async ({ page }) => {
+    > 58 |     await page.goto(`${BASE}/history`, { waitUntil: 'networkidle' });
+         |                ^
+      59 |
+      60 |     // Find a document link
+      61 |     const docLink = page.locator('a[href^="/workspace/"]').first();
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\legacy-routes-verify.spec.ts:58:16
+
+
+[1A[2K[158/293] [chromium] › test\e2e\settings-sidebar.spec.ts:45:7 › SettingsSidebarIsland smoke test › sidebar mounts and displays all default categories
+[1A[2K[159/293] [chromium] › test\e2e\shadcn-compat.spec.ts:11:7 › shadcn/ui compatibility smoke › island mounts and components are interactive with no console errors
+[1A[2K[160/293] [chromium] › test\e2e\prompt-lab-audit.spec.ts:126:7 › Prompt Lab Full Audit (Current Contracts) › prompt test lab executes validate mode and returns success badges
+[1A[2K[161/293] [chromium] › test\e2e\settings-routes-verify.spec.ts:12:7 › Settings routes - full visual verification › diagnose AI Provider loading issue
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+[Discovery] Found 13 prompts in Medical
+
+[1A[2K[Discovery] Scanning Financial...
+
+[1A[2K[chromium] › test\e2e\prompts-test-lab.spec.ts:4:7 › Prompt Test Lab Comprehensive Audit › Verify each prompt domain and test execution in Lab
+[BROWSER WARNING] cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation
+
+[1A[2K[BROWSER ERROR] Failed to load resource: the server responded with a status of 403 ()
+
+[1A[2K[BROWSER WARNING] Failed to fetch GitHub stars: Error: Failed to fetch
+    at http://localhost:3000/js/shared-utilities.js:90:45
+
+[1A[2K[BROWSER WARNING] cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation
+
+[1A[2K[162/293] [chromium] › test\e2e\settings-sidebar.spec.ts:81:7 › SettingsSidebarIsland smoke test › developer mode toggle shows/hides developer categories and persists to localStorage
+[1A[2K[163/293] [chromium] › test\e2e\settings-integration.spec.ts:55:7 › Settings Integration (Current IA) › restart banner persists across category navigation
+[1A[2K[164/293] [chromium] › test\e2e\sidebar-tabs.spec.ts:29:7 › Sidebar Tab Restructuring › shows renamed tabs with correct icons
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+[Discovery] Found 3 prompts in Financial
+
+[1A[2K[Discovery] Scanning Legal...
+
+[1A[2K[165/293] [chromium] › test\e2e\settings-sidebar.spec.ts:128:7 › SettingsSidebarIsland smoke test › category navigation updates active state and URL hash
+[1A[2K[chromium] › test\e2e\export-feature-ui.spec.ts:119:7 › Export Feature UI Tests › Export routes are registered in server
+✓ Export route responds with status 400 (route exists)
+
+[1A[2K[166/293] [chromium] › test\e2e\export-feature-ui.spec.ts:144:7 › Export Feature Integration (with mock data) › ExportPanelIsland modal structure
+[1A[2K[chromium] › test\e2e\random-document-verification.spec.ts:5:5 › visually confirm 5 random documents rendering in viewer
+Found 97 documents in the selector.
+
+[1A[2KVerifying documents: 59, 80, 37, 34, 78
+
+[1A[2K[167/293] [chromium] › test\e2e\SmartMetadataFieldMapping.spec.ts:15:7 › SmartMetadata Field Mapping E2E › domain badge and mapping affordances render
+[1A[2K--- Switching to Document 59 ---
+
+[1A[2KSelecting: Zahlungsbeleg
+#59
+
+[1A[2K[chromium] › test\e2e\production-smoke.spec.ts:35:7 › Production Smoke Tests › Workspace navigation and document selector works
+Workspace URL: http://localhost:3000/workspace
+
+[1A[2KDocument selector trigger found
+
+[1A[2KFound 97 document options
+
+[1A[2KSelecting document #5: 2025-12-21 - ORDENSKLINIKUM LINZ ELISABETHINEN - Laborbefund#94
+
+[1A[2K[168/293] [chromium] › test\e2e\settings-sidebar.spec.ts:151:7 › SettingsSidebarIsland smoke test › hash navigation updates active category
+[1A[2K[chromium] › test\e2e\prompts-test-lab.spec.ts:4:7 › Prompt Test Lab Comprehensive Audit › Verify each prompt domain and test execution in Lab
+Auditing Domain: System
+
+[1A[2KFound 0 prompts in System
+
+[1A[2KAuditing Domain: Medical
+
+[1A[2KFound 0 prompts in Medical
+
+[1A[2KAuditing Domain: Financial
+
+[1A[2KFound 0 prompts in Financial
+
+[1A[2KAuditing Domain: Legal
+
+[1A[2KFound 4 prompts in Legal
+
+[1A[2KTesting Prompt: LEGAL_ORCHESTRATOR
+
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+[Discovery] Found 2 prompts in Legal
+
+[1A[2K[169/293] [chromium] › test\e2e\prompts-settings.spec.ts:108:7 › PromptsSettingsIsland E2E Tests › prompt editor opens with fields and config knobs
+[1A[2K[170/293] [chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:20:7 › Sidecar Handshake Verification › health endpoint returns proper status
+[1A[2K[chromium] › test\e2e\prompts-test-lab.spec.ts:4:7 › Prompt Test Lab Comprehensive Audit › Verify each prompt domain and test execution in Lab
+Model Verified: nemotron-orchestrator:8b
+
+[1A[2KExecution Source: Guidance Active
+
+[1A[2KTest Lab closed successfully for LEGAL_ORCHESTRATOR
+
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+[Discovery] Scanning General...
+
+[1A[2K[chromium] › test\e2e\prompts-test-lab.spec.ts:4:7 › Prompt Test Lab Comprehensive Audit › Verify each prompt domain and test execution in Lab
+Auditing Domain: General
+
+[1A[2K[chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:20:7 › Sidecar Handshake Verification › health endpoint returns proper status
+Health response: {
+  "visualSearchClient": true,
+  "overlayRepository": true,
+  "overlayExtractor": true,
+  "status": "healthy",
+  "model_loaded": true,
+  "initializing": false
+}
+
+[1A[2K[chromium] › test\e2e\prompts-test-lab.spec.ts:4:7 › Prompt Test Lab Comprehensive Audit › Verify each prompt domain and test execution in Lab
+Found 0 prompts in General
+
+[1A[2KComprehensive Prompt Test Lab Audit Complete.
+
+[1A[2K[171/293] [chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:41:7 › Sidecar Handshake Verification › 503 response includes initialization info
+[1A[2K[172/293] [chromium] › test\e2e\prompt-lab-audit.spec.ts:164:7 › Prompt Lab Full Audit (Current Contracts) › document source mode loads document pickers and can run validate flow
+[1A[2K[173/293] [chromium] › test\e2e\toolbar-cleanup.spec.ts:34:7 › Toolbar cleanup and mode controls › should have single draw mode button with correct data-testid
+[1A[2K[174/293] [chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:59:7 › Sidecar Handshake Verification › circuit breaker opens on repeated failures
+[1A[2K[175/293] [chromium] › test\e2e\settings-integration.spec.ts:67:7 › Settings Integration (Current IA) › restart banner can be dismissed
+[1A[2K[chromium] › test\e2e\production-smoke.spec.ts:35:7 › Production Smoke Tests › Workspace navigation and document selector works
+Final URL after selection: http://localhost:3000/workspace
+
+[1A[2K[chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:59:7 › Sidecar Handshake Verification › circuit breaker opens on repeated failures
+Request statuses: [ [33m400[39m, [33m400[39m, [33m400[39m, [33m400[39m, [33m400[39m ]
+
+[1A[2K[176/293] [chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:87:7 › Telemetry Metrics Verification › visual query metrics are emitted
+[1A[2K  8) [chromium] › test\e2e\production-smoke.spec.ts:35:7 › Production Smoke Tests › Workspace navigation and document selector works 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoContain[2m([22m[32mexpected[39m[2m) // indexOf[22m
+
+    Expected substring: [32m"/workspace/doc/"[39m
+    Received string:    [31m"http://localhost:3000/workspace"[39m
+
+      72 |         const finalUrl = page.url();
+      73 |         console.log('Final URL after selection:', finalUrl);
+    > 74 |         expect(finalUrl).toContain('/workspace/doc/');
+         |                          ^
+      75 |         
+      76 |         await page.screenshot({ path: 'test-results/smoke-04-doc-selected.png', fullPage: true });
+      77 |       }
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\production-smoke.spec.ts:74:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\production-smoke-Productio-bda1c-and-document-selector-works-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\production-smoke-Productio-bda1c-and-document-selector-works-chromium\error-context.md
+
+
+[1A[2K[177/293] [chromium] › test\e2e\chat-modes.spec.ts:186:7 › /chat route deprecation › returns 410 for /chat
+[1A[2K[chromium] › test\e2e\settings-persistence.spec.ts:30:7 › Settings Persistence › Settings page loads all sections
+Settings sidebar: found
+
+[1A[2KConnection settings: found
+
+[1A[2KAI provider: found
+
+[1A[2K[178/293] [chromium] › test\e2e\chat-modes.spec.ts:191:7 › /chat route deprecation › returns 410 for /chat?open=X
+[1A[2K[179/293] [chromium] › test\e2e\settings-persistence.spec.ts:61:7 › Settings Persistence › Session persists across page navigation
+[1A[2K[180/293] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:9:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from Dashboard sidebar
+[1A[2K[chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:87:7 › Telemetry Metrics Verification › visual query metrics are emitted
+Search response status: [33m200[39m
+
+[1A[2KFound metrics: [ [32m'http_request_duration'[39m ]
+
+[1A[2K[181/293] [chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:136:7 › Telemetry Metrics Verification › request_id is tracked in metrics
+[1A[2K[182/293] [chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:163:7 › Telemetry Metrics Verification › circuit breaker state is observable
+[1A[2K[chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:163:7 › Telemetry Metrics Verification › circuit breaker state is observable
+No circuit_breaker metrics found
+
+[1A[2K[183/293] [chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:196:7 › GPU Warmup Flow Verification › UI shows GPU preparing state during warmup
+[1A[2K  9) [chromium] › test\e2e\overlay-reflow-locate.spec.ts:112:7 › Workspace overlay reflow and locate wiring › smart tab keeps date prefilled and locate button dispatch is wired 
+
+    TimeoutError: page.goto: Timeout 15000ms exceeded.
+    Call log:
+    [2m  - navigating to "http://localhost:3000/workspace/doc/40?tab=metadata", waiting until "networkidle"[22m
+
+
+      113 |     page,
+      114 |   }) => {
+    > 115 |     await page.goto(`${BASE}/workspace/doc/${DOC_ID}?tab=metadata`, {
+          |                ^
+      116 |       waitUntil: 'networkidle',
+      117 |     });
+      118 |     await page.waitForSelector('[data-testid="smart-metadata-root"]', {
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\overlay-reflow-locate.spec.ts:115:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\overlay-reflow-locate-Work-9ab7b-te-button-dispatch-is-wired-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\overlay-reflow-locate-Work-9ab7b-te-button-dispatch-is-wired-chromium\error-context.md
+
+
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+[Discovery] Found 1 prompts in General
+
+[1A[2K[184/293] [chromium] › test\e2e\production-smoke.spec.ts:81:7 › Production Smoke Tests › Selected document shows metadata panel
+[1A[2K
+>>> OPTIMIZATION AUDIT: System Domain
+
+[1A[2K
+  Group: SYS_ROUTER
+
+[1A[2K[185/293] [chromium] › test\e2e\verify-sys-router-vision.spec.ts:4:7 › SYS_ROUTER_V1 Multimodal Verification › Verify SYS_ROUTER_V1 receives 300dpi image and returns valid JSON
+[1A[2K[chromium] › test\e2e\random-document-verification.spec.ts:5:5 › visually confirm 5 random documents rendering in viewer
+Viewer data-original-url for Doc 59: /api/proxied/paperless/documents/59/download/original/
+
+[1A[2K[chromium] › test\e2e\manual-route-test.spec.ts:56:7 › Manual Route Testing › Workspace/latest route works
+Response status: [33m200[39m
+
+[1A[2KFinal URL: http://localhost:3000/workspace/doc/74
+
+[1A[2KWorkspace page found!
+
+[1A[2K[186/293] [chromium] › test\e2e\manual-route-test.spec.ts:77:7 › Manual Route Testing › History page loads
+[1A[2K[chromium] › test\e2e\settings-routes-verify.spec.ts:12:7 › Settings routes - full visual verification › diagnose AI Provider loading issue
+
+=== DIAGNOSTICS ===
+
+[1A[2KAPI Response: {
+  "status": 200,
+  "body": "{\"connection\":{\"activeProvider\":\"ollama\",\"paperlessApiUrl\":\"http://webserver:8000/api\",\"paperlessApiToken\":\"***hidden***\",\"paperlessUsername\":\"elfman\",\"ollamaApiUrl\":\"http://host.docker.internal:11434\",\"openaiApiKey\":\"\",\"azureEndpoint\":\"\",\"azureApiKey\":\"\",\"customApiUrl\":\"https://api.deepseek.com/v1\",\"customApiKey\":\"***hidden***\",\"visualRagUrl\":\"http://visual_rag:8001\",\"textRagUrl\":\"http://text-rag:8004\",\"guidanceServiceUrl\":\"http://guidance_service:8002\",\"biasEngineUrl\":\"bias-engine:50051\",\"redisUrl\":\"redis://broker:6379\",\"qdrantHost\":\"qdrant\",\"qdrantPort\":\"6333\",\"qdrantApiKey\":\"\",\"externalApiEnabled\":false,\"externalApiUrl\":\"\",\"externalApiMethod\":\"POST\",\"externalApiHeaders\":\"{}\",\"externalApiBody\":\"{}\",\"externalApiTimeout\":30000,\"externalApiTransform\":\"\"},\"aiProvider\":{\"provider\":\"ollama\",\"openai\":{\"model\":{\"name\":\"gpt-4o-mini\",\"limits\":{\"contextWindow\":128000,\"maxResponseTokens\":4096}}},\"ollama\":{\"text\":{\"name\":\"sauerkraut-llama3.1:8b\",\"limits\":{\"contextWindow\":16384,\"maxResponseTokens\":4096}},\"vision\":{\"name\":\"qwen3-vl:8b\",\"promptId\":\"VIS_OCR_V1\",\"limits\":{\"contextWindow\":256000,\"maxResponseTokens\":2048}},\"router\":{\"name\":\"qwen3-vl:8b\",\"promptId\":\"SYS_ROUTER_V1\",\"limits\":{\"contextWindow\":32768,\"maxResponseTokens\":2048}},\"planner\":{\"name\":\"qwen3-vl:8b\",\"limits\":{\"contextWindow\":256000,\"maxResponseTokens\":700}},\"orchestrator\":{\"name\":\"nemotron-orchestrator:8b\",\"promptId\":\"SYS_ORCHESTRATOR_V1\",\"limits\":{\"contextWindow\":32768,\"maxResponseTokens\":2048}},\"translation\":{\"name\":\"sauerkraut-llama3.1:8b\",\"limits\":{\"contextWindow\":16384,\"maxResponseTokens\":4096}},\"guidance\":{\"name\":\"sauerkraut-llama3.1:8b\",\"limits\":{\"contextWindow\":128000,\"maxResponseTokens\":4096}},\"imageTokenOverhead\":1024},\"azure\":{\"deploymentName\":\"\",\"apiVersion\":\"2023-05-15\",\"model\":{\"name\":\"\",\"limits\":{\"contextWindow\":128000,\"maxResponseTokens\":4096}}},\"custom\":{\"model\":{\"name\":\"\",\"limits\":{\"contextWindow\":128000,\"maxResponseTokens\":4096}}},\"globalLimits\":{\"tokenLimit\":128000,\"responseTokens\":4096},\"qualitySettings\":{\"textQualityThreshold\":60,\"maxVisionPages\":4},\"expertPipelineEnabled\":false,\"expertModels\":{\"medical\":{\"vision\":{\"name\":\"llava-med-v1.6\",\"promptId\":\"MED_RADIOLOGY_V1\",\"limits\":{\"contextWindow\":32768,\"maxResponseTokens\":4096}},\"analysis\":{\"name\":\"medtext-llama3\",\"promptId\":\"MED_DOCTOR_V1\",\"limits\":{\"contextWindow\":128000,\"maxResponseTokens\":4096}},\"radiology\":{\"name\":\"llava-med-v1.6\",\"promptId\":\"MED_RADIOLOGY_V1\",\"limits\":{\"contextWindow\":32768,\"maxResponseTokens\":4096}},\"integrator\":{\"name\":\"medtext-llama3\",\"promptId\":\"MED_INTEGRATOR_V1\",\"limits\":{\"contextWindow\":128000,\"maxResponseTokens\":4096}}},\"financial\":{\"vision\":{\"name\":\"llm-pro-finance-8b\",\"promptId\":\"FIN_EXTRACT_V1\",\"limits\":{\"contextWindow\":32768,\"maxResponseTokens\":4096}},\"analysis\":{\"name\":\"fino1-8b\",\"promptId\":\"FIN_EXTRACT_V1\",\"limits\":{\"contextWindow\":128000,\"maxResponseTokens\":4096}},\"reasoning\":{\"name\":\"llm-pro-finance-8b\",\"promptId\":\"FIN_REASONER_V1\",\"limits\":{\"contextWindow\":128000,\"maxResponseTokens\":4096}},\"vatExpert\":{\"name\":\"llm-pro-finance-8b\",\"promptId\":\"FIN_VAT_EXPERT_V1\",\"limits\":{\"contextWindow\":128000,\"maxResponseTokens\":4096}}},\"legal\":{\"vision\":{\"name\":\"qwen3-vl:8b\",\"promptId\":\"LEGAL_ORCHESTRATOR_V1\",\"limits\":{\"contextWindow\":32768,\"maxResponseTokens\":4096}},\"analysis\":{\"name\":\"gpt-oss\",\"promptId\":\"LEGAL_EXTRACTOR_V1\",\"limits\":{\"contextWindow\":128000,\"maxResponseTokens\":4096}},\"orchestrator\":{\"name\":\"\",\"promptId\":\"LEGAL_ORCHESTRATOR_V1\",\"limits\":{\"contextWindow\":32768,\"maxResponseTokens\":2048}}}}},\"processing\":{\"addAiProcessedTag\":false,\"processExistingDocuments\":false,\"scanInterval\":\"*/50 * * * *\",\"disableAutomaticProcessing\":\"no\"},\"version\":\"3.0.9\"}"
+}
+
+[1A[2KIsland State: {
+  "islandExists": true,
+  "islandMounted": "true",
+  "islandInnerHTML": "<div class=\"ai-provider-settings space-y-8 p-6 max-w-6xl mx-auto\" data-testid=\"ai-provider-root\"><div class=\"flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6\"><div class=\"space-y-1\"><div class=\"flex items-center gap-2\"><div class=\"w-2 h-6 bg-cyan-500 rounded-full shadow-[0_0_8px_rgba(6,182,212,0.5)]\"></div><h2 class=\"text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100\">AI Infrastructure</h2></div><p class=\"text-",
+  "loadingVisible": false,
+  "rootVisible": true,
+  "sectionHidden": false
+}
+
+[1A[2KConsole Errors: []
+
+[1A[2KAll Console: []
+
+[1A[2K===================
+
+
+[1A[2K[187/293] [chromium] › test\e2e\settings-routes-verify.spec.ts:82:7 › Settings routes - full visual verification › settings page loads and all sidebar categories navigate correctly
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+    - Testing Target: SYS_ROUTER_V1
+
+[1A[2K[188/293] [chromium] › test\e2e\prompts-settings.spec.ts:161:7 › PromptsSettingsIsland E2E Tests › editing enables save button and keeps action rail visible
+[1A[2K    - Token Limit: 2048
+
+[1A[2K[chromium] › test\e2e\random-document-verification.spec.ts:5:5 › visually confirm 5 random documents rendering in viewer
+Confirmed Document 59 rendered correctly.
+
+[1A[2K--- Switching to Document 80 ---
+
+[1A[2KSelecting: Kontoinformation
+#80
+
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+    - Loading Real Document Context...
+
+[1A[2K[189/293] [chromium] › test\e2e\settings-integration.spec.ts:76:7 › Settings Integration (Current IA) › sidebar navigation works without section state loss
+[1A[2K[190/293] [chromium] › test\e2e\verify-ui.spec.ts:3:5 › Verify UI changes - no duplicate dropdown, document title visible
+[1A[2K[chromium] › test\e2e\random-document-verification.spec.ts:5:5 › visually confirm 5 random documents rendering in viewer
+Viewer data-original-url for Doc 80: /api/proxied/paperless/documents/80/download/original/
+
+[1A[2K[chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:196:7 › GPU Warmup Flow Verification › UI shows GPU preparing state during warmup
+GPU not in preparing state - either ready or error
+
+[1A[2KGPU state - Ready: false, Error: false
+
+[1A[2K[191/293] [chromium] › test\e2e\toolbar-cleanup.spec.ts:47:7 › Toolbar cleanup and mode controls › should have single pan mode button with correct data-testid
+[1A[2K[192/293] [chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:236:7 › GPU Warmup Flow Verification › exponential backoff increases retry delay
+[1A[2K[193/293] [chromium] › test\e2e\sidebar-tabs.spec.ts:49:7 › Sidebar Tab Restructuring › shows tab tooltips
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+    - Selected Subject: SCN_20251229_074627
+
+[1A[2K[chromium] › test\e2e\random-document-verification.spec.ts:5:5 › visually confirm 5 random documents rendering in viewer
+Confirmed Document 80 rendered correctly.
+
+[1A[2K--- Switching to Document 37 ---
+
+[1A[2KSelecting: Arbeitsfähigkeitsmeldung 18.03.2025
+#37
+
+[1A[2KViewer data-original-url for Doc 37: /api/proxied/paperless/documents/37/download/original/
+
+[1A[2K  10) [chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:236:7 › GPU Warmup Flow Verification › exponential backoff increases retry delay 
+
+    TimeoutError: page.goto: Timeout 5000ms exceeded.
+    Call log:
+    [2m  - navigating to "http://localhost:3000/workspace/doc/latest?tab=visual", waiting until "domcontentloaded"[22m
+
+
+      236 |   test('exponential backoff increases retry delay', async ({ page }) => {
+      237 |     // Navigate and observe retry timing
+    > 238 |     await page.goto(`${BASE_URL}/workspace/doc/latest?tab=visual`, { waitUntil: 'domcontentloaded', timeout: 5000 });
+          |                ^
+      239 |
+      240 |     // If GPU modal is visible, wait and observe retries
+      241 |     const gpuModal = page.locator('[data-testid="gpu-preparing-modal"]');
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\telemetry_sidecar_verification.spec.ts:238:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\telemetry_sidecar_verifica-eee57-ckoff-increases-retry-delay-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\telemetry_sidecar_verifica-eee57-ckoff-increases-retry-delay-chromium\error-context.md
+
+
+[1A[2KConfirmed Document 37 rendered correctly.
+
+[1A[2K--- Switching to Document 34 ---
+
+[1A[2KSelecting: Arbeitsfähigkeitsmeldung
+#34
+
+[1A[2K[194/293] [chromium] › test\e2e\toolbar-cleanup.spec.ts:60:7 › Toolbar cleanup and mode controls › should toggle draw mode with D key
+[1A[2K[chromium] › test\e2e\verify-sys-router-vision.spec.ts:4:7 › SYS_ROUTER_V1 Multimodal Verification › Verify SYS_ROUTER_V1 receives 300dpi image and returns valid JSON
+Navigating to prompts settings...
+
+[1A[2K  11) [chromium] › test\e2e\export-feature-ui.spec.ts:144:7 › Export Feature Integration (with mock data) › ExportPanelIsland modal structure 
+
+    TimeoutError: page.goto: Timeout 15000ms exceeded.
+    Call log:
+    [2m  - navigating to "http://localhost:3000/workspace/latest", waiting until "networkidle"[22m
+
+
+      138 | test.describe('Export Feature Integration (with mock data)', () => {
+      139 |   test.beforeEach(async ({ page }) => {
+    > 140 |     await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+          |                ^
+      141 |     await waitForIsland(page, 'export-panel-island', 10000);
+      142 |   });
+      143 |
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\export-feature-ui.spec.ts:140:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\export-feature-ui-Export-F-e415c-PanelIsland-modal-structure-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\export-feature-ui-Export-F-e415c-PanelIsland-modal-structure-chromium\error-context.md
+
+
+[1A[2K[195/293] [chromium] › test\e2e\SmartMetadataFieldMapping.spec.ts:42:7 › SmartMetadata Field Mapping E2E › locate buttons dispatch metadata:locate-field
+[1A[2KExpanding System domain...
+
+[1A[2KOpening SYS_ROUTER group...
+
+[1A[2K[chromium] › test\e2e\random-document-verification.spec.ts:5:5 › visually confirm 5 random documents rendering in viewer
+Viewer data-original-url for Doc 34: /api/proxied/paperless/documents/34/download/original/
+
+[1A[2K[chromium] › test\e2e\verify-sys-router-vision.spec.ts:4:7 › SYS_ROUTER_V1 Multimodal Verification › Verify SYS_ROUTER_V1 receives 300dpi image and returns valid JSON
+Verifying editor is open...
+
+[1A[2KOpening Test Lab...
+
+[1A[2K[196/293] [chromium] › test\e2e\prompts-settings.spec.ts:198:7 › PromptsSettingsIsland E2E Tests › test modal opens with variable inputs
+[1A[2K[197/293] [chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:278:7 › GPU Warmup Flow Verification › error state shows retry button
+[1A[2KSelecting real document...
+
+[1A[2K[198/293] [chromium] › test\e2e\settings-integration.spec.ts:93:7 › Settings Integration (Current IA) › paperless connection test action works
+[1A[2K[199/293] [chromium] › test\e2e\visual-chat-test.spec.ts:8:7 › Visual Chat UI Test in Workspace › Select document, navigate to chat, and ask a question
+[1A[2K[chromium] › test\e2e\visual-chat-test.spec.ts:8:7 › Visual Chat UI Test in Workspace › Select document, navigate to chat, and ask a question
+Step 1: Logging in...
+
+[1A[2K[chromium] › test\e2e\verify-sys-router-vision.spec.ts:4:7 › SYS_ROUTER_V1 Multimodal Verification › Verify SYS_ROUTER_V1 receives 300dpi image and returns valid JSON
+Selected document: SCN_20251229_074627
+
+[1A[2KVerifying image preview...
+
+[1A[2K[200/293] [chromium] › test\e2e\sidebar-tabs.spec.ts:70:7 › Sidebar Tab Restructuring › uses increased sidebar width baseline
+[1A[2K[chromium] › test\e2e\random-document-verification.spec.ts:5:5 › visually confirm 5 random documents rendering in viewer
+Confirmed Document 34 rendered correctly.
+
+[1A[2K--- Switching to Document 78 ---
+
+[1A[2KSelecting: Zahlungserinnerung: JAN.25-DEZ.25: ORF-Beitrag
+#78
+
+[1A[2K[201/293] [chromium] › test\e2e\prompts-settings.spec.ts:236:7 › PromptsSettingsIsland E2E Tests › light and dark mode rendering
+[1A[2K[202/293] [chromium] › test\e2e\settings-integration.spec.ts:118:7 › Settings Integration (Current IA) › core settings islands mount correctly
+[1A[2K[chromium] › test\e2e\manual-route-test.spec.ts:77:7 › Manual Route Testing › History page loads
+History URL: http://localhost:3000/history
+
+[1A[2KHistory table found
+
+[1A[2K[203/293] [chromium] › test\e2e\manual-route-test.spec.ts:90:7 › Manual Route Testing › Settings page loads
+[1A[2K[chromium] › test\e2e\random-document-verification.spec.ts:5:5 › visually confirm 5 random documents rendering in viewer
+Viewer data-original-url for Doc 78: /api/proxied/paperless/documents/78/download/original/
+
+[1A[2K[204/293] [chromium] › test\e2e\visual-rag\visual-fallback.spec.ts:6:7 › Visual-RAG fallback behavior › shows error panel when visual search returns 503
+[1A[2K[205/293] [chromium] › test\e2e\toolbar-cleanup.spec.ts:84:7 › Toolbar cleanup and mode controls › should cancel draw mode with Escape key
+[1A[2K[chromium] › test\e2e\visual-chat-test.spec.ts:8:7 › Visual Chat UI Test in Workspace › Select document, navigate to chat, and ask a question
+Login successful
+
+[1A[2KStep 2: Navigating to workspace...
+
+[1A[2K[chromium] › test\e2e\random-document-verification.spec.ts:5:5 › visually confirm 5 random documents rendering in viewer
+Confirmed Document 78 rendered correctly.
+
+[1A[2KAll 5 random documents verified successfully.
+
+[1A[2K[206/293] [chromium] › test\e2e\visual-rag\visual-position.spec.ts:6:7 › Visual overlay position verification › highlight region reflects overlay bbox percentages
+[1A[2K[207/293] [chromium] › test\e2e\settings-integration.spec.ts:145:7 › Settings Integration (Current IA) › connection save dispatches restart-related events
+[1A[2K  12) [chromium] › test\e2e\unified-workspace-navigation.spec.ts:9:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from Dashboard sidebar 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('[data-page="document-workspace"]').first()
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for locator('[data-page="document-workspace"]').first()[22m
+
+
+      20 |
+      21 |       // Verify we're on the document workspace
+    > 22 |       await expect(page.locator('[data-page="document-workspace"]').first()).toBeVisible();
+         |                                                                              ^
+      23 |     });
+      24 |
+      25 |     test('navigate to workspace from History sidebar', async ({ page }) => {
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\unified-workspace-navigation.spec.ts:22:78
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\unified-workspace-navigati-6a0fe-pace-from-Dashboard-sidebar-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\unified-workspace-navigati-6a0fe-pace-from-Dashboard-sidebar-chromium\error-context.md
+
+
+[1A[2K[208/293] [chromium] › test\e2e\visual-rag\visual-success.spec.ts:6:7 › Visual-RAG overlay success › visual tab renders overlays returned by API
+[1A[2K[209/293] [chromium] › test\e2e\SmartMetadataFieldMapping.spec.ts:78:7 › SmartMetadata Field Mapping E2E › validation banner appears when required field cleared
+[1A[2K[chromium] › test\e2e\production-smoke.spec.ts:81:7 › Production Smoke Tests › Selected document shows metadata panel
+Document workspace URL: http://localhost:3000/workspace/doc/9
+
+[1A[2KUnified workspace root found
+
+[1A[2KMetadata tab: present
+
+[1A[2KChat tab: present
+
+[1A[2KContent tab: present
+
+[1A[2K[210/293] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:25:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from History sidebar
+[1A[2KSmart metadata/context sidebar found
+
+[1A[2KDocument context bar found
+
+[1A[2K[211/293] [chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:313:7 › Direct Sidecar Communication › sidecar health endpoint accessible
+[1A[2K[chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:313:7 › Direct Sidecar Communication › sidecar health endpoint accessible
+Direct sidecar health: {
+  "status": "healthy",
+  "init": {
+    "initializing": false,
+    "stage": "ready",
+    "error": null,
+    "model_loaded": true,
+    "processor_loaded": true
+  },
+  "model_id": "TomoroAI/tomoro-ai-colqwen3-embed-4b-awq",
+  "model_revision": "main",
+  "embedding_dim": 320,
+  "attn_implementation": "sdpa",
+  "offline_mode": false,
+  "docs": 1,
+  "vram_gb": 3.54,
+  "vram": "3.54GB",
+  "qdrant": {
+    "healthy": true,
+    "collections": {
+      "visual_pages": {
+        "exists": true,
+        "point_count": 128,
+        "status": "green"
+      },
+      "visual_overlays": {
+        "exists": true,
+        "point_count": 313,
+        "status": "green"
+      }
+    },
+    "point_count": 441
+  },
+  "config": {
+    "max_image_size_mb": 50,
+    "max_pdf_size_mb": 100,
+    "max_preload_indices": 1000,
+    "allowed_index_paths": [
+      "/data/documents",
+      "/data/imports",
+      "/media/paperless"
+    ],
+    "require_qdrant": false
+  }
+}
+
+[1A[2K[212/293] [chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:332:7 › Direct Sidecar Communication › sidecar returns 503 during model loading
+[1A[2K[213/293] [chromium] › test\e2e\production-smoke.spec.ts:118:7 › Production Smoke Tests › History page loads
+[1A[2K[214/293] [chromium] › test\e2e\visual-tab.spec.ts:22:7 › Visual Tab › should display Visual tab in sidebar
+[1A[2K[chromium] › test\e2e\settings-persistence.spec.ts:61:7 › Settings Persistence › Session persists across page navigation
+Session persisted across navigation - PASSED
+
+[1A[2K[215/293] [chromium] › test\e2e\settings-persistence.spec.ts:90:7 › Settings Persistence › Logout works correctly
+[1A[2K[chromium] › test\e2e\visual-chat-test.spec.ts:8:7 › Visual Chat UI Test in Workspace › Select document, navigate to chat, and ask a question
+Current URL: http://localhost:3000/workspace
+
+[1A[2KStep 3: Looking for document selector...
+
+[1A[2KDocument selector found
+
+[1A[2KStep 4: Selecting a document...
+
+[1A[2KFound 97 document options
+
+[1A[2KSelecting document: Business Card#73
+
+[1A[2K[216/293] [chromium] › test\e2e\sidebar-tabs.spec.ts:78:7 › Sidebar Tab Restructuring › shows panel headers with updated context copy
+[1A[2K[217/293] [chromium] › test\e2e\settings-integration.spec.ts:177:7 › Settings Integration (Current IA) › ai provider save dispatches changed + saved events
+[1A[2KDocument selected, URL: http://localhost:3000/workspace/doc/73
+
+[1A[2KStep 5: Looking for Chat tab...
+
+[1A[2KChat tab found, clicking...
+
+[1A[2K[chromium] › test\e2e\manual-route-test.spec.ts:90:7 › Manual Route Testing › Settings page loads
+Settings URL: http://localhost:3000/settings
+
+[1A[2K[218/293] [chromium] › test\e2e\manual-route-test.spec.ts:97:7 › Manual Route Testing › Check all sidebar links
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+    - [CRITICAL ERROR] Audit failed for SYS_ROUTER: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+
+[1A[2K    - [Cleanup] Closing Lab Modal for SYS_ROUTER...
+
+[1A[2K
+  Group: SYS_ORCHESTRATOR
+
+[1A[2K[219/293] [chromium] › test\e2e\workspace-behavior.spec.ts:18:7 › Workspace Expected Behavior › Clicking Workspace in sidebar - verify behavior
+[1A[2K    - Testing Target: SYS_ORCHESTRATOR_V1
+
+[1A[2K[chromium] › test\e2e\visual-chat-test.spec.ts:8:7 › Visual Chat UI Test in Workspace › Select document, navigate to chat, and ask a question
+Step 6: Looking for chat input...
+
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+    - Token Limit: 1024
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K[chromium] › test\e2e\visual-chat-test.spec.ts:8:7 › Visual Chat UI Test in Workspace › Select document, navigate to chat, and ask a question
+Chat input found with selector: [data-testid="chat-input"]
+
+[1A[2KStep 7: Typing a question...
+
+[1A[2KStep 8: Submitting question...
+
+[1A[2KSubmit button not found, trying Enter key...
+
+[1A[2K[220/293] [chromium] › test\e2e\visual-tab.spec.ts:29:7 › Visual Tab › should switch to Visual tab panel
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+    - Selected Subject: SCN_20251229_074627
+
+[1A[2K[221/293] [chromium] › test\e2e\workspace-document-viewer-full.spec.ts:7:7 › Workspace Document Viewer Full Verification › verify document visibility and all toolbar tools
+[1A[2K[chromium] › test\e2e\workspace-document-viewer-full.spec.ts:7:7 › Workspace Document Viewer Full Verification › verify document visibility and all toolbar tools
+Navigating to http://localhost:3000/workspace/doc/74?tab=metadata
+
+[1A[2K[222/293] [chromium] › test\e2e\workspace-full-test.spec.ts:19:7 › Workspace Full Functionality Test › Complete workspace functionality test
+[1A[2K[223/293] [chromium] › test\e2e\workspace-navigation-reactivity.spec.ts:5:5 › verify Document Viewer reactivity when switching documents
+[1A[2K[chromium] › test\e2e\workspace-full-test.spec.ts:19:7 › Workspace Full Functionality Test › Complete workspace functionality test
+🔐 Step 1: Logging in...
+
+[1A[2K[chromium] › test\e2e\workspace-navigation-reactivity.spec.ts:5:5 › verify Document Viewer reactivity when switching documents
+Navigating to document 74
+
+[1A[2K  13) [chromium] › test\e2e\verify-ui.spec.ts:3:5 › Verify UI changes - no duplicate dropdown, document title visible 
+
+    TimeoutError: page.waitForURL: Timeout 15000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation until "load"
+    ============================================================
+
+       7 |   await page.fill('input[name="password"]', 'password');
+       8 |   await page.click('button[type="submit"]');
+    >  9 |   await page.waitForURL((url) => !url.pathname.includes('/login'));
+         |              ^
+      10 |
+      11 |   // Navigate to workspace chat tab
+      12 |   await page.goto('http://localhost:3000/workspace/doc/latest?tab=chat');
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\verify-ui.spec.ts:9:14
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\verify-ui-Verify-UI-change-ce9a2-down-document-title-visible-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\verify-ui-Verify-UI-change-ce9a2-down-document-title-visible-chromium\error-context.md
+
+
+[1A[2K[224/293] [chromium] › test\e2e\workspace-reprocess.spec.ts:25:7 › Workspace Reprocess E2E › should show Reprocess button in context bar
+[1A[2K[225/293] [chromium] › test\e2e\workspace-sidebar.spec.ts:18:7 › Workspace sidebar tabs › metadata tab shows metadata panel
+[1A[2K[chromium] › test\e2e\production-smoke.spec.ts:118:7 › Production Smoke Tests › History page loads
+History URL: http://localhost:3000/history
+
+[1A[2KHistory manager island found
+
+[1A[2KHistory table has 10 rows
+
+[1A[2K[chromium] › test\e2e\settings-persistence.spec.ts:90:7 › Settings Persistence › Logout works correctly
+Logout and protection - PASSED
+
+[1A[2K[226/293] [chromium] › test\e2e\production-smoke.spec.ts:147:7 › Production Smoke Tests › Sidebar navigation works
+[1A[2K[227/293] [chromium] › test\e2e\workspace-toolbar.spec.ts:14:7 › Workspace toolbar › document selector switches documents
+[1A[2K  14) [chromium] › test\e2e\toolbar-cleanup.spec.ts:84:7 › Toolbar cleanup and mode controls › should cancel draw mode with Escape key 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveAttribute[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator:  locator('[data-testid="overlay-container"]')
+    Expected: [32m"active"[39m
+    Received: [31m"[7min[27mactive"[39m
+    Timeout:  10000ms
+
+    Call log:
+    [2m  - Expect "toHaveAttribute" with timeout 10000ms[22m
+    [2m  - waiting for locator('[data-testid="overlay-container"]')[22m
+    [2m    9 × locator resolved to <div data-draw-mode="inactive" data-testid="overlay-container" class="OverlayViewerIsland_overlayContainer cursor-default touch-auto">…</div>[22m
+    [2m      - unexpected value "inactive"[22m
+
+
+      89 |     await page.keyboard.press('d');
+      90 |     await page.waitForTimeout(100);
+    > 91 |     await expect(container).toHaveAttribute('data-draw-mode', 'active');
+         |                             ^
+      92 |
+      93 |     // Press Escape to cancel
+      94 |     await page.keyboard.press('Escape');
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\toolbar-cleanup.spec.ts:91:29
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\toolbar-cleanup-Toolbar-cl-d5d65-l-draw-mode-with-Escape-key-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\toolbar-cleanup-Toolbar-cl-d5d65-l-draw-mode-with-Escape-key-chromium\error-context.md
+
+
+[1A[2K[228/293] [chromium] › test\e2e\toolbar-cleanup.spec.ts:102:7 › Toolbar cleanup and mode controls › should show visual feedback when draw mode is active
+[1A[2K[229/293] [chromium] › test\e2e\sidebar-tabs.spec.ts:99:7 › Sidebar Tab Restructuring › has proper ARIA attributes
+[1A[2K[chromium] › test\e2e\visual-chat-test.spec.ts:8:7 › Visual Chat UI Test in Workspace › Select document, navigate to chat, and ask a question
+Test completed. Taking final screenshot...
+
+[1A[2K[230/293] [chromium] › test\e2e\workspace-visual.spec.ts:52:9 › Workspace Route - Visual Browser Tests › Route Navigation › GET /workspace redirects to document (authenticated)
+[1A[2K[231/293] [chromium] › test\e2e\visual-tab.spec.ts:42:7 › Visual Tab › should display Visual Search button
+[1A[2K[chromium] › test\e2e\workspace-full-test.spec.ts:19:7 › Workspace Full Functionality Test › Complete workspace functionality test
+✅ Login successful, redirected to: http://localhost:3000/dashboard
+
+[1A[2K
+📂 Step 2: Navigating to workspace...
+
+[1A[2K[chromium] › test\e2e\workspace-behavior.spec.ts:18:7 › Workspace Expected Behavior › Clicking Workspace in sidebar - verify behavior
+Workspace link href: /workspace
+
+[1A[2K[chromium] › test\e2e\manual-route-test.spec.ts:97:7 › Manual Route Testing › Check all sidebar links
+Found 9 sidebar links
+
+[1A[2KLink 1: Dashboard -> /dashboard
+
+[1A[2KLink 2: Workspace -> /workspace
+
+[1A[2KLink 3: Chat -> /workspace/doc/latest?tab=chat
+
+[1A[2KLink 4: Playground -> /playground
+
+[1A[2KLink 5: History -> /history
+
+[1A[2K[232/293] [chromium] › test\e2e\workspace-reprocess.spec.ts:31:7 › Workspace Reprocess E2E › should disable Reprocess button when no document is selected
+[1A[2KLink 6: Analytics -> /analytics/visual-queries
+
+[1A[2KLink 7: Settings -> /settings
+
+[1A[2KLink 8: Logout -> /logout
+
+[1A[2KLink 9: Star
+    
+    1.2k -> https://github.com/clusterzx/paperless-ai
+
+[1A[2K[chromium] › test\e2e\production-smoke.spec.ts:147:7 › Production Smoke Tests › Sidebar navigation works
+Found 9 navigation links
+
+[1A[2K  Nav link: "Dashboard" -> /dashboard
+
+[1A[2K  Nav link: "Workspace" -> /workspace
+
+[1A[2K  Nav link: "Chat" -> /workspace/doc/latest?tab=chat
+
+[1A[2K  Nav link: "Playground" -> /playground
+
+[1A[2K  Nav link: "History" -> /history
+
+[1A[2K  Nav link: "Analytics" -> /analytics/visual-queries
+
+[1A[2K  Nav link: "Settings" -> /settings
+
+[1A[2K  Nav link: "Logout" -> /logout
+
+[1A[2K  Nav link: "Star
+    
+    1.2k" -> https://github.com/clusterzx/paperless-ai
+
+[1A[2K[233/293] [chromium] › test\e2e\toolbar-cleanup.spec.ts:124:7 › Toolbar cleanup and mode controls › should toggle between pan and draw modes correctly
+[1A[2K[chromium] › test\e2e\workspace-behavior.spec.ts:18:7 › Workspace Expected Behavior › Clicking Workspace in sidebar - verify behavior
+Final URL after clicking Workspace: http://localhost:3000/workspace
+
+[1A[2KDocument pre-selected: [33mfalse[39m
+
+[1A[2KDocument selector elements found: [33m1[39m
+
+[1A[2K[234/293] [chromium] › test\e2e\workspace-behavior.spec.ts:46:7 › Workspace Expected Behavior › Check /workspace route directly (without /latest)
+[1A[2K[chromium] › test\e2e\workspace-full-test.spec.ts:19:7 › Workspace Full Functionality Test › Complete workspace functionality test
+Current URL: http://localhost:3000/workspace
+
+[1A[2K
+📄 Step 3: Selecting a random document...
+
+[1A[2KFound 97 documents available
+
+[1A[2KSelecting document #10: "Rechnung#53"
+
+[1A[2K[235/293] [chromium] › test\e2e\workspace-reprocess.spec.ts:42:7 › Workspace Reprocess E2E › should show loading state when Reprocess is clicked
+[1A[2K[chromium] › test\e2e\production-smoke.spec.ts:147:7 › Production Smoke Tests › Sidebar navigation works
+After clicking workspace: http://localhost:3000/workspace
+
+[1A[2K[chromium] › test\e2e\workspace-navigation-reactivity.spec.ts:5:5 › verify Document Viewer reactivity when switching documents
+Initial document original URL: /api/proxied/paperless/documents/74/download/original/
+
+[1A[2K[236/293] [chromium] › test\e2e\production-smoke.spec.ts:174:7 › Production Smoke Tests › AI analyze endpoint is accessible
+[1A[2KOpening document selector
+
+[1A[2K[237/293] [chromium] › test\e2e\workspace-sidebar.spec.ts:27:7 › Workspace sidebar tabs › content tab shows OCR text panel
+[1A[2KSelecting document 9
+
+[1A[2K  15) [chromium] › test\e2e\unified-workspace-navigation.spec.ts:25:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from History sidebar 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('[data-page="document-workspace"]').first()
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for locator('[data-page="document-workspace"]').first()[22m
+
+
+      35 |       await page.waitForURL('**/workspace*', { timeout: 10000 });
+      36 |
+    > 37 |       await expect(page.locator('[data-page="document-workspace"]').first()).toBeVisible();
+         |                                                                              ^
+      38 |     });
+      39 |
+      40 |     test('navigate to workspace from History document row', async ({ page }) => {
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\unified-workspace-navigation.spec.ts:37:78
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\unified-workspace-navigati-99d14-kspace-from-History-sidebar-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\unified-workspace-navigati-99d14-kspace-from-History-sidebar-chromium\error-context.md
+
+
+[1A[2K[238/293] [chromium] › test\e2e\workspace-toolbar.spec.ts:55:7 › Workspace toolbar › save button shows progress and returns to idle
+[1A[2K[chromium] › test\e2e\workspace-document-viewer-full.spec.ts:7:7 › Workspace Document Viewer Full Verification › verify document visibility and all toolbar tools
+Verification complete. Screenshots saved to test-results/
+
+[1A[2K[239/293] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:40:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from History document row
+[1A[2K[chromium] › test\e2e\workspace-navigation-reactivity.spec.ts:5:5 › verify Document Viewer reactivity when switching documents
+URL updated to doc 9
+
+[1A[2KNew document original URL: /api/proxied/paperless/documents/9/download/original/
+
+[1A[2KReactivity verified successfully.
+
+[1A[2K[240/293] [chromium] › test\e2e\sidebar-tabs.spec.ts:119:7 › Sidebar Tab Restructuring › supports keyboard navigation between tabs
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+    - [CRITICAL ERROR] Audit failed for SYS_ORCHESTRATOR: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+
+[1A[2K    - [Cleanup] Closing Lab Modal for SYS_ORCHESTRATOR...
+
+[1A[2K
+  Group: VIS_SIGNAL_ANALYZER
+
+[1A[2K[241/293] [chromium] › test\e2e\workspace-visual.spec.ts:68:9 › Workspace Route - Visual Browser Tests › Route Navigation › GET /workspace/latest redirects to most recent document
+[1A[2K    - Testing Target: VIS_SIGNAL_ANALYZER_V1
+
+[1A[2K[242/293] [chromium] › test\e2e\visual-tab.spec.ts:55:7 › Visual Tab › should activate draw mode when clicking Visual Search
+[1A[2K    - Token Limit: 2048
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K[chromium] › test\e2e\workspace-full-test.spec.ts:19:7 › Workspace Full Functionality Test › Complete workspace functionality test
+✅ Document selected, URL: http://localhost:3000/workspace/doc/53
+
+[1A[2K
+👁️ Step 4: Verifying document renders in viewer area...
+
+[1A[2K✅ Document viewer found: canvas
+
+[1A[2K
+📊 Step 5: Testing Document Context Bar...
+
+[1A[2K✅ Document context bar found
+
+[1A[2K  - Previous button: present
+
+[1A[2K  - Next button: present
+
+[1A[2K
+📑 Step 6: Testing workspace tabs...
+
+[1A[2K  - Metadata tab: ✅ present
+
+[1A[2K  - Chat tab: ✅ present
+
+[1A[2K  - Content tab: ✅ present
+
+[1A[2K
+🧠 Step 7: Testing Context Sidebar (Smart Metadata / AI Features)...
+
+[1A[2K✅ Context sidebar found
+
+[1A[2K  - Tags section: ✅ present
+
+[1A[2K  - Correspondent section: ✅ present
+
+[1A[2K  - Title section: ✅ present
+
+[1A[2K  - AI suggestions: ⚠️ not found
+
+[1A[2K  - Save button: ✅ present
+
+[1A[2K
+💬 Step 8: Testing Chat Tab (AI Chat Feature)...
+
+[1A[2K[chromium] › test\e2e\production-smoke.spec.ts:174:7 › Production Smoke Tests › AI analyze endpoint is accessible
+API status response: [33m404[39m
+
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+    - Selected Subject: SCN_20251229_074627
+
+[1A[2K[243/293] [chromium] › test\e2e\workspace-reprocess.spec.ts:57:7 › Workspace Reprocess E2E › should show success notification after reprocess completes
+[1A[2K[chromium] › test\e2e\workspace-full-test.spec.ts:19:7 › Workspace Full Functionality Test › Complete workspace functionality test
+  - Chat input area: ✅ present
+
+[1A[2K  - Chat messages container: ✅ present
+
+[1A[2K  - Send button: ⚠️ not found
+
+[1A[2K  - Found textarea element, attempting to type...
+
+[1A[2K
+📝 Step 9: Testing Metadata Tab...
+
+[1A[2K[chromium] › test\e2e\workspace-behavior.spec.ts:46:7 › Workspace Expected Behavior › Check /workspace route directly (without /latest)
+Response status: [33m200[39m
+
+[1A[2KFinal URL: http://localhost:3000/workspace
+
+[1A[2KWas redirected: [33mfalse[39m
+
+[1A[2K[244/293] [chromium] › test\e2e\toolbar-cleanup.spec.ts:153:7 › Toolbar cleanup and mode controls › should dispatch overlay:draw-mode-changed event
+[1A[2K[chromium] › test\e2e\workspace-full-test.spec.ts:19:7 › Workspace Full Functionality Test › Complete workspace functionality test
+  - Title field: ⚠️ not found
+
+[1A[2K  - Correspondent selector: ✅ present
+
+[1A[2K  - Tags selector: ✅ present
+
+[1A[2K  - Document type: ⚠️ not found
+
+[1A[2K
+📜 Step 10: Testing Content Tab...
+
+[1A[2K  16) [chromium] › test\e2e\verify-sys-router-vision.spec.ts:4:7 › SYS_ROUTER_V1 Multimodal Verification › Verify SYS_ROUTER_V1 receives 300dpi image and returns valid JSON 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('[data-testid="prompt-test-modal"]').locator('img[alt="Document Preview (300 DPI)"]')
+    Expected: visible
+    Timeout: 30000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 30000ms[22m
+    [2m  - waiting for locator('[data-testid="prompt-test-modal"]').locator('img[alt="Document Preview (300 DPI)"]')[22m
+
+
+      62 |     console.log('Verifying image preview...');
+      63 |     const imagePreview = modal.locator('img[alt="Document Preview (300 DPI)"]');
+    > 64 |     await expect(imagePreview).toBeVisible({ timeout: 30000 });
+         |                                ^
+      65 |     
+      66 |     // Check if the image source is valid (base64)
+      67 |     const src = await imagePreview.getAttribute('src');
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\verify-sys-router-vision.spec.ts:64:32
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\verify-sys-router-vision-S-b77df-mage-and-returns-valid-JSON-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\verify-sys-router-vision-S-b77df-mage-and-returns-valid-JSON-chromium\error-context.md
+
+
+[1A[2K[245/293] [chromium] › test\e2e\workspace-sidebar.spec.ts:36:7 › Workspace sidebar tabs › chat tab loads workspace chat UI
+[1A[2K
+🎨 Step 11: Testing Visual Overlays...
+
+[1A[2K✅ Overlay viewer island found
+
+[1A[2K  - Overlay controls: 18 found
+
+[1A[2K
+🧭 Step 12: Testing Sidebar Navigation...
+
+[1A[2KFound 9 navigation links:
+
+[1A[2K    "Dashboard" -> /dashboard
+
+[1A[2K[246/293] [chromium] › test\e2e\workspace-toolbar.spec.ts:90:7 › Workspace toolbar › reprocess button triggers progress and notification
+[1A[2K  → "Workspace" -> /workspace
+
+[1A[2K    "Chat" -> /workspace/doc/latest?tab=chat
+
+[1A[2K    "Playground" -> /playground
+
+[1A[2K    "History" -> /history
+
+[1A[2K    "Analytics" -> /analytics/visual-queries
+
+[1A[2K    "Settings" -> /settings
+
+[1A[2K    "Logout" -> /logout
+
+[1A[2K
+🌓 Step 13: Testing Theme Toggle...
+
+[1A[2K✅ Theme toggle found
+
+[1A[2K[247/293] [chromium] › test\e2e\visual-tab.spec.ts:74:7 › Visual Tab › should cancel draw mode when clicking Cancel
+[1A[2K[248/293] [chromium] › test\e2e\sidebar-tabs.spec.ts:141:7 › Sidebar Tab Restructuring › shows debug tab when admin override is active
+[1A[2K  - Theme toggled successfully
+
+[1A[2K
+==================================================
+
+[1A[2K📋 WORKSPACE FUNCTIONALITY TEST SUMMARY
+
+[1A[2K==================================================
+
+[1A[2KLogin: ✅ Working
+
+[1A[2KDocument Selector: ✅ Working
+
+[1A[2KDocument Viewer: ✅ Working
+
+[1A[2KContext Bar: ✅ Working
+
+[1A[2KTabs: ✅ Working
+
+[1A[2KContext Sidebar: ✅ Working
+
+[1A[2KTheme Toggle: ✅ Working
+
+[1A[2K==================================================
+
+[1A[2K
+✅ Test completed! Screenshots saved to test-results/
+
+[1A[2K[249/293] [chromium] › test\e2e\toolbar-cleanup.spec.ts:176:7 › Toolbar cleanup and mode controls › should have correct cursor styles for each mode
+[1A[2K[250/293] [chromium] › test\e2e\workspace-visual.spec.ts:88:9 › Workspace Route - Visual Browser Tests › Route Navigation › GET /workspace/doc/:id loads specific document
+[1A[2K[251/293] [chromium] › test\e2e\visual-tab.spec.ts:92:7 › Visual Tab › should persist Visual tab selection across page refreshes
+[1A[2K[252/293] [chromium] › test\e2e\workspace-sidebar.spec.ts:45:7 › Workspace sidebar tabs › visual tab shows visual panel
+[1A[2K[253/293] [chromium] › test\e2e\workspace-toolbar.spec.ts:108:7 › Workspace toolbar › navigation controls move between documents when available
+[1A[2K[254/293] [chromium] › test\e2e\toolbar-cleanup.spec.ts:202:7 › Toolbar cleanup and mode controls › should have toolbar with correct data-testid
+[1A[2K[255/293] [chromium] › test\e2e\visual-tab.spec.ts:110:7 › Visual Tab › should display empty state when no overlays
+[1A[2K[256/293] [chromium] › test\e2e\workspace-sidebar.spec.ts:54:7 › Workspace sidebar tabs › debug tab shows debug content when admin
+[1A[2K[257/293] [chromium] › test\e2e\workspace-toolbar.spec.ts:126:7 › Workspace toolbar › toolbar status badge present
+[1A[2K[258/293] [chromium] › test\e2e\workspace-visual.spec.ts:109:9 › Workspace Route - Visual Browser Tests › Page Structure › workspace has required page elements
+[1A[2K[259/293] [chromium] › test\e2e\visual-tab.spec.ts:124:7 › Visual Tab › should have accessible tab structure
+[1A[2K  17) [chromium] › test\e2e\unified-workspace-navigation.spec.ts:40:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from History document row 
+
+    TimeoutError: page.waitForURL: Timeout 10000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation to "**/workspace*" until "load"
+    ============================================================
+
+      52 |       await viewLink.click();
+      53 |       // Wait for workspace URL (matches /workspace/doc/123)
+    > 54 |       await page.waitForURL('**/workspace*', { timeout: 10000 });
+         |                  ^
+      55 |
+      56 |       await expect(page.locator('[data-page="document-workspace"]')).toBeVisible();
+      57 |     });
+        at C:\Users\pwalc\MyApps\paperless-ai\test\e2e\unified-workspace-navigation.spec.ts:54:18
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\e2e-artifacts\unified-workspace-navigati-e7596-e-from-History-document-row-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\e2e-artifacts\unified-workspace-navigati-e7596-e-from-History-document-row-chromium\error-context.md
+
+
+[1A[2K[260/293] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:63:9 › Unified Workspace - Navigation & Interactions › Mouse interactions › sidebar tab switching with mouse click
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+
+    - [CRITICAL ERROR] Audit failed for VIS_SIGNAL_ANALYZER: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for VIS_SIGNAL_ANALYZER...
+
+[1A[2K
+  Group: VIS_OCR
+
+[1A[2K    - Testing Target: VIS_OCR_V1
+
+[1A[2K    - Token Limit: 4096
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K[261/293] [chromium] › test\e2e\workspace-sidebar.spec.ts:63:7 › Workspace sidebar tabs › tab switching preserves unsaved state
+[1A[2K[262/293] [chromium] › test\e2e\workspace-toolbar.spec.ts:135:7 › Workspace toolbar › open in Paperless link opens new tab when present
+[1A[2K[263/293] [chromium] › test\e2e\visual-tab.spec.ts:139:7 › Visual Tab › should support keyboard navigation between tabs
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+[1A[2K[264/293] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:91:9 › Unified Workspace - Navigation & Interactions › Mouse interactions › document context bar buttons are clickable
+[1A[2K[chromium] › test\e2e\workspace-visual.spec.ts:109:9 › Workspace Route - Visual Browser Tests › Page Structure › workspace has required page elements
+Component "sidebar": visible
+
+[1A[2KComponent "viewer": visible
+
+[1A[2K[265/293] [chromium] › test\e2e\visual-tab.spec.ts:163:7 › Visual Tab - Missing Fields › should activate draw mode for field labeling
+[1A[2KComponent "context-bar": visible
+
+[1A[2K[266/293] [chromium] › test\e2e\workspace-reprocess.spec.ts:74:7 › Workspace Reprocess E2E › should show error notification when reprocess fails
+[1A[2K[267/293] [chromium] › test\e2e\workspace-visual.spec.ts:138:9 › Workspace Route - Visual Browser Tests › Page Structure › workspace islands are mounted
+[1A[2K[268/293] [chromium] › test\e2e\visual-tab.spec.ts:189:7 › Visual Tab - Existing Overlays › should show view button for overlays
+[1A[2K[269/293] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:116:9 › Unified Workspace - Navigation & Interactions › Mouse interactions › document selector dropdown interaction
+[1A[2K[270/293] [chromium] › test\e2e\workspace-reprocess.spec.ts:98:7 › Workspace Reprocess E2E › should dismiss notification when close button is clicked
+[1A[2K[271/293] [chromium] › test\e2e\visual-tab.spec.ts:205:7 › Visual Tab - Existing Overlays › should show delete button for overlays
+[1A[2K[chromium] › test\e2e\workspace-visual.spec.ts:138:9 › Workspace Route - Visual Browser Tests › Page Structure › workspace islands are mounted
+Found 6 island mount points
+
+[1A[2KIsland "document-context-bar-island": mounted
+
+[1A[2KIsland "overlay-viewer-island": mounted
+
+[1A[2KIsland "unified-workspace-island": mounted
+
+[1A[2KIsland "resizable-layout-island": mounted
+
+[1A[2KIsland "export-panel-island": empty
+
+[1A[2KIsland "context-sidebar-island": mounted
+
+[1A[2K[272/293] [chromium] › test\e2e\workspace-visual.spec.ts:166:9 › Workspace Route - Visual Browser Tests › Document Context Bar › document selector is interactive
+[1A[2K[273/293] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:148:9 › Unified Workspace - Navigation & Interactions › Keyboard interactions › tab navigation through sidebar tabs
+[1A[2K[274/293] [chromium] › test\e2e\workspace-reprocess.spec.ts:117:7 › Workspace Reprocess E2E › should update metadata panel after successful reprocess
+[1A[2K[275/293] [chromium] › test\e2e\visual-tab.spec.ts:220:7 › Visual Tab - API Integration › should call missing-fields API
+[1A[2K[276/293] [chromium] › test\e2e\workspace-reprocess.spec.ts:138:7 › Workspace Reprocess E2E › should have accessible notification with proper ARIA attributes
+[1A[2K[277/293] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:169:9 › Unified Workspace - Navigation & Interactions › Keyboard interactions › escape key closes dropdowns/modals
+[1A[2K[278/293] [chromium] › test\e2e\workspace-reprocess.spec.ts:158:7 › Reprocess API Integration › should make POST request to correct endpoint
+[1A[2K[279/293] [chromium] › test\e2e\visual-tab.spec.ts:249:7 › Visual Tab - API Integration › should call document overlays API
+[1A[2K[280/293] [chromium] › test\e2e\workspace-reprocess.spec.ts:175:7 › Reprocess API Integration › should return 400 for invalid document ID
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+
+    - [CRITICAL ERROR] Audit failed for VIS_OCR: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for VIS_OCR...
+
+[1A[2K[281/293] [chromium] › test\e2e\workspace-visual.spec.ts:191:9 › Workspace Route - Visual Browser Tests › Overlay Viewer › overlay viewer loads document preview
+[1A[2K
+  Group: VISUAL_QUERY_GENERATOR
+
+[1A[2K    - Testing Target: VISUAL_QUERY_GENERATOR_V1
+
+[1A[2K    - Token Limit: 768
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K[282/293] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:187:9 › Unified Workspace - Navigation & Interactions › Keyboard interactions › form field keyboard input
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+[1A[2K[chromium] › test\e2e\workspace-visual.spec.ts:191:9 › Workspace Route - Visual Browser Tests › Overlay Viewer › overlay viewer loads document preview
+Viewer has canvas: true, has image: true
+
+[1A[2K[283/293] [chromium] › test\e2e\workspace-visual.spec.ts:212:9 › Workspace Route - Visual Browser Tests › Overlay Viewer › overlay viewer zoom controls work
+[1A[2K[284/293] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:215:9 › Unified Workspace - Navigation & Interactions › Visual state verification › workspace displays document title
+[1A[2K[285/293] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:225:9 › Unified Workspace - Navigation & Interactions › Visual state verification › unsaved changes indicator appears on edit
+[1A[2K[286/293] [chromium] › test\e2e\unified-workspace-navigation.spec.ts:254:9 › Unified Workspace - Navigation & Interactions › Visual state verification › take screenshot for visual verification
+[1A[2K[287/293] [chromium] › test\e2e\workspace-visual.spec.ts:243:9 › Workspace Route - Visual Browser Tests › Context Sidebar › sidebar tabs are navigable
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+
+    - [CRITICAL ERROR] Audit failed for VISUAL_QUERY_GENERATOR: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for VISUAL_QUERY_GENERATOR...
+
+[1A[2K
+  Group: OCR_GUIDED_CROSS_VALIDATE
+
+[1A[2K    - Testing Target: OCR_GUIDED_CROSS_VALIDATE_V1
+
+[1A[2K    - Token Limit: 512
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K[chromium] › test\e2e\workspace-visual.spec.ts:243:9 › Workspace Route - Visual Browser Tests › Context Sidebar › sidebar tabs are navigable
+Clicked "content" tab
+
+[1A[2KClicked "chat" tab
+
+[1A[2K[288/293] [chromium] › test\e2e\workspace-visual.spec.ts:278:9 › Workspace Route - Visual Browser Tests › Metadata Panel › metadata fields are displayed
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+    - Selected Subject: SCN_20251229_074627
+
+[1A[2K[chromium] › test\e2e\workspace-visual.spec.ts:278:9 › Workspace Route - Visual Browser Tests › Metadata Panel › metadata fields are displayed
+Found 4 form fields in metadata panel
+
+[1A[2K[289/293] [chromium] › test\e2e\workspace-visual.spec.ts:298:9 › Workspace Route - Visual Browser Tests › Metadata Panel › metadata locate triggers overlay highlight
+
+[1A[2K    - [Cleanup] Closing Lab Modal for OCR_GUIDED_CROSS_VALIDATE...
+
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+    - [CRITICAL ERROR] Audit failed for OCR_GUIDED_CROSS_VALIDATE: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K
+>>> OPTIMIZATION AUDIT: Medical Domain
+
+[1A[2K
+  Group: MED_RADIOLOGY
+
+[1A[2K[chromium] › test\e2e\workspace-visual.spec.ts:298:9 › Workspace Route - Visual Browser Tests › Metadata Panel › metadata locate triggers overlay highlight
+Metadata locate state: { fieldId: [32m'title'[39m, handled: [33mfalse[39m }
+
+[1A[2K[290/293] [chromium] › test\e2e\workspace-visual.spec.ts:343:9 › Workspace Route - Visual Browser Tests › Error Handling › invalid document ID shows error
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+    - Testing Target: MED_RADIOLOGY_V1
+
+[1A[2K    - Token Limit: 4096
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K[chromium] › test\e2e\workspace-visual.spec.ts:343:9 › Workspace Route - Visual Browser Tests › Error Handling › invalid document ID shows error
+Invalid doc response status: 404, URL: http://localhost:3000/workspace/doc/999999999
+
+[1A[2K[291/293] [chromium] › test\e2e\workspace-visual.spec.ts:363:9 › Workspace Route - Visual Browser Tests › Error Handling › non-numeric document ID shows error
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+    - Selected Subject: SCN_20251229_074627
+
+[1A[2K[chromium] › test\e2e\workspace-visual.spec.ts:363:9 › Workspace Route - Visual Browser Tests › Error Handling › non-numeric document ID shows error
+Non-numeric doc ID response status: 400
+
+[1A[2K[292/293] [chromium] › test\e2e\workspace-visual.spec.ts:381:9 › Workspace Route - Visual Browser Tests › Authentication › unauthenticated access redirects to login
+[1A[2K[293/293] [chromium] › test\e2e\workspace-visual.spec.ts:420:9 › Workspace Route - Visual Browser Tests › Console Errors › no critical console errors during workspace load
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+
+    - [CRITICAL ERROR] Audit failed for MED_RADIOLOGY: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for MED_RADIOLOGY...
+
+[1A[2K
+  Group: MED_DOCTOR
+
+[1A[2K    - Testing Target: MED_DOCTOR_V1
+
+[1A[2K    - Token Limit: 4096
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K[chromium] › test\e2e\workspace-visual.spec.ts:420:9 › Workspace Route - Visual Browser Tests › Console Errors › no critical console errors during workspace load
+Total console errors: 0
+
+[1A[2K[chromium] › test\e2e\prompts-optimization.spec.ts:14:7 › Prompt Optimization & Real Document Validation › Audit each prompt domain against real document subjects
+    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for MED_DOCTOR: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for MED_DOCTOR...
+
+[1A[2K
+  Group: MED_INTEGRATOR
+
+[1A[2K    - Testing Target: MED_INTEGRATOR_V1
+
+[1A[2K    - Token Limit: 4096
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for MED_INTEGRATOR: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for MED_INTEGRATOR...
+
+[1A[2K
+  Group: MED_XRAY_CHEST
+
+[1A[2K    - Testing Target: MED_XRAY_CHEST_V1
+
+[1A[2K    - Token Limit: 4096
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for MED_XRAY_CHEST: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for MED_XRAY_CHEST...
+
+[1A[2K
+  Group: MED_PATHOLOGY
+
+[1A[2K    - Testing Target: MED_PATHOLOGY_V1
+
+[1A[2K    - Token Limit: 4096
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for MED_PATHOLOGY: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for MED_PATHOLOGY...
+
+[1A[2K
+  Group: MED_PRESCRIPTION
+
+[1A[2K    - Testing Target: MED_PRESCRIPTION_V1
+
+[1A[2K    - Token Limit: 3072
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for MED_PRESCRIPTION: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for MED_PRESCRIPTION...
+
+[1A[2K
+  Group: MED_LAB_RESULTS
+
+[1A[2K    - Testing Target: MED_LAB_RESULTS_V1
+
+[1A[2K    - Token Limit: 4096
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for MED_LAB_RESULTS: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for MED_LAB_RESULTS...
+
+[1A[2K
+  Group: MED_DISCHARGE
+
+[1A[2K    - Testing Target: MED_DISCHARGE_V1
+
+[1A[2K    - Token Limit: 4096
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for MED_DISCHARGE: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for MED_DISCHARGE...
+
+[1A[2K
+  Group: MED_CLINICAL_NOTE
+
+[1A[2K    - Testing Target: MED_CLINICAL_NOTE_V1
+
+[1A[2K    - Token Limit: 4096
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for MED_CLINICAL_NOTE: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for MED_CLINICAL_NOTE...
+
+[1A[2K
+  Group: MED_INSURANCE
+
+[1A[2K    - Testing Target: MED_INSURANCE_V1
+
+[1A[2K    - Token Limit: 3072
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for MED_INSURANCE: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for MED_INSURANCE...
+
+[1A[2K
+  Group: MED_IMAGING_EXTRACT
+
+[1A[2K    - Testing Target: MED_IMAGING_EXTRACT_V1
+
+[1A[2K    - Token Limit: 2048
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for MED_IMAGING_EXTRACT: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for MED_IMAGING_EXTRACT...
+
+[1A[2K
+  Group: MED_TEXT_EXTRACT
+
+[1A[2K    - Testing Target: MED_TEXT_EXTRACT_V1
+
+[1A[2K    - Token Limit: 2048
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for MED_TEXT_EXTRACT: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for MED_TEXT_EXTRACT...
+
+[1A[2K
+  Group: MED_INTEGRATE
+
+[1A[2K    - Testing Target: MED_INTEGRATE_V1
+
+[1A[2K    - Token Limit: 2048
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for MED_INTEGRATE: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for MED_INTEGRATE...
+
+[1A[2K
+>>> OPTIMIZATION AUDIT: Financial Domain
+
+[1A[2K
+  Group: FIN_EXTRACT
+
+[1A[2K    - Testing Target: FIN_EXTRACT_V1
+
+[1A[2K    - Token Limit: 2048
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for FIN_EXTRACT: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for FIN_EXTRACT...
+
+[1A[2K
+  Group: FIN_REASONER
+
+[1A[2K    - Testing Target: FIN_REASONER_V1
+
+[1A[2K    - Token Limit: 1536
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for FIN_REASONER: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for FIN_REASONER...
+
+[1A[2K
+  Group: FIN_VAT_EXPERT
+
+[1A[2K    - Testing Target: FIN_VAT_EXPERT_V1
+
+[1A[2K    - Token Limit: 1536
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for FIN_VAT_EXPERT: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for FIN_VAT_EXPERT...
+
+[1A[2K
+>>> OPTIMIZATION AUDIT: Legal Domain
+
+[1A[2K
+  Group: LEGAL_ORCHESTRATOR
+
+[1A[2K    - Testing Target: LEGAL_ORCHESTRATOR_V1
+
+[1A[2K    - Token Limit: 256
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for LEGAL_ORCHESTRATOR: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for LEGAL_ORCHESTRATOR...
+
+[1A[2K
+  Group: LEGAL_EXTRACTOR
+
+[1A[2K    - Testing Target: LEGAL_EXTRACTOR_V1
+
+[1A[2K    - Token Limit: 2048
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for LEGAL_EXTRACTOR: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for LEGAL_EXTRACTOR...
+
+[1A[2K
+>>> OPTIMIZATION AUDIT: General Domain
+
+[1A[2K
+  Group: GEN_FALLBACK
+
+[1A[2K    - Testing Target: GEN_FALLBACK_V1
+
+[1A[2K    - Token Limit: 2048
+
+[1A[2K    - Loading Real Document Context...
+
+[1A[2K    - Selected Subject: SCN_20251229_074627
+
+
+[1A[2K    - [CRITICAL ERROR] Audit failed for GEN_FALLBACK: locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('[data-testid="prompt-test-modal"]').getByRole('button', { name: 'Execute', exact: true })
+
+[1A[2K    - [Cleanup] Closing Lab Modal for GEN_FALLBACK...
+
+[1A[2K
+Expert Model Optimization Audit Complete.
+
+[1A[2K  Slow test file: [chromium] › test\e2e\prompts-optimization.spec.ts (7.1m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  17 failed
+    [chromium] › test\e2e\ai-features-deep.spec.ts:243:7 › AI Features Deep Test › Test History page functionality 
+    [chromium] › test\e2e\alpha9-full-pipeline.spec.ts:180:7 › Alpha-9 Full Pipeline E2E › Collection routing: results from visual_pages with 320-dim 
+    [chromium] › test\e2e\document-selection.spec.ts:11:7 › Document Selection in Workspace › Document selection navigates to /workspace/doc/{id} not /document/{id} 
+    [chromium] › test\e2e\export-feature-ui.spec.ts:144:7 › Export Feature Integration (with mock data) › ExportPanelIsland modal structure 
+    [chromium] › test\e2e\feedback-comprehensive.spec.ts:62:7 › Feedback comprehensive flow › feedback modal closes after submission 
+    [chromium] › test\e2e\history-links-check.spec.ts:7:5 › Check history page links ───────────────
+    [chromium] › test\e2e\legacy-routes-verify.spec.ts:57:7 › Legacy Route Verification › Workspace navigation between documents 
+    [chromium] › test\e2e\overlay-reflow-locate.spec.ts:44:7 › Workspace overlay reflow and locate wiring › overlay boxes stay aligned during zoom and viewport resize 
+    [chromium] › test\e2e\overlay-reflow-locate.spec.ts:112:7 › Workspace overlay reflow and locate wiring › smart tab keeps date prefilled and locate button dispatch is wired 
+    [chromium] › test\e2e\production-smoke.spec.ts:35:7 › Production Smoke Tests › Workspace navigation and document selector works 
+    [chromium] › test\e2e\telemetry_sidecar_verification.spec.ts:236:7 › GPU Warmup Flow Verification › exponential backoff increases retry delay 
+    [chromium] › test\e2e\toolbar-cleanup.spec.ts:84:7 › Toolbar cleanup and mode controls › should cancel draw mode with Escape key 
+    [chromium] › test\e2e\unified-workspace-navigation.spec.ts:9:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from Dashboard sidebar 
+    [chromium] › test\e2e\unified-workspace-navigation.spec.ts:25:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from History sidebar 
+    [chromium] › test\e2e\unified-workspace-navigation.spec.ts:40:9 › Unified Workspace - Navigation & Interactions › Navigation from all entry points › navigate to workspace from History document row 
+    [chromium] › test\e2e\verify-sys-router-vision.spec.ts:4:7 › SYS_ROUTER_V1 Multimodal Verification › Verify SYS_ROUTER_V1 receives 300dpi image and returns valid JSON 
+    [chromium] › test\e2e\verify-ui.spec.ts:3:5 › Verify UI changes - no duplicate dropdown, document title visible 
+  40 skipped
+  236 passed (8.3m)

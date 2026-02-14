@@ -5,7 +5,8 @@ const DEFAULT_TIMEOUT_MS = 20000;
 async function navigateToWorkspace(page, docId) {
   const id = docId != null ? docId : getTestDocId();
   const target = id ? `/workspace/doc/${id}` : '/workspace/latest';
-  await page.goto(target, { waitUntil: 'networkidle' });
+  // networkidle is fragile in this app (websockets/streaming); prefer deterministic DOM readiness.
+  await page.goto(target, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('[data-page="document-workspace"]', {
     timeout: DEFAULT_TIMEOUT_MS
   });
@@ -14,7 +15,7 @@ async function navigateToWorkspace(page, docId) {
 
 async function navigateToHistoryDoc(page, docId) {
   const id = docId != null ? docId : getHistoryDocId();
-  await page.goto(`/history/doc/${id}`, { waitUntil: 'networkidle' });
+  await page.goto(`/history/doc/${id}`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('[data-page="history-document"]', {
     timeout: DEFAULT_TIMEOUT_MS
   });

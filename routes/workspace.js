@@ -164,8 +164,59 @@ function getWorkspaceCachedValue(key, loader, ttlMs = WORKSPACE_SHARED_CACHE_TTL
 
   const now = Date.now();
   const cached = workspaceSharedCache.get(cacheKey);
-  if (cached && cached.expiresAt > now) {
-    if (cached.hasValue) return Promise.resolve(cached.value);
+  if (cached) {
+    if (cached.expiresAt > now) {
+      if (cached.hasValue) return Promise.resolve(cached.value);
+      if (cached.promise) return cached.promise;
+    }
+
+    if (cached.hasValue) {
+      // Serve stale data immediately and refresh in background to avoid
+      // blocking high-concurrency workspace routes on Paperless timeouts.
+      if (!cached.promise) {
+        const refreshPromise = Promise.resolve()
+          .then(loader)
+          .then((value) => {
+            workspaceSharedCache.set(cacheKey, {
+              hasValue: true,
+              value,
+              expiresAt: Date.now() + ttlMs
+            });
+            return value;
+          })
+          .catch((error) => {
+            console.warn(
+              `[Unified Workspace] Background refresh failed for ${cacheKey}:`,
+              error && error.message ? error.message : error
+            );
+            workspaceSharedCache.set(cacheKey, {
+              hasValue: true,
+              value: cached.value,
+              expiresAt: Date.now() + Math.max(1000, Math.floor(ttlMs / 2))
+            });
+            return cached.value;
+          })
+          .finally(() => {
+            const latest = workspaceSharedCache.get(cacheKey);
+            if (latest && latest.promise === refreshPromise) {
+              workspaceSharedCache.set(cacheKey, {
+                hasValue: true,
+                value: latest.value,
+                expiresAt: latest.expiresAt
+              });
+            }
+          });
+
+        workspaceSharedCache.set(cacheKey, {
+          hasValue: true,
+          value: cached.value,
+          promise: refreshPromise,
+          expiresAt: now + ttlMs
+        });
+      }
+      return Promise.resolve(cached.value);
+    }
+
     if (cached.promise) return cached.promise;
   }
 

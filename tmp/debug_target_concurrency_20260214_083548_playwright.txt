@@ -1,0 +1,21 @@
+[e2e] Docker available - attempting to start DB via docker compose
+ Container paperless_db  Running
+[e2e] Postgres container paperless_db reports ready (pg_isready)
+[e2e] Login successful, redirected to: http://localhost:3000/dashboard
+[e2e] Setup form/modal detected and removed/closed for test run (non-invasive)
+Error: Missing PAPERLESS_API_URL or PAPERLESS_API_TOKEN for E2E fixtures.
+
+   at ..\helpers\fixtures.js:53
+
+  51 |   // Handle Docker-to-Host mapping for E2E tests running on Windows host
+  52 |   if (apiUrl) {
+> 53 |     try {
+     |           ^
+  54 |       const url = new URL(apiUrl);
+  55 |       if (url.hostname === 'webserver' || url.hostname === 'paperless-ai' || url.hostname === 'paperless_ai') {
+  56 |         const oldHost = url.hostname;
+    at resolvePaperlessConfig (C:\Users\pwalc\MyApps\paperless-ai\test\helpers\fixtures.js:53:11)
+    at ensureE2EFixtures (C:\Users\pwalc\MyApps\paperless-ai\test\helpers\fixtures.js:138:7)
+    at module.exports (C:\Users\pwalc\MyApps\paperless-ai\test\e2e\global-setup.js:362:9)
+
+[1A[2K

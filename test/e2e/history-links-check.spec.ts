@@ -6,17 +6,16 @@ const PASSWORD = 'P2tr3ck!1976';
 
 test('Check history page links', async ({ page }) => {
   // Login
-  await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
   await page.fill('input[name="username"], input[type="text"]', USERNAME);
   await page.fill('input[name="password"], input[type="password"]', PASSWORD);
   await page.click('button[type="submit"], input[type="submit"]');
   await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 10000 });
 
   // Go to history
-  await page.goto(`${BASE}/history`, { waitUntil: 'networkidle' });
-
-  // Wait a moment for islands to hydrate
-  await page.waitForTimeout(2000);
+  await page.goto(`${BASE}/history`, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('[data-page=\"history\"]', { timeout: 20000 });
+  await page.waitForSelector('table, [data-testid=\"history-manager-island\"], [data-island=\"history-manager-island\"]', { timeout: 20000 });
 
   // Get all links on the page
   const allLinks = page.locator('a');
