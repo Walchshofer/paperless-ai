@@ -1,0 +1,19 @@
+{
+  "exists": true,
+  "timestamp": "2026-02-14T05:16:19.972Z",
+  "stats": {
+    "expected": 42,
+    "unexpected": 5,
+    "skipped": 1,
+    "flaky": 0,
+    "durationMs": 105119.726
+  },
+  "failedSpecFiles": [
+    "document-viewer-screenshot.spec.ts",
+    "manual_enhancements.spec.ts",
+    "overlay-viewer.interactions.spec.ts",
+    "workspace-document-viewer-full.spec.ts",
+    "workspace-reprocess.spec.ts"
+  ],
+  "failedSpecCount": 5
+}

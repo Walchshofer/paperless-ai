@@ -284,7 +284,7 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
 
   // Handle Reprocess button click
   const handleReprocess = useCallback(() => {
-    if (isReprocessing) return;
+    if (isReprocessing || currentDocumentId == null) return;
     setIsReprocessing(true);
 
     const onReprocessComplete = (e: Event) => {
@@ -460,7 +460,7 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
         <div className="flex items-center gap-2">
           <button
             onClick={handleReprocess}
-            disabled={isReprocessing}
+            disabled={isReprocessing || currentDocumentId == null}
             className="px-4 py-1.5 text-sm font-medium text-[#555] hover:bg-[#f5f0e8] rounded-lg transition-colors flex items-center gap-2 border border-[#e5e0d8] disabled:opacity-50 disabled:cursor-not-allowed"
             data-testid="reprocess-btn"
           >

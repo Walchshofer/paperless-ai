@@ -1,21 +1,18 @@
 {
-  "url": "http://localhost:3000/chat",
-  "document": {
-    "id": "9",
-    "title": "Ihr nächster Termin"
-  },
+  "url": "http://localhost:3000/workspace/doc/74?tab=chat",
+  "documentId": 74,
   "messages": [
     {
       "testid": "chat-message-status",
-      "text": "Chat ready for Ihr nächster Termin."
+      "text": "statusChat ready for SCN_20251220_123335."
     },
     {
       "testid": "chat-message-user",
-      "text": "Playwright live test: hello"
+      "text": "userPlaywright live test for doc 74: hello"
     },
     {
       "testid": "chat-message-assistant",
-      "text": ""
+      "text": "assistant"
     }
   ]
 }

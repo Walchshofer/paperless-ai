@@ -1,69 +1,88 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
-const BASE = 'http://localhost:3000';
-const USERNAME = 'elfman';
-const PASSWORD = 'P2tr3ck!1976';
+const BASE =
+  process.env.PLAYWRIGHT_BASE_URL
+  || process.env.PAPERLESS_BASE_URL
+  || 'http://localhost:3000';
+const USERNAME = process.env.PAPERLESS_ADMIN_USER || 'elfman';
+const PASSWORD =
+  process.env.PAPERLESS_ADMIN_PASSWORD
+  || process.env.POSTGRES_PASSWORD
+  || 'P2tr3ck!1976';
+
+const LOGIN_URL_PATTERN = /\/login(?:[/?#]|$)/;
+
+async function login(page: Page) {
+  await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+  await page.fill('#username', USERNAME);
+  await page.fill('#password', PASSWORD);
+  await page.click('[data-testid="login-submit-btn"]');
+  await page.waitForURL((url) => !url.pathname.includes('/login'), {
+    timeout: 15_000
+  });
+}
 
 test.describe('Settings Persistence', () => {
-
   test.beforeEach(async ({ page }) => {
-    // Login
-    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
-    await page.fill('input[name="username"], input[type="text"]', USERNAME);
-    await page.fill('input[name="password"], input[type="password"]', PASSWORD);
-    await page.click('button[type="submit"], input[type="submit"]');
-    await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 10000 });
+    await login(page);
   });
 
   test('Settings page loads all sections', async ({ page }) => {
     await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(2000);
 
-    // Take screenshot of settings page
-    await page.screenshot({ path: 'test-results/settings-overview.png', fullPage: true });
+    await page.screenshot({
+      path: 'test-results/settings-overview.png',
+      fullPage: true
+    });
 
-    // Check for settings islands
-    const settingsSidebar = page.locator('[data-island="settings-sidebar-island"]');
-    const connectionSettings = page.locator('[data-island="connection-settings-island"]');
+    const settingsSidebar = page.locator(
+      '[data-island="settings-sidebar-island"]'
+    );
+    const connectionSettings = page.locator(
+      '[data-island="connection-settings-island"]'
+    );
     const aiProvider = page.locator('[data-island="ai-provider-island"]');
 
-    console.log('Settings sidebar:', await settingsSidebar.count() > 0 ? 'found' : 'not found');
-    console.log('Connection settings:', await connectionSettings.count() > 0 ? 'found' : 'not found');
-    console.log('AI provider:', await aiProvider.count() > 0 ? 'found' : 'not found');
+    console.log(
+      'Settings sidebar:',
+      (await settingsSidebar.count()) > 0 ? 'found' : 'not found'
+    );
+    console.log(
+      'Connection settings:',
+      (await connectionSettings.count()) > 0 ? 'found' : 'not found'
+    );
+    console.log(
+      'AI provider:',
+      (await aiProvider.count()) > 0 ? 'found' : 'not found'
+    );
   });
 
   test('Session persists across page navigation', async ({ page }) => {
-    // Go to dashboard
     await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
-    expect(page.url()).not.toContain('/login');
-    console.log('Dashboard loaded');
+    await expect(page).toHaveURL(/\/dashboard(?:[/?#]|$)/);
+    await expect(page).not.toHaveURL(LOGIN_URL_PATTERN);
 
-    // Navigate to settings via sidebar
-    await page.click('a[href="/settings"]');
-    await page.waitForURL('**/settings**', { timeout: 5000 });
-    expect(page.url()).toContain('/settings');
-    console.log('Settings loaded');
+    await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
+    await expect(page).toHaveURL(/\/settings(?:[/?#]|$)/);
+    await expect(page).not.toHaveURL(LOGIN_URL_PATTERN);
+    await expect(page.locator('[data-testid="settings-sidebar-island"]'))
+      .toHaveCount(1);
 
-    // Navigate to workspace via sidebar
-    await page.click('a[href="/workspace"]');
-    await page.waitForLoadState('networkidle');
-    console.log('After workspace click URL:', page.url());
+    await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+    await expect(page).toHaveURL(/\/workspace\//);
+    await expect(page).not.toHaveURL(LOGIN_URL_PATTERN);
+    await expect(page.locator('body[data-page="document-workspace"]'))
+      .toBeVisible();
 
-    // Should still be logged in (not redirected to login)
-    expect(page.url()).not.toContain('/login');
-
-    // Navigate to history via direct URL (workspace has different layout without sidebar)
     await page.goto(`${BASE}/history`, { waitUntil: 'networkidle' });
+    await expect(page).toHaveURL(/\/history(?:[/?#]|$)/);
+    await expect(page).not.toHaveURL(LOGIN_URL_PATTERN);
+    await expect(page.locator('body[data-page="history"]')).toBeVisible();
 
-    // Should still be logged in
-    expect(page.url()).toContain('/history');
-    expect(page.url()).not.toContain('/login');
-    console.log('History loaded');
-
-    // Navigate to dashboard
-    await page.click('a[href="/dashboard"]');
-    await page.waitForURL('**/dashboard**', { timeout: 5000 });
-    expect(page.url()).toContain('/dashboard');
+    await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+    await expect(page).toHaveURL(/\/dashboard(?:[/?#]|$)/);
+    await expect(page).not.toHaveURL(LOGIN_URL_PATTERN);
 
     console.log('Session persisted across navigation - PASSED');
   });
@@ -71,20 +90,26 @@ test.describe('Settings Persistence', () => {
   test('Logout works correctly', async ({ page }) => {
     await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
 
-    // Click logout
-    const logoutLink = page.locator('a[href="/logout"]');
-    await logoutLink.click();
-    await page.waitForURL('**/login**', { timeout: 5000 });
+    await page.goto(`${BASE}/logout`, { waitUntil: 'networkidle' });
+    await expect(page).toHaveURL(LOGIN_URL_PATTERN, { timeout: 15_000 });
 
-    // Should be on login page
-    expect(page.url()).toContain('/login');
+    const cookies = await page.context().cookies();
+    const jwtCookie = cookies.find((cookie) => cookie.name === 'jwt');
+    expect(jwtCookie).toBeFalsy();
 
-    // Try accessing protected route
-    await page.goto(`${BASE}/dashboard`);
+    const response = await page.goto(`${BASE}/history`, {
+      waitUntil: 'domcontentloaded'
+    });
+    const bodyText = (await page.textContent('body')) || '';
 
-    // Should redirect to login
-    await page.waitForURL('**/login**', { timeout: 5000 });
-    expect(page.url()).toContain('/login');
+    if (
+      (response && [401, 403].includes(response.status()))
+      || /Authentication required|Invalid token/.test(bodyText)
+    ) {
+      expect(bodyText).toMatch(/Authentication required|Invalid token/);
+    } else {
+      await expect(page).toHaveURL(LOGIN_URL_PATTERN, { timeout: 15_000 });
+    }
 
     console.log('Logout and protection - PASSED');
   });

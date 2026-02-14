@@ -1,5 +1,10 @@
 import { test, expect } from '@playwright/test';
 
+const BASE =
+  process.env.PLAYWRIGHT_BASE_URL
+  || process.env.PAPERLESS_BASE_URL
+  || 'http://localhost:3000';
+
 test.describe('Settings Prompts & AI Provider Audit', () => {
   test('Capture AI Provider and Prompts sections', async ({ page }) => {
     // Enable console logging
@@ -12,14 +17,14 @@ test.describe('Settings Prompts & AI Provider Audit', () => {
     });
 
     // Login
-    await page.goto('http://localhost:3000/login');
+    await page.goto(`${BASE}/login`);
     await page.fill('input[name="username"]', 'elfman');
     await page.fill('input[name="password"]', 'P2tr3ck!1976');
     await page.click('button[type="submit"]');
     await page.waitForURL('**/dashboard', { timeout: 30000 });
 
     // Go to settings
-    await page.goto('http://localhost:3000/settings', { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
     
     // Enable developer mode
     console.log('Enabling developer mode...');
@@ -76,24 +81,40 @@ test.describe('Settings Prompts & AI Provider Audit', () => {
     await expect(promptsIsland).toHaveAttribute('data-mounted', 'true', { timeout: 60000 });
     
     // Open Router editor
-    const routerRow = page.locator('[data-testid="prompt-row-sys-router"]');
+    const routerRow = page.locator('[data-testid="prompt-row-sys-router"]').or(
+      page.locator('[data-testid^="prompt-row-btn-sys-router"]')
+    ).first();
     await expect(routerRow).toBeVisible({ timeout: 30000 });
     await routerRow.click();
+
+    // Wait for the active prompt editor to render before opening the lab
+    const activeEditor = page.locator('[data-testid^="prompt-editor-"]').first();
+    await expect(activeEditor).toBeVisible({ timeout: 30000 });
     
     // 3. Verify Cyber-Lab Document Injection
     console.log('Opening Test Modal...');
-    // The play icon button in the editor row
-    const testTrigger = page.locator('button >> i.fa-flask').first().locator('xpath=..');
+    // Open prompt lab using current contract test ids
+    const testTrigger = activeEditor.locator('[data-testid^="prompt-test-"]').first();
     await expect(testTrigger).toBeVisible({ timeout: 30000 });
     await testTrigger.click();
 
     await expect(page.locator('[data-testid="prompt-test-modal"]')).toBeVisible({ timeout: 30000 });
     
     console.log('Switching to Real Document source...');
-    await page.click('button:has-text("Real Document")');
+    const sourceDocumentBtn = page.locator('[data-testid="test-source-document"]');
+    if (await sourceDocumentBtn.count()) {
+      await sourceDocumentBtn.first().click();
+    } else {
+      await page.click('button:has-text("Real Document")');
+    }
     
     console.log('Verifying Document Picker presence...');
-    await expect(page.locator('label:has-text("Select Test Subject")')).toBeVisible({ timeout: 15000 });
+    const subjectPicker = page.locator('[data-testid^="test-subject-doc-"]').first();
+    if (await subjectPicker.count()) {
+      await expect(subjectPicker).toBeVisible({ timeout: 15000 });
+    } else {
+      await expect(page.locator('label:has-text("Select Test Subject")')).toBeVisible({ timeout: 15000 });
+    }
     
     await page.screenshot({ path: 'test-results/audit-cyber-lab-final.png', fullPage: true });
   });

@@ -137,6 +137,69 @@ function normalizeLabel(value?: string | null): string {
   return String(value).toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
+function asNonEmptyText(value?: unknown): string {
+  if (value === undefined || value === null) return '';
+  const normalized = String(value).trim();
+  return normalized;
+}
+
+function toFieldToken(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_+/g, '_');
+}
+
+function hashFieldSeed(seed: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function resolveDeterministicFieldId(
+  field: Partial<SmartField>,
+  fallbackPrefix: string
+): string {
+  const explicitFieldId = asNonEmptyText(field.fieldId);
+  if (explicitFieldId) return explicitFieldId;
+
+  const paperlessKey = normalizePaperlessKey(
+    asNonEmptyText(field.paperlessField || field.paperlessMapping)
+  );
+  const paperlessToken = toFieldToken(paperlessKey);
+  if (paperlessToken) return paperlessToken;
+
+  const labelSource =
+    asNonEmptyText(field.label) ||
+    asNonEmptyText(field.displayName?.en) ||
+    asNonEmptyText(field.displayName?.de);
+  const labelToken = toFieldToken(labelSource);
+  if (labelToken) return `${fallbackPrefix}_${labelToken}`;
+
+  const stableSeed = JSON.stringify({
+    id: asNonEmptyText(field.id),
+    label: asNonEmptyText(field.label),
+    paperlessField: asNonEmptyText(field.paperlessField),
+    paperlessMapping: asNonEmptyText(field.paperlessMapping),
+    type: asNonEmptyText(field.type),
+    enum: Array.isArray(field.enum) ? field.enum : []
+  });
+  return `${fallbackPrefix}_${hashFieldSeed(stableSeed)}`;
+}
+
+function resolveDeterministicFieldDomId(
+  field: Partial<SmartField>,
+  fallbackFieldId: string
+): string {
+  const explicitId = asNonEmptyText(field.id);
+  if (explicitId) return explicitId;
+  return fallbackFieldId;
+}
+
 function stringifyValue(value?: unknown): string {
   if (value === undefined || value === null) return '';
   if (Array.isArray(value)) return value.map(v => String(v)).join(', ');
@@ -445,8 +508,12 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
   };
 
   const buildVisualMaps = (visualFields: SmartField[]) => {
-    const normalized = visualFields.map((field, index) => {
-      const matchId = String(field.id || field.fieldId || field.label || index);
+    const normalized = visualFields.map((field) => {
+      const fallbackFieldId = resolveDeterministicFieldId(
+        field,
+        'visual_field'
+      );
+      const matchId = resolveDeterministicFieldDomId(field, fallbackFieldId);
       const paperlessKey = normalizePaperlessKey(field.paperlessField || field.paperlessMapping || '');
       const labelKey = normalizeLabel(field.label || field.fieldId || '');
       return {
@@ -504,7 +571,15 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
           const key = normalizePaperlessKey(field.paperlessField || field.paperlessMapping || '');
           return !key.startsWith('metadata:');
         })
-        .map((field, index) => {
+        .map((field) => {
+          const resolvedFieldId = resolveDeterministicFieldId(
+            field,
+            mandatory ? 'required_field' : 'optional_field'
+          );
+          const resolvedDomId = resolveDeterministicFieldDomId(
+            field,
+            resolvedFieldId
+          );
           const paperlessField = field.paperlessField || field.paperlessMapping || null;
           const paperlessKey = normalizePaperlessKey(paperlessField || '');
           const labelKey = normalizeLabel(field.label || field.fieldId || '');
@@ -518,9 +593,9 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
           const matchType: MatchType = (match?.matchType as MatchType) || ((match?.paperlessMapping || match?.paperlessField) ? 'exact' : 'none');
 
           return {
-            id: String(field.fieldId || field.id || field.label || `${mandatory ? 'req' : 'opt'}-${index}`),
-            fieldId: field.fieldId || undefined,
-            label: field.label || field.displayName?.en || field.fieldId || 'Field',
+            id: resolvedDomId,
+            fieldId: resolvedFieldId,
+            label: field.label || field.displayName?.en || resolvedFieldId,
             value: value,
             paperlessField: paperlessField,
             paperlessMapping: match?.paperlessMapping || match?.paperlessField || null,
@@ -547,20 +622,30 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
 
     const remainingVisual = normalized
       .filter((field) => !matchedIds.has((field as unknown as { _matchId: string })._matchId))
-      .map((field, index) => ({
-        id: String(field.id || field.fieldId || field.label || `visual-${index}`),
-        fieldId: field.fieldId || undefined,
-        label: field.label || 'Visual Field',
-        value: stringifyValue(field.value),
-        paperlessField: field.paperlessField || field.paperlessMapping || null,
-        paperlessMapping: field.paperlessMapping || field.paperlessField || null,
-        mappingConfidence: field.mappingConfidence ?? null,
-        matchType: (field.matchType as MatchType) || ((field.paperlessMapping || field.paperlessField) ? 'exact' : 'none'),
-        confidence: field.confidence ?? null,
-        overlayId: field.overlayId ?? null,
-        pageNumber: field.pageNumber ?? null,
-        isAiGenerated: true
-      })) as SmartField[];
+      .map((field) => {
+        const resolvedFieldId = resolveDeterministicFieldId(
+          field,
+          'visual_field'
+        );
+        const resolvedDomId = resolveDeterministicFieldDomId(
+          field,
+          resolvedFieldId
+        );
+        return {
+          id: resolvedDomId,
+          fieldId: resolvedFieldId,
+          label: field.label || resolvedFieldId,
+          value: stringifyValue(field.value),
+          paperlessField: field.paperlessField || field.paperlessMapping || null,
+          paperlessMapping: field.paperlessMapping || field.paperlessField || null,
+          mappingConfidence: field.mappingConfidence ?? null,
+          matchType: (field.matchType as MatchType) || ((field.paperlessMapping || field.paperlessField) ? 'exact' : 'none'),
+          confidence: field.confidence ?? null,
+          overlayId: field.overlayId ?? null,
+          pageNumber: field.pageNumber ?? null,
+          isAiGenerated: true
+        };
+      }) as SmartField[];
 
     const metadataCandidates = new Map<string, string>();
     normalized.forEach((field) => {

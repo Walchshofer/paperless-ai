@@ -1,6 +1,16 @@
 import { test, expect } from '@playwright/test';
 const { getTestDocId } = require('../helpers/fixtures');
-const { navigateToWorkspace, switchTab } = require('../helpers/workspace-fixtures');
+const {
+  navigateToWorkspace,
+  switchTab,
+  waitForIslandMount
+} = require('../helpers/workspace-fixtures');
+
+function parseZoomPercentage(value: string | null): number {
+  const raw = (value || '').replace('%', '').trim();
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
 
 // Basic E2E to verify overlay viewer zoom/pan toolbar and Reset
 test.describe('OverlayViewer interactions', () => {
@@ -9,8 +19,11 @@ test.describe('OverlayViewer interactions', () => {
     await navigateToWorkspace(page, docId);
     await switchTab(page, 'visual');
 
-    await page.waitForSelector('[data-island="overlay-viewer-island"]', { timeout: 5000 });
-    await page.waitForTimeout(500);
+    await waitForIslandMount(page, 'overlay-viewer-island', 10000);
+    await page.waitForSelector('[data-testid="overlay-document-image"]', {
+      timeout: 10000
+    });
+    await page.waitForTimeout(200);
 
     const zoomIn = await page.locator('[data-testid="overlay-zoom-in"]');
     const zoomPct = await page.locator('[data-testid="overlay-zoom-percentage"]');
@@ -19,11 +32,14 @@ test.describe('OverlayViewer interactions', () => {
     await expect(zoomIn).toBeVisible();
     await expect(zoomPct).toHaveText(/%/);
 
+    const initialPct = parseZoomPercentage(await zoomPct.textContent());
+    expect(initialPct).toBeGreaterThan(0);
+
     await zoomIn.click();
     await page.waitForTimeout(200);
 
-    const newPct = (await zoomPct.textContent()) || '';
-    expect(Number(newPct.replace('%',''))).toBeGreaterThan(100);
+    const newPct = parseZoomPercentage(await zoomPct.textContent());
+    expect(newPct).toBeGreaterThan(initialPct);
 
     await zoomReset.click();
     await page.waitForTimeout(100);

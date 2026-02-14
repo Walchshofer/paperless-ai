@@ -1,96 +1,106 @@
 import { test, expect } from '@playwright/test';
 
-const BASE = 'http://localhost:3000';
-const USERNAME = 'elfman';
-const PASSWORD = 'P2tr3ck!1976';
+const {
+  navigateToWorkspace,
+  waitForIslandMount
+} = require('../helpers/workspace-fixtures');
+
+const BASE = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 
 test.describe('Document Selection in Workspace', () => {
+  test(
+    'Document selection navigates to /workspace/doc/{id} not /document/{id}',
+    async ({ page }) => {
+      await page.goto(`${BASE}/workspace`, { waitUntil: 'networkidle' });
+      await page.waitForSelector('[data-page="document-workspace"]', {
+        timeout: 20000
+      });
+      await waitForIslandMount(page, 'document-context-bar-island');
 
-  test.beforeEach(async ({ page }) => {
-    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
-    await page.fill('input[name="username"], input[type="text"]', USERNAME);
-    await page.fill('input[name="password"], input[type="password"]', PASSWORD);
-    await page.click('button[type="submit"], input[type="submit"]');
-    await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 10000 });
-  });
+      const selectorTrigger = page.locator(
+        '[data-testid="document-selector-trigger"]'
+      );
+      await expect(selectorTrigger).toBeVisible();
 
-  test('Document selection navigates to /workspace/doc/{id} not /document/{id}', async ({ page }) => {
-    // Go to workspace (initial state, no document selected)
-    await page.goto(`${BASE}/workspace`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(2000);
-
-    console.log('Initial URL:', page.url());
-    await page.screenshot({ path: 'test-results/workspace-before-select.png', fullPage: true });
-
-    // Click on document selector to open dropdown
-    const selectorTrigger = page.locator('[data-testid="document-selector-trigger"], .document-selector, [data-island="document-context-bar-island"] button').first();
-
-    if (await selectorTrigger.count() > 0) {
-      await selectorTrigger.click();
-      await page.waitForTimeout(500);
-
-      // Look for a document option to click
-      const docOption = page.locator('[data-testid^="doc-option-"], [data-island="document-context-bar-island"] li, .dropdown-item').first();
-
-      if (await docOption.count() > 0) {
-        // Get the document info before clicking
-        const optionText = await docOption.textContent();
-        console.log('Selecting document:', optionText);
-
-        // Listen for navigation
-        const navigationPromise = page.waitForURL(/\/(workspace\/doc|document)\/\d+/, { timeout: 10000 });
-
-        await docOption.click();
-
-        await navigationPromise;
-
-        const finalUrl = page.url();
-        console.log('Final URL after selection:', finalUrl);
-
-        // Check that we navigated to /workspace/doc/{id} NOT /document/{id}
-        expect(finalUrl).toContain('/workspace/doc/');
-        expect(finalUrl).not.toContain('/document/');
-
-        // Check page loaded successfully (no 404)
-        const title = await page.title();
-        console.log('Page title:', title);
-        expect(title).not.toContain('404');
-        expect(title).not.toContain('Error');
-
-        await page.screenshot({ path: 'test-results/workspace-after-select.png', fullPage: true });
-      } else {
-        console.log('No document options found in dropdown');
+      const selectorDropdown = page.locator(
+        '[data-testid="document-selector-dropdown"]'
+      );
+      if (await selectorDropdown.count() === 0) {
+        await selectorTrigger.click();
+        await expect(selectorDropdown).toBeVisible();
       }
-    } else {
-      console.log('Document selector trigger not found');
+
+      const docOptions = page.locator('[data-testid^="document-option-"]');
+      const optionCount = await docOptions.count();
+      if (optionCount === 0) {
+        test.skip(true, 'No document options available to select');
+        return;
+      }
+
+      const currentMatch = page.url().match(/\/workspace\/doc\/(\d+)/);
+      const currentId = currentMatch ? Number(currentMatch[1]) : null;
+
+      let targetOption = docOptions.first();
+      let targetId = null as number | null;
+
+      for (let i = 0; i < optionCount; i += 1) {
+        const option = docOptions.nth(i);
+        const testId = await option.getAttribute('data-testid');
+        const match = testId ? testId.match(/document-option-(\d+)/) : null;
+        const id = match ? Number(match[1]) : null;
+        if (id && (currentId == null || id !== currentId)) {
+          targetOption = option;
+          targetId = id;
+          break;
+        }
+      }
+
+      if (targetId == null) {
+        const fallbackTestId = await targetOption.getAttribute('data-testid');
+        const fallbackMatch = fallbackTestId
+          ? fallbackTestId.match(/document-option-(\d+)/)
+          : null;
+        targetId = fallbackMatch ? Number(fallbackMatch[1]) : null;
+      }
+
+      if (targetId == null) {
+        test.skip(true, 'Unable to identify target document option');
+        return;
+      }
+
+      await targetOption.scrollIntoViewIfNeeded();
+      await targetOption.click();
+      await page.waitForURL(new RegExp(`/workspace/doc/${targetId}`), {
+        timeout: 20000
+      });
+
+      const finalUrl = page.url();
+      expect(finalUrl).toContain(`/workspace/doc/${targetId}`);
+      expect(finalUrl).not.toContain('/document/');
+      await expect(
+        page.locator('[data-testid="document-context-bar-root"]')
+      ).toBeVisible();
     }
-  });
+  );
 
   test('Verify /workspace/doc/{id} loads document correctly', async ({ page }) => {
-    // Navigate directly to a specific document in workspace
-    await page.goto(`${BASE}/workspace/doc/9`, { waitUntil: 'networkidle' });
+    const docId = await navigateToWorkspace(page);
+    await waitForIslandMount(page, 'document-context-bar-island');
 
-    console.log('URL:', page.url());
+    await expect(page).toHaveURL(new RegExp(`/workspace/doc/${docId}`), {
+      timeout: 20000
+    });
 
-    // Should not be 404
-    const errorEl = page.locator('h1:has-text("Error"), h1:has-text("404"), .error-message');
-    const hasError = await errorEl.count() > 0;
-    console.log('Has error element:', hasError);
+    const errorEl = page.locator(
+      'h1:has-text("Error"), h1:has-text("404"), .error-message'
+    );
+    await expect(errorEl).toHaveCount(0);
 
-    if (hasError) {
-      const errorText = await errorEl.first().textContent();
-      console.log('Error text:', errorText);
-    }
-
-    // Check workspace elements are present
-    const workspacePage = page.locator('[data-page="document-workspace"]');
-    const contextBar = page.locator('[data-testid="document-context-bar"]');
-    const sidebar = page.locator('[data-testid="context-sidebar"]');
-
-    console.log('Workspace page:', await workspacePage.count() > 0);
-    console.log('Context bar:', await contextBar.count() > 0);
-    console.log('Sidebar:', await sidebar.count() > 0);
-
-    await page.screenshot({ path: 'test-results/workspace-document-9.png', fullPage: true });
+    await expect(
+      page.locator('[data-testid="document-context-bar-root"]')
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-testid="context-sidebar-root"], [data-testid="context-sidebar"]').first()
+    ).toBeVisible();
   });
 });

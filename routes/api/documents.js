@@ -23,6 +23,9 @@ const {
   reprocessProgressBroker
 } = require('../../services/reprocess/ReprocessProgressBroker');
 
+// Single-flight guard to avoid overlapping heavy reprocess runs per document.
+const inFlightReprocessJobs = new Map();
+
 // All routes require authentication
 router.use(authenticateApi);
 
@@ -416,266 +419,313 @@ router.post('/:id/reprocess', async (req, res) => {
   // Get username from authenticated request
   const username = req.user?.username || req.user?.name || 'unknown';
 
-  logger.info({
-    event: 'reprocess_started',
-    documentId,
-    username,
-    source: 'workspace-reprocess'
-  });
-  publishReprocessProgress(documentId, {
-    stage: 'queued',
-    details: { source: 'workspace-reprocess', requestedBy: username }
-  });
-
-  try {
-    publishReprocessProgress(documentId, {
-      stage: 'visual_triage',
-      details: { message: 'Preparing document and expert context' }
-    });
-
-    const [
-      sourceDocument,
-      ocrText,
-      existingTags,
-      existingCorrespondentList,
-      existingDocumentTypesList
-    ] = await Promise.all([
-      paperlessService.getDocument(documentId),
-      paperlessService.getDocumentContent(documentId).catch(() => ''),
-      paperlessService.getTags().catch(() => []),
-      paperlessService.listCorrespondentsNames().catch(() => []),
-      paperlessService.listDocumentTypesNames().catch(() => [])
-    ]);
-
-    if (!sourceDocument) {
-      const notFoundError = new Error('Document not found');
-      notFoundError.code = 'DOCUMENT_NOT_FOUND';
-      throw notFoundError;
-    }
-
-    if (!isSupportedReprocessMime(sourceDocument.mime_type)) {
-      const invalidFormatError = new Error(
-        `Unsupported document format: ${sourceDocument.mime_type || 'unknown'}`
-      );
-      invalidFormatError.code = 'INVALID_DOCUMENT_FORMAT';
-      throw invalidFormatError;
-    }
-
-    const ollamaService = AIServiceFactory.getService();
-    const processor = new DocumentProcessor(ollamaService, {
-      mode: 'hybrid',
-      enableVisualRAG: true
-    });
-    const preparedDocument = buildPreparedDocument(
-      sourceDocument,
+  const activeJob = inFlightReprocessJobs.get(documentId);
+  if (activeJob?.promise) {
+    logger.info({
+      event: 'reprocess_join_inflight',
       documentId,
-      ocrText
-    );
-
+      username,
+      ownerUsername: activeJob.username,
+      inFlightMs: Date.now() - activeJob.startedAt
+    });
     publishReprocessProgress(documentId, {
-      stage: 'visual_extraction',
-      details: { message: 'Running expert pipeline stages' }
+      stage: 'queued',
+      label: 'Re-analysis already in progress; joining active run',
+      details: {
+        source: 'workspace-reprocess',
+        requestedBy: username,
+        joined: true,
+        owner: activeJob.username
+      }
+    });
+    const joinedResult = await activeJob.promise;
+    return res.status(joinedResult.statusCode).json(joinedResult.payload);
+  }
+
+  const runReprocessJob = async () => {
+    logger.info({
+      event: 'reprocess_started',
+      documentId,
+      username,
+      source: 'workspace-reprocess'
+    });
+    publishReprocessProgress(documentId, {
+      stage: 'queued',
+      details: { source: 'workspace-reprocess', requestedBy: username }
     });
 
-    const progressReporter = (update = {}) => {
-      const stageName = String(update.stage || '').toLowerCase();
-      if (!REPROCESS_STAGE_DEFINITIONS[stageName]) return;
+    try {
+      publishReprocessProgress(documentId, {
+        stage: 'visual_triage',
+        details: { message: 'Preparing document and expert context' }
+      });
 
-      const details = {
-        source: 'expert-pipeline',
-        ...(update.details || {})
+      const [
+        sourceDocument,
+        ocrText,
+        existingTags,
+        existingCorrespondentList,
+        existingDocumentTypesList
+      ] = await Promise.all([
+        paperlessService.getDocument(documentId),
+        paperlessService.getDocumentContent(documentId).catch(() => ''),
+        paperlessService.getTags().catch(() => []),
+        paperlessService.listCorrespondentsNames().catch(() => []),
+        paperlessService.listDocumentTypesNames().catch(() => [])
+      ]);
+
+      if (!sourceDocument) {
+        const notFoundError = new Error('Document not found');
+        notFoundError.code = 'DOCUMENT_NOT_FOUND';
+        throw notFoundError;
+      }
+
+      if (!isSupportedReprocessMime(sourceDocument.mime_type)) {
+        const invalidFormatError = new Error(
+          `Unsupported document format: ${sourceDocument.mime_type || 'unknown'}`
+        );
+        invalidFormatError.code = 'INVALID_DOCUMENT_FORMAT';
+        throw invalidFormatError;
+      }
+
+      const ollamaService = AIServiceFactory.getService();
+      const processor = new DocumentProcessor(ollamaService, {
+        mode: 'hybrid',
+        enableVisualRAG: true
+      });
+      const preparedDocument = buildPreparedDocument(
+        sourceDocument,
+        documentId,
+        ocrText
+      );
+
+      publishReprocessProgress(documentId, {
+        stage: 'visual_extraction',
+        details: { message: 'Running expert pipeline stages' }
+      });
+
+      const progressReporter = (update = {}) => {
+        const stageName = String(update.stage || '').toLowerCase();
+        if (!REPROCESS_STAGE_DEFINITIONS[stageName]) return;
+
+        const details = {
+          source: 'expert-pipeline',
+          ...(update.details || {})
+        };
+
+        publishReprocessProgress(documentId, {
+          ...update,
+          stage: stageName,
+          details
+        });
       };
 
-      publishReprocessProgress(documentId, {
-        ...update,
-        stage: stageName,
-        details
-      });
-    };
-
-    const processingResult = await processor.process(preparedDocument, {
-      mode: 'expert_pipeline',
-      triggerVisualIngestion: true,
-      forceReprocess: true,
-      existingTags: Array.isArray(existingTags)
-        ? existingTags.map((tag) => tag.name).filter(Boolean)
-        : [],
-      existingCorrespondentList: Array.isArray(existingCorrespondentList)
-        ? existingCorrespondentList
-        : [],
-      existingDocumentTypesList: Array.isArray(existingDocumentTypesList)
-        ? existingDocumentTypesList
-        : [],
-      documentCreated: sourceDocument.created || sourceDocument.added || null,
-      progressReporter,
-      context: {
-        source: 'workspace-reprocess',
-        initiatedBy: username
-      }
-    });
-
-    if (!processingResult?.success) {
-      throw new Error(
-        processingResult?.error || 'Pipeline execution failed'
-      );
-    }
-
-    const visualExecutionMetadata =
-      processingResult?.result?._expert_result?.result?.outputs
-        ?.visual_execution?.metadata ||
-      null;
-    const usedTextFallback =
-      processingResult?.metadata?.processingMode === 'fallback_text' ||
-      Boolean(visualExecutionMetadata?.fallback);
-
-    if (usedTextFallback) {
-      publishReprocessProgress(documentId, {
-        stage: 'ocr_fallback',
-        details: {
+      const processingResult = await processor.process(preparedDocument, {
+        mode: 'expert_pipeline',
+        triggerVisualIngestion: true,
+        forceReprocess: true,
+        existingTags: Array.isArray(existingTags)
+          ? existingTags.map((tag) => tag.name).filter(Boolean)
+          : [],
+        existingCorrespondentList: Array.isArray(existingCorrespondentList)
+          ? existingCorrespondentList
+          : [],
+        existingDocumentTypesList: Array.isArray(existingDocumentTypesList)
+          ? existingDocumentTypesList
+          : [],
+        documentCreated: sourceDocument.created || sourceDocument.added || null,
+        progressReporter,
+        context: {
           source: 'workspace-reprocess',
-          reason:
-            visualExecutionMetadata?.fallback_reason ||
-            processingResult?.metadata?.originalError ||
-            'visual_text_fallback',
-          userMessage: resolveReprocessUserMessage('visual_rag_unavailable')
+          initiatedBy: username
         }
       });
-    }
 
-    publishReprocessProgress(documentId, {
-      stage: 'hybrid_fusion',
-      details: {
-        source: 'workspace-reprocess',
-        ocrFallbackUsed: Boolean(visualExecutionMetadata?.ocr_fallback_used),
-        visualConfidence: visualExecutionMetadata?.visual_confidence ?? null
+      if (!processingResult?.success) {
+        throw new Error(
+          processingResult?.error || 'Pipeline execution failed'
+        );
       }
-    });
 
-    publishReprocessProgress(documentId, {
-      stage: 'storage',
-      details: { message: 'Finalizing metadata and history' }
-    });
+      const visualExecutionMetadata =
+        processingResult?.result?._expert_result?.result?.outputs
+          ?.visual_execution?.metadata ||
+        null;
+      const usedTextFallback =
+        processingResult?.metadata?.processingMode === 'fallback_text' ||
+        Boolean(visualExecutionMetadata?.fallback);
 
-    const classificationInfo = resolveClassification(processingResult.result);
-    const confidence = Number(
-      processingResult?.metadata?.confidence ??
-      processingResult?.result?.confidence ??
-      0.5
-    );
-    const extractedFields = mapCustomFieldsToExtractedFields(
-      processingResult?.paperless?.custom_fields || {},
-      confidence
-    );
-    const smartTags = mapSuggestedTagsToObjects(
-      processingResult?.paperless?.tags || [],
-      existingTags
-    );
+      if (usedTextFallback) {
+        publishReprocessProgress(documentId, {
+          stage: 'ocr_fallback',
+          details: {
+            source: 'workspace-reprocess',
+            reason:
+              visualExecutionMetadata?.fallback_reason ||
+              processingResult?.metadata?.originalError ||
+              'visual_text_fallback',
+            userMessage: resolveReprocessUserMessage('visual_rag_unavailable')
+          }
+        });
+      }
 
-    const processingTime = Date.now() - startTime;
-
-    // Save reprocessing history to database
-    try {
-      // Use addToHistory method (existing method in documentModel)
-      // The history table stores: document_id, tags, title, correspondent, username
-      const tagIds = smartTags
-        .map((tag) => Number(tag?.id))
-        .filter((id) => Number.isFinite(id) && id > 0);
-      await documentModel.addToHistory(
-        documentId,
-        tagIds,
-        `[Reprocessed] ${classificationInfo.label}`,
-        '', // correspondent not extracted by pipeline
-        username
-      );
-    } catch (historyErr) {
-      // Log but don't fail - history saving is non-critical
-      logger.warn({
-        event: 'reprocess_history_save_failed',
-        documentId,
-        error: historyErr.message
+      publishReprocessProgress(documentId, {
+        stage: 'hybrid_fusion',
+        details: {
+          source: 'workspace-reprocess',
+          ocrFallbackUsed: Boolean(visualExecutionMetadata?.ocr_fallback_used),
+          visualConfidence: visualExecutionMetadata?.visual_confidence ?? null
+        }
       });
-    }
 
-    logger.info({
-      event: 'reprocess_completed',
-      documentId,
-      username,
-      classification: classificationInfo.label,
-      fieldCount: extractedFields.length,
-      tagCount: smartTags.length,
-      confidence,
-      processingTime
-    });
+      publishReprocessProgress(documentId, {
+        stage: 'storage',
+        details: { message: 'Finalizing metadata and history' }
+      });
 
-    publishReprocessProgress(documentId, {
-      stage: 'completed',
-      details: {
+      const classificationInfo = resolveClassification(processingResult.result);
+      const confidence = Number(
+        processingResult?.metadata?.confidence ??
+        processingResult?.result?.confidence ??
+        0.5
+      );
+      const extractedFields = mapCustomFieldsToExtractedFields(
+        processingResult?.paperless?.custom_fields || {},
+        confidence
+      );
+      const smartTags = mapSuggestedTagsToObjects(
+        processingResult?.paperless?.tags || [],
+        existingTags
+      );
+
+      const processingTime = Date.now() - startTime;
+
+      // Save reprocessing history to database
+      try {
+        // Use addToHistory method (existing method in documentModel)
+        // The history table stores: document_id, tags, title, correspondent,
+        // username
+        const tagIds = smartTags
+          .map((tag) => Number(tag?.id))
+          .filter((id) => Number.isFinite(id) && id > 0);
+        await documentModel.addToHistory(
+          documentId,
+          tagIds,
+          `[Reprocessed] ${classificationInfo.label}`,
+          '', // correspondent not extracted by pipeline
+          username
+        );
+      } catch (historyErr) {
+        // Log but don't fail - history saving is non-critical
+        logger.warn({
+          event: 'reprocess_history_save_failed',
+          documentId,
+          error: historyErr.message
+        });
+      }
+
+      logger.info({
+        event: 'reprocess_completed',
+        documentId,
+        username,
+        classification: classificationInfo.label,
         fieldCount: extractedFields.length,
         tagCount: smartTags.length,
+        confidence,
         processingTime
-      }
-    });
+      });
 
-    res.json({
-      success: true,
-      documentId,
-      classification: classificationInfo.label,
-      classificationDetails: classificationInfo.detail || {
-        primary_domain: classificationInfo.label
-      },
-      extractedFields,
-      smartTags,
-      confidence,
-      stats: {
-        totalTime: processingTime,
-        ...(processingResult?.metadata || {})
-      }
-    });
+      publishReprocessProgress(documentId, {
+        stage: 'completed',
+        details: {
+          fieldCount: extractedFields.length,
+          tagCount: smartTags.length,
+          processingTime
+        }
+      });
 
-  } catch (error) {
-    const processingTime = Date.now() - startTime;
+      return {
+        statusCode: 200,
+        payload: {
+          success: true,
+          documentId,
+          classification: classificationInfo.label,
+          classificationDetails: classificationInfo.detail || {
+            primary_domain: classificationInfo.label
+          },
+          extractedFields,
+          smartTags,
+          confidence,
+          stats: {
+            totalTime: processingTime,
+            ...(processingResult?.metadata || {})
+          }
+        }
+      };
+    } catch (error) {
+      const processingTime = Date.now() - startTime;
 
-    const reasonCode = normalizeReprocessReasonCode(error);
-    const errorKey = resolveReprocessErrorKey(reasonCode);
-    const userMessage = resolveReprocessUserMessage(
-      reasonCode,
-      error.message || 'Pipeline execution failed'
-    );
+      const reasonCode = normalizeReprocessReasonCode(error);
+      const errorKey = resolveReprocessErrorKey(reasonCode);
+      const userMessage = resolveReprocessUserMessage(
+        reasonCode,
+        error.message || 'Pipeline execution failed'
+      );
 
-    logger.error({
-      event: 'reprocess_failed',
-      documentId,
-      username,
-      error: error.message,
-      reasonCode,
-      errorKey,
-      userMessage,
-      processingTime,
-      stack: error.stack
-    });
-
-    publishReprocessProgress(documentId, {
-      stage: 'failed',
-      label: userMessage,
-      details: {
+      logger.error({
+        event: 'reprocess_failed',
+        documentId,
+        username,
+        error: error.message,
         reasonCode,
         errorKey,
         userMessage,
-        error: error.message || 'Pipeline execution failed',
-        processingTime
-      }
-    });
+        processingTime,
+        stack: error.stack
+      });
 
-    const statusCode = resolveReprocessStatusCode(reasonCode);
+      publishReprocessProgress(documentId, {
+        stage: 'failed',
+        label: userMessage,
+        details: {
+          reasonCode,
+          errorKey,
+          userMessage,
+          error: error.message || 'Pipeline execution failed',
+          processingTime
+        }
+      });
 
-    res.status(statusCode).json({
-      success: false,
-      error: error.message || 'Pipeline execution failed',
-      reasonCode,
-      errorKey,
-      userMessage,
-      processingTime
-    });
+      const statusCode = resolveReprocessStatusCode(reasonCode);
+      return {
+        statusCode,
+        payload: {
+          success: false,
+          error: error.message || 'Pipeline execution failed',
+          reasonCode,
+          errorKey,
+          userMessage,
+          processingTime
+        }
+      };
+    }
+  };
+
+  const jobPromise = runReprocessJob();
+  inFlightReprocessJobs.set(documentId, {
+    promise: jobPromise,
+    startedAt: startTime,
+    username
+  });
+
+  try {
+    const result = await jobPromise;
+    return res.status(result.statusCode).json(result.payload);
+  } finally {
+    const current = inFlightReprocessJobs.get(documentId);
+    if (current?.promise === jobPromise) {
+      inFlightReprocessJobs.delete(documentId);
+    }
   }
 });
 

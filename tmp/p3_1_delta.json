@@ -1,0 +1,21 @@
+{
+  "baseline": {
+    "total": 48,
+    "passed": 42,
+    "failed": 5,
+    "skipped": 1
+  },
+  "current": {
+    "total": 293,
+    "passed": 179,
+    "failed": 74,
+    "skipped": 40
+  },
+  "delta": {
+    "total": 245,
+    "passed": 137,
+    "failed": 69,
+    "skipped": 39
+  },
+  "note": "Baseline derived from prior test-results/e2e-results.json; current derived from full line-reporter run output."
+}

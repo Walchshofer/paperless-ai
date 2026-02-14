@@ -335,7 +335,10 @@ router.get('/playground', protectApiRoute, async (req, res) => {
 router.get('/islands/shadcn-compat', protectApiRoute, async (req, res) => {
   try {
     res.render('islands/shadcn-compat', {
-      version: configFile.PAPERLESS_AI_VERSION || ' '
+      vm: {
+        page: 'shadcn-compat',
+        version: configFile.PAPERLESS_AI_VERSION || ' '
+      }
     });
   } catch (error) {
     console.error('[ERRO] loading shadcn compat view:', error);

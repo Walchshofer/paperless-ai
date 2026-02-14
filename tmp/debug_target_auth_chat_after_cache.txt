@@ -1,0 +1,151 @@
+[e2e] Docker available - attempting to start DB via docker compose
+ Container paperless_db  Running
+[e2e] Postgres container paperless_db reports ready (pg_isready)
+[e2e] Login successful, redirected to: http://localhost:3000/dashboard
+[e2e] Setup form/modal detected and removed/closed for test run (non-invasive)
+[e2e] Skipping fixture setup (E2E_SKIP_FIXTURE_SETUP).
+[e2e] Seed endpoint returned 403: {"error":"Not available in production"}
+
+Running 20 tests using 4 workers
+
+[1A[2K[1/20] [chromium] › test\e2e\blocker-document-viewer.spec.ts:19:7 › Workspace Document Viewer Verification › BLOCKER: Document must render in viewer area
+[1A[2K[2/20] [chromium] › test\e2e\chat-live.spec.ts:35:7 › Chat Route Live E2E › initializes chat, sends a message, and receives assistant reply (live)
+[1A[2K[3/20] [chromium] › test\e2e\chat-modes.spec.ts:48:7 › Chat Modes (Workspace) › shows mode toggle and all mode buttons
+[1A[2K[4/20] [chromium] › test\e2e\auth-flow.spec.ts:36:7 › Authentication flow › successful login sets JWT cookie
+[1A[2K[chromium] › test\e2e\blocker-document-viewer.spec.ts:19:7 › Workspace Document Viewer Verification › BLOCKER: Document must render in viewer area
+🔐 Logging in...
+
+[1A[2K✅ Login successful
+
+[1A[2K
+============================================================
+
+[1A[2K🔴 BLOCKER TEST: Document Viewer Verification
+
+[1A[2K============================================================
+
+[1A[2K
+📂 Step 1: Navigate to workspace...
+
+[1A[2K[5/20] [chromium] › test\e2e\auth-flow.spec.ts:54:7 › Authentication flow › invalid credentials show an error message
+[1A[2K[6/20] [chromium] › test\e2e\chat-modes.spec.ts:60:7 › Chat Modes (Workspace) › defaults to rag mode with rag indicator and placeholder
+[1A[2K[chromium] › test\e2e\chat-live.spec.ts:35:7 › Chat Route Live E2E › initializes chat, sends a message, and receives assistant reply (live)
+[LIVE] /api/ollama/models -> {
+  status: [33m200[39m,
+  data: {
+    provider: [32m'ollama'[39m,
+    providerMismatch: [33mfalse[39m,
+    defaultModel: [32m'gpt-oss:latest'[39m,
+    models: [
+      [32m'huihui_ai/mistral-small-abliterated:24b-instruct-2501-q8_0'[39m,
+      [32m'llava-med-v1.6:latest'[39m,
+      [32m'medtext-llama3:latest'[39m,
+      [32m'koesn/llama3-openbiollm-8b:latest'[39m,
+      [32m'gpt-oss:20b'[39m,
+      [32m'fino1-8b:latest'[39m,
+      [32m'nemotron-orchestrator:8b'[39m,
+      [32m'llm-pro-finance-8b:latest'[39m,
+      [32m'sauerkraut-llama3.1:8b'[39m,
+      [32m'qwen3-vl:8b'[39m
+    ],
+    placeholderModels: [
+      [32m'gpt-oss:latest'[39m,
+      [32m'medtext-llama3'[39m,
+      [32m'llava-med-v1.5'[39m,
+      [32m'fino1-8b'[39m,
+      [32m'llm-pro-finance-8b'[39m
+    ],
+    expertModels: []
+  }
+}
+
+[1A[2K[LIVE] model selection state: {
+  selected: [32m'gpt-oss:latest'[39m,
+  firstSelectable: [32m'qwen3-vl:8b'[39m,
+  optionCount: [33m10[39m
+}
+
+[1A[2K[ARTIFACT] Screenshot saved: C:\Users\pwalc\MyApps\paperless-ai\test-output\chat-live.png
+
+[1A[2K[ARTIFACT] JSON saved: C:\Users\pwalc\MyApps\paperless-ai\test-output\chat-live.json
+
+[1A[2K[chromium] › test\e2e\blocker-document-viewer.spec.ts:19:7 › Workspace Document Viewer Verification › BLOCKER: Document must render in viewer area
+
+📄 Step 2: Select a document...
+
+[1A[2KFound 97 documents
+
+[1A[2KSelecting document #7: "WIR ÜBERNEHMEN VERANTWORTUNG!#67"
+
+[1A[2K[7/20] [chromium] › test\e2e\auth-flow.spec.ts:68:7 › Authentication flow › session persists after reload
+[1A[2KCurrent URL: http://localhost:3000/workspace/doc/67
+
+[1A[2K
+🔴 Step 3: BLOCKER - Verify document viewer renders...
+
+[1A[2KSearching for document viewer element...
+
+[1A[2K  ✅ FOUND: canvas (visible)
+
+[1A[2K
+============================================================
+
+[1A[2K✅ BLOCKER PASSED: Document viewer found (canvas)
+
+[1A[2K============================================================
+
+[1A[2K
+📋 Step 4: Verify viewer has actual content...
+
+[1A[2K  Viewer dimensions: 800x463
+
+[1A[2K  ✅ Viewer has reasonable dimensions
+
+[1A[2K
+🔧 Step 5: Test sidebar functionality...
+
+[1A[2K  ✅ Context sidebar present
+
+[1A[2K    - Buttons: 9
+
+[1A[2K    - Inputs: 4
+
+[1A[2K  ✅ Tab "metadata" present
+
+[1A[2K  ✅ Tab "chat" present
+
+[1A[2K  ✅ Tab "content" present
+
+[1A[2K
+💬 Step 6: Test Chat functionality...
+
+[1A[2K[8/20] [chromium] › test\e2e\chat-modes.spec.ts:69:7 › Chat Modes (Workspace) › enables document mode when a workspace document is loaded
+[1A[2K  ✅ Chat input found
+
+[1A[2K  ✅ Test message typed
+
+[1A[2K
+💾 Step 7: Test Save functionality...
+
+[1A[2K  Save button enabled: true
+
+[1A[2K
+============================================================
+
+[1A[2K✅ ALL BLOCKER TESTS PASSED
+
+[1A[2K============================================================
+
+[1A[2K[9/20] [chromium] › test\e2e\chat-modes.spec.ts:85:7 › Chat Modes (Workspace) › disables document mode when no workspace document is loaded
+[1A[2K[10/20] [chromium] › test\e2e\auth-flow.spec.ts:83:7 › Authentication flow › protected route redirects to login when unauthenticated
+[1A[2K[11/20] [chromium] › test\e2e\auth-flow.spec.ts:106:7 › Authentication flow › expired JWT forces re-login
+[1A[2K[12/20] [chromium] › test\e2e\auth-flow.spec.ts:129:7 › Authentication flow › logout clears JWT and redirects to login
+[1A[2K[13/20] [chromium] › test\e2e\chat-modes.spec.ts:96:7 › Chat Modes (Workspace) › switches between rag and document mode
+[1A[2K[14/20] [chromium] › test\e2e\auth-flow.spec.ts:144:7 › Authentication flow › API rejects invalid JWT
+[1A[2K[15/20] [chromium] › test\e2e\chat-modes.spec.ts:115:7 › Chat Modes (Workspace) › exposes visual rag availability state
+[1A[2K[16/20] [chromium] › test\e2e\chat-modes.spec.ts:132:7 › Chat Modes (Workspace) › persists chat mode in localStorage
+[1A[2K[17/20] [chromium] › test\e2e\chat-modes.spec.ts:154:7 › Chat Modes (Workspace) › falls back to rag mode when stored mode=document but no document is loaded
+[1A[2K[18/20] [chromium] › test\e2e\chat-modes.spec.ts:169:7 › Chat Modes (Workspace) › send button reflects model availability after input
+[1A[2K[19/20] [chromium] › test\e2e\chat-modes.spec.ts:186:7 › /chat route deprecation › returns 410 for /chat
+[1A[2K[20/20] [chromium] › test\e2e\chat-modes.spec.ts:191:7 › /chat route deprecation › returns 410 for /chat?open=X
+[1A[2K  20 passed (35.4s)

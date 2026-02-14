@@ -17,7 +17,7 @@ export const FieldValidationRulesSchema = z.object({
 
 export const SmartFieldSchema = z.object({
   id: z.union([z.string(), z.number()]),
-  fieldId: z.string().optional(),
+  fieldId: z.string(),
   label: z.string().optional(),
   value: SmartFieldValueSchema.optional(),
   overlayId: z.string().nullable().optional(),

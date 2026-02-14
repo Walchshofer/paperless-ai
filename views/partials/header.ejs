@@ -6,5 +6,5 @@
     <title>Paperless AI</title>
     <link rel="stylesheet" href="/css/tailwind.css" />
   </head>
-  <body data-page="<%= vm.page || 'header' %>" data-testid="header-root">
+  <body data-page="<%= (typeof vm !== 'undefined' && vm && vm.page) ? vm.page : 'header' %>" data-testid="header-root">
     <!-- minimal header for island views -->

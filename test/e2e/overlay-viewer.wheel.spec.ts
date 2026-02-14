@@ -1,24 +1,39 @@
 import { test, expect } from '@playwright/test';
 const { getTestDocId } = require('../helpers/fixtures');
+const {
+  navigateToWorkspace,
+  switchTab,
+  waitForIslandMount
+} = require('../helpers/workspace-fixtures');
+
+function parseZoomPercentage(value: string | null): number {
+  const raw = (value || '').replace('%', '').trim();
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
 
 test.describe('OverlayViewer wheel zoom (E2E)', () => {
   test('mouse wheel zooms towards pointer and Ctrl fine control reduces step', async ({ page }) => {
     const docId = getTestDocId();
     try {
-      await page.goto(`/workspace/doc/${docId}`, { waitUntil: 'domcontentloaded' });
+      await navigateToWorkspace(page, docId);
     } catch (e: unknown) {
       const msg = typeof e === 'object' && e !== null && 'message' in e ? (e as { message?: string }).message : String(e);
       test.skip(true, 'Backend not reachable for E2E run: ' + msg);
       return;
     }
 
-    await page.click('[data-testid="tab-visual"]');
-    await page.waitForSelector('[data-island="overlay-viewer-island"]', { timeout: 5000 });
-    await page.waitForTimeout(500);
+    await switchTab(page, 'visual');
+    await waitForIslandMount(page, 'overlay-viewer-island', 10000);
+    await page.waitForSelector('[data-testid="overlay-document-image"]', {
+      timeout: 10000
+    });
+    await page.waitForTimeout(200);
 
     const zoomPct = page.locator('[data-testid="overlay-zoom-percentage"]');
-    const _container = await page.locator('[data-testid="overlay-container"]');
     await expect(zoomPct).toHaveText(/%/);
+    const initialPct = parseZoomPercentage(await zoomPct.textContent());
+    expect(initialPct).toBeGreaterThan(0);
 
     // Dispatch a coarse wheel event (deltaY negative to zoom in)
     await page.evaluate(() => {
@@ -29,10 +44,10 @@ test.describe('OverlayViewer wheel zoom (E2E)', () => {
     });
 
     await page.waitForTimeout(200);
-    const pctAfter = (await zoomPct.textContent()) || '100%';
-    expect(Number(pctAfter.replace('%', ''))).toBeGreaterThan(100);
+    const pctAfter = parseZoomPercentage(await zoomPct.textContent());
+    expect(pctAfter).toBeGreaterThan(initialPct);
 
-    const coarseDelta = Number(pctAfter.replace('%', '')) - 100;
+    const coarseDelta = pctAfter - initialPct;
 
     // Dispatch a fine wheel (ctrlKey true)
     await page.evaluate(() => {
@@ -43,8 +58,8 @@ test.describe('OverlayViewer wheel zoom (E2E)', () => {
     });
 
     await page.waitForTimeout(200);
-    const pctAfterFine = (await zoomPct.textContent()) || '100%';
-    const fineDelta = Number(pctAfterFine.replace('%', '')) - Number(pctAfter.replace('%', ''));
+    const pctAfterFine = parseZoomPercentage(await zoomPct.textContent());
+    const fineDelta = pctAfterFine - pctAfter;
 
     expect(fineDelta).toBeGreaterThan(0);
     expect(fineDelta).toBeLessThan(coarseDelta + 1e-6);

@@ -2,7 +2,7 @@ import { test, expect, Page } from '@playwright/test';
 import { getHistoryDocId } from '../helpers/fixtures';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
-const MANUAL_URL = `${BASE_URL}/workspace/doc/latest?tab=metadata`;
+const WORKSPACE_URL = `${BASE_URL}/workspace/doc/latest?tab=metadata`;
 const HISTORY_URL = `${BASE_URL}/history/${getHistoryDocId()}`;
 
 async function gotoPage(page: Page, url: string) {
@@ -25,28 +25,36 @@ async function gotoPage(page: Page, url: string) {
 
 test.describe('Island Runtime Smoke', () => {
   test('workspace islands mount with hydrated roots', async ({ page }) => {
-    const response = await gotoPage(page, MANUAL_URL);
+    const response = await gotoPage(page, WORKSPACE_URL);
 
     if (!response || response.status() >= 400) {
-      test.skip(true, `Workspace page not available at ${MANUAL_URL}`);
+      test.skip(true, `Workspace page not available at ${WORKSPACE_URL}`);
       return;
     }
 
     await page.waitForSelector(
-      '[data-island="manual-editor-island"][data-mounted="true"]',
+      '[data-island="document-context-bar-island"][data-mounted="true"]',
+      { timeout: 10000 }
+    );
+    await page.waitForSelector(
+      '[data-island="overlay-viewer-island"][data-mounted="true"]',
+      { timeout: 10000 }
+    );
+    await page.waitForSelector(
+      '[data-island="context-sidebar-island"][data-mounted="true"]',
       { timeout: 10000 }
     );
 
     await expect(
-      page.locator('[data-testid="manual-editor-island-root"][data-hydrated="true"]')
+      page.locator('[data-testid="document-context-bar-root"][data-hydrated="true"]')
     ).toBeVisible();
 
     await expect(
-      page.locator('[data-testid="feedback-controls-island-root"][data-hydrated="true"]')
+      page.locator('[data-testid="overlay-viewer-root"][data-hydrated="true"]')
     ).toBeVisible();
 
     await expect(
-      page.locator('[data-testid="visual-annotation-island-root"][data-hydrated="true"]')
+      page.locator('[data-testid="context-sidebar-root"][data-hydrated="true"]')
     ).toBeVisible();
   });
 

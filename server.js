@@ -9,6 +9,7 @@ const documentModel = require('./services/documentModel');
 const setupService = require('./services/setupService');
 const setupRoutes = require('./routes/setup');
 const authRoutes = require('./routes/auth');
+const paperlessProxyRoutes = require('./routes/api/paperless-proxy');
 const documentsRoutes = require('./routes/documents');
 const historyRoutes = require('./routes/history');
 const processingRoutes = require('./routes/processing');
@@ -236,6 +237,9 @@ app.use('/api/normalized', normalizedRoutes);
 // Mount Normalization Management API (batch jobs and triggers)
 const normalizationRoutes = require('./routes/api/normalization');
 app.use('/api/normalization', normalizationRoutes);
+
+// Authenticated proxy for browser access to Paperless document assets
+app.use('/api/proxied/paperless', paperlessProxyRoutes);
 
 // Grafana Reverse Proxy
 app.use('/grafana', createProxyMiddleware({

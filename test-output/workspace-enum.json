@@ -1,6 +1,6 @@
 {
   "url": "http://localhost:3000/workspace/doc/74",
-  "timestamp": "2026-02-13T07:26:58.356Z",
+  "timestamp": "2026-02-14T06:07:27.581Z",
   "enumeration": [
     {
       "tag": "div",
@@ -8,7 +8,7 @@
       "class": "flex items-center",
       "data-island": "document-context-bar-island",
       "data-testid": "document-context-bar",
-      "text": "SCN_20251220_123335.pdf SavedReprocessSave Changes\n                    WORKSPACE"
+      "text": "SCN_20251220_123335 SavedReprocessSave Changes\n                    WORKSPACE"
     },
     {
       "tag": "div",
@@ -16,7 +16,7 @@
       "class": "flex items-center gap-4 w-full max-w-4xl",
       "data-island": null,
       "data-testid": "document-context-bar-root",
-      "text": "SCN_20251220_123335.pdf SavedReprocessSave Changes"
+      "text": "SCN_20251220_123335 SavedReprocessSave Changes"
     },
     {
       "tag": "button",
@@ -32,7 +32,7 @@
       "class": "flex items-center gap-2 px-4 py-1.5 hover:bg-white rounded-md transition-colors min-w-[200px] justify-between group",
       "data-island": null,
       "data-testid": "document-selector-trigger",
-      "text": "SCN_20251220_123335.pdf"
+      "text": "SCN_20251220_123335"
     },
     {
       "tag": "button",
@@ -80,7 +80,7 @@
       "class": "font-['Fraunces'] font-bold text-xl text-[#1a1a1a] tracking-tight truncate max-w-[700px]",
       "data-island": null,
       "data-testid": "prominent-document-title",
-      "text": "SCN_20251220_123335.pdf"
+      "text": "SCN_20251220_123335"
     },
     {
       "tag": "div",
@@ -88,7 +88,7 @@
       "class": "h-full w-full flex flex-col min-h-0",
       "data-island": "overlay-viewer-island",
       "data-testid": "overlay-viewer-island",
-      "text": "PanDrawMeasureOverlays: 0-63%+Fit WFit H0°ResetPage 1 of 1Source:On-demand Render"
+      "text": "PanDrawMeasureOverlays: 7Mandatory only-63%+Fit WFit H0°ResetPage 1 of 1Source:On-demand Renderdatesendersubjecthandwritinghandwritingtotaltable"
     },
     {
       "tag": "div",
@@ -96,7 +96,7 @@
       "class": "h-full w-full flex flex-col overflow-hidden min-h-0",
       "data-island": null,
       "data-testid": "overlay-viewer-root",
-      "text": "PanDrawMeasureOverlays: 0-63%+Fit WFit H0°ResetPage 1 of 1Source:On-demand Render"
+      "text": "PanDrawMeasureOverlays: 7Mandatory only-63%+Fit WFit H0°ResetPage 1 of 1Source:On-demand Renderdatesendersubjecthandwritinghandwritingtotaltable"
     },
     {
       "tag": "div",
@@ -104,7 +104,7 @@
       "class": "flex flex-wrap items-center gap-2 p-2 border-b border-gray-200 bg-white z-10",
       "data-island": null,
       "data-testid": "overlay-toolbar",
-      "text": "PanDrawMeasureOverlays: 0-63%+Fit WFit H0°ResetPage 1 of 1"
+      "text": "PanDrawMeasureOverlays: 7Mandatory only-63%+Fit WFit H0°ResetPage 1 of 1"
     },
     {
       "tag": "button",
@@ -136,7 +136,7 @@
       "class": null,
       "data-island": null,
       "data-testid": "overlay-count",
-      "text": "Overlays: 0"
+      "text": "Overlays: 7"
     },
     {
       "tag": "button",
@@ -240,7 +240,7 @@
       "class": "OverlayViewerIsland_overlayContainer cursor-default touch-auto",
       "data-island": null,
       "data-testid": "overlay-container",
-      "text": ""
+      "text": "datesendersubjecthandwritinghandwritingtotaltable"
     },
     {
       "tag": "div",
@@ -248,7 +248,7 @@
       "class": "OverlayViewerIsland_viewport",
       "data-island": null,
       "data-testid": "overlay-viewport",
-      "text": ""
+      "text": "datesendersubjecthandwritinghandwritingtotaltable"
     },
     {
       "tag": "div",
@@ -256,7 +256,7 @@
       "class": "OverlayViewerIsland_rotationLayer",
       "data-island": null,
       "data-testid": "overlay-rotation-layer",
-      "text": ""
+      "text": "datesendersubjecthandwritinghandwritingtotaltable"
     },
     {
       "tag": "img",
@@ -265,6 +265,62 @@
       "data-island": null,
       "data-testid": "overlay-document-image",
       "text": ""
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "OverlayViewerIsland_overlayBox [--box-left:55.00000000000001%] [--box-top:18%] [--box-width:5%] [--box-height:4%] [--box-color:#6B7280] [--box-bg:#6B728022]",
+      "data-island": null,
+      "data-testid": "overlay-box",
+      "text": "date"
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "OverlayViewerIsland_overlayBox [--box-left:45%] [--box-top:25%] [--box-width:10%] [--box-height:5%] [--box-color:#6B7280] [--box-bg:#6B728022]",
+      "data-island": null,
+      "data-testid": "overlay-box",
+      "text": "sender"
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "OverlayViewerIsland_overlayBox [--box-left:60%] [--box-top:15%] [--box-width:10%] [--box-height:5%] [--box-color:#6B7280] [--box-bg:#6B728022]",
+      "data-island": null,
+      "data-testid": "overlay-box",
+      "text": "subject"
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "OverlayViewerIsland_overlayBox [--box-left:55.00000000000001%] [--box-top:18%] [--box-width:5%] [--box-height:4%] [--box-color:#6B7280] [--box-bg:#6B728022]",
+      "data-island": null,
+      "data-testid": "overlay-box",
+      "text": "handwriting"
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "OverlayViewerIsland_overlayBox [--box-left:50%] [--box-top:28.000000000000004%] [--box-width:5%] [--box-height:4%] [--box-color:#6B7280] [--box-bg:#6B728022]",
+      "data-island": null,
+      "data-testid": "overlay-box",
+      "text": "handwriting"
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "OverlayViewerIsland_overlayBox [--box-left:50%] [--box-top:28.000000000000004%] [--box-width:5%] [--box-height:4%] [--box-color:#6B7280] [--box-bg:#6B728022]",
+      "data-island": null,
+      "data-testid": "overlay-box",
+      "text": "total"
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "OverlayViewerIsland_overlayBox [--box-left:45%] [--box-top:17%] [--box-width:25%] [--box-height:28.000000000000004%] [--box-color:#6B7280] [--box-bg:#6B728022]",
+      "data-island": null,
+      "data-testid": "overlay-box",
+      "text": "table"
     },
     {
       "tag": "canvas",
@@ -585,6 +641,230 @@
       "data-island": null,
       "data-testid": "label-btn-tax_amount",
       "text": "Label"
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "p-3 bg-white border border-[#e5e0d8] rounded-lg",
+      "data-island": null,
+      "data-testid": "overlay-10193",
+      "text": "datePage 1 • Confidence: 90%"
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-white text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#f5f0e8] transition-colors",
+      "data-island": null,
+      "data-testid": "attach-overlay-10193",
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-[#f5f0e8] text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#ebe5db] transition-colors",
+      "data-island": null,
+      "data-testid": "view-overlay-10193",
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 disabled:opacity-50 transition-colors",
+      "data-island": null,
+      "data-testid": "delete-overlay-10193",
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "p-3 bg-white border border-[#e5e0d8] rounded-lg",
+      "data-island": null,
+      "data-testid": "overlay-10194",
+      "text": "senderPage 1 • Confidence: 90%"
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-white text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#f5f0e8] transition-colors",
+      "data-island": null,
+      "data-testid": "attach-overlay-10194",
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-[#f5f0e8] text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#ebe5db] transition-colors",
+      "data-island": null,
+      "data-testid": "view-overlay-10194",
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 disabled:opacity-50 transition-colors",
+      "data-island": null,
+      "data-testid": "delete-overlay-10194",
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "p-3 bg-white border border-[#e5e0d8] rounded-lg",
+      "data-island": null,
+      "data-testid": "overlay-10195",
+      "text": "subjectPage 1 • Confidence: 90%"
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-white text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#f5f0e8] transition-colors",
+      "data-island": null,
+      "data-testid": "attach-overlay-10195",
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-[#f5f0e8] text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#ebe5db] transition-colors",
+      "data-island": null,
+      "data-testid": "view-overlay-10195",
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 disabled:opacity-50 transition-colors",
+      "data-island": null,
+      "data-testid": "delete-overlay-10195",
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "p-3 bg-white border border-[#e5e0d8] rounded-lg",
+      "data-island": null,
+      "data-testid": "overlay-10196",
+      "text": "handwritingPage 1 • Confidence: 90%"
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-white text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#f5f0e8] transition-colors",
+      "data-island": null,
+      "data-testid": "attach-overlay-10196",
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-[#f5f0e8] text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#ebe5db] transition-colors",
+      "data-island": null,
+      "data-testid": "view-overlay-10196",
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 disabled:opacity-50 transition-colors",
+      "data-island": null,
+      "data-testid": "delete-overlay-10196",
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "p-3 bg-white border border-[#e5e0d8] rounded-lg",
+      "data-island": null,
+      "data-testid": "overlay-10197",
+      "text": "handwritingPage 1 • Confidence: 80%"
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-white text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#f5f0e8] transition-colors",
+      "data-island": null,
+      "data-testid": "attach-overlay-10197",
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-[#f5f0e8] text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#ebe5db] transition-colors",
+      "data-island": null,
+      "data-testid": "view-overlay-10197",
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 disabled:opacity-50 transition-colors",
+      "data-island": null,
+      "data-testid": "delete-overlay-10197",
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "p-3 bg-white border border-[#e5e0d8] rounded-lg",
+      "data-island": null,
+      "data-testid": "overlay-10198",
+      "text": "totalPage 1 • Confidence: 80%"
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-white text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#f5f0e8] transition-colors",
+      "data-island": null,
+      "data-testid": "attach-overlay-10198",
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-[#f5f0e8] text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#ebe5db] transition-colors",
+      "data-island": null,
+      "data-testid": "view-overlay-10198",
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 disabled:opacity-50 transition-colors",
+      "data-island": null,
+      "data-testid": "delete-overlay-10198",
+      "text": ""
+    },
+    {
+      "tag": "div",
+      "id": null,
+      "class": "p-3 bg-white border border-[#e5e0d8] rounded-lg",
+      "data-island": null,
+      "data-testid": "overlay-10199",
+      "text": "tablePage 1 • Confidence: 90%"
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-white text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#f5f0e8] transition-colors",
+      "data-island": null,
+      "data-testid": "attach-overlay-10199",
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-[#f5f0e8] text-[#2c2c2c] border border-[#e5e0d8] rounded text-xs hover:bg-[#ebe5db] transition-colors",
+      "data-island": null,
+      "data-testid": "view-overlay-10199",
+      "text": ""
+    },
+    {
+      "tag": "button",
+      "id": null,
+      "class": "px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 disabled:opacity-50 transition-colors",
+      "data-island": null,
+      "data-testid": "delete-overlay-10199",
+      "text": ""
     },
     {
       "tag": "button",

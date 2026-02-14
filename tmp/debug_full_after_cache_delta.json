@@ -1,0 +1,32 @@
+{
+  "baseline": {
+    "total": 293,
+    "passed": 179,
+    "failed": 74,
+    "skipped": 40
+  },
+  "previous": {
+    "total": 293,
+    "passed": 174,
+    "failed": 79,
+    "skipped": 40
+  },
+  "current": {
+    "total": 293,
+    "passed": 233,
+    "failed": 21,
+    "skipped": 39
+  },
+  "deltaFromBaseline": {
+    "total": 0,
+    "passed": 54,
+    "failed": -53,
+    "skipped": -1
+  },
+  "deltaFromPrevious": {
+    "total": 0,
+    "passed": 59,
+    "failed": -58,
+    "skipped": -1
+  }
+}

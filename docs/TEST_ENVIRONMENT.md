@@ -20,7 +20,7 @@ Use it consistently when starting services or inspecting configuration:
 The test harness initializes defaults in `test/setup-env.js`:
 - `GUIDANCE_ENABLED` defaults to `true`.
 - `GUIDANCE_SERVICE_ENABLED` defaults to `no` unless explicitly set.
-- `RAG_SERVICE_URL` defaults to `http://localhost:8800`.
+- `RAG_SERVICE_URL` defaults to `http://localhost:8000`.
 - `RAG_SERVICE_ENABLED` is considered disabled unless set to `true`.
 - Model defaults for routing and extraction are set for tests:
   - `ROUTER_MODEL=qwen3-vl:8b`
@@ -31,6 +31,49 @@ The test harness initializes defaults in `test/setup-env.js`:
   - `GENERAL_MODEL=sauerkraut-llama3.1:8b`
 - `ORCHESTRATOR_MODEL` and `OLLAMA_EMBEDDING_MODEL` are intentionally left unset
   so tests can validate default behavior.
+
+## Auth Mock Policy Decision (2026-02-13)
+Decision: do not adopt global `auth-mock.js` by default.
+
+Reason:
+- Measured runtime did not improve in a focused auth-sensitive route suite.
+- Global auth mocking masked an auth regression by converting an expected `401`
+  into `200`.
+
+Evidence (same command, only `TEST_AUTH_MOCK` changed):
+- Command:
+  - `npx mocha --require test/ts-node-register.js --require test/setup-env.js test/routes/feedback.field-vote.test.js --timeout 30000 --reporter spec --exit`
+- Without global mock (`TEST_AUTH_MOCK` unset):
+  - duration: ~5441ms
+  - auth assertion behavior: `returns 401 when unauthenticated` passed
+- With global mock (`TEST_AUTH_MOCK=true`):
+  - duration: ~5470ms
+  - auth assertion behavior: same check failed (`expected 401, got 200`)
+
+Policy:
+- Keep global mock opt-in only via `TEST_AUTH_MOCK=true` for narrowly scoped,
+  non-auth suites.
+- Prefer per-suite explicit mocking (local `require('./helpers/auth-mock')`),
+  so auth coverage is preserved in all other suites.
+
+## Scoped Route Auth Setup (Preferred Long-Term)
+For route tests, prefer scoped route-level app construction over booting the
+full `server` and over global auth bypass.
+
+Standard helper:
+- `test/helpers/scoped-route-auth.js`
+
+Why:
+- Keeps auth assertions deterministic (`401` or redirect checks stay real).
+- Prevents background service startup side effects from full-server imports.
+- Reduces runtime and flakiness in route-focused suites.
+
+Pattern:
+1. Build per-suite authenticated and unauthenticated apps with
+   `createScopedRouteApp(...)`.
+2. Patch auth middleware only while loading the target router module.
+3. Keep `TEST_AUTH_MOCK` as legacy opt-in for suites that are not validating
+   auth behavior.
 
 ## Database Setup for Tests
 The test harness attempts to ensure the `visual_overlays.embedding` column

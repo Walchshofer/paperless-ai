@@ -232,7 +232,25 @@
                         </div>
                     </div>
                 </div>
-                <div data-island="dashboard-charts-island" data-testid="dashboard-charts-island"></div>
+                <%
+                    const dashboardChartsProps = {
+                        initialData: {
+                            lastUpdated: vm.lastUpdated,
+                            documentCount: vm.paperless_data.documentCount || 0,
+                            processedCount:
+                                vm.paperless_data.processedDocumentCount || 0,
+                            tokenDistribution:
+                                vm.paperless_data.tokenDistribution || [],
+                            documentTypes: vm.paperless_data.documentTypes || [],
+                            processingStatus: vm.processingStatus || {}
+                        }
+                    };
+                %>
+                <div
+                    data-island="dashboard-charts-island"
+                    data-testid="dashboard-charts-island"
+                    data-props='<%- JSON.stringify(dashboardChartsProps) %>'
+                ></div>
                         </div>
                     </div>
                 </div>
@@ -252,6 +270,7 @@
             processingStatus: <%- JSON.stringify(vm.processingStatus || {}) %>
         };
     </script>
+    <%- include('partials/island-loader') %>
     <script src="js/dashboard.js"></script>
 </body>
 </html> 

@@ -25,6 +25,39 @@ from .router import RequestRouter
 from .state import BridgeState
 
 
+class _IncompleteChunkedSSEFilter(logging.Filter):
+    """Drop noisy SSE disconnect tracebacks from the MCP SDK logger."""
+
+    _TARGET_MESSAGE = "Error in sse_reader"
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if not record.exc_info:
+            return True
+        try:
+            message = record.getMessage()
+        except Exception:
+            message = ""
+        if message != self._TARGET_MESSAGE:
+            return True
+        exc = record.exc_info[1]
+        if exc is None:
+            return True
+        text = str(exc).lower()
+        if "incomplete chunked read" in text:
+            return False
+        if "peer closed connection" in text and "complete message body" in text:
+            return False
+        return True
+
+
+def _install_mcp_sse_log_filter() -> None:
+    sse_logger = logging.getLogger("mcp.client.sse")
+    for existing in sse_logger.filters:
+        if isinstance(existing, _IncompleteChunkedSSEFilter):
+            return
+    sse_logger.addFilter(_IncompleteChunkedSSEFilter())
+
+
 class BridgeApp:
     """MCP server that forwards requests to Serena via SSE."""
 
@@ -44,12 +77,15 @@ class BridgeApp:
         self._register_handlers()
 
     def _configure_mcp_logging(self) -> None:
-        if config.LOG_LEVEL != "DEBUG":
-            return
         try:
+            _install_mcp_sse_log_filter()
+            if config.LOG_LEVEL != "DEBUG":
+                return
             logging.getLogger("mcp").setLevel(logging.DEBUG)
             logging.getLogger("mcp.server").setLevel(logging.DEBUG)
             logging.getLogger("mcp.server.lowlevel").setLevel(logging.DEBUG)
+            logging.getLogger("mcp.client").setLevel(logging.DEBUG)
+            logging.getLogger("mcp.client.sse").setLevel(logging.DEBUG)
             log("MCP SDK logging set to DEBUG", level="DEBUG")
         except Exception:
             # Never fail bridge startup due to logging configuration.

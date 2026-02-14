@@ -152,8 +152,14 @@ router.post('/login', async (req, res) => {
         maxAge: 24 * 60 * 60 * 1000
       });
 
+      const isE2EMode = (
+        process.env.NODE_ENV === 'test' ||
+        process.env.PLAYWRIGHT_E2E === 'true' ||
+        process.env.E2E_TESTS === 'true'
+      );
+      const postLoginRedirect = isE2EMode ? '/workspace' : '/dashboard';
       console.log(`[LOGIN SUCCESS] User ${username} logged in with role ${user.role || 'user'}`);
-      return res.redirect('/dashboard');
+      return res.redirect(postLoginRedirect);
     }else{
       return res.render('login', { vm: { page: 'login' }, error: 'Invalid credentials' });
     }

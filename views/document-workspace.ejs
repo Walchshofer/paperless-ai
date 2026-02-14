@@ -1,5 +1,10 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full" data-theme="light" data-page="document-workspace">
+<% var vm = typeof vm !== 'undefined' ? vm : {}; %>
+<% var doc = vm.document || null; %>
+<% var user = vm.user || {}; %>
+<% var ui = vm.ui || {}; %>
+<% var workspacePageId = doc ? 'document-workspace' : 'workspace'; %>
+<html lang="en" class="h-full" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -63,12 +68,7 @@
         }
     </style>
 </head>
-<body class="h-full bg-[#fdfaf6] text-[#2c2c2c]" data-page="document-workspace">
-    <% var vm = typeof vm !== 'undefined' ? vm : {}; %>
-    <% var doc = vm.document || null; %>
-    <% var user = vm.user || {}; %>
-    <% var ui = vm.ui || {}; %>
-    
+<body class="h-full bg-[#fdfaf6] text-[#2c2c2c]" data-page="<%= workspacePageId %>">
     <div class="workspace-layout">
         <!-- Header -->
         <header class="h-[64px] border-b border-[#e5e0d8] bg-white flex items-center justify-between px-6 z-20">

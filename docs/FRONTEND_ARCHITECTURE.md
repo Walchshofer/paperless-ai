@@ -353,6 +353,11 @@ Workspace document synchronization (unified workspace pattern):
   the `workspace:document-switched` event listener.
 - **Implementation:** Each island maintains `currentDocumentId` state and
   updates it in a `useEffect` hook that listens to the event.
+- **Workspace VM custom fields contract:** `vm.document.customFields` must
+  always be an array before route-level Zod parsing. Route adapters should
+  normalize both legacy object maps (`{ fieldName: value }`) and current array
+  entries (`[{ field|name|field_name, value }]`) into one canonical array
+  shape.
 
 Do not add duplicate inline scripts that manually dispatch
 `overlay:document-changed` on page load; the island runtime and the overlay

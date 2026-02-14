@@ -1,11 +1,14 @@
 import { test, expect } from '@playwright/test';
+const { waitForIsland } = require('../helpers/island-waits');
+
+const BASE = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 
 test.describe('Export Feature UI Tests', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the document workspace page
     // Using /workspace/latest which redirects to the most recent document
     // or /workspace/doc/1 for a specific document
-    await page.goto('http://localhost:3000/workspace/latest', { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
   });
 
   test('ExportPanelIsland should be present in DOM', async ({ page }) => {
@@ -80,7 +83,7 @@ test.describe('Export Feature UI Tests', () => {
     ];
 
     for (const endpoint of endpoints) {
-      const response = await request.post(`http://localhost:3000${endpoint}`, {
+      const response = await request.post(`${BASE}${endpoint}`, {
         data: {},
         headers: {
           'Content-Type': 'application/json'
@@ -133,9 +136,12 @@ test.describe('Export Feature UI Tests', () => {
 });
 
 test.describe('Export Feature Integration (with mock data)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+    await waitForIsland(page, 'export-panel-island', 10000);
+  });
+
   test('ExportPanelIsland modal structure', async ({ page }) => {
-    await page.goto('http://localhost:3000/documents');
-    
     // Dispatch a mock export event to trigger the modal
     await page.evaluate(() => {
       window.dispatchEvent(new CustomEvent('export:text-requested', {
@@ -147,38 +153,27 @@ test.describe('Export Feature Integration (with mock data)', () => {
       }));
     });
 
-    // Wait a moment for the modal to appear
-    await page.waitForTimeout(500);
-
-    // Check if modal is visible
     const modal = page.locator('.fixed.inset-0.bg-black\\/50');
-    
-    if (await modal.count() > 0) {
-      console.log('✓ Export modal appeared');
-      
-      // Check for format buttons
-      const formatButtons = page.locator('button').filter({ hasText: /TXT|PDF|PNG|JSON/ });
-      const count = await formatButtons.count();
-      console.log(`✓ Found ${count} format button(s)`);
-      
-      // Check for Download button
-      const downloadBtn = page.locator('button').filter({ hasText: /Download|Exporting/ });
-      if (await downloadBtn.count() > 0) {
-        console.log('✓ Download button found');
-      }
-      
-      // Check for Cancel button
-      const cancelBtn = page.locator('button').filter({ hasText: 'Cancel' });
-      if (await cancelBtn.count() > 0) {
-        console.log('✓ Cancel button found');
-        
-        // Close the modal
-        await cancelBtn.click();
-        await page.waitForTimeout(300);
-        console.log('✓ Modal closed successfully');
-      }
-    } else {
-      console.log('⚠ Export modal did not appear (check if ExportPanelIsland is mounted)');
-    }
+    await expect(modal).toBeVisible({ timeout: 10000 });
+    console.log('✓ Export modal appeared');
+
+    // Check for format buttons
+    const formatButtons = page.locator('button').filter({ hasText: /TXT|PDF|PNG|JSON/ });
+    const count = await formatButtons.count();
+    expect(count).toBeGreaterThan(0);
+    console.log(`✓ Found ${count} format button(s)`);
+
+    // Check for Download button
+    const downloadBtn = page.locator('button').filter({ hasText: /Download|Exporting/ });
+    await expect(downloadBtn.first()).toBeVisible();
+    console.log('✓ Download button found');
+
+    // Check for Cancel button and close modal
+    const cancelBtn = page.locator('button').filter({ hasText: 'Cancel' });
+    await expect(cancelBtn.first()).toBeVisible();
+    console.log('✓ Cancel button found');
+    await cancelBtn.first().evaluate((el: HTMLElement) => el.click());
+    await expect(modal).toHaveCount(0);
+    console.log('✓ Modal closed successfully');
   });
 });

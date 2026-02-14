@@ -1,11 +1,13 @@
 {
   "docId": 74,
   "historyDocId": 74,
-  "title": "SCN_20251220_123335.pdf",
+  "title": "SCN_20251220_123335",
   "correspondentId": 55,
   "tagIds": [
     146,
-    173
+    9,
+    173,
+    8
   ],
   "created": "2026-02-07",
   "source": "doc:74",

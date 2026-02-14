@@ -11,9 +11,10 @@ import { snapshotMetrics } from '../helpers/metrics-snapshot';
  * 4. GPU warmup flow with exponential backoff
  */
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
-const METRICS_URL = process.env.PROMETHEUS_METRICS_URL || 'http://127.0.0.1:9091/metrics';
-const VISUAL_RAG_URL = process.env.VISUAL_RAG_URL || 'http://127.0.0.1:8001';
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
+const METRICS_URL =
+  process.env.PROMETHEUS_METRICS_URL || 'http://localhost:9091/metrics';
+const VISUAL_RAG_URL = process.env.VISUAL_RAG_URL || 'http://localhost:8001';
 
 test.describe('Sidecar Handshake Verification', () => {
   test('health endpoint returns proper status', async ({ page }) => {

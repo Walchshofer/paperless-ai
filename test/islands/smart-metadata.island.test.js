@@ -70,6 +70,41 @@ describe('SmartMetadataIsland - basic interactions', function () {
     assert.deepStrictEqual(seen, { fieldId: 'custom_field:invoice_number' });
   });
 
+  it('uses deterministic non-index fallback ids when fieldId is missing', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    const profile = {
+      domain: 'financial',
+      requiredFields: [
+        {
+          label: 'Invoice Total',
+          paperlessField: 'custom_field:invoice_total'
+        }
+      ],
+      optionalFields: []
+    };
+
+    render(h(SmartMetadataIsland, {
+      documentId: 42,
+      fieldProfile: profile
+    }), root);
+
+    const deterministicInput = await waitForSelector(
+      root,
+      '[data-testid="required-field-value-custom-field-invoice-total"]'
+    );
+    assert.ok(
+      deterministicInput,
+      'input should use deterministic paperless-derived id'
+    );
+
+    const indexFallbackInput = root.querySelector(
+      '[data-testid="required-field-value-req-0"]'
+    );
+    assert.strictEqual(indexFallbackInput, null);
+  });
+
   it('prefills metadata date from AI-mapped metadata:document_date field', async () => {
     const root = document.createElement('div');
     document.body.appendChild(root);

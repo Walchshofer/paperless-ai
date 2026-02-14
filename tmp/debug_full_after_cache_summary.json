@@ -1,0 +1,30 @@
+{
+  "timestamp": "2026-02-14T06:12:27.783Z",
+  "source": "tmp\\debug_full_after_cache_playwright.txt",
+  "totals": {
+    "total": 293,
+    "passed": 233,
+    "failed": 21,
+    "skipped": 39
+  },
+  "failedSpecFiles": [
+    "ai-features-deep.spec.ts",
+    "alpha9-full-pipeline.spec.ts",
+    "auth-flow.spec.ts",
+    "blocker-document-viewer.spec.ts",
+    "chat-modes.spec.ts",
+    "debug-history-links.spec.ts",
+    "document-selection.spec.ts",
+    "export-feature-ui.spec.ts",
+    "feedback-comprehensive.spec.ts",
+    "legacy-routes-verify.spec.ts",
+    "overlay-reflow-locate.spec.ts",
+    "overlay-viewer-css-fix.spec.ts",
+    "overlay-viewer.interactions.spec.ts",
+    "overlay-viewer.zoompan.draw.spec.ts",
+    "unified-workspace-navigation.spec.ts",
+    "verify-sys-router-vision.spec.ts",
+    "verify-ui.spec.ts"
+  ],
+  "failedSpecFileCount": 17
+}

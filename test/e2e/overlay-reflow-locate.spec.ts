@@ -71,6 +71,26 @@ test.describe('Workspace overlay reflow and locate wiring', () => {
     const resized = await captureRelativeOverlayMetrics(page);
     expect(resized).not.toBeNull();
 
+    await page.evaluate(() => {
+      const container = document.querySelector(
+        '[data-testid="overlay-container"]'
+      ) as HTMLElement | null;
+      if (!container) {
+        return;
+      }
+      container.scrollTop = Math.min(
+        container.scrollHeight - container.clientHeight,
+        container.scrollTop + 140
+      );
+      container.scrollLeft = Math.min(
+        container.scrollWidth - container.clientWidth,
+        container.scrollLeft + 80
+      );
+    });
+    await page.waitForTimeout(300);
+    const scrolled = await captureRelativeOverlayMetrics(page);
+    expect(scrolled).not.toBeNull();
+
     const zoomDelta = maxRelDelta(
       base as { relX: number; relY: number; relW: number; relH: number },
       zoomed as { relX: number; relY: number; relW: number; relH: number }
@@ -79,9 +99,14 @@ test.describe('Workspace overlay reflow and locate wiring', () => {
       base as { relX: number; relY: number; relW: number; relH: number },
       resized as { relX: number; relY: number; relW: number; relH: number }
     );
+    const scrollDelta = maxRelDelta(
+      base as { relX: number; relY: number; relW: number; relH: number },
+      scrolled as { relX: number; relY: number; relW: number; relH: number }
+    );
 
     expect(zoomDelta).toBeLessThanOrEqual(0.03);
     expect(resizeDelta).toBeLessThanOrEqual(0.03);
+    expect(scrollDelta).toBeLessThanOrEqual(0.03);
   });
 
   test('smart tab keeps date prefilled and locate button dispatch is wired', async ({

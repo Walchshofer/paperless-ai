@@ -1,10 +1,10 @@
+/* eslint-env mocha */
 const assert = require('assert');
-const express = require('express');
 const request = require('supertest');
-const jwt = require('jsonwebtoken');
+const { createScopedRouteApp } = require('../helpers/scoped-route-auth');
 
-process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
-const token = jwt.sign({ id: 1, username: 'test' }, process.env.JWT_SECRET);
+const CHAT_ROUTE_PATH = require.resolve('../../routes/api/chat');
+const TEST_USER = { id: 1, username: 'test', role: 'user' };
 
 function injectMock(modulePath, exports) {
   const resolved = require.resolve(modulePath);
@@ -16,15 +16,12 @@ function injectMock(modulePath, exports) {
   };
 }
 
-function buildChatApp() {
-  const routerPath = require.resolve('../../routes/api/chat');
-  delete require.cache[routerPath];
-  const chatRouter = require('../../routes/api/chat');
-
-  const app = express();
-  app.use(express.json());
-  app.use('/api/chat', chatRouter);
-  return app;
+function buildChatApp(user = TEST_USER) {
+  return createScopedRouteApp({
+    routePath: CHAT_ROUTE_PATH,
+    mountPath: '/api/chat',
+    user
+  });
 }
 
 describe('Chat API fallback', function () {
@@ -51,7 +48,6 @@ describe('Chat API fallback', function () {
   it('uses generateText when generateCompletion is missing', async function () {
     const res = await request(app)
       .post('/api/chat/document')
-      .set('Authorization', `Bearer ${token}`)
       .send({
         message: 'What is this?',
         model: 'gpt-oss:latest',
@@ -85,7 +81,6 @@ describe('Chat API fallback', function () {
 
     const res = await request(app)
       .post('/api/chat/rag')
-      .set('Authorization', `Bearer ${token}`)
       .send({
         message: 'Find sick leave policy',
         model: 'qwen3-vl:8b'
@@ -126,7 +121,6 @@ describe('Chat API fallback', function () {
 
     const res = await request(app)
       .post('/api/chat/rag')
-      .set('Authorization', `Bearer ${token}`)
       .send({
         message: 'Find sick leave policy',
         model: 'qwen3-vl:8b'
@@ -164,7 +158,6 @@ describe('Chat API fallback', function () {
 
     const res = await request(app)
       .get('/api/chat/status')
-      .set('Authorization', `Bearer ${token}`)
       .expect(200);
 
     assert.strictEqual(res.body.rag.available, true);
@@ -197,7 +190,6 @@ describe('Chat API fallback', function () {
 
     const res = await request(app)
       .post('/api/chat/document')
-      .set('Authorization', `Bearer ${token}`)
       .send({
         message: 'What is this?',
         model: 'missing-model',
@@ -238,7 +230,6 @@ describe('Chat API fallback', function () {
 
     const res = await request(app)
       .post('/api/chat/rag')
-      .set('Authorization', `Bearer ${token}`)
       .send({
         message: 'Find invoices',
         model: 'missing-model'
@@ -280,7 +271,6 @@ describe('Chat API fallback', function () {
 
     const res = await request(app)
       .post('/api/chat/visual-rag')
-      .set('Authorization', `Bearer ${token}`)
       .send({
         message: 'Find invoices',
         model: 'missing-model'
@@ -328,7 +318,6 @@ describe('Chat API fallback', function () {
 
     const res = await request(app)
       .post('/api/chat/visual-rag')
-      .set('Authorization', `Bearer ${token}`)
       .send({
         message: 'Find sick leave notes',
         model: 'qwen3-vl:8b'

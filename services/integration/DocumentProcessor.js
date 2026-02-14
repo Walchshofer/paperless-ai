@@ -42,6 +42,7 @@ const axios = require('axios');
 const { parse, parseISO, isValid, format } = require('date-fns');
 const logger = require('../logger');
 const config = require('../../config/config');
+const paperlessService = require('../paperlessService');
 const truncationMetrics = require('../ollama/truncationMetrics');
 const { pdfRenderer } = require('../visual-rag-client/PDFRenderer');
 const { metricsCollector } = require('../metrics/PrometheusMetrics');
@@ -1214,40 +1215,118 @@ class DocumentProcessor {
         const resolveImageSource = () => document.image_path || document.image_data || null;
         const renderPdfImages = async (source) => {
             const pdfPath = resolvePdfPathForRender(document.pdf_path, document.pdf_path_abs);
-            if (!pdfPath) return null;
+            const documentId = document.id || document.filename;
+            const dpi = config.visualRag?.visionRenderDpi || 300;
+            const maxPages = config.visualRag?.maxVisionPages || 4;
+            const renderDocId = document.id || document.filename || Date.now();
+
             try {
                 const available = await pdfRenderer.isAvailableAsync();
                 if (!available) {
                     logger.warn({
                         event: 'image_refresh_pdf_unavailable',
-                        documentId: document.id || document.filename,
+                        documentId,
                         source,
                         pdfPath: document.pdf_path
                     });
                     return null;
                 }
-                const dpi = config.visualRag?.visionRenderDpi || 300;
-                const maxPages = config.visualRag?.maxVisionPages || 4;
-                const docId = document.id || document.filename || Date.now();
-                const rendered = await pdfRenderer.renderFile(pdfPath, {
-                    dpi,
-                    maxPages,
-                    docId
-                });
-                const base64Images = rendered.map(page => page.base64).filter(Boolean);
-                if (base64Images.length === 0) {
+
+                let localFileReadable = Boolean(pdfPath);
+                if (!pdfPath) {
+                    logger.warn({
+                        event: 'image_refresh_pdf_path_missing',
+                        documentId,
+                        source,
+                        pdfPath: null,
+                        error: 'resolved_pdf_path_missing'
+                    });
+                } else {
+                    try {
+                        await fs.access(pdfPath);
+                    } catch (pathError) {
+                        localFileReadable = false;
+                        logger.warn({
+                            event: 'image_refresh_pdf_path_missing',
+                            documentId,
+                            source,
+                            pdfPath,
+                            error: pathError.message
+                        });
+                    }
+                }
+
+                if (localFileReadable) {
+                    const rendered = await pdfRenderer.renderFile(pdfPath, {
+                        dpi,
+                        maxPages,
+                        docId: renderDocId
+                    });
+                    const base64Images = rendered
+                        .map(page => page.base64)
+                        .filter(Boolean);
+
+                    if (base64Images.length > 0) {
+                        return base64Images;
+                    }
+
                     logger.warn({
                         event: 'image_refresh_pdf_empty',
-                        documentId: document.id || document.filename,
+                        documentId,
+                        source,
+                        pdfPath
+                    });
+                }
+
+                if (!document.id) {
+                    return null;
+                }
+
+                let pdfBuffer = await paperlessService.downloadOriginalDocument(
+                    document.id
+                );
+                if (!pdfBuffer) {
+                    pdfBuffer = await paperlessService.downloadDocument(document.id);
+                }
+                if (!pdfBuffer) {
+                    logger.warn({
+                        event: 'image_refresh_pdf_download_empty',
+                        documentId,
                         source
                     });
                     return null;
                 }
-                return base64Images;
+
+                const renderedFromBuffer = await pdfRenderer.renderBuffer(
+                    pdfBuffer,
+                    {
+                        dpi,
+                        maxPages,
+                        docId: renderDocId
+                    }
+                );
+                const base64FromBuffer = renderedFromBuffer
+                    .map(page => page.base64)
+                    .filter(Boolean);
+                if (base64FromBuffer.length === 0) {
+                    logger.warn({
+                        event: 'image_refresh_pdf_download_empty',
+                        documentId,
+                        source
+                    });
+                    return null;
+                }
+
+                logger.info({
+                    event: 'image_refresh_pdf_buffer_fallback',
+                    documentId,
+                    source
+                });
+                return base64FromBuffer;
             } catch (error) {
                 logger.warn({
                     event: 'image_refresh_pdf_failed',
-                    documentId: document.id || document.filename,
+                    documentId,
                     source,
                     error: error.message
                 });

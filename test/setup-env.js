@@ -61,7 +61,10 @@ process.env.GUIDANCE_SERVICE_ENABLED = process.env.GUIDANCE_SERVICE_ENABLED || '
 
 if (isEnabled(process.env.TEST_AUTH_MOCK)) {
     require('./helpers/auth-mock');
-    console.log('[test/setup-env] TEST_AUTH_MOCK enabled');
+    console.warn(
+        '[test/setup-env] TEST_AUTH_MOCK enabled: global auth bypass active; ' +
+        'avoid for auth regression coverage'
+    );
 }
 
 /**

@@ -9,7 +9,6 @@ import { getTestDocId } from '../helpers/fixtures';
  * with all required fields and proper JSON serialization.
  */
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
 const TEST_DOC_ID = getTestDocId();
 
 test.describe('PostgreSQL Persistence Audit', () => {
@@ -45,7 +44,7 @@ test.describe('PostgreSQL Persistence Audit', () => {
     const beforeTs = Date.now();
 
     // Submit via API
-    const resp = await page.request.post(`${BASE_URL}/api/processing/update-document`, {
+    const resp = await page.request.post('/api/processing/update-document', {
       headers: {
         'Content-Type': 'application/json',
         'X-Request-Id': testRequestId,
@@ -125,7 +124,7 @@ test.describe('PostgreSQL Persistence Audit', () => {
       }
     ];
 
-    const resp = await page.request.post(`${BASE_URL}/api/visual-rag/feedback`, {
+    const resp = await page.request.post('/api/visual-rag/feedback', {
       headers: {
         'Content-Type': 'application/json',
         'X-Request-Id': batchRequestId,
@@ -190,7 +189,7 @@ test.describe('PostgreSQL Persistence Audit', () => {
       special: 'quotes"and\'apostrophes'
     };
 
-    const resp = await page.request.post(`${BASE_URL}/api/visual-rag/feedback`, {
+    const resp = await page.request.post('/api/visual-rag/feedback', {
       headers: {
         'Content-Type': 'application/json',
         'X-Request-Id': complexRequestId,
@@ -251,7 +250,7 @@ test.describe('PostgreSQL Persistence Audit', () => {
     const trackingRequestId = `e2e-tracking-${Date.now()}`;
 
     // Submit via main endpoint with X-Request-Id header
-    const resp = await page.request.post(`${BASE_URL}/api/visual-rag/feedback`, {
+    const resp = await page.request.post('/api/visual-rag/feedback', {
       headers: {
         'Content-Type': 'application/json',
         'X-Request-Id': trackingRequestId,

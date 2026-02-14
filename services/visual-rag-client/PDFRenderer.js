@@ -79,6 +79,23 @@ class PDFRenderer {
     }
 
     /**
+     * Build a unique, filesystem-safe token for a single render request.
+     * Using per-request tokens prevents filename collisions under concurrency.
+     * @private
+     * @param {string|number} docId
+     * @returns {string}
+     */
+    _buildRenderToken(docId) {
+        const raw = String(docId || 'doc');
+        const safe = raw
+            .replace(/[^a-zA-Z0-9_-]/g, '_')
+            .replace(/_+/g, '_')
+            .slice(0, 80) || 'doc';
+        const nonce = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        return `${safe}-${nonce}`;
+    }
+
+    /**
      * Check if PDF rendering is available
      * @returns {boolean}
      */
@@ -117,20 +134,21 @@ class PDFRenderer {
         const dpi = options.dpi || this.dpi;
         const maxPages = options.maxPages || this.maxPages;
         const docId = options.docId || Date.now();
+        const renderToken = this._buildRenderToken(docId);
 
         // Create temp directory
         await fs.mkdir(this.tempDir, { recursive: true });
 
         // Write PDF to temp file
-        const tempPdfPath = path.join(this.tempDir, `doc-${docId}.pdf`);
+        const tempPdfPath = path.join(this.tempDir, `doc-${renderToken}.pdf`);
         await fs.writeFile(tempPdfPath, pdfBuffer);
 
         try {
             // Render PDF to images - prefer native on Linux
             if (hasNative) {
-                return await this._renderPdfNative(tempPdfPath, docId, dpi, maxPages);
+                return await this._renderPdfNative(tempPdfPath, renderToken, dpi, maxPages);
             } else {
-                return await this._renderPdfPackage(tempPdfPath, docId, dpi, maxPages);
+                return await this._renderPdfPackage(tempPdfPath, renderToken, dpi, maxPages);
             }
         } finally {
             // Cleanup temp PDF
@@ -160,14 +178,15 @@ class PDFRenderer {
         const dpi = options.dpi || this.dpi;
         const maxPages = options.maxPages || this.maxPages;
         const docId = options.docId || path.basename(pdfPath, '.pdf');
+        const renderToken = this._buildRenderToken(docId);
 
         // Create temp directory for output
         await fs.mkdir(this.tempDir, { recursive: true });
 
         if (hasNative) {
-            return this._renderPdfNative(pdfPath, docId, dpi, maxPages);
+            return this._renderPdfNative(pdfPath, renderToken, dpi, maxPages);
         } else {
-            return this._renderPdfPackage(pdfPath, docId, dpi, maxPages);
+            return this._renderPdfPackage(pdfPath, renderToken, dpi, maxPages);
         }
     }
 
@@ -175,8 +194,9 @@ class PDFRenderer {
      * Render PDF using native pdftoppm command (Linux/Docker)
      * @private
      */
-    async _renderPdfNative(pdfPath, docId, dpi, maxPages) {
-        const outputPrefix = path.join(this.tempDir, `render-${docId}`);
+    async _renderPdfNative(pdfPath, renderToken, dpi, maxPages) {
+        const outputBase = `render-${renderToken}`;
+        const outputPrefix = path.join(this.tempDir, outputBase);
 
         logger.debug(`[PDFRenderer] Rendering ${pdfPath} at ${dpi} DPI using native pdftoppm`);
 
@@ -190,7 +210,7 @@ class PDFRenderer {
             // Find rendered images (pdftoppm names them: prefix-1.png, prefix-2.png, etc.)
             const files = await fs.readdir(this.tempDir);
             const imageFiles = files
-                .filter(f => f.startsWith(`render-${docId}`) && f.endsWith('.png'))
+                .filter(f => f.startsWith(outputBase) && f.endsWith('.png'))
                 .sort()
                 .slice(0, maxPages);
 
@@ -233,13 +253,14 @@ class PDFRenderer {
      * Render PDF using pdf-poppler npm package (Windows)
      * @private
      */
-    async _renderPdfPackage(pdfPath, docId, dpi, maxPages) {
+    async _renderPdfPackage(pdfPath, renderToken, dpi, maxPages) {
         const poppler = getPdfPoppler();
+        const outputBase = `render-${renderToken}`;
 
         const opts = {
             format: this.format,
             out_dir: this.tempDir,
-            out_prefix: `render-${docId}`,
+            out_prefix: outputBase,
             page: null  // All pages
         };
 
@@ -257,7 +278,7 @@ class PDFRenderer {
             // Find rendered images
             const files = await fs.readdir(this.tempDir);
             const imageFiles = files
-                .filter(f => f.startsWith(`render-${docId}`) && f.endsWith(`.${this.format}`))
+                .filter(f => f.startsWith(outputBase) && f.endsWith(`.${this.format}`))
                 .sort()
                 .slice(0, maxPages);
 

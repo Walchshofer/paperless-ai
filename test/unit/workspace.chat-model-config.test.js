@@ -24,10 +24,10 @@ describe('workspace chat model config builder', () => {
       env: {}
     });
 
-    assert.deepStrictEqual(config.providers.openai, ['gpt-4o-mini', 'gpt-4']);
+    assert.deepStrictEqual(config.providers.openai, ['gpt-4o-mini']);
     assert.deepStrictEqual(config.providers.ollama, ['llama3.1:8b']);
     assert.strictEqual(config.currentProvider, 'openai');
-    assert.strictEqual(config.defaultModels.openai, 'gpt-4');
+    assert.strictEqual(config.defaultModels.openai, 'gpt-4o-mini');
   });
 
   it('ensures current provider key exists when discovery is empty', async () => {
@@ -51,7 +51,7 @@ describe('workspace chat model config builder', () => {
     assert.strictEqual(config.currentProvider, 'custom');
   });
 
-  it('normalizes expert models into chat contract shape', async () => {
+  it('hides expert models when provider is not ollama', async () => {
     const resolver = {
       async getAllModels() {
         return { openai: ['gpt-4o-mini'] };
@@ -68,6 +68,29 @@ describe('workspace chat model config builder', () => {
     const config = await workspaceRouter._buildChatModelConfig({
       resolver,
       runtimeConfig: { aiProvider: 'openai' },
+      env: {}
+    });
+
+    assert.deepStrictEqual(config.expertModels, []);
+  });
+
+  it('normalizes and deduplicates expert models for ollama provider', async () => {
+    const resolver = {
+      async getAllModels() {
+        return { ollama: ['llama3.1:8b'] };
+      },
+      getExpertModels() {
+        return [
+          { category: 'financial', role: 'analysis', model: 'fino1-8b' },
+          { category: 'financial', role: 'analysis', model: 'fino1-8b' },
+          { category: 'medical', role: 'vision', model: 'llava-med-v1.6' }
+        ];
+      }
+    };
+
+    const config = await workspaceRouter._buildChatModelConfig({
+      resolver,
+      runtimeConfig: { aiProvider: 'ollama' },
       env: {}
     });
 

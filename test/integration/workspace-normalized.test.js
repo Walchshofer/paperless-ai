@@ -14,17 +14,22 @@ const express = require('express');
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 const jwt = require('jsonwebtoken');
 const paperlessService = require('../../services/paperlessService');
+const { fieldMappingService } = require('../../services/experts/FieldMappingService');
 
 describe('Workspace Normalized Integration', function() {
   let app;
   let originalGetDocument;
   let originalGetAllDocuments;
+  let originalGetRequiredFields;
+  let originalGetOptionalFields;
   let token;
 
   beforeEach(function() {
     // Save original methods
     originalGetDocument = paperlessService.getDocument;
     originalGetAllDocuments = paperlessService.getAllDocuments;
+    originalGetRequiredFields = fieldMappingService.getRequiredFields;
+    originalGetOptionalFields = fieldMappingService.getOptionalFields;
     
     // Generate JWT token for authentication
     token = jwt.sign({ id: 1, username: 'testuser' }, process.env.JWT_SECRET);
@@ -42,6 +47,8 @@ describe('Workspace Normalized Integration', function() {
     // Restore original methods
     paperlessService.getDocument = originalGetDocument;
     paperlessService.getAllDocuments = originalGetAllDocuments;
+    fieldMappingService.getRequiredFields = originalGetRequiredFields;
+    fieldMappingService.getOptionalFields = originalGetOptionalFields;
   });
 
   describe('Workspace Route with Normalized Document', function() {
@@ -160,6 +167,56 @@ describe('Workspace Normalized Integration', function() {
       assert.strictEqual(response.body.persistedNormalizedUrl, null);
       assert.strictEqual(response.body.normalizationStatus, 'pending');
       assert.strictEqual(response.body.normalizedUrl, '/api/normalized/789/1');
+    });
+  });
+
+  describe('Field Profile Contract', function() {
+    it('ensures fieldId is always present with deterministic fallback', async function() {
+      const mockDocument = {
+        id: 5321,
+        title: 'FieldId Fallback Document',
+        content: 'Test content',
+        correspondent: null,
+        document_type: null,
+        tags: [],
+        page_count: 1,
+        mime_type: 'application/pdf',
+        custom_fields: {}
+      };
+
+      paperlessService.getDocument = async () => mockDocument;
+      fieldMappingService.getRequiredFields = () => ([
+        {
+          displayName: { en: 'Invoice Total' },
+          paperlessField: 'custom_field:invoice_total',
+          type: 'string'
+        }
+      ]);
+      fieldMappingService.getOptionalFields = () => ([
+        {
+          displayName: { en: 'Currency Label' },
+          type: 'string'
+        }
+      ]);
+
+      const response = await request(app)
+        .get('/workspace/api/doc/5321')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200)
+        .expect('Content-Type', /json/);
+
+      const requiredField = response.body.fieldProfile.requiredFields[0];
+      const optionalField = response.body.fieldProfile.optionalFields[0];
+
+      assert.strictEqual(requiredField.fieldId, 'custom_field_invoice_total');
+      assert.strictEqual(
+        requiredField.label,
+        'Invoice Total'
+      );
+      assert.ok(
+        /^optional_field_/.test(optionalField.fieldId),
+        'optional field should use deterministic non-index fallback'
+      );
     });
   });
 

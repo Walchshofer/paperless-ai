@@ -1,0 +1,25 @@
+{
+  "before": {
+    "sl": 0,
+    "st": 0,
+    "cw": 800,
+    "ch": 463,
+    "sw": 800,
+    "sh": 1102
+  },
+  "after": {
+    "sl": 0,
+    "st": 0,
+    "locate": {
+      "fieldId": "locate_target_total",
+      "handled": true,
+      "bbox": {
+        "x": 0.78,
+        "y": 0.76,
+        "width": 0.14,
+        "height": 0.1
+      },
+      "page": 1
+    }
+  }
+}

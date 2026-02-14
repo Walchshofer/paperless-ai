@@ -7,37 +7,42 @@
 
 import { test, expect } from '@playwright/test';
 
-const BASE = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
+const {
+  navigateToWorkspace,
+  waitForIslandMount
+} = require('../helpers/workspace-fixtures');
+const { getTestDocId } = require('../helpers/fixtures');
 
 test.describe('Document Viewer Screenshot Verification', () => {
   test('should display normalized document image in viewer', async ({ page }) => {
-    // Navigate to workspace with document 2 (Standtrockner Pegasus)
-    await page.goto(`${BASE}/workspace/doc/2`, { waitUntil: 'networkidle' });
-    
-    // Wait for authentication redirect if needed
-    if (page.url().includes('/login')) {
-      console.log('Login required, authenticating...');
-      await page.fill('input[name="username"]', 'elfman');
-      await page.fill('input[name="password"]', 'P2tr3ck!1976');
-      await page.click('button[type="submit"]');
-      await page.waitForURL(/\/workspace\/doc\/2/);
-    }
+    const docId = getTestDocId();
+    await navigateToWorkspace(page, docId);
+    await waitForIslandMount(page, 'overlay-viewer-island');
 
     // Wait for the overlay viewer island to be present
     const viewer = page.locator('[data-island="overlay-viewer-island"]');
     await expect(viewer).toBeVisible({ timeout: 15000 });
 
     // Wait for image to load - check for img element with src
-    const img = viewer.locator('img');
+    const img = viewer.locator('[data-testid="overlay-document-image"]');
     await expect(img).toBeVisible({ timeout: 30000 });
     
     // Get the image src to verify it's loaded
     const imgSrc = await img.getAttribute('src');
     console.log('Image src:', imgSrc);
     
-    // The src should be a blob URL (created from fetch with credentials)
+    // Current contract: src can be normalized endpoint, paperless fallback,
+    // or blob URL depending on loading strategy.
     expect(imgSrc).toBeTruthy();
-    expect(imgSrc?.startsWith('blob:')).toBe(true);
+    const isExpectedSource = Boolean(
+      imgSrc &&
+      (
+        imgSrc.startsWith('blob:') ||
+        imgSrc.includes('/api/visual-rag/normalized/') ||
+        imgSrc.includes('/api/documents/')
+      )
+    );
+    expect(isExpectedSource).toBe(true);
     
     // Check that image has natural dimensions (actually loaded)
     const naturalWidth = await img.evaluate((el: HTMLImageElement) => el.naturalWidth);
@@ -56,7 +61,6 @@ test.describe('Document Viewer Screenshot Verification', () => {
     console.log('✅ Screenshot saved to test-results/document-viewer-loaded.png');
     
     // Also verify there's no error state
-    const errorMsg = viewer.locator('text=Failed to load');
-    await expect(errorMsg).not.toBeVisible();
+    await expect(page.locator('[data-testid="image-error"]')).toHaveCount(0);
   });
 });

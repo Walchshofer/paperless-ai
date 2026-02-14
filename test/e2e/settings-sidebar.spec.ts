@@ -1,165 +1,162 @@
 import { test, expect } from '@playwright/test';
 const { waitForIsland } = require('../helpers/island-waits');
 
-const BASE = process.env.PLAYWRIGHT_BASE_URL || process.env.PAPERLESS_BASE_URL || 'http://localhost:3000';
+const BASE =
+  process.env.PLAYWRIGHT_BASE_URL ||
+  process.env.PAPERLESS_BASE_URL ||
+  'http://localhost:3000';
+
+async function openSettings(
+  page: import('@playwright/test').Page,
+  hash = 'overview'
+) {
+  await page.goto(`${BASE}/settings#${hash}`, { waitUntil: 'domcontentloaded' });
+  await waitForIsland(page, 'settings-sidebar-island', 10000);
+  await expect(
+    page.locator('[data-testid="settings-sidebar-root"]')
+  ).toBeVisible();
+}
+
+async function expectCategoryActive(
+  page: import('@playwright/test').Page,
+  categoryId: string
+) {
+  await expect(
+    page.locator(`[data-testid="category-${categoryId}"]`)
+  ).toHaveClass(/bg-cyan-500\/10/);
+}
 
 test.describe('SettingsSidebarIsland smoke test', () => {
   test.beforeEach(async ({ page }) => {
-    // Prevent external fetches in tests
-    await page.addInitScript(() => { window.__DISABLE_GITHUB_FETCH__ = true; });
+    await page.addInitScript(() => {
+      (window as Window & { __DISABLE_GITHUB_FETCH__?: boolean })
+        .__DISABLE_GITHUB_FETCH__ = true;
+    });
 
-    // Clear localStorage before each test
-    await page.goto(`${BASE}/settings`);
+    await page.goto(`${BASE}/settings#overview`, {
+      waitUntil: 'domcontentloaded'
+    });
     await page.evaluate(() => {
-      localStorage.clear();
+      localStorage.setItem('settings:developerMode', 'false');
+      localStorage.setItem('settings:lastCategory', 'overview');
     });
   });
 
   test('sidebar mounts and displays all default categories', async ({ page }) => {
     const consoleErrors: string[] = [];
     page.on('console', (msg) => {
-      if (msg.type() === 'error') {
-        const text = msg.text();
-        if (text.includes('api.github.com') || text.includes('Failed to fetch stars') || text.includes('Failed to load resource')) return;
-        consoleErrors.push(text);
+      if (msg.type() !== 'error') return;
+      const text = msg.text();
+      if (
+        text.includes('api.github.com') ||
+        text.includes('Failed to fetch stars') ||
+        text.includes('Failed to load resource')
+      ) {
+        return;
       }
+      consoleErrors.push(text);
     });
 
-    await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
+    await openSettings(page, 'overview');
 
-    // Wait for sidebar island to mount
-    await waitForIsland(page, 'settings-sidebar-island', 10000);
+    await expect(
+      page.locator('[data-testid="settings-sidebar-root"]')
+    ).toContainText('Control Center');
 
-    // Verify sidebar header
-    await expect(page.locator('[data-testid="settings-sidebar-root"] >> text=Settings')).toBeVisible();
-
-    // Verify default categories are visible
     await expect(page.locator('[data-testid="category-overview"]')).toBeVisible();
     await expect(page.locator('[data-testid="category-connection"]')).toBeVisible();
     await expect(page.locator('[data-testid="category-ai-provider"]')).toBeVisible();
-    await expect(page.locator('[data-testid="category-expert-models"]')).toBeVisible();
     await expect(page.locator('[data-testid="category-advanced"]')).toBeVisible();
 
-    // Verify developer category is NOT visible initially
-    await expect(page.locator('[data-testid="category-developer"]')).not.toBeVisible();
+    await expect(
+      page.locator('[data-testid="category-developer"]')
+    ).not.toBeVisible();
+    await expect(page.locator('[data-testid="category-prompts"]')).not.toBeVisible();
 
-    // Verify developer mode toggle is visible
     await expect(page.locator('[data-testid="developer-toggle"]')).toBeVisible();
 
-    // Take screenshot
-    await page.screenshot({
-      path: 'test-results/playwright-settings-sidebar/screenshot-initial.png',
-      fullPage: true
-    });
-
-    // Assert no console errors
     expect(consoleErrors, 'no console errors during run').toEqual([]);
   });
 
-  test('developer mode toggle shows/hides developer category and persists to localStorage', async ({ page }) => {
-    await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
-    await waitForIsland(page, 'settings-sidebar-island', 10000 );
+  test(
+    'developer mode toggle shows/hides developer categories and persists ' +
+      'to localStorage',
+    async ({ page }) => {
+      await openSettings(page, 'overview');
 
-    // Developer category should not be visible initially
-    await expect(page.locator('[data-testid="category-developer"]')).not.toBeVisible();
+      await expect(
+        page.locator('[data-testid="category-developer"]')
+      ).not.toBeVisible();
+      await expect(
+        page.locator('[data-testid="category-prompts"]')
+      ).not.toBeVisible();
 
-    // Click developer toggle
-    await page.click('[data-testid="developer-toggle"]');
-    await page.waitForTimeout(200);
+      await page.click('[data-testid="developer-toggle"]');
+      await page.waitForTimeout(200);
 
-    // Developer category should now be visible
-    await expect(page.locator('[data-testid="category-developer"]')).toBeVisible();
+      await expect(page.locator('[data-testid="category-developer"]')).toBeVisible();
+      await expect(page.locator('[data-testid="category-prompts"]')).toBeVisible();
 
-    // Verify localStorage was updated
-    const developerMode = await page.evaluate(() => {
-      return localStorage.getItem('settings:developerMode');
-    });
-    expect(developerMode).toBe('true');
+      const developerMode = await page.evaluate(() => {
+        return localStorage.getItem('settings:developerMode');
+      });
+      expect(developerMode).toBe('true');
 
-    // Take screenshot with developer mode enabled
-    await page.screenshot({
-      path: 'test-results/playwright-settings-sidebar/screenshot-developer-enabled.png',
-      fullPage: true
-    });
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await waitForIsland(page, 'settings-sidebar-island', 10000);
 
-    // Reload page to verify persistence
-    await page.reload({ waitUntil: 'networkidle' });
-    await waitForIsland(page, 'settings-sidebar-island', 10000 );
+      await expect(page.locator('[data-testid="category-developer"]')).toBeVisible();
+      await expect(page.locator('[data-testid="category-prompts"]')).toBeVisible();
 
-    // Developer category should still be visible after reload
-    await expect(page.locator('[data-testid="category-developer"]')).toBeVisible();
+      await page.click('[data-testid="developer-toggle"]');
+      await page.waitForTimeout(200);
 
-    // Toggle off
-    await page.click('[data-testid="developer-toggle"]');
-    await page.waitForTimeout(200);
+      await expect(
+        page.locator('[data-testid="category-developer"]')
+      ).not.toBeVisible();
+      await expect(
+        page.locator('[data-testid="category-prompts"]')
+      ).not.toBeVisible();
 
-    // Developer category should be hidden again
-    await expect(page.locator('[data-testid="category-developer"]')).not.toBeVisible();
-
-    // Verify localStorage was updated
-    const developerModeAfter = await page.evaluate(() => {
-      return localStorage.getItem('settings:developerMode');
-    });
-    expect(developerModeAfter).toBe('false');
-  });
+      const developerModeAfter = await page.evaluate(() => {
+        return localStorage.getItem('settings:developerMode');
+      });
+      expect(developerModeAfter).toBe('false');
+    }
+  );
 
   test('category navigation updates active state and URL hash', async ({ page }) => {
-    await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
-    await waitForIsland(page, 'settings-sidebar-island', 10000 );
+    await openSettings(page, 'overview');
 
-    // Overview should be active by default
-    await expect(page.locator('[data-testid="category-overview"]')).toHaveClass(/bg-blue-100/);
+    await expectCategoryActive(page, 'overview');
 
-    // Click on Connection category
     await page.click('[data-testid="category-connection"]');
     await page.waitForTimeout(200);
 
-    // Connection should be active
-    await expect(page.locator('[data-testid="category-connection"]')).toHaveClass(/bg-blue-100/);
-
-    // URL hash should be updated
+    await expectCategoryActive(page, 'connection');
     expect(page.url()).toContain('#connection');
 
-    // Verify localStorage was updated
     const lastCategory = await page.evaluate(() => {
       return localStorage.getItem('settings:lastCategory');
     });
     expect(lastCategory).toBe('connection');
 
-    // Take screenshot
-    await page.screenshot({
-      path: 'test-results/playwright-settings-sidebar/screenshot-connection-active.png',
-      fullPage: true
-    });
-
-    // Click on AI Provider category
     await page.click('[data-testid="category-ai-provider"]');
     await page.waitForTimeout(200);
 
-    // AI Provider should be active
-    await expect(page.locator('[data-testid="category-ai-provider"]')).toHaveClass(/bg-blue-100/);
-
-    // URL hash should be updated
+    await expectCategoryActive(page, 'ai-provider');
     expect(page.url()).toContain('#ai-provider');
   });
 
   test('hash navigation updates active category', async ({ page }) => {
-    // Navigate directly with hash
-    await page.goto(`${BASE}/settings#expert-models`, { waitUntil: 'networkidle' });
-    await waitForIsland(page, 'settings-sidebar-island', 10000 );
+    await openSettings(page, 'advanced');
+    await expectCategoryActive(page, 'advanced');
 
-    // Expert Models should be active (or normalized to AI Provider when Expert Models are not available)
-    const isExpertActive = await page.locator('[data-testid="category-expert-models"]').evaluate(el => el.classList.contains('bg-blue-100')).catch(() => false);
-    const isAiActive = await page.locator('[data-testid="category-ai-provider"]').evaluate(el => el.classList.contains('bg-blue-100')).catch(() => false);
-    expect(isExpertActive || isAiActive).toBe(true);
-
-    // Change hash programmatically
     await page.evaluate(() => {
-      window.location.hash = 'advanced';
+      window.location.hash = 'connection';
     });
     await page.waitForTimeout(200);
 
-    // Advanced should be active
-    await expect(page.locator('[data-testid="category-advanced"]')).toHaveClass(/bg-blue-100/);
+    await expectCategoryActive(page, 'connection');
   });
 });

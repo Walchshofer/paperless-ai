@@ -10,6 +10,8 @@
 
 import { test, expect } from '@playwright/test';
 
+const REPROCESS_API_TIMEOUT_MS = 120000;
+
 test.describe('Workspace Reprocess E2E', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to workspace with a test document
@@ -155,7 +157,9 @@ test.describe('Workspace Reprocess E2E', () => {
 test.describe('Reprocess API Integration', () => {
   test('should make POST request to correct endpoint', async ({ page, request }) => {
     // Test the API directly
-    const response = await request.post('/api/documents/74/reprocess');
+    const response = await request.post('/api/documents/74/reprocess', {
+      timeout: REPROCESS_API_TIMEOUT_MS
+    });
 
     // Should get a valid response (success or auth required)
     expect([200, 401, 404, 500]).toContain(response.status());

@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const paperlessService = require('../services/paperlessService.js');
 const documentModel = require('../services/documentModel.js');
@@ -31,21 +32,34 @@ async function buildChatModelConfig(options = {}) {
   const resolver = options.resolver || modelResolutionService;
   const runtimeConfig = options.runtimeConfig || configFile;
   const env = options.env || process.env;
+  const allowedProviders = ['ollama', 'openai', 'azure', 'custom'];
 
   const currentProvider = String(
     runtimeConfig.aiProvider || env.AI_PROVIDER || 'ollama'
   ).toLowerCase();
 
-  let providers = {};
+  const normalizeModels = (models) => Array.from(
+    new Set(
+      (Array.isArray(models) ? models : [])
+        .map((modelName) => String(modelName || '').trim())
+        .filter(Boolean)
+    )
+  );
+
+  let providers = Object.fromEntries(
+    allowedProviders.map((providerName) => [providerName, []])
+  );
   try {
     const discoveredProviders = await resolver.getAllModels();
     if (discoveredProviders && typeof discoveredProviders === 'object') {
-      providers = Object.fromEntries(
-        Object.entries(discoveredProviders).map(([name, models]) => [
-          String(name).toLowerCase(),
-          Array.isArray(models) ? models.filter(Boolean) : []
-        ])
-      );
+      Object.entries(discoveredProviders).forEach(([name, models]) => {
+        const providerName = String(name || '').toLowerCase().trim();
+        if (!providerName) return;
+        if (!providers[providerName]) {
+          providers[providerName] = [];
+        }
+        providers[providerName] = normalizeModels(models);
+      });
     }
   } catch (error) {
     console.warn(
@@ -59,7 +73,7 @@ async function buildChatModelConfig(options = {}) {
     providers[currentProvider] = [];
   }
 
-  const defaultModels = {
+  const discoveredDefaults = {
     ollama: String(
       runtimeConfig?.ollama?.model || env.OLLAMA_MODEL || ''
     ).trim(),
@@ -67,7 +81,7 @@ async function buildChatModelConfig(options = {}) {
       env.PAPERLESS_OPENAI_MODEL ||
       env.OPENAI_MODEL ||
       runtimeConfig?.openai?.model ||
-      'gpt-4'
+      ''
     ).trim(),
     azure: String(
       runtimeConfig?.azure?.deploymentName ||
@@ -79,49 +93,53 @@ async function buildChatModelConfig(options = {}) {
     ).trim(),
   };
 
-  Object.entries(defaultModels).forEach(([providerName, defaultModel]) => {
-    const current = Array.isArray(providers[providerName])
-      ? providers[providerName]
-      : [];
+  const defaultModels = {};
+  Object.keys(providers).forEach((providerName) => {
+    const current = normalizeModels(providers[providerName]);
+    const discoveredDefault = String(
+      discoveredDefaults[providerName] || ''
+    ).trim();
 
-    if (!defaultModel) {
-      providers[providerName] = current.filter(Boolean);
-      return;
+    if (current.length === 0 && discoveredDefault) {
+      current.push(discoveredDefault);
     }
 
-    const merged = Array.from(
-      new Set([...current.filter(Boolean), defaultModel])
-    );
-    providers[providerName] = merged;
+    providers[providerName] = current;
+    defaultModels[providerName] = discoveredDefault &&
+      current.includes(discoveredDefault)
+      ? discoveredDefault
+      : (current[0] || '');
   });
 
   let expertModels = [];
-  try {
-    const rawExperts = resolver.getExpertModels();
-    if (Array.isArray(rawExperts)) {
-      const seen = new Set();
-      expertModels = rawExperts
-        .map((entry) => {
-          if (!entry || !entry.model) return null;
-          const model = String(entry.model).trim();
-          if (!model || seen.has(model)) return null;
-          seen.add(model);
-          const labelParts = [entry.category, entry.role]
-            .filter(Boolean)
-            .map((part) => String(part));
-          return {
-            model,
-            label: labelParts.length ? labelParts.join(' · ') : model,
-            category: entry.category || undefined
-          };
-        })
-        .filter(Boolean);
+  if (currentProvider === 'ollama') {
+    try {
+      const rawExperts = resolver.getExpertModels();
+      if (Array.isArray(rawExperts)) {
+        const seen = new Set();
+        expertModels = rawExperts
+          .map((entry) => {
+            if (!entry || !entry.model) return null;
+            const model = String(entry.model).trim();
+            if (!model || seen.has(model)) return null;
+            seen.add(model);
+            const labelParts = [entry.category, entry.role]
+              .filter(Boolean)
+              .map((part) => String(part));
+            return {
+              model,
+              label: labelParts.length ? labelParts.join(' · ') : model,
+              category: entry.category || undefined
+            };
+          })
+          .filter(Boolean);
+      }
+    } catch (error) {
+      console.warn(
+        '[Unified Workspace] Could not resolve expert models:',
+        error.message
+      );
     }
-  } catch (error) {
-    console.warn(
-      '[Unified Workspace] Could not resolve expert models:',
-      error.message
-    );
   }
 
   return {
@@ -130,6 +148,72 @@ async function buildChatModelConfig(options = {}) {
     currentProvider,
     defaultModels
   };
+}
+
+const WORKSPACE_SHARED_CACHE_TTL_MS = Number.parseInt(
+  process.env.WORKSPACE_SHARED_CACHE_TTL_MS || '',
+  10
+) || 5000;
+const workspaceSharedCache = new Map();
+
+function getWorkspaceCachedValue(key, loader, ttlMs = WORKSPACE_SHARED_CACHE_TTL_MS) {
+  const cacheKey = String(key || '').trim();
+  if (!cacheKey) {
+    return Promise.resolve().then(loader);
+  }
+
+  const now = Date.now();
+  const cached = workspaceSharedCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    if (cached.hasValue) return Promise.resolve(cached.value);
+    if (cached.promise) return cached.promise;
+  }
+
+  const promise = Promise.resolve()
+    .then(loader)
+    .then((value) => {
+      workspaceSharedCache.set(cacheKey, {
+        hasValue: true,
+        value,
+        expiresAt: Date.now() + ttlMs
+      });
+      return value;
+    })
+    .catch((error) => {
+      workspaceSharedCache.delete(cacheKey);
+      throw error;
+    });
+
+  workspaceSharedCache.set(cacheKey, {
+    hasValue: false,
+    promise,
+    expiresAt: now + ttlMs
+  });
+  return promise;
+}
+
+function withWorkspaceTimeout(promise, timeoutMs, fallbackValue, label) {
+  let timer = null;
+  const timeoutPromise = new Promise((resolve) => {
+    timer = setTimeout(() => {
+      console.warn(
+        `[Unified Workspace] Timed out waiting for ${label} after ${timeoutMs}ms`
+      );
+      resolve(fallbackValue);
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise])
+    .catch((error) => {
+      console.warn(
+        `[Unified Workspace] Failed to load ${label}:`,
+        error && error.message ? error.message : error
+      );
+      return fallbackValue;
+    })
+    .finally(() => {
+      if (timer) clearTimeout(timer);
+    });
 }
 
 function normalizeWorkspaceDate(rawDate) {
@@ -157,6 +241,136 @@ function normalizeWorkspaceDate(rawDate) {
     }
   }
   return '';
+}
+
+function asNonEmptyString(value) {
+  if (value === undefined || value === null) return '';
+  const normalized = String(value).trim();
+  return normalized;
+}
+
+function toDeterministicFieldToken(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_+/g, '_');
+}
+
+function buildDeterministicFieldId(field, prefix) {
+  const explicitFieldId = asNonEmptyString(field.fieldId);
+  if (explicitFieldId) return explicitFieldId;
+
+  const paperlessToken = toDeterministicFieldToken(
+    asNonEmptyString(field.paperlessField)
+  );
+  if (paperlessToken) return paperlessToken;
+
+  const labelToken = toDeterministicFieldToken(
+    asNonEmptyString(field.displayName?.en) ||
+    asNonEmptyString(field.displayName?.de) ||
+    asNonEmptyString(field.label)
+  );
+  if (labelToken) return `${prefix}_${labelToken}`;
+
+  const stableSeed = JSON.stringify({
+    fieldId: asNonEmptyString(field.fieldId),
+    paperlessField: asNonEmptyString(field.paperlessField),
+    displayName: {
+      en: asNonEmptyString(field.displayName?.en),
+      de: asNonEmptyString(field.displayName?.de)
+    },
+    label: asNonEmptyString(field.label),
+    type: asNonEmptyString(field.type),
+    enum: Array.isArray(field.enum) ? field.enum : []
+  });
+  const shortHash = crypto
+    .createHash('sha1')
+    .update(stableSeed)
+    .digest('hex')
+    .slice(0, 12);
+  return `${prefix}_${shortHash}`;
+}
+
+function mapDomainFieldToWorkspaceField(field, isMandatory) {
+  const safeField = field && typeof field === 'object' ? field : {};
+  const fieldId = buildDeterministicFieldId(
+    safeField,
+    isMandatory ? 'required_field' : 'optional_field'
+  );
+  return {
+    fieldId,
+    label: safeField.displayName?.en || fieldId,
+    paperlessField: safeField.paperlessField || null,
+    type: safeField.type,
+    enum: Array.isArray(safeField.enum) ? safeField.enum : undefined,
+    validationRules: safeField.validationRules || {},
+    isMandatory
+  };
+}
+
+function normalizeCustomFieldsForWorkspace(rawCustomFields) {
+  if (Array.isArray(rawCustomFields)) {
+    return rawCustomFields
+      .filter(
+        (entry) =>
+          entry &&
+          typeof entry === 'object' &&
+          !Array.isArray(entry)
+      )
+      .map((entry) => {
+        const normalized = { ...entry };
+        if (normalized.name !== undefined && normalized.name !== null) {
+          normalized.name = String(normalized.name);
+        }
+        if (
+          normalized.field_name !== undefined &&
+          normalized.field_name !== null
+        ) {
+          normalized.field_name = String(normalized.field_name);
+        }
+        return normalized;
+      });
+  }
+
+  if (rawCustomFields && typeof rawCustomFields === 'object') {
+    return Object.entries(rawCustomFields)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([name, value]) => ({
+        name,
+        field_name: name,
+        value
+      }));
+  }
+
+  return [];
+}
+
+function resolveCustomFieldValue(customFields, customFieldDefs, name) {
+  const normalizedName = asNonEmptyString(name).toLowerCase();
+  if (!normalizedName) return null;
+
+  const fieldByName = customFields.find((field) => {
+    const candidateName = asNonEmptyString(
+      field.name || field.field_name
+    ).toLowerCase();
+    return candidateName === normalizedName;
+  });
+  if (fieldByName) {
+    return fieldByName.value ?? null;
+  }
+
+  if (!Array.isArray(customFieldDefs)) return null;
+  const definition = customFieldDefs.find(
+    (field) =>
+      asNonEmptyString(field.name).toLowerCase() === normalizedName
+  );
+  if (!definition) return null;
+
+  const fieldById = customFields.find(
+    (field) => Number(field.field) === Number(definition.id)
+  );
+  return fieldById?.value ?? null;
 }
 
 /**
@@ -198,7 +412,11 @@ router.get('/doc/:id', async (req, res) => {
         return res.redirect(`/workspace/doc/${history[0].document_id}`);
       }
       // Fallback to first document from Paperless
-      const allDocs = await paperlessService.getAllDocumentsUnfiltered();
+      const allDocs = await getWorkspaceCachedValue(
+        'paperless:documents:all',
+        () => paperlessService.getAllDocumentsUnfiltered(),
+        3000
+      );
       if (allDocs && allDocs.length > 0) {
         return res.redirect(`/workspace/doc/${allDocs[0].id}`);
       }
@@ -237,32 +455,109 @@ router.get('/doc/:id', async (req, res) => {
     // Note: If history is null, it might be a document that hasn't been processed by AI yet.
     // In a strict multi-tenant system, we'd check Paperless-ngx permissions here.
 
-    // 3. Fetch content and supplementary data
-    const content = await paperlessService.getDocumentContent(documentId).catch(() => '');
-    const availableDocs = await paperlessService.getAllDocumentsUnfiltered().catch(() => []);
-    
+    // 3. Fetch content + supplementary data in parallel with bounded wait times
+    const [
+      content,
+      availableDocs,
+      allTags,
+      correspondents,
+      docTypes,
+      customFieldDefs,
+      chatModelConfig
+    ] = await Promise.all([
+      withWorkspaceTimeout(
+        paperlessService.getDocumentContent(documentId),
+        5000,
+        '',
+        'document content'
+      ),
+      withWorkspaceTimeout(
+        getWorkspaceCachedValue(
+          'paperless:documents:all',
+          () => paperlessService.getAllDocumentsUnfiltered(),
+          3000
+        ),
+        6000,
+        [],
+        'available documents'
+      ),
+      withWorkspaceTimeout(
+        getWorkspaceCachedValue(
+          'paperless:tags',
+          () => paperlessService.getTags(),
+          3000
+        ),
+        5000,
+        [],
+        'tags'
+      ),
+      document.correspondent
+        ? withWorkspaceTimeout(
+            getWorkspaceCachedValue(
+              'paperless:correspondents',
+              () => paperlessService.listCorrespondentsNames(),
+              5000
+            ),
+            5000,
+            [],
+            'correspondents'
+          )
+        : Promise.resolve([]),
+      document.document_type
+        ? withWorkspaceTimeout(
+            getWorkspaceCachedValue(
+              'paperless:document-types',
+              () => paperlessService.listDocumentTypesNames(),
+              5000
+            ),
+            5000,
+            [],
+            'document types'
+          )
+        : Promise.resolve([]),
+      withWorkspaceTimeout(
+        getWorkspaceCachedValue(
+          'paperless:custom-fields',
+          () => paperlessService.listCustomFields(),
+          5000
+        ),
+        5000,
+        [],
+        'custom field definitions'
+      ),
+      withWorkspaceTimeout(
+        getWorkspaceCachedValue(
+          'workspace:chat-model-config',
+          () => buildChatModelConfig(),
+          3000
+        ),
+        5000,
+        {
+          providers: { ollama: [], openai: [], azure: [], custom: [] },
+          expertModels: [],
+          currentProvider: String(
+            configFile.aiProvider || process.env.AI_PROVIDER || 'ollama'
+          ).toLowerCase(),
+          defaultModels: {}
+        },
+        'chat model config'
+      )
+    ]);
+
     // 4. Resolve correspondent name
     let correspondentName = null;
-    if (document.correspondent) {
-      try {
-        const correspondents = await paperlessService.listCorrespondentsNames();
-        const correspondent = correspondents.find(c => c.id === document.correspondent);
-        correspondentName = correspondent?.name || null;
-      } catch (e) {
-        console.warn('[Unified Workspace] Could not resolve correspondent name:', e.message);
-      }
+    if (document.correspondent && Array.isArray(correspondents)) {
+      const correspondent = correspondents.find(
+        (c) => c.id === document.correspondent
+      );
+      correspondentName = correspondent?.name || null;
     }
 
     // 5. Resolve document type name
     let documentTypeName = null;
-    if (document.document_type) {
-      try {
-        const docTypes = await paperlessService.listDocumentTypesNames();
-        const docType = docTypes.find(dt => dt.id === document.document_type);
-        documentTypeName = docType?.name || null;
-      } catch (e) {
-        console.warn('[Unified Workspace] Could not resolve document type name:', e.message);
-      }
+    if (document.document_type && Array.isArray(docTypes)) {
+      const docType = docTypes.find((dt) => dt.id === document.document_type);
+      documentTypeName = docType?.name || null;
     }
 
     // 6. Resolve tags (names + IDs + available list)
@@ -270,7 +565,6 @@ router.get('/doc/:id', async (req, res) => {
     let tagItems = [];
     let availableTags = [];
     try {
-      const allTags = await paperlessService.getTags();
       availableTags = allTags.map(tag => ({
         id: tag.id,
         name: tag.name,
@@ -311,24 +605,12 @@ router.get('/doc/:id', async (req, res) => {
       domain: documentDomain,
       displayName: domainMapping.displayName?.en || `${documentDomain} document`,
       icon: domainMapping.icon || '📄',
-      requiredFields: fieldMappingService.getRequiredFields(documentDomain).map(field => ({
-        fieldId: field.fieldId,
-        label: field.displayName?.en || field.fieldId,
-        paperlessField: field.paperlessField || null,
-        type: field.type,
-        enum: Array.isArray(field.enum) ? field.enum : undefined,
-        validationRules: field.validationRules || {},
-        isMandatory: true
-      })),
-      optionalFields: fieldMappingService.getOptionalFields(documentDomain).map(field => ({
-        fieldId: field.fieldId,
-        label: field.displayName?.en || field.fieldId,
-        paperlessField: field.paperlessField || null,
-        type: field.type,
-        enum: Array.isArray(field.enum) ? field.enum : undefined,
-        validationRules: field.validationRules || {},
-        isMandatory: false
-      }))
+      requiredFields: fieldMappingService
+        .getRequiredFields(documentDomain)
+        .map((field) => mapDomainFieldToWorkspaceField(field, true)),
+      optionalFields: fieldMappingService
+        .getOptionalFields(documentDomain)
+        .map((field) => mapDomainFieldToWorkspaceField(field, false))
     };
 
     // 7. Visual RAG Data
@@ -389,45 +671,14 @@ router.get('/doc/:id', async (req, res) => {
     }
 
     // Build VM
-    // Fetch custom field definitions for robust name-based resolution
-    let customFieldDefs = [];
-    try {
-      customFieldDefs = await paperlessService.listCustomFields();
-    } catch (e) {
-      console.warn('[Unified Workspace] Could not fetch custom field definitions:', e.message);
-    }
-
-    // Resolve custom fields from raw array to flat values for UI
-    const getCustomField = (name) => {
-      if (!document.custom_fields || !Array.isArray(document.custom_fields)) return null;
-      
-      // 1. Try to find by name directly if present in the objects
-      const fieldByName = document.custom_fields.find(cf => 
-        cf.name === name || 
-        cf.field_name === name ||
-        String(cf.name).toLowerCase() === name.toLowerCase()
-      );
-      if (fieldByName) return fieldByName.value;
-
-      // 2. Resolve field ID from definitions and find in array
-      const def = customFieldDefs.find(d => 
-        d.name === name || 
-        String(d.name).toLowerCase() === name.toLowerCase()
-      );
-      if (def) {
-        const fieldById = document.custom_fields.find(cf => 
-          Number(cf.field) === Number(def.id)
-        );
-        return fieldById?.value ?? null;
-      }
-
-      return null;
-    };
+    const normalizedCustomFields = normalizeCustomFieldsForWorkspace(
+      document.custom_fields
+    );
+    const getCustomField = (name) =>
+      resolveCustomFieldValue(normalizedCustomFields, customFieldDefs, name);
 
     const persistedNormalizedUrl = getCustomField('ai_normalized_url');
     const normalizationStatus = getCustomField('ai_normalization_status') || 'pending';
-
-    const chatModelConfig = await buildChatModelConfig();
 
     const vm = {
       version: configFile.PAPERLESS_AI_VERSION || '1.0.0',
@@ -461,7 +712,7 @@ router.get('/doc/:id', async (req, res) => {
         persistedNormalizedUrl: persistedNormalizedUrl,
         normalizationStatus: normalizationStatus,
         normalizedUrl: persistedNormalizedUrl || `/api/normalized/${document.id}/1`,
-        customFields: document.custom_fields || [],
+        customFields: normalizedCustomFields,
         status: 'saved',
       },
       availableDocuments: availableDocs.map(d => ({
@@ -552,24 +803,83 @@ router.get('/api/doc/:id', async (req, res) => {
       return res.status(404).json({ error: 'Document not found' });
     }
 
+    const [
+      correspondents,
+      docTypes,
+      allTags,
+      customFieldDefs,
+      content
+    ] = await Promise.all([
+      document.correspondent
+        ? withWorkspaceTimeout(
+            getWorkspaceCachedValue(
+              'paperless:correspondents',
+              () => paperlessService.listCorrespondentsNames(),
+              5000
+            ),
+            5000,
+            [],
+            'api/doc correspondents'
+          )
+        : Promise.resolve([]),
+      document.document_type
+        ? withWorkspaceTimeout(
+            getWorkspaceCachedValue(
+              'paperless:document-types',
+              () => paperlessService.listDocumentTypesNames(),
+              5000
+            ),
+            5000,
+            [],
+            'api/doc document types'
+          )
+        : Promise.resolve([]),
+      withWorkspaceTimeout(
+        getWorkspaceCachedValue(
+          'paperless:tags',
+          () => paperlessService.getTags(),
+          3000
+        ),
+        5000,
+        [],
+        'api/doc tags'
+      ),
+      withWorkspaceTimeout(
+        getWorkspaceCachedValue(
+          'paperless:custom-fields',
+          () => paperlessService.listCustomFields(),
+          5000
+        ),
+        5000,
+        [],
+        'api/doc custom field definitions'
+      ),
+      withWorkspaceTimeout(
+        getWorkspaceCachedValue(
+          `paperless:doc-content:${documentId}`,
+          () => paperlessService.getDocumentContent(documentId),
+          3000
+        ),
+        5000,
+        '',
+        'api/doc content'
+      )
+    ]);
+
     // Resolve correspondent name
     let correspondentName = null;
-    if (document.correspondent) {
-      try {
-        const correspondents = await paperlessService.listCorrespondentsNames();
-        const correspondent = correspondents.find(c => c.id === document.correspondent);
-        correspondentName = correspondent?.name || null;
-      } catch (e) { /* ignore */ }
+    if (document.correspondent && Array.isArray(correspondents)) {
+      const correspondent = correspondents.find(
+        (c) => c.id === document.correspondent
+      );
+      correspondentName = correspondent?.name || null;
     }
 
     // Resolve document type name
     let documentTypeName = null;
-    if (document.document_type) {
-      try {
-        const docTypes = await paperlessService.listDocumentTypesNames();
-        const docType = docTypes.find(dt => dt.id === document.document_type);
-        documentTypeName = docType?.name || null;
-      } catch (e) { /* ignore */ }
+    if (document.document_type && Array.isArray(docTypes)) {
+      const docType = docTypes.find((dt) => dt.id === document.document_type);
+      documentTypeName = docType?.name || null;
     }
 
     // Resolve tags (names + IDs + available list)
@@ -577,7 +887,6 @@ router.get('/api/doc/:id', async (req, res) => {
     let tagItems = [];
     let availableTags = [];
     try {
-      const allTags = await paperlessService.getTags();
       availableTags = allTags.map(tag => ({
         id: tag.id,
         name: tag.name,
@@ -599,41 +908,15 @@ router.get('/api/doc/:id', async (req, res) => {
       }
     } catch (e) { /* ignore */ }
 
-    // Resolve custom fields from raw array to flat values for UI
-    let customFieldDefs = [];
-    try {
-      customFieldDefs = await paperlessService.listCustomFields();
-    } catch (e) { /* ignore */ }
-
-    const getCustomField = (name) => {
-      if (!document.custom_fields || !Array.isArray(document.custom_fields)) return null;
-      
-      const fieldByName = document.custom_fields.find(cf => 
-        cf.name === name || 
-        cf.field_name === name ||
-        String(cf.name).toLowerCase() === name.toLowerCase()
-      );
-      if (fieldByName) return fieldByName.value;
-
-      const def = customFieldDefs.find(d => 
-        d.name === name || 
-        String(d.name).toLowerCase() === name.toLowerCase()
-      );
-      if (def) {
-        const fieldById = document.custom_fields.find(cf => 
-          Number(cf.field) === Number(def.id)
-        );
-        return fieldById?.value ?? null;
-      }
-      return null;
-    };
+    // Resolve custom fields to canonical workspace shape and flat lookups
+    const normalizedCustomFields = normalizeCustomFieldsForWorkspace(
+      document.custom_fields
+    );
+    const getCustomField = (name) =>
+      resolveCustomFieldValue(normalizedCustomFields, customFieldDefs, name);
 
     const persistedNormalizedUrl = getCustomField('ai_normalized_url');
     const normalizationStatus = getCustomField('ai_normalization_status') || 'pending';
-
-    const content = await paperlessService
-      .getDocumentContent(documentId)
-      .catch(() => '');
 
     let documentDomain = 'general';
     try {
@@ -651,26 +934,10 @@ router.get('/api/doc/:id', async (req, res) => {
       icon: domainMapping.icon || '📄',
       requiredFields: fieldMappingService
         .getRequiredFields(documentDomain)
-        .map(field => ({
-          fieldId: field.fieldId,
-          label: field.displayName?.en || field.fieldId,
-          paperlessField: field.paperlessField || null,
-          type: field.type,
-          enum: Array.isArray(field.enum) ? field.enum : undefined,
-          validationRules: field.validationRules || {},
-          isMandatory: true
-        })),
+        .map((field) => mapDomainFieldToWorkspaceField(field, true)),
       optionalFields: fieldMappingService
         .getOptionalFields(documentDomain)
-        .map(field => ({
-          fieldId: field.fieldId,
-          label: field.displayName?.en || field.fieldId,
-          paperlessField: field.paperlessField || null,
-          type: field.type,
-          enum: Array.isArray(field.enum) ? field.enum : undefined,
-          validationRules: field.validationRules || {},
-          isMandatory: false
-        }))
+        .map((field) => mapDomainFieldToWorkspaceField(field, false))
     };
 
     let visualFields = [];
@@ -743,9 +1010,7 @@ router.get('/api/doc/:id', async (req, res) => {
       tags: tagNames,
       tagItems,
       availableTags,
-      customFields: Array.isArray(document.custom_fields)
-        ? document.custom_fields
-        : [],
+      customFields: normalizedCustomFields,
       pageCount: document.page_count || 1,
       mimeType: document.mime_type,
       originalUrl: buildPaperlessProxyUrl(
@@ -786,7 +1051,11 @@ router.get('/api/doc/:id', async (req, res) => {
  */
 router.get('/api/tags', async (req, res) => {
   try {
-    const tags = await paperlessService.getTags();
+    const tags = await getWorkspaceCachedValue(
+      'paperless:tags',
+      () => paperlessService.getTags(),
+      3000
+    );
     res.json(tags);
   } catch (error) {
     console.error('[API] Error fetching tags:', error);
@@ -811,7 +1080,11 @@ router.get('/api/tags', async (req, res) => {
  */
 router.get('/api/documents', async (req, res) => {
   try {
-    const documents = await paperlessService.getAllDocumentsUnfiltered();
+    const documents = await getWorkspaceCachedValue(
+      'paperless:documents:all',
+      () => paperlessService.getAllDocumentsUnfiltered(),
+      3000
+    );
     res.json(documents);
   } catch (error) {
     console.error('[API] Error fetching documents:', error);
@@ -833,7 +1106,11 @@ router.get('/', async (req, res) => {
     const username = req.user.username;
     // Render workspace without auto-selecting a document. Provide the list of documents for user selection.
     const history = await documentModel.getAllHistory(username).catch(() => []);
-    const allDocs = await paperlessService.getAllDocumentsUnfiltered().catch(() => []);
+    const allDocs = await getWorkspaceCachedValue(
+      'paperless:documents:all',
+      () => paperlessService.getAllDocumentsUnfiltered(),
+      3000
+    ).catch(() => []);
     const availableDocs = (allDocs || []).map(d => ({ id: d.id, title: d.title, original_filename: d.original_file_name }));
 
     // Backwards-compatible: allow explicit request to open latest via ?latest=1
@@ -842,7 +1119,11 @@ router.get('/', async (req, res) => {
       if (allDocs && allDocs.length > 0) return res.redirect(`/workspace/doc/${allDocs[0].id}`);
     }
 
-    const chatModelConfig = await buildChatModelConfig();
+    const chatModelConfig = await getWorkspaceCachedValue(
+      'workspace:chat-model-config',
+      () => buildChatModelConfig(),
+      3000
+    );
 
     res.render('document-workspace', {
       vm: UnifiedWorkspaceSchema.parse({

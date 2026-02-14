@@ -402,15 +402,46 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           setFitMode('manual');
           applyScale(newScale);
           
-          // Scroll to center the region
-          setTimeout(() => {
-            if (containerRef.current) {
-              const fullW = imageDimensions.width * newScale;
-              const fullH = imageDimensions.height * newScale;
-              containerRef.current.scrollLeft = (cx * fullW) - (cw / 2);
-              containerRef.current.scrollTop = (cy * fullH) - (ch / 2);
-            }
-          }, 50);
+          const dimensions = imageDimensions.width > 0 && imageDimensions.height > 0
+            ? imageDimensions
+            : {
+                width: imageRef.current?.naturalWidth || imageRef.current?.width || 0,
+                height: imageRef.current?.naturalHeight || imageRef.current?.height || 0
+              };
+
+          const applyRegionScroll = () => {
+            const active = containerRef.current;
+            if (!active) return;
+            const fullW =
+              active.scrollWidth > 0
+                ? active.scrollWidth
+                : dimensions.width * newScale;
+            const fullH =
+              active.scrollHeight > 0
+                ? active.scrollHeight
+                : dimensions.height * newScale;
+            if (fullW <= 0 || fullH <= 0) return;
+            const maxLeft = Math.max(0, fullW - active.clientWidth);
+            const maxTop = Math.max(0, fullH - active.clientHeight);
+            const targetLeft = Math.max(
+              0,
+              Math.min(maxLeft, (cx * fullW) - (active.clientWidth / 2))
+            );
+            const targetTop = Math.max(
+              0,
+              Math.min(maxTop, (cy * fullH) - (active.clientHeight / 2))
+            );
+            active.scrollLeft = targetLeft;
+            active.scrollTop = targetTop;
+          };
+
+          // Wait for scale/layout to settle before centering to avoid early clamp.
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              applyRegionScroll();
+              setTimeout(applyRegionScroll, 120);
+            });
+          });
         }
 
         setTimeout(() => setHighlightedRegion(null), 5000);
@@ -418,7 +449,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     };
     window.addEventListener('overlay:highlight-region', handler as EventListener);
     return () => window.removeEventListener('overlay:highlight-region', handler as EventListener);
-  }, [page, applyScale]);
+  }, [page, applyScale, imageDimensions.width, imageDimensions.height]);
 
   // Listen for draw mode activation from Visual Tab
   useEffect(() => {

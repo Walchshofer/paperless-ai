@@ -38,7 +38,7 @@ const UnifiedWorkspaceSchema = z.object({
       displayName: z.string().optional(),
       icon: z.string().optional(),
       requiredFields: z.array(z.object({
-        fieldId: z.string().optional(),
+        fieldId: z.string(),
         label: z.string().optional(),
         paperlessField: z.string().nullable().optional(),
         type: z.string().optional(),
@@ -47,7 +47,7 @@ const UnifiedWorkspaceSchema = z.object({
         isMandatory: z.boolean().optional()
       })).optional(),
       optionalFields: z.array(z.object({
-        fieldId: z.string().optional(),
+        fieldId: z.string(),
         label: z.string().optional(),
         paperlessField: z.string().nullable().optional(),
         type: z.string().optional(),

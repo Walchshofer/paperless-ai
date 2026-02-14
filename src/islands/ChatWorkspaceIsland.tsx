@@ -210,12 +210,12 @@ export default function ChatWorkspaceIsland(
             const entryProvider = entry.provider.toLowerCase();
             return (
               entryProvider === providerName ||
-              entryProvider === 'expert'
+              (entryProvider === 'expert' && providerName === 'ollama')
             );
           }
           return (
             groupLabel.includes(providerName) ||
-            groupLabel.includes('expert') ||
+            (groupLabel.includes('expert') && providerName === 'ollama') ||
             groupLabel.includes('installed') ||
             groupLabel.includes('configured')
           );
@@ -247,16 +247,20 @@ export default function ChatWorkspaceIsland(
     activeProvider
   ]);
 
-  // Update selected model when provider changes
-  useEffect(() => {
-    // Check if current selected model is valid for new provider
-    const isModelValid = filteredModelOptions.some((group: OllamaModelGroup) =>
+  const selectedModelIsValid = useMemo(() => {
+    if (!selectedModel) return false;
+    return filteredModelOptions.some((group: OllamaModelGroup) =>
       group.models.some((m: { model: string }) => m.model === selectedModel)
     );
+  }, [filteredModelOptions, selectedModel]);
 
-    if (!isModelValid && filteredModelOptions.length > 0) {
-      // Auto-select first available model for new provider
-      const firstModel = filteredModelOptions[0]?.models[0]?.model;
+  // Update selected model when provider changes
+  useEffect(() => {
+    if (selectedModelIsValid) return;
+
+    if (filteredModelOptions.length > 0) {
+      // Auto-select first available model for new provider/mode.
+      const firstModel = filteredModelOptions[0]?.models[0]?.model || null;
       if (firstModel) {
         setSelectedModel(firstModel);
         console.log(
@@ -264,13 +268,20 @@ export default function ChatWorkspaceIsland(
           + `${firstModel}`
         );
       }
+      return;
+    }
+
+    // If no models are available for the active provider/mode, clear stale value.
+    if (selectedModel !== null) {
+      setSelectedModel(null);
     }
   }, [
     props.modelConfig?.currentProvider,
     aiProvider,
     filteredModelOptions,
     selectedModel,
-    activeProvider
+    activeProvider,
+    selectedModelIsValid
   ]);
 
   useEffect(() => {
@@ -738,7 +749,7 @@ export default function ChatWorkspaceIsland(
     // In RAG/Visual-RAG mode, we don't need a document; in Document mode, we do
     if (!messageInput.trim()) return;
     if (chatMode === 'document' && !selectedDocumentId) return;
-    if (!selectedModel) return;
+    if (!selectedModel || !selectedModelIsValid) return;
 
     const userMessage = messageInput.trim();
     setMessageInput('');
@@ -929,7 +940,16 @@ export default function ChatWorkspaceIsland(
     } finally {
       setIsStreaming(false);
     }
-  }, [messageInput, selectedDocumentId, selectedModel, chatMode, chatContext, chatMessages, docPreview]);
+  }, [
+    messageInput,
+    selectedDocumentId,
+    selectedModel,
+    selectedModelIsValid,
+    chatMode,
+    chatContext,
+    chatMessages,
+    docPreview
+  ]);
 
   const handleTextReingest = useCallback(async () => {
     if (!selectedDocumentId || textReingestBusy) return;
@@ -1309,7 +1329,11 @@ export default function ChatWorkspaceIsland(
                   data-testid="chat-send-button"
                   type="button"
                   className="px-6 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-cyan-600/20 disabled:opacity-50 disabled:grayscale transition-all flex items-center gap-2"
-                  disabled={!messageInput.trim() || isStreaming || !selectedModel}
+                  disabled={
+                    !messageInput.trim() ||
+                    isStreaming ||
+                    !selectedModelIsValid
+                  }
                   onClick={() => void sendMessage()}
                 >
                   {isStreaming ? (
