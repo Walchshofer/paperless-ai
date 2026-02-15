@@ -357,6 +357,9 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     status: 'idle',
     percentage: 0
   });
+  const [feedbackVotes, setFeedbackVotes] = useState<Record<string, 'up' | 'down'>>({});
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [correctionValue, setCorrectionValue] = useState('');
 
   const resolvedProfile = useMemo(() => {
     const profile = props.fieldProfile || {};
@@ -836,8 +839,90 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     dispatchEventSafe('metadata:locate-field', { fieldId } as MetadataLocateDetail);
   };
 
-  const onFeedback = (fieldId: string | number, vote: 'up' | 'down'): void => {
+  const onFeedback = async (fieldId: string | number, vote: 'up' | 'down'): Promise<void> => {
     dispatchEventSafe('feedback:vote', { fieldId, vote } as FeedbackVoteDetail);
+
+    const fieldKey = String(fieldId);
+    setFeedbackVotes((prev) => ({ ...prev, [fieldKey]: vote }));
+
+    // If voting down, open inline correction editor
+    if (vote === 'down') {
+      setEditingField(fieldKey);
+      setCorrectionValue('');
+    } else {
+      // If switching from down to up, close any open editor
+      if (editingField === fieldKey) {
+        setEditingField(null);
+        setCorrectionValue('');
+      }
+    }
+
+    const field = mappedVisualFields.find(
+      (f) => String(f.id) === fieldKey || String((f as Record<string, unknown>).fieldId) === fieldKey
+    );
+
+    try {
+      await fetch('/api/visual-rag/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentId: currentDocumentId,
+          events: [{
+            event_type: vote === 'up' ? 'verification' : 'correction',
+            field_name: field?.paperlessField || field?.label || fieldKey,
+            original_value: field?.value ?? null,
+            corrected_value: null,
+            context: {
+              source: 'visual_insights',
+              confidence: field?.confidence,
+              matchType: field?.matchType,
+              overlayId: (field as Record<string, unknown>)?.overlayId ?? null,
+              pageNumber: (field as Record<string, unknown>)?.pageNumber ?? null,
+              bbox: (field as Record<string, unknown>)?.bbox ?? null
+            }
+          }]
+        })
+      });
+    } catch (err) {
+      console.warn('[SmartMetadata] feedback POST failed:', err);
+    }
+  };
+
+  const onSubmitCorrection = async (fieldId: string): Promise<void> => {
+    if (!correctionValue.trim()) return;
+
+    const field = mappedVisualFields.find(
+      (f) => String(f.id) === fieldId || String((f as Record<string, unknown>).fieldId) === fieldId
+    );
+
+    try {
+      await fetch('/api/visual-rag/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentId: currentDocumentId,
+          events: [{
+            event_type: 'correction',
+            field_name: field?.paperlessField || field?.label || fieldId,
+            original_value: field?.value ?? null,
+            corrected_value: correctionValue.trim(),
+            context: {
+              source: 'visual_insights_correction',
+              confidence: field?.confidence,
+              matchType: field?.matchType,
+              overlayId: (field as Record<string, unknown>)?.overlayId ?? null,
+              pageNumber: (field as Record<string, unknown>)?.pageNumber ?? null,
+              bbox: (field as Record<string, unknown>)?.bbox ?? null
+            }
+          }]
+        })
+      });
+    } catch (err) {
+      console.warn('[SmartMetadata] correction POST failed:', err);
+    }
+
+    setEditingField(null);
+    setCorrectionValue('');
   };
 
   const onMetaChange = (key: 'title' | 'correspondent' | 'createdDate', val: string) => {
@@ -1363,7 +1448,11 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
                   <div className="flex gap-1">
                     <button
                       data-testid={`feedback-up-${toTestId(fieldKey)}`}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-emerald-500 transition-colors"
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center border transition-colors ${
+                        feedbackVotes[fieldKey] === 'up'
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-600'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-emerald-500'
+                      }`}
                       onClick={() => onFeedback(field.id, 'up')}
                       title="Confirm Logic"
                     >
@@ -1371,7 +1460,11 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
                     </button>
                     <button
                       data-testid={`feedback-down-${toTestId(fieldKey)}`}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-500 transition-colors"
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center border transition-colors ${
+                        feedbackVotes[fieldKey] === 'down'
+                          ? 'bg-rose-50 border-rose-300 text-rose-600'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-500'
+                      }`}
                       onClick={() => onFeedback(field.id, 'down')}
                       title="Report Inaccuracy"
                     >
@@ -1387,6 +1480,32 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
                     Locate
                   </button>
                 </div>
+                {editingField === fieldKey && (
+                  <div className="mt-2 flex gap-2" data-testid={`correction-input-${toTestId(fieldKey)}`}>
+                    <input
+                      type="text"
+                      className="flex-1 px-2 py-1.5 text-xs rounded-lg border border-rose-200 bg-rose-50/50 focus:border-rose-400 focus:ring-1 focus:ring-rose-200 outline-none"
+                      placeholder="Enter corrected value..."
+                      value={correctionValue}
+                      onChange={(e) => setCorrectionValue((e.target as HTMLInputElement).value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') onSubmitCorrection(fieldKey); }}
+                      autoFocus
+                    />
+                    <button
+                      className="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg bg-rose-500 text-white hover:bg-rose-600 transition-colors"
+                      onClick={() => onSubmitCorrection(fieldKey)}
+                      data-testid={`correction-submit-${toTestId(fieldKey)}`}
+                    >
+                      Submit
+                    </button>
+                    <button
+                      className="px-2 py-1.5 text-[10px] rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
+                      onClick={() => { setEditingField(null); setCorrectionValue(''); }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}

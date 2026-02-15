@@ -63,18 +63,28 @@ SYSTEM_PROMPTS: Dict[str, str] = {
 # NOT embedded as base64 text in the prompt (that confuses models)
 USER_PROMPTS: Dict[str, str] = {
     "de": (
-        "Analysiere dieses Dokumentbild und bestimme: "
-        "1) Rotation (0, 90, 180 oder 270 Grad im Uhrzeigersinn), "
-        "2) Ob Zuschneiden nötig ist, "
-        "3) Empfohlene DPI (200-400), "
-        "4) Dein Vertrauensniveau (0.0-1.0)."
+        "Analysiere dieses Dokumentbild fuer Geometrie-Korrekturen:\n"
+        "1) ROTATION: Pruefe die Textausrichtung. Ist der Text von links nach rechts, "
+        "oben nach unten lesbar? Falls der Text seitwaerts oder auf dem Kopf steht, "
+        "bestimme die noetige Drehung (0, 90, 180 oder 270 Grad im Uhrzeigersinn). "
+        "Pruefe auch die Position des Briefkopfs/Logos - es muss oben sein.\n"
+        "2) ZUSCHNITT: Gibt es schwarze Raender, Scanner-Artefakte oder ueberschuessigen "
+        "Weissraum um das Dokument?\n"
+        "3) DPI: Empfohlene Aufloesung (200-400).\n"
+        "4) VERTRAUEN: Dein Vertrauensniveau (0.0-1.0).\n"
+        "5) BEGRUENDUNG: Erklaere WARUM du diese Drehung gewaehlt hast."
     ),
     "en": (
-        "Analyze this document image and determine: "
-        "1) Rotation (0, 90, 180, or 270 degrees clockwise), "
-        "2) Whether cropping is needed, "
-        "3) Recommended DPI (200-400), "
-        "4) Your confidence level (0.0-1.0)."
+        "Analyze this document image for geometry corrections:\n"
+        "1) ROTATION: Check text orientation. Is the text readable left-to-right, "
+        "top-to-bottom? If text is sideways or upside down, determine the rotation "
+        "needed (0, 90, 180, or 270 degrees clockwise). Also check header/logo "
+        "position - it must be at the top.\n"
+        "2) CROP: Are there black borders, scanner artifacts, or excessive whitespace "
+        "margins around the document?\n"
+        "3) DPI: Recommended resolution (200-400).\n"
+        "4) CONFIDENCE: Your confidence level (0.0-1.0).\n"
+        "5) REASONING: Explain WHY you chose this rotation."
     ),
 }
 
@@ -170,12 +180,11 @@ def get_analyze_document_geometry() -> Callable:
                 "No markdown, no explanations."
             )
 
-        with user():
-            # NOTE: Do NOT include base64 image data in the text prompt!
-            # The image must be passed through LiteLLM's multimodal channel.
-            # Including base64 text here confuses the model & produces garbage.
-            # The document_image_b64 parameter is passed to the model via
-            # the images parameter in the LLM call, not in the prompt text.
+        # NOTE: Do NOT include base64 image data in the text prompt!
+        # The image must be passed through LiteLLM's multimodal channel.
+        # Including base64 text here confuses the model & produces garbage.
+        # The document_image_b64 parameter is passed to the model via
+        # the images parameter in the LLM call, not in the prompt text.
         with user():
             lm += image(document_image_b64)
             lm += USER_PROMPTS[language]

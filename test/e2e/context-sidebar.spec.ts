@@ -43,7 +43,7 @@ test.describe('ContextSidebarIsland E2E', () => {
     await page.evaluate((storageKey) => {
       localStorage.removeItem(storageKey);
     }, STORAGE_KEY);
-    await page.reload({ waitUntil: 'networkidle' });
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await waitForIslandMount(page, 'context-sidebar-island', 10000);
 
     // Initially metadata tab should be visible
@@ -77,7 +77,7 @@ test.describe('ContextSidebarIsland E2E', () => {
       STORAGE_KEY,
       { timeout: 10000 }
     );
-    await page.reload({ waitUntil: 'networkidle' });
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await waitForIslandMount(page, 'context-sidebar-island', 10000);
     await expect(page.locator('[data-testid="tab-content"]'))
       .toHaveAttribute('aria-selected', 'true');

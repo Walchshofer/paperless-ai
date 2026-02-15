@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+const { waitForIslandMount } = require('../helpers/workspace-fixtures');
+
 const BASE = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 const DOC_ID = process.env.TEST_DOC_ID ? Number(process.env.TEST_DOC_ID) : 40;
 
@@ -45,8 +47,9 @@ test.describe('Workspace overlay reflow and locate wiring', () => {
     page,
   }) => {
     await page.goto(`${BASE}/workspace/doc/${DOC_ID}?tab=visual&page=1`, {
-      waitUntil: 'networkidle',
+      waitUntil: 'domcontentloaded',
     });
+    await waitForIslandMount(page, 'overlay-viewer-island', 20000);
     await page.waitForSelector('[data-testid="overlay-document-image"]', {
       timeout: 20000,
     });
@@ -113,8 +116,9 @@ test.describe('Workspace overlay reflow and locate wiring', () => {
     page,
   }) => {
     await page.goto(`${BASE}/workspace/doc/${DOC_ID}?tab=metadata`, {
-      waitUntil: 'networkidle',
+      waitUntil: 'domcontentloaded',
     });
+    await waitForIslandMount(page, 'context-sidebar-island', 20000);
     await page.waitForSelector('[data-testid="smart-metadata-root"]', {
       timeout: 20000,
     });

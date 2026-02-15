@@ -8,7 +8,7 @@ test('verify Document Viewer reactivity when switching documents', async ({ page
   const doc2Id = 9;
   
   console.log(`Navigating to document ${doc1Id}`);
-  await page.goto(`${BASE_URL}/workspace/doc/${doc1Id}?tab=metadata`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE_URL}/workspace/doc/${doc1Id}?tab=metadata`, { waitUntil: 'domcontentloaded' });
 
   const viewer = page.locator('[data-testid="overlay-viewer-root"]');
   await expect(viewer).toBeVisible({ timeout: 15000 });

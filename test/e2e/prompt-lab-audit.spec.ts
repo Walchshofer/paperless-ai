@@ -11,7 +11,7 @@ type DomainKey = 'system' | 'medical' | 'financial' | 'legal';
 const DOMAIN_KEYS: DomainKey[] = ['system', 'medical', 'financial', 'legal'];
 
 async function openPromptsSettings(page: import('@playwright/test').Page) {
-  await page.goto(`${BASE}/settings#prompts`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/settings#prompts`, { waitUntil: 'domcontentloaded' });
   await waitForIsland(page, 'settings-sidebar-island', 10000);
   await waitForIsland(page, 'prompts-settings-island', 10000);
 }

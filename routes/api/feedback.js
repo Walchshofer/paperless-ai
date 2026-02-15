@@ -260,4 +260,34 @@ router.post('/field-vote', authenticateApi, async (req, res) => {
     }
 });
 
+/**
+ * GET /api/feedback/export
+ * Export feedback events as JSONL for model training.
+ * Query params: since (ISO date), limit (max rows), event_type (filter)
+ * Admin-only.
+ */
+router.get('/export', authenticateApi, requireAdmin, async (req, res) => {
+    try {
+        const since = req.query.since || '1970-01-01';
+        const limit = Math.min(parseInt(req.query.limit, 10) || 10000, 50000);
+        const eventType = req.query.event_type || null;
+
+        const rows = await feedbackService.exportTrainingData({ since, limit, eventType });
+
+        const dateStr = new Date().toISOString().slice(0, 10);
+        res.setHeader('Content-Type', 'application/x-ndjson');
+        res.setHeader('Content-Disposition', `attachment; filename="feedback_training_${dateStr}.jsonl"`);
+
+        for (const row of rows) {
+            res.write(JSON.stringify(row) + '\n');
+        }
+        res.end();
+
+        logger.info({ event: 'feedback_export', rows: rows.length, since, eventType });
+    } catch (error) {
+        logger.error({ event: 'feedback_export_error', error: error.message });
+        res.status(500).json({ success: false, error: 'Failed to export training data' });
+    }
+});
+
 module.exports = router;

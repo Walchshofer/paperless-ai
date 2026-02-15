@@ -44,11 +44,23 @@ test.describe('Document Viewer Screenshot Verification', () => {
     );
     expect(isExpectedSource).toBe(true);
     
+    // Wait for the image to fully decode before asserting natural dimensions.
+    // naturalWidth is 0 until the browser completes network fetch + decode.
+    await page.waitForFunction(
+      () => {
+        const el = document.querySelector(
+          '[data-testid="overlay-document-image"]'
+        ) as HTMLImageElement | null;
+        return el != null && el.naturalWidth > 0;
+      },
+      { timeout: 15000 }
+    );
+
     // Check that image has natural dimensions (actually loaded)
     const naturalWidth = await img.evaluate((el: HTMLImageElement) => el.naturalWidth);
     const naturalHeight = await img.evaluate((el: HTMLImageElement) => el.naturalHeight);
     console.log(`Image dimensions: ${naturalWidth}x${naturalHeight}`);
-    
+
     expect(naturalWidth).toBeGreaterThan(100);
     expect(naturalHeight).toBeGreaterThan(100);
 

@@ -850,7 +850,17 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     };
 
     let frame = 0;
+    let resizeTimeout = 0;
     const schedule = () => {
+      // Mark viewport as resizing so CSS transition applies during drag
+      const vp = viewportRef.current;
+      if (vp) {
+        vp.setAttribute('data-resizing', '');
+        if (resizeTimeout) clearTimeout(resizeTimeout);
+        resizeTimeout = window.setTimeout(() => {
+          if (vp) vp.removeAttribute('data-resizing');
+        }, 150);
+      }
       if (frame) cancelAnimationFrame(frame);
       frame = requestAnimationFrame(refreshFitScale);
     };
@@ -860,6 +870,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       observer.observe(container);
       return () => {
         if (frame) cancelAnimationFrame(frame);
+        if (resizeTimeout) clearTimeout(resizeTimeout);
         observer.disconnect();
       };
     }
@@ -1487,7 +1498,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     return overlayItems.filter((o: OverlayItem) => o.isMandatory);
   }, [overlayItems, mandatoryOnly]);
 
-  useEffect(() => {
+  const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
@@ -1510,6 +1521,29 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       ctx.fillRect(currentBox.x, currentBox.y, currentBox.width, currentBox.height);
     }
   }, [boxes, currentBox, isDrawing]);
+
+  // Redraw canvas when boxes or drawing state changes
+  useEffect(() => {
+    redrawCanvas();
+  }, [redrawCanvas]);
+
+  // Synchronize canvas dimensions with container resize via ResizeObserver
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    if (typeof window === 'undefined' || !('ResizeObserver' in window)) return;
+
+    let frame = 0;
+    const observer = new window.ResizeObserver(() => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => redrawCanvas());
+    });
+    observer.observe(container);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [redrawCanvas]);
 
   return (
     <div
@@ -1621,7 +1655,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
         <div className="flex items-center gap-2 px-2 border-l border-gray-200">
           <button aria-label="Zoom out" data-testid="overlay-zoom-out" onClick={zoomOut} title="Zoom Out (-)" className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">-</button>
-          <span data-testid="overlay-zoom-percentage" className="text-xs text-gray-500 w-12 text-center">{Math.round(scale * 100)}%</span>
+          <span data-testid="overlay-zoom-percentage" className="text-xs text-gray-500 w-12 text-center" aria-live="polite">{Math.round(scale * 100)}%</span>
           <button aria-label="Zoom in" data-testid="overlay-zoom-in" onClick={zoomIn} title="Zoom In (+)" className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">+</button>
           <button
             aria-label="Rotate clockwise"
@@ -1753,7 +1787,10 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             ref={containerRef}
             data-testid="overlay-container"
             data-draw-mode={isDrawMode ? 'active' : 'inactive'}
-            className={`${styles.overlayContainer} ${panMode ? (panActiveRef.current ? 'cursor-grabbing' : 'cursor-grab') : (isDrawMode ? 'cursor-crosshair' : 'cursor-default')} ${isDrawMode ? 'touch-none ring-2 ring-inset ring-[#b87333]/50' : 'touch-auto'}`}
+            role="region"
+            aria-label="Document viewer. Use arrow keys to pan in pan mode, +/- to zoom, 0 to reset."
+            tabIndex={0}
+            className={`${styles.overlayContainer} ${panMode ? (panActiveRef.current ? 'cursor-grabbing' : 'cursor-grab') : (isDrawMode ? 'cursor-crosshair' : 'cursor-default')} ${isDrawMode ? 'touch-none ring-2 ring-inset ring-[#b87333]/50' : 'touch-auto'} focus:ring-2 focus:ring-cyan-500 focus:outline-none`}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}

@@ -24,10 +24,11 @@ function getDefaultOptions() {
         analysisDpi: config.visualRag?.analysisRenderDpi || 300,
         targetDpi: config.visualRag?.visionRenderDpi || 300,
         maxPages: config.visualRag?.maxVisionPages || 4,
-        // Guidance templates live in the guidance_service templates directory
+        // Guidance templates live in the containers/guidance-service templates directory
         templatePath: config.normalization?.templatePath || path.join(
             process.cwd(),
-            'guidance_service',
+            'containers',
+            'guidance-service',
             'templates',
             'normalization_geometry.py'
         ),
@@ -143,9 +144,10 @@ class PreVisionNormalizer {
         } else {
             normalized.templatePath = options.templatePath || path.join(
                 process.cwd(),
-                '.prompts',
+                'containers',
+                'guidance-service',
                 'templates',
-                'normalization_guidance.md'
+                'normalization_geometry.py'
             );
         }
 
@@ -237,13 +239,36 @@ class PreVisionNormalizer {
 
             return templateContent;
         } catch (fileError) {
-            logger.error({
-                event: 'normalization_template_load_failed',
+            // Template file not found on disk — this is expected inside the
+            // Docker container where guidance-service templates live in a
+            // separate container.  The primary path (guidanceClient.generate)
+            // calls the template by name over HTTP, so local file content is
+            // not required.  Return a built-in fallback prompt so that the
+            // Ollama direct-call fallback also has a usable prompt.
+            logger.warn({
+                event: 'normalization_template_local_miss',
                 templatePath: this.templatePath,
                 error: fileError.message,
-                code: fileError.code
+                code: fileError.code,
+                message: 'Proceeding with built-in fallback prompt — guidance service has the template'
             });
-            return null;
+
+            const fallbackPrompt =
+                'Analyze this document image for geometry corrections. ' +
+                'ROTATION: Check text orientation - is text readable left-to-right, top-to-bottom? ' +
+                'If text is sideways or upside down, determine the correction needed. ' +
+                'Check header/logo position - it must be at the top after correction. ' +
+                'Return JSON with fields: rotate (0, 90, 180, or 270 degrees clockwise to apply), ' +
+                'needs_crop (boolean - true if black borders, scanner artifacts, or excessive whitespace), ' +
+                'crop_box ([xmin, ymin, xmax, ymax] in 0-1000 coords), ' +
+                'target_dpi (integer 200-400), confidence (0-1 float), ' +
+                'reasoning (string explaining WHY you chose this rotation).';
+
+            // Cache the fallback so subsequent calls don't hit the filesystem
+            this.templateCache = fallbackPrompt;
+            this.templateCacheTime = Date.now();
+
+            return fallbackPrompt;
         }
     }
 
@@ -448,9 +473,15 @@ class PreVisionNormalizer {
             const applyStart = Date.now();
             await new Promise(resolve => setImmediate(resolve));
 
-            // Lazy-load the normalization tools factory to avoid circular requires
+            // Lazy-load the normalization tools factory to avoid circular requires.
+            // IMPORTANT: Do NOT pass preVisionNormalizer here — we are already
+            // inside analyzeAndNormalize(). Passing 'this' would create an
+            // infinite recursion because normalizeImagesAI delegates back to
+            // analyzeAndNormalize when a normalizer is injected. By omitting
+            // it, the tool uses the direct ImageNormalizer path for applying
+            // the actions we have already computed.
             const { createNormalizationTools } = require('./tools');
-            const tools = createNormalizationTools({ preVisionNormalizer: this });
+            const tools = createNormalizationTools();
             const normalizeResult = await tools.normalizeImagesAI({
                 document_id: docId,
                 actions,
@@ -711,15 +742,29 @@ class PreVisionNormalizer {
             return null;
         }
 
-        // Validate rotation
-        const rotate = Number.isFinite(geometry.rotate) ? geometry.rotate : 0;
+        // Validate rotation — round to nearest valid value (0, 90, 180, 270)
+        // to tolerate float imprecision from vision models (e.g. 90.0, 89.9)
+        const rawRotate = Number.isFinite(geometry.rotate) ? geometry.rotate : 0;
+        let rotate = Math.round(rawRotate / 90) * 90;
+        // Normalize: 360 -> 0, negative -> 0
+        if (rotate >= 360 || rotate < 0) {
+            rotate = 0;
+        }
         if (![0, 90, 180, 270].includes(rotate)) {
+            // Safety net — should not happen after rounding, but reject truly invalid values
             logger.warn({
                 event: 'geometry_invalid_rotation',
                 provided: geometry.rotate,
-                normalized: 0
+                rounded: rotate
             });
             return null;
+        }
+        if (rawRotate !== rotate) {
+            logger.warn({
+                event: 'geometry_rotation_rounded',
+                original: rawRotate,
+                rounded: rotate
+            });
         }
 
         // Validate crop flag
@@ -938,6 +983,7 @@ class PreVisionNormalizer {
 
             const ollamaService = require('../../ollamaService');
             const { extractJsonFromResponse } = require('../../ollama/utils');
+            const { promptRegistry } = require('../../prompts/PromptRegistry');
 
             if (!ollamaService || typeof ollamaService._callOllamaVisionAPI !== 'function') {
                 logger.warn({
@@ -946,7 +992,29 @@ class PreVisionNormalizer {
                 return null;
             }
 
-            const response = await ollamaService._callOllamaVisionAPI(prompt, base64Image);
+            // If prompt looks like a Python file (starts with docstring or imports), 
+            // use a proper text prompt from registry instead.
+            let effectivePrompt = prompt;
+            if (typeof prompt === 'string' && (prompt.includes('"""') || prompt.includes('import '))) {
+                logger.debug({
+                    event: 'fallback_vision_python_template_detected',
+                    message: 'Using registry fallback instead of Python template for Ollama'
+                });
+                // Build a proper message array for the vision API
+                const messages = promptRegistry.buildMessages(
+                    'VIS_SIGNAL_ANALYZER_V1',
+                    { filename: 'normalization_fallback.pdf', source_system: 'paperless-ai' },
+                    base64Image
+                );
+                // _callOllamaVisionAPI expects a single prompt string or messages array
+                effectivePrompt = messages;
+            }
+
+            const response = await ollamaService._callOllamaVisionAPI(effectivePrompt, base64Image, {
+                model: this.visionModel,
+                temperature: 0.2
+            });
+
             const responseText = response?.response || response?.message?.content || '';
 
             if (!responseText) {
@@ -966,8 +1034,13 @@ class PreVisionNormalizer {
 
             logger.info({
                 event: 'fallback_vision_success',
-                hasGeometry: !!json.geometry
+                hasGeometry: !!json.geometry || !!json.rotation
             });
+
+            // Standardize: ensure it has a 'geometry' top level if it's missing but has fields
+            if (!json.geometry && (json.rotation || json.rotate !== undefined)) {
+                return { geometry: json };
+            }
 
             return json;
         } catch (fallbackError) {

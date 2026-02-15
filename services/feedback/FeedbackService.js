@@ -740,6 +740,49 @@ class FeedbackService {
 
         return processedCount;
     }
+
+    /**
+     * Export feedback events as training data rows.
+     * @param {Object} options
+     * @param {string} options.since - ISO date string
+     * @param {number} options.limit - max rows
+     * @param {string|null} options.eventType - filter by event_type
+     * @returns {Array<Object>} rows suitable for JSONL export
+     */
+    async exportTrainingData({ since = '1970-01-01', limit = 10000, eventType = null } = {}) {
+        if (!this.pool) return [];
+        await this._ensureSchema();
+
+        const params = [since, limit];
+        let filter = '';
+        if (eventType) {
+            filter = ' AND event_type = $3';
+            params.push(eventType);
+        }
+
+        const res = await this.pool.query(
+            `SELECT doc_id, field_name, event_type, original_value, corrected_value,
+                    context, created_at, processed
+             FROM feedback_events
+             WHERE created_at >= $1 ${filter}
+             ORDER BY created_at ASC
+             LIMIT $2`,
+            params
+        );
+
+        return res.rows.map((r) => ({
+            doc_id: r.doc_id,
+            field_name: r.field_name,
+            event_type: r.event_type,
+            original_value: r.original_value,
+            corrected_value: r.corrected_value,
+            confidence: r.context?.confidence ?? null,
+            source: r.context?.source ?? null,
+            context: r.context,
+            created_at: r.created_at,
+            processed: r.processed
+        }));
+    }
 }
 
 module.exports = new FeedbackService();

@@ -380,20 +380,43 @@ def create_app():
 
 {prompt}
 
+ROTATION DETECTION - Follow these steps carefully:
+1. Look at the text in the document. Is the text readable left-to-right, top-to-bottom?
+   - If YES: rotate = 0 (upright)
+   - If text reads bottom-to-top (rotated 90 degrees clockwise): rotate = 270 to fix
+   - If text is upside down (rotated 180 degrees): rotate = 180 to fix
+   - If text reads top-to-bottom (rotated 270 degrees clockwise): rotate = 90 to fix
+2. Check the document header/logo position - it should be at the TOP.
+3. Check if any printed text or stamps appear sideways or inverted.
+4. If the document has a letterhead, it must appear at the top after correction.
+
+CROP DETECTION:
+- Set needs_crop=true if there are large black borders, scanner artifacts,
+  or excessive whitespace margins around the actual document content.
+
 Return ONLY valid JSON with these fields:
-- "rotate": integer (0, 90, 180, or 270 degrees)
+- "rotate": integer (0, 90, 180, or 270 degrees clockwise to apply)
 - "needs_crop": boolean (true if margins need cropping)
 - "target_dpi": integer (200-400, recommended resolution)
 - "confidence": float (0.0-1.0, your confidence level)
-- "reasoning": string (brief explanation)
+- "reasoning": string (brief explanation of WHY you chose this rotation)
 
-Example output format:
+Example output for an upright document:
             {{
                 "rotate": 0,
                 "needs_crop": false,
                 "target_dpi": 300,
-                "confidence": 0.9,
-                "reasoning": "Document is upright"
+                "confidence": 0.95,
+                "reasoning": "Text reads left-to-right, header at top, document is upright"
+            }}
+
+Example output for a sideways document:
+            {{
+                "rotate": 90,
+                "needs_crop": true,
+                "target_dpi": 300,
+                "confidence": 0.85,
+                "reasoning": "Text reads top-to-bottom, letterhead on left side, needs 90 degree clockwise rotation"
             }}"""
         )
         # FIX TRAP 2: Image in 'images' array, NOT in prompt text

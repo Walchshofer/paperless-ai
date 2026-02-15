@@ -8,7 +8,7 @@ test.describe('Connection Center Visual Verification', () => {
     console.log('Navigating to settings...');
     await page.goto('http://localhost:3000/settings', { 
         timeout: 45000,
-        waitUntil: 'networkidle' 
+        waitUntil: 'domcontentloaded' 
     });
     
     console.log('Page loaded, URL:', page.url());

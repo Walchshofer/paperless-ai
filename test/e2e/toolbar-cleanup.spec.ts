@@ -14,7 +14,7 @@ test.describe('Toolbar cleanup and mode controls', () => {
   test.beforeEach(async ({ page }) => {
     try {
       // Navigate to workspace with a test document (ID 74)
-      await page.goto('/workspace/doc/74');
+      await page.goto('/workspace/doc/74', { waitUntil: 'domcontentloaded' });
     } catch (e: unknown) {
       const msg =
         typeof e === 'object' && e !== null && 'message' in e
@@ -24,8 +24,8 @@ test.describe('Toolbar cleanup and mode controls', () => {
       return;
     }
 
-    // Wait for the overlay viewer island to be visible
-    await page.waitForSelector('[data-testid="overlay-viewer-island"]', {
+    // Wait for the overlay viewer island to hydrate
+    await page.waitForSelector('[data-testid="overlay-viewer-root"]', {
       timeout: 30000,
     });
     await page.waitForTimeout(500);
@@ -108,17 +108,14 @@ test.describe('Toolbar cleanup and mode controls', () => {
     await page.keyboard.press('d');
     await page.waitForTimeout(100);
 
-    // Check for visual feedback (ring border using Tailwind classes)
-    const classes = await container.getAttribute('class');
-    expect(classes).toContain('ring-2');
-    expect(classes).toContain('ring-inset');
+    // Check for visual feedback via data-draw-mode attribute.
+    // Note: Cannot use class-based /ring-2/ check because Tailwind's
+    // focus:ring-2 utility is always present in the class string.
+    await expect(container).toHaveAttribute('data-draw-mode', 'active', { timeout: 5000 });
 
-    // Deactivate and verify ring is removed
+    // Deactivate and verify draw mode is removed
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(100);
-
-    const classesAfter = await container.getAttribute('class');
-    expect(classesAfter).not.toContain('ring-2');
+    await expect(container).toHaveAttribute('data-draw-mode', 'inactive', { timeout: 5000 });
   });
 
   test('should toggle between pan and draw modes correctly', async ({

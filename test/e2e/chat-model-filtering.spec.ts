@@ -3,19 +3,19 @@
  * @description Tests for ticket d3fea95f: Filter Model Selection by Active Provider
  */
 import { test, expect } from '@playwright/test';
-
-async function openChatTab(page: import('@playwright/test').Page) {
-  await page.click('[data-testid="chat-tab-chat"], [data-testid="tab-chat"]');
-}
+const { navigateToWorkspace, switchTab, waitForIslandMount } = require('../helpers/workspace-fixtures');
+const { getTestDocId } = require('../helpers/fixtures');
 
 test.describe('Chat Model Filtering by Provider', () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to a workspace page with a document
-    await page.goto('/workspace/doc/74');
+    const docId = getTestDocId();
+    await navigateToWorkspace(page, docId);
+    // Wait for sidebar hydration before any tab interactions
+    await waitForIslandMount(page, 'context-sidebar-island', 15000);
   });
 
   test('should display provider indicator', async ({ page }) => {
-    await openChatTab(page);
+    await switchTab(page, 'chat');
 
     // Wait for provider indicator to appear
     const providerIndicator = page.locator('[data-testid="chat-provider-indicator"]');
@@ -26,7 +26,7 @@ test.describe('Chat Model Filtering by Provider', () => {
   });
 
   test('should show model select dropdown', async ({ page }) => {
-    await openChatTab(page);
+    await switchTab(page, 'chat');
 
     // Wait for model select to appear
     const modelSelect = page.locator('[data-testid="chat-model-select"]');
@@ -56,9 +56,9 @@ test.describe('Chat Model Filtering by Provider', () => {
       await route.fulfill({ response, body });
     });
 
-    await page.goto('/workspace/doc/74?tab=chat', { waitUntil: 'networkidle' });
+    await page.goto('/workspace/doc/74?tab=chat', { waitUntil: 'domcontentloaded' });
     await page.unroute('**/workspace/doc/*');
-    await openChatTab(page);
+    await switchTab(page, 'chat');
 
     const providerIndicator = page.locator('[data-testid="chat-provider-indicator"]');
     await expect(providerIndicator).toContainText(/openai/i);
@@ -74,7 +74,7 @@ test.describe('Chat Model Filtering by Provider', () => {
   });
 
   test('should allow model selection', async ({ page }) => {
-    await openChatTab(page);
+    await switchTab(page, 'chat');
 
     // Wait for model select
     const modelSelect = page.locator('[data-testid="chat-model-select"]');

@@ -8,7 +8,8 @@ test.describe('Export Feature UI Tests', () => {
     // Navigate to the document workspace page
     // Using /workspace/latest which redirects to the most recent document
     // or /workspace/doc/1 for a specific document
-    await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-page="document-workspace"]', { timeout: 20000 });
   });
 
   test('ExportPanelIsland should be present in DOM', async ({ page }) => {
@@ -137,7 +138,8 @@ test.describe('Export Feature UI Tests', () => {
 
 test.describe('Export Feature Integration (with mock data)', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-page="document-workspace"]', { timeout: 20000 });
     await waitForIsland(page, 'export-panel-island', 10000);
   });
 

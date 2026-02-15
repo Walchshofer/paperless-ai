@@ -9,7 +9,7 @@ test.describe('Workspace Document Viewer Full Verification', () => {
     const url = `${BASE_URL}/workspace/doc/${docId}?tab=metadata`;
     
     console.log(`Navigating to ${url}`);
-    await page.goto(url, { waitUntil: 'networkidle' });
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
 
     // 1. Verify Document Viewer is visible and hydrated
     const viewerRoot = page.locator('[data-testid="overlay-viewer-root"]');

@@ -10,7 +10,7 @@ const BASE =
 async function openConnectionSettings(
   page: import('@playwright/test').Page
 ) {
-  await page.goto(`${BASE}/settings#connection`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/settings#connection`, { waitUntil: 'domcontentloaded' });
   await waitForIsland(page, 'connection-settings-island', 10000);
   await expect(page.locator('[data-testid="settings-section-connection"]'))
     .toBeVisible();

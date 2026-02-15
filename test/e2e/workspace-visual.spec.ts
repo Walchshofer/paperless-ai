@@ -17,14 +17,14 @@ const PASSWORD = 'P2tr3ck!1976';
  */
 async function login(page: Page): Promise<void> {
   // Navigate to login page
-  await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
   
   // Check if we're on setup page (might redirect there first)
   const currentUrl = page.url();
   if (currentUrl.includes('/setup')) {
     console.log('Redirected to setup page - attempting to access login directly');
     // Try navigating directly to login
-    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
   }
   
   // Wait for login form elements
@@ -50,7 +50,7 @@ test.describe('Workspace Route - Visual Browser Tests', () => {
   test.describe('Route Navigation', () => {
 
     test('GET /workspace redirects to document (authenticated)', async ({ page }) => {
-      const response = await page.goto(`${BASE}/workspace`, { waitUntil: 'networkidle' });
+      const response = await page.goto(`${BASE}/workspace`, { waitUntil: 'domcontentloaded' });
       
       expect(response?.status()).toBe(200);
       
@@ -66,7 +66,7 @@ test.describe('Workspace Route - Visual Browser Tests', () => {
     });
 
     test('GET /workspace/latest redirects to most recent document', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
       
       const finalUrl = page.url();
       
@@ -91,7 +91,7 @@ test.describe('Workspace Route - Visual Browser Tests', () => {
       const docId = getTestDocId();
       
       // Navigate directly to the document workspace
-      await page.goto(`${BASE}/workspace/doc/${docId}`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/doc/${docId}`, { waitUntil: 'domcontentloaded' });
       
       // Verify we're on the correct page
       expect(page.url()).toContain(`/workspace/doc/${docId}`);
@@ -107,10 +107,10 @@ test.describe('Workspace Route - Visual Browser Tests', () => {
   test.describe('Page Structure', () => {
 
     test('workspace has required page elements', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
       
       // Wait for page to load
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       
       // Check for data-page attribute (required by frontend standards)
       // Use .first() as attribute may exist on multiple elements (html, body)
@@ -136,7 +136,7 @@ test.describe('Workspace Route - Visual Browser Tests', () => {
     });
 
     test('workspace islands are mounted', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
       
       // Wait for island runtime to mount
       await page.waitForFunction(() => {
@@ -164,7 +164,7 @@ test.describe('Workspace Route - Visual Browser Tests', () => {
   test.describe('Document Context Bar', () => {
 
     test('document selector is interactive', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
       
       // Find document context bar island - required component
       const contextBar = page.locator('[data-island="document-context-bar-island"], [data-testid="document-context-bar"]');
@@ -189,7 +189,7 @@ test.describe('Workspace Route - Visual Browser Tests', () => {
   test.describe('Overlay Viewer', () => {
 
     test('overlay viewer loads document preview', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
       
       // Find overlay viewer - required component for document workspace
       const viewer = page.locator('[data-island="overlay-viewer-island"], [data-testid="overlay-viewer"]');
@@ -210,11 +210,11 @@ test.describe('Workspace Route - Visual Browser Tests', () => {
     });
 
     test('overlay viewer zoom controls work', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
       
       // Zoom controls are required for document navigation
-      const zoomIn = page.locator('[data-testid="zoom-in"], button:has-text("Zoom In"), button:has-text("+")');
-      const zoomOut = page.locator('[data-testid="zoom-out"], button:has-text("Zoom Out"), button:has-text("-")');
+      const zoomIn = page.locator('[data-testid="overlay-zoom-in"], button:has-text("Zoom In"), button:has-text("+")');
+      const zoomOut = page.locator('[data-testid="overlay-zoom-out"], button:has-text("Zoom Out"), button:has-text("-")');
       
       // Expect at least zoom in to be visible
       await expect(zoomIn.first()).toBeVisible({ timeout: 15000 });
@@ -241,7 +241,7 @@ test.describe('Workspace Route - Visual Browser Tests', () => {
   test.describe('Context Sidebar', () => {
 
     test('sidebar tabs are navigable', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
       
       // Find context sidebar - required component
       const sidebar = page.locator('[data-testid="context-sidebar"]');
@@ -276,7 +276,7 @@ test.describe('Workspace Route - Visual Browser Tests', () => {
   test.describe('Metadata Panel', () => {
 
     test('metadata fields are displayed', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
       
       // Find context sidebar island which contains the metadata panel
       const sidebar = page.locator('[data-island="context-sidebar-island"], [data-testid="context-sidebar"]');
@@ -296,10 +296,10 @@ test.describe('Workspace Route - Visual Browser Tests', () => {
     });
 
     test('metadata locate triggers overlay highlight', async ({ page }) => {
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
       
       // Wait for workspace to fully load
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       
       // Set up listener for highlight event
       const _highlightReceived = await page.evaluate(() => {
@@ -341,7 +341,7 @@ test.describe('Workspace Route - Visual Browser Tests', () => {
   test.describe('Error Handling', () => {
 
     test('invalid document ID shows error', async ({ page }) => {
-      const response = await page.goto(`${BASE}/workspace/doc/999999999`, { waitUntil: 'networkidle' });
+      const response = await page.goto(`${BASE}/workspace/doc/999999999`, { waitUntil: 'domcontentloaded' });
       
       // Should either show error page or redirect
       const status = response?.status();
@@ -361,7 +361,7 @@ test.describe('Workspace Route - Visual Browser Tests', () => {
     });
 
     test('non-numeric document ID shows error', async ({ page }) => {
-      const response = await page.goto(`${BASE}/workspace/doc/not-a-number`, { waitUntil: 'networkidle' });
+      const response = await page.goto(`${BASE}/workspace/doc/not-a-number`, { waitUntil: 'domcontentloaded' });
       
       const status = response?.status();
       console.log(`Non-numeric doc ID response status: ${status}`);
@@ -384,7 +384,7 @@ test.describe('Workspace Route - Visual Browser Tests', () => {
       const page = await context.newPage();
       
       try {
-        await page.goto(`${BASE}/workspace`, { waitUntil: 'networkidle' });
+        await page.goto(`${BASE}/workspace`, { waitUntil: 'domcontentloaded' });
         
         const finalUrl = page.url();
         
@@ -430,7 +430,7 @@ test.describe('Workspace Route - Visual Browser Tests', () => {
         }
       });
       
-      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
       
       // Wait for potential async errors
       await page.waitForTimeout(2000);

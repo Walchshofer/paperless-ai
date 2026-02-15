@@ -7,7 +7,7 @@ test('visually confirm 5 random documents rendering in viewer', async ({ page })
   test.slow();
 
   // 1. Navigate to a base doc to get the list
-  await page.goto(`${BASE_URL}/workspace/doc/74?tab=metadata`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE_URL}/workspace/doc/74?tab=metadata`, { waitUntil: 'domcontentloaded' });
   
   const viewer = page.locator('[data-testid="overlay-viewer-root"]');
   await expect(viewer).toBeVisible({ timeout: 15000 });

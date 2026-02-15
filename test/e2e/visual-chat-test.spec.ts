@@ -8,7 +8,7 @@ test.describe('Visual Chat UI Test in Workspace', () => {
   test('Select document, navigate to chat, and ask a question', async ({ page }) => {
     // Step 1: Login
     console.log('Step 1: Logging in...');
-    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
     await page.fill('input[name="username"], input[type="text"]', USERNAME);
     await page.fill('input[name="password"], input[type="password"]', PASSWORD);
     await page.click('button[type="submit"], input[type="submit"]');
@@ -17,7 +17,7 @@ test.describe('Visual Chat UI Test in Workspace', () => {
 
     // Step 2: Navigate to workspace
     console.log('Step 2: Navigating to workspace...');
-    await page.goto(`${BASE}/workspace`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/workspace`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2000);
     await page.screenshot({ path: 'test-results/chat-test-01-workspace.png', fullPage: true });
     console.log('Current URL:', page.url());
@@ -58,7 +58,7 @@ test.describe('Visual Chat UI Test in Workspace', () => {
       }
     } else {
       console.log('Document selector not found, trying direct navigation');
-      await page.goto(`${BASE}/workspace/doc/9`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/doc/9`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(2000);
       await page.screenshot({ path: 'test-results/chat-test-03-direct-nav.png', fullPage: true });
     }

@@ -8,7 +8,7 @@ test.describe('Workspace Document Viewer Verification', () => {
   test.beforeEach(async ({ page }) => {
     // Login
     console.log('🔐 Logging in...');
-    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
     await page.fill('input[name="username"], input[type="text"]', USERNAME);
     await page.fill('input[name="password"], input[type="password"]', PASSWORD);
     await page.click('button[type="submit"], input[type="submit"]');
@@ -23,7 +23,7 @@ test.describe('Workspace Document Viewer Verification', () => {
 
     // Step 1: Navigate to workspace and select a document
     console.log('\n📂 Step 1: Navigate to workspace...');
-    await page.goto(`${BASE}/workspace`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/workspace`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2000);
 
     // Step 2: Select a random document
@@ -52,7 +52,7 @@ test.describe('Workspace Document Viewer Verification', () => {
       }
     } else {
       // Fallback: direct navigation
-      await page.goto(`${BASE}/workspace/doc/9`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/doc/9`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(3000);
     }
 

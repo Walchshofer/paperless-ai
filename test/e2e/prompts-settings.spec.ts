@@ -16,7 +16,7 @@ test.beforeEach(async ({ page }) => {
 
 /** Navigate to prompts settings and click the sidebar item */
 async function goToPrompts(page: import('@playwright/test').Page) {
-  await page.goto(`${BASE}/settings#prompts`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/settings#prompts`, { waitUntil: 'domcontentloaded' });
 
   // Wait for sidebar island to mount then click the stable category button.
   await waitForIsland(page, 'settings-sidebar-island', 10000);

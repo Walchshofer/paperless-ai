@@ -4,6 +4,7 @@
  */
 import { test, expect } from '@playwright/test';
 const { waitForIsland } = require('../helpers/island-waits');
+const { switchTab } = require('../helpers/workspace-fixtures');
 const fixtures = require('../helpers/fixtures');
 
 const BASE =
@@ -14,11 +15,10 @@ const BASE =
 async function openChatWorkspace(page: import('@playwright/test').Page) {
   const docId = fixtures.getTestDocId();
   await page.goto(`${BASE}/workspace/doc/${docId}?tab=chat`, {
-    waitUntil: 'networkidle'
+    waitUntil: 'domcontentloaded'
   });
   await waitForIsland(page, 'context-sidebar-island', 15000);
-  await page.click('[data-testid="tab-chat"]', { force: true });
-  await expect(page.locator('[data-testid="tab-panel-chat"]')).toBeVisible();
+  await switchTab(page, 'chat');
   await expect(page.locator('[data-testid="chat-workspace-root"]')).toBeVisible();
 }
 
@@ -26,7 +26,7 @@ async function openChatWithoutDocument(page: import('@playwright/test').Page) {
   await page.addInitScript(() => {
     localStorage.setItem('paperless:context-sidebar.activeTab', 'chat');
   });
-  await page.goto(`${BASE}/workspace`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/workspace`, { waitUntil: 'domcontentloaded' });
   await waitForIsland(page, 'context-sidebar-island', 15000);
   await expect(page.locator('[data-testid="tab-panel-chat"]')).toBeVisible();
   await expect(page.locator('[data-testid="chat-workspace-root"]')).toBeVisible();

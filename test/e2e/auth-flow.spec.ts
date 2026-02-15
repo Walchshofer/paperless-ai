@@ -25,7 +25,7 @@ function resolveJwtSecret() {
 }
 
 async function login(page) {
-  await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
   await page.fill('#username', USERNAME);
   await page.fill('#password', PASSWORD);
   await page.click('[data-testid="login-submit-btn"]');
@@ -55,7 +55,7 @@ test.describe('Authentication flow', () => {
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
     await page.fill('#username', USERNAME);
     await page.fill('#password', 'invalid-password');
     await page.click('[data-testid="login-submit-btn"]');
@@ -70,11 +70,11 @@ test.describe('Authentication flow', () => {
     const page = await context.newPage();
 
     await login(page);
-    await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
     const workspaceMarker = page.locator('body[data-page="document-workspace"]');
     await expect(workspaceMarker).toBeVisible();
 
-    await page.reload({ waitUntil: 'networkidle' });
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(workspaceMarker).toBeVisible();
 
     await context.close();
@@ -84,7 +84,7 @@ test.describe('Authentication flow', () => {
     const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const page = await context.newPage();
 
-    const response = await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+    const response = await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
     const bodyText = (await page.textContent('body')) || '';
     if ((response && [401, 403].includes(response.status())) ||
         /Authentication required|Invalid token/.test(bodyText)) {
@@ -131,7 +131,7 @@ test.describe('Authentication flow', () => {
     const page = await context.newPage();
 
     await login(page);
-    await page.goto(`${BASE}/logout`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/logout`, { waitUntil: 'domcontentloaded' });
     await page.waitForURL((url) => url.pathname.includes('/login'), { timeout: 10000 });
 
     const cookies = await context.cookies();

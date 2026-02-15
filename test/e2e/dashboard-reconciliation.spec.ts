@@ -53,7 +53,7 @@ test.describe('Dashboard Reconciliation', () => {
         });
       });
 
-      await page.goto('/dashboard', { waitUntil: 'networkidle' });
+      await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
 
       const initialData = await page.evaluate(() => window.dashboardData || null);
       if (!initialData) {

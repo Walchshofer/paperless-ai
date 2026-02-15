@@ -30,7 +30,7 @@ test.describe('Settings routes - full visual verification', () => {
       }
     });
 
-    const response = await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
+    const response = await page.goto(`${BASE}/settings`, { waitUntil: 'domcontentloaded' });
     expect(response?.status()).toBe(200);
 
     // Wait for sidebar
@@ -96,7 +96,7 @@ test.describe('Settings routes - full visual verification', () => {
     });
 
     // 1. Navigate to settings page
-    const response = await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
+    const response = await page.goto(`${BASE}/settings`, { waitUntil: 'domcontentloaded' });
     expect(response?.status()).toBe(200);
 
     // 2. Wait for sidebar island to mount

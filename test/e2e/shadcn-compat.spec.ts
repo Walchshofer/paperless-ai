@@ -14,7 +14,7 @@ test.describe('shadcn/ui compatibility smoke', () => {
       if (msg.type() === 'error') consoleErrors.push(msg.text());
     });
 
-    await page.goto(`${BASE}/islands/shadcn-compat`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/islands/shadcn-compat`, { waitUntil: 'domcontentloaded' });
 
     // Wait for island to mount (runtime sets data-mounted on host)
     await waitForIsland(page, 'shadcn-compat', 10000);

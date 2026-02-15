@@ -1256,12 +1256,13 @@ export default function VisualTabIsland(props: VisualTabProps) {
           <h3 className="text-sm font-semibold mb-3 text-[#2c2c2c] font-['Space_Grotesk']">
             Missing Field Overlays ({missingFields.length})
           </h3>
-          <div className="space-y-2">
+          <div className="space-y-2" role="list">
             {missingFields.map((field: VisualField) => (
               <div
                 key={field.id}
                 className="p-3 bg-[#fdfaf6] border border-[#e5e0d8] rounded-lg flex justify-between items-center"
                 data-testid={`missing-field-${field.id}`}
+                role="listitem"
               >
                 <div>
                   <div className="text-sm font-medium text-[#2c2c2c]">{field.label}</div>
@@ -1349,12 +1350,13 @@ export default function VisualTabIsland(props: VisualTabProps) {
           <h3 className="text-sm font-semibold mb-3 text-[#2c2c2c] font-['Space_Grotesk']">
             Document Overlays ({overlays.length})
           </h3>
-          <div className="space-y-2">
+          <div className="space-y-2" role="list">
             {overlays.map((overlay: VisualOverlay) => (
               <div
                 key={overlay.id}
                 className="p-3 bg-white border border-[#e5e0d8] rounded-lg"
                 data-testid={`overlay-${overlay.id}`}
+                role="listitem"
                 onClick={(event: MouseEvent) => {
                   const target = event.target as HTMLElement;
                   if (target.closest('button')) return;

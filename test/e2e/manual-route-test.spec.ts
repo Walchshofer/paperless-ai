@@ -8,7 +8,7 @@ test.describe('Manual Route Testing', () => {
 
   test.beforeEach(async ({ page }) => {
     // Login first
-    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
 
     // Fill login form
     await page.fill('input[name="username"], input[type="text"]', USERNAME);
@@ -22,7 +22,7 @@ test.describe('Manual Route Testing', () => {
   });
 
   test('Dashboard loads correctly', async ({ page }) => {
-    await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
 
     // Check page loaded
     await expect(page).toHaveTitle(/Dashboard|Paperless/i);
@@ -34,7 +34,7 @@ test.describe('Manual Route Testing', () => {
   });
 
   test('Workspace link navigates correctly', async ({ page }) => {
-    await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
 
     // Find workspace link in sidebar
     const workspaceLink = page.locator('a:has-text("Workspace")').first();
@@ -44,7 +44,7 @@ test.describe('Manual Route Testing', () => {
       console.log('Workspace link href:', href);
 
       await workspaceLink.click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       console.log('After click URL:', page.url());
       await page.screenshot({ path: 'test-results/workspace-nav.png', fullPage: true });
@@ -54,7 +54,7 @@ test.describe('Manual Route Testing', () => {
   });
 
   test('Workspace/latest route works', async ({ page }) => {
-    const response = await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+    const response = await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
 
     console.log('Response status:', response?.status());
     console.log('Final URL:', page.url());
@@ -75,7 +75,7 @@ test.describe('Manual Route Testing', () => {
   });
 
   test('History page loads', async ({ page }) => {
-    await page.goto(`${BASE}/history`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/history`, { waitUntil: 'domcontentloaded' });
 
     console.log('History URL:', page.url());
     await page.screenshot({ path: 'test-results/history.png', fullPage: true });
@@ -88,14 +88,14 @@ test.describe('Manual Route Testing', () => {
   });
 
   test('Settings page loads', async ({ page }) => {
-    await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/settings`, { waitUntil: 'domcontentloaded' });
 
     console.log('Settings URL:', page.url());
     await page.screenshot({ path: 'test-results/settings.png', fullPage: true });
   });
 
   test('Check all sidebar links', async ({ page }) => {
-    await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
 
     // Get all sidebar links
     const sidebarLinks = page.locator('nav a, aside a, .sidebar a');

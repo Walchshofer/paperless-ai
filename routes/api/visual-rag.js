@@ -496,6 +496,85 @@ router.post('/feedback', authenticateApi, async (req, res) => {
 
         const result = await feedbackService.recordGranularFeedback(documentId, events, { requestId });
 
+        // Propagate corrections to Paperless-ngx document metadata.
+        // When a user submits a corrected value for a field that maps to a
+        // Paperless metadata property (title, correspondent, created_date),
+        // update the document so the correction is immediately visible.
+        const correctionsApplied = [];
+        for (const evt of events) {
+            const eventType = evt.event_type || evt.type || null;
+            const correctedValue = evt.corrected_value ?? evt.corrected ?? null;
+            const fieldName = evt.field_name ?? evt.field ?? null;
+
+            if (eventType !== 'correction' || !correctedValue || !fieldName) continue;
+
+            // Map field_name patterns to Paperless API update fields
+            const normalizedField = String(fieldName).toLowerCase().replace(/\s+/g, '');
+            const updates = {};
+
+            if (normalizedField === 'metadata:title' || normalizedField === 'title') {
+                updates.title = String(correctedValue);
+            } else if (normalizedField === 'metadata:correspondent' || normalizedField === 'correspondent') {
+                // Correspondent is set by name; paperlessService will resolve or create
+                updates.correspondent_name = String(correctedValue);
+            } else if (
+                normalizedField === 'metadata:document_date' ||
+                normalizedField === 'metadata:date' ||
+                normalizedField === 'created_date' ||
+                normalizedField === 'document_date'
+            ) {
+                updates.created_date = String(correctedValue);
+            }
+            // Custom fields (custom_field:*) could be handled here in the future
+
+            if (Object.keys(updates).length > 0) {
+                try {
+                    // For correspondent_name, resolve to ID first
+                    if (updates.correspondent_name) {
+                        const correspondentName = updates.correspondent_name;
+                        delete updates.correspondent_name;
+                        try {
+                            const corrObj = await paperlessService.getOrCreateCorrespondent(correspondentName);
+                            if (corrObj && corrObj.id) {
+                                updates.correspondent = corrObj.id;
+                            }
+                        } catch (corrErr) {
+                            logger.warn('[Visual-RAG API] Could not resolve correspondent for correction', {
+                                request_id: requestId,
+                                correspondent: correspondentName,
+                                error: corrErr.message
+                            });
+                        }
+                    }
+
+                    if (Object.keys(updates).length > 0) {
+                        await paperlessService.updateDocument(documentId, updates, {
+                            triggerFilenameReprocess: false,
+                            requestId: `correction-${requestId}`
+                        });
+                        correctionsApplied.push({ field: fieldName, status: 'applied' });
+                        logger.info('[Visual-RAG API] Correction applied to Paperless document', {
+                            request_id: requestId,
+                            documentId,
+                            field: fieldName
+                        });
+                    }
+                } catch (updateErr) {
+                    correctionsApplied.push({ field: fieldName, status: 'failed', error: updateErr.message });
+                    logger.warn('[Visual-RAG API] Failed to apply correction to Paperless document', {
+                        request_id: requestId,
+                        documentId,
+                        field: fieldName,
+                        error: updateErr.message
+                    });
+                }
+            }
+        }
+
+        if (correctionsApplied.length > 0) {
+            result.correctionsApplied = correctionsApplied;
+        }
+
         // If any overlay upserts were deferred due to sidecar initializing, return 202
         if (result && Array.isArray(result.errors) && result.errors.some(e => e.type === 'deferred_ingest')) {
             logger.warn('[Visual-RAG API] Feedback deferred due to sidecar initializing', { request_id: requestId, hardware_target: 'RTX 3090 Ti' });

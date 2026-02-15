@@ -8,7 +8,7 @@ test.describe('Workspace Full Functionality Test', () => {
   test.beforeEach(async ({ page }) => {
     // Login
     console.log('🔐 Step 1: Logging in...');
-    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
     await page.fill('input[name="username"], input[type="text"]', USERNAME);
     await page.fill('input[name="password"], input[type="password"]', PASSWORD);
     await page.click('button[type="submit"], input[type="submit"]');
@@ -19,7 +19,7 @@ test.describe('Workspace Full Functionality Test', () => {
   test('Complete workspace functionality test', async ({ page }) => {
     // ========== STEP 1: Navigate to Workspace ==========
     console.log('\n📂 Step 2: Navigating to workspace...');
-    await page.goto(`${BASE}/workspace`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/workspace`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2000);
     await page.screenshot({ path: 'test-results/ws-01-workspace-initial.png', fullPage: true });
     console.log('Current URL:', page.url());
@@ -63,7 +63,7 @@ test.describe('Workspace Full Functionality Test', () => {
     } else {
       // Fallback: go directly to document 9
       console.log('Document selector not found, navigating directly to doc 9');
-      await page.goto(`${BASE}/workspace/doc/9`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/workspace/doc/9`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(2000);
     }
 

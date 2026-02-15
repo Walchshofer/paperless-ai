@@ -250,12 +250,12 @@ async function ensureStorageState() {
 
   try {
     // Go directly to login page (consistent with working workspace-visual.spec.ts approach)
-    await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle', timeout: 15000 });
+    await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 15000 });
 
     // Check if redirected to setup page
     if (page.url().includes('/setup')) {
       console.log('[e2e] Redirected to setup page - navigating back to login');
-      await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
     }
 
     // Wait for login form elements

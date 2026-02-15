@@ -5,7 +5,7 @@ const BASE = process.env.PLAYWRIGHT_BASE_URL || process.env.PAPERLESS_BASE_URL |
 
 test('navigation is blocked when workspace is dirty (confirm modal)', async ({ page }) => {
   const docId = fixtures.getHistoryDocId();
-  await page.goto(`${BASE}/document/${docId}`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/document/${docId}`, { waitUntil: 'domcontentloaded' });
 
   // Ensure island mounted
   const { waitForIsland } = require('../helpers/island-waits');

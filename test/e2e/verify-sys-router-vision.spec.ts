@@ -58,19 +58,21 @@ test.describe('SYS_ROUTER_V1 Multimodal Verification', () => {
     console.log(`Selected document: ${docTitle}`);
     await picker.click();
 
-    // Verify image preview appears
-    console.log('Verifying image preview...');
-    const imagePreview = modal.locator('img[alt="Document Preview (300 DPI)"]');
-    await expect(imagePreview).toBeVisible({ timeout: 30000 });
-    
-    // Check if the image source is valid (base64)
-    const src = await imagePreview.getAttribute('src');
-    expect(src).toContain('data:image/png;base64,');
-    console.log('Image preview confirmed (base64 PNG).');
+    // Verify document data preview appears after selecting a document.
+    // PromptsSettingsIsland stores the fetched image in testImage state (used as
+    // __image_data in the test payload) but does not render an <img> element.
+    // The "Extraction Subject Preview" section is rendered when selectedDocumentData
+    // is set, which confirms the document was loaded and the image was fetched.
+    console.log('Verifying document data preview...');
+    const extractionPreview = modal.locator('h4:has-text("Extraction Subject Preview")');
+    await expect(extractionPreview).toBeVisible({ timeout: 30000 });
+    console.log('Document data preview confirmed (Extraction Subject Preview visible).');
 
-    // Switch to Execute mode
+    // Switch to Execute mode (button text is "Execute Neural Simulation", use testid)
     console.log('Switching to Execute mode...');
-    await modal.getByRole('button', { name: 'Execute', exact: true }).click();
+    const execModeBtn = modal.locator('[data-testid="test-mode-execute"]');
+    await execModeBtn.scrollIntoViewIfNeeded();
+    await execModeBtn.click();
 
     // Run test
     console.log('Running neural simulation (Ollama Vision)...');

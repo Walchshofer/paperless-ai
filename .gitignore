@@ -150,6 +150,10 @@ chromadb/
 # ============================================================================
 # Project-Specific: Temporary Files
 # ============================================================================
+tmp/
+test-output/
+test-sidebar-tabs.js
+test/.auth/
 tmpclaude-*
 tmp-*
 *.tmp

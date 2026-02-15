@@ -15,7 +15,7 @@ test.describe('SmartMetadata Field Mapping E2E', () => {
   test('domain badge and mapping affordances render', async ({ page }) => {
     const docId = fixtures.getTestDocId();
     await page.goto(`${BASE}/workspace/doc/${docId}?tab=metadata`, {
-      waitUntil: 'networkidle'
+      waitUntil: 'domcontentloaded'
     });
     await waitForIsland(page, 'context-sidebar-island', 10000);
     await expect(page.locator('[data-testid="smart-metadata-root"]'))
@@ -42,7 +42,7 @@ test.describe('SmartMetadata Field Mapping E2E', () => {
   test('locate buttons dispatch metadata:locate-field', async ({ page }, testInfo) => {
     const docId = fixtures.getTestDocId();
     await page.goto(`${BASE}/workspace/doc/${docId}?tab=metadata`, {
-      waitUntil: 'networkidle'
+      waitUntil: 'domcontentloaded'
     });
     await waitForIsland(page, 'context-sidebar-island', 10000);
     await expect(page.locator('[data-testid="smart-metadata-root"]'))
@@ -78,7 +78,7 @@ test.describe('SmartMetadata Field Mapping E2E', () => {
   test('validation banner appears when required field cleared', async ({ page }, testInfo) => {
     const docId = fixtures.getTestDocId();
     await page.goto(`${BASE}/workspace/doc/${docId}?tab=metadata`, {
-      waitUntil: 'networkidle'
+      waitUntil: 'domcontentloaded'
     });
     await waitForIsland(page, 'context-sidebar-island', 10000);
     await expect(page.locator('[data-testid="smart-metadata-root"]'))

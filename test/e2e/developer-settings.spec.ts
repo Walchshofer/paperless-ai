@@ -19,7 +19,7 @@ const FLAG_ENV_KEYS = new Set([
 ]);
 
 async function openDeveloperSettings(page: Page) {
-  await page.goto(`${BASE}/settings#developer`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/settings#developer`, { waitUntil: 'domcontentloaded' });
   await waitForIsland(page, 'developer-settings-island', 10000);
   await expect(page.locator('[data-testid="developer-settings-root"]'))
     .toBeVisible();

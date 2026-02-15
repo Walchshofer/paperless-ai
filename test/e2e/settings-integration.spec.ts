@@ -7,7 +7,7 @@ const BASE =
   || 'http://localhost:3000';
 
 async function openSettings(page: import('@playwright/test').Page, hash = 'overview') {
-  await page.goto(`${BASE}/settings#${hash}`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/settings#${hash}`, { waitUntil: 'domcontentloaded' });
   await waitForIsland(page, 'settings-sidebar-island', 10000);
   await waitForIsland(page, 'restart-banner-island', 10000);
 }

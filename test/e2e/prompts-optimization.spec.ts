@@ -32,7 +32,7 @@ test.describe('Prompt Optimization & Real Document Validation', () => {
     const domains = ['System', 'Medical', 'Financial', 'Legal', 'General'];
     
     // ── DISCOVERY PHASE ──
-    await page.goto('http://localhost:3000/settings#prompts', { waitUntil: 'networkidle' });
+    await page.goto('http://localhost:3000/settings#prompts', { waitUntil: 'domcontentloaded' });
     const devToggle = page.locator('[data-testid="developer-toggle"]');
     await expect(devToggle).toBeVisible({ timeout: 15000 });
     if (await devToggle.getAttribute('aria-checked') === 'false') {
@@ -81,7 +81,7 @@ test.describe('Prompt Optimization & Real Document Validation', () => {
         
         try {
             // REFRESH PAGE PER PROMPT FOR MAXIMUM STABILITY
-            await page.goto('http://localhost:3000/settings#prompts', { waitUntil: 'networkidle' });
+            await page.goto('http://localhost:3000/settings#prompts', { waitUntil: 'domcontentloaded' });
             
             const devToggleLoop = page.locator('[data-testid="developer-toggle"]');
             if (await devToggleLoop.getAttribute('aria-checked') === 'false') {

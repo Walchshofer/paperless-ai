@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 const { waitForIsland } = require('../helpers/island-waits');
+const { switchTab } = require('../helpers/workspace-fixtures');
 const fixtures = require('../helpers/fixtures');
 
 const BASE =
@@ -9,7 +10,7 @@ const BASE =
 
 async function openWorkspace(page: import('@playwright/test').Page) {
   const docId = fixtures.getTestDocId();
-  await page.goto(`${BASE}/workspace/doc/${docId}`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/workspace/doc/${docId}`, { waitUntil: 'domcontentloaded' });
   await waitForIsland(page, 'context-sidebar-island', 10000);
   await expect(page.locator('[data-testid="context-sidebar-root"]')).toBeVisible();
 }
@@ -83,13 +84,13 @@ test.describe('Sidebar Tab Restructuring', () => {
     await expect(metadataHeader).toContainText('Intelligent Extraction');
     await expect(metadataHeader).toContainText('metadata synchronization');
 
-    await page.click('[data-testid="tab-content"]');
+    await switchTab(page, 'content');
     const contentHeader = page.locator('[data-testid="panel-header-content"]');
     await expect(contentHeader).toBeVisible();
     await expect(contentHeader).toContainText('OCR Transcript');
     await expect(contentHeader).toContainText('Immutable Tesseract');
 
-    await page.click('[data-testid="tab-visual"]');
+    await switchTab(page, 'visual');
     const visualHeader = page.locator('[data-testid="panel-header-visual"]');
     await expect(visualHeader).toBeVisible();
     await expect(visualHeader).toContainText('Spatial Labeling');

@@ -15,7 +15,7 @@ test.describe('Prompt Test Lab Comprehensive Audit', () => {
     await page.waitForURL('**/dashboard', { timeout: 30000 });
 
     // Navigate directly to Prompts category
-    await page.goto('http://localhost:3000/settings#prompts', { waitUntil: 'networkidle' });
+    await page.goto('http://localhost:3000/settings#prompts', { waitUntil: 'domcontentloaded' });
     
     // Enable High-Privilege Mode (Developer Mode) via sidebar
     const devToggle = page.locator('[data-testid="developer-toggle"]');

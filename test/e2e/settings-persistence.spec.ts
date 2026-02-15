@@ -13,7 +13,7 @@ const PASSWORD =
 const LOGIN_URL_PATTERN = /\/login(?:[/?#]|$)/;
 
 async function login(page: Page) {
-  await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
   await page.fill('#username', USERNAME);
   await page.fill('#password', PASSWORD);
   await page.click('[data-testid="login-submit-btn"]');
@@ -28,7 +28,7 @@ test.describe('Settings Persistence', () => {
   });
 
   test('Settings page loads all sections', async ({ page }) => {
-    await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/settings`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2000);
 
     await page.screenshot({
@@ -59,28 +59,28 @@ test.describe('Settings Persistence', () => {
   });
 
   test('Session persists across page navigation', async ({ page }) => {
-    await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/dashboard(?:[/?#]|$)/);
     await expect(page).not.toHaveURL(LOGIN_URL_PATTERN);
 
-    await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/settings`, { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/settings(?:[/?#]|$)/);
     await expect(page).not.toHaveURL(LOGIN_URL_PATTERN);
     await expect(page.locator('[data-testid="settings-sidebar-island"]'))
       .toHaveCount(1);
 
-    await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/workspace/latest`, { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/workspace\//);
     await expect(page).not.toHaveURL(LOGIN_URL_PATTERN);
     await expect(page.locator('body[data-page="document-workspace"]'))
       .toBeVisible();
 
-    await page.goto(`${BASE}/history`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/history`, { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/history(?:[/?#]|$)/);
     await expect(page).not.toHaveURL(LOGIN_URL_PATTERN);
     await expect(page.locator('body[data-page="history"]')).toBeVisible();
 
-    await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/dashboard(?:[/?#]|$)/);
     await expect(page).not.toHaveURL(LOGIN_URL_PATTERN);
 
@@ -88,9 +88,9 @@ test.describe('Settings Persistence', () => {
   });
 
   test('Logout works correctly', async ({ page }) => {
-    await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
 
-    await page.goto(`${BASE}/logout`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/logout`, { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(LOGIN_URL_PATTERN, { timeout: 15_000 });
 
     const cookies = await page.context().cookies();

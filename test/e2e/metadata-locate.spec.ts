@@ -33,11 +33,30 @@ test.describe('Metadata locate -> Overlay highlight', () => {
       });
     });
     await page.goto(`${BASE}/workspace/doc/${docId}?tab=metadata`, {
-      waitUntil: 'networkidle'
+      waitUntil: 'domcontentloaded'
     });
 
     await waitForIslandMount(page, 'overlay-viewer-island', 10000);
     await waitForIslandMount(page, 'context-sidebar-island', 10000);
+    // UnifiedWorkspaceIsland hosts the metadata:locate-field → overlay:highlight-region
+    // event relay. It is class="hidden" (no visible rendering), so wait for
+    // the element to exist in the DOM rather than be visible.
+    await page.waitForSelector('[data-island="unified-workspace-island"]', {
+      state: 'attached',
+      timeout: 10000
+    });
+
+    // Wait for image to load so scroll-delta assertions work (applyRegionScroll
+    // returns early when imageDimensions.width === 0).
+    await page.waitForFunction(
+      () => {
+        const img = document.querySelector(
+          '[data-testid="overlay-document-image"]'
+        ) as HTMLImageElement | null;
+        return img != null && img.naturalWidth > 0;
+      },
+      { timeout: 15000 }
+    );
 
     const beforeScroll = await page.evaluate(() => {
       const container = document.querySelector(

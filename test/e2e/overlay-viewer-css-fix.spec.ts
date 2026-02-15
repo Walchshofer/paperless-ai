@@ -8,7 +8,7 @@ test('verify Document Viewer container is not empty and CSS modules are mapped',
   const url = `${BASE_URL}/workspace/doc/${docId}?tab=metadata`;
   
   console.log(`Navigating to ${url}`);
-  await page.goto(url, { waitUntil: 'networkidle' });
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
 
   const viewer = page.locator('[data-testid=\"overlay-viewer-root\"]');
   await expect(viewer).toBeVisible({ timeout: 15000 });

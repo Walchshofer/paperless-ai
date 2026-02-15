@@ -357,6 +357,12 @@ class ImagePreparator {
             } else if (source.startsWith('data:image')) {
                 imageBuffer = this._loadFromBase64(source);
                 metadata.source = 'base64';
+            } else if (source.length > 512 && /^[A-Za-z0-9+/= \n\r]+$/.test(source)) {
+                // Heuristic: treat long strings that look like base64 as raw base64
+                // even without the data:image prefix (common after normalization)
+                const cleanSource = source.replace(/[\s\r\n]+/g, '');
+                imageBuffer = Buffer.from(cleanSource, 'base64');
+                metadata.source = 'base64_raw';
             } else {
                 imageBuffer = await this._loadFromFile(source);
                 metadata.source = 'file';
@@ -485,6 +491,12 @@ class ImagePreparator {
             } else if (source.startsWith('data:image')) {
                 imageBuffer = this._loadFromBase64(source);
                 metadata.source = 'base64';
+            } else if (source.length > 512 && /^[A-Za-z0-9+/= \n\r]+$/.test(source)) {
+                // Heuristic: treat long strings that look like base64 as raw base64
+                // even without the data:image prefix (common after normalization)
+                const cleanSource = source.replace(/[\s\r\n]+/g, '');
+                imageBuffer = Buffer.from(cleanSource, 'base64');
+                metadata.source = 'base64_raw';
             } else {
                 imageBuffer = await this._loadFromFile(source);
                 metadata.source = 'file';

@@ -24,7 +24,7 @@ test.describe('Settings Prompts & AI Provider Audit', () => {
     await page.waitForURL('**/dashboard', { timeout: 30000 });
 
     // Go to settings
-    await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/settings`, { waitUntil: 'domcontentloaded' });
     
     // Enable developer mode
     console.log('Enabling developer mode...');

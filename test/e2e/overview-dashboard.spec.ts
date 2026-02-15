@@ -17,7 +17,7 @@ test.describe('OverviewDashboardIsland smoke test', () => {
     });
 
     // Navigate to settings overview page
-    await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/settings`, { waitUntil: 'domcontentloaded' });
 
     // Wait for island to mount (runtime sets data-mounted on host)
     await page.waitForSelector('[data-island="overview-dashboard-island"][data-mounted="true"]', { timeout: 10000 });

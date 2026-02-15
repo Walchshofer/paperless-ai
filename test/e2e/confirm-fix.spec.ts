@@ -8,7 +8,7 @@ test('confirm SmartMetadataIsland error is resolved', async ({ page }) => {
   const url = `${BASE_URL}/workspace/doc/${docId}?tab=metadata`;
   
   console.log(`Navigating to ${url}`);
-  await page.goto(url, { waitUntil: 'networkidle' });
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
 
   // Check for the specific error message text
   const errorText = 'Interactive Components Failed to Load';

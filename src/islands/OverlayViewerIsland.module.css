@@ -28,6 +28,9 @@
   height: 100%;
   display: block; /* Required for scrollbars to work with absolute/expanding children */
   background-color: #f5f0e8;
+  /* Prevent layout thrashing during sidebar drag resize */
+  contain: layout style;
+  will-change: width, height;
   /* Scrollbar styling for better UX */
   scrollbar-width: thin;
   scrollbar-color: #b87333 #f3f4f6;
@@ -56,6 +59,12 @@
   background-color: white;
   box-shadow: 0 4px 20px rgba(0,0,0,0.1);
   margin: 0 auto; /* Center the document horizontally when zoomed out */
+}
+
+/* Smooth dimension transitions applied only during active resize events,
+   not during manual zoom or pan, to avoid interference with user controls */
+.viewport[data-resizing] {
+  transition: width 0.1s ease-out, height 0.1s ease-out;
 }
 
 .rotationLayer {

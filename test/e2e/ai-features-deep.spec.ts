@@ -7,7 +7,8 @@ const PASSWORD = 'P2tr3ck!1976';
 test.describe('AI Features Deep Test', () => {
   test.beforeEach(async ({ page }) => {
     // Login
-    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('input[name="username"], input[type="text"]', { timeout: 10000 });
     await page.fill('input[name="username"], input[type="text"]', USERNAME);
     await page.fill('input[name="password"], input[type="password"]', PASSWORD);
     await page.click('button[type="submit"], input[type="submit"]');
@@ -19,8 +20,8 @@ test.describe('AI Features Deep Test', () => {
     console.log('='.repeat(50));
     
     // Navigate to a document
-    await page.goto(`${BASE}/workspace/doc/67`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(3000);
+    await page.goto(`${BASE}/workspace/doc/67`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-page="document-workspace"]', { timeout: 20000 });
     
     // Click on Chat tab
     console.log('\n💬 Testing Chat interface...');
@@ -244,8 +245,8 @@ test.describe('AI Features Deep Test', () => {
     console.log('\n📜 HISTORY PAGE TEST');
     console.log('='.repeat(50));
     
-    await page.goto(`${BASE}/history`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(2000);
+    await page.goto(`${BASE}/history`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-page="history"]', { timeout: 20000 });
     
     await page.screenshot({ path: 'test-results/history-01-initial.png', fullPage: true });
     

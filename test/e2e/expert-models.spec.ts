@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function gotoAiProvider(page: import('@playwright/test').Page) {
-  await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'domcontentloaded' });
   await waitForIsland(page, 'ai-provider-island', 10000);
   await expect(page.locator('[data-testid="ai-provider-root"]')).toBeVisible();
 }

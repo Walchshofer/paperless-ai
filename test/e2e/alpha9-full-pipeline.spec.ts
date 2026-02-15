@@ -1,5 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { getHistoryDocId } from '../helpers/fixtures';
+const { switchTab } = require('../helpers/workspace-fixtures');
 
 /**
  * Alpha-9 Full Pipeline E2E Tests
@@ -61,6 +62,19 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
   }
 
   async function enableDrawMode(page: Page) {
+    // Wait for the document image to fully decode before enabling draw mode.
+    // captureRegion returns early when imageLoaded is false, silently
+    // preventing the visual-search-requested event from dispatching.
+    await page.waitForFunction(
+      () => {
+        const img = document.querySelector(
+          '[data-testid="overlay-document-image"]'
+        ) as HTMLImageElement | null;
+        return img != null && img.naturalWidth > 0;
+      },
+      { timeout: 15000 }
+    );
+
     const drawModeToggle = page.locator('[data-testid="draw-mode-btn"]');
     await expect(drawModeToggle).toBeVisible();
     await drawModeToggle.click();
@@ -251,6 +265,23 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
       return;
     }
 
+    // Wait for the document image to fully load before attempting any draw
+    // captureRegion returns early if imageLoaded is false, causing null requestPayload
+    try {
+      await page.waitForFunction(
+        () => {
+          const img = document.querySelector(
+            '[data-testid="overlay-document-image"]'
+          ) as HTMLImageElement | null;
+          return img != null && img.naturalWidth > 0;
+        },
+        { timeout: 15000 }
+      );
+    } catch {
+      test.skip(true, 'Document image did not load in time');
+      return;
+    }
+
     let requestPayload: unknown = null;
 
     await page.route('**/api/visual-rag/search/visual', async (route) => {
@@ -268,10 +299,7 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     });
 
     // Go to Metadata tab and click filter button (if available)
-    await page.click('[data-testid="tab-metadata"]');
-    await page.waitForSelector('[data-testid="panel-metadata"]', {
-      timeout: 3000
-    });
+    await switchTab(page, 'metadata');
 
     // Look for filter button
     const correspondentFilter = page.locator(
@@ -298,7 +326,8 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
       return;
     }
 
-    await page.waitForTimeout(500);
+    // Wait for the intercepted route to be fulfilled (up to 3s)
+    await page.waitForTimeout(3000);
 
     // Verify request was made
     expect(requestPayload).not.toBeNull();

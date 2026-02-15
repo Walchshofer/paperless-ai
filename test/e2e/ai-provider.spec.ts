@@ -20,7 +20,7 @@ test.describe('AIProviderIsland smoke test', () => {
       }
     });
 
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'domcontentloaded' });
 
     // Wait for island to mount
     await waitForIsland(page, 'ai-provider-island', 10000);
@@ -43,7 +43,7 @@ test.describe('AIProviderIsland smoke test', () => {
   });
 
   test('tab navigation switches content correctly', async ({ page }) => {
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'domcontentloaded' });
     await waitForIsland(page, 'ai-provider-island', 10000);
 
     // Default tab should be General
@@ -67,7 +67,7 @@ test.describe('AIProviderIsland smoke test', () => {
   });
 
   test('general tab: provider selection works', async ({ page }) => {
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'domcontentloaded' });
     await waitForIsland(page, 'ai-provider-island', 10000);
 
     const providerSelect = page.locator('[data-testid="provider-select"]');
@@ -84,7 +84,7 @@ test.describe('AIProviderIsland smoke test', () => {
   });
 
   test('openai tab: connection note is visible', async ({ page }) => {
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'domcontentloaded' });
     await waitForIsland(page, 'ai-provider-island', 10000);
 
     await page.click('[data-testid="tab-openai"]');
@@ -95,7 +95,7 @@ test.describe('AIProviderIsland smoke test', () => {
   });
 
   test('ollama tab: model identifier fields work', async ({ page }) => {
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'domcontentloaded' });
     await waitForIsland(page, 'ai-provider-island', 10000);
 
     await page.click('[data-testid="tab-ollama"]');
@@ -114,7 +114,7 @@ test.describe('AIProviderIsland smoke test', () => {
   });
 
   test('save button shows loading state and dispatches events', async ({ page }) => {
-    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/settings#ai-provider`, { waitUntil: 'domcontentloaded' });
     await waitForIsland(page, 'ai-provider-island', 10000);
 
     // Listen for settings events

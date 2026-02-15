@@ -51,16 +51,48 @@ async function clickToolbarButton(page, buttonName) {
 }
 
 async function switchTab(page, tabName) {
-  const map = {
+  const tabMap = {
     metadata: '[data-testid="tab-metadata"]',
     content: '[data-testid="tab-content"]',
     chat: '[data-testid="tab-chat"]',
     visual: '[data-testid="tab-visual"]',
     debug: '[data-testid="tab-debug"]'
   };
-  const selector = map[tabName];
-  if (!selector) throw new Error(`Unknown tab: ${tabName}`);
-  await page.locator(selector).click();
+  const panelMap = {
+    metadata: '[data-testid="tab-panel-metadata"]',
+    content: '[data-testid="tab-panel-content"]',
+    chat: '[data-testid="tab-panel-chat"]',
+    visual: '[data-testid="tab-panel-visual"]',
+    debug: '[data-testid="tab-panel-debug"]'
+  };
+  const tabSelector = tabMap[tabName];
+  const panelSelector = panelMap[tabName];
+  if (!tabSelector) throw new Error(`Unknown tab: ${tabName}`);
+
+  // Click tab and verify the panel appeared; retry once if click was lost.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.locator(tabSelector).click();
+    try {
+      await page.waitForSelector(panelSelector, { timeout: 3000 });
+      return; // Panel appeared — switch succeeded.
+    } catch {
+      // Panel didn't appear; retry click.
+    }
+  }
+  // Final attempt — let it throw on failure.
+  await page.waitForSelector(panelSelector, { timeout: 5000 });
+}
+
+async function waitForOverlayImage(page, timeoutMs = 15000) {
+  await page.waitForFunction(
+    () => {
+      const img = document.querySelector(
+        '[data-testid="overlay-document-image"]'
+      );
+      return img != null && img.naturalWidth > 0;
+    },
+    { timeout: timeoutMs }
+  );
 }
 
 module.exports = {
@@ -68,5 +100,6 @@ module.exports = {
   navigateToHistoryDoc,
   waitForIslandMount,
   clickToolbarButton,
-  switchTab
+  switchTab,
+  waitForOverlayImage
 };

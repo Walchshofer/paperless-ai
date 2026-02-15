@@ -8,7 +8,7 @@ test.describe('Workspace Expected Behavior', () => {
 
   test.beforeEach(async ({ page }) => {
     // Login
-    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
     await page.fill('input[name="username"], input[type="text"]', USERNAME);
     await page.fill('input[name="password"], input[type="password"]', PASSWORD);
     await page.click('button[type="submit"], input[type="submit"]');
@@ -16,7 +16,7 @@ test.describe('Workspace Expected Behavior', () => {
   });
 
   test('Clicking Workspace in sidebar - verify behavior', async ({ page }) => {
-    await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
 
     // Click Workspace link
     const workspaceLink = page.locator('a[href="/workspace"]');
@@ -24,7 +24,7 @@ test.describe('Workspace Expected Behavior', () => {
     console.log('Workspace link href:', href);
 
     await workspaceLink.click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Check final URL
     const finalUrl = page.url();
@@ -45,7 +45,7 @@ test.describe('Workspace Expected Behavior', () => {
 
   test('Check /workspace route directly (without /latest)', async ({ page }) => {
     // Navigate directly to /workspace (not /workspace/latest)
-    const response = await page.goto(`${BASE}/workspace`, { waitUntil: 'networkidle' });
+    const response = await page.goto(`${BASE}/workspace`, { waitUntil: 'domcontentloaded' });
 
     console.log('Response status:', response?.status());
     console.log('Final URL:', page.url());
