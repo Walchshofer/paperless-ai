@@ -1,3 +1,5 @@
+/* eslint-env mocha */
+
 /**
  * Integration Tests for Phase 3 → Phase 4 Flow
  *

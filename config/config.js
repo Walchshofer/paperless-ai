@@ -140,24 +140,26 @@ const ollamaExpertMaxResponseTokens = parseEnvInt(process.env.OLLAMA_EXPERT_MAX_
 const ollamaVisionImageTokenOverhead = parseEnvInt(process.env.OLLAMA_VISION_IMAGE_TOKENS, 1024);
 const translationContextWindow = parseEnvInt(process.env.TRANSLATION_CONTEXT_WINDOW, ollamaTextContextWindow);
 const ollamaModelLimitsOverrides = parseEnvJson(process.env.OLLAMA_MODEL_LIMITS_JSON, {});
-const qwenRouterHardeningEnabled = parseEnvBoolean(
-  process.env.QWEN_ROUTER_HARDENING_ENABLED,
+// Qwen Planner hardening config (renamed from qwenRouter — these are consumed by the Planner stage).
+// Old QWEN_ROUTER_* env vars are kept as fallbacks for backward compatibility.
+const qwenPlannerHardeningEnabled = parseEnvBoolean(
+  process.env.QWEN_PLANNER_HARDENING_ENABLED || process.env.QWEN_ROUTER_HARDENING_ENABLED,
   'yes'
 );
-const qwenRouterTruncationThreshold = Number.parseFloat(
-  process.env.QWEN_ROUTER_TRUNCATION_THRESHOLD || '0.02'
+const qwenPlannerTruncationThreshold = Number.parseFloat(
+  process.env.QWEN_PLANNER_TRUNCATION_THRESHOLD || process.env.QWEN_ROUTER_TRUNCATION_THRESHOLD || '0.02'
 );
 // Increased token budgets for qwen3-vl:8b (128K context allows more tokens)
-const qwenRouterThinkingTokens = parseEnvInt(
-  process.env.QWEN_ROUTER_THINKING_TOKENS,
+const qwenPlannerThinkingTokens = parseEnvInt(
+  process.env.QWEN_PLANNER_THINKING_TOKENS || process.env.QWEN_ROUTER_THINKING_TOKENS,
   1024  // Was 256 - too low, caused truncation
 );
-const qwenRouterOutputTokens = parseEnvInt(
-  process.env.QWEN_ROUTER_OUTPUT_TOKENS,
-  512   // Was 256 - too low, caused truncation
+const qwenPlannerOutputTokens = parseEnvInt(
+  process.env.QWEN_PLANNER_OUTPUT_TOKENS || process.env.QWEN_ROUTER_OUTPUT_TOKENS,
+  1024  // Raised from 512: hardened total (1024+1024=2048) now matches non-hardened baseline
 );
-const qwenRouterStopSequences = parseEnvJson(
-  process.env.QWEN_ROUTER_STOP_SEQUENCES,
+const qwenPlannerStopSequences = parseEnvJson(
+  process.env.QWEN_PLANNER_STOP_SEQUENCES || process.env.QWEN_ROUTER_STOP_SEQUENCES,
   ['\nEND_JSON']
 );
 const defaultOllamaModelLimits = {};
@@ -307,15 +309,15 @@ module.exports = {
     visionKeepAlive: process.env.VISION_KEEP_ALIVE || '5m',
     textKeepAlive: process.env.TEXT_KEEP_ALIVE || '2m',
     routerKeepAlive: process.env.ROUTER_KEEP_ALIVE || '5m',
-    qwenRouterHardening: {
-      enabled: qwenRouterHardeningEnabled,
-      truncationThreshold: Number.isFinite(qwenRouterTruncationThreshold)
-        ? qwenRouterTruncationThreshold
+    qwenPlannerHardening: {
+      enabled: qwenPlannerHardeningEnabled,
+      truncationThreshold: Number.isFinite(qwenPlannerTruncationThreshold)
+        ? qwenPlannerTruncationThreshold
         : 0.02,
-      thinkingTokens: qwenRouterThinkingTokens,
-      outputTokens: qwenRouterOutputTokens,
-      stopSequences: Array.isArray(qwenRouterStopSequences)
-        ? qwenRouterStopSequences
+      thinkingTokens: qwenPlannerThinkingTokens,
+      outputTokens: qwenPlannerOutputTokens,
+      stopSequences: Array.isArray(qwenPlannerStopSequences)
+        ? qwenPlannerStopSequences
         : ['\nEND_JSON']
     },
     limits: {
@@ -443,7 +445,7 @@ module.exports = {
   // Visual OCR configuration (qwen3-vl:8b text extraction)
   visualOCR: {
     enabled: parseEnvBoolean(process.env.VIS_OCR_ENABLED, 'yes'),
-    timeout: parseInt(process.env.VIS_OCR_TIMEOUT || '60000', 10),
+    timeout: parseInt(process.env.VIS_OCR_TIMEOUT || '120000', 10),
     maxPages: parseInt(process.env.VIS_OCR_MAX_PAGES || '20', 10),
     minQuality: parseFloat(process.env.VIS_OCR_MIN_QUALITY || '0.6'),
     embeddingModel: process.env.VIS_OCR_EMBEDDING_MODEL || 'nomic-embed-text-v1.5'

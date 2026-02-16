@@ -1076,7 +1076,8 @@ router.get('/api/doc/:id', async (req, res) => {
         fields: visualFields,
         overlays: formattedOverlays,
         overlayCount
-      }
+      },
+      currentUser: req.user?.username || null
     });
 
   } catch (error) {

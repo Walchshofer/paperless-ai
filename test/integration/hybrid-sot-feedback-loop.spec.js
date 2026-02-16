@@ -1,3 +1,5 @@
+/* eslint-env mocha */
+
 /**
  * Hybrid SOT Feedback Loop Integration Tests
  *

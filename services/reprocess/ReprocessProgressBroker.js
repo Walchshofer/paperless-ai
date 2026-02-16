@@ -16,7 +16,13 @@ const REPROCESS_STAGE_DEFINITIONS = Object.freeze({
   visual_extraction: {
     stage: 'visual_extraction',
     label: 'Visual extraction',
-    percentage: 30,
+    percentage: 25,
+    status: 'in_progress'
+  },
+  expert_thinking: {
+    stage: 'expert_thinking',
+    label: 'Expert model reasoning',
+    percentage: 40,
     status: 'in_progress'
   },
   query_generation: {

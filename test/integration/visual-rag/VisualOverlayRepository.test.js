@@ -1,9 +1,17 @@
+/* eslint-env mocha */
 
 /**
  * Integration tests for VisualOverlayRepository
  *
  * These tests verify CRUD operations against a real PostgreSQL database.
  * Requires PostgreSQL to be running with the visual_overlays table created.
+ *
+ * Service dependencies: PostgreSQL (via VisualOverlayRepository pool)
+ *
+ * Running modes:
+ *   - Container-native: VisualOverlayRepository pool connects to paperless_db
+ *   - Host-side: pool connects to localhost:5432 (set POSTGRES_HOST=localhost)
+ *   - Skipped automatically: waitForConnection returns false after 3 retries x 2s
  *
  * Run: npm test -- --grep "VisualOverlayRepository"
  */

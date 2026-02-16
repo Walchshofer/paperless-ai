@@ -1363,7 +1363,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
 
                   {/* Streaming & Thinking State */}
                   {isTesting && testStreamingResult && testStreamingResult.thinking && (
-                    <div className="space-y-2 animate-pulse mb-6">
+                    <div className="space-y-2 animate-pulse mb-6" data-testid="prompt-test-thinking-trace">
                       <h5 className="text-[10px] font-bold text-amber-500 uppercase tracking-widest ml-1 flex items-center gap-2">
                         <i className="fas fa-brain-circuit animate-bounce"></i>
                         Reasoning & Thought Trace
@@ -1388,14 +1388,14 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                       <h5 className={`text-[10px] font-bold uppercase tracking-widest ml-1 ${testMode === 'execute' ? 'text-rose-500' : 'text-indigo-500'}`}>
                         {testMode === 'execute' ? 'Neural Simulation Output' : 'Validation Diagnostic'}
                       </h5>
-                      <div className={`rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-4 font-mono text-[11px] leading-relaxed max-h-64 overflow-y-auto whitespace-pre-wrap shadow-inner ring-1 ring-inset ${testMode === 'execute' ? 'text-rose-900 dark:text-rose-50 ring-rose-500/5' : 'text-slate-900 dark:text-indigo-50 ring-indigo-500/5'}`}>
-                        {isTesting && testStreamingResult 
-                          ? testStreamingResult.fullText 
-                          : testResult 
+                      <div data-testid="prompt-test-streaming-output" className={`rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-4 font-mono text-[11px] leading-relaxed max-h-64 overflow-y-auto whitespace-pre-wrap shadow-inner ring-1 ring-inset ${testMode === 'execute' ? 'text-rose-900 dark:text-rose-50 ring-rose-500/5' : 'text-slate-900 dark:text-indigo-50 ring-indigo-500/5'}`}>
+                        {isTesting && testStreamingResult
+                          ? testStreamingResult.fullText
+                          : testResult
                             ? (typeof testResult.testResult === 'string' ? testResult.testResult : JSON.stringify(testResult.testResult, null, 2))
                             : ''
                         }
-                        {isTesting && <span className="inline-block w-2 h-4 bg-rose-500 animate-pulse ml-1" />}
+                        {isTesting && <span data-testid="prompt-test-streaming-cursor" className="inline-block w-2 h-4 bg-rose-500 animate-pulse ml-1" />}
                       </div>
                     </div>
                   </div>

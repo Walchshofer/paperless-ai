@@ -1,7 +1,12 @@
+/* eslint-env mocha */
+
 /**
  * test/integration/normalization-health.test.js
  *
  * Integration tests for normalization health check endpoint.
+ *
+ * Service dependencies: paperless-ai server (app, started in-process)
+ * No external DB/Qdrant connections required for this health endpoint.
  *
  * Ticket: 7120d115-a0c0-4d52-89a2-8f84e67af453 (Phase 4)
  */

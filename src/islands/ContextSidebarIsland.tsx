@@ -55,6 +55,7 @@ interface DocumentInfo {
     optionalFields?: SmartFieldLike[];
   };
   customFields?: Array<Record<string, unknown>>;
+  currentUser?: string;
   [key: string]: unknown;
 }
 
@@ -131,6 +132,7 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
         availableTags: docData.availableTags,
         fieldProfile: docData.fieldProfile,
         customFields: docData.customFields || [],
+        currentUser: docData.currentUser || currentDocument?.currentUser,
       };
 
       setCurrentDocument(updatedDoc);

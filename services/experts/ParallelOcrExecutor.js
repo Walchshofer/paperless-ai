@@ -28,8 +28,8 @@ const { mergeOcrResults, scoreOcrQuality } = require('./utils/ocrQuality');
 const DEFAULT_CONFIG = {
     visualOcr: {
         enabled: config.visualOCR?.enabled !== false,
-        timeout: 30000,          // 30s soft timeout (VLM loading)
-        hardTimeout: 60000,      // 60s hard timeout (VLM inference)
+        timeout: 120000,         // 120s soft timeout (VLM loading + inference)
+        hardTimeout: 180000,     // 180s hard timeout (VLM inference ceiling)
         model: config.ollama?.visionModel || 'qwen3-vl:8b',
         failureThreshold: 3,
         cooldownPeriod: 30000
@@ -739,6 +739,15 @@ class ParallelOcrExecutor {
      * @private
      */
     async _prepareImageForOllama(document) {
+        if (document.image_data && typeof document.image_data === 'string') {
+            // Handle Data URI or raw base64
+            return document.image_data.replace(/^data:image\/\w+;base64,/, '');
+        }
+
+        if (Array.isArray(document.base64Images) && document.base64Images.length > 0) {
+             return document.base64Images[0].replace(/^data:image\/\w+;base64,/, '');
+        }
+
         if (document.imageBase64) {
             return document.imageBase64;
         }

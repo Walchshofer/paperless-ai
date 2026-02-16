@@ -1,3 +1,5 @@
+/* eslint-env mocha */
+
 /**
  * Circuit Breaker State Transition Tests - Alpha-9
  *

@@ -401,6 +401,10 @@ Persist results back to Paperless-ngx and apply approved actions.
 - PATCH requests and/or bulk actions with evidence refs
 - Action audit log entries (`document_actions`)
 
+**Title Optimization (New)**
+- Applies `TitleOptimizer` rules (cleanup, truncation) before persistence.
+- Enforces consistent naming conventions defined in `SMART_FILE_MANAGEMENT_STRATEGY.md`.
+
 **Rules**
 - Only apply actions that pass policy constraints
 - Evidence refs must be attached to each action

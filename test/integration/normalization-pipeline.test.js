@@ -1,3 +1,5 @@
+/* eslint-env mocha */
+
 /**
  * Integration tests for Stage 3: Pre-Vision Normalization Pipeline Integration
  *

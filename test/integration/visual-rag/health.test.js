@@ -1,3 +1,19 @@
+/* eslint-env mocha */
+
+/**
+ * Visual RAG Sidecar Health Integration Tests
+ *
+ * Service dependencies: visual-rag sidecar (VISUAL_RAG_URL / VISUAL_RAG_HOST)
+ *
+ * Running modes:
+ *   - Container-native: VISUAL_RAG_HOST=visual-rag (or visual-rag-sidecar)
+ *   - Host-side: VISUAL_RAG_HOST=localhost (port 8001)
+ *   - Skipped automatically if the sidecar is unreachable (ECONNREFUSED/ENOTFOUND)
+ *
+ * The test polls up to 90s for model_loaded:true, then fails.
+ * Set VISUAL_RAG_URL or VISUAL_RAG_HOST to activate; otherwise the test skips.
+ */
+
 const axios = require('axios');
 const assert = require('assert');
 

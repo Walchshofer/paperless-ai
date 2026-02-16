@@ -1,3 +1,19 @@
+/* eslint-env mocha */
+
+/**
+ * Feedback Persistence Integration Tests
+ *
+ * Service dependencies:
+ *   - PostgreSQL (POSTGRES_HOST / POSTGRES_DB / credentials)
+ *   - Qdrant (QDRANT_HOST / QDRANT_PORT)
+ *   - paperless-ai server (app, started in-process)
+ *
+ * Running modes:
+ *   - Container-native: QDRANT_HOST=qdrant + POSTGRES_HOST=db
+ *   - Host-side: QDRANT_HOST=localhost + POSTGRES_HOST=localhost
+ *   - Skipped automatically: when QDRANT_HOST is absent and RUN_QDRANT_TESTS
+ *     is not set (see before hook below).
+ */
 
 const assert = require('assert');
 const request = require('supertest');
@@ -13,27 +29,51 @@ describe('Feedback Persistence Integration', function () {
     let adapter;
 
     before(async function () {
+        // Bounded timeout: pool connection probe (5s) + Qdrant init headroom
+        this.timeout(15000);
+
         // Skip if QDRANT_HOST not set (CI without Qdrant)
         if (!process.env.QDRANT_HOST && !process.env.RUN_QDRANT_TESTS) {
             this.skip();
             return;
         }
 
-        // DB pool for test validations
+        // DB pool for test validations — use bounded connection timeout so the
+        // test skips cleanly instead of hanging when paperless_db is not reachable
         pool = new Pool({
             host: process.env.POSTGRES_HOST || 'localhost',
             port: parseInt(process.env.POSTGRES_PORT, 10) || 5432,
             database: process.env.POSTGRES_DB || 'paperless',
             user: process.env.POSTGRES_USER || process.env.PAPERLESS_DBUSER,
-            password: process.env.POSTGRES_PASSWORD || process.env.PAPERLESS_DBPASS
+            password: process.env.POSTGRES_PASSWORD || process.env.PAPERLESS_DBPASS,
+            connectionTimeoutMillis: 5000,
+            max: 3
         });
+
+        // Verify pool connectivity before proceeding
+        try {
+            const probeClient = await pool.connect();
+            probeClient.release();
+        } catch (err) {
+            console.log('[feedback-persistence] Skipping: DB not reachable -', err.message);
+            await pool.end().catch(() => {});
+            pool = null;
+            this.skip();
+            return;
+        }
 
         adapter = new QdrantAdapter({
             host: process.env.QDRANT_HOST || 'localhost',
             port: parseInt(process.env.QDRANT_PORT, 10) || 6333
         });
 
-        await adapter.initialize();
+        try {
+            await adapter.initialize();
+        } catch (err) {
+            console.log('[feedback-persistence] Skipping: Qdrant init failed -', err.message);
+            this.skip();
+            return;
+        }
     });
 
     after(async function () {

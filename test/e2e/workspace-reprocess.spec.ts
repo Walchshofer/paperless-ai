@@ -10,16 +10,36 @@
 
 import { test, expect } from '@playwright/test';
 
-const REPROCESS_API_TIMEOUT_MS = 120000;
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
+const REPROCESS_API_TIMEOUT_MS = 120_000;
 
 test.describe('Workspace Reprocess E2E', () => {
+  test.describe.configure({ timeout: 180_000 });
+
   test.beforeEach(async ({ page }) => {
-    // Navigate to workspace with a test document
-    // Note: This assumes document 74 exists in the test environment
-    await page.goto('/workspace/doc/74');
+    try {
+      // Navigate to workspace with a test document.
+      // Note: This assumes document 74 exists in the test environment.
+      await page.goto(`${BASE_URL}/workspace/doc/74`, {
+        waitUntil: 'domcontentloaded',
+      });
+    } catch (e: unknown) {
+      const msg =
+        typeof e === 'object' && e !== null && 'message' in e
+          ? (e as { message?: string }).message
+          : String(e);
+      test.skip(true, 'Backend not reachable for E2E run: ' + msg);
+      return;
+    }
+
+    // Guard against auth redirects (session cookie missing/expired)
+    if (page.url().includes('/login')) {
+      test.skip(true, 'Redirected to login — auth storage state may be stale');
+      return;
+    }
 
     // Wait for the page to load - use correct data-page attribute
-    await page.waitForSelector('[data-page="document-workspace"]', { timeout: 10000 });
+    await page.waitForSelector('[data-page="document-workspace"]', { timeout: 15_000 });
   });
 
   test('should show Reprocess button in context bar', async ({ page }) => {
@@ -30,8 +50,8 @@ test.describe('Workspace Reprocess E2E', () => {
 
   test('should disable Reprocess button when no document is selected', async ({ page }) => {
     // Navigate to workspace without a document
-    await page.goto('/workspace');
-    await page.waitForSelector('[data-page="workspace"]');
+    await page.goto(`${BASE_URL}/workspace`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-page="workspace"]', { timeout: 15_000 });
 
     const reprocessBtn = page.locator('[data-testid="reprocess-btn"]');
     // Button may be disabled or not visible when no document is selected

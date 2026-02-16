@@ -1,3 +1,5 @@
+/* eslint-env mocha */
+
 /**
  * Telemetry and VRAM Audit Tests
  *

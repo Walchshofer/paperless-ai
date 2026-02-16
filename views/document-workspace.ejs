@@ -203,7 +203,10 @@
                     class="h-full flex flex-col"
                     data-props="<%= JSON.stringify({ 
                         activeTab: ui.activeTab || 'metadata',
-                        document: doc,
+                        document: {
+                            ...doc,
+                            currentUser: user.username
+                        },
                         chat: vm.chat || {},
                         visual: vm.visual || { fields: [], overlayCount: 0 },
                         isAdmin: !!user.isAdmin,

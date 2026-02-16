@@ -1,3 +1,5 @@
+/* eslint-env mocha */
+
 const assert = require('assert');
 const net = require('net');
 const fetch = require('node-fetch');

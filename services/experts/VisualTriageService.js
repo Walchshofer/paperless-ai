@@ -28,10 +28,10 @@ class VisualTriageService {
       promptId: 'SYS_ROUTER_V1',
       model: cfg.model || MODEL_NAMES.router || 'qwen3-vl:8b',
       maxPages: cfg.maxPages || 3,
-      timeout: cfg.timeout || 2000,
-      maxRetries: cfg.maxRetries || 0,
-      failureThreshold: cfg.failureThreshold || 3,
-      cooldownPeriod: cfg.cooldownPeriod || 30000,
+      timeout: cfg.timeout || 90000,
+      maxRetries: cfg.maxRetries || 1,
+      failureThreshold: cfg.failureThreshold || 5,
+      cooldownPeriod: cfg.cooldownPeriod || 60000,
       ...options
     };
 

@@ -1228,7 +1228,7 @@ class DocumentProcessor {
         const renderPdfImages = async (source) => {
             const pdfPath = resolvePdfPathForRender(document.pdf_path, document.pdf_path_abs);
             const documentId = document.id || document.filename;
-            const dpi = config.visualRag?.visionRenderDpi || 300;
+            const dpi = 300; // Enforce high-res for expert pipeline
             const maxPages = config.visualRag?.maxVisionPages || 4;
             const renderDocId = document.id || document.filename || Date.now();
 
@@ -1365,6 +1365,16 @@ class DocumentProcessor {
             }
             const imageSource = resolveImageSource();
             if (!imageSource) {
+                 // Try PDF path as fallback
+                 if (document.pdf_path || document.pdfPath) {
+                    const source = document.pdf_path || document.pdfPath;
+                    const pdfImages = await renderPdfImages(source);
+                    if (pdfImages && pdfImages.length > 0) {
+                        document.base64Images = pdfImages;
+                        document.image_data = pdfImages[0];
+                        return { base64Images: pdfImages, image_data: pdfImages[0] };
+                    }
+                 }
                 return { base64Images: [], image_data: null };
             }
             const prepared = await ImagePreparator.prepare(imageSource);
@@ -1374,7 +1384,7 @@ class DocumentProcessor {
             document.base64Images = base64Images;
             return { base64Images, image_data: base64Image };
         };
-        if (document.image_path || document.image_data) {
+        if (document.image_path || document.image_data || document.pdf_path || document.pdfPath) {
             const prepared = await prepareImages();
             preparedImages = prepared.base64Images;
         }

@@ -1,3 +1,5 @@
+/* eslint-env mocha */
+
 /**
  * Alpha-9 Visual Search API Integration Tests
  *

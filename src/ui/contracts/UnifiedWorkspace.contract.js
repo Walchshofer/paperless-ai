@@ -80,6 +80,7 @@ const UnifiedWorkspaceSchema = z.object({
     persistedNormalizedUrl: z.string().nullable().optional(),
     normalizationStatus: z.enum(['pending', 'processing', 'completed', 'failed', 'skipped']).nullable().optional(),
     status: z.enum(['saved', 'unsaved', 'processing', 'error']).default('saved'),
+    currentUser: z.string().optional(),
   }).nullable(),
   
   availableDocuments: z.array(ManualDocumentSchema).default([]),

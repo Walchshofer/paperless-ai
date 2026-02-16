@@ -1,6 +1,8 @@
+/* eslint-env mocha */
+
 /**
  * Integration tests for workspace route with normalized document URLs
- * 
+ *
  * Tests workspace route and API endpoint to ensure:
  * - persistedNormalizedUrl field is correctly populated
  * - normalizationStatus field is correctly populated

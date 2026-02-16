@@ -13,7 +13,7 @@ function parseZoomPercentage(value: string | null): number {
 }
 
 test.describe('OverlayViewer wheel zoom (E2E)', () => {
-  test('mouse wheel zooms towards pointer and Ctrl fine control reduces step', async ({ page }) => {
+  test('normal scroll does not zoom; Ctrl+scroll zooms towards pointer', async ({ page }) => {
     const docId = getTestDocId();
     try {
       await navigateToWorkspace(page, docId);
@@ -35,7 +35,7 @@ test.describe('OverlayViewer wheel zoom (E2E)', () => {
     const initialPct = parseZoomPercentage(await zoomPct.textContent());
     expect(initialPct).toBeGreaterThan(0);
 
-    // Dispatch a coarse wheel event (deltaY negative to zoom in)
+    // Normal wheel (no Ctrl) should NOT zoom — just native scroll
     await page.evaluate(() => {
       const c = document.querySelector('[data-testid="overlay-container"]');
       if (!c) return;
@@ -44,12 +44,11 @@ test.describe('OverlayViewer wheel zoom (E2E)', () => {
     });
 
     await page.waitForTimeout(200);
-    const pctAfter = parseZoomPercentage(await zoomPct.textContent());
-    expect(pctAfter).toBeGreaterThan(initialPct);
+    const pctAfterScroll = parseZoomPercentage(await zoomPct.textContent());
+    // Zoom should remain unchanged after normal scroll
+    expect(pctAfterScroll).toBeCloseTo(initialPct, 0);
 
-    const coarseDelta = pctAfter - initialPct;
-
-    // Dispatch a fine wheel (ctrlKey true)
+    // Ctrl+wheel SHOULD zoom in
     await page.evaluate(() => {
       const c = document.querySelector('[data-testid="overlay-container"]');
       if (!c) return;
@@ -58,10 +57,7 @@ test.describe('OverlayViewer wheel zoom (E2E)', () => {
     });
 
     await page.waitForTimeout(200);
-    const pctAfterFine = parseZoomPercentage(await zoomPct.textContent());
-    const fineDelta = pctAfterFine - pctAfter;
-
-    expect(fineDelta).toBeGreaterThan(0);
-    expect(fineDelta).toBeLessThan(coarseDelta + 1e-6);
+    const pctAfterCtrlZoom = parseZoomPercentage(await zoomPct.textContent());
+    expect(pctAfterCtrlZoom).toBeGreaterThan(initialPct);
   });
 });

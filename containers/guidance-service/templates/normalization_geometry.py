@@ -75,15 +75,18 @@ USER_PROMPTS: Dict[str, str] = {
         "5) BEGRUENDUNG: Erklaere WARUM du diese Drehung gewaehlt hast."
     ),
     "en": (
-        "Analyze this document image for geometry corrections:\n"
-        "1) ROTATION: Check text orientation. Is the text readable left-to-right, "
-        "top-to-bottom? If text is sideways or upside down, determine the rotation "
-        "needed (0, 90, 180, or 270 degrees clockwise). Also check header/logo "
-        "position - it must be at the top.\n"
-        "2) CROP: Are there black borders, scanner artifacts, or excessive whitespace "
-        "margins around the document?\n"
-        "3) DPI: Recommended resolution (200-400).\n"
-        "4) CONFIDENCE: Your confidence level (0.0-1.0).\n"
+        "Analyze this document image for geometry corrections:\\n"
+        "1) ROTATION: Check text orientation. Is the text horizontal (left-to-right) or vertical?\\n"
+        "   - If text runs vertically (bottom-to-top), it needs 90 degree rotation.\\n"
+        "   - If text runs vertically (top-to-bottom), it needs 270 degree rotation.\\n"
+        "   - If text is upside down, it needs 180 degree rotation.\\n"
+        "   - Look at logos, headers, and tables for orientation clues.\\n"
+        "   - Return the CLOCKWISE rotation needed to make text upright (0, 90, 180, 270).\\n"
+        "2) CROP: Identify the document boundaries vs background.\\n"
+        "   - If the document occupies < 80% of the image area, suggest a crop.\\n"
+        "   - Ignore small dark borders; focus on the main document page.\\n"
+        "3) DPI: Recommended resolution (200-400).\\n"
+        "4) CONFIDENCE: Your confidence level (0.0-1.0).\\n"
         "5) REASONING: Explain WHY you chose this rotation."
     ),
 }

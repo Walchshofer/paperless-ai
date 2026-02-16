@@ -1,3 +1,5 @@
+/* eslint-env mocha */
+
 /**
  * Integration Tests - Normalized Image Serving API
  *

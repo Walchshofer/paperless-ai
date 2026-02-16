@@ -1,3 +1,5 @@
+/* eslint-env mocha */
+
 const _assert = require('assert');
 
 describe('Circuit breaker integration (skeleton)', function() {

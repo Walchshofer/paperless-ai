@@ -1,6 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { getHistoryDocId } from '../helpers/fixtures';
-const { switchTab } = require('../helpers/workspace-fixtures');
+const { switchTab, navigateToWorkspace, waitForIslandMount } = require('../helpers/workspace-fixtures');
 
 /**
  * Alpha-9 Full Pipeline E2E Tests
@@ -445,6 +445,73 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
 
     const errorElement = page.locator('[data-testid="search-error"]');
     await expect(errorElement).toBeVisible();
+  });
+
+  test('Business rule: "Personal Note" title pre-fills correspondent', async ({ page }) => {
+    await navigateToWorkspace(page, HISTORY_DOC_ID);
+    await waitForIslandMount(page, 'context-sidebar-island');
+    await switchTab(page, 'metadata');
+
+    // Trigger document switch with test data
+    await page.evaluate(({ docId }) => {
+      window.dispatchEvent(new CustomEvent('workspace:document-switched', {
+        detail: {
+          documentId: docId,
+          document: {
+            id: docId,
+            title: 'A New Personal Note',
+            correspondent: null,
+            currentUser: 'elfman',
+            tagItems: [],
+            availableTags: [],
+            customFields: []
+          },
+          visual: { fields: [] }
+        }
+      }));
+    }, { docId: HISTORY_DOC_ID });
+
+    const correspondentInput = page.locator('[data-testid="smart-correspondent-input"]');
+    await expect(correspondentInput).toHaveValue('elfman');
+  });
+
+  test('Edge case: clearing auto-filled correspondent prevents re-fill on title edit', async ({ page }) => {
+    await navigateToWorkspace(page, HISTORY_DOC_ID);
+    await waitForIslandMount(page, 'context-sidebar-island');
+    await switchTab(page, 'metadata');
+
+    // Step 1: Trigger document switch with "Personal Note" title → auto-fills correspondent
+    await page.evaluate(({ docId }) => {
+      window.dispatchEvent(new CustomEvent('workspace:document-switched', {
+        detail: {
+          documentId: docId,
+          document: {
+            id: docId,
+            title: 'A New Personal Note',
+            correspondent: null,
+            currentUser: 'elfman',
+            tagItems: [],
+            availableTags: [],
+            customFields: []
+          },
+          visual: { fields: [] }
+        }
+      }));
+    }, { docId: HISTORY_DOC_ID });
+
+    const correspondentInput = page.locator('[data-testid="smart-correspondent-input"]');
+    await expect(correspondentInput).toHaveValue('elfman');
+
+    // Step 2: User manually clears the correspondent
+    await correspondentInput.fill('');
+    await expect(correspondentInput).toHaveValue('');
+
+    // Step 3: User edits the title (still contains "Personal Note")
+    const titleInput = page.locator('[data-testid="smart-title-input"]');
+    await titleInput.fill('My Personal Note Updated');
+
+    // Correspondent should remain empty — the user's intent to clear it is respected
+    await expect(correspondentInput).toHaveValue('');
   });
 });
 

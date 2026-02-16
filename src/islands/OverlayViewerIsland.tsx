@@ -585,31 +585,57 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
   const handleWheel = useCallback((e: WheelEvent) => {
     if (!viewportRef.current || !containerRef.current || imageDimensions.width === 0) return;
+
+    // Standard behaviour: normal scroll pans the document,
+    // Ctrl/Meta + scroll zooms (matches Chrome, Firefox, PDF viewers).
+    if (!e.ctrlKey && !e.metaKey) return; // let native scroll handle panning
+
     const delta = -e.deltaY;
-    const factor = e.ctrlKey || e.metaKey ? 0.0015 : 0.0025;
+    const factor = 0.002;
     const s = scaleRef.current || 1;
     const nextS = Math.min(MAX_SCALE, Math.max(MIN_SCALE, s * (1 + delta * factor)));
     if (Math.abs(nextS - s) < 1e-5) return;
 
+    // Use viewport rect for accurate document-space coordinates
+    const viewport = viewportRef.current;
+    const vpRect = viewport.getBoundingClientRect();
     const container = containerRef.current;
-    const rect = container.getBoundingClientRect();
-    
-    // Position of mouse relative to the container
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    const cRect = container.getBoundingClientRect();
 
-    // Position of mouse relative to the document (unscaled)
-    const docX = (mouseX + container.scrollLeft) / s;
-    const docY = (mouseY + container.scrollTop) / s;
+    // Mouse position relative to the viewport (maps directly to image coords)
+    const vpMouseX = e.clientX - vpRect.left;
+    const vpMouseY = e.clientY - vpRect.top;
+    // Mouse position relative to the container (for scroll adjustment)
+    const mouseXInContainer = e.clientX - cRect.left;
+    const mouseYInContainer = e.clientY - cRect.top;
+
+    // Document-space position under cursor
+    const docX = vpMouseX / s;
+    const docY = vpMouseY / s;
 
     setFitMode('manual');
     applyScale(nextS);
 
-    // Adjust scroll to keep the same document point under the mouse
-    // We do this in next frame to allow the viewport dimensions to update
+    // Adjust scroll to keep the same document point under the mouse.
+    // After scale change the viewport may be larger or smaller than
+    // the container; margin:auto centres it when smaller.
     requestAnimationFrame(() => {
-      container.scrollLeft = (docX * nextS) - mouseX;
-      container.scrollTop = (docY * nextS) - mouseY;
+      const c = containerRef.current;
+      if (!c) return;
+      const newVpW = imageDimensions.width * nextS;
+      const newVpH = imageDimensions.height * nextS;
+
+      if (newVpW > c.clientWidth) {
+        c.scrollLeft = Math.max(0, docX * nextS - mouseXInContainer);
+      } else {
+        c.scrollLeft = 0;
+      }
+
+      if (newVpH > c.clientHeight) {
+        c.scrollTop = Math.max(0, docY * nextS - mouseYInContainer);
+      } else {
+        c.scrollTop = 0;
+      }
     });
 
     e.preventDefault();
@@ -850,17 +876,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     };
 
     let frame = 0;
-    let resizeTimeout = 0;
     const schedule = () => {
-      // Mark viewport as resizing so CSS transition applies during drag
-      const vp = viewportRef.current;
-      if (vp) {
-        vp.setAttribute('data-resizing', '');
-        if (resizeTimeout) clearTimeout(resizeTimeout);
-        resizeTimeout = window.setTimeout(() => {
-          if (vp) vp.removeAttribute('data-resizing');
-        }, 150);
-      }
       if (frame) cancelAnimationFrame(frame);
       frame = requestAnimationFrame(refreshFitScale);
     };
@@ -870,7 +886,6 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       observer.observe(container);
       return () => {
         if (frame) cancelAnimationFrame(frame);
-        if (resizeTimeout) clearTimeout(resizeTimeout);
         observer.disconnect();
       };
     }
@@ -1033,9 +1048,9 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
   const getRelativePosition = useCallback(
     (e: MouseEvent | TouchEvent): { x: number; y: number } => {
-      const container = containerRef.current;
-      if (!container) return { x: 0, y: 0 };
-      const rect = container.getBoundingClientRect();
+      const viewport = viewportRef.current;
+      if (!viewport) return { x: 0, y: 0 };
+      const rect = viewport.getBoundingClientRect();
       let clientX: number, clientY: number;
       if ('touches' in e) {
         const touch = e.touches[0] || e.changedTouches[0];
@@ -1045,12 +1060,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         clientX = (e as MouseEvent).clientX;
         clientY = (e as MouseEvent).clientY;
       }
-      const tx = containerRef.current ? -containerRef.current.scrollLeft : 0;
-      const ty = containerRef.current ? -containerRef.current.scrollTop : 0;
       const s = scaleRef.current || 1;
-      const rawX = clientX - rect.left;
-      const rawY = clientY - rect.top;
-      return { x: (rawX - tx) / s, y: (rawY - ty) / s };
+      return { x: (clientX - rect.left) / s, y: (clientY - rect.top) / s };
     },
     []
   );
@@ -1090,9 +1101,9 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
   const captureRegion = useCallback(
     async (box: BoundingBox, eventName: string) => {
-      const container = containerRef.current;
+      const viewport = viewportRef.current;
       const img = imageRef.current;
-      if (!container || !img) return;
+      if (!viewport || !img) return;
       if (!imageLoaded && !imageError) {
           return;
       }
@@ -1101,18 +1112,21 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        const naturalWidth = img.naturalWidth || container.clientWidth;
-        const naturalHeight = img.naturalHeight || container.clientHeight;
-        const scaleX = naturalWidth / container.clientWidth;
-        const scaleY = naturalHeight / container.clientHeight;
-        const srcX = box.x * scaleX;
-        const srcY = box.y * scaleY;
-        const srcWidth = box.width * scaleX;
-        const srcHeight = box.height * scaleY;
+        
+        // Use unscaled dimensions for extraction
+        const naturalWidth = imageDimensions.width || img.naturalWidth;
+        const naturalHeight = imageDimensions.height || img.naturalHeight;
+        
+        // box.x/y are already in unscaled document pixels
+        const srcX = box.x;
+        const srcY = box.y;
+        const srcWidth = box.width;
+        const srcHeight = box.height;
+        
         canvas.width = srcWidth;
         canvas.height = srcHeight;
 
-        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        if (naturalWidth > 0 && naturalHeight > 0) {
           ctx.drawImage(img, srcX, srcY, srcWidth, srcHeight, 0, 0, srcWidth, srcHeight);
         } else {
           ctx.fillStyle = '#ffffff';
@@ -1121,7 +1135,6 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         const dataUrl = canvas.toDataURL('image/png');
         const base64 = dataUrl.split(',')[1];
 
-        // Include draw context from Visual Tab (fieldId, purpose)
         const context = drawContextRef.current || {};
         
         const event = new CustomEvent(eventName, {
@@ -1131,12 +1144,11 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             documentId: docId,
             page,
             bbox: {
-              x: box.x / container.clientWidth,
-              y: box.y / container.clientHeight,
-              width: box.width / container.clientWidth,
-              height: box.height / container.clientHeight
+              x: box.x / naturalWidth,
+              y: box.y / naturalHeight,
+              width: box.width / naturalWidth,
+              height: box.height / naturalHeight
             },
-            // Include draw context for Visual Tab integration
             fieldId: context.fieldId,
             purpose: context.purpose
           }
@@ -1148,7 +1160,6 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           onRegionSelected(base64, box);
         }
 
-        // Clear draw context after dispatching
         if (eventName === 'overlay:draw-complete') {
           setDrawContext(null);
           drawContextRef.current = null;
@@ -1159,7 +1170,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         setWarning('Failed to capture selection. Please try again.');
       }
     },
-    [docId, page, imageLoaded, imageError, onRegionSelected]
+    [docId, page, imageLoaded, imageError, onRegionSelected, imageDimensions]
   );
 
   // Export region handler
@@ -1167,30 +1178,27 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     async (format: 'png' | 'pdf') => {
       if (!selectedRegion || !docId) return;
       
-      const container = containerRef.current;
+      const viewport = viewportRef.current;
       const img = imageRef.current;
-      if (!container || !img) return;
+      if (!viewport || !img) return;
       
       try {
-        // Create temp canvas with selected region
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         
-        const naturalWidth = img.naturalWidth || container.clientWidth;
-        const naturalHeight = img.naturalHeight || container.clientHeight;
-        const scaleX = naturalWidth / container.clientWidth;
-        const scaleY = naturalHeight / container.clientHeight;
+        const naturalWidth = imageDimensions.width || img.naturalWidth;
+        const naturalHeight = imageDimensions.height || img.naturalHeight;
         
-        const srcX = selectedRegion.x * scaleX;
-        const srcY = selectedRegion.y * scaleY;
-        const srcWidth = selectedRegion.width * scaleX;
-        const srcHeight = selectedRegion.height * scaleY;
+        const srcX = selectedRegion.x;
+        const srcY = selectedRegion.y;
+        const srcWidth = selectedRegion.width;
+        const srcHeight = selectedRegion.height;
         
         canvas.width = srcWidth;
         canvas.height = srcHeight;
         
-        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        if (naturalWidth > 0 && naturalHeight > 0) {
           ctx.drawImage(img, srcX, srcY, srcWidth, srcHeight, 0, 0, srcWidth, srcHeight);
         } else {
           ctx.fillStyle = '#ffffff';
@@ -1199,7 +1207,6 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         
         const dataUrl = canvas.toDataURL('image/png');
         
-        // Dispatch export event
         const event = new CustomEvent('export:region-requested', {
           detail: {
             documentId: docId,
@@ -1207,10 +1214,10 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             format,
             imageData: dataUrl,
             bbox: {
-              x: selectedRegion.x / container.clientWidth,
-              y: selectedRegion.y / container.clientHeight,
-              width: selectedRegion.width / container.clientWidth,
-              height: selectedRegion.height / container.clientHeight
+              x: selectedRegion.x / naturalWidth,
+              y: selectedRegion.y / naturalHeight,
+              width: selectedRegion.width / naturalWidth,
+              height: selectedRegion.height / naturalHeight
             }
           }
         });
@@ -1219,7 +1226,6 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           window.dispatchEvent(event);
         }
         
-        // Clear selection after export
         setSelectedRegion(null);
         setShowExportBtn(false);
       } catch (err: unknown) {
@@ -1228,7 +1234,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         setWarning('Failed to export selection. Please try again.');
       }
     },
-    [selectedRegion, docId, page]
+    [selectedRegion, docId, page, imageDimensions]
   );
 
   const handleMouseUp = useCallback((e?: MouseEvent | TouchEvent) => {
@@ -1245,8 +1251,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     const activeBox = currentBoxRef.current;
     isDrawingRef.current = false;
     setIsDrawing(false);
-    const container = containerRef.current;
-    if (!container) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
     const normalizedBox: BoundingBox = {
       ...activeBox,
       x: activeBox.width < 0 ? activeBox.x + activeBox.width : activeBox.x,
@@ -1254,16 +1260,25 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       width: Math.abs(activeBox.width),
       height: Math.abs(activeBox.height)
     };
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
-    if (normalizedBox.width < MIN_SELECTION_SIZE || normalizedBox.height < MIN_SELECTION_SIZE) {
+    
+    // Clamp selection to document boundaries [0..unscaledWidth]
+    const unscaledWidth = imageDimensions.width || (viewport.offsetWidth / scaleRef.current);
+    const unscaledHeight = imageDimensions.height || (viewport.offsetHeight / scaleRef.current);
+    
+    normalizedBox.x = Math.max(0, Math.min(unscaledWidth, normalizedBox.x));
+    normalizedBox.y = Math.max(0, Math.min(unscaledHeight, normalizedBox.y));
+    normalizedBox.width = Math.min(unscaledWidth - normalizedBox.x, normalizedBox.width);
+    normalizedBox.height = Math.min(unscaledHeight - normalizedBox.y, normalizedBox.height);
+    
+    if (normalizedBox.width < MIN_SELECTION_SIZE / scaleRef.current || normalizedBox.height < MIN_SELECTION_SIZE / scaleRef.current) {
       setWarning('Selection too small. Please draw a larger box.');
       currentBoxRef.current = null;
       setCurrentBox(null);
       return;
     }
-    const widthFraction = normalizedBox.width / containerWidth;
-    const heightFraction = normalizedBox.height / containerHeight;
+    
+    const widthFraction = normalizedBox.width / unscaledWidth;
+    const heightFraction = normalizedBox.height / unscaledHeight;
     if (widthFraction < MIN_SIZE_FRACTION || heightFraction < MIN_SIZE_FRACTION) {
       setWarning('Selection too small to yield meaningful results.');
       currentBoxRef.current = null;
@@ -1498,52 +1513,44 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     return overlayItems.filter((o: OverlayItem) => o.isMandatory);
   }, [overlayItems, mandatoryOnly]);
 
-  const redrawCanvas = useCallback(() => {
+  useEffect(() => {
     const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
+    const viewport = viewportRef.current;
+    if (!canvas || !viewport) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
+    
+    // Match buffer size to viewport's rendered size
+    const width = viewport.offsetWidth;
+    const height = viewport.offsetHeight;
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const s = scaleRef.current || 1;
+    
     ctx.strokeStyle = 'rgba(220, 20, 60, 0.9)';
     ctx.lineWidth = 2;
     ctx.fillStyle = 'rgba(220, 20, 60, 0.1)';
+    
     boxes.forEach((box: BoundingBox) => {
-      ctx.strokeRect(box.x, box.y, box.width, box.height);
-      ctx.fillRect(box.x, box.y, box.width, box.height);
+      ctx.strokeRect(box.x * s, box.y * s, box.width * s, box.height * s);
+      ctx.fillRect(box.x * s, box.y * s, box.width * s, box.height * s);
     });
+    
     if (currentBox && isDrawing) {
       ctx.strokeStyle = 'rgba(255, 140, 0, 0.9)';
       ctx.fillStyle = 'rgba(255, 140, 0, 0.2)';
-      ctx.strokeRect(currentBox.x, currentBox.y, currentBox.width, currentBox.height);
-      ctx.fillRect(currentBox.x, currentBox.y, currentBox.width, currentBox.height);
+      const bx = currentBox.width < 0 ? currentBox.x + currentBox.width : currentBox.x;
+      const by = currentBox.height < 0 ? currentBox.y + currentBox.height : currentBox.y;
+      const bw = Math.abs(currentBox.width);
+      const bh = Math.abs(currentBox.height);
+      ctx.strokeRect(bx * s, by * s, bw * s, bh * s);
+      ctx.fillRect(bx * s, by * s, bw * s, bh * s);
     }
-  }, [boxes, currentBox, isDrawing]);
-
-  // Redraw canvas when boxes or drawing state changes
-  useEffect(() => {
-    redrawCanvas();
-  }, [redrawCanvas]);
-
-  // Synchronize canvas dimensions with container resize via ResizeObserver
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    if (typeof window === 'undefined' || !('ResizeObserver' in window)) return;
-
-    let frame = 0;
-    const observer = new window.ResizeObserver(() => {
-      if (frame) cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => redrawCanvas());
-    });
-    observer.observe(container);
-    return () => {
-      if (frame) cancelAnimationFrame(frame);
-      observer.disconnect();
-    };
-  }, [redrawCanvas]);
+  }, [boxes, currentBox, isDrawing, scale]);
 
   return (
     <div
@@ -1788,7 +1795,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             data-testid="overlay-container"
             data-draw-mode={isDrawMode ? 'active' : 'inactive'}
             role="region"
-            aria-label="Document viewer. Use arrow keys to pan in pan mode, +/- to zoom, 0 to reset."
+            aria-label="Document viewer. Scroll to pan, Ctrl+scroll to zoom. Arrow keys to pan in pan mode, +/- to zoom, 0 to reset."
             tabIndex={0}
             className={`${styles.overlayContainer} ${panMode ? (panActiveRef.current ? 'cursor-grabbing' : 'cursor-grab') : (isDrawMode ? 'cursor-crosshair' : 'cursor-default')} ${isDrawMode ? 'touch-none ring-2 ring-inset ring-[#b87333]/50' : 'touch-auto'} focus:ring-2 focus:ring-cyan-500 focus:outline-none`}
             onPointerDown={handlePointerDown}
@@ -1810,9 +1817,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
               className={styles.viewport}
               style={{ 
                 width: imageDimensions.width > 0 ? `${imageDimensions.width * scale}px` : '100%',
-                height: imageDimensions.height > 0 ? `${imageDimensions.height * scale}px` : '100%',
-                minWidth: '100%',
-                minHeight: '100%'
+                height: imageDimensions.height > 0 ? `${imageDimensions.height * scale}px` : '100%'
               }}
             >
               <div
@@ -1910,55 +1915,49 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                   className={`${styles.highlightRegion} animate-pulse [--region-left:${highlightedRegion.x * 100}%] [--region-top:${highlightedRegion.y * 100}%] [--region-width:${highlightedRegion.width * 100}%] [--region-height:${highlightedRegion.height * 100}%]`}
                 />
               )}
+
+              {boxes.map((box: BoundingBox, idx: number) => (
+                <div 
+                  key={box.id} 
+                  className={`${styles.selectionBoxContainer} [--sel-left:${box.x * scale}px] [--sel-top:${(box.y * scale) - 24}px]`}
+                  style={{ position: 'absolute', zIndex: 30 }}
+                >
+                  <span className="px-1.5 py-0.5 bg-red-600 text-white text-xs rounded">Region {idx + 1}</span>
+                  <button
+                    onClick={() => removeBox(box.id)}
+                    className="w-5 h-5 bg-white border border-gray-300 rounded-l-none border-l-0 text-xs text-gray-600 hover:text-red-600 hover:border-red-300"
+                    title="Remove this selection"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                  <button
+                    onClick={() => captureRegion(box, 'export:region-requested')}
+                    className="w-5 h-5 bg-white border border-gray-300 rounded text-xs text-gray-600 hover:text-blue-600 hover:border-blue-300 ml-1"
+                    title="Export this region"
+                  >
+                    <i className="fas fa-download"></i>
+                  </button>
+                  <button
+                    onClick={() => {
+                      captureRegion(box, 'manual:send-to-chat');
+                      const onSend = (e: Event) => {
+                        const { imageBase64, bbox, page, documentId } = (e as CustomEvent).detail || {};
+                        const context = { type: 'visual', data: { imageBase64, bbox, page }, documentId };
+                        window.location.href = `/workspace/doc/${documentId}?tab=chat&context=${encodeURIComponent(JSON.stringify(context))}`;
+                      };
+                      window.addEventListener('manual:send-to-chat', onSend, { once: true });
+                    }}
+                    className="w-5 h-5 bg-white border border-gray-300 rounded-r border-l-0 text-xs text-gray-600 hover:text-green-600 hover:border-green-300"
+                    title="Send to Chat"
+                  >
+                    <i className="fas fa-comment-dots"></i>
+                  </button>
+                </div>
+              ))}
               </div>
             </div>
 
-            {boxes.map((box: BoundingBox, idx: number) => (
-              <div key={box.id} className={`${styles.selectionBoxContainer} [--sel-left:${box.x}px] [--sel-top:${box.y - 24}px]`}>
-                <span className="px-1.5 py-0.5 bg-red-600 text-white text-xs rounded">Region {idx + 1}</span>
-                <button
-                  onClick={() => removeBox(box.id)}
-                  className="w-5 h-5 bg-white border border-gray-300 rounded-l-none border-l-0 text-xs text-gray-600 hover:text-red-600 hover:border-red-300"
-                  title="Remove this selection"
-                >
-                  <i className="fas fa-times"></i>
-                </button>
-                <button
-                  onClick={() => captureRegion(box, 'export:region-requested')}
-                  className="w-5 h-5 bg-white border border-gray-300 rounded text-xs text-gray-600 hover:text-blue-600 hover:border-blue-300 ml-1"
-                  title="Export this region"
-                >
-                  <i className="fas fa-download"></i>
-                </button>
-                <button
-                  onClick={() => {
-                    captureRegion(box, 'manual:send-to-chat');
-                    // We need to capture first, then the event handler will handle navigation.
-                    // Actually captureRegion dispatches the event. We need to handle the event globally or inline here.
-                    // The ticket suggests: dispatch event, then navigate.
-                    // But captureRegion is async and dispatches 'manual:send-to-chat' with base64.
-                    // We should add a listener for this specific 'manual:send-to-chat' in the island or just handle it here?
-                    // captureRegion dispatches the event passed as arg.
-                    // So we need a global listener to handle the navigation if we rely on captureRegion.
-                    // OR we modify captureRegion to return the data and we navigate here.
-                    // But captureRegion is void.
-                    // Let's rely on a global listener in ManualWorkspaceIsland or just add a one-off listener here.
-                    const onSend = (e: Event) => {
-                      const { imageBase64, bbox, page, documentId } = (e as CustomEvent).detail || {};
-                      const context = { type: 'visual', data: { imageBase64, bbox, page }, documentId };
-                      window.location.href = `/workspace/doc/${documentId}?tab=chat&context=${encodeURIComponent(JSON.stringify(context))}`;
-                    };
-                    window.addEventListener('manual:send-to-chat', onSend, { once: true });
-                  }}
-                  className="w-5 h-5 bg-white border border-gray-300 rounded-r border-l-0 text-xs text-gray-600 hover:text-green-600 hover:border-green-300"
-                  title="Send to Chat"
-                >
-                  <i className="fas fa-comment-dots"></i>
-                </button>
-              </div>
-            ))}
-
-                          {isDrawMode && boxes.length === 0 && (
+            {isDrawMode && boxes.length === 0 && (
                             <div
                               className="absolute bottom-2 left-2 right-2 p-2 text-center text-xs text-gray-500 bg-blue-50 rounded pointer-events-none"
                               data-testid="selection-instructions"

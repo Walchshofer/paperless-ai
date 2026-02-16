@@ -45,6 +45,7 @@ const {
 const { OcrGuidedVisualSearch } = require('./OcrGuidedVisualSearch');
 const { HybridConfidenceFusion } = require('./HybridConfidenceFusion');
 const { VisualQueryExecutor } = require('./VisualQueryExecutor');
+const { TitleOptimizer } = require('./normalization/TitleOptimizer');
 
 // Import normalization components for Stage 3
 
@@ -167,6 +168,7 @@ class ExpertPipelineExecutor {
     this.preVisionNormalizer = options.preVisionNormalizer || new PreVisionNormalizer({
       ollamaService: this.ollamaService
     });
+    this.titleOptimizer = options.titleOptimizer || new TitleOptimizer();
   }
 
   /**
@@ -2187,8 +2189,15 @@ class ExpertPipelineExecutor {
         return { status: 'skipped', output, abort: false };
       }
 
+      // Image property resolution follows ParallelOcrExecutor._prepareImageForOllama pattern
       const documentImage =
-        context.document?.imageBase64 || context.document?.imageBuffer || context.document?.imagePath;
+        context.document?.image_data ||
+        (Array.isArray(context.document?.base64Images) && context.document.base64Images.length > 0
+          ? context.document.base64Images[0]
+          : null) ||
+        context.document?.imageBase64 ||
+        context.document?.imageBuffer ||
+        context.document?.imagePath;
 
       const documentMetadata = {
         id: context.document?.id,
@@ -2960,6 +2969,27 @@ class ExpertPipelineExecutor {
       context.getStageOutput('legal_extraction') ||
       context.getStageOutput('general_extraction') ||
       context.getStageOutput('medical_extraction');
+
+    // Apply title optimization
+    if (integratedOutput && integratedOutput.title) {
+      try {
+        const optimizerContext = {
+          tags: integratedOutput.tags,
+          correspondent: integratedOutput.correspondent,
+          created: integratedOutput.document_date || integratedOutput.created || integratedOutput.date
+        };
+        integratedOutput.title = this.titleOptimizer.optimize(
+          integratedOutput.title,
+          optimizerContext
+        );
+      } catch (optError) {
+        logger.warn({
+          event: 'title_optimization_failed',
+          pipelineId,
+          error: optError.message
+        });
+      }
+    }
 
     const advisoryReasoning = context.getStageOutput('financial_reasoning');
     if (advisoryReasoning) {
@@ -3936,6 +3966,7 @@ class ExpertPipelineExecutor {
  */
 async function processDocument(document, ollamaService, options = {}) {
   const executor = new ExpertPipelineExecutor(ollamaService, options);
+  const logger = require('../logger');
   const progressReporter = options?.progressReporter;
   const emitProgress = (update = {}) => {
     if (typeof progressReporter !== 'function') {

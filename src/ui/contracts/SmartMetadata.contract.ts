@@ -60,6 +60,7 @@ export const SmartMetadataSchema = z.object({
       title: z.string().optional(),
       correspondent: z.string().optional(),
       createdDate: z.string().optional(), // ISO date string (YYYY-MM-DD)
+      currentUser: z.string().optional(), // The currently logged-in user
     })
     .passthrough()
     .optional(),

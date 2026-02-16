@@ -1,3 +1,4 @@
+/* eslint-env mocha */
 
 const assert = require('assert');
 const { createDocumentProcessor } = require('../../services/integration/DocumentProcessor');

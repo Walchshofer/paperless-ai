@@ -1,6 +1,6 @@
 import { h } from 'preact';
 /* global describe, it, before, after, beforeEach, afterEach, expect, assert, sinon, page, browser, context, test */
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import {
   SmartMetadataSchema,
   SmartMetadataContract,
@@ -63,6 +63,7 @@ const MATCH_BADGES: Record<MatchType, string> = {
 const REPROCESS_STEPS = [
   { key: 'visual_triage', label: 'Visual triage' },
   { key: 'visual_extraction', label: 'Visual extraction' },
+  { key: 'expert_thinking', label: 'Expert thinking' },
   { key: 'query_generation', label: 'Query generation' },
   { key: 'query_execution', label: 'Query execution' },
   { key: 'ocr_fallback', label: 'OCR fallback' },
@@ -299,16 +300,29 @@ function resolveMatchLabel(matchType?: MatchType | null): string {
   return 'No Match';
 }
 
+function resolvePreMetadata(
+  propsMetadata: SmartMetadataContract['metadata'],
+  aiPrefill: { title: string; correspondent: string; createdDate: string }
+): { title: string; correspondent: string; createdDate: string } {
+  const title = propsMetadata?.title || aiPrefill.title || '';
+  let correspondent = propsMetadata?.correspondent || aiPrefill.correspondent || '';
+  const createdDate = normalizeDateInput(propsMetadata?.createdDate || aiPrefill.createdDate);
+  const currentUser = propsMetadata?.currentUser;
+
+  // Business rule: if title contains 'Personal Note', correspondent defaults to current user
+  if (!correspondent && currentUser && title.toLowerCase().includes('personal note')) {
+    correspondent = currentUser;
+  }
+
+  return { title, correspondent, createdDate };
+}
+
 export default function SmartMetadataIsland(props: Partial<SmartMetadataContract & { documentId?: DocumentId; saveDelayMs?: number }>) {
   const aiMetadataPrefill = extractAiMetadataPrefill(props.visualFields);
   const [currentDocumentId, setCurrentDocumentId] = useState(props.documentId ?? null);
-  const [localMetadata, setLocalMetadata] = useState({
-    title: props.metadata?.title || aiMetadataPrefill.title || '',
-    correspondent: props.metadata?.correspondent || aiMetadataPrefill.correspondent || '',
-    createdDate: normalizeDateInput(
-      props.metadata?.createdDate || aiMetadataPrefill.createdDate
-    )
-  } as { title: string; correspondent: string; createdDate: string });
+  const [localMetadata, setLocalMetadata] = useState(() => 
+    resolvePreMetadata(props.metadata, aiMetadataPrefill)
+  );
 
   const [localTags, setLocalTags] = useState(() => (
     Array.isArray(props.selectedTags)
@@ -321,17 +335,17 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
       : []
   ));
 
+  // Track whether the user has manually edited the correspondent field.
+  // When true, the "Personal Note" auto-fill rule is suppressed so it
+  // doesn't override the user's explicit choice (including clearing it).
+  const correspondentManuallyEdited = useRef(false);
+
   // Sync state when props change (initial load and switches)
   useEffect(() => {
     const nextPrefill = extractAiMetadataPrefill(props.visualFields);
     if (props.documentId !== undefined) setCurrentDocumentId(props.documentId);
-    setLocalMetadata({
-      title: props.metadata?.title || nextPrefill.title || '',
-      correspondent: props.metadata?.correspondent || nextPrefill.correspondent || '',
-      createdDate: normalizeDateInput(
-        props.metadata?.createdDate || nextPrefill.createdDate
-      )
-    });
+    correspondentManuallyEdited.current = false;
+    setLocalMetadata(resolvePreMetadata(props.metadata, nextPrefill));
     setLocalTags(Array.isArray(props.selectedTags)
       ? props.selectedTags.map((t: SmartTag) => ({ ...t }))
       : []);
@@ -668,9 +682,14 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
       metadataUpdated = true;
     }
     const aiCorrespondent = metadataCandidates.get('metadata:correspondent');
-    if (!nextMetadata.correspondent && aiCorrespondent) {
-      nextMetadata.correspondent = aiCorrespondent;
-      metadataUpdated = true;
+    if (!nextMetadata.correspondent) {
+      if (aiCorrespondent) {
+        nextMetadata.correspondent = aiCorrespondent;
+        metadataUpdated = true;
+      } else if (!correspondentManuallyEdited.current && props.metadata?.currentUser && nextMetadata.title.toLowerCase().includes('personal note')) {
+        nextMetadata.correspondent = props.metadata.currentUser;
+        metadataUpdated = true;
+      }
     }
     const aiDate = normalizeDateInput(
       metadataCandidates.get('metadata:document_date') ||
@@ -712,9 +731,17 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
 
       if (documentId != null && documentId !== currentDocumentId) {
         setCurrentDocumentId(documentId);
+        correspondentManuallyEdited.current = false;
+
+        const title = document?.title || '';
+        let correspondent = document?.correspondent || '';
+        const currentUser = document?.currentUser;
+        if (!correspondent && currentUser && title.toLowerCase().includes('personal note')) {
+          correspondent = currentUser;
+        }
         setLocalMetadata({
-          title: document?.title || '',
-          correspondent: document?.correspondent || '',
+          title,
+          correspondent,
           createdDate: normalizeDateInput(document?.createdDate)
         });
         setLocalTags(Array.isArray(document?.tagItems)
@@ -926,7 +953,18 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
   };
 
   const onMetaChange = (key: 'title' | 'correspondent' | 'createdDate', val: string) => {
+    if (key === 'correspondent') {
+      correspondentManuallyEdited.current = true;
+    }
+
     const next = { ...localMetadata, [key]: val };
+
+    // Apply "Personal Note" rule during manual typing if correspondent is still empty
+    // and the user hasn't manually edited the correspondent field
+    if (key === 'title' && !correspondentManuallyEdited.current && !next.correspondent && props.metadata?.currentUser && val.toLowerCase().includes('personal note')) {
+      next.correspondent = props.metadata.currentUser;
+    }
+
     setLocalMetadata(next);
     validateAndMarkDirty(next, requiredFields, optionalFields, localTags);
   };

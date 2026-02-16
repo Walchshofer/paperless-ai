@@ -1,3 +1,5 @@
+/* eslint-env mocha */
+
 const axios = require('axios');
 const assert = require('assert');
 

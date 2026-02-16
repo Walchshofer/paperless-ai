@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
+
 /**
  * E2E tests for toolbar cleanup - ticket 379a6a87
  *
@@ -11,16 +13,23 @@ import { test, expect } from '@playwright/test';
  * - State synchronization across components
  */
 test.describe('Toolbar cleanup and mode controls', () => {
+  test.describe.configure({ timeout: 90_000 });
+
   test.beforeEach(async ({ page }) => {
     try {
-      // Navigate to workspace with a test document (ID 74)
-      await page.goto('/workspace/doc/74', { waitUntil: 'domcontentloaded' });
+      await page.goto(`${BASE_URL}/workspace/doc/74`, { waitUntil: 'domcontentloaded' });
     } catch (e: unknown) {
       const msg =
         typeof e === 'object' && e !== null && 'message' in e
           ? (e as { message?: string }).message
           : String(e);
       test.skip(true, 'Backend not reachable for E2E run: ' + msg);
+      return;
+    }
+
+    // Guard against auth redirects (session cookie missing/expired)
+    if (page.url().includes('/login')) {
+      test.skip(true, 'Redirected to login — auth storage state may be stale');
       return;
     }
 

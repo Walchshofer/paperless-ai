@@ -648,7 +648,7 @@ module.exports = function createVisionModule(dependencies = {}) {
     },
 
     _getQwenPlannerHardening(plannerModel) {
-        const hardening = config.ollama?.qwenRouterHardening || {};
+        const hardening = config.ollama?.qwenPlannerHardening || {};
         const modelName = typeof plannerModel === 'string'
             ? plannerModel.toLowerCase()
             : '';

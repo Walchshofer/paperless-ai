@@ -106,7 +106,7 @@ class MedicalDiagnosis(BaseModel):
         icd10: ICD-10 diagnosis code (e.g., A01.0)
     """
 
-    icd10: str
+    icd10: str = Field(pattern=r'^[A-Z]\d{2}(\.\d+)?$')
 
     model_config = dict(extra="forbid")
 

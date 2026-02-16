@@ -1,3 +1,4 @@
+/* eslint-env mocha */
 
 /**
  * bias-engine.test.js
