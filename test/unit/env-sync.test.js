@@ -7,31 +7,20 @@ describe('env sync', function () {
   it('generates repo-root .env from docker-compose.env or creates a safe CI fallback', function () {
     this.timeout(5000);
     const root = path.resolve(__dirname, '../../');
-    const syncScript = path.join(root, 'scripts', 'sync_dotenv_from_compose_env.sh');
-    const psScript = path.join(root, 'scripts', 'sync_dotenv_from_compose_env.ps1');
     const dst = path.resolve(path.join(root, '.env'));
     const src = path.resolve(path.join(root, 'docker-compose.env'));
 
-    // Run the sync script (POSIX preferred, fallback to PowerShell on Windows)
+    // Run the cross-platform Node sync script.
     let _ran = false;
     // Debug: ensure we are targeting the expected destination (should be repo root /.env)
     // This log is temporary to diagnose CI shell differences
     process.stderr.write('[env-sync test] root=' + root + ' src=' + src + ' dst=' + dst + ' src_exists=' + fs.existsSync(src) + ' dst_exists_before=' + fs.existsSync(dst) + "\n");
     try {
-      execSync(`bash ${syncScript}`, { cwd: root, stdio: 'pipe' });
+      execSync('npm run -s env:sync', { cwd: root, stdio: 'pipe' });
       _ran = true;
     } catch (err) {
-      try {
-        execSync(`sh ${syncScript}`, { cwd: root, stdio: 'pipe' });
-        _ran = true;
-      } catch (err1) {
-        try {
-          execSync(`pwsh -NoProfile -File ${psScript}`, { cwd: root, stdio: 'pipe' });
-          _ran = true;
-        } catch (err2) {
-          // If all script invocations fail, we will create a deterministic fallback .env to make the test deterministic
-        }
-      }
+      // If script invocation fails, test will create deterministic fallback.
+      process.stderr.write('[env-sync test] env:sync invocation failed; using deterministic fallback\n');
     }
 
     // If .env is still missing after attempting script invocations, create a safe fallback for test determinism

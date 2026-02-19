@@ -18,7 +18,7 @@ if [ ! -f "$DOT_ENV" ]; then
   echo "WARN: $DOT_ENV not found; generating from $ENV_FILE to ensure 'docker-compose' interpolation works."
   # Generate a compatibility `.env` from the authoritative `docker-compose.env`.
   # This keeps `docker-compose.env` as the single source of truth.
-  "$ROOT_DIR/scripts/sync_dotenv_from_compose_env.sh" || echo "FAILED: could not generate $DOT_ENV — please run scripts/sync_dotenv_from_compose_env.sh manually."
+  node "$ROOT_DIR/scripts/sync_dotenv_from_compose_env.js" || echo "FAILED: could not generate $DOT_ENV — please run npm run env:sync manually."
 fi
 
 # Load env (ignores comments)
