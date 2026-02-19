@@ -804,8 +804,16 @@ app.use('/api/settings', settingsApiRoutes);
 const promptsApiRoutes = require('./routes/api/prompts');
 app.use('/api/prompts', promptsApiRoutes);
 
+// Mount Prompts Runtime API routes (test lab runtime context)
+const promptsRuntimeApiRoutes = require('./routes/api/prompts-runtime');
+app.use('/api/prompts-runtime', promptsRuntimeApiRoutes);
+
 // Mount Documents API routes (reprocess endpoint for Expert Pipeline)
 app.use('/api/documents', documentsApiRoutes);
+
+// Mount Pipeline Stages API routes (stage-isolation testing for Expert Pipeline)
+const pipelineStagesApiRoutes = require('./routes/api/pipeline-stages');
+app.use('/api/pipeline-stages', pipelineStagesApiRoutes);
 
 // Mount Visual Overlays API routes (for Visual Tab island)
 app.use('/api/visual-overlays', visualOverlaysRoutes);

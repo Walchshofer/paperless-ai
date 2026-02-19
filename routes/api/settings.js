@@ -69,7 +69,7 @@ router.get('/config', authenticateApi, requireAdmin, async (req, res) => {
                 // Sidecar Services
                 visualRagUrl: envContent.VISUAL_RAG_URL || process.env.VISUAL_RAG_URL || 'http://visual-rag:8001',
                 textRagUrl: envContent.TEXT_RAG_URL || process.env.TEXT_RAG_URL || 'http://text-rag:8004',
-                guidanceServiceUrl: envContent.GUIDANCE_SERVICE_URL || process.env.GUIDANCE_SERVICE_URL || 'http://guidance-service:8002',
+                guidanceServiceUrl: envContent.GUIDANCE_SERVICE_URL || process.env.GUIDANCE_SERVICE_URL || 'http://guidance_service:8002',
                 biasEngineUrl: envContent.BIAS_ENGINE_URL || process.env.BIAS_ENGINE_URL || 'bias-engine:50051',
                 redisUrl: envContent.REDIS_URL || process.env.REDIS_URL || 'redis://broker:6379',
 
@@ -94,7 +94,7 @@ router.get('/config', authenticateApi, requireAdmin, async (req, res) => {
                         name: envContent.PAPERLESS_OPENAI_MODEL || process.env.PAPERLESS_OPENAI_MODEL || 'gpt-4',
                         limits: {
                             contextWindow: parseInt(envContent.TOKEN_LIMIT || '128000', 10),
-                            maxResponseTokens: parseInt(envContent.RESPONSE_TOKENS || '4096', 10)
+                            maxResponseTokens: configFile.ollama?.limits?.text?.maxResponseTokens || 4096
                         }
                     }
                 },
@@ -141,14 +141,14 @@ router.get('/config', authenticateApi, requireAdmin, async (req, res) => {
                         name: envContent.TRANSLATION_MODEL || process.env.TRANSLATION_MODEL || '',
                         limits: {
                             contextWindow: parseInt(envContent.TRANSLATION_CONTEXT_WINDOW || process.env.TRANSLATION_CONTEXT_WINDOW || '128000', 10),
-                            maxResponseTokens: 4096
+                            maxResponseTokens: configFile.ollama?.limits?.text?.maxResponseTokens || 4096
                         }
                     },
                     guidance: {
                         name: envContent.GUIDANCE_MODEL || process.env.GUIDANCE_MODEL || '',
                         limits: {
                             contextWindow: 128000,
-                            maxResponseTokens: 4096
+                            maxResponseTokens: configFile.ollama?.limits?.text?.maxResponseTokens || 4096
                         }
                     },
                     imageTokenOverhead: parseInt(envContent.OLLAMA_VISION_IMAGE_TOKENS || process.env.OLLAMA_VISION_IMAGE_TOKENS || '1024', 10)
@@ -160,7 +160,7 @@ router.get('/config', authenticateApi, requireAdmin, async (req, res) => {
                         name: envContent.AZURE_DEPLOYMENT_NAME || '',
                         limits: {
                             contextWindow: parseInt(envContent.TOKEN_LIMIT || '128000', 10),
-                            maxResponseTokens: parseInt(envContent.RESPONSE_TOKENS || '4096', 10)
+                            maxResponseTokens: configFile.ollama?.limits?.text?.maxResponseTokens || 4096
                         }
                     }
                 },
@@ -169,36 +169,36 @@ router.get('/config', authenticateApi, requireAdmin, async (req, res) => {
                         name: envContent.CUSTOM_MODEL || '',
                         limits: {
                             contextWindow: parseInt(envContent.TOKEN_LIMIT || '128000', 10),
-                            maxResponseTokens: parseInt(envContent.RESPONSE_TOKENS || '4096', 10)
+                            maxResponseTokens: configFile.ollama?.limits?.text?.maxResponseTokens || 4096
                         }
                     }
                 },
                 globalLimits: {
                     tokenLimit: parseInt(envContent.TOKEN_LIMIT || '128000', 10),
-                    responseTokens: parseInt(envContent.RESPONSE_TOKENS || '4096', 10)
+                    responseTokens: configFile.ollama?.limits?.text?.maxResponseTokens || 4096
                 },
                 qualitySettings: {
                     textQualityThreshold: parseInt(envContent.TEXT_QUALITY_THRESHOLD || '60', 10),
                     maxVisionPages: parseInt(envContent.MAX_VISION_PAGES || '4', 10)
                 },
-                expertPipelineEnabled: (envContent.EXPERT_PIPELINE_ENABLED || process.env.EXPERT_PIPELINE_ENABLED) === 'yes',
+                expertPipelineEnabled: configFile.expertPipelineEnabled,
                 expertModels: {
                     medical: {
-                        vision: { name: envContent.MEDICAL_VISION_MODEL || 'llava-med-v1.6', promptId: 'MED_RADIOLOGY_V1', limits: { contextWindow: 32768, maxResponseTokens: 4096 } },
-                        analysis: { name: envContent.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3', promptId: 'MED_DOCTOR_V1', limits: { contextWindow: 128000, maxResponseTokens: 4096 } },
-                        radiology: { name: envContent.MEDICAL_RADIOLOGY_MODEL || 'llava-med-v1.6', promptId: 'MED_RADIOLOGY_V1', limits: { contextWindow: 32768, maxResponseTokens: 4096 } },
-                        integrator: { name: envContent.MEDICAL_ANALYSIS_MODEL || 'medtext-llama3', promptId: 'MED_INTEGRATOR_V1', limits: { contextWindow: 128000, maxResponseTokens: 4096 } }
+                        vision: { ...configFile.expertModels.medical.vision, promptId: 'MED_RADIOLOGY_V1' },
+                        analysis: { ...configFile.expertModels.medical.analysis, promptId: 'MED_DOCTOR_V1' },
+                        radiology: { ...configFile.expertModels.medical.radiology, promptId: 'MED_RADIOLOGY_V1' },
+                        integrator: { ...configFile.expertModels.medical.analysis, promptId: 'MED_INTEGRATOR_V1' }
                     },
                     financial: {
-                        vision: { name: envContent.FINANCIAL_VISION_MODEL || 'llm-pro-finance-8b', promptId: 'FIN_EXTRACT_V1', limits: { contextWindow: 32768, maxResponseTokens: 4096 } },
-                        analysis: { name: envContent.FINANCIAL_ANALYSIS_MODEL || 'fino1-8b', promptId: 'FIN_EXTRACT_V1', limits: { contextWindow: 128000, maxResponseTokens: 4096 } },
-                        reasoning: { name: envContent.FINANCIAL_REASONING_MODEL || 'llm-pro-finance-8b', promptId: 'FIN_REASONER_V1', limits: { contextWindow: 128000, maxResponseTokens: 4096 } },
-                        vatExpert: { name: envContent.FINANCIAL_VAT_EXPERT || 'llm-pro-finance-8b', promptId: 'FIN_VAT_EXPERT_V1', limits: { contextWindow: 128000, maxResponseTokens: 4096 } }
+                        vision: { ...configFile.expertModels.financial.vision, promptId: 'FIN_EXTRACT_V1' },
+                        analysis: { ...configFile.expertModels.financial.analysis, promptId: 'FIN_EXTRACT_V1' },
+                        reasoning: { ...configFile.expertModels.financial.analysis, promptId: 'FIN_REASONER_V1' },
+                        vatExpert: { ...configFile.expertModels.financial.vatExpert, promptId: 'FIN_VAT_EXPERT_V1' }
                     },
                     legal: {
-                        vision: { name: envContent.LEGAL_VISION_MODEL || 'qwen3-vl:8b', promptId: 'LEGAL_ORCHESTRATOR_V1', limits: { contextWindow: 32768, maxResponseTokens: 4096 } },
-                        analysis: { name: envContent.LEGAL_ANALYSIS_MODEL || 'gpt-oss', promptId: 'LEGAL_EXTRACTOR_V1', limits: { contextWindow: 128000, maxResponseTokens: 4096 } },
-                        orchestrator: { name: envContent.LEGAL_ORCHESTRATOR_MODEL || '', promptId: 'LEGAL_ORCHESTRATOR_V1', limits: { contextWindow: 32768, maxResponseTokens: 2048 } }
+                        vision: { ...configFile.expertModels.legal.vision, promptId: 'LEGAL_ORCHESTRATOR_V1' },
+                        analysis: { ...configFile.expertModels.legal.analysis, promptId: 'LEGAL_EXTRACTOR_V1' },
+                        orchestrator: { ...configFile.expertModels.legal.orchestrator, promptId: 'LEGAL_ORCHESTRATOR_V1' }
                     }
                 }
             },
@@ -548,7 +548,7 @@ router.get('/health', async (req, res) => {
 
     // Check Guidance Service
     try {
-        const guidanceUrl = process.env.GUIDANCE_SERVICE_URL || 'http://guidance-service:8002';
+        const guidanceUrl = process.env.GUIDANCE_SERVICE_URL || 'http://guidance_service:8002';
         const response = await axios.get(`${guidanceUrl}/health`, { timeout: 5000 });
         health.guidance = { status: 'ok', message: response.data?.message || 'Connected' };
     } catch (e) {
@@ -586,7 +586,7 @@ router.get('/health', async (req, res) => {
 router.post('/test-guidance', authenticateApi, requireAdmin, async (req, res) => {
     try {
         const { url } = req.body;
-        const guidanceUrl = url || process.env.GUIDANCE_SERVICE_URL || 'http://guidance-service:8002';
+        const guidanceUrl = url || process.env.GUIDANCE_SERVICE_URL || 'http://guidance_service:8002';
         const response = await axios.get(`${guidanceUrl}/health`, { timeout: 5000 });
         if (response.status === 200) {
             res.json({ success: true, message: 'Guidance Service connection successful!' });

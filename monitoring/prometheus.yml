@@ -11,7 +11,7 @@ scrape_configs:
   # Guidance Service - Confirmed port 8002
   - job_name: 'guidance-service'
     static_configs:
-      - targets: ['guidance-service:8002']
+      - targets: ['guidance_service:8002']
 
   # Visual RAG - Confirmed port 8001
   - job_name: 'visual-rag'

@@ -3589,7 +3589,10 @@ class ExpertPipelineExecutor {
           source_system: document.source || 'paperless-ngx',
           filename: document.filename || 'unknown',
           resolution: document.resolution || 'standard',
-          file_size: document.file_size || 'unknown'
+          file_size: document.file_size || 'unknown',
+          renderWaitEnabled: options.renderWaitEnabled ?? true,
+          renderWaitTimeoutMs: options.renderWaitTimeoutMs || 10000,
+          refreshImages: options.refreshImages
         }
       );
 
@@ -4022,7 +4025,12 @@ async function processDocument(document, ollamaService, options = {}) {
   } else {
     classifyResult = await executor._classifyDocumentWithVisualTriage(
       document,
-      options
+      {
+        ...options,
+        renderWaitEnabled: options.renderWaitEnabled ?? true,
+        renderWaitTimeoutMs: options.renderWaitTimeoutMs || 10000,
+        refreshImages: options.refreshImages
+      }
     );
     classificationResult = classifyResult;
   }

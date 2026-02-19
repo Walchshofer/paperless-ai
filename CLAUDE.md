@@ -58,10 +58,20 @@ Notes:
 - text-rag provides multilingual text semantic search with 384-dim embeddings
 - broker (Redis) serves dual purpose: Paperless-ngx message queue + Visual Query Cache
 
+## Environment Variable Source of Truth
+
+**SOT**: `paperless-ai/.env` is the single source of truth for all runtime environment variables.
+
+- `docker-compose.env` is referenced in older docs but does NOT exist in this repo.
+- `docker-compose.yml` uses `env_file: .env` for all services (confirmed at lines 9, 60, 98, 125, 161, 183, 204, 239).
+- `data/.env` is loaded by `dotenv` in `config.js` at container runtime, but Docker env vars take precedence (`dotenv` does not override existing vars).
+- `scripts/sync_dotenv_from_compose_env.ps1` exists but is unused (source `docker-compose.env` is missing).
+
+When editing environment variables: edit `paperless-ai/.env` directly. Restart the affected container after changes.
+
 ## Key Environment Variables
 
-All runtime variables are centralized in `docker-compose.env` (contains secrets;
-do not copy into docs or logs).
+All runtime variables are centralized in `.env` (contains secrets; do not copy into docs or logs).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -69,10 +79,35 @@ do not copy into docs or logs).
 | `PAPERLESS_MEDIA_ROOT` | `/usr/src/paperless/media` | Media path inside paperless-ai |
 | `OLLAMA_API_URL` | `http://host.docker.internal:11434` | Host Ollama endpoint |
 | `BIAS_ENGINE_URL` | `bias-engine:50051` | gRPC endpoint for bias engine |
-| `GUIDANCE_SERVICE_URL` | `http://guidance-service:8002` | Guidance service endpoint |
+| `GUIDANCE_SERVICE_URL` | `http://guidance_service:8002` | Guidance service endpoint |
 | `VISUAL_RAG_URL` | `http://visual-rag:8001` | Visual RAG sidecar endpoint |
 | `TEXT_RAG_URL` | `http://text-rag:8004` | Text RAG service endpoint |
 | `REDIS_URL` | `redis://broker:6379` | Redis endpoint for Visual Query Cache |
+
+### Visual Triage (Domain Classification)
+
+These variables control the Visual Triage stage that runs qwen3-vl to classify domain before expert pipeline routing:
+
+| Variable | Current Value | Description |
+|----------|--------------|-------------|
+| `VISUAL_TRIAGE_ENABLED` | `yes` | Enable visual triage (domain classification via qwen3-vl) |
+| `VISUAL_TRIAGE_TIMEOUT` | `90000` | Timeout in ms for visual triage call |
+| `VISUAL_TRIAGE_MAX_PAGES` | `3` | Max pages to send to visual triage |
+| `VISUAL_TRIAGE_MAX_RETRIES` | `1` | Max retries on triage failure |
+| `VISUAL_TRIAGE_FAILURE_THRESHOLD` | `5` | Circuit breaker failure count before open |
+| `VISUAL_TRIAGE_COOLDOWN` | `60000` | Circuit breaker cooldown in ms |
+
+### Guidance Streaming
+
+| Variable | Current Value | Description |
+|----------|--------------|-------------|
+| `GUIDANCE_STREAMING_THRESHOLD` | `100` | Token count threshold to enable streaming (lowered from 1024 to enable streaming for short docs) |
+
+### Visual OCR
+
+| Variable | Current Value | Description |
+|----------|--------------|-------------|
+| `VIS_OCR_TIMEOUT` | `120000` | Timeout in ms for visual OCR (raised from 60000) |
 
 ### Ollama Model Token Limits
 
@@ -182,6 +217,46 @@ Admin-only API for managing expert pipeline prompt templates.
 - API: `C:\Users\pwalc\MyApps\paperless-ai\routes\api\prompts.js`
 - UI: `C:\Users\pwalc\MyApps\paperless-ai\src\islands\PromptsSettingsIsland.tsx`
 - Contract: `C:\Users\pwalc\MyApps\paperless-ai\src\ui\contracts\Settings.Prompts.contract.ts`
+
+## Guidance Streaming Architecture
+
+Guidance 0.3.0 `gen()` does NOT support a `stream` parameter. The streaming path bypasses the Guidance library entirely.
+
+| Path | Endpoint | When Used |
+|------|----------|-----------|
+| Non-streaming | `/api/guidance/generate` | `tokenCount < GUIDANCE_STREAMING_THRESHOLD` |
+| Streaming | `/api/guidance/stream` | `tokenCount >= GUIDANCE_STREAMING_THRESHOLD` AND `GUIDANCE_STREAMING_ENABLED=yes` |
+
+**Key implementation facts** (verified in `services/guidance/GuidanceClient.js`):
+- `/api/guidance/stream` calls Ollama `/api/chat` directly (bypasses Guidance library).
+- `stream: true` is NOT added to the Guidance `/generate` payload; omitting it prevents poisoning the fallback retry path.
+- Ollama thinking models (qwen3-vl) send think tokens in `message.thinking` (not `message.content`).
+- `GuidanceClient.js` checks `data.message?.thinking` alongside `data.message?.content` in both streaming code paths.
+- Successful streaming response sets `source: 'generated_stream'` in the result metadata.
+
+## expert_thinking Event Chain
+
+The `expert_thinking` progress event fires when a thinking model produces `<think>` tokens during streaming.
+
+**Full event chain** (all links verified in codebase):
+
+```
+ExpertPipelineExecutor._emitProgress({ stage: 'expert_thinking' })   [ExpertPipelineExecutor.js]
+  -> progressReporter callback in routes/api/documents.js
+  -> ReprocessProgressBroker.publish()                                [ReprocessProgressBroker.js]
+       (expert_thinking is defined in REPROCESS_STAGE_DEFINITIONS, percentage: 40)
+  -> WebSocket broadcast to connected clients
+  -> SmartMetadataIsland receives and displays stage label
+```
+
+**Fires when** (two paths, both in `ExpertPipelineExecutor.js`):
+1. Guidance streaming path: `/api/guidance/stream` returns `{"type": "thinking"}` — triggers `onProgress({ stage: 'thinking' })` callback which calls `_emitProgress({ stage: 'expert_thinking' })`.
+2. Direct Ollama VLM streaming path: `data.message?.thinking` is non-empty OR `fullContent.includes('<think>')`.
+
+**Does NOT fire when**:
+- Non-thinking models are used (sauerkraut-llama3.1, medtext-llama3, llava-med).
+- Streaming is disabled (`GUIDANCE_STREAMING_ENABLED=no` or `tokenCount < GUIDANCE_STREAMING_THRESHOLD`).
+- Guidance service is invoked in non-streaming (generate) mode.
 
 ## Monitoring
 

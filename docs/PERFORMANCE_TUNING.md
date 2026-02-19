@@ -39,4 +39,17 @@ This guide collects tuning knobs and recommended practices to optimize bridge pe
 - If tools perform large codebase searches or heavy analyses, set `REQUEST_TIMEOUT` to 120–300s and ensure tool backends are horizontally scalable.
 - Consider adding specialized endpoints that accept batch jobs and return job IDs to avoid long synchronous waits.
 
-**Tip:** Document any tuning changes in `docker-compose.env` and the deployment runbook for traceability.
+## Vision Pipeline Tuning (RTX 3090 Ti)
+
+High-resolution document processing (300 DPI) requires specific hardening to prevent truncation and timeouts.
+
+### Hardened Baselines
+- **Context Window (`num_ctx`)**: Set to **32768 (32k)** for vision tasks. This provides sufficient space for high-res image tokens.
+- **Prediction Budget (`num_predict`)**: Set to **8192 (8k)**. This prevents the `done_reason: length` truncation observed in complex documents (e.g., medical laboratory reports).
+- **Prompt Sanitization**: Ensure vision prompts explicitly forbid internal monologue/thinking tags to reserve the entire token budget for actual output.
+
+### Rendering Strategy
+- **High-Res (300 DPI)**: Recommended for maximum accuracy in text extraction. Verified stable with the 32k/8k baseline.
+- **Optimized (150 DPI)**: Use for faster feedback in non-critical environments (e.g., Test Lab) if GPU resources are heavily constrained.
+
+**Tip:** Document any tuning changes in `docker-compose.env` and the deployment runbook for traceability. Reconcile all model-specific limits via `config.expertModels` Source of Truth.

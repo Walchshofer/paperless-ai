@@ -27,22 +27,28 @@ function getPostgresHost() {
 
 function readEnvFallback(key) {
     if (process.env[key] !== undefined && process.env[key] !== '') return process.env[key];
-    try {
-        const envPath = path.join(process.cwd(), 'data', '.env');
-        // Non-fatal: env fallback file may not exist in some environments; handle gracefully
-        if (!require('fs').existsSync(envPath)) return undefined;
-        const content = require('fs').readFileSync(envPath, 'utf8');
-        const lines = content.split(/\r?\n/);
-        for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed || trimmed.startsWith('#')) continue;
-            const idx = trimmed.indexOf('=');
-            if (idx === -1) continue;
-            const k = trimmed.substring(0, idx);
-            const v = trimmed.substring(idx + 1);
-            if (k === key) return v;
-        }
-    } catch (e) { /* ignore */ }
+    
+    const envPaths = [
+        path.join(process.cwd(), 'data', 'runtime.env'),
+        path.join(process.cwd(), 'data', '.env')
+    ];
+
+    for (const envPath of envPaths) {
+        try {
+            if (!require('fs').existsSync(envPath)) continue;
+            const content = require('fs').readFileSync(envPath, 'utf8');
+            const lines = content.split(/\r?\n/);
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || trimmed.startsWith('#')) continue;
+                const idx = trimmed.indexOf('=');
+                if (idx === -1) continue;
+                const k = trimmed.substring(0, idx);
+                const v = trimmed.substring(idx + 1);
+                if (k === key) return v;
+            }
+        } catch (e) { /* ignore */ }
+    }
     return undefined;
 }
 

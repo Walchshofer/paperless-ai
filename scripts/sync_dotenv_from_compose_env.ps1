@@ -83,8 +83,9 @@ foreach ($k in $keys) {
 
 # Write header and resolved key=values to repo-root .env
 Set-Content -Path $DST -Value $header -Encoding UTF8
-foreach ($k in $kv.Keys) {
-    Add-Content -Path $DST -Value ("$k=$($kv[$k])") -Encoding UTF8
+foreach ($key in $kv.Keys) {
+    $val = $kv[$key]
+    Add-Content -Path $DST -Value "$key=$val" -Encoding UTF8
 }
 
 # Also write a runtime env for the app to use and persist at runtime: data/runtime.env
@@ -94,9 +95,11 @@ foreach ($k in $kv.Keys) {
 $runtimeDir = Join-Path (Split-Path $SRC -Parent) 'data'
 if (-not (Test-Path -Path $runtimeDir)) { New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null }
 $RUNTIME_DST = Join-Path $runtimeDir 'runtime.env'
-Set-Content -Path $RUNTIME_DST -Value ("# Auto-generated runtime env (data/runtime.env) - generated from: $SRC`n# Do not edit directly in repo — edit docker-compose.env and re-run scripts/sync_dotenv_from_compose_env.ps1`) -Encoding UTF8
-foreach ($k in $kv.Keys) {
-    Add-Content -Path $RUNTIME_DST -Value ("$k=$($kv[$k])") -Encoding UTF8
+$runtimeHeader = "# Auto-generated runtime env (data/runtime.env) - generated from: $SRC`n# Do not edit directly in repo — edit docker-compose.env and re-run scripts/sync_dotenv_from_compose_env.ps1`n"
+Set-Content -Path $RUNTIME_DST -Value $runtimeHeader -Encoding UTF8
+foreach ($key in $kv.Keys) {
+    $val = $kv[$key]
+    Add-Content -Path $RUNTIME_DST -Value "$key=$val" -Encoding UTF8
 }
 
 Write-Host "Generated $DST and $RUNTIME_DST from $SRC (resolved values)"

@@ -222,7 +222,7 @@ router.get('/api/runtime/state', authenticateApi, requireAdmin, async (req, res)
 
     // Check Guidance service status
     try {
-      const guidanceUrl = process.env.GUIDANCE_SERVICE_URL || 'http://guidance-service:8002';
+      const guidanceUrl = process.env.GUIDANCE_SERVICE_URL || 'http://guidance_service:8002';
       const guidanceResponse = await axios.get(`${guidanceUrl}/health`, { timeout: 2000 });
       runtimeState.sidecars.guidance = guidanceResponse.status === 200;
     } catch (guidanceError) {

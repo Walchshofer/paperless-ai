@@ -180,16 +180,21 @@ class PaperlessService {
       let apiUrl = config.paperless?.apiUrl || process.env.PAPERLESS_API_URL;
       let apiToken = config.paperless?.apiToken || process.env.PAPERLESS_API_TOKEN;
 
-      // Fallback: read host data/runtime.env directly if config lacks values
-      if ((!apiUrl || !apiToken) && require('fs').existsSync(require('path').join(process.cwd(), 'data', '.env'))) {
-        try {
-          const envText = require('fs').readFileSync(require('path').join(process.cwd(), 'data', '.env'), 'utf8');
-          const mUrl = envText.match(/PAPERLESS_API_URL=(.+)/);
-          const mToken = envText.match(/PAPERLESS_API_TOKEN=(.+)/);
-          if (mUrl && mUrl[1]) apiUrl = apiUrl || mUrl[1].trim();
-          if (mToken && mToken[1]) apiToken = apiToken || mToken[1].trim();
-        } catch (e) {
-          // ignore
+      // Fallback: read runtime.env if config lacks values (useful for setup bootstrap)
+      const envPaths = [
+        require('path').join(process.cwd(), 'data', 'runtime.env'),
+        require('path').join(process.cwd(), 'data', '.env')
+      ];
+      
+      for (const p of envPaths) {
+        if ((!apiUrl || !apiToken) && require('fs').existsSync(p)) {
+          try {
+            const envText = require('fs').readFileSync(p, 'utf8');
+            const mUrl = envText.match(/PAPERLESS_API_URL=(.+)/);
+            const mToken = envText.match(/PAPERLESS_API_TOKEN=(.+)/);
+            if (mUrl && mUrl[1]) apiUrl = apiUrl || mUrl[1].trim();
+            if (mToken && mToken[1]) apiToken = apiToken || mToken[1].trim();
+          } catch (e) { /* ignore */ }
         }
       }
 

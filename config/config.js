@@ -1,8 +1,37 @@
 const path = require('path');
 const currentDir = decodeURIComponent(process.cwd());
-const envPath = path.join(currentDir, 'data', '.env');
-console.log('Loading .env from:', envPath); // Debug log
-require('dotenv').config({ path: envPath });
+
+// Environment Source of Truth (SOT) Priority:
+// 1. Authoritative: repo-root/docker-compose.env
+// 2. Compatibility: repo-root/.env (generated from docker-compose.env)
+// 3. Runtime Persisted: data/runtime.env (app-managed configuration)
+// 4. Legacy: data/.env (backward compatibility)
+
+// Environment Source of Truth (SOT) Priority:
+// 1. Authoritative: repo-root/docker-compose.env (Infrastructure)
+// 2. Compatibility: repo-root/.env (Tools/Legacy)
+// 3. Runtime: data/runtime.env (App Settings/Volume)
+const envPriority = [
+  path.join(currentDir, 'docker-compose.env'),
+  path.join(currentDir, '.env'),
+  path.join(currentDir, 'data', 'runtime.env'),
+  path.join(currentDir, 'data', '.env') // Legacy fallback
+];
+
+let loadedEnv = false;
+for (const p of envPriority) {
+  const result = require('dotenv').config({ path: p });
+  if (!result.error) {
+    console.log(`[CONFIG] Loaded environment from: ${p}`);
+    loadedEnv = true;
+    // We don't break here because dotenv does not overwrite existing process.env variables.
+    // Multiple calls allow us to fill in gaps from lower-priority files if needed.
+  }
+}
+
+if (!loadedEnv) {
+  console.warn('[CONFIG] No .env or docker-compose.env file found. Relying on system environment variables.');
+}
 
 // Helper function to parse boolean-like env vars
 const parseEnvBoolean = (value, defaultValue = 'yes') => {
@@ -128,15 +157,32 @@ const legalAnalysisModel = process.env.LEGAL_ANALYSIS_MODEL || 'gpt-oss';
 const legalOrchestratorModel = process.env.LEGAL_ORCHESTRATOR_MODEL || orchestratorModel;
 
 const baseTokenLimit = parseEnvInt(process.env.TOKEN_LIMIT, 128000);
-const baseResponseTokens = parseEnvInt(process.env.RESPONSE_TOKENS, 4096);
+const baseResponseTokens = parseEnvInt(process.env.RESPONSE_TOKENS || process.env.OLLAMA_MAX_RESPONSE_TOKENS, 4096);
 const ollamaTextContextWindow = parseEnvInt(process.env.OLLAMA_CONTEXT_WINDOW, baseTokenLimit);
 const ollamaTextMaxResponseTokens = parseEnvInt(process.env.OLLAMA_MAX_RESPONSE_TOKENS, baseResponseTokens);
-const ollamaVisionContextWindow = Math.min(parseEnvInt(process.env.OLLAMA_VISION_CONTEXT_WINDOW, ollamaTextContextWindow), 32768); // Cap vision context to 32k
-const ollamaVisionMaxResponseTokens = parseEnvInt(process.env.OLLAMA_VISION_MAX_RESPONSE_TOKENS, 2048);
+const ollamaVisionMaxResponseTokens = parseEnvInt(process.env.OLLAMA_VISION_MAX_RESPONSE_TOKENS, 8192); // Set to 8k per performance hardening P0
+const ollamaVisionContextWindow = Math.min(parseEnvInt(process.env.OLLAMA_VISION_CONTEXT_WINDOW, 32768), 128000); // Set to 32k per performance hardening P0
 const ollamaPlannerContextWindow = Math.min(parseEnvInt(process.env.OLLAMA_PLANNER_CONTEXT_WINDOW, ollamaVisionContextWindow), 32768); // Cap planner context to 32k
 const ollamaPlannerMaxResponseTokens = parseEnvInt(process.env.OLLAMA_PLANNER_MAX_RESPONSE_TOKENS, 2048);
 const ollamaExpertContextWindow = parseEnvInt(process.env.OLLAMA_EXPERT_CONTEXT_WINDOW, ollamaTextContextWindow);
 const ollamaExpertMaxResponseTokens = parseEnvInt(process.env.OLLAMA_EXPERT_MAX_RESPONSE_TOKENS, ollamaTextMaxResponseTokens);
+
+// Domain-specific expert model limits (SOT for all pipelines)
+const medicalVisionContext = parseEnvInt(process.env.MEDICAL_VISION_CONTEXT, ollamaVisionContextWindow);
+const medicalVisionMaxTokens = parseEnvInt(process.env.MEDICAL_VISION_MAX_TOKENS, ollamaVisionMaxResponseTokens);
+const medicalAnalysisContext = parseEnvInt(process.env.MEDICAL_ANALYSIS_CONTEXT, ollamaExpertContextWindow);
+const medicalAnalysisMaxTokens = parseEnvInt(process.env.MEDICAL_ANALYSIS_MAX_TOKENS, ollamaExpertMaxResponseTokens);
+
+const financialVisionContext = parseEnvInt(process.env.FINANCIAL_VISION_CONTEXT, ollamaVisionContextWindow);
+const financialVisionMaxTokens = parseEnvInt(process.env.FINANCIAL_VISION_MAX_TOKENS, ollamaVisionMaxResponseTokens);
+const financialAnalysisContext = parseEnvInt(process.env.FINANCIAL_ANALYSIS_CONTEXT, ollamaExpertContextWindow);
+const financialAnalysisMaxTokens = parseEnvInt(process.env.FINANCIAL_ANALYSIS_MAX_TOKENS, ollamaExpertMaxResponseTokens);
+
+const legalVisionContext = parseEnvInt(process.env.LEGAL_VISION_CONTEXT, ollamaVisionContextWindow);
+const legalVisionMaxTokens = parseEnvInt(process.env.LEGAL_VISION_MAX_TOKENS, ollamaVisionMaxResponseTokens);
+const legalAnalysisContext = parseEnvInt(process.env.LEGAL_ANALYSIS_CONTEXT, ollamaExpertContextWindow);
+const legalAnalysisMaxTokens = parseEnvInt(process.env.LEGAL_ANALYSIS_MAX_TOKENS, ollamaExpertMaxResponseTokens);
+
 const ollamaVisionImageTokenOverhead = parseEnvInt(process.env.OLLAMA_VISION_IMAGE_TOKENS, 1024);
 const translationContextWindow = parseEnvInt(process.env.TRANSLATION_CONTEXT_WINDOW, ollamaTextContextWindow);
 const ollamaModelLimitsOverrides = parseEnvJson(process.env.OLLAMA_MODEL_LIMITS_JSON, {});
@@ -342,20 +388,31 @@ module.exports = {
     modelLimits: ollamaModelLimits
   },
   expertModels: {
+    system: {
+      vision: { name: ollamaVisionModel, limits: { contextWindow: ollamaVisionContextWindow, maxResponseTokens: ollamaVisionMaxResponseTokens } },
+      planner: { name: plannerModel, limits: { contextWindow: ollamaPlannerContextWindow, maxResponseTokens: ollamaPlannerMaxResponseTokens } },
+      router: { name: routerModel, limits: { contextWindow: ollamaExpertContextWindow, maxResponseTokens: ollamaExpertMaxResponseTokens } }
+    },
+    general: {
+      vision: { name: ollamaVisionModel, limits: { contextWindow: ollamaVisionContextWindow, maxResponseTokens: ollamaVisionMaxResponseTokens } },
+      analysis: { name: generalModel, limits: { contextWindow: ollamaTextContextWindow, maxResponseTokens: ollamaTextMaxResponseTokens } }
+    },
     medical: {
-      vision: medicalVisionModel,
-      analysis: medicalAnalysisModel,
-      radiology: medicalRadiologyModel
+      vision: { name: medicalVisionModel, limits: { contextWindow: medicalVisionContext, maxResponseTokens: medicalVisionMaxTokens } },
+      analysis: { name: medicalAnalysisModel, limits: { contextWindow: medicalAnalysisContext, maxResponseTokens: medicalAnalysisMaxTokens } },
+      radiology: { name: medicalRadiologyModel, limits: { contextWindow: medicalVisionContext, maxResponseTokens: medicalVisionMaxTokens } },
+      integrator: { name: medicalAnalysisModel, limits: { contextWindow: medicalAnalysisContext, maxResponseTokens: medicalAnalysisMaxTokens } }
     },
     financial: {
-      analysis: financialAnalysisModel,
-      vision: financialVisionModel,
-      vatExpert: financialVatExpertModel
+      analysis: { name: financialAnalysisModel, limits: { contextWindow: financialAnalysisContext, maxResponseTokens: financialAnalysisMaxTokens } },
+      vision: { name: financialVisionModel, limits: { contextWindow: financialVisionContext, maxResponseTokens: financialVisionMaxTokens } },
+      vatExpert: { name: financialVatExpertModel, limits: { contextWindow: financialAnalysisContext, maxResponseTokens: financialAnalysisMaxTokens } },
+      reasoning: { name: _financialReasoningModel, limits: { contextWindow: financialAnalysisContext, maxResponseTokens: financialAnalysisMaxTokens } }
     },
     legal: {
-      vision: legalVisionModel,
-      analysis: legalAnalysisModel,
-      orchestrator: legalOrchestratorModel
+      vision: { name: legalVisionModel, limits: { contextWindow: legalVisionContext, maxResponseTokens: legalVisionMaxTokens } },
+      analysis: { name: legalAnalysisModel, limits: { contextWindow: legalAnalysisContext, maxResponseTokens: legalAnalysisMaxTokens } },
+      orchestrator: { name: legalOrchestratorModel, limits: { contextWindow: legalAnalysisContext, maxResponseTokens: legalAnalysisMaxTokens } }
     }
   },
   expertPipelineEnabled: parseEnvBoolean(process.env.EXPERT_PIPELINE_ENABLED, 'yes'),
@@ -450,6 +507,16 @@ module.exports = {
     minQuality: parseFloat(process.env.VIS_OCR_MIN_QUALITY || '0.6'),
     embeddingModel: process.env.VIS_OCR_EMBEDDING_MODEL || 'nomic-embed-text-v1.5'
   },
+  // Visual Triage configuration (qwen3-vl domain classification)
+  visualTriage: {
+    enabled: parseEnvBoolean(process.env.VISUAL_TRIAGE_ENABLED, 'yes'),
+    model: process.env.VISUAL_TRIAGE_MODEL || process.env.ROUTER_MODEL || 'qwen3-vl:8b',
+    timeout: parseInt(process.env.VISUAL_TRIAGE_TIMEOUT || '90000', 10),
+    maxPages: parseInt(process.env.VISUAL_TRIAGE_MAX_PAGES || '3', 10),
+    maxRetries: parseInt(process.env.VISUAL_TRIAGE_MAX_RETRIES || '1', 10),
+    failureThreshold: parseInt(process.env.VISUAL_TRIAGE_FAILURE_THRESHOLD || '5', 10),
+    cooldownPeriod: parseInt(process.env.VISUAL_TRIAGE_COOLDOWN || '60000', 10)
+  },
   // MoE Retrieval configuration (Mixture of Experts routing)
   moeRetrieval: {
     enabled: parseEnvBoolean(process.env.MOE_RETRIEVAL_ENABLED, 'yes'),
@@ -464,7 +531,7 @@ module.exports = {
   // Guidance Service configuration (deterministic JSON extraction)
   guidanceService: {
     enabled: parseEnvBoolean(process.env.GUIDANCE_SERVICE_ENABLED, 'yes'),
-    url: process.env.GUIDANCE_SERVICE_URL || 'http://localhost:8002',
+    url: process.env.GUIDANCE_SERVICE_URL || 'http://guidance_service:8002',
     model: process.env.GUIDANCE_MODEL || 'sauerkraut-llama3.1:8b',
     timeout: parseInt(process.env.GUIDANCE_TIMEOUT || '90000', 10),
     useCache: parseEnvBoolean(process.env.GUIDANCE_USE_CACHE, 'yes'),

@@ -36,6 +36,7 @@
  */
 
 const { DomainType, ModelType } = require('./PromptRegistry');
+const config = require('../../config/config');
 
 // ============================================================================
 // IMAGING ANALYSIS PROMPTS
@@ -209,7 +210,7 @@ Perform systematic analysis using the ABCDEFGHI approach and respond with this J
 
     config: {
         temperature: 0.25,
-        maxTokens: 4096,
+        maxTokens: config.expertModels?.medical?.vision?.limits?.maxResponseTokens || 4096,
         topK: 50,
         topP: 0.9
     }
@@ -331,7 +332,7 @@ Respond with this JSON structure:
 
     config: {
         temperature: 0.3,
-        maxTokens: 4096,
+        maxTokens: config.expertModels?.medical?.vision?.limits?.maxResponseTokens || 4096,
         topK: 50,
         topP: 0.9
     }
@@ -644,7 +645,7 @@ Respond with this JSON structure:
 
     config: {
         temperature: 0.1,  // Very low temp for numeric accuracy
-        maxTokens: 4096,
+        maxTokens: config.expertModels?.medical?.vision?.limits?.maxResponseTokens || 4096,
         topK: 40,
         topP: 0.9
     }
@@ -811,7 +812,7 @@ Respond with this JSON structure:
 
     config: {
         temperature: 0.2,
-        maxTokens: 4096,
+        maxTokens: config.expertModels?.medical?.vision?.limits?.maxResponseTokens || 4096,
         topK: 40,
         topP: 0.9
     }
@@ -970,7 +971,7 @@ Respond with this JSON structure:
 
     config: {
         temperature: 0.2,
-        maxTokens: 4096,
+        maxTokens: config.expertModels?.medical?.vision?.limits?.maxResponseTokens || 4096,
         topK: 40,
         topP: 0.9
     }

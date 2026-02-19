@@ -36,13 +36,13 @@ const DEFAULT_CONFIG = {
     },
     tesseractOcr: {
         enabled: true,
-        timeout: 300,           // 300ms for API fetch
+        timeout: 10000,         // Increased to 10s for reliable API fetch
         failureThreshold: 3,
         cooldownPeriod: 30000
     },
     visualElements: {
         enabled: false,         // Explicitly disabled - Superseded by visual queries in Stage 5.5
-        timeout: 500,           // 500ms for element detection
+        timeout: 5000,          // Increased to 5s for element detection
         url: config.visualRagSidecar?.url || 'http://visual-rag:8001',
         failureThreshold: 3,
         cooldownPeriod: 30000

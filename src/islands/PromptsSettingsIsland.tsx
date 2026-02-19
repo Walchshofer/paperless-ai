@@ -99,6 +99,9 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
   // Test modal state
   const [showTestModal, setShowTestModal] = useState(false);
   const [testVariables, setTestVariables] = useState<Record<string, string>>({});
+  const [lockedVariables, setLockedVariables] = useState<Set<string>>(new Set());
+  const [pipelineError, setPipelineError] = useState<any | null>(null);
+  const [showErrorDetails, setShowErrorDetails] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
   const [testStreamingResult, setTestStreamingResult] = useState<{
     fullText: string;
@@ -106,7 +109,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
     metadata: any;
   } | null>(null);
   const [isTesting, setIsTesting] = useState(false);
-  const [testSource, setTestSource] = useState<'mock' | 'document'>('mock');
+  const [pipelineExecuting, setPipelineExecuting] = useState(false);
   const [recentDocuments, setRecentDocuments] = useState<any[]>([]);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [selectedDocumentData, setSelectedDocumentData] = useState<any>(null);
@@ -114,13 +117,31 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
   const [docError, setDocError] = useState<string | null>(null);
   const [testMode, setTestMode] = useState<'validate' | 'execute'>('validate');
   const [testImage, setTestImage] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const closeTestModal = () => {
     setShowTestModal(false);
     setIsTesting(false);
+    setPipelineExecuting(false);
     setIsLoadingDocs(false);
     setDocError(null);
     setTestImage(null);
+    setPipelineError(null);
+    setShowErrorDetails(false);
+    
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  };
+
+  const toggleVariableLock = (varName: string) => {
+    setLockedVariables(prev => {
+      const next = new Set(prev);
+      if (next.has(varName)) next.delete(varName);
+      else next.add(varName);
+      return next;
+    });
   };
 
   // Fetch prompts on mount
@@ -213,30 +234,74 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
   };
 
   const handleDocumentSelect = async (docId: number) => {
+    if (!activePromptId) return;
+    
+    // Cancel existing request if any
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    
     setSelectedDocumentId(String(docId));
-    setIsLoadingDocs(true);
+    setPipelineExecuting(true);
     setDocError(null);
     setTestImage(null);
+    setPipelineError(null);
+    setTestVariables({});
+    
     try {
-      const [contentRes, imageRes] = await Promise.all([
-        fetch(`/api/documents/${docId}/content`),
-        fetch(`/api/documents/${docId}/preview-image`)
+      const [contextRes, imageRes] = await Promise.all([
+        fetch('/api/prompts-runtime/context', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ documentId: docId, promptId: activePromptId }),
+          signal: controller.signal
+        }),
+        fetch(`/api/documents/${docId}/preview-image`, { signal: controller.signal })
       ]);
 
-      if (contentRes.ok) {
-        const { document } = await contentRes.json();
-        setSelectedDocumentData(document);
-        // Auto-populate variables from document
-        const vars = { ...testVariables };
-        const docContent = document.content || '';
+      if (contextRes.status === 429) {
+        const data = await contextRes.json();
+        setDocError(data.error || 'You have an active test execution. Please wait.');
+        return;
+      }
+
+      if (contextRes.ok || contextRes.status === 500) {
+        const data = await contextRes.json();
         
-        if (vars.hasOwnProperty('text_chunk')) vars['text_chunk'] = docContent;
-        if (vars.hasOwnProperty('filename')) vars['filename'] = document.title;
-        if (vars.hasOwnProperty('created_date')) vars['created_date'] = document.created;
-        if (vars.hasOwnProperty('content')) vars['content'] = docContent;
-        if (vars.hasOwnProperty('doc_title')) vars['doc_title'] = document.title;
-        
-        setTestVariables(vars);
+        // Populate document metadata
+        if (data.documentMetadata) {
+          setSelectedDocumentData({
+            id: data.documentMetadata.id,
+            title: data.documentMetadata.title,
+            filename: data.documentMetadata.filename,
+            content: data.variables?.ocr_text || data.variables?.content || ''
+          });
+        }
+
+        // Populate variables
+        if (data.variables) {
+          setTestVariables(data.variables);
+          // Lock all populated variables by default
+          setLockedVariables(new Set(Object.keys(data.variables)));
+        }
+
+        // Handle pipeline errors
+        if (!data.success) {
+          if (data.pipelineMetadata?.stages) {
+            setPipelineError({
+              message: data.error || 'Pipeline execution failed',
+              stages: data.pipelineMetadata.stages
+            });
+            setShowErrorDetails(true);
+          } else {
+            setDocError(data.error || 'Pipeline execution failed (no metadata)');
+          }
+        }
+      } else {
+        setDocError(`Context fetch failed: ${contextRes.status}`);
       }
 
       if (imageRes.ok) {
@@ -244,9 +309,16 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
         setTestImage(image_data);
       }
     } catch (err) {
-      setDocError('Document data fetch error');
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
+      setDocError('Document context fetch error');
+      console.error(err);
     } finally {
-      setIsLoadingDocs(false);
+      setPipelineExecuting(false);
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
     }
   };
 
@@ -484,14 +556,14 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
   };
 
   const openTestModal = () => {
-    // Pre-populate test variables with placeholder values
-    const vars = extractVars(editSystemPrompt + ' ' + editUserTemplate);
-    const initial: Record<string, string> = {};
-    for (const v of vars) {
-      initial[v] = testVariables[v] || `sample_${v}`;
-    }
-    setTestVariables(initial);
+    // Reset test state
+    setTestVariables({});
     setTestResult(null);
+    setPipelineError(null);
+    setShowErrorDetails(false);
+    setSelectedDocumentId(null);
+    setSelectedDocumentData(null);
+    setTestImage(null);
     setShowTestModal(true);
   };
 
@@ -1079,115 +1151,98 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
               <button
                 onClick={() => closeTestModal()}
                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors text-slate-400"
+                data-testid="prompt-test-close"
               >
                 <i className="fas fa-times"></i>
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
-              {/* Source Selection & Document Picker */}
+              {/* Document Selection */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <i className="fas fa-microscope text-[8px]"></i>
-                    Laboratory Source
+                    <i className="fas fa-file-search text-[8px]"></i>
+                    Select Test Subject
                   </h4>
-                  <div className="flex p-0.5 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
-                    <button
-                      onClick={() => {
-                        setTestSource('mock');
-                        setSelectedDocumentId(null);
-                        setSelectedDocumentData(null);
-                        // Re-init variables from template
-                        const vars = extractVars(editSystemPrompt + ' ' + editUserTemplate);
-                        const initial: Record<string, string> = {};
-                        for (const v of vars) {
-                          initial[v] = testVariables[v] || `sample_${v}`;
-                        }
-                        setTestVariables(initial);
-                      }}
-                      data-testid="test-source-mock"
-                      className={`px-3 py-1 text-[10px] font-bold uppercase tracking-tight rounded-md transition-all ${
-                        testSource === 'mock' 
-                          ? 'bg-white dark:bg-slate-800 text-indigo-500 shadow-sm' 
-                          : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                      }`}
+                  <div className="flex items-center gap-3">
+                    {docError && <span className="text-[10px] text-red-500 font-bold italic">{docError}</span>}
+                    <button 
+                      onClick={() => { if (recentDocuments.length === 0) fetchRecentDocuments(); }}
+                      className={`text-[10px] px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-indigo-500 transition-all ${recentDocuments.length === 0 ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 border-indigo-200' : ''}`}
+                      title="Load recent documents"
+                      data-testid="test-lab-load-docs-btn"
                     >
-                      Mock Data
-                    </button>
-                    <button
-                      onClick={() => {
-                        setTestSource('document');
-                        if (recentDocuments.length === 0) fetchRecentDocuments();
-                      }}
-                      data-testid="test-source-document"
-                      className={`px-3 py-1 text-[10px] font-bold uppercase tracking-tight rounded-md transition-all ${
-                        testSource === 'document' 
-                          ? 'bg-white dark:bg-slate-800 text-indigo-500 shadow-sm' 
-                          : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                      }`}
-                    >
-                      Real Document
+                      {recentDocuments.length === 0 ? 'Load Documents' : <i className={`fas fa-sync-alt ${isLoadingDocs ? 'animate-spin' : ''}`}></i>}
                     </button>
                   </div>
                 </div>
 
-                {testSource === 'document' && (
-                  <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                    <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest flex items-center gap-2">
-                          <i className="fas fa-file-search"></i>
-                          Select Test Subject
-                        </label>
-                        <div className="flex items-center gap-3">
-                          {docError && <span className="text-[10px] text-red-500 font-bold italic">{docError}</span>}
-                          <button 
-                            onClick={fetchRecentDocuments}
-                            className="text-[10px] text-slate-400 hover:text-indigo-500 transition-colors"
-                            title="Refresh documents"
-                          >
-                            <i className={`fas fa-sync-alt ${isLoadingDocs ? 'animate-spin' : ''}`}></i>
-                          </button>
+                <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-4 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-indigo-500/20">
+                      {isLoadingDocs && recentDocuments.length === 0 ? (
+                        <div className="col-span-2 py-4 text-center text-[10px] text-slate-400 uppercase font-medium italic">
+                          Scanning archives...
                         </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-indigo-500/20">
-                        {isLoadingDocs && recentDocuments.length === 0 ? (
-                          <div className="col-span-2 py-4 text-center text-[10px] text-slate-400 uppercase font-medium italic">
-                            Scanning archives...
-                          </div>
-                        ) : recentDocuments.map(doc => (
-                          <button
-                            key={doc.id}
-                            onClick={() => handleDocumentSelect(doc.id)}
-                            data-testid={`test-subject-doc-${doc.id}`}
-                            className={`flex flex-col gap-0.5 p-2 rounded-lg border text-left transition-all ${
-                              selectedDocumentId === String(doc.id)
-                                ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20'
-                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-indigo-400/50'
-                            }`}
-                          >
-                            <span className="text-[10px] font-bold truncate w-full">{doc.title}</span>
-                            <span className={`text-[8px] font-mono opacity-60 ${selectedDocumentId === String(doc.id) ? 'text-indigo-100' : ''}`}>
-                              ID: {doc.id} • {new Date(doc.created).toLocaleDateString()}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
+                      ) : recentDocuments.length === 0 ? (
+                        <div className="col-span-2 py-4 text-center text-[10px] text-slate-400 uppercase font-medium italic">
+                          Click "Load Documents" to start testing
+                        </div>
+                      ) : recentDocuments.map(doc => (
+                        <button
+                          key={doc.id}
+                          disabled={pipelineExecuting}
+                          onClick={() => handleDocumentSelect(doc.id)}
+                          data-testid={`test-subject-doc-${doc.id}`}
+                          className={`flex flex-col gap-0.5 p-2 rounded-lg border text-left transition-all ${
+                            selectedDocumentId === String(doc.id)
+                              ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20'
+                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-indigo-400/50'
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          <span className="text-[10px] font-bold truncate w-full">{doc.title}</span>
+                          <span className={`text-[8px] font-mono opacity-60 ${selectedDocumentId === String(doc.id) ? 'text-indigo-100' : ''}`}>
+                            ID: {doc.id} • {new Date(doc.created).toLocaleDateString()}
+                          </span>
+                        </button>
+                      ))}
                     </div>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Document Data Preview */}
-              {testSource === 'document' && selectedDocumentData && (
+              {selectedDocumentData && (
                 <div className="space-y-3 animate-in fade-in slide-in-from-left-4 duration-500">
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <i className="fas fa-eye text-[8px]"></i>
-                    Extraction Subject Preview
-                  </h4>
-                  <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                      <i className="fas fa-eye text-[8px]"></i>
+                      Extraction Subject Preview
+                    </h4>
+                    <button
+                      onClick={() => handleDocumentSelect(Number(selectedDocumentId))}
+                      disabled={pipelineExecuting}
+                      className="px-3 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold uppercase tracking-widest hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-all disabled:opacity-50"
+                      data-testid="test-lab-process-btn"
+                    >
+                      {pipelineExecuting ? (
+                        <i className="fas fa-circle-notch animate-spin mr-1"></i>
+                      ) : (
+                        <i className="fas fa-wand-magic-sparkles mr-1"></i>
+                      )}
+                      {pipelineExecuting ? 'Processing...' : 'Reprocess Document'}
+                    </button>
+                  </div>
+                  <div className={`rounded-xl border transition-colors ${pipelineExecuting ? 'border-indigo-500/30 bg-indigo-500/5' : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50'} p-3 space-y-2 relative`}>
+                    {pipelineExecuting && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white/40 dark:bg-slate-900/40 backdrop-blur-[1px] z-10 rounded-xl">
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                          <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Preparing Context...</span>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between text-[9px] font-mono text-slate-500">
                       <span>Source: {selectedDocumentData.title}</span>
                       <span>{selectedDocumentData.content?.length || 0} characters</span>
@@ -1199,47 +1254,144 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                 </div>
               )}
 
-              {/* Variable Inputs Grid */}
-              {Object.keys(testVariables).length > 0 && (
-                <div className="space-y-4">
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <i className="fas fa-brackets-curly text-[8px]"></i>
-                    Mock Injection Variables
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {Object.entries(testVariables).map(([key, val]) => (
-                      <div key={key} className="flex flex-col gap-1.5 group/var">
-                        <label className="text-[10px] font-mono font-bold text-cyan-600 dark:text-cyan-400/70 ml-1">
-                          {`{{${key}}}`}
-                        </label>
-                        {String(val).length > 200 ? (
-                          <textarea
-                            value={val}
-                            rows={4}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800"
-                            onInput={(e: Event) => {
-                              const v = (e.target as HTMLTextAreaElement).value;
-                              setTestVariables(prev => ({ ...prev, [key]: v }));
-                            }}
-                            data-testid={`test-var-${key}`}
-                          />
-                        ) : (
-                          <input
-                            type="text"
-                            value={val}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                            onInput={(e: Event) => {
-                              const v = (e.target as HTMLInputElement).value;
-                              setTestVariables(prev => ({ ...prev, [key]: v }));
-                            }}
-                            data-testid={`test-var-${key}`}
-                          />
-                        )}
+              {/* Detailed Pipeline Error Panel */}
+              {pipelineError && (
+                <div className="animate-in fade-in slide-in-from-top-4 duration-300">
+                  <div className="rounded-2xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 overflow-hidden">
+                    <button
+                      onClick={() => setShowErrorDetails(!showErrorDetails)}
+                      className="w-full flex items-center justify-between p-4 text-left"
+                      data-testid="pipeline-error-toggle"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/40 flex items-center justify-center text-red-600 dark:text-red-400">
+                          <i className="fas fa-triangle-exclamation"></i>
+                        </div>
+                        <div>
+                          <h5 className="text-xs font-bold text-red-800 dark:text-red-200 uppercase tracking-wider">
+                            {pipelineError.message || 'Pipeline Completed with Errors'}
+                          </h5>
+                          <p className="text-[10px] text-red-600 dark:text-red-400/70 font-medium">
+                            {pipelineError.stages.filter((s: any) => s.status === 'error').length} of {pipelineError.stages.length} stages failed
+                          </p>
+                        </div>
                       </div>
-                    ))}
+                      <i className={`fas fa-chevron-${showErrorDetails ? 'up' : 'down'} text-red-400`}></i>
+                    </button>
+
+                    {showErrorDetails && (
+                      <div className="px-4 pb-4 space-y-2 border-t border-red-100 dark:border-red-900/30 pt-4" data-testid="pipeline-error-details">
+                        {pipelineError.stages.map((stage: any, idx: number) => (
+                          <div key={idx} className="flex items-start gap-3 p-2 rounded-lg bg-white/50 dark:bg-black/20 border border-red-100/50 dark:border-red-900/20" data-testid={`pipeline-stage-${stage.name}`}>
+                            <div className={`mt-0.5 ${stage.status === 'error' ? 'text-red-500' : 'text-emerald-500'}`}>
+                              <i className={`fas ${stage.status === 'error' ? 'fa-circle-xmark' : 'fa-circle-check'}`}></i>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-bold uppercase tracking-tight text-slate-700 dark:text-slate-300">
+                                  {stage.name}
+                                </span>
+                                <span className="text-[9px] font-mono text-slate-400">
+                                  {stage.duration}ms
+                                </span>
+                              </div>
+                              {stage.error && (
+                                <p className="text-[10px] text-red-600 dark:text-red-400/80 mt-0.5 leading-tight italic">
+                                  {stage.error}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
+
+              {/* Variable Inputs Grid */}
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                  <i className="fas fa-brackets-curly text-[8px]"></i>
+                  Runtime Variables
+                </h4>
+                {Object.keys(testVariables).length === 0 ? (
+                  <div className="py-8 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-2xl">
+                    <div className="text-[10px] text-slate-400 uppercase font-bold tracking-widest flex flex-col items-center gap-3">
+                      {pipelineExecuting ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                          <span>Preparing Context...</span>
+                        </>
+                      ) : (
+                        <span>{selectedDocumentId ? 'Processing document...' : 'Select a document to populate runtime variables'}</span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {Object.entries(testVariables).map(([key, val]) => {
+                      const isLocked = lockedVariables.has(key);
+                      return (
+                        <div key={key} className="flex flex-col gap-1.5 group/var">
+                          <div className="flex items-center justify-between px-1">
+                            <label className={`text-[10px] font-mono font-bold transition-colors ${
+                              isLocked ? 'text-slate-400' : 'text-cyan-600 dark:text-cyan-400/70'
+                            }`}>
+                              {`{{${key}}}`}
+                            </label>
+                            <button
+                              onClick={() => toggleVariableLock(key)}
+                              disabled={pipelineExecuting}
+                              className={`text-[10px] p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-all ${
+                                isLocked ? 'text-slate-400' : 'text-cyan-500'
+                              } disabled:opacity-30`}
+                              title={isLocked ? 'Click to unlock' : 'Click to lock'}
+                              type="button"
+                              data-testid={`test-var-lock-${key}`}
+                            >
+                              <i className={`fas fa-lock${isLocked ? '' : '-open'} scale-90`}></i>
+                            </button>
+                          </div>
+                          {String(val).length > 200 ? (
+                            <textarea
+                              value={val}
+                              rows={4}
+                              disabled={isLocked || pipelineExecuting}
+                              className={`w-full border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs font-mono transition-all resize-none scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 ${
+                                isLocked 
+                                  ? 'bg-slate-100 dark:bg-slate-900/50 text-slate-500 cursor-not-allowed border-dashed' 
+                                  : 'bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-200'
+                              }`}
+                              onInput={(e: Event) => {
+                                const v = (e.target as HTMLTextAreaElement).value;
+                                setTestVariables(prev => ({ ...prev, [key]: v }));
+                              }}
+                              data-testid={`test-var-${key}`}
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              value={val}
+                              disabled={isLocked || pipelineExecuting}
+                              className={`w-full border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs font-mono transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 ${
+                                isLocked 
+                                  ? 'bg-slate-100 dark:bg-slate-900/50 text-slate-500 cursor-not-allowed border-dashed' 
+                                  : 'bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-200'
+                              }`}
+                              onInput={(e: Event) => {
+                                const v = (e.target as HTMLInputElement).value;
+                                setTestVariables(prev => ({ ...prev, [key]: v }));
+                              }}
+                              data-testid={`test-var-${key}`}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
               {/* Execution Mode Selection */}
               <div className="space-y-4">
@@ -1299,7 +1451,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
               {(testResult || (isTesting && testStreamingResult)) && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500" data-testid="prompt-test-results">
                   {/* Critical Error Display */}
-                  {!testResult.success && (
+                  {testResult && !testResult.success && (
                     <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 flex items-center gap-3">
                       <i className="fas fa-exclamation-circle text-lg"></i>
                       <div className="flex-1">
@@ -1312,22 +1464,27 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                   {/* Result Metrics */}
                   <div className="flex flex-wrap gap-3">
                     <div className={`px-3 py-1.5 rounded-full border flex items-center gap-2 ${
+                      !testResult ? 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500' :
                       testResult.success ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400'
                     }`}>
-                      <i className={`fas ${testResult.success ? 'fa-check-circle' : 'fa-times-circle'} text-xs`}></i>
-                      <span className="text-[10px] font-black uppercase tracking-widest">{testResult.success ? 'Execution Successful' : 'Execution Failed'}</span>
+                      <i className={`fas ${!testResult ? 'fa-circle-notch fa-spin' : testResult.success ? 'fa-check-circle' : 'fa-times-circle'} text-xs`}></i>
+                      <span className="text-[10px] font-black uppercase tracking-widest">
+                        {!testResult ? 'Executing...' : testResult.success ? 'Execution Successful' : 'Execution Failed'}
+                      </span>
                     </div>
 
                     {/* Model Information */}
-                    {testResult.model && (
+                    {(testResult?.model || (isTesting && testStreamingResult?.metadata?.model)) && (
                       <div className="px-3 py-1.5 rounded-full border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 flex items-center gap-2 shadow-sm">
                         <i className="fas fa-microchip text-xs"></i>
-                        <span className="text-[10px] font-mono font-bold tracking-tighter">{testResult.model}</span>
+                        <span className="text-[10px] font-mono font-bold tracking-tighter">
+                          {testResult?.model || testStreamingResult?.metadata?.model}
+                        </span>
                       </div>
                     )}
 
                     {/* Guidance Status */}
-                    {String(testResult.source).includes('guidance-service') && (
+                    {testResult && String(testResult.source).includes('guidance-service') && (
                       <div className="px-3 py-1.5 rounded-full border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400 flex items-center gap-2 shadow-sm">
                         <i className="fas fa-shield-halved text-xs"></i>
                         <span className="text-[10px] font-black uppercase tracking-widest">Guidance Active</span>
@@ -1339,7 +1496,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                       </div>
                     )}
 
-                    {testResult.jsonValid !== null && (
+                    {testResult && testResult.jsonValid !== null && (
                       <div className={`px-3 py-1.5 rounded-full border flex items-center gap-2 ${
                         testResult.jsonValid ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400'
                       }`}>
@@ -1347,13 +1504,13 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                         <span className="text-[10px] font-black uppercase tracking-widest">JSON {testResult.jsonValid ? 'Verified' : 'Corrupted'}</span>
                       </div>
                     )}
-                    {testResult.duration !== undefined && (
+                    {testResult && testResult.duration !== undefined && (
                       <div className="px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center gap-2">
                         <i className="fas fa-clock text-xs"></i>
                         <span className="text-[10px] font-bold tracking-wider">{testResult.duration}ms</span>
                       </div>
                     )}
-                    {testResult.tokenEstimate && (
+                    {testResult && testResult.tokenEstimate && (
                       <div className="px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center gap-2 shadow-sm">
                         <i className="fas fa-coins text-xs"></i>
                         <span className="text-[10px] font-bold tracking-wider">~{testResult.tokenEstimate} tokens</span>
@@ -1401,7 +1558,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                   </div>
 
                   {/* Missing variables */}
-                  {testResult.missingVariables && testResult.missingVariables.length > 0 && (
+                  {testResult && testResult.missingVariables && testResult.missingVariables.length > 0 && (
                     <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 flex items-center gap-3">
                       <i className="fas fa-triangle-exclamation text-amber-500"></i>
                       <span className="text-[11px] text-amber-800 dark:text-amber-200 font-medium">

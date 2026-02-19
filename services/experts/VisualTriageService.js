@@ -22,16 +22,23 @@ class VisualTriageService {
   constructor(ollamaService, options = {}) {
     this.ollamaService = ollamaService;
 
-    const cfg = config.visualTriage || {};
+    const cfg = config.visualTriage;
+    if (!cfg) {
+      throw new Error(
+        'config.visualTriage is not defined. ' +
+        'Ensure VISUAL_TRIAGE_* env vars are set in .env (SOT: docker-compose.env).'
+      );
+    }
+
     this.options = {
-      enabled: cfg.enabled !== 'no',
+      enabled: cfg.enabled,
       promptId: 'SYS_ROUTER_V1',
-      model: cfg.model || MODEL_NAMES.router || 'qwen3-vl:8b',
-      maxPages: cfg.maxPages || 3,
-      timeout: cfg.timeout || 90000,
-      maxRetries: cfg.maxRetries || 1,
-      failureThreshold: cfg.failureThreshold || 5,
-      cooldownPeriod: cfg.cooldownPeriod || 60000,
+      model: cfg.model,
+      maxPages: cfg.maxPages,
+      timeout: cfg.timeout,
+      maxRetries: cfg.maxRetries,
+      failureThreshold: cfg.failureThreshold,
+      cooldownPeriod: cfg.cooldownPeriod,
       ...options
     };
 
@@ -64,11 +71,45 @@ class VisualTriageService {
       });
     }
 
-    const images = this._normalizeImages(pageImages).slice(0, this.options.maxPages);
+    let images = this._normalizeImages(pageImages).slice(0, this.options.maxPages);
+    let waitedMs = 0;
+
+    // If no images, check if we should wait for rendering
+    if (images.length === 0 && promptContext.renderWaitEnabled) {
+      const timeout = promptContext.renderWaitTimeoutMs || 5000;
+      const pollInterval = 500;
+
+      logger.info({
+        event: 'visual_triage_waiting_for_images',
+        documentId,
+        maxWaitMs: timeout
+      });
+      
+      while (images.length === 0 && waitedMs < timeout) {
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+        waitedMs += pollInterval;
+        
+        // Re-normalize images (might have been updated by background render)
+        if (promptContext.refreshImages && typeof promptContext.refreshImages === 'function') {
+          const refreshed = await promptContext.refreshImages();
+          const newlyFound = this._normalizeImages(refreshed).slice(0, this.options.maxPages);
+          if (newlyFound.length > 0) {
+            images = newlyFound;
+            logger.info({
+              event: 'visual_triage_images_resolved_after_wait',
+              documentId,
+              imageCount: images.length,
+              waitedMs
+            });
+          }
+        }
+      }
+    }
 
     if (images.length === 0) {
       return this._buildFallback('no_images', startMs, {
-        documentId
+        documentId,
+        waitedMs
       });
     }
 
@@ -273,19 +314,41 @@ class VisualTriageService {
       return null;
     }
 
-    const candidate = raw.trim();
-    if (candidate.startsWith('{') && candidate.endsWith('}')) {
+    // 1) Handle closed/unclosed thinking tags
+    let cleaned = raw;
+    cleaned = cleaned.replace(/<(think|thinking|reasoning)>[\s\S]*?<\/\1>/gi, '');
+    if (cleaned.includes('<think>') && !cleaned.includes('</think>')) {
+      cleaned = cleaned.split('<think>')[0];
+    } else if (cleaned.includes('<thinking>') && !cleaned.includes('</thinking>')) {
+      cleaned = cleaned.split('<thinking>')[0];
+    } else if (cleaned.includes('<reasoning>') && !cleaned.includes('</reasoning>')) {
+      cleaned = cleaned.split('<reasoning>')[0];
+    }
+    cleaned = cleaned.trim();
+    if (!cleaned) return null;
+
+    // 2) Try direct parse
+    if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
       try {
-        return JSON.parse(candidate);
-      } catch (error) {
-        void error;
+        return JSON.parse(cleaned);
+      } catch (e) { /* fallthrough */ }
+    }
+
+    // 3) Try Markdown code fences
+    const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fenceMatch && fenceMatch[1]) {
+      const content = fenceMatch[1].trim();
+      try { return JSON.parse(content); } catch (e) {
+        const innerBraceMatch = content.match(/\{[\s\S]*\}/);
+        if (innerBraceMatch) {
+          try { return JSON.parse(innerBraceMatch[0]); } catch (e2) { /* fallthrough */ }
+        }
       }
     }
 
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) {
-      return null;
-    }
+    // 4) Try braced JSON extraction
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (!match) return null;
 
     try {
       return JSON.parse(match[0]);

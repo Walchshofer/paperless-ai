@@ -11,6 +11,7 @@ const express = require('express');
 const router = express.Router();
 const { promptRegistry } = require('../../services/prompts/PromptRegistry');
 const logger = require('../../services/logger');
+const config = require('../../config/config');
 const fs = require('fs').promises;
 const path = require('path');
 const { authenticateApi, requireAdmin } = require('../../middleware/auth');
@@ -28,47 +29,73 @@ function stripBase64Header(base64Str) {
 /** Robust JSON extraction from LLM responses */
 function extractJSON(text) {
   if (typeof text !== 'string') return text;
+  if (!text.trim()) return null;
+
+  // 1) Robust removal of thinking/reasoning tags (including unclosed ones)
+  let cleanedText = text;
+  // Handle closed tags
+  cleanedText = cleanedText.replace(/<(think|thinking|reasoning)>[\s\S]*?<\/\1>/gi, '');
+  // Handle unclosed tags (remove from <think to end of string)
+  if (cleanedText.includes('<think>') && !cleanedText.includes('</think>')) {
+    cleanedText = cleanedText.split('<think>')[0];
+  } else if (cleanedText.includes('<thinking>') && !cleanedText.includes('</thinking>')) {
+    cleanedText = cleanedText.split('<thinking>')[0];
+  } else if (cleanedText.includes('<reasoning>') && !cleanedText.includes('</reasoning>')) {
+    cleanedText = cleanedText.split('<reasoning>')[0];
+  }
   
-  // Strip <think> tags first
-  let cleanedText = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-  
-  // Try direct parse first
+  cleanedText = cleanedText.trim();
+  if (!cleanedText) return null;
+
+  // 2) Try direct parse
   try {
     return JSON.parse(cleanedText);
-  } catch (err) {
-    // Attempt regex extraction for the largest JSON object in the string
-    const match = cleanedText.match(/\{[\s\S]*\}/);
-    if (match) {
+  } catch (e) { /* fallthrough */ }
+
+  // 3) Try Markdown code fence extraction (```json ... ``` or ``` ... ```)
+  const fenceMatch = cleanedText.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenceMatch && fenceMatch[1]) {
+    try {
+      return JSON.parse(fenceMatch[1].trim());
+    } catch (e) {
+      // If direct parse of fence fails, try to extract from within the fence
+      const innerBraceMatch = fenceMatch[1].match(/\{[\s\S]*\}/);
+      if (innerBraceMatch) {
+        try { return JSON.parse(innerBraceMatch[0]); } catch (e2) { /* fallthrough */ }
+      }
+    }
+  }
+
+  // 4) Try braced JSON extraction (greedy match for the largest possible object)
+  const braceMatch = cleanedText.match(/\{[\s\S]*\}/);
+  if (braceMatch) {
+    let candidate = braceMatch[0];
+    try {
+      return JSON.parse(candidate);
+    } catch (err) {
+      // Attempt heuristic repairs for common LLM mistakes
       try {
-        let cleaned = match[0];
-        
         // Fix double-escaped quotes
-        if (cleaned.includes('\\"')) {
-           cleaned = cleaned.replace(/\\"/g, '"');
-        }
-
-        // Fix unquoted keys (basic attempt for single word keys)
-        cleaned = cleaned.replace(/([{,]\s*)([a-zA-Z0-9_]+)(\s*:)/g, '$1"$2"$3');
-
-        // Replace single quotes with double quotes for keys/values
-        cleaned = cleaned.replace(/'([^']+)':/g, '"$1":');
-        cleaned = cleaned.replace(/:\s*'([^']*)'/g, ': "$1"');
-        cleaned = cleaned.replace(/\[\s*'([^']*)'/g, '["$1"');
-        cleaned = cleaned.replace(/'([^']*)'\s*\]/g, '"$1"]');
-        cleaned = cleaned.replace(/,\s*'([^']*)'/g, ', "$1"');
-        cleaned = cleaned.replace(/'([^']*)'\s*,/g, '"$1",');
-
+        candidate = candidate.replace(/\\"/g, '"');
+        // Fix unquoted keys
+        candidate = candidate.replace(/([{,]\s*)([a-zA-Z0-9_]+)(\s*:)/g, '$1"$2"$3');
+        // Replace single quotes with double quotes
+        candidate = candidate.replace(/'([^']+)':/g, '"$1":')
+                           .replace(/:\s*'([^']*)'/g, ': "$1"')
+                           .replace(/\[\s*'([^']*)'/g, '["$1"')
+                           .replace(/'([^']*)'\s*\]/g, '"$1"]')
+                           .replace(/,\s*'([^']*)'/g, ', "$1"')
+                           .replace(/'([^']*)'\s*,/g, '"$1",');
         // Fix trailing commas
-        cleaned = cleaned.replace(/,\s*\}/g, '}');
-        cleaned = cleaned.replace(/,\s*\]/g, ']');
+        candidate = candidate.replace(/,\s*\}/g, '}').replace(/,\s*\]/g, ']');
           
-        return JSON.parse(cleaned);
+        return JSON.parse(candidate);
       } catch (err2) {
-        // Final fallback: try to find the first { and last } again after cleanup
         return null;
       }
     }
   }
+  
   return null;
 }
 
@@ -77,7 +104,8 @@ function getGuidanceClient() {
   if (!guidanceClient) {
     try {
       const { GuidanceClient } = require('../../services/guidance/GuidanceClient');
-      guidanceClient = new GuidanceClient();
+      const guidanceUrl = process.env.GUIDANCE_SERVICE_URL || config.guidanceService?.url || 'http://guidance_service:8002';
+      guidanceClient = new GuidanceClient({ baseUrl: guidanceUrl });
     } catch (err) {
       logger.warn('[Prompts API] GuidanceClient not available:', err.message);
     }
@@ -419,6 +447,14 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
       }
     }
 
+    logger.info({
+      event: 'prompt_test_execution_start',
+      promptId: id,
+      mode,
+      variablesCount: Object.keys(variables).length,
+      hasImage: Boolean(variables.__image_data || variables.image_data)
+    });
+
     const startTime = Date.now();
     let testResult = null;
     let source = 'template-render';
@@ -430,26 +466,43 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
     const isMultimodal = prompt.modelType === 'multimodal';
 
     // MULTIMODAL VISION PATH: Call Ollama vision API directly
-    // The guidance service cannot handle images (raw_prompt_executor drops them via **kwargs)
-    // so for multimodal prompts with image data, we bypass guidance and call Ollama directly
     if (isMultimodal && rawImageData && mode === 'execute') {
       try {
         const ollamaService = AIServiceFactory.getService();
-        if (ollamaService && typeof ollamaService._callOllamaVisionAPI === 'function') {
+        if (ollamaService && (typeof ollamaService._callOllamaVisionAPI === 'function' || typeof ollamaService.generate === 'function')) {
           const cleanImage = stripBase64Header(rawImageData);
           const combinedPrompt = renderedSystemPrompt + '\n\n' + renderedTemplate;
-          const maxTokens = prompt.config?.maxTokens || 1024;
+                    const domainKey = prompt.domain?.toLowerCase() || 'general';
+          // Reconcile Source of Truth: Pull from config.expertModels, fallback to global vision limits
+          const maxTokens = prompt.config?.maxTokens ||
+                           config.expertModels?.[domainKey]?.vision?.limits?.maxResponseTokens ||
+                           config.ollama?.limits?.vision?.maxResponseTokens || 8192;
 
-          const visionResult = await ollamaService._callOllamaVisionAPI(
-            combinedPrompt,
-            cleanImage,
-            {
+          let visionResult;
+          if (typeof ollamaService._callOllamaVisionAPI === 'function') {
+            visionResult = await ollamaService._callOllamaVisionAPI(
+              combinedPrompt,
+              cleanImage,
+              {
+                model: prompt.model,
+                temperature: 0.0,
+                kind: 'vision',
+                num_predict: 8192, // Hardened prediction budget (P0)
+                num_ctx: 32768,    // Hardened context baseline (P0)
+              }
+            );
+          } else {
+            visionResult = await ollamaService.generate({
               model: prompt.model,
-              temperature: 0.0,
-              kind: 'vision',
-              num_predict: maxTokens,
-            }
-          );
+              prompt: combinedPrompt,
+              images: [cleanImage],
+              options: { 
+                temperature: 0.0, 
+                num_predict: 8192, // Hardened prediction budget (P0)
+                num_ctx: 32768    // Hardened context baseline (P0)
+              }
+            });
+          }
 
           testResult = visionResult?.response || null;
           source = 'ollama-vision';
@@ -459,7 +512,7 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
             truncated: visionResult?._truncated || false,
           };
         } else {
-          logger.warn('[Prompts API] Ollama vision not available for multimodal test');
+          logger.warn('[Prompts API] Ollama vision/generate not available for multimodal test');
           source = 'template-render-only';
         }
       } catch (err) {
@@ -551,6 +604,15 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
       jsonValid = extracted !== null && typeof extracted === 'object';
     }
 
+    logger.info({
+      event: 'prompt_test_execution_complete',
+      promptId: id,
+      source,
+      duration,
+      jsonValid,
+      resultPreview: typeof testResult === 'string' ? testResult.substring(0, 100) : 'object'
+    });
+
     res.json({
       success: true,
       promptId: id,
@@ -636,29 +698,59 @@ router.post('/:id/test/stream', express.json(), authenticateApi, requireAdmin, a
       missingVariables: missingVars,
     });
 
+    logger.info({
+      event: 'prompt_test_stream_start',
+      promptId: id,
+      model: prompt.model,
+      isMultimodal,
+      variablesCount: Object.keys(variables).length
+    });
+
     const startTime = Date.now();
     let fullResponse = '';
 
     // STREAMING VISION PATH
     if (isMultimodal && rawImageData) {
       const ollamaService = AIServiceFactory.getService();
-      if (ollamaService && typeof ollamaService._callOllamaVisionAPI === 'function') {
+      if (ollamaService && (typeof ollamaService._callOllamaVisionAPI === 'function' || typeof ollamaService.generate === 'function')) {
         const cleanImage = stripBase64Header(rawImageData);
         const combinedPrompt = renderedSystemPrompt + '\n\n' + renderedTemplate;
-        const maxTokens = prompt.config?.maxTokens || 1024;
+        const domainKey = prompt.domain?.toLowerCase() || 'general';
+        // Reconcile Source of Truth: Pull from config.expertModels, fallback to global vision limits
+        const maxTokens = prompt.config?.maxTokens || 
+                         config.expertModels?.[domainKey]?.vision?.limits?.maxResponseTokens ||
+                         config.ollama?.limits?.vision?.maxResponseTokens || 8192;
 
         try {
-          const stream = await ollamaService._callOllamaVisionAPI(
-            combinedPrompt,
-            cleanImage,
-            {
+          let stream;
+          const visionOptions = {
+            model: prompt.model,
+            temperature: 0.0,
+            kind: 'vision',
+            num_predict: 8192, // Hardened prediction budget (P0)
+            num_ctx: 32768,    // Hardened context baseline (P0)
+            stream: true,
+          };
+
+          if (typeof ollamaService._callOllamaVisionAPI === 'function') {
+            stream = await ollamaService._callOllamaVisionAPI(
+              combinedPrompt,
+              cleanImage,
+              visionOptions
+            );
+          } else {
+            stream = await ollamaService.generate({
               model: prompt.model,
-              temperature: 0.0,
-              kind: 'vision',
-              num_predict: maxTokens,
-              stream: true, // Request stream
-            }
-          );
+              prompt: combinedPrompt,
+              images: [cleanImage],
+              options: { 
+                temperature: visionOptions.temperature, 
+                num_predict: visionOptions.num_predict,
+                num_ctx: visionOptions.num_ctx
+              },
+              stream: true
+            });
+          }
 
           if (stream && typeof stream[Symbol.asyncIterator] === 'function') {
             for await (const chunk of stream) {
@@ -674,6 +766,7 @@ router.post('/:id/test/stream', express.json(), authenticateApi, requireAdmin, a
             sendEvent('token', { text });
           }
         } catch (err) {
+          logger.error('[Prompts API] Vision stream failed:', err);
           sendEvent('error', { error: `Vision stream failed: ${err.message}` });
         }
       } else {
@@ -684,27 +777,30 @@ router.post('/:id/test/stream', express.json(), authenticateApi, requireAdmin, a
       const client = getGuidanceClient();
       if (client) {
         try {
-          const stream = await client.stream('raw_prompt', {
+          // Injected variables from the test lab context already contain text_chunk, etc.
+          // But we must also pass the rendered prompts for the raw_prompt executor
+          const streamVars = {
+            ...variables, // Contains text_chunk, classification_json, etc.
             system_prompt: renderedSystemPrompt,
-            user_prompt: renderedTemplate,
-            document_image_b64: '',
-            max_tokens: prompt.config?.maxTokens || 4000,
-          }, {
-            temperature: 0.0,
-            model: prompt.model
-          });
+            user_prompt: renderedTemplate
+          };
 
-          for await (const chunk of stream) {
-            // Guidance streaming chunks might have different shapes
-            const text = chunk.text || chunk.generated?.output || '';
-            fullResponse += text;
-            sendEvent('token', { text });
-            
-            if (chunk.event === 'expert_thinking') {
-              sendEvent('thinking', { text: chunk.text });
+          const result = await client.generate('raw_prompt', streamVars, {
+            stream: true,
+            max_tokens: prompt.config?.maxTokens || 4000,
+            model: prompt.model,
+            onProgress: (progress) => {
+              if (progress.stage === 'thinking') {
+                sendEvent('thinking', { text: progress.content });
+              } else {
+                sendEvent('token', { text: progress.content });
+              }
             }
-          }
+          });
+          
+          fullResponse = typeof result.generated === 'string' ? result.generated : JSON.stringify(result.generated);
         } catch (err) {
+          logger.error('[Prompts API] Guidance stream failed:', err);
           sendEvent('error', { error: `Guidance stream failed: ${err.message}` });
         }
       } else {
@@ -715,6 +811,14 @@ router.post('/:id/test/stream', express.json(), authenticateApi, requireAdmin, a
     const duration = Date.now() - startTime;
     const extracted = extractJSON(fullResponse);
     const jsonValid = extracted !== null && typeof extracted === 'object';
+
+    logger.info({
+      event: 'prompt_test_stream_complete',
+      promptId: id,
+      duration,
+      jsonValid,
+      resultPreview: typeof fullResponse === 'string' ? fullResponse.substring(0, 100) : 'object'
+    });
 
     sendEvent('done', {
       duration,

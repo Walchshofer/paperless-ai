@@ -58,27 +58,34 @@ function getPostgresHost() {
 }
 
 /**
- * Read an env var with fallback to the host data/runtime.env file (helpful when dotenv wasn't applied)
+ * Read an env var with fallback to runtime.env file (helpful when dotenv wasn't applied)
  */
 function readEnvFallback(key) {
     if (process.env[key] !== undefined && process.env[key] !== '') return process.env[key];
 
-    try {
-        const envPath = path.join(process.cwd(), 'data', '.env');
-        if (!fs.existsSync(envPath)) return undefined;
-        const content = fs.readFileSync(envPath, 'utf8');
-        const lines = content.split(/\r?\n/);
-        for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed || trimmed.startsWith('#')) continue;
-            const idx = trimmed.indexOf('=');
-            if (idx === -1) continue;
-            const k = trimmed.substring(0, idx);
-            const v = trimmed.substring(idx + 1);
-            if (k === key) return v;
+    const envPaths = [
+        path.join(process.cwd(), 'data', 'runtime.env'),
+        path.join(process.cwd(), 'data', '.env')
+    ];
+
+    for (const envPath of envPaths) {
+        try {
+            if (!fs.existsSync(envPath)) continue;
+            const content = fs.readFileSync(envPath, 'utf8');
+            const lines = content.split(/\r?\n/);
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || trimmed.startsWith('#')) continue;
+                const idx = trimmed.indexOf('=');
+                if (idx === -1) continue;
+                const k = trimmed.substring(0, idx);
+                const v = trimmed.substring(idx + 1);
+                if (k === key) return v;
+            }
+            if (process.env[key] !== undefined) return process.env[key]; // If previous iteration set it
+        } catch (e) {
+            // ignore and try next
         }
-    } catch (e) {
-        // ignore
     }
 
     return undefined;

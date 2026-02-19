@@ -70,3 +70,36 @@ export type PromptConfig = z.infer<typeof PromptConfigSchema>;
 export type PromptsSettings = z.infer<typeof PromptsSettingsSchema>;
 export type PromptValidation = z.infer<typeof PromptValidationSchema>;
 export type PromptTestResult = z.infer<typeof PromptTestResultSchema>;
+
+/** Pipeline stage status */
+export interface PipelineStage {
+  name: string;
+  status: 'success' | 'error' | 'running' | 'pending';
+  error?: string;
+  duration: number;
+}
+
+/** Pipeline execution progress */
+export interface PipelineProgress {
+  stages: PipelineStage[];
+  summary: string;
+}
+
+/** Response from POST /api/prompts-runtime/context */
+export interface RuntimeContextResponse {
+  success: boolean;
+  variables: Record<string, string>;
+  pipelineMetadata: {
+    pipelineId: string;
+    duration: number;
+    confidence: number;
+    stages: PipelineStage[];
+  };
+  documentMetadata: {
+    id: number;
+    title: string;
+    filename: string;
+  };
+  error?: string;
+}
+

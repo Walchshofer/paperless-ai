@@ -178,7 +178,7 @@ class SystemToolsTemplates:
             system_prompt: str = "",
             user_prompt: str = "",
             temperature: float = 0.0,
-            max_tokens: int = 4000,
+            max_tokens: int = 8192,
             schema_json: Optional[Any] = None,
             **kwargs: Any,
         ) -> Any:

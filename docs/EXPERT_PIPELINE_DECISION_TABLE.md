@@ -137,12 +137,16 @@ Artifacts are input to both visual indexing and OCR reconciliation.
 
 **Execution Mode**: Parallel execution with circuit breaker protection
 
-### Track 1: Visual OCR (qwen3-vl:8b via ollama_visual)
+### Track 1: Visual OCR (Dynamic VLM via ollama_visual)
 
 **Execution**
-- Direct call to Ollama vision model (e.g. `qwen3-vl`)
-- Visual RAG is NOT used
-- 500ms latency budget, 1000ms hard timeout
+- Direct call to Ollama vision model (Resolved via `config.expertModels.system.vision`).
+- **Resource Hardening (P0)**:
+  - **Context Window**: 32768 (32k) baseline for high-res images.
+  - **Prediction tokens**: 8192 (8k) to prevent truncation.
+- Visual RAG is NOT used for pure OCR.
+- 300 DPI rendering verified stable with this baseline.
+- 500ms base latency budget, 1200s (20m) hard timeout for complex high-res documents.
 
 ### Track 2: Tesseract OCR (paperless-ngx API)
 

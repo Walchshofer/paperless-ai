@@ -2,12 +2,9 @@
  * Usage: node scripts/db-connect-check.js
  */
 const { Pool } = require('pg');
-const dotenv = require('dotenv');
 const http = require('http');
 const path = require('path');
-
-// Load .env from data/.env if present
-dotenv.config({ path: path.resolve(__dirname, '..', 'data', '.env') });
+const config = require('../config/config'); // Use unified config loader
 
 function tcpCheck(host, port, timeout = 3000) {
   return new Promise((resolve) => {
@@ -21,11 +18,11 @@ function tcpCheck(host, port, timeout = 3000) {
 }
 
 async function checkPostgres() {
-  const host = process.env.POSTGRES_HOST || '127.0.0.1';
-  const port = parseInt(process.env.POSTGRES_PORT || '5432', 10);
-  const database = process.env.POSTGRES_DB || 'paperless';
-  const user = process.env.POSTGRES_USER || 'postgres';
-  const password = process.env.POSTGRES_PASSWORD || '';
+  const host = config.postgres?.host || '127.0.0.1';
+  const port = parseInt(config.postgres?.port || '5432', 10);
+  const database = config.postgres?.database || 'paperless';
+  const user = config.postgres?.user || 'postgres';
+  const password = config.postgres?.password || '';
 
   console.log('Postgres host:', host, 'port:', port, 'db:', database);
   const tcp = await tcpCheck(host, port, 3000);
@@ -50,8 +47,8 @@ async function checkPostgres() {
 async function checkQdrant() {
   const defaultHost = '127.0.0.1';
   const defaultPort = 6333;
-  const host = process.env.QDRANT_HOST || defaultHost;
-  const port = parseInt(process.env.QDRANT_PORT || defaultPort, 10);
+  const host = config.qdrant?.host || process.env.QDRANT_HOST || defaultHost;
+  const port = parseInt(config.qdrant?.port || process.env.QDRANT_PORT || defaultPort, 10);
   const base = `http://${host}:${port}`;
   console.log('Qdrant host:', host, 'port:', port, 'base:', base);
 

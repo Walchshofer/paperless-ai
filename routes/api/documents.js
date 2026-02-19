@@ -16,7 +16,10 @@ const paperlessService = require('../../services/paperlessService');
 const { DocumentProcessor } = require('../../services/integration/DocumentProcessor');
 const logger = require('../../services/logger');
 const documentModel = require('../../services/documentModel');
-const { pdfRenderer } = require('../../services/visual-rag-client/PDFRenderer');
+const {
+  pdfRenderer,
+  isSupportedImageMimeType
+} = require('../../services/visual-rag-client/PDFRenderer');
 const {
   REPROCESS_ERROR_MESSAGES,
   REPROCESS_STAGE_DEFINITIONS,
@@ -164,23 +167,29 @@ function buildPreparedDocument(document, documentId, ocrText = '') {
   const archiveFileName = document.archive_file_name ||
     document.archive_filename ||
     null;
+  
+  // Detect if document is a PDF based on mime_type or extension
+  const mimeType = document.mime_type || '';
+  const isPdf = mimeType === 'application/pdf' || 
+                (document.original_file_name && document.original_file_name.toLowerCase().endsWith('.pdf'));
+
   const originalFileName = document.original_file_name ||
-    `doc-${documentId}.pdf`;
-  const relativePdfPath = archiveFileName
+    `doc-${documentId}${isPdf ? '.pdf' : ''}`;
+  
+  const relativePath = archiveFileName
     ? path.posix.join('documents', 'archive', archiveFileName)
     : path.posix.join('documents', 'originals', originalFileName);
+  
   const mediaRoot = process.env.PAPERLESS_MEDIA_ROOT ||
     '/usr/src/paperless/media';
-  const absolutePdfPath = path.posix.join(mediaRoot, relativePdfPath);
+  const absolutePath = path.posix.join(mediaRoot, relativePath);
 
-  return {
+  const prepared = {
     id: documentId,
     title: document.title || '',
     filename: originalFileName,
     content: ocrText || document.content || '',
     ocr_text: ocrText || document.content || '',
-    pdf_path: relativePdfPath,
-    pdf_path_abs: absolutePdfPath,
     tags: Array.isArray(document.tags) ? document.tags : [],
     correspondent: document.correspondent || null,
     document_type: document.document_type || null,
@@ -188,6 +197,23 @@ function buildPreparedDocument(document, documentId, ocrText = '') {
     mime_type: document.mime_type || null,
     archive_file_name: archiveFileName
   };
+
+  // Set appropriate paths based on file type
+  if (isPdf) {
+    prepared.pdf_path = relativePath;
+    prepared.pdf_path_abs = absolutePath;
+  } else if (mimeType.startsWith('image/')) {
+    prepared.image_path = relativePath;
+    prepared.image_path_abs = absolutePath;
+  } else {
+    // Default fallback: provide both for compatibility
+    prepared.pdf_path = relativePath;
+    prepared.pdf_path_abs = absolutePath;
+    prepared.image_path = relativePath;
+    prepared.image_path_abs = absolutePath;
+  }
+
+  return prepared;
 }
 
 const SUPPORTED_REPROCESS_MIME_PREFIXES = Object.freeze([
@@ -1003,6 +1029,19 @@ router.get('/:id/preview-image', requireAdmin, async (req, res) => {
       logger.info(`[Documents API] No persisted image for doc ${documentId}, falling back to on-demand render`);
     }
 
+    // Check if renderable
+    const mimeType = String(doc.mime_type || '').toLowerCase();
+    const isPdf = mimeType === 'application/pdf';
+    const isImage = isSupportedImageMimeType(mimeType);
+
+    if (!isPdf && !isImage) {
+      return res.status(415).json({
+        success: false,
+        error: 'Document type not supported for visual preview',
+        mimeType
+      });
+    }
+
     // Priority 2: Fallback to on-demand render (150dpi)
     const { pdfRenderer } = require('../../services/visual-rag-client/PDFRenderer');
     const axios = require('axios');
@@ -1025,9 +1064,19 @@ router.get('/:id/preview-image', requireAdmin, async (req, res) => {
     });
 
     if (images && images.length > 0) {
+      let format = String(images[0].format || '').toLowerCase();
+      if (!format && isImage) {
+        format = mimeType.split('/')[1] || 'png';
+      }
+      if (format === 'jpg') {
+        format = 'jpeg';
+      }
+      if (!format) {
+        format = 'png';
+      }
       res.json({
         success: true,
-        image_data: `data:image/png;base64,${images[0].base64}`,
+        image_data: `data:image/${format};base64,${images[0].base64}`,
         source: 'on_demand_150dpi'
       });
     } else {

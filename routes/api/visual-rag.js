@@ -19,6 +19,9 @@ const logger = require('../../services/logger');
 const paperlessService = require('../../services/paperlessService');
 const config = require('../../config/config');
 const { authenticateApi, requireAdmin } = require('../../middleware/auth');
+const {
+  isSupportedImageMimeType,
+} = require('../../services/visual-rag-client/PDFRenderer');
 
 const resolveRelativePdfPath = (doc, docId) => {
   const archiveFileName = doc.archive_file_name || doc.archive_filename || null;
@@ -1126,10 +1129,28 @@ router.get('/normalized/:docId', authenticateApi, async (req, res) => {
       return res.status(400).json({ error: 'Invalid document id' });
     }
 
+    // Fetch metadata to check if renderable
+    const metadata = await paperlessService.getDocumentMetadata(docId);
+    if (!metadata) {
+      return res.status(404).json({ error: 'Document metadata not found' });
+    }
+
+    const mimeType = String(metadata.mime_type || '').toLowerCase();
+    const isPdf = mimeType === 'application/pdf';
+    const isImage = isSupportedImageMimeType(mimeType);
+
+    if (!isPdf && !isImage) {
+      logger.warn(`[Visual-RAG API] Document ${docId} is not renderable (mime: ${mimeType})`);
+      return res.status(415).json({
+        error: 'Document type not supported for visual rendering',
+        mimeType
+      });
+    }
+
     const maxPages = config.visualRag?.maxVisionPages || 4;
     const page = Math.min(Math.max(requestedPage || 1, 1), maxPages);
 
-    if (!pdfRenderer || !(await pdfRenderer.isAvailableAsync())) {
+    if (isPdf && (!pdfRenderer || !(await pdfRenderer.isAvailableAsync()))) {
       return res.status(503).json({
         error: 'PDF rendering unavailable',
       });
@@ -1151,10 +1172,21 @@ router.get('/normalized/:docId', authenticateApi, async (req, res) => {
 
     const image = images[page - 1];
     if (!image?.base64) {
-      return res.status(404).json({ error: 'Page render failed' });
+      return res.status(404).json({
+        error: 'Requested page is unavailable',
+      });
     }
 
-    const format = image.format || 'png';
+    let format = String(image.format || '').toLowerCase();
+    if (!format && isImage) {
+      format = mimeType.split('/')[1] || 'png';
+    }
+    if (format === 'jpg') {
+      format = 'jpeg';
+    }
+    if (!format) {
+      format = 'png';
+    }
     const buffer = Buffer.from(image.base64, 'base64');
 
     res.setHeader('Content-Type', `image/${format}`);

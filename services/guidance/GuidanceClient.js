@@ -162,8 +162,9 @@ class GuidanceClient {
         const startTime = Date.now();
         const variableKeys = Object.keys(variables);
 
-        logger.debug({
+        logger.info({
             event: 'guidance_generate_start',
+            url: `${this.config.baseUrl}${streamEnabled ? '/api/guidance/stream' : '/generate'}`,
             template,
             model,
             variableKeys,
@@ -191,16 +192,26 @@ class GuidanceClient {
                     use_cache: useCache
                 };
                 if (streamEnabled) {
-                    payload.stream = true;
-                    // Use /api/guidance/stream for actual streaming support
-                    // Note: This requires the guidance service to support the same template/vars on this endpoint
-                    const streamResponse = await this.httpClient.post('/api/guidance/stream', {
+                    // Streaming uses a separate endpoint
+                    const streamUrl = '/api/guidance/stream';
+                    const streamPayload = {
                         prompt: variables.user_prompt || variables.userTemplate || variables.text_chunk || JSON.stringify(variables),
                         system_prompt: variables.system_prompt || variables.systemPrompt || "You are a helpful assistant.",
                         model: model,
                         max_tokens: options.max_tokens || 4000,
                         schema_json: options.schema_json
-                    }, { responseType: 'stream' });
+                    };
+
+                    logger.info({
+                        event: 'guidance_stream_request_init',
+                        url: `${this.config.baseUrl}${streamUrl}`,
+                        model
+                    });
+
+                    const streamResponse = await this.httpClient.post(streamUrl, streamPayload, { 
+                        responseType: 'stream',
+                        timeout: 0 // No timeout for streams
+                    });
 
                     let fullContent = '';
                     let thinkingContent = '';

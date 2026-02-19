@@ -14,12 +14,11 @@ This document is authoritative and must remain consistent with:
 
 ### 1) PromptRegistry is the Authority
 
-The `PromptRegistry` (in `services/prompts/PromptRegistry.js`) is the **single
-source of truth** for:
+The `PromptRegistry` (in `services/prompts/PromptRegistry.js`) is the **authoritative registry** for:
 
 - Prompt content (system + user messages)
 - Prompt identifiers (`promptId`)
-- Model selection
+- Logical model mapping (Decoupled from specific strings)
 - Default decoding parameters
 - Expected output schemas
 
@@ -27,6 +26,17 @@ It defines the **default behavior** for every pipeline stage.
 
 All LLM-driven stages MUST ultimately be representable as a PromptRegistry
 execution.
+
+---
+
+### 2) ExpertModels is the Source of Truth (SOT)
+
+While `PromptRegistry` defines *how* a prompt is structured, `config.expertModels` (in `config/config.js`) is the **Source of Truth** for:
+
+- **Specific Model Names**: Maps logical experts (e.g., `medicalImaging`) to actual model identifiers (e.g., `llava-med-v1.6`).
+- **Resource Limits**: Defines the `contextWindow` and `maxResponseTokens` for each expert domain.
+
+**Prompt Decoupling Rule**: Prompts MUST reference logical constants (e.g., `MODEL_NAMES.multimodalVision`) rather than hardcoded model strings. These constants are resolved at runtime against `config.expertModels`.
 
 ---
 

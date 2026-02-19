@@ -131,8 +131,8 @@ const FinancialPipeline = {
             timeout: 60000,
             retryCount: 1,
             executorConfig: {
-                timeoutBudget: 500,
-                hardTimeout: 1000,
+                timeoutBudget: 5000,
+                hardTimeout: 10000,
                 maxConcurrentQueries: 5,
                 ocrFallbackEnabled: true,
                 ocrFallbackConfidenceThreshold: 0.7,

@@ -65,21 +65,24 @@ const PromptCategory = Object.freeze({
  */
 const MODEL_NAMES = Object.freeze({
     // Primary router/classifier model (multimodal)
-    router: config.ollama?.routerModel || config.ollama?.visionModel || 'qwen3-vl:8b',
+    router: config.expertModels?.system?.router?.name || config.ollama?.routerModel || config.ollama?.visionModel || 'qwen3-vl:8b',
+    multimodalVision: config.expertModels?.system?.vision?.name || config.ollama?.visionModel || 'qwen3-vl:8b',
 
     // Medical models - prefer MEDICAL_* env vars, then config.expertModels entries, then ollama defaults
-    medicalImaging: process.env.MEDICAL_VISION_MODEL || config.expertModels?.medical?.vision || config.ollama?.visionModel || 'llava-med-v1.6',
-    medicalText: process.env.MEDICAL_ANALYSIS_MODEL || config.expertModels?.medical?.analysis || config.ollama?.model || 'medtext-llama3',
-    medicalRadiology: process.env.MEDICAL_RADIOLOGY_MODEL || config.expertModels?.medical?.radiology || config.ollama?.visionModel || 'llava-med-v1.6',
+    medicalImaging: process.env.MEDICAL_VISION_MODEL || config.expertModels?.medical?.vision?.name || config.expertModels?.medical?.vision || config.ollama?.visionModel || 'llava-med-v1.6',
+    medicalText: process.env.MEDICAL_ANALYSIS_MODEL || config.expertModels?.medical?.analysis?.name || config.expertModels?.medical?.analysis || config.ollama?.model || 'medtext-llama3',
+    medicalRadiology: process.env.MEDICAL_RADIOLOGY_MODEL || config.expertModels?.medical?.radiology?.name || config.expertModels?.medical?.radiology || config.ollama?.visionModel || 'llava-med-v1.6',
 
     // Financial models - prefer FINANCIAL_* env vars, then config.expertModels entries, then finance defaults, then ollama defaults
-    financeReasoning: process.env.FINANCIAL_REASONING_MODEL || process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || config.ollama?.model || 'llm-pro-finance-8b',
-    financeGeneral: process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision || config.ollama?.visionModel || 'llm-pro-finance-8b',
+    financeReasoning: process.env.FINANCIAL_REASONING_MODEL || process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis?.name || config.expertModels?.financial?.analysis || config.ollama?.model || 'llm-pro-finance-8b',
+    financeGeneral: process.env.FINANCIAL_VISION_MODEL || config.expertModels?.financial?.vision?.name || config.expertModels?.financial?.vision || config.ollama?.visionModel || 'llm-pro-finance-8b',
     // VAT expert should use the Dragon finance reasoning model by default (fallback)
     vatExpert: process.env.VAT_EXPERT_MODEL ||
                process.env.FINANCIAL_VAT_EXPERT ||
+               config.expertModels?.financial?.vatExpert?.name ||
                config.expertModels?.financial?.vatExpert ||
                process.env.FINANCIAL_VISION_MODEL ||
+               config.expertModels?.financial?.vision?.name ||
                config.expertModels?.financial?.vision ||
                config.ollama?.visionModel ||
                'llm-pro-finance-8b',
@@ -87,6 +90,7 @@ const MODEL_NAMES = Object.freeze({
     // Legal expert mapping -> Dragon finance reasoning model
     legalExpert: process.env.LEGAL_EXPERT_MODEL ||
                  process.env.LEGAL_ANALYSIS_MODEL ||
+                 config.expertModels?.legal?.analysis?.name ||
                  config.expertModels?.legal?.analysis ||
                  'gpt-oss',
 
@@ -95,9 +99,10 @@ const MODEL_NAMES = Object.freeze({
     gptOss: process.env.GPT_OSS_MODEL || null,
 
     // Infrastructure tier - Orchestration and embeddings (no default)
-    orchestrator: process.env.ORCHESTRATOR_MODEL ||
-        config.ollama?.orchestratorModel ||
+    orchestrator: process.env.ORCHESTRATOR_MODEL || 
+        config.expertModels?.legal?.orchestrator?.name || 
         config.expertModels?.legal?.orchestrator ||
+        config.ollama?.orchestratorModel ||
         null,
     embeddingModel: process.env.EMBEDDING_MODEL || 'nomic-embed-text-v1.5',
     visualRetrieval: process.env.VISUAL_RETRIEVAL_MODEL || null,
@@ -182,7 +187,7 @@ const SYS_ROUTER_V1 = {
     modelType: ModelType.MULTIMODAL,
     
     systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-You are an expert document classifier. Your role is to analyze document images and determine their domain, type, and appropriate processing pipeline.
+You are an expert document classifier. Your role is to analyze document images from the system "{{source_system}}" and determine their domain, type, and appropriate processing pipeline.
 
 CLASSIFICATION DOMAINS:
 - Medical: Clinical documents, prescriptions, lab results, imaging studies, insurance claims
@@ -206,13 +211,7 @@ You must respond ONLY with valid JSON. No explanatory text outside JSON.
 <|eot_id|>`,
 
     userTemplate: `<|start_header_id|>user<|end_header_id|>
-Analyze this document image and classify it.
-
-DOCUMENT CONTEXT:
-- Source: {{source_system}}
-- Filename: {{filename}}
-- Resolution: {{resolution}}
-- File size: {{file_size}}
+Analyze the document image named "{{filename}}" (Resolution: {{resolution}}, Size: {{file_size}}) and classify it. Use these specific values to enable correct routing recommendation.
 
 TASK: Classify this document and provide routing recommendation.
 
@@ -268,7 +267,7 @@ const SYS_ORCHESTRATOR_V1 = {
     version: '1.0.0',
     domain: DomainType.SYSTEM,
     category: PromptCategory.ROUTING,
-    model: MODEL_NAMES.orchestrator || MODEL_NAMES.general || MODEL_NAMES.router,
+    model: MODEL_NAMES.orchestrator || 'nemotron-orchestrator:8b',
     modelType: ModelType.TEXT_ONLY,
 
     systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
@@ -286,36 +285,20 @@ OUTPUT REQUIREMENTS:
 <|eot_id|>`,
 
     userTemplate: `<|start_header_id|>user<|end_header_id|>
-Decide orchestration for this document.
+Select the best expert pipeline and decide orchestration for this document.
 
-CLASSIFICATION_JSON:
-{{classification_json}}
+INPUT DATA:
+- CLASSIFICATION: {{classification_json}}
+- ROUTING HINTS: {{routing_json}}
+- QUALITY: {{quality_json}}
+- STATS: {{doc_stats}}
+- AVAILABLE PIPELINES: {{pipelines}}
+- TOOLS: {{tools_json}}
 
-ROUTING_JSON:
-{{routing_json}}
-
-QUALITY_JSON:
-{{quality_json}}
-
-DOC_STATS:
-{{doc_stats}}
-
-PIPELINES:
-{{pipelines}}
-
-TOOLS_JSON:
-{{tools_json}}
-
-NORMALIZATION_GUIDANCE:
+ORCHESTRATION RULES:
 - If pre-vision normalization is needed, use tool "paperless.normalize_images_ai" in pre_vision.
-- If "paperless.normalize_images_ai" is used, it MUST be the final pre_vision tool.
-- Trigger normalization when QUALITY_JSON indicates: visual_clarity is "low", needs_rotation is true, or needs_cropping is true.
-- Action format (actions array):
-  {"type":"rotate","degrees":90}
-  {"type":"crop","box":{"x":0.05,"y":0.05,"width":0.9,"height":0.9,"unit":"ratio"}}
-  {"type":"scale","max_width":2048,"max_height":2048}
-  {"type":"dpi","target":300}
-- Use page_range {"start":1,"end":3} or pages [1,3] when needed.
+- Trigger normalization if quality is low, or rotation/cropping is needed.
+- Action format: {"type":"rotate","degrees":90}, {"type":"crop","box":{"x":0.05,"y":0.05,"width":0.9,"height":0.9,"unit":"ratio"}}.
 
 Return this exact JSON structure:
 {
@@ -373,41 +356,21 @@ const VIS_OCR_V1 = {
     id: 'VIS_OCR_V1',
     version: '1.0.0',
     domain: DomainType.SYSTEM,
-    category: PromptCategory.EXTRACTION,
-    model: MODEL_NAMES.router,  // qwen3-vl:8b - reuse router model
+    model: MODEL_NAMES.multimodalVision,
     modelType: ModelType.MULTIMODAL,
+    
+    systemPrompt: `EXTRACT ALL TEXT FROM THE IMAGE. MAINTAIN LAYOUT. 
+NO INTERNAL MONOLOGUE. NO THINKING TAGS. NO CONVERSATION.
+PROVIDE THE EXTRACTION DIRECTLY WITHOUT INTERNAL MONOLOGUE.`,
 
-    systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-You are a high-precision OCR engine. Your sole task is to extract ALL text visible in the document image.
-
-EXTRACTION RULES:
-1. Preserve reading order: top to bottom, left to right
-2. Maintain line breaks and paragraph structure exactly as shown
-3. For tables: use | as column separator, - as row separator
-4. Preserve special characters, numbers, and symbols exactly as they appear
-5. For handwritten text: transcribe best-effort, use [unclear] for illegible parts
-6. Preserve original indentation where visible
-
-OUTPUT FORMAT:
-- Output ONLY the extracted text
-- NO JSON, NO markdown, NO explanatory text
-- Do NOT add content that is not visible in the image
-- Do NOT summarize or interpret - just extract what you see
-<|eot_id|>`,
-
-    userTemplate: `<|start_header_id|>user<|end_header_id|>
-Extract all text from this document image.
-
-Page {{page_number}} of {{total_pages}}
-
-Output the complete text content, preserving structure:
-<|eot_id|>`,
+    userTemplate: `TEXT EXTRACTION:
+PAGE {{page_number}}/{{total_pages}}`,
 
     config: {
-        temperature: 0.1,   // Very low for consistent, deterministic extraction
-        maxTokens: 4096,    // Allow full page content
-        topK: 40,
-        topP: 0.9
+        temperature: 0.0,
+        maxTokens: config.expertModels?.legal?.vision?.limits?.maxResponseTokens || 32768,
+        topK: 1,
+        topP: 1.0
     }
 };
 
@@ -530,7 +493,7 @@ Respond with this exact JSON structure:
 
     config: {
         temperature: 0.3,  // Slightly higher for nuanced medical reasoning
-        maxTokens: 4096,
+        maxTokens: config.expertModels?.medical?.analysis?.limits?.maxResponseTokens || 4096,
         topK: 50,
         topP: 0.9
     }
@@ -556,156 +519,53 @@ const MED_DOCTOR_V1 = {
     modelType: ModelType.TEXT_ONLY,
     
     systemPrompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-You are an expert Medical Document Analyst AI. Your role is to parse medical text and produce standardized, coded outputs.
+You are an expert Medical Document Analyst AI. Your role is to parse medical text and produce standardized, coded outputs in JSON format.
 
-OUTPUT RULES:
-- YOU MUST RETURN ONLY VALID JSON.
-- NO EXPLANATORY TEXT. NO CONVERSATIONAL FILLER.
-- IF NO DATA IS FOUND, RETURN AN EMPTY OBJECT WITH THE REQUIRED KEYS.
+### CRITICAL OUTPUT RULES
+1. RETURN ONLY VALID JSON.
+2. DO NOT USE MARKDOWN BLOCKS (e.g., NO \`\`\`json).
+3. DO NOT INCLUDE COMMENTS.
+4. NO PREAMBLE OR POSTAMBLE.
+5. IF NO DATA IS FOUND, RETURN AN EMPTY OBJECT WITH ALL KEYS PRESENT.
+6. THE RESPONSE MUST START WITH "{" AND END WITH "}".
 
-EXAMPLE JSON STRUCTURE: 
-{
-  "document_analysis": { "detected_type": "note", "language": "de" },
-  "entities": { "conditions": [], "medications": [] },
-  "summary": { "brief_summary": "Summary of the document." }
-}
-
-DOCUMENT TYPES YOU HANDLE:
-- Clinical Notes, Prescriptions, Lab Reports, Procedure Reports, Referral Letters, Insurance Documents.
-
-EXTRACTION CAPABILITIES:
-1. Named Entity Recognition (Patients, providers, facilities, medications, conditions)
-2. Medical Coding (ICD-10-CM, CPT, HCPCS, NDC, RxNorm, SNOMED-CT)
-3. Temporal Extraction, Relationship Mapping, Dosage Parsing.
-
-CRITICAL GUIDELINES:
-- Maintain patient privacy.
-- Use standardized terminologies.
-- Never fabricate information.
-<|eot_id|>`,
-
-    userTemplate: `<|start_header_id|>user<|end_header_id|>
-Analyze the following medical document text and extract structured information.
-
-DOCUMENT CONTEXT:
-- Document Type: {{document_type}}
-- Source System: {{source_system}}
-- Document Date: {{document_date}}
-- Processing Mode: {{processing_mode}}
-
-DOCUMENT TEXT:
----
-{{text_chunk}}
----
-
-EXTRACTION REQUIREMENTS:
-1. Extract all clinical entities (conditions, medications, procedures, providers)
-2. Suggest appropriate medical codes where possible
-3. Identify temporal information and construct timeline
-4. Flag any PHI elements present
-5. Note any quality issues or missing information
-
-Respond with this exact JSON structure:
+### MANDATORY JSON STRUCTURE
 {
   "document_analysis": {
-    "detected_type": "<confirmed document type>",
-    "language": "<detected language>",
-    "quality_score": <0.0-1.0>,
+    "detected_type": "string",
+    "language": "string",
+    "quality_score": 0.0,
     "completeness": "complete|partial|fragment"
   },
   "entities": {
     "conditions": [
-      {
-        "text": "<original text>",
-        "normalized": "<standardized term>",
-        "icd10_codes": ["<suggested codes>"],
-        "snomed_code": "<SNOMED-CT if available>",
-        "status": "active|resolved|historical",
-        "confidence": <0.0-1.0>
-      }
+      { "text": "string", "normalized": "string", "icd10_codes": [], "status": "active|resolved|historical", "confidence": 0.0 }
     ],
-    "medications": [
-      {
-        "text": "<original text>",
-        "drug_name": "<normalized drug name>",
-        "rxnorm_code": "<RxNorm code if available>",
-        "ndc_code": "<NDC if available>",
-        "dosage": {
-          "strength": "<strength>",
-          "unit": "<unit>",
-          "form": "<form>",
-          "route": "<route>",
-          "frequency": "<frequency>",
-          "duration": "<duration if specified>"
-        },
-        "status": "active|discontinued|as_needed",
-        "confidence": <0.0-1.0>
-      }
-    ],
-    "procedures": [
-      {
-        "text": "<original text>",
-        "normalized": "<standardized term>",
-        "cpt_codes": ["<suggested CPT codes>"],
-        "date_performed": "<date if available>",
-        "provider": "<performing provider if noted>",
-        "confidence": <0.0-1.0>
-      }
-    ],
-    "providers": [
-      {
-        "name": "<provider name>",
-        "role": "<role/specialty>",
-        "npi": "<NPI if available>",
-        "facility": "<associated facility>"
-      }
-    ],
-    "labs": [
-      {
-        "test_name": "<test name>",
-        "loinc_code": "<LOINC if available>",
-        "value": "<result value>",
-        "unit": "<unit>",
-        "reference_range": "<range if provided>",
-        "flag": "normal|high|low|critical",
-        "date": "<collection date>"
-      }
-    ]
+    "medications": [],
+    "procedures": [],
+    "providers": [],
+    "labs": []
   },
-  "temporal_info": {
-    "document_date": "<extracted document date>",
-    "encounter_date": "<patient encounter date>",
-    "timeline_events": [
-      {
-        "event": "<description>",
-        "date": "<date or relative time>",
-        "sequence_order": <integer>
-      }
-    ]
-  },
-  "phi_detected": {
-    "has_phi": <true|false>,
-    "phi_types": ["<types of PHI found: name, dob, ssn, mrn, etc>"],
-    "phi_locations": ["<approximate locations in text>"]
-  },
-  "quality_flags": {
-    "missing_critical": ["<list of expected but missing elements>"],
-    "ambiguous_items": ["<items needing clarification>"],
-    "conflicting_info": ["<any contradictory information>"],
-    "requires_human_review": <true|false>,
-    "review_reasons": ["<why human review needed>"]
-  },
-  "summary": {
-    "brief_summary": "<1-2 sentence document summary>",
-    "key_findings": ["<most important extracted items>"],
-    "action_items": ["<any follow-up actions mentioned>"]
-  }
+  "temporal_info": { "document_date": "YYYY-MM-DD", "timeline_events": [] },
+  "phi_detected": { "has_phi": false, "phi_types": [] },
+  "quality_flags": { "requires_human_review": false },
+  "summary": { "brief_summary": "string", "key_findings": [] }
 }
 <|eot_id|>`,
 
+    userTemplate: `<|start_header_id|>user<|end_header_id|>
+Parse the medical text below into the mandatory JSON structure. 
+
+### DOCUMENT TEXT
+{{text_chunk}}
+
+### INSTRUCTION
+Output ONLY the completed JSON object. Use null for missing values.
+<|eot_id|>`,
+
     config: {
-        temperature: 0.2,  // Low temp for accurate extraction
-        maxTokens: 4096,
+        temperature: 0.1,  // Even lower for stability
+        maxTokens: config.expertModels?.medical?.analysis?.limits?.maxResponseTokens || 4096,
         topK: 40,
         topP: 0.9
     }
@@ -839,7 +699,7 @@ Respond with this exact JSON structure:
 
     config: {
         temperature: 0.25,
-        maxTokens: 4096,
+        maxTokens: config.expertModels?.medical?.analysis?.limits?.maxResponseTokens || 4096,
         topK: 40,
         topP: 0.9
     }
@@ -1193,7 +1053,7 @@ Respond with this exact JSON structure:
 
     config: {
         temperature: 0.2,
-        maxTokens: 2048,
+        maxTokens: config.expertModels?.financial?.analysis?.limits?.maxResponseTokens || 2048,
         topK: 40,
         topP: 0.9
     }
@@ -1259,7 +1119,7 @@ Respond with this exact JSON structure:
 
     config: {
         temperature: 0.1,
-        maxTokens: 1536,
+        maxTokens: config.expertModels?.financial?.analysis?.limits?.maxResponseTokens || 1536,
         topK: 40,
         topP: 0.9
     }

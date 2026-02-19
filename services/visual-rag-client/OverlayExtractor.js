@@ -204,8 +204,8 @@ class OverlayExtractor {
                 keep_alive: this.keepAlive,
                 stream: false,
                 options: {
-                    num_ctx: 8192,
-                    num_predict: 4096,  // Increased for complete JSON output
+                    num_ctx: config.expertModels?.legal?.vision?.limits?.contextWindow || 32768,
+                    num_predict: config.expertModels?.legal?.vision?.limits?.maxResponseTokens || 4096,
                     temperature: 0.1   // Low temperature for consistent detection
                 }
             });

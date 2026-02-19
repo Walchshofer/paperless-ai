@@ -28,6 +28,30 @@ let pdfPoppler = null;
 let useNativePoppler = null; // true = use system pdftoppm, false = use npm package
 const isWindows = os.platform() === 'win32';
 
+const SUPPORTED_IMAGE_MIME_TYPES = Object.freeze(new Set([
+    'image/png',
+    'image/jpeg',
+    'image/jpg',
+    'image/gif',
+    'image/webp',
+    'image/tiff',
+    'image/tif',
+    'image/bmp',
+    'image/x-ms-bmp'
+]));
+
+function normalizeMimeType(mimeType) {
+    return String(mimeType || '')
+        .trim()
+        .toLowerCase();
+}
+
+function isSupportedImageMimeType(mimeType) {
+    const normalized = normalizeMimeType(mimeType);
+    if (!normalized) return false;
+    return SUPPORTED_IMAGE_MIME_TYPES.has(normalized);
+}
+
 /**
  * Check if system pdftoppm is available (Linux/Docker)
  */
@@ -117,12 +141,115 @@ class PDFRenderer {
     }
 
     /**
+     * Detect if buffer is a PDF
+     * @private
+     */
+    _isPdf(buffer) {
+        return buffer && buffer.length > 4 && buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46;
+    }
+
+    /**
+     * Detect image format from magic bytes
+     * @private
+     */
+    _detectImageFormat(buffer) {
+        if (!buffer || buffer.length < 4) return null;
+
+        // PNG
+        if (
+            buffer[0] === 0x89 &&
+            buffer[1] === 0x50 &&
+            buffer[2] === 0x4E &&
+            buffer[3] === 0x47
+        ) {
+            return 'png';
+        }
+
+        // JPEG
+        if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+            return 'jpeg';
+        }
+
+        // GIF
+        if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46) {
+            return 'gif';
+        }
+
+        // WebP
+        if (
+            buffer.length >= 12 &&
+            buffer[0] === 0x52 &&
+            buffer[1] === 0x49 &&
+            buffer[2] === 0x46 &&
+            buffer[3] === 0x46 &&
+            buffer[8] === 0x57 &&
+            buffer[9] === 0x45 &&
+            buffer[10] === 0x42 &&
+            buffer[11] === 0x50
+        ) {
+            return 'webp';
+        }
+
+        // TIFF (little-endian and big-endian)
+        if (
+            (buffer[0] === 0x49 &&
+                buffer[1] === 0x49 &&
+                buffer[2] === 0x2A &&
+                buffer[3] === 0x00) ||
+            (buffer[0] === 0x4D &&
+                buffer[1] === 0x4D &&
+                buffer[2] === 0x00 &&
+                buffer[3] === 0x2A)
+        ) {
+            return 'tiff';
+        }
+
+        // BMP
+        if (buffer[0] === 0x42 && buffer[1] === 0x4D) {
+            return 'bmp';
+        }
+
+        return null;
+    }
+
+    /**
+     * Detect if buffer is a supported image
+     * @private
+     */
+    _isImage(buffer) {
+        return this._detectImageFormat(buffer) !== null;
+    }
+
+    /**
      * Render a PDF buffer to images
      * @param {Buffer} pdfBuffer - PDF file as buffer
      * @param {Object} options - Rendering options
      * @returns {Promise<Array<{page: number, base64: string, path: string}>>}
      */
     async renderBuffer(pdfBuffer, options = {}) {
+        if (!pdfBuffer || pdfBuffer.length === 0) {
+            throw new Error('Empty buffer provided to PDF renderer');
+        }
+
+        // If it's already an image, return it as page 1.
+        const imageFormat = this._detectImageFormat(pdfBuffer);
+        if (imageFormat) {
+            logger.debug('[PDFRenderer] Buffer is an image, returning as single page');
+            return [{
+                page: 1,
+                base64: pdfBuffer.toString('base64'),
+                size: pdfBuffer.length,
+                format: imageFormat
+            }];
+        }
+
+        // Verify it's actually a PDF
+        if (!this._isPdf(pdfBuffer)) {
+            const snippet = pdfBuffer.slice(0, 20).toString('hex');
+            logger.error(`[PDFRenderer] Buffer is not a valid PDF (header: ${snippet})`);
+            throw new Error('File is not a valid PDF document');
+        }
+
         // Check for native poppler first (Linux/Docker)
         const hasNative = await checkNativePoppler();
         const hasPackage = getPdfPoppler() !== null;
@@ -422,5 +549,7 @@ const pdfRenderer = new PDFRenderer();
 
 module.exports = {
     PDFRenderer,
-    pdfRenderer
+    pdfRenderer,
+    SUPPORTED_IMAGE_MIME_TYPES,
+    isSupportedImageMimeType
 };

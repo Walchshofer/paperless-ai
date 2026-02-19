@@ -269,7 +269,8 @@ def create_app():
         cache_dir=os.getenv('CACHE_DIR', '/app/cache'),
         ttl_hours=int(os.getenv('CACHE_TTL_HOURS', 72))
     )
-    use_cache = os.getenv('USE_CACHE', 'true') == 'true'
+    # Explicitly disable cache for prompt optimization transparency
+    use_cache = os.getenv('USE_CACHE', 'false') == 'true'
 
     # Ollama Base Configuration
     # Base URL for health checks and native Ollama API
@@ -707,77 +708,105 @@ Example output for a sideways document:
 
     @app.route('/api/guidance/stream', methods=['POST'])
     def stream_thinking_response():
-        """Stream thinking model response from Ollama via Guidance"""
+        """Stream thinking model response directly from Ollama.
+
+        Guidance 0.3.0 gen() does NOT support a 'stream' parameter.
+        For streaming with <think> block detection we call Ollama's
+        native /api/chat endpoint with stream=true, same pattern as
+        call_ollama_vision().
+        """
+        import requests as http_requests
+
         data = request.json or {}
         prompt = data.get("prompt")
         system_prompt = data.get("system_prompt", "You are a helpful assistant.")
         model_name = data.get("model", "qwen3-vl:8b")
-        max_tokens = data.get("max_tokens", 2000)
+        max_tokens = int(data.get("max_tokens", 2000))
         schema_json = data.get("schema_json")
 
         if not prompt:
             return jsonify({'error': 'Prompt required'}), 400
 
-        def generate_stream():
+        user_prompt = prompt
+        if schema_json:
             try:
-                # Lazy import guidance components to avoid pickle issues
-                from guidance import system, user, assistant, gen, json as gen_json
+                schema_str = json.dumps(schema_json, ensure_ascii=False, indent=2)
+            except (TypeError, ValueError):
+                schema_str = str(schema_json)
+            user_prompt = (
+                f"{prompt}\n\n"
+                f"Respond ONLY with valid JSON matching this schema:\n"
+                f"{schema_str}"
+            )
 
-                # Create fresh LLM instance per request to avoid
-                # pickle issues with thread locks
-                lm = get_lm(model_name)
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": user_prompt})
 
-                if system_prompt:
-                    with system():
-                        lm += system_prompt
+        ollama_payload = {
+            "model": model_name,
+            "messages": messages,
+            "stream": True,
+            "options": {"num_predict": max_tokens}
+        }
 
-                with user():
-                    lm += prompt
+        def generate_stream():
+            """Generator yielding NDJSON events from Ollama stream.
 
-                with assistant():
-                    if schema_json:
-                        # Force valid JSON matching the provided schema
-                        # Use stream=True to get incremental chunks
-                        streamer = lm + gen_json(
-                            name="response",
-                            schema=schema_json,
-                            stream=True
-                        )
-                    else:
-                        streamer = lm + gen(
-                            name="response",
-                            max_tokens=max_tokens,
-                            temperature=0.7,
-                            stream=True
-                        )
+            Ollama thinking models (qwen3-vl, etc.) use separate fields:
+              - message.thinking: tokens during <think> phase
+              - message.content: tokens for the actual response
+            Non-thinking models put everything in message.content.
+            We emit thinking/response events based on which field has data.
+            """
+            try:
+                resp = http_requests.post(
+                    f"{OLLAMA_BASE_URL}/api/chat",
+                    json=ollama_payload,
+                    stream=True,
+                    timeout=300
+                )
+                resp.raise_for_status()
 
-                # Iterate through the stream to emit chunks in real-time
-                full_text = ""
                 thinking_emitted = False
-                
-                for chunk in streamer:
-                    chunk_text = chunk.get("response", "")
-                    if not chunk_text:
-                        continue
-                    
-                    # Detect thinking marker in the incremental stream
-                    if not thinking_emitted and ("<think>" in chunk_text or "<think>" in (full_text + chunk_text)):
-                        thinking_emitted = True
-                        yield json.dumps({
-                            "type": "thinking",
-                            "content": "Model is reasoning..."
-                        }) + "\n"
-                    
-                    full_text += chunk_text
-                    
-                    # Also yield the content chunk itself
-                    yield json.dumps({
-                        "type": "response",
-                        "content": chunk_text
-                    }) + "\n"
 
+                for raw_line in resp.iter_lines():
+                    if not raw_line:
+                        continue
+                    try:
+                        chunk_obj = json.loads(raw_line)
+                    except (json.JSONDecodeError, ValueError):
+                        continue
+
+                    if chunk_obj.get("done", False):
+                        break
+
+                    msg = chunk_obj.get("message", {})
+                    thinking_token = msg.get("thinking", "")
+                    content_token = msg.get("content", "")
+
+                    if thinking_token:
+                        if not thinking_emitted:
+                            thinking_emitted = True
+                            yield json.dumps({
+                                "type": "thinking",
+                                "content": "Model is reasoning..."
+                            }) + "\n"
+                    elif content_token:
+                        yield json.dumps({
+                            "type": "response",
+                            "content": content_token
+                        }) + "\n"
+
+            except http_requests.exceptions.Timeout:
+                app.logger.error("stream_thinking_response: Ollama timed out")
+                yield json.dumps({
+                    "type": "error",
+                    "content": "Ollama request timed out after 300s"
+                }) + "\n"
             except Exception as e:
-                app.logger.error(f"Streaming failed: {str(e)}")
+                app.logger.error(f"stream_thinking_response: failed: {str(e)}")
                 yield json.dumps({
                     "type": "error",
                     "content": str(e)
@@ -1011,6 +1040,11 @@ Example output for a sideways document:
                             search_text = output_payload
                             if "</think>" in output_payload:
                                 search_text = output_payload.split("</think>", 1)[1]
+                            elif "<think>" in output_payload:
+                                # Handle unclosed think tag
+                                search_text = output_payload.split("<think>", 1)[0]
+                            elif "<thinking>" in output_payload and "</thinking>" not in output_payload:
+                                search_text = output_payload.split("<thinking>", 1)[0]
                             
                             json_match = re.search(r'\{.*\}', search_text, re.DOTALL)
                             actual_content = json_match.group(0) if json_match else search_text

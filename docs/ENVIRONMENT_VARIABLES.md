@@ -125,13 +125,29 @@ Adjust these values when operating in high-latency or resource-constrained envir
 
 ### Production Tier - Medical Domain
 - `MEDICAL_VISION_MODEL` - Medical imaging analysis model (default: `llava-med-v1.6`)
+- `MEDICAL_VISION_CONTEXT` - Context window for medical vision tasks (default: `OLLAMA_VISION_CONTEXT_WINDOW`)
+- `MEDICAL_VISION_MAX_TOKENS` - Max response tokens for medical vision (default: `OLLAMA_VISION_MAX_RESPONSE_TOKENS`)
 - `MEDICAL_ANALYSIS_MODEL` - Clinical text extraction model (default: `medtext-llama3`)
+- `MEDICAL_ANALYSIS_CONTEXT` - Context window for medical text analysis (default: `OLLAMA_EXPERT_CONTEXT_WINDOW`)
+- `MEDICAL_ANALYSIS_MAX_TOKENS` - Max response tokens for medical analysis (default: `OLLAMA_EXPERT_MAX_RESPONSE_TOKENS`)
 - `MEDICAL_RADIOLOGY_MODEL` - Radiology imaging analysis model (default: `llava-med-v1.6`)
 
 ### Production Tier - Financial Domain
 - `FINANCIAL_ANALYSIS_MODEL` - Financial reasoning and math validation model (default: `fino1-8b`)
+- `FINANCIAL_ANALYSIS_CONTEXT` - Context window for financial analysis (default: `OLLAMA_EXPERT_CONTEXT_WINDOW`)
+- `FINANCIAL_ANALYSIS_MAX_TOKENS` - Max response tokens for financial analysis (default: `OLLAMA_EXPERT_MAX_RESPONSE_TOKENS`)
 - `FINANCIAL_VISION_MODEL` - Financial extraction and multilingual analysis model (default: `llm-pro-finance-8b`)
+- `FINANCIAL_VISION_CONTEXT` - Context window for financial vision tasks (default: `OLLAMA_VISION_CONTEXT_WINDOW`)
+- `FINANCIAL_VISION_MAX_TOKENS` - Max response tokens for financial vision (default: `OLLAMA_VISION_MAX_RESPONSE_TOKENS`)
 - `VAT_EXPERT_MODEL` - VAT compliance and tax analysis model (default: uses `FINANCIAL_VISION_MODEL`)
+
+### Production Tier - Legal Domain
+- `LEGAL_VISION_MODEL` - Legal vision model (default: `qwen3-vl:8b`)
+- `LEGAL_VISION_CONTEXT` - Context window for legal vision (default: `OLLAMA_VISION_CONTEXT_WINDOW`)
+- `LEGAL_VISION_MAX_TOKENS` - Max response tokens for legal vision (default: `OLLAMA_VISION_MAX_RESPONSE_TOKENS`)
+- `LEGAL_ANALYSIS_MODEL` - Legal analysis/text model (default: `gpt-oss`)
+- `LEGAL_ANALYSIS_CONTEXT` - Context window for legal analysis (default: `OLLAMA_EXPERT_CONTEXT_WINDOW`)
+- `LEGAL_ANALYSIS_MAX_TOKENS` - Max response tokens for legal analysis (default: `OLLAMA_EXPERT_MAX_RESPONSE_TOKENS`)
 
 ### Production Tier - General Purpose
 - `GENERAL_MODEL` - General fallback model for unclassified documents (default: `sauerkraut-llama3.1:8b`)

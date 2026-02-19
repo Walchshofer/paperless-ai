@@ -158,7 +158,7 @@ export default function ConnectionSettingsIsland(props: Partial<ConnectionSettin
   // Sidecar Services state
   const [visualRagUrl, setVisualRagUrl] = useState(validated.visualRagUrl || 'http://visual-rag:8001');
   const [textRagUrl, setTextRagUrl] = useState(validated.textRagUrl || 'http://text-rag:8004');
-  const [guidanceServiceUrl, setGuidanceServiceUrl] = useState(validated.guidanceServiceUrl || 'http://guidance-service:8002');
+  const [guidanceServiceUrl, setGuidanceServiceUrl] = useState(validated.guidanceServiceUrl || 'http://guidance_service:8002');
   const [biasEngineUrl, setBiasEngineUrl] = useState(validated.biasEngineUrl || 'bias-engine:50051');
   const [redisUrl, setRedisUrl] = useState(validated.redisUrl || 'redis://broker:6379');
 
@@ -730,11 +730,11 @@ export default function ConnectionSettingsIsland(props: Partial<ConnectionSettin
             icon={<i className="fas fa-compass text-lg opacity-80 text-amber-500"></i>}>
             <div className="space-y-2">
               <label className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Service URL <Tooltip text="URL of the Guidance service for deterministic JSON extraction (default: http://guidance-service:8002)." />
+                Service URL <Tooltip text="URL of the Guidance service for deterministic JSON extraction (default: http://guidance_service:8002)." />
               </label>
               <input type="url" value={guidanceServiceUrl}
                 onInput={(e) => { setGuidanceServiceUrl((e.target as HTMLInputElement).value); markDirty(); }}
-                placeholder="http://guidance-service:8002"
+                placeholder="http://guidance_service:8002"
                 className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
                 data-testid="guidance-url-input" />
               <div className="flex items-center gap-2 mt-2">

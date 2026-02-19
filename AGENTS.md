@@ -47,6 +47,17 @@ Fight entropy. Leave the codebase better than you found it.
   states via the "GPU Preparing" UI fallback.
 - **Ollama:** Connects to host via `http://host.docker.internal:11434`.
 
+## Environment & Configuration (SOT)
+- **Authoritative SOT:** `C:\Users\pwalc\MyApps\paperless-ai\docker-compose.env`.
+- **Compatibility Layer:** The root `.env` is AUTO-GENERATED from `docker-compose.env`.
+- **Runtime SOT:** `data/runtime.env` contains app-persisted settings (e.g. from /setup).
+- **Standard Loader:** Code MUST NOT hardcode `.env` paths. Always use `require('./config/config')`.
+- **Directory Scope:**
+  - `paperless-ai/`: AUTHORITATIVE for ALL source code, docker files, and configuration.
+  - `paperless-ngx/`: RUNTIME DATA ONLY (media, consume, data mounts). No source code or config files.
+  - Legacy docker files from `paperless-ngx/` have been moved to `paperless-ai/.archive/paperless-ngx/`.
+  - ALL Docker commands MUST be run from `C:\Users\pwalc\MyApps\paperless-ai\`.
+
 ## Tooling & Memory
 - **Memory:** Use `oraios/serena` tools for all agent handoffs.
 - **Serena Bridge:** CODEX uses `bridge/codex-serena-bridge.py` for async

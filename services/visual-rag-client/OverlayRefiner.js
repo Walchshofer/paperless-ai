@@ -27,9 +27,9 @@ const config = require('../../config/config');
  * Domain expert model mappings
  */
 const EXPERT_MODELS = Object.freeze({
-    medical: process.env.MEDICAL_ANALYSIS_MODEL || config.expertModels?.medical?.analysis || 'medtext-llama3',
-    financial: process.env.FINANCIAL_ANALYSIS_MODEL || config.expertModels?.financial?.analysis || 'fino1-8b',
-    legal: process.env.LEGAL_EXPERT_MODEL || config.expertModels?.legal?.analysis || 'gpt-oss' 
+    medical: config.expertModels?.medical?.analysis?.name || 'medtext-llama3',
+    financial: config.expertModels?.financial?.analysis?.name || 'fino1-8b',
+    legal: config.expertModels?.legal?.analysis?.name || 'gpt-oss' 
 });
 
 /**
@@ -188,14 +188,20 @@ Rules:
      * Call Ollama expert model
      * @private
      */
-    async _callExpert(model, prompt) {
+    async _callExpert(model, prompt, domain = 'general') {
+        const domainLimits = domain === 'medical' ? config.expertModels?.medical?.analysis?.limits :
+                           domain === 'financial' ? config.expertModels?.financial?.analysis?.limits :
+                           domain === 'legal' ? config.expertModels?.legal?.analysis?.limits :
+                           null;
+
         const response = await this.ollamaClient.post('/api/generate', {
             model,
             prompt,
             stream: false,
             options: {
                 temperature: 0.1,
-                num_predict: 1024
+                num_ctx: domainLimits?.contextWindow || 32768,
+                num_predict: domainLimits?.maxResponseTokens || 1024
             }
         });
 

@@ -120,8 +120,10 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     # Only strip if there's whitespace before the # to preserve # in URLs/passwords
     if [[ "$val" =~ ^(.*[^[:space:]])[[:space:]]+#.*$ ]]; then
       val="${BASH_REMATCH[1]}"
-    elif [[ "$val" =~ ^[[:space:]]+#.*$ ]]; then
-      val=""
+    else
+      if [[ "$val" =~ ^[[:space:]]+#.*$ ]]; then
+        val=""
+      fi
     fi
     kv_map["$key"]="$val"
   fi
