@@ -205,6 +205,33 @@ class ExpertPipelineExecutor {
     return require('../ragService');
   }
 
+  /**
+   * Persist expert knowledge metadata for a document via Visual RAG ingestion.
+   *
+   * @param {number} documentId
+   * @param {Object} options
+   * @returns {Promise<{success:boolean,error?:string}>}
+   */
+  async storeExpertKnowledge(documentId, options = {}) {
+    if (!documentId) {
+      return { success: false, error: 'document_id_required' };
+    }
+
+    this._initVisualRag();
+
+    if (
+      !this._ingestionManager ||
+      typeof this._ingestionManager.storeExpertKnowledge !== 'function'
+    ) {
+      return {
+        success: false,
+        error: 'visual_rag_ingestion_manager_unavailable'
+      };
+    }
+
+    return this._ingestionManager.storeExpertKnowledge(documentId, options);
+  }
+
   _emitProgress(context, update = {}) {
     const progressReporter = context?.options?.progressReporter;
     if (typeof progressReporter !== 'function') {
@@ -3764,28 +3791,48 @@ class ExpertPipelineExecutor {
     const base64Images = resolvedImages.base64Images || [];
 
     if (base64Images.length === 0) {
-      logger.debug('[VisualOCR] No images available, using Paperless OCR');
-      return {
-        text: document.ocr_text || '',
-        source: 'paperless',
-        metadata: { source: 'paperless', pages: 0 }
+      const error = new Error(
+        'Visual OCR requires prepared PNG page images but none were available'
+      );
+      error.code = 'VISUAL_OCR_REQUIRED';
+      error.context = {
+        documentId: document.id || document.filename,
+        imageSource: resolvedImages.source
       };
+      throw error;
     }
 
-    const maxPages = config.visualOCR?.maxPages || 20;
+    const forceAllPages = normalizeBoolean(options.forceAllPages, true);
+    const configuredMaxPages = Number(config.visualOCR?.maxPages);
+    const maxPages = !forceAllPages
+      && Number.isFinite(configuredMaxPages)
+      && configuredMaxPages > 0
+      ? configuredMaxPages
+      : base64Images.length;
+    const pagesToProcess = Math.min(base64Images.length, maxPages);
     const timeout = config.visualOCR?.timeout || 60000;
 
     const pageTexts = [];
+    const visualPages = [];
 
     logger.info({
       event: 'visual_ocr_start',
       documentId: document.id || document.filename,
       totalPages: base64Images.length,
-      processingPages: Math.min(base64Images.length, maxPages),
+      processingPages: pagesToProcess,
       image_source: resolvedImages.source
     });
 
-    for (let i = 0; i < Math.min(base64Images.length, maxPages); i += 1) {
+    if (pagesToProcess < base64Images.length) {
+      logger.warn({
+        event: 'visual_ocr_pages_truncated',
+        documentId: document.id || document.filename,
+        totalPages: base64Images.length,
+        processedPages: pagesToProcess
+      });
+    }
+
+    for (let i = 0; i < pagesToProcess; i += 1) {
       try {
         const pageText = await this._extractTextFromPage(
           base64Images[i],
@@ -3793,12 +3840,23 @@ class ExpertPipelineExecutor {
           base64Images.length,
           timeout
         );
+        visualPages.push({
+          pageNumber: i + 1,
+          text: pageText,
+          success: true
+        });
         pageTexts.push(`--- Page ${i + 1} ---\n${pageText}`);
       } catch (pageError) {
         logger.warn({
           event: 'page_ocr_failed',
           page: i + 1,
           documentId: document.id || document.filename,
+          error: pageError.message
+        });
+        visualPages.push({
+          pageNumber: i + 1,
+          text: '',
+          success: false,
           error: pageError.message
         });
         pageTexts.push(`--- Page ${i + 1} (fallback) ---\n[OCR failed for this page]`);
@@ -3825,7 +3883,11 @@ class ExpertPipelineExecutor {
     mergedResult.metadata = {
       ...(mergedResult.metadata || {}),
       raw_visual_text: visualText,
-      raw_pages: rawPages
+      raw_pages: rawPages,
+      visual_pages: visualPages,
+      page_count: visualPages.length,
+      quality_score: mergedResult.quality_score,
+      selected_source: mergedResult.source
     };
 
     logger.info({
@@ -4154,7 +4216,12 @@ async function processDocument(document, ollamaService, options = {}) {
     normalizeBoolean(classificationResult?.routing?.requires_visual_analysis, hasImage)
   );
 
-  const useVisualOcr = normalizeBoolean(orchestrationPlan?.use_visual_ocr, requiresVisual);
+  const useVisualOcr = normalizeBoolean(
+    orchestrationPlan?.use_visual_ocr,
+    requiresVisual
+  );
+  const forceVisualOcr = normalizeBoolean(options.forceVisualOcr, true);
+  const effectiveUseVisualOcr = forceVisualOcr || useVisualOcr;
   const useGuidance = normalizeBoolean(orchestrationPlan?.use_guidance, true);
 
   const useVisualRagIngestion = normalizeBoolean(
@@ -4172,6 +4239,7 @@ async function processDocument(document, ollamaService, options = {}) {
       ...orchestrationPlan,
       requires_visual_analysis: requiresVisual,
       use_visual_ocr: useVisualOcr,
+      force_visual_ocr: effectiveUseVisualOcr,
       use_guidance: useGuidance,
       use_visual_rag_ingestion: useVisualRagIngestion,
       use_visual_rag_retrieval: useVisualRagRetrieval
@@ -4321,11 +4389,36 @@ async function processDocument(document, ollamaService, options = {}) {
     stage: 'visual_extraction',
     details: {
       source: 'process-document',
-      visualOcrEnabled: useVisualOcr
+      visualOcrEnabled: effectiveUseVisualOcr
     }
   });
 
-  if (useVisualOcr && document.base64Images?.length > 0 && config.visualOCR?.enabled !== false) {
+  const visualOcrDisabled = config.visualOCR?.enabled === false;
+
+  if (effectiveUseVisualOcr && (!visualOcrDisabled || forceVisualOcr)) {
+    if (!useVisualOcr && forceVisualOcr) {
+      logger.info({
+        event: 'visual_ocr_forced',
+        documentId: document.id || document.filename,
+        reason: 'force_visual_ocr_enabled'
+      });
+    }
+    if (visualOcrDisabled && forceVisualOcr) {
+      logger.warn({
+        event: 'visual_ocr_config_override',
+        documentId: document.id || document.filename,
+        reason: 'force_visual_ocr_overrides_disabled_config'
+      });
+    }
+
+    if (!Array.isArray(document.base64Images) || document.base64Images.length === 0) {
+      const visualInputError = new Error(
+        'Visual OCR is enabled but no prepared PNG page images are available'
+      );
+      visualInputError.code = 'VISUAL_INPUT_MISSING';
+      throw visualInputError;
+    }
+
     try {
       const ocrResult = await executor._executeVisualOCR(document, options);
 
@@ -4343,11 +4436,13 @@ async function processDocument(document, ollamaService, options = {}) {
       logger.warn({
         event: 'visual_ocr_failed',
         documentId: document.id || document.filename,
+        code: ocrError.code || null,
         error: ocrError.message
       });
-
-      document.enhanced_ocr_text = document.ocr_text;
-      document._ocr_metadata = { source: 'paperless_error_fallback' };
+      if (!ocrError.code) {
+        ocrError.code = 'VISUAL_OCR_FAILED';
+      }
+      throw ocrError;
     }
   } else {
     document.enhanced_ocr_text = document.ocr_text;
@@ -4377,6 +4472,9 @@ async function processDocument(document, ollamaService, options = {}) {
   const translator = new LocalTranslatorCtor({ ollamaService });
 
   const normalizedLanguage = normalizeLanguageHint(ocrLanguageHint);
+  const visualPageTexts = Array.isArray(document._ocr_metadata?.visual_pages)
+    ? document._ocr_metadata.visual_pages
+    : [];
 
   const ocrMetadata = await buildVisOcrMetadata(
     ocrText,
@@ -4389,7 +4487,8 @@ async function processDocument(document, ollamaService, options = {}) {
         maxTokens: translationConfig.maxTokens,
         temperature: translationConfig.temperature,
         contextWindow: translationConfig.contextWindow
-      }
+      },
+      pageTexts: visualPageTexts
     }
   );
 

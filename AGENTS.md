@@ -66,3 +66,35 @@ Fight entropy. Leave the codebase better than you found it.
 - **Bridge Logs:** Debug output is written to stderr by default; set `CODEX_BRIDGE_LOG_FILE` to enable file logging (legacy `bridge_debug.log`).
 - **Entrypoint:** `server.js` (Node/Express).
 - **Tests:** `npm test`, `npm run test:integration` (sidecar-enabled).
+
+## Auth & Cookie Quick Reference
+- **Login endpoint:** `POST /login` with form fields `username` and `password`.
+- **Success redirect:** `/dashboard` normally; `/workspace` in E2E mode
+  (`NODE_ENV=test` or `PLAYWRIGHT_E2E=true` or `E2E_TESTS=true`).
+- **Session cookie name:** `jwt`.
+- **Cookie attributes (current):** `httpOnly: true`, `sameSite: 'lax'`,
+  `path: '/'`, `maxAge: 24h`, `secure: false`.
+- **Token extraction order:** cookie `jwt` first, then `Authorization: Bearer <jwt>`.
+- **Auth behavior:** page routes redirect to `/login`; API routes return JSON
+  `401/403`.
+
+### Obtain cookie from CLI
+```bash
+curl -i -c cookie.txt \
+  -X POST "http://localhost:3000/login" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data "username=elfman&password=P2tr3ck!1976"
+
+curl -b cookie.txt "http://localhost:3000/api/prompts"
+```
+
+### Playwright auth selectors/state
+- Login fields: `#username`, `#password`.
+- Submit button: `[data-testid=\"login-submit-btn\"]`.
+- Storage state file: `test/.auth/storageState.json`.
+
+### E2E fixture prerequisite
+- `test/helpers/fixtures.js` requires both:
+  - `PAPERLESS_API_URL`
+  - `PAPERLESS_API_TOKEN`
+- Missing either one causes fixture setup to fail before tests run.

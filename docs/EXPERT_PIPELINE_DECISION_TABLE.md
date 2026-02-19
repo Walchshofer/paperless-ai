@@ -43,7 +43,8 @@ Lower layers must never override higher layers.
 ## Stage 1: Classification (SYS_ROUTER_V1)
 
 **Inputs**
-- Base64-rendered page images
+- Normalized PNG page files (`page_{n}.png`) from Stage 3
+- Optional in-memory base64 derived only at the model call boundary
 - OCR text (if available)
 
 **Outputs**
@@ -128,6 +129,10 @@ After normalization, derive deterministic artifacts:
 - Page images and thumbnails
 - Normalized renditions for visual indexing
 - Normalization metadata persisted for evidence tracing
+- Runtime PNG attachment paths for multimodal prompt execution
+
+Hard requirement:
+- If normalized PNG page files are unavailable for a visual stage, fail with an explicit error code (`VISUAL_INPUT_MISSING` / `VISUAL_ATTACHMENT_FAILED`). Do not silently downgrade to text-only in this branch.
 
 Artifacts are input to both visual indexing and OCR reconciliation.
 
@@ -147,6 +152,10 @@ Artifacts are input to both visual indexing and OCR reconciliation.
 - Visual RAG is NOT used for pure OCR.
 - 300 DPI rendering verified stable with this baseline.
 - 500ms base latency budget, 1200s (20m) hard timeout for complex high-res documents.
+- Visual OCR must receive prepared PNG page input; missing PNG input is a hard failure and must remain user-visible.
+- `VIS_OCR_V1` must run against every available normalized page for a document
+  and persist page-level text in `expert_metadata.vis_ocr_pages` for Smart AI
+  inspection/comparison.
 
 ### Track 2: Tesseract OCR (paperless-ngx API)
 
@@ -348,7 +357,8 @@ Generate targeted visual queries for field validation and missing field detectio
 - Circuit breaker protected
 
 **Visual RAG Stage (Native Protocol Alpha-9)**
-- **Input:** Base64 images + Query (from Visual Query Generator)
+- **Input:** PNG page attachments (path-first) + Query (from Visual Query Generator)
+- Base64 payloads are compatibility-only and must be derived at the final call boundary from PNG attachments.
 - **Mechanism:** Native ColQwen3 late-interaction MaxSim (`processor.score_multi_vector`) executed by the Visual RAG Sidecar (320-dim multi-vector per patch).
 - **Gate:** Accept hits when MaxSim score >= **0.85** (configurable threshold for high-precision retrieval).
 - **Fallback:** If the Visual RAG Sidecar returns `503 Initializing` or is unavailable, route the query to Text RAG (Qdrant `document_embeddings`) as the fallback retrieval path.

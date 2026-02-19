@@ -112,6 +112,24 @@ No stage may pass full OCR dumps or raw document content outside the Context Pac
 
 ---
 
+## Multimodal Attachment Contract (Required)
+
+For multimodal prompt execution (`modelType = multimodal`):
+
+- Attach **PNG file paths** (`__image_path` / `__image_paths`) as the primary
+  transport contract between runtime context and prompt-test execution.
+- `__image_paths` must cover the full normalized page set for the document when
+  `VIS_OCR_V1` or multimodal extraction runs (no single-page truncation).
+- Convert PNG files to base64 only at the final Ollama API call boundary.
+- Inline base64 fields (`__image_data`, `image_data`, `document_image_b64`) are
+  compatibility fallback only.
+- If an explicit PNG path attachment is provided but unreadable, fail with
+  `VISUAL_ATTACHMENT_FAILED` (no silent text fallback).
+- If no image attachment exists for multimodal execution, fail with
+  `VISUAL_INPUT_MISSING`.
+
+---
+
 ## Guidance Output Contracts (Required)
 
 Guidance outputs are split into three focused calls. Each output must include

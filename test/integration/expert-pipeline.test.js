@@ -1257,9 +1257,13 @@ describe('Expert Pipeline', function() {
         
         it('should process document in expert mode', async function() {
             this.timeout(30000);
-            
+            const docWithImage = {
+                ...TestDocuments.medicalLabReport,
+                image_data: `data:image/png;base64,${createTestImageBase64()}`
+            };
+             
             const result = await processor.process(
-                TestDocuments.medicalLabReport,
+                docWithImage,
                 { mode: ProcessorConfig.modes.EXPERT_PIPELINE }
             );
             
@@ -1300,6 +1304,10 @@ describe('Expert Pipeline', function() {
         
         it('should handle processing errors gracefully', async function() {
             this.timeout(5000);
+            const docWithImage = {
+                ...TestDocuments.medicalLabReport,
+                image_data: `data:image/png;base64,${createTestImageBase64()}`
+            };
 
             await withGuidanceDisabled(async () => {
                 const failingOllama = new MockOllamaService({
@@ -1314,7 +1322,7 @@ describe('Expert Pipeline', function() {
                 });
 
                 const result = await failingProcessor.process(
-                    TestDocuments.medicalLabReport,
+                    docWithImage,
                     { mode: ProcessorConfig.modes.EXPERT_PIPELINE }
                 );
 

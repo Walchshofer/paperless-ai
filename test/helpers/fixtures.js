@@ -16,19 +16,27 @@ const truthy = (value) => ['1', 'true', 'yes'].includes(
 );
 
 function readEnvFile() {
-  const envPath = path.join(process.cwd(), 'data', '.env');
-  if (!fs.existsSync(envPath)) return {};
-  const content = fs.readFileSync(envPath, 'utf8');
-  const lines = content.split(/\r?\n/);
   const env = {};
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const idx = trimmed.indexOf('=');
-    if (idx === -1) continue;
-    const key = trimmed.slice(0, idx).trim();
-    const value = trimmed.slice(idx + 1).trim();
-    env[key] = value;
+  const envPaths = [
+    path.join(process.cwd(), 'docker-compose.env'),
+    path.join(process.cwd(), '.env')
+  ];
+
+  for (const envPath of envPaths) {
+    if (!fs.existsSync(envPath)) continue;
+    const content = fs.readFileSync(envPath, 'utf8');
+    const lines = content.split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const idx = trimmed.indexOf('=');
+      if (idx === -1) continue;
+      const key = trimmed.slice(0, idx).trim();
+      const value = trimmed.slice(idx + 1).trim();
+      if (env[key] === undefined) {
+        env[key] = value;
+      }
+    }
   }
   return env;
 }

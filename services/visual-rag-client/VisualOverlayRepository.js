@@ -22,8 +22,6 @@
  */
 
 const logger = require('../logger');
-const fs = require('fs');
-const path = require('path');
 
 // Import Qdrant adapter for vector operations
 let qdrantAdapter = null;
@@ -58,36 +56,12 @@ function getPostgresHost() {
 }
 
 /**
- * Read an env var with fallback to runtime.env file (helpful when dotenv wasn't applied)
+ * Read an env var from process environment.
  */
 function readEnvFallback(key) {
-    if (process.env[key] !== undefined && process.env[key] !== '') return process.env[key];
-
-    const envPaths = [
-        path.join(process.cwd(), 'data', 'runtime.env'),
-        path.join(process.cwd(), 'data', '.env')
-    ];
-
-    for (const envPath of envPaths) {
-        try {
-            if (!fs.existsSync(envPath)) continue;
-            const content = fs.readFileSync(envPath, 'utf8');
-            const lines = content.split(/\r?\n/);
-            for (const line of lines) {
-                const trimmed = line.trim();
-                if (!trimmed || trimmed.startsWith('#')) continue;
-                const idx = trimmed.indexOf('=');
-                if (idx === -1) continue;
-                const k = trimmed.substring(0, idx);
-                const v = trimmed.substring(idx + 1);
-                if (k === key) return v;
-            }
-            if (process.env[key] !== undefined) return process.env[key]; // If previous iteration set it
-        } catch (e) {
-            // ignore and try next
-        }
+    if (process.env[key] !== undefined && process.env[key] !== '') {
+        return process.env[key];
     }
-
     return undefined;
 }
 
@@ -137,7 +111,7 @@ async function initPoolWithRetry(maxRetries = 3, retryDelayMs = 1000) {
     const host = getPostgresHost();
     const port = parseInt(process.env.POSTGRES_PORT || '5432', 10);
     const database = process.env.POSTGRES_DB || 'paperless';
-    // Prefer explicit Postgres env, fall back to Paperless-specific DB env vars or host data/runtime.env
+    // Prefer explicit Postgres env with Paperless aliases for compatibility.
     const user = requireEnvFallback('POSTGRES_USER', ['PAPERLESS_DBUSER']);
     const password = requireEnvFallback('POSTGRES_PASSWORD', ['PAPERLESS_DBPASS']);
 

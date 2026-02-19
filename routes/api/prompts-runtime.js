@@ -1,38 +1,51 @@
 const express = require('express');
+const fs = require('fs').promises;
+const os = require('os');
+const path = require('path');
 const router = express.Router();
 const { authenticateApi, requireAdmin } = require('../../middleware/auth');
 const AIServiceFactory = require('../../services/aiServiceFactory');
 const paperlessService = require('../../services/paperlessService');
-const { DocumentProcessor } = require('../../services/integration/DocumentProcessor');
+const {
+  DocumentProcessor,
+  ImagePreparator
+} = require('../../services/integration/DocumentProcessor');
 const { promptRegistry } = require('../../services/prompts/PromptRegistry');
 const logger = require('../../services/logger');
 
 // Per-user execution tracking (prevent concurrent executions)
-const activeExecutions = new Map(); // userId -> { promise, startTime, documentId }
+const activeExecutions = new Map(); // userId -> { promise, startTime, documentId, executionId }
 
 function hasActiveExecution(userId) {
   return activeExecutions.has(userId);
 }
 
-function registerExecution(userId, promise, documentId) {
+function registerExecution(userId, promise, documentId, cleanupDelayMs = 600000) {
+  const startTime = Date.now();
+  const executionId = Symbol(`prompts-runtime-${userId}`);
   activeExecutions.set(userId, {
     promise,
-    startTime: Date.now(),
-    documentId
+    startTime,
+    documentId,
+    executionId
   });
   
   // Auto-cleanup on completion
   promise.finally(() => {
-    activeExecutions.delete(userId);
+    const activeExecution = activeExecutions.get(userId);
+    if (activeExecution && activeExecution.executionId === executionId) {
+      activeExecutions.delete(userId);
+    }
   });
 
   // Safety timeout: auto-clear after 10 minutes to prevent deadlocks
   setTimeout(() => {
-    if (activeExecutions.has(userId) && activeExecutions.get(userId).startTime === activeExecutions.get(userId).startTime) {
+    const activeExecution = activeExecutions.get(userId);
+    if (activeExecution && activeExecution.executionId === executionId) {
       logger.warn(`[Prompts Runtime] Safety cleanup for active execution (user: ${userId}, doc: ${documentId}) after 10m`);
       activeExecutions.delete(userId);
     }
-  }, 600000);
+  }, cleanupDelayMs);
 }
 
 /**
@@ -95,7 +108,9 @@ function mapPipelineContextToVariables(pipelineResult, promptVariables) {
       filename: pipelineResult.result?.document?.filename,
       ocr_length: (pipelineResult.result?.ocr?.text || '').length,
       has_image: Boolean(pipelineResult.result?._expert_result?.document?.image_data || 
-                         pipelineResult.result?.document?.image_data)
+                         pipelineResult.result?.document?.image_data ||
+                         pipelineResult.result?._expert_result?.document?.image_path ||
+                         pipelineResult.result?.document?.image_path)
     }),
     'pipelines': () => {
       const { expertRegistry } = require('../../services/experts/ExpertRegistry');
@@ -122,6 +137,217 @@ function mapPipelineContextToVariables(pipelineResult, promptVariables) {
   }
   
   return mapping;
+}
+
+/**
+ * Determine whether mapped runtime variables contain useful content.
+ * Filters out placeholders and purely diagnostic/internal keys.
+ *
+ * @param {Object} variables
+ * @returns {boolean}
+ */
+function hasMeaningfulRuntimeVariables(variables = {}) {
+  return Object.entries(variables).some(([name, value]) => {
+    if (name.startsWith('__')) return false;
+
+    const text = String(value ?? '').trim();
+    if (!text) return false;
+    if (text.startsWith('[unmapped:') && text.endsWith(']')) return false;
+
+    // Ignore static defaults when judging degraded success.
+    if (name === 'source_system' && text === 'test-lab') return false;
+    if (name === 'resolution' && text === '300 DPI') return false;
+    if (name === 'file_size' && text === 'unknown') return false;
+
+    return true;
+  });
+}
+
+function stripImageDataHeader(imageData) {
+  if (typeof imageData !== 'string') {
+    return '';
+  }
+  return imageData.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
+}
+
+function resolveExpectedPageCount(rawCount) {
+  const parsed = Number(rawCount);
+  if (Number.isInteger(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return 1;
+}
+
+function toPngDataUrl(base64Payload) {
+  const cleanPayload = stripImageDataHeader(base64Payload);
+  if (!cleanPayload) {
+    return '';
+  }
+  return `data:image/png;base64,${cleanPayload}`;
+}
+
+async function loadBase64ImagesFromPaths(pagePaths) {
+  const normalizedPaths = Array.isArray(pagePaths)
+    ? pagePaths.filter(Boolean)
+    : [];
+  if (normalizedPaths.length === 0) {
+    return [];
+  }
+
+  const images = [];
+  for (const pagePath of normalizedPaths) {
+    try {
+      const pageBuffer = await fs.readFile(pagePath);
+      const imageDataUrl = toPngDataUrl(pageBuffer.toString('base64'));
+      if (imageDataUrl) {
+        images.push(imageDataUrl);
+      }
+    } catch (readError) {
+      const error = new Error(
+        `Failed to read normalized PNG attachment: ${pagePath}`
+      );
+      error.code = 'VISUAL_ATTACHMENT_FAILED';
+      error.cause = readError;
+      throw error;
+    }
+  }
+
+  if (images.length === 0) {
+    const error = new Error(
+      'Normalized PNG attachment set was empty after loading'
+    );
+    error.code = 'VISUAL_ATTACHMENT_FAILED';
+    throw error;
+  }
+
+  return images;
+}
+
+async function loadPersistedNormalizedPngPaths(documentId, expectedPages) {
+  const { NormalizationStore } = require('../../services/normalization/NormalizationStore');
+  const normalizationStore = new NormalizationStore();
+  const pageCount = resolveExpectedPageCount(expectedPages);
+  const pagePaths = [];
+
+  for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+    const pagePath = normalizationStore.getPagePath(documentId, pageNumber);
+    try {
+      await fs.access(pagePath);
+      pagePaths.push(pagePath);
+    } catch (_error) {
+      return {
+        expectedPages: pageCount,
+        pagePaths,
+        complete: false
+      };
+    }
+  }
+
+  return {
+    expectedPages: pageCount,
+    pagePaths,
+    complete: pagePaths.length === pageCount
+  };
+}
+
+async function persistRuntimePngPages(base64Images, documentId) {
+  const images = Array.isArray(base64Images)
+    ? base64Images.filter(Boolean)
+    : [];
+  if (images.length === 0) {
+    return [];
+  }
+
+  const docKey = String(documentId || `doc-${Date.now()}`).replace(
+    /[^a-zA-Z0-9._-]/g,
+    '_'
+  );
+  const outputDir = path.join(
+    os.tmpdir(),
+    'paperless-ai',
+    'prompts-runtime-images',
+    docKey
+  );
+  await fs.mkdir(outputDir, { recursive: true });
+
+  const pagePaths = [];
+  for (let i = 0; i < images.length; i += 1) {
+    const cleanBase64 = stripImageDataHeader(images[i]);
+    if (!cleanBase64) {
+      continue;
+    }
+    const filePath = path.join(outputDir, `page_${i + 1}.png`);
+    await fs.writeFile(filePath, Buffer.from(cleanBase64, 'base64'));
+    pagePaths.push(filePath);
+  }
+
+  if (pagePaths.length === 0) {
+    const error = new Error(
+      'Failed to persist runtime PNG attachments for multimodal prompt testing'
+    );
+    error.code = 'VISUAL_ATTACHMENT_FAILED';
+    throw error;
+  }
+
+  return pagePaths;
+}
+
+async function ensureRuntimePngAttachments(preparedDocument, documentId) {
+  if (preparedDocument.image_path) {
+    const existingPaths = Array.isArray(preparedDocument.page_image_paths)
+      ? preparedDocument.page_image_paths.filter(Boolean)
+      : [preparedDocument.image_path];
+    if (existingPaths.length === 0) {
+      const error = new Error(
+        'Runtime PNG attachment path is missing for multimodal prompt testing'
+      );
+      error.code = 'VISUAL_INPUT_MISSING';
+      throw error;
+    }
+    for (const filePath of existingPaths) {
+      try {
+        await fs.access(filePath);
+      } catch (_error) {
+        const error = new Error(
+          `Runtime PNG attachment path is not readable: ${filePath}`
+        );
+        error.code = 'VISUAL_ATTACHMENT_FAILED';
+        throw error;
+      }
+    }
+    return existingPaths;
+  }
+
+  const sourceImages =
+    Array.isArray(preparedDocument.base64Images)
+    && preparedDocument.base64Images.length > 0
+      ? preparedDocument.base64Images
+      : preparedDocument.image_data
+        ? [preparedDocument.image_data]
+        : [];
+
+  if (sourceImages.length === 0) {
+    const error = new Error(
+      'No PNG page image is available for multimodal runtime context generation'
+    );
+    error.code = 'VISUAL_INPUT_MISSING';
+    throw error;
+  }
+
+  const pagePaths = await persistRuntimePngPages(sourceImages, documentId);
+  preparedDocument.page_image_paths = pagePaths;
+  preparedDocument.image_path = pagePaths[0];
+  preparedDocument.image_path_abs = pagePaths[0];
+  return pagePaths;
+}
+
+function isCriticalVisualErrorCode(errorCode) {
+  return [
+    'VISUAL_INPUT_MISSING',
+    'VISUAL_ATTACHMENT_FAILED',
+    'VISUAL_OCR_REQUIRED',
+    'VISUAL_OCR_FAILED'
+  ].includes(errorCode);
 }
 
 /**
@@ -164,12 +390,13 @@ router.post('/context', express.json(), authenticateApi, requireAdmin, async (re
   const startTime = Date.now();
   const { documentId, promptId } = req.body;
   const userId = req.user.id;
+  const parsedDocumentId = Number(documentId);
   
   // Validate request
-  if (!documentId || !promptId) {
+  if (!Number.isInteger(parsedDocumentId) || parsedDocumentId <= 0 || !promptId) {
     return res.status(400).json({
       success: false,
-      error: 'Missing required fields: documentId, promptId'
+      error: 'Missing or invalid required fields: documentId, promptId'
     });
   }
   
@@ -196,18 +423,30 @@ router.post('/context', express.json(), authenticateApi, requireAdmin, async (re
   
   const executeAndMap = async () => {
     try {
-      // Fetch document
-      const [document, ocrText] = await Promise.all([
-        paperlessService.getDocument(documentId),
-        paperlessService.getDocumentContent(documentId).catch(() => '')
-      ]);
+      // Fetch document first so 404s return the correct status for test lab.
+      let document = null;
+      try {
+        document = await paperlessService.getDocument(parsedDocumentId);
+      } catch (error) {
+        if (error?.response?.status === 404) {
+          return res.status(404).json({
+            success: false,
+            error: `Document not found: ${parsedDocumentId}`
+          });
+        }
+        throw error;
+      }
       
       if (!document) {
         return res.status(404).json({
           success: false,
-          error: `Document not found: ${documentId}`
+          error: `Document not found: ${parsedDocumentId}`
         });
       }
+
+      const ocrText = await paperlessService
+        .getDocumentContent(parsedDocumentId)
+        .catch(() => '');
       
       const prompt = promptRegistry.get(promptId);
       const detectedVars = [
@@ -225,67 +464,122 @@ router.post('/context', express.json(), authenticateApi, requireAdmin, async (re
 
       // Prepare document metadata
       const preparedDocument = {
-        id: documentId,
+        id: parsedDocumentId,
         title: document.title || '',
-        filename: document.original_file_name || `doc-${documentId}.pdf`,
+        filename: document.original_file_name || `doc-${parsedDocumentId}.pdf`,
         content: ocrText || document.content || '',
         ocr_text: ocrText || document.content || '',
         created: document.created || document.added || null,
         file_size: document.size || 'unknown',
         mime_type: document.mime_type,
-        page_count: 1 // Default, will be updated if images are loaded
+        page_count: Number(document.page_count) || 1
       };
 
       // Load images if needed for multimodal prompts
       if (needsMultimodal || needsExtraction || needsTriage) {
         try {
-          const { NormalizationStore } = require('../../services/normalization/NormalizationStore');
-          const normStore = new NormalizationStore();
-          const page1Path = normStore.getPagePath(documentId, 1);
-          const fs = require('fs').promises;
-          
-          try {
-            await fs.access(page1Path);
-            const imageBuffer = await fs.readFile(page1Path);
-            preparedDocument.image_data = `data:image/png;base64,${imageBuffer.toString('base64')}`;
-            preparedDocument.base64Images = [preparedDocument.image_data];
-            preparedDocument.page_count = 1;
-            logger.info(`[Prompts Runtime] Loaded persisted 300dpi image for doc ${documentId}`);
-          } catch (err) {
-            // Fallback: load direct if image or render on demand if PDF
-            const isImage = preparedDocument.mime_type && preparedDocument.mime_type.startsWith('image/');
-            
+          const expectedPages = resolveExpectedPageCount(
+            preparedDocument.page_count
+          );
+
+          const persistedNormalized = await loadPersistedNormalizedPngPaths(
+            parsedDocumentId,
+            expectedPages
+          );
+
+          if (persistedNormalized.complete && persistedNormalized.pagePaths.length > 0) {
+            const base64Images = await loadBase64ImagesFromPaths(
+              persistedNormalized.pagePaths
+            );
+            preparedDocument.page_image_paths = persistedNormalized.pagePaths;
+            preparedDocument.image_path = persistedNormalized.pagePaths[0];
+            preparedDocument.image_path_abs = persistedNormalized.pagePaths[0];
+            preparedDocument.base64Images = base64Images;
+            preparedDocument.image_data = base64Images[0];
+            preparedDocument.page_count = persistedNormalized.pagePaths.length;
+
+            logger.info(
+              `[Prompts Runtime] Loaded ${persistedNormalized.pagePaths.length} persisted normalized PNG page(s) for doc ${parsedDocumentId}`
+            );
+          } else {
+            if (persistedNormalized.pagePaths.length > 0) {
+              logger.warn(
+                `[Prompts Runtime] Incomplete normalized PNG set for doc ${parsedDocumentId}: expected ${persistedNormalized.expectedPages}, found ${persistedNormalized.pagePaths.length}`
+              );
+            }
+
+            const isImage = preparedDocument.mime_type
+              && preparedDocument.mime_type.startsWith('image/');
+
             if (isImage) {
-              logger.info(`[Prompts Runtime] Loading image directly for doc ${documentId} (${preparedDocument.mime_type})`);
-              const imageBuffer = await paperlessService.downloadDocument(documentId);
+              logger.info(
+                `[Prompts Runtime] Loading image directly for doc ${parsedDocumentId} (${preparedDocument.mime_type})`
+              );
+              const imageBuffer = await paperlessService.downloadDocument(
+                parsedDocumentId
+              );
               if (imageBuffer) {
-                preparedDocument.image_data = `data:${preparedDocument.mime_type};base64,${imageBuffer.toString('base64')}`;
-                preparedDocument.base64Images = [preparedDocument.image_data];
+                const preparedImage = await ImagePreparator.prepare(imageBuffer);
+                if (preparedImage?.base64) {
+                  preparedDocument.image_data = preparedImage.base64;
+                  preparedDocument.base64Images = [preparedImage.base64];
+                }
                 preparedDocument.page_count = 1;
               }
             } else {
-              logger.info(`[Prompts Runtime] No persisted image for doc ${documentId}, rendering 300 DPI (real-conditions)...`);
+              logger.info(
+                `[Prompts Runtime] Rendering full PNG set for doc ${parsedDocumentId} at 300 DPI (pages=${expectedPages})`
+              );
               const { pdfRenderer } = require('../../services/visual-rag-client/PDFRenderer');
-              const pdfBuffer = await paperlessService.downloadDocument(documentId);
+              const pdfBuffer = await paperlessService.downloadDocument(
+                parsedDocumentId
+              );
               if (pdfBuffer) {
                 const images = await pdfRenderer.renderBuffer(pdfBuffer, {
-                  dpi: 300, // Real-world conditions
-                  maxPages: 1,
-                  docId: documentId
+                  dpi: 300,
+                  maxPages: expectedPages,
+                  docId: parsedDocumentId
                 });
                 if (images && images.length > 0) {
-                  preparedDocument.image_data = `data:image/png;base64,${images[0].base64}`;
-                  preparedDocument.base64Images = [preparedDocument.image_data];
-                  preparedDocument.page_count = images.length;
-                  logger.info(`[Prompts Runtime] Successfully rendered doc ${documentId}, img_len=${preparedDocument.image_data.length}`);
+                  const runtimeImages = images
+                    .map((image) => toPngDataUrl(image.base64))
+                    .filter(Boolean);
+                  preparedDocument.base64Images = runtimeImages;
+                  preparedDocument.image_data = runtimeImages[0] || null;
+                  preparedDocument.page_count = runtimeImages.length;
+                  logger.info(
+                    `[Prompts Runtime] Rendered ${runtimeImages.length} PNG page(s) for doc ${parsedDocumentId}`
+                  );
                 } else {
-                  logger.warn(`[Prompts Runtime] Render returned no images for doc ${documentId}`);
+                  logger.warn(
+                    `[Prompts Runtime] Render returned no images for doc ${parsedDocumentId}`
+                  );
                 }
               }
             }
           }
+
+          const runtimePagePaths = await ensureRuntimePngAttachments(
+            preparedDocument,
+            parsedDocumentId
+          );
+          const requiredPages = resolveExpectedPageCount(preparedDocument.page_count);
+          if (runtimePagePaths.length < requiredPages) {
+            const pageCoverageError = new Error(
+              `Runtime PNG coverage is incomplete (expected ${requiredPages}, found ${runtimePagePaths.length})`
+            );
+            pageCoverageError.code = 'VISUAL_INPUT_MISSING';
+            throw pageCoverageError;
+          }
         } catch (imgErr) {
-          logger.warn(`[Prompts Runtime] Failed to load images for doc ${documentId}:`, imgErr.message);
+          logger.warn(`[Prompts Runtime] Failed to load images for doc ${parsedDocumentId}:`, imgErr.message);
+          if (isCriticalVisualErrorCode(imgErr.code)) {
+            return res.status(422).json({
+              success: false,
+              error: imgErr.message,
+              code: imgErr.code
+            });
+          }
         }
       }
 
@@ -293,24 +587,13 @@ router.post('/context', express.json(), authenticateApi, requireAdmin, async (re
       const ollamaService = AIServiceFactory.getService();
       
       if (needsExtraction) {
-        // Optimization: if we already have OCR text from paperless and don't need visual fields, 
-        // we can bypass the full pipeline to save time in the test lab.
-        const onlyNeedsText = detectedVars.every(v => !['visual_fields', 'extraction_result'].includes(v));
-        if (onlyNeedsText && preparedDocument.ocr_text) {
-          logger.info(`[Prompts Runtime] Tier 3 (Optimized): Using existing OCR for "${promptId}"`);
-          processingResult = { 
-            success: true, 
-            result: { 
-              ocr: { text: preparedDocument.ocr_text, confidence: 1.0 },
-              document: preparedDocument 
-            }, 
-            metadata: { confidence: 1.0 } 
-          };
-        } else {
-          logger.info(`[Prompts Runtime] Tier 3: Full Pipeline for "${promptId}"`);
-          const processor = new DocumentProcessor(ollamaService, { defaultTimeout: 30000 });
-          processingResult = await processor.process(preparedDocument, { mode: 'EXPERT_PIPELINE' });
-        }
+        logger.info(`[Prompts Runtime] Tier 3: Full Pipeline for "${promptId}"`);
+        const processor = new DocumentProcessor(ollamaService, { defaultTimeout: 30000 });
+        processingResult = await processor.process(preparedDocument, {
+          mode: 'EXPERT_PIPELINE',
+          forceVisualOcr: true,
+          forceAllPages: true
+        });
       } else if (needsTriage) {
         logger.info(`[Prompts Runtime] Tier 2: Triage Only for "${promptId}"`);
         const { ExpertPipelineExecutor } = require('../../services/experts/ExpertPipelineExecutor');
@@ -334,8 +617,19 @@ router.post('/context', express.json(), authenticateApi, requireAdmin, async (re
       // Map variables
       const variables = mapPipelineContextToVariables(processingResult, detectedVars);
       
-      // Inject image data for multimodal support in simulation streaming
-      if (preparedDocument.image_data) {
+      // Prefer PNG attachment paths for multimodal prompt test execution.
+      if (
+        Array.isArray(preparedDocument.page_image_paths)
+        && preparedDocument.page_image_paths.length > 0
+      ) {
+        variables.__image_paths = JSON.stringify(
+          preparedDocument.page_image_paths
+        );
+        variables.__image_path = preparedDocument.page_image_paths[0];
+      } else if (preparedDocument.image_path) {
+        variables.__image_path = preparedDocument.image_path;
+      } else if (preparedDocument.image_data) {
+        // Compatibility fallback for older test clients.
         variables.__image_data = preparedDocument.image_data;
       }
 
@@ -363,13 +657,78 @@ router.post('/context', express.json(), authenticateApi, requireAdmin, async (re
             stages: []
           },
           documentMetadata: {
-            id: documentId,
+            id: parsedDocumentId,
             title: document.title || '',
             filename: preparedDocument.filename
           }
         });
       } else {
         const errorInfo = formatPipelineError(processingResult);
+        const errorCode = processingResult.errorCode
+          || processingResult.metadata?.errorCode
+          || null;
+        const isCriticalVisualFailure = isCriticalVisualErrorCode(errorCode);
+        const hasStageErrors = Array.isArray(errorInfo.stages)
+          && errorInfo.stages.length > 0;
+        const hasUsableVariables = hasMeaningfulRuntimeVariables(variables);
+        const normalizedStages = hasStageErrors
+          ? errorInfo.stages
+          : [{
+            name: 'runtime-context',
+            status: 'error',
+            error: processingResult.error || 'Pipeline execution failed',
+            duration
+          }];
+
+        if (isCriticalVisualFailure) {
+          return res.status(422).json({
+            success: false,
+            error: processingResult.error || 'Visual pipeline input is missing',
+            code: errorCode,
+            variables,
+            pipelineMetadata: {
+              pipelineId: processingResult.metadata?.pipelineId || '',
+              duration,
+              confidence: 0,
+              stages: normalizedStages
+            },
+            documentMetadata: {
+              id: parsedDocumentId,
+              title: document.title || '',
+              filename: preparedDocument.filename
+            }
+          });
+        }
+
+        // Test lab can continue when pipeline failed noisily but still produced
+        // usable mapped context and no explicit stage failures to display.
+        if (!hasStageErrors && hasUsableVariables) {
+          logger.warn({
+            event: 'prompts_runtime_context_degraded_success',
+            promptId,
+            documentId: parsedDocumentId,
+            error: processingResult.error || 'pipeline_failed_without_stages'
+          });
+
+          return res.json({
+            success: true,
+            degraded: true,
+            warning: processingResult.error || 'Pipeline partially failed',
+            variables,
+            pipelineMetadata: {
+              pipelineId: processingResult.metadata?.pipelineId || '',
+              duration,
+              confidence: processingResult.metadata?.confidence || 0,
+              stages: normalizedStages
+            },
+            documentMetadata: {
+              id: parsedDocumentId,
+              title: document.title || '',
+              filename: preparedDocument.filename
+            }
+          });
+        }
+
         return res.status(500).json({
           success: false,
           error: processingResult.error || 'Pipeline execution failed',
@@ -378,10 +737,10 @@ router.post('/context', express.json(), authenticateApi, requireAdmin, async (re
             pipelineId: processingResult.metadata?.pipelineId || '',
             duration,
             confidence: 0,
-            stages: errorInfo.stages
+            stages: normalizedStages
           },
           documentMetadata: {
-            id: documentId,
+            id: parsedDocumentId,
             title: document.title || '',
             filename: preparedDocument.filename
           }
@@ -390,10 +749,13 @@ router.post('/context', express.json(), authenticateApi, requireAdmin, async (re
     } catch (error) {
       logger.error('[Prompts Runtime API] Execution failed:', error);
       const duration = Date.now() - startTime;
+      const errorCode = error?.code || null;
+      const statusCode = isCriticalVisualErrorCode(errorCode) ? 422 : 500;
       
-      return res.status(500).json({
+      return res.status(statusCode).json({
         success: false,
         error: error.message || 'Pipeline execution failed',
+        code: errorCode,
         pipelineMetadata: {
           duration,
           stages: [{
@@ -409,7 +771,7 @@ router.post('/context', express.json(), authenticateApi, requireAdmin, async (re
   
   // Register execution and run
   const executionPromise = executeAndMap();
-  registerExecution(userId, executionPromise, documentId);
+  registerExecution(userId, executionPromise, parsedDocumentId);
   
   await executionPromise;
 });
@@ -420,7 +782,14 @@ router._helpers = {
   registerExecution,
   extractTemplateVars,
   mapPipelineContextToVariables,
+  hasMeaningfulRuntimeVariables,
   formatPipelineError,
+  resolveExpectedPageCount,
+  loadBase64ImagesFromPaths,
+  loadPersistedNormalizedPngPaths,
+  persistRuntimePngPages,
+  ensureRuntimePngAttachments,
+  isCriticalVisualErrorCode,
   activeExecutions
 };
 

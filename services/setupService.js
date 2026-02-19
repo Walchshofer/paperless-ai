@@ -4,6 +4,7 @@ const axios = require('axios');
 const { OpenAI } = require('openai');
 const config = require('../config/config');
 const AzureOpenAI = require('openai').AzureOpenAI;
+const { isProtectedRuntimeKey } = require('../config/envPolicy');
 
 class SetupService {
   constructor() {
@@ -44,8 +45,16 @@ class SetupService {
       const dataDir = path.dirname(runtimePath);
       await fs.mkdir(dataDir, { recursive: true });
 
-      // Copy legacy to runtime
-      await fs.copyFile(legacyPath, runtimePath);
+      // Copy legacy to runtime while stripping protected infra keys.
+      const legacyContent = await fs.readFile(legacyPath, 'utf8');
+      const sanitized = this.sanitizeRuntimeEnvContent(legacyContent);
+      await fs.writeFile(runtimePath, sanitized.content, 'utf8');
+      if (sanitized.removedKeys.length > 0) {
+        console.warn(
+          '[setup] Removed protected keys during legacy env migration:',
+          sanitized.removedKeys.join(', ')
+        );
+      }
 
       // Rename legacy to .migrated to preserve original
       const migratedPath = `${legacyPath}.migrated`;
@@ -64,6 +73,26 @@ class SetupService {
     }
   }
 
+  sanitizeRuntimeEnvContent(content) {
+    if (!content || typeof content !== 'string') {
+      return { content: '', removedKeys: [] };
+    }
+    const removedKeys = [];
+    const sanitizedLines = content.split('\n').filter((line) => {
+      const match = line.match(/^([A-Z_][A-Z0-9_]*)=/);
+      if (!match) return true;
+      const key = match[1];
+      if (!isProtectedRuntimeKey(key)) return true;
+      removedKeys.push(key);
+      return false;
+    });
+
+    return {
+      content: sanitizedLines.join('\n'),
+      removedKeys
+    };
+  }
+
   async loadConfig() {
     try {
       const envContent = await fs.readFile(this.envPath, 'utf8');
@@ -76,7 +105,9 @@ class SetupService {
       });
       return config;
     } catch (error) {
-      console.error('Error loading config:', error.message);
+      if (error && error.code !== 'ENOENT') {
+        console.error('Error loading config:', error.message);
+      }
       return null;
     }
   }
@@ -242,8 +273,14 @@ class SetupService {
     };
 
     // Validate Paperless config (support both env-style and nested config formats)
-    const rawUrl = readConfigValue(config, 'PAPERLESS_API_URL') || readConfigValue(config, 'paperless.apiUrl') || '';
-    const rawToken = readConfigValue(config, 'PAPERLESS_API_TOKEN') || readConfigValue(config, 'paperless.apiToken') || '';
+    const rawUrl = readConfigValue(config, 'PAPERLESS_API_URL')
+      || readConfigValue(config, 'paperless.apiUrl')
+      || process.env.PAPERLESS_API_URL
+      || '';
+    const rawToken = readConfigValue(config, 'PAPERLESS_API_TOKEN')
+      || readConfigValue(config, 'paperless.apiToken')
+      || process.env.PAPERLESS_API_TOKEN
+      || '';
     const paperlessApiUrl = String(rawUrl).replace(/\/api/g, '');
     const paperlessValid = await this.validatePaperlessConfig(
       paperlessApiUrl,
@@ -255,38 +292,40 @@ class SetupService {
     }
 
     // Validate AI provider config
-    const aiProvider = config.AI_PROVIDER || 'openai';
+    const aiProvider = config.AI_PROVIDER || process.env.AI_PROVIDER || 'openai';
 
     console.log('AI provider:', aiProvider);
     
     if (aiProvider === 'openai') {
-      const openaiValid = await this.validateOpenAIConfig(config.PAPERLESS_OPENAI_API_KEY);
+      const openaiValid = await this.validateOpenAIConfig(
+        config.PAPERLESS_OPENAI_API_KEY || process.env.PAPERLESS_OPENAI_API_KEY
+      );
       if (!openaiValid) {
         throw new Error('Invalid OpenAI configuration');
       }
     } else if (aiProvider === 'ollama') {
       const ollamaValid = await this.validateOllamaConfig(
-        config.OLLAMA_API_URL || 'http://localhost:11434',
-        config.OLLAMA_MODEL
+        config.OLLAMA_API_URL || process.env.OLLAMA_API_URL || 'http://localhost:11434',
+        config.OLLAMA_MODEL || process.env.OLLAMA_MODEL
       );
       if (!ollamaValid) {
         throw new Error('Invalid Ollama configuration');
       }
     } else if (aiProvider === 'custom') {
       const customValid = await this.validateCustomConfig(
-        config.CUSTOM_BASE_URL,
-        config.CUSTOM_API_KEY,
-        config.CUSTOM_MODEL
+        config.CUSTOM_BASE_URL || process.env.CUSTOM_BASE_URL,
+        config.CUSTOM_API_KEY || process.env.CUSTOM_API_KEY,
+        config.CUSTOM_MODEL || process.env.CUSTOM_MODEL
       );
       if (!customValid) {
         throw new Error('Invalid Custom AI configuration');
       }
     } else if (aiProvider === 'azure') {
       const azureValid = await this.validateAzureConfig(
-        config.AZURE_API_KEY,
-        config.AZURE_ENDPOINT,
-        config.AZURE_DEPLOYMENT_NAME,
-        config.AZURE_API_VERSION
+        config.AZURE_API_KEY || process.env.AZURE_API_KEY,
+        config.AZURE_ENDPOINT || process.env.AZURE_ENDPOINT,
+        config.AZURE_DEPLOYMENT_NAME || process.env.AZURE_DEPLOYMENT_NAME,
+        config.AZURE_API_VERSION || process.env.AZURE_API_VERSION
       );
       if (!azureValid) {
         throw new Error('Invalid Azure configuration');
@@ -327,7 +366,21 @@ class SetupService {
         src = config;
       }
 
-      const envContent = Object.entries(src)
+      const skippedProtectedKeys = [];
+      const runtimeEntries = Object.entries(src).filter(([key]) => {
+        if (!isProtectedRuntimeKey(key)) return true;
+        skippedProtectedKeys.push(key);
+        return false;
+      });
+
+      if (skippedProtectedKeys.length > 0) {
+        console.warn(
+          '[setup] Skipping protected keys in runtime env persistence:',
+          skippedProtectedKeys.join(', ')
+        );
+      }
+
+      const envContent = runtimeEntries
         .map(([key, value]) => {
           if (key === "SYSTEM_PROMPT") {
             return `${key}=\`${value}\n\``;
@@ -365,20 +418,12 @@ class SetupService {
       console.warn('[setup] migrateLegacyEnv failed (ignored):', e && e.message ? e.message : e);
     }
 
-    // First check if runtime env exists and if PAPERLESS_API_URL is set
+    // First check whether effective PAPERLESS_API_URL is available.
     try {
-      // Check if runtime env file exists
-      try {
-        await fs.access(this.envPath, fs.constants.F_OK);
-      } catch (err) {
-        console.log('No runtime env file found. Starting setup process...');
-        this.configured = false;
-        return false;
-      }
-
-      // Load and check for PAPERLESS_API_URL
-      const config = await this.loadConfig();
-      if (!config || !config.PAPERLESS_API_URL) {
+      const runtimeConfig = await this.loadConfig();
+      const effectivePaperlessUrl = runtimeConfig?.PAPERLESS_API_URL
+        || process.env.PAPERLESS_API_URL;
+      if (!effectivePaperlessUrl) {
         console.log('PAPERLESS_API_URL not set. Starting setup process...');
         this.configured = false;
         return false;
@@ -400,13 +445,10 @@ class SetupService {
           await fs.mkdir(dataDir, { recursive: true });
         }
 
-        // Load and validate full configuration
-        const config = await this.loadConfig();
-        if (!config) {
-          throw new Error('Failed to load configuration');
-        }
-
-        await this.validateConfig(config);
+        // Merge runtime overrides over environment SOT and validate.
+        const runtimeConfig = (await this.loadConfig()) || {};
+        const effectiveConfig = { ...process.env, ...runtimeConfig };
+        await this.validateConfig(effectiveConfig);
         this.configured = true;
         return true;
       } catch (error) {

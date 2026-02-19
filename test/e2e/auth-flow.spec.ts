@@ -10,8 +10,13 @@ const PASSWORD = process.env.PAPERLESS_ADMIN_PASSWORD || process.env.POSTGRES_PA
 
 function resolveJwtSecret() {
   if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
-  const envPath = path.join(process.cwd(), 'data', '.env');
-  if (fs.existsSync(envPath)) {
+  const envPaths = [
+    path.join(process.cwd(), 'docker-compose.env'),
+    path.join(process.cwd(), '.env'),
+    path.join(process.cwd(), 'data', 'runtime.env')
+  ];
+  for (const envPath of envPaths) {
+    if (!fs.existsSync(envPath)) continue;
     const content = fs.readFileSync(envPath, 'utf8');
     const lines = content.split(/\r?\n/);
     for (const line of lines) {

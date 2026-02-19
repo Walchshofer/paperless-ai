@@ -136,6 +136,39 @@ describe('SmartMetadataIsland - basic interactions', function () {
     assert.strictEqual(dateInput.value, '2025-01-13');
   });
 
+  it('renders VIS OCR page metadata in Smart AI tab', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    render(
+      h(SmartMetadataIsland, {
+        documentId: 42,
+        metadata: {
+          visOcrPages: [
+            { pageNumber: 1, text: 'Page one text', success: true },
+            { pageNumber: 2, text: '', success: false }
+          ],
+          visOcrSource: 'visual_ocr',
+          visOcrQuality: 0.92
+        }
+      }),
+      root
+    );
+
+    const panel = await waitForSelector(root, '[data-testid="vis-ocr-pages-panel"]');
+    assert.ok(panel, 'VIS OCR panel should render');
+
+    const pageCount = await waitForSelector(root, '[data-testid="vis-ocr-page-count"]');
+    assert.ok(pageCount, 'VIS OCR page count should render');
+    assert.strictEqual(pageCount.textContent.trim(), '2');
+
+    const page1Text = await waitForSelector(root, '[data-testid="vis-ocr-page-text-1"]');
+    assert.ok(page1Text.textContent.includes('Page one text'));
+
+    const page2Text = await waitForSelector(root, '[data-testid="vis-ocr-page-text-2"]');
+    assert.ok(page2Text.textContent.includes('No text extracted'));
+  });
+
   it('emits feedback:vote when thumbs up/down clicked', async () => {
     const root = document.createElement('div');
     document.body.appendChild(root);
@@ -240,8 +273,13 @@ describe('SmartMetadataIsland - basic interactions', function () {
     await new Promise((r) => setTimeout(r, 30));
 
     assert.deepStrictEqual(requestDetail, { documentId: 42 });
-    const overlay = root.querySelector('[data-testid="reprocess-progress-overlay"]');
+    const overlay = document.querySelector('[data-testid="reprocess-progress-overlay"]');
     assert.ok(overlay, 'overlay should appear after request');
+    assert.strictEqual(
+      overlay.parentElement,
+      document.body,
+      'overlay should be portaled to document.body for top-layer stacking'
+    );
 
     window.dispatchEvent(new window.CustomEvent('workspace:reprocess-progress', {
       detail: {
@@ -254,7 +292,7 @@ describe('SmartMetadataIsland - basic interactions', function () {
     }));
     await new Promise((r) => setTimeout(r, 30));
 
-    const percent = root.querySelector('[data-testid="reprocess-progress-percent"]');
+    const percent = document.querySelector('[data-testid="reprocess-progress-percent"]');
     assert.ok(percent && percent.textContent && percent.textContent.includes('60%'));
 
     window.dispatchEvent(new window.CustomEvent('workspace:reprocess-complete', {
@@ -294,7 +332,7 @@ describe('SmartMetadataIsland - basic interactions', function () {
     }));
     await new Promise((r) => setTimeout(r, 30));
 
-    const label = root.querySelector('[data-testid="reprocess-progress-label"]');
+    const label = document.querySelector('[data-testid="reprocess-progress-label"]');
     assert.ok(label, 'progress label is rendered');
     assert.ok(label.textContent.includes('Vector search is temporarily'));
   });

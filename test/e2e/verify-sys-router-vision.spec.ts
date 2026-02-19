@@ -47,9 +47,10 @@ test.describe('SYS_ROUTER_V1 Multimodal Verification', () => {
     const modal = page.locator('[data-testid="prompt-test-modal"]');
     await expect(modal).toBeVisible({ timeout: 10000 });
 
-    // Select Real Document
+    // Select Real Document (Load recent documents from API)
     console.log('Selecting real document...');
-    await modal.getByRole('button', { name: 'Real Document' }).click();
+    const loadDocsBtn = modal.locator('[data-testid="test-lab-load-docs-btn"]');
+    await loadDocsBtn.click();
     
     // Wait for document picker and select first document
     const picker = modal.locator('button.flex.flex-col').first();

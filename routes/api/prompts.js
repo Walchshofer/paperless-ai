@@ -26,6 +26,120 @@ function stripBase64Header(base64Str) {
   return match ? match[1] : base64Str;
 }
 
+function parseImagePathCandidates(value) {
+  if (Array.isArray(value)) {
+    return value.filter((item) => typeof item === 'string');
+  }
+  if (typeof value !== 'string') {
+    return [];
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return [];
+  }
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((item) => typeof item === 'string');
+      }
+    } catch (_err) {
+      // Treat malformed JSON path list as a single path token below.
+    }
+  }
+  return [trimmed];
+}
+
+function resolveAbsoluteImagePath(candidatePath) {
+  if (typeof candidatePath !== 'string' || candidatePath.trim() === '') {
+    return null;
+  }
+  return path.isAbsolute(candidatePath)
+    ? candidatePath
+    : path.resolve(process.cwd(), candidatePath);
+}
+
+async function resolveVisionImagePayload(variables = {}) {
+  const pathCandidates = [
+    ...parseImagePathCandidates(variables.__image_paths),
+    ...parseImagePathCandidates(variables.image_paths),
+    ...parseImagePathCandidates(variables.__image_path),
+    ...parseImagePathCandidates(variables.image_path)
+  ];
+
+  if (pathCandidates.length > 0) {
+    const images = [];
+    const resolvedPaths = [];
+    for (const candidatePath of pathCandidates) {
+      const absolutePath = resolveAbsoluteImagePath(candidatePath);
+      if (!absolutePath) {
+        continue;
+      }
+      let imageBuffer = null;
+      try {
+        imageBuffer = await fs.readFile(absolutePath);
+      } catch (readError) {
+        const error = new Error(
+          `Unable to read PNG attachment for multimodal test: ${candidatePath}`
+        );
+        error.code = 'VISUAL_ATTACHMENT_FAILED';
+        error.context = { candidatePath, absolutePath };
+        throw error;
+      }
+      if (!Buffer.isBuffer(imageBuffer) || imageBuffer.length === 0) {
+        const error = new Error(
+          `PNG attachment is empty for multimodal test: ${candidatePath}`
+        );
+        error.code = 'VISUAL_ATTACHMENT_FAILED';
+        error.context = { candidatePath, absolutePath };
+        throw error;
+      }
+      images.push(imageBuffer.toString('base64'));
+      resolvedPaths.push(absolutePath);
+    }
+
+    if (images.length === 0) {
+      const error = new Error(
+        'No readable PNG attachments were provided for multimodal test execution'
+      );
+      error.code = 'VISUAL_INPUT_MISSING';
+      throw error;
+    }
+
+    return {
+      images,
+      source: 'png_path',
+      paths: resolvedPaths
+    };
+  }
+
+  const rawImageData = variables.__image_data
+    || variables.image_data
+    || variables.document_image_b64
+    || null;
+  if (rawImageData) {
+    const imageList = Array.isArray(rawImageData)
+      ? rawImageData
+      : [rawImageData];
+    const images = imageList
+      .map((img) => stripBase64Header(img))
+      .filter(Boolean);
+    if (images.length > 0) {
+      return {
+        images,
+        source: 'inline_base64',
+        paths: []
+      };
+    }
+  }
+
+  return {
+    images: [],
+    source: 'none',
+    paths: []
+  };
+}
+
 /** Robust JSON extraction from LLM responses */
 function extractJSON(text) {
   if (typeof text !== 'string') return text;
@@ -447,13 +561,41 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
       }
     }
 
+    const isMultimodal = prompt.modelType === 'multimodal';
+    let visionPayload = { images: [], source: 'none', paths: [] };
+    try {
+      visionPayload = await resolveVisionImagePayload(variables);
+    } catch (imageError) {
+      if (
+        imageError?.code === 'VISUAL_ATTACHMENT_FAILED'
+        || imageError?.code === 'VISUAL_INPUT_MISSING'
+      ) {
+        return res.status(422).json({
+          success: false,
+          error: imageError.message,
+          code: imageError.code,
+          context: imageError.context || null
+        });
+      }
+      throw imageError;
+    }
+
     logger.info({
       event: 'prompt_test_execution_start',
       promptId: id,
       mode,
       variablesCount: Object.keys(variables).length,
-      hasImage: Boolean(variables.__image_data || variables.image_data)
+      hasImage: visionPayload.images.length > 0,
+      imageSource: visionPayload.source
     });
+
+    if (isMultimodal && mode === 'execute' && visionPayload.images.length === 0) {
+      return res.status(422).json({
+        success: false,
+        error: 'Multimodal prompt execution requires PNG attachment paths (__image_path or __image_paths).',
+        code: 'VISUAL_INPUT_MISSING'
+      });
+    }
 
     const startTime = Date.now();
     let testResult = null;
@@ -461,18 +603,14 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
     let tokenEstimate = null;
     let guidanceMetadata = null;
 
-    // Extract image data from variables (set by frontend for multimodal tests)
-    const rawImageData = variables.__image_data || variables.image_data || variables.document_image_b64 || null;
-    const isMultimodal = prompt.modelType === 'multimodal';
-
     // MULTIMODAL VISION PATH: Call Ollama vision API directly
-    if (isMultimodal && rawImageData && mode === 'execute') {
+    if (isMultimodal && visionPayload.images.length > 0 && mode === 'execute') {
       try {
         const ollamaService = AIServiceFactory.getService();
         if (ollamaService && (typeof ollamaService._callOllamaVisionAPI === 'function' || typeof ollamaService.generate === 'function')) {
-          const cleanImage = stripBase64Header(rawImageData);
+          const visionImages = visionPayload.images;
           const combinedPrompt = renderedSystemPrompt + '\n\n' + renderedTemplate;
-                    const domainKey = prompt.domain?.toLowerCase() || 'general';
+          const domainKey = prompt.domain?.toLowerCase() || 'general';
           // Reconcile Source of Truth: Pull from config.expertModels, fallback to global vision limits
           const maxTokens = prompt.config?.maxTokens ||
                            config.expertModels?.[domainKey]?.vision?.limits?.maxResponseTokens ||
@@ -482,7 +620,7 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
           if (typeof ollamaService._callOllamaVisionAPI === 'function') {
             visionResult = await ollamaService._callOllamaVisionAPI(
               combinedPrompt,
-              cleanImage,
+              visionImages,
               {
                 model: prompt.model,
                 temperature: 0.0,
@@ -495,7 +633,7 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
             visionResult = await ollamaService.generate({
               model: prompt.model,
               prompt: combinedPrompt,
-              images: [cleanImage],
+              images: visionImages,
               options: { 
                 temperature: 0.0, 
                 num_predict: 8192, // Hardened prediction budget (P0)
@@ -676,8 +814,32 @@ router.post('/:id/test/stream', express.json(), authenticateApi, requireAdmin, a
       }
     }
 
-    const rawImageData = variables.__image_data || variables.image_data || variables.document_image_b64 || null;
     const isMultimodal = prompt.modelType === 'multimodal';
+    let visionPayload = { images: [], source: 'none', paths: [] };
+    try {
+      visionPayload = await resolveVisionImagePayload(variables);
+    } catch (imageError) {
+      if (
+        imageError?.code === 'VISUAL_ATTACHMENT_FAILED'
+        || imageError?.code === 'VISUAL_INPUT_MISSING'
+      ) {
+        return res.status(422).json({
+          success: false,
+          error: imageError.message,
+          code: imageError.code,
+          context: imageError.context || null
+        });
+      }
+      throw imageError;
+    }
+
+    if (isMultimodal && visionPayload.images.length === 0) {
+      return res.status(422).json({
+        success: false,
+        error: 'Multimodal prompt streaming requires PNG attachment paths (__image_path or __image_paths).',
+        code: 'VISUAL_INPUT_MISSING'
+      });
+    }
 
     // Set up SSE
     res.setHeader('Content-Type', 'text/event-stream');
@@ -703,17 +865,19 @@ router.post('/:id/test/stream', express.json(), authenticateApi, requireAdmin, a
       promptId: id,
       model: prompt.model,
       isMultimodal,
-      variablesCount: Object.keys(variables).length
+      variablesCount: Object.keys(variables).length,
+      hasImage: visionPayload.images.length > 0,
+      imageSource: visionPayload.source
     });
 
     const startTime = Date.now();
     let fullResponse = '';
 
     // STREAMING VISION PATH
-    if (isMultimodal && rawImageData) {
+    if (isMultimodal && visionPayload.images.length > 0) {
       const ollamaService = AIServiceFactory.getService();
       if (ollamaService && (typeof ollamaService._callOllamaVisionAPI === 'function' || typeof ollamaService.generate === 'function')) {
-        const cleanImage = stripBase64Header(rawImageData);
+        const visionImages = visionPayload.images;
         const combinedPrompt = renderedSystemPrompt + '\n\n' + renderedTemplate;
         const domainKey = prompt.domain?.toLowerCase() || 'general';
         // Reconcile Source of Truth: Pull from config.expertModels, fallback to global vision limits
@@ -735,14 +899,14 @@ router.post('/:id/test/stream', express.json(), authenticateApi, requireAdmin, a
           if (typeof ollamaService._callOllamaVisionAPI === 'function') {
             stream = await ollamaService._callOllamaVisionAPI(
               combinedPrompt,
-              cleanImage,
+              visionImages,
               visionOptions
             );
           } else {
             stream = await ollamaService.generate({
               model: prompt.model,
               prompt: combinedPrompt,
-              images: [cleanImage],
+              images: visionImages,
               options: { 
                 temperature: visionOptions.temperature, 
                 num_predict: visionOptions.num_predict,
@@ -836,5 +1000,12 @@ router.post('/:id/test/stream', express.json(), authenticateApi, requireAdmin, a
     res.end();
   }
 });
+
+router._helpers = {
+  stripBase64Header,
+  parseImagePathCandidates,
+  resolveAbsoluteImagePath,
+  resolveVisionImagePayload
+};
 
 module.exports = router;

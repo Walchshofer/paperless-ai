@@ -13,13 +13,17 @@ const fs = require('fs');
 const path = require('path');
 
 function loadEnv() {
-  const envPath = path.join(process.cwd(), 'data', '.env');
-  if (fs.existsSync(envPath)) {
+  const envPaths = [
+    path.join(process.cwd(), 'docker-compose.env'),
+    path.join(process.cwd(), '.env')
+  ];
+  for (const envPath of envPaths) {
+    if (!fs.existsSync(envPath)) continue;
     const content = fs.readFileSync(envPath, 'utf8');
     content.split(/\r?\n/).forEach(line => {
-      const match = line.match(/^([^=]+)=(.*)$/);
+      const match = line.match(/^([^#=][^=]*)=(.*)$/);
       if (match && !process.env[match[1]]) {
-        process.env[match[1]] = match[2].trim();
+        process.env[match[1].trim()] = match[2].trim();
       }
     });
   }

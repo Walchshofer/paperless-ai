@@ -43,6 +43,12 @@ export const SmartTagSchema = z.object({
   color: z.string().optional(),
 });
 
+export const VisOcrPageSchema = z.object({
+  pageNumber: z.number().int().positive(),
+  text: z.string(),
+  success: z.boolean().optional(),
+});
+
 export const SmartMetadataSchema = z.object({
   documentId: z.number().int().nullable().optional(),
   documentDomain: z.string().optional(),
@@ -61,6 +67,9 @@ export const SmartMetadataSchema = z.object({
       correspondent: z.string().optional(),
       createdDate: z.string().optional(), // ISO date string (YYYY-MM-DD)
       currentUser: z.string().optional(), // The currently logged-in user
+      visOcrPages: z.array(VisOcrPageSchema).optional(),
+      visOcrSource: z.string().nullable().optional(),
+      visOcrQuality: z.number().nullable().optional(),
     })
     .passthrough()
     .optional(),

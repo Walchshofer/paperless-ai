@@ -5,6 +5,7 @@ const setupService = require('../services/setupService.js');
 const configFile = require('../config/config');
 const logger = require('../services/logger');
 const { qdrantAdapter } = require('../services/visual-rag-client/QdrantAdapter');
+const { isProtectedRuntimeKey } = require('../config/envPolicy');
 const axios = require('axios');
 const debugService = require('../services/debugService.js');
 const { authenticate, authenticateApi, requireAdmin, requireUser } = require('../middleware/auth');
@@ -316,14 +317,34 @@ router.post('/api/key-regenerate', authenticateApi, requireAdmin, async (req, re
     const path = require('path');
     const dotenv = require('dotenv');
     const crypto = require('crypto');
-    const envPath = path.join(__dirname, '../data/', '.env');
-    const envConfig = dotenv.parse(fs.readFileSync(envPath));
+    const envPath = path.join(__dirname, '../data/', 'runtime.env');
+    fs.mkdirSync(path.dirname(envPath), { recursive: true });
+
+    const parsedEnv = fs.existsSync(envPath)
+      ? dotenv.parse(fs.readFileSync(envPath))
+      : {};
+    const envEntries = Object.entries(parsedEnv).filter(
+      ([key]) => !isProtectedRuntimeKey(key)
+    );
+
+    const removedProtected = Object.keys(parsedEnv).filter((key) =>
+      isProtectedRuntimeKey(key)
+    );
+    if (removedProtected.length > 0) {
+      logger.warn(
+        '[System] Removed protected keys from runtime.env during API key regeneration: %s',
+        removedProtected.join(', ')
+      );
+    }
+
     // Generiere ein neues API-Token
     const apiKey = crypto.randomBytes(32).toString('hex');
-    envConfig.API_KEY = apiKey;
 
     // Schreibe die aktualisierte .env-Datei
-    const envContent = Object.entries(envConfig)
+    const envContent = [
+      ...envEntries,
+      ['API_KEY', apiKey]
+    ]
       .map(([key, value]) => `${key}=${value}`)
       .join('\n');
     fs.writeFileSync(envPath, envContent);

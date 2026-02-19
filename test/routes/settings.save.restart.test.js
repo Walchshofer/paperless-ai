@@ -102,6 +102,34 @@ describe('Settings API /save restart behavior', function() {
     }
   });
 
+  it('rejects protected infrastructure keys in runtime updates', async function() {
+    const saveHandler = getSaveHandler();
+
+    let statusCode = 200;
+    let jsonPayload = null;
+    const req = { body: { PAPERLESS_API_URL: 'http://webserver:8000/api' } };
+    const res = {
+      status(code) {
+        statusCode = code;
+        return this;
+      },
+      json(payload) {
+        jsonPayload = payload;
+      }
+    };
+
+    await saveHandler(req, res);
+
+    assert.strictEqual(statusCode, 400);
+    assert.ok(jsonPayload);
+    assert.strictEqual(jsonPayload.success, false);
+    assert.ok(Array.isArray(jsonPayload.blockedKeys));
+    assert.ok(jsonPayload.blockedKeys.includes('PAPERLESS_API_URL'));
+
+    const updated = await fs.readFile(ENV_FILE_PATH, 'utf8');
+    assert.ok(!updated.includes('PAPERLESS_API_URL='));
+  });
+
   it('auto-restarts only when SETTINGS_AUTO_RESTART_ENABLED is true', async function() {
     const saveHandler = getSaveHandler();
     const originalExit = process.exit;

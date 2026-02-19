@@ -329,23 +329,8 @@ export default function ConnectionSettingsIsland(props: Partial<ConnectionSettin
 
     try {
       const settings: Record<string, any> = {
-        PAPERLESS_API_URL: apiUrl,
-        PAPERLESS_API_TOKEN: apiToken,
-        PAPERLESS_USERNAME: username,
-        OLLAMA_API_URL: ollamaUrl,
-        PAPERLESS_OPENAI_API_KEY: openaiKey,
         AZURE_ENDPOINT: azureEndpoint,
-        AZURE_API_KEY: azureApiKey,
         CUSTOM_BASE_URL: customApiUrl,
-        CUSTOM_API_KEY: customApiKey,
-        VISUAL_RAG_URL: visualRagUrl,
-        TEXT_RAG_URL: textRagUrl,
-        GUIDANCE_SERVICE_URL: guidanceServiceUrl,
-        BIAS_ENGINE_URL: biasEngineUrl,
-        REDIS_URL: redisUrl,
-        QDRANT_HOST: qdrantHost,
-        QDRANT_PORT: qdrantPort,
-        QDRANT_API_KEY: qdrantApiKey,
         VISION_KEEP_ALIVE: visionKeepAlive,
         TEXT_KEEP_ALIVE: textKeepAlive,
         ROUTER_KEEP_ALIVE: routerKeepAlive,
@@ -369,7 +354,10 @@ export default function ConnectionSettingsIsland(props: Partial<ConnectionSettin
       const result = await response.json();
 
       if (response.ok && result.success) {
-        setSaveMessage('All connection settings saved successfully');
+        setSaveMessage(
+          'Runtime-safe connection settings saved. Core service endpoints '
+          + 'and tokens are managed via docker-compose.env.'
+        );
         setIsDirty(false);
 
         if (typeof document !== 'undefined') {

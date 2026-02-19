@@ -60,18 +60,23 @@ Notes:
 
 ## Environment Variable Source of Truth
 
-**SOT**: `paperless-ai/.env` is the single source of truth for all runtime environment variables.
+**SOT**: `paperless-ai/docker-compose.env` is the authoritative source.
 
-- `docker-compose.env` is referenced in older docs but does NOT exist in this repo.
-- `docker-compose.yml` uses `env_file: .env` for all services (confirmed at lines 9, 60, 98, 125, 161, 183, 204, 239).
-- `data/.env` is loaded by `dotenv` in `config.js` at container runtime, but Docker env vars take precedence (`dotenv` does not override existing vars).
-- `scripts/sync_dotenv_from_compose_env.ps1` exists but is unused (source `docker-compose.env` is missing).
+- `paperless-ai/.env` is compatibility-only and generated from
+  `docker-compose.env` (`npm run env:sync`).
+- `data/runtime.env` is app-managed runtime settings only and must not contain
+  protected infrastructure/secrets.
+- `config/config.js` enforces protected-key rules at startup (outside tests).
+- Use `npm run env:audit` to detect drift and `npm run env:sanitize` to clean
+  protected keys from `data/runtime.env`.
 
-When editing environment variables: edit `paperless-ai/.env` directly. Restart the affected container after changes.
+When editing infrastructure env variables: edit `docker-compose.env`, run
+`npm run env:sync`, then restart the affected container.
 
 ## Key Environment Variables
 
-All runtime variables are centralized in `.env` (contains secrets; do not copy into docs or logs).
+Runtime variables are anchored in `docker-compose.env`; compatibility values in
+`.env` are generated. Do not copy secrets into docs or logs.
 
 | Variable | Default | Description |
 |----------|---------|-------------|

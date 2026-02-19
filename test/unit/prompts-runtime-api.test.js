@@ -1,6 +1,9 @@
 /* eslint-env mocha */
 const assert = require('assert');
 const express = require('express');
+const fs = require('fs').promises;
+const os = require('os');
+const path = require('path');
 
 describe('Prompts Runtime API - Variable Mapping and Execution Tracking', function() {
   let promptsRuntimeRouter;
@@ -107,6 +110,27 @@ describe('Prompts Runtime API - Variable Mapping and Execution Tracking', functi
       assert.strictEqual(mapped.visual_fields, '[{"type":"table"}]');
       assert.strictEqual(mapped.confidence, '0.9');
     });
+
+    it('should treat placeholders and internal variables as non-meaningful', function() {
+      const isMeaningful = helpers.hasMeaningfulRuntimeVariables({
+        __image_data: 'base64payload',
+        source_system: 'test-lab',
+        resolution: '300 DPI',
+        file_size: 'unknown',
+        missing: '[unmapped: missing]'
+      });
+
+      assert.strictEqual(isMeaningful, false);
+    });
+
+    it('should treat extracted runtime content as meaningful', function() {
+      const isMeaningful = helpers.hasMeaningfulRuntimeVariables({
+        ocr_text: 'Visible OCR content',
+        source_system: 'test-lab'
+      });
+
+      assert.strictEqual(isMeaningful, true);
+    });
   });
   
   describe('Per-User Execution Tracking', function() {
@@ -161,6 +185,23 @@ describe('Prompts Runtime API - Variable Mapping and Execution Tracking', functi
       
       assert.strictEqual(helpers.hasActiveExecution(userId), false);
     });
+
+    it('should not clear a newer execution during safety cleanup', async function() {
+      const userId = 'user5';
+      const firstPromise = new Promise(() => {});
+      const secondPromise = new Promise(() => {});
+
+      helpers.registerExecution(userId, firstPromise, 111, 5);
+      helpers.registerExecution(userId, secondPromise, 222, 50);
+
+      await new Promise(resolve => setTimeout(resolve, 15));
+
+      const activeExecution = helpers.activeExecutions.get(userId);
+      assert.ok(activeExecution);
+      assert.strictEqual(activeExecution.documentId, 222);
+
+      helpers.activeExecutions.clear();
+    });
   });
   
   describe('Error Formatting', function() {
@@ -185,6 +226,99 @@ describe('Prompts Runtime API - Variable Mapping and Execution Tracking', functi
       assert.strictEqual(formatted.stages[0].status, 'error');
       assert.strictEqual(formatted.stages[0].error, 'Timeout');
       assert.strictEqual(formatted.stages[1].name, 'classification');
+    });
+  });
+
+  describe('Visual attachment helpers', function() {
+    const helpers = require('../../routes/api/prompts-runtime')._helpers;
+    const samplePngBase64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAF+wJ/lq0w5gAAAABJRU5ErkJggg==';
+
+    it('should mark VISUAL_INPUT_MISSING as critical visual error', function() {
+      assert.strictEqual(
+        helpers.isCriticalVisualErrorCode('VISUAL_INPUT_MISSING'),
+        true
+      );
+      assert.strictEqual(
+        helpers.isCriticalVisualErrorCode('SOME_OTHER_ERROR'),
+        false
+      );
+    });
+
+    it('should resolve expected page count with safe defaults', function() {
+      assert.strictEqual(helpers.resolveExpectedPageCount(3), 3);
+      assert.strictEqual(helpers.resolveExpectedPageCount('5'), 5);
+      assert.strictEqual(helpers.resolveExpectedPageCount(0), 1);
+      assert.strictEqual(helpers.resolveExpectedPageCount(null), 1);
+    });
+
+    it('should load base64 image payloads from persisted PNG paths', async function() {
+      const fixtureDir = path.join(
+        os.tmpdir(),
+        'paperless-ai',
+        'prompts-runtime-images-test',
+        String(Date.now())
+      );
+      await fs.mkdir(fixtureDir, { recursive: true });
+      const page1 = path.join(fixtureDir, 'page_1.png');
+      const page2 = path.join(fixtureDir, 'page_2.png');
+      await fs.writeFile(page1, Buffer.from(samplePngBase64, 'base64'));
+      await fs.writeFile(page2, Buffer.from(samplePngBase64, 'base64'));
+
+      try {
+        const images = await helpers.loadBase64ImagesFromPaths([page1, page2]);
+        assert.strictEqual(images.length, 2);
+        assert.ok(images[0].startsWith('data:image/png;base64,'));
+        assert.ok(images[1].startsWith('data:image/png;base64,'));
+      } finally {
+        await fs.rm(fixtureDir, { recursive: true, force: true });
+      }
+    });
+
+    it('should fail when runtime attachments are missing', async function() {
+      const preparedDocument = {
+        id: 77,
+        filename: 'no-image.pdf'
+      };
+
+      let caught = null;
+      try {
+        await helpers.ensureRuntimePngAttachments(preparedDocument, 77);
+      } catch (error) {
+        caught = error;
+      }
+
+      assert.ok(caught);
+      assert.strictEqual(caught.code, 'VISUAL_INPUT_MISSING');
+    });
+
+    it('should persist runtime PNG pages to tmp paths', async function() {
+      const preparedDocument = {
+        id: 78,
+        filename: 'has-image.pdf',
+        image_data:
+          `data:image/png;base64,${samplePngBase64}`
+      };
+
+      const pagePaths = await helpers.ensureRuntimePngAttachments(
+        preparedDocument,
+        78
+      );
+
+      assert.ok(Array.isArray(pagePaths));
+      assert.ok(pagePaths.length >= 1);
+      assert.strictEqual(preparedDocument.image_path, pagePaths[0]);
+
+      const stat = await fs.stat(pagePaths[0]);
+      assert.ok(stat.isFile());
+
+      const cleanupRoot = path.join(
+        os.tmpdir(),
+        'paperless-ai',
+        'prompts-runtime-images',
+        '78'
+      );
+      await fs.rm(cleanupRoot, { recursive: true, force: true });
     });
   });
   
@@ -216,7 +350,7 @@ describe('Prompts Runtime API - Variable Mapping and Execution Tracking', functi
       
       assert.strictEqual(statusCode, 400);
       assert.strictEqual(jsonResponse.success, false);
-      assert.ok(jsonResponse.error.includes('Missing required fields'));
+      assert.ok(jsonResponse.error.includes('required fields'));
     });
     
     it('should return 404 for invalid promptId', async function() {
@@ -246,6 +380,54 @@ describe('Prompts Runtime API - Variable Mapping and Execution Tracking', functi
       assert.strictEqual(statusCode, 404);
       assert.strictEqual(jsonResponse.success, false);
       assert.ok(jsonResponse.error.includes('Prompt not found'));
+    });
+
+    it('should return 404 for missing document', async function() {
+      const layer = promptsRuntimeRouter.stack.find(
+        (l) => l.route && l.route.path === '/context' && l.route.methods.post
+      );
+      const handler = layer.route.stack[layer.route.stack.length - 1].handle;
+      const paperlessService = require('../../services/paperlessService');
+      const helpers = require('../../routes/api/prompts-runtime')._helpers;
+
+      const originalGetDocument = paperlessService.getDocument;
+      const originalGetDocumentContent = paperlessService.getDocumentContent;
+
+      helpers.activeExecutions.clear();
+      paperlessService.getDocument = async () => {
+        const err = new Error('Document not found');
+        err.response = { status: 404 };
+        throw err;
+      };
+      paperlessService.getDocumentContent = async () => '';
+
+      const req = {
+        body: { documentId: 123, promptId: 'SYS_ROUTER_V1' },
+        user: { id: 9, username: 'admin', role: 'admin' }
+      };
+      let statusCode = 200;
+      let jsonResponse = null;
+      const res = {
+        status(code) {
+          statusCode = code;
+          return this;
+        },
+        json(data) {
+          jsonResponse = data;
+        }
+      };
+
+      try {
+        await handler(req, res);
+      } finally {
+        paperlessService.getDocument = originalGetDocument;
+        paperlessService.getDocumentContent = originalGetDocumentContent;
+        helpers.activeExecutions.clear();
+      }
+
+      assert.strictEqual(statusCode, 404);
+      assert.strictEqual(jsonResponse.success, false);
+      assert.ok(jsonResponse.error.includes('Document not found'));
     });
   });
 });

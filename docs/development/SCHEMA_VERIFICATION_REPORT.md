@@ -275,7 +275,7 @@ COMMIT;
 
 Before proceeding, please confirm:
 
-1. **Database Access**: Do you have PostgreSQL credentials in `data/runtime.env` or docker-compose.env?
+1. **Database Access**: Do you have PostgreSQL credentials in `docker-compose.env` (and synced `./.env` if needed)?
 2. **Backup Status**: Do you have a recent database backup? (recommended but not required due to backup columns)
 3. **Downtime Window**: Can Visual RAG service be temporarily unavailable during re-ingestion?
 4. **Document Count**: Approximately how many documents need re-ingestion? (affects timeline)

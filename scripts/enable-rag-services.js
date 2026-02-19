@@ -1,15 +1,22 @@
 const fs = require('fs');
 const path = require('path');
+const { isProtectedRuntimeKey } = require('../config/envPolicy');
 
 const envPath = path.join(__dirname, '..', 'data', 'runtime.env');
 const settings = {
   EXPERT_PIPELINE_ENABLED: 'yes',
   ENABLE_VISUAL_RAG: 'yes',
-  ENABLE_VISUAL_RAG_SIDECAR: 'yes',
-  POSTGRES_HOST: 'paperless_db' // Standard container name
+  ENABLE_VISUAL_RAG_SIDECAR: 'yes'
 };
 
 try {
+  const blocked = Object.keys(settings).filter((key) => isProtectedRuntimeKey(key));
+  if (blocked.length > 0) {
+    throw new Error(
+      `Refusing to write protected keys to runtime env: ${blocked.join(', ')}`
+    );
+  }
+
   let content = '';
   if (fs.existsSync(envPath)) {
     content = fs.readFileSync(envPath, 'utf8');

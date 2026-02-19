@@ -6,16 +6,11 @@
  * 3. Vector similarity search (verifies <=> operator and casting)
  */
 
-const path = require('path');
-const fs = require('fs');
-
-// 1. Load Environment Variables
-const envPath = path.join(__dirname, '../data/runtime.env');
-if (fs.existsSync(envPath)) {
-    console.log(`[Test] Loading runtime.env from ${envPath}`);
-    require('dotenv').config({ path: envPath });
-} else {
-    console.warn('[Test] No runtime.env file found in ../data/runtime.env, relying on process.env');
+// 1. Load Environment Variables via standard config loader (SOT aware)
+try {
+    require('../config/config');
+} catch (err) {
+    console.warn('[Test] Config loader warning:', err.message);
 }
 
 // 2. Load Repository

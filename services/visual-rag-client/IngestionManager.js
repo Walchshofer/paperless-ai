@@ -189,6 +189,39 @@ class IngestionManager {
     }
 
     /**
+     * Persist expert knowledge metadata without running index/extraction paths.
+     *
+     * @param {number} docId - Paperless document ID
+     * @param {Object} options - Expert metadata payload
+     * @returns {Promise<{success:boolean,error?:string}>}
+     */
+    async storeExpertKnowledge(docId, options = {}) {
+        if (!docId) {
+            return { success: false, error: 'document_id_required' };
+        }
+
+        const domain = options.domain || 'general';
+        const payload = {
+            enhancedOcrText: options.enhancedOcrText || '',
+            expertMetadata: options.expertMetadata || {},
+            domain,
+            domainView: options.domainView || this._buildDomainView(options, domain)
+        };
+
+        try {
+            await this._storeExpertKnowledge(docId, payload);
+            return { success: true };
+        } catch (error) {
+            logger.warn({
+                event: 'store_expert_knowledge_failed',
+                docId,
+                error: error.message
+            });
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
      * Path 1: Index document visually via sidecar
      * @private
      */

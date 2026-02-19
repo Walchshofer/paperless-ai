@@ -1,4 +1,5 @@
 import { h } from 'preact';
+import { createPortal } from 'preact/compat';
 /* global describe, it, before, after, beforeEach, afterEach, expect, assert, sinon, page, browser, context, test */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import {
@@ -300,6 +301,24 @@ function resolveMatchLabel(matchType?: MatchType | null): string {
   return 'No Match';
 }
 
+function normalizeVisOcrPages(
+  rawPages: unknown
+): Array<{ pageNumber: number; text: string; success: boolean }> {
+  if (!Array.isArray(rawPages)) return [];
+  return rawPages
+    .filter((page) => page && typeof page === 'object')
+    .map((page) => {
+      const record = page as Record<string, unknown>;
+      const pageNumber = Number(record.pageNumber);
+      return {
+        pageNumber: Number.isFinite(pageNumber) ? pageNumber : 0,
+        text: typeof record.text === 'string' ? record.text : '',
+        success: record.success !== false
+      };
+    })
+    .filter((page) => page.pageNumber > 0);
+}
+
 function resolvePreMetadata(
   propsMetadata: SmartMetadataContract['metadata'],
   aiPrefill: { title: string; correspondent: string; createdDate: string }
@@ -401,6 +420,23 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     props.metadata?.documentType,
     props.visualFields
   ]);
+
+  const visOcrPages = useMemo(
+    () => normalizeVisOcrPages(props.metadata?.visOcrPages),
+    [props.metadata?.visOcrPages]
+  );
+
+  const visOcrSource = useMemo(() => {
+    const source = props.metadata?.visOcrSource;
+    return typeof source === 'string' ? source : '';
+  }, [props.metadata?.visOcrSource]);
+
+  const visOcrQuality = useMemo(() => {
+    const quality = props.metadata?.visOcrQuality;
+    return typeof quality === 'number' && Number.isFinite(quality)
+      ? quality
+      : null;
+  }, [props.metadata?.visOcrQuality]);
 
   useEffect(() => {
     try { window.__smart_metadata_mounted = true; } catch (e) { /* ignore */ }
@@ -1110,6 +1146,95 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     )
   );
   const hasFailedProgress = reprocessProgress.status === 'failed';
+  const overlayPortalTarget = typeof document !== 'undefined'
+    ? document.body
+    : null;
+  const reprocessOverlay = showReprocessOverlay ? (
+    <div
+      className="fixed inset-0 z-[12000] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-in fade-in"
+      data-testid="reprocess-progress-overlay"
+      role="dialog"
+      aria-live="polite"
+      aria-modal="true"
+    >
+      <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 animate-in zoom-in-95 duration-200">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
+            <i className="fas fa-dna text-cyan-500 animate-pulse"></i>
+          </div>
+          <div>
+            <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-slate-100">Deep Analysis</h3>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">AI Pipeline Execution in Progress</p>
+          </div>
+        </div>
+
+        <div
+          className={`mb-4 px-4 py-3 rounded-xl border text-xs font-bold uppercase tracking-tight ${hasFailedProgress ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' : 'bg-slate-50 dark:bg-slate-950 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400'}`}
+          data-testid="reprocess-progress-label"
+        >
+          <i className={`fas ${hasFailedProgress ? 'fa-circle-xmark' : 'fa-terminal'} mr-2`}></i>
+          {reprocessProgress.label}
+        </div>
+
+        <div className="space-y-2 mb-8">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sync Progress</span>
+            <span className="text-xs font-mono font-bold text-cyan-500" data-testid="reprocess-progress-percent">{reprocessProgress.percentage}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden shadow-inner">
+            <div
+              data-testid="reprocess-progress-bar"
+              className={`h-full transition-all duration-500 ${hasFailedProgress ? 'bg-rose-500' : 'bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]'}`}
+              style={{ width: `${reprocessProgress.percentage}%` }}
+            ></div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+          {REPROCESS_STEPS.map((step, index) => {
+            const isFailedStep = hasFailedProgress && index === currentStepIndex;
+            const isDoneStep = !hasFailedProgress && (
+              index < currentStepIndex ||
+              (index === currentStepIndex && reprocessProgress.status === 'completed')
+            );
+            const isActiveStep = !hasFailedProgress &&
+              reprocessProgress.status === 'in_progress' &&
+              index === currentStepIndex;
+
+            const statusIcon = isFailedStep
+              ? 'fa-circle-xmark text-rose-500'
+              : isDoneStep
+                ? 'fa-circle-check text-emerald-500'
+                : isActiveStep
+                  ? 'fa-dna fa-spin text-cyan-500'
+                  : 'fa-circle text-slate-200 dark:text-slate-800';
+
+            return (
+              <div
+                key={step.key}
+                className={`flex items-center gap-3 p-2 rounded-lg border transition-all ${isActiveStep ? 'border-cyan-500/20 bg-cyan-500/5' : 'border-transparent'}`}
+                data-testid={`reprocess-step-${step.key}`}
+              >
+                <i className={`fas ${statusIcon} text-[10px]`}></i>
+                <span className={`text-[10px] font-black uppercase tracking-tight ${isActiveStep ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-400 dark:text-slate-600'}`}>{step.label}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            type="button"
+            data-testid="reprocess-overlay-cancel"
+            className="px-6 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+            onClick={() => setShowReprocessOverlay(false)}
+          >
+            {isReprocessing ? 'Abort' : 'Dismiss'}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <div data-testid="smart-metadata-root" className="flex flex-col gap-6">
@@ -1270,6 +1395,71 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
             </div>
           )}
         </div>
+
+        {visOcrPages.length > 0 && (
+          <div
+            className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800"
+            data-testid="vis-ocr-pages-panel"
+          >
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-2">
+                <i className="fas fa-file-signature text-[10px] text-cyan-600 dark:text-cyan-400"></i>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  VIS OCR Pages
+                </label>
+              </div>
+              <div
+                className="px-2 py-0.5 rounded-full bg-cyan-50 border border-cyan-200 text-[9px] font-black text-cyan-700"
+                data-testid="vis-ocr-page-count"
+              >
+                {visOcrPages.length}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              {visOcrSource && (
+                <span
+                  className="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-[9px] font-mono text-slate-600 uppercase"
+                  data-testid="vis-ocr-source"
+                >
+                  source: {visOcrSource}
+                </span>
+              )}
+              {visOcrQuality !== null && (
+                <span
+                  className="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-[9px] font-mono text-slate-600 uppercase"
+                  data-testid="vis-ocr-quality"
+                >
+                  quality: {visOcrQuality <= 1
+                    ? `${Math.round(visOcrQuality * 100)}%`
+                    : visOcrQuality}
+                </span>
+              )}
+            </div>
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {visOcrPages.map((page) => (
+                <details
+                  key={`vis-ocr-page-${page.pageNumber}`}
+                  className="rounded-lg border border-slate-200 bg-slate-50/70 dark:border-slate-700 dark:bg-slate-900/60"
+                  data-testid={`vis-ocr-page-${page.pageNumber}`}
+                  open={page.pageNumber === 1}
+                >
+                  <summary className="cursor-pointer px-3 py-2 flex items-center justify-between gap-2 text-[10px] font-black uppercase tracking-widest text-slate-600">
+                    <span>Page {page.pageNumber}</span>
+                    <span className={page.success ? 'text-emerald-600' : 'text-rose-600'}>
+                      {page.success ? 'Extracted' : 'Needs Review'}
+                    </span>
+                  </summary>
+                  <pre
+                    className="px-3 pb-3 text-[11px] leading-5 whitespace-pre-wrap break-words font-mono text-slate-600 dark:text-slate-300"
+                    data-testid={`vis-ocr-page-text-${page.pageNumber}`}
+                  >
+                    {page.text || '[No text extracted for this page]'}
+                  </pre>
+                </details>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── REQUIRED FIELDS ── */}
@@ -1550,91 +1740,10 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
         </div>
       </div>
 
-      {showReprocessOverlay && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-in fade-in"
-          data-testid="reprocess-progress-overlay"
-          role="dialog"
-          aria-live="polite"
-          aria-modal="true"
-        >
-          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
-                <i className="fas fa-dna text-cyan-500 animate-pulse"></i>
-              </div>
-              <div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-slate-100">Deep Analysis</h3>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">AI Pipeline Execution in Progress</p>
-              </div>
-            </div>
-
-            <div
-              className={`mb-4 px-4 py-3 rounded-xl border text-xs font-bold uppercase tracking-tight ${hasFailedProgress ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' : 'bg-slate-50 dark:bg-slate-950 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400'}`}
-              data-testid="reprocess-progress-label"
-            >
-              <i className={`fas ${hasFailedProgress ? 'fa-circle-xmark' : 'fa-terminal'} mr-2`}></i>
-              {reprocessProgress.label}
-            </div>
-
-            <div className="space-y-2 mb-8">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sync Progress</span>
-                <span className="text-xs font-mono font-bold text-cyan-500" data-testid="reprocess-progress-percent">{reprocessProgress.percentage}%</span>
-              </div>
-              <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden shadow-inner">
-                <div
-                  data-testid="reprocess-progress-bar"
-                  className={`h-full transition-all duration-500 ${hasFailedProgress ? 'bg-rose-500' : 'bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]'}`}
-                  style={{ width: `${reprocessProgress.percentage}%` }}
-                ></div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
-              {REPROCESS_STEPS.map((step, index) => {
-                const isFailedStep = hasFailedProgress && index === currentStepIndex;
-                const isDoneStep = !hasFailedProgress && (
-                  index < currentStepIndex ||
-                  (index === currentStepIndex && reprocessProgress.status === 'completed')
-                );
-                const isActiveStep = !hasFailedProgress &&
-                  reprocessProgress.status === 'in_progress' &&
-                  index === currentStepIndex;
-
-                const statusIcon = isFailedStep
-                  ? 'fa-circle-xmark text-rose-500'
-                  : isDoneStep
-                    ? 'fa-circle-check text-emerald-500'
-                    : isActiveStep
-                      ? 'fa-dna fa-spin text-cyan-500'
-                      : 'fa-circle text-slate-200 dark:text-slate-800';
-
-                return (
-                  <div
-                    key={step.key}
-                    className={`flex items-center gap-3 p-2 rounded-lg border transition-all ${isActiveStep ? 'border-cyan-500/20 bg-cyan-500/5' : 'border-transparent'}`}
-                    data-testid={`reprocess-step-${step.key}`}
-                  >
-                    <i className={`fas ${statusIcon} text-[10px]`}></i>
-                    <span className={`text-[10px] font-black uppercase tracking-tight ${isActiveStep ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-400 dark:text-slate-600'}`}>{step.label}</span>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                type="button"
-                data-testid="reprocess-overlay-cancel"
-                className="px-6 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
-                onClick={() => setShowReprocessOverlay(false)}
-              >
-                {isReprocessing ? 'Abort' : 'Dismiss'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {reprocessOverlay && (
+        overlayPortalTarget
+          ? createPortal(reprocessOverlay, overlayPortalTarget)
+          : reprocessOverlay
       )}
     </div>
   );

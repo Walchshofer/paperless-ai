@@ -17,7 +17,8 @@ const DEFAULT_OCR_OPTIONS = Object.freeze({
     includeTranslations: true,
     skipEmptyText: true,
     maxTextLength: null, // No limit by default
-    translationOptions: {}
+    translationOptions: {},
+    pageTexts: []
 });
 
 /**
@@ -46,11 +47,25 @@ function validateOcrOptions(options = {}) {
         ? { ...options.translationOptions }
         : DEFAULT_OCR_OPTIONS.translationOptions;
 
+    const pageTexts = Array.isArray(options.pageTexts)
+        ? options.pageTexts
+            .filter((page) => page && typeof page === 'object')
+            .map((page) => ({
+                pageNumber: Number.isFinite(page.pageNumber)
+                    ? page.pageNumber
+                    : Number(page.pageNumber) || 0,
+                text: typeof page.text === 'string' ? page.text : '',
+                success: page.success !== false
+            }))
+            .filter((page) => page.pageNumber > 0)
+        : [];
+
     return {
         includeTranslations,
         skipEmptyText,
         maxTextLength,
-        translationOptions
+        translationOptions,
+        pageTexts
     };
 }
 
@@ -122,9 +137,11 @@ async function buildVisOcrMetadata(text, languageHint, translator, options = {})
             vis_ocr_text: '',
             vis_ocr_text_de: '',
             vis_ocr_text_en: '',
+            vis_ocr_pages: validatedOptions.pageTexts,
             metadata: {
                 empty: true,
-                translated: false
+                translated: false,
+                pageCount: validatedOptions.pageTexts.length
             }
         };
     }
@@ -244,6 +261,7 @@ async function buildVisOcrMetadata(text, languageHint, translator, options = {})
         vis_ocr_text: processedText,
         vis_ocr_text_de: visOcrDe,
         vis_ocr_text_en: visOcrEn,
+        vis_ocr_pages: validatedOptions.pageTexts,
         metadata: {
             empty: !processedText,
             truncated,
@@ -254,7 +272,8 @@ async function buildVisOcrMetadata(text, languageHint, translator, options = {})
             translationErrors: translationErrors.length > 0 ? translationErrors : null,
             sourceLanguage: sourceLang,
             includeTranslations: validatedOptions.includeTranslations,
-            maxTextLength: validatedOptions.maxTextLength
+            maxTextLength: validatedOptions.maxTextLength,
+            pageCount: validatedOptions.pageTexts.length
         }
     };
 }

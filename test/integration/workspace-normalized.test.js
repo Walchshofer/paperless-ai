@@ -111,6 +111,9 @@ describe('Workspace Normalized Integration', function() {
       assert.strictEqual(response.body.persistedNormalizedUrl, '/api/normalized/123/persisted.png');
       assert.strictEqual(response.body.normalizationStatus, 'completed');
       assert.strictEqual(response.body.normalizedUrl, '/api/normalized/123/persisted.png');
+      assert.deepStrictEqual(response.body.visOcrPages, []);
+      assert.strictEqual(response.body.visOcrSource, null);
+      assert.strictEqual(response.body.visOcrQuality, null);
     });
   });
 
@@ -375,6 +378,9 @@ describe('Workspace Normalized Integration', function() {
       // Verify new fields have safe defaults
       assert.strictEqual(response.body.persistedNormalizedUrl, null);
       assert.strictEqual(response.body.normalizationStatus, 'pending');
+      assert.deepStrictEqual(response.body.visOcrPages, []);
+      assert.strictEqual(response.body.visOcrSource, null);
+      assert.strictEqual(response.body.visOcrQuality, null);
     });
   });
 });

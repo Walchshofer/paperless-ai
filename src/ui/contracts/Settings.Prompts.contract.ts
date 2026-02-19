@@ -103,3 +103,6 @@ export interface RuntimeContextResponse {
   error?: string;
 }
 
+/** Lock state for runtime variables in Prompt Test Lab */
+export type RuntimeVariableLocks = Record<string, boolean>;
+

@@ -63,6 +63,13 @@ export const UnifiedWorkspaceSchema = z.object({
     normalizedUrl: z.string().nullable(),
     persistedNormalizedUrl: z.string().nullable(),
     normalizationStatus: z.enum(['pending', 'processing', 'completed', 'failed', 'skipped']).nullable(),
+    visOcrPages: z.array(z.object({
+      pageNumber: z.number().int().positive(),
+      text: z.string(),
+      success: z.boolean().optional(),
+    })).optional().default([]),
+    visOcrSource: z.string().nullable().optional(),
+    visOcrQuality: z.number().nullable().optional(),
   }).nullable(),
 
   // User context (for permissioned UI like Debug tab)

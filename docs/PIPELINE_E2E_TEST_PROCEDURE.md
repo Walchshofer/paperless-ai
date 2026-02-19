@@ -150,7 +150,9 @@ This event fires only when qwen3-vl is used in streaming mode AND the model prod
 
 ## Environment Variables Affecting E2E Tests
 
-All set in `paperless-ai/.env` (the SOT). Restart `paperless_ai` container after changes.
+All set in `paperless-ai/docker-compose.env` (authoritative SOT). The root
+`.env` is an auto-generated compatibility layer. Restart the `paperless_ai`
+container after changes.
 
 | Variable | Current Value | Effect on E2E |
 |----------|--------------|---------------|

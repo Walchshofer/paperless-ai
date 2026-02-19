@@ -3,7 +3,7 @@
  * Usage: node migrations/02_migrate_embeddings.js [--dry-run] [--batch-size=500]
  *
  * Behavior:
- *  - Loads env from data/runtime.env if present
+ *  - Loads env from docker-compose.env/.env compatibility files if present
  *  - Connects using PG env variables; fallback defaults provided
  *  - Creates a timestamped backup table with id, embedding
  *  - Processes rows in batches where embedding IS NOT NULL and embedding_vector IS NULL
@@ -17,13 +17,17 @@ const fs = require('fs');
 const path = require('path');
 
 function loadEnv() {
-    const envPath = path.join(process.cwd(), 'data', '.env');
-    if (fs.existsSync(envPath)) {
+    const envPaths = [
+        path.join(process.cwd(), 'docker-compose.env'),
+        path.join(process.cwd(), '.env')
+    ];
+    for (const envPath of envPaths) {
+        if (!fs.existsSync(envPath)) continue;
         const content = fs.readFileSync(envPath, 'utf8');
         content.split(/\r?\n/).forEach(line => {
-            const match = line.match(/^([^=]+)=(.*)$/);
+            const match = line.match(/^([^#=][^=]*)=(.*)$/);
             if (match && !process.env[match[1]]) {
-                process.env[match[1]] = match[2].trim();
+                process.env[match[1].trim()] = match[2].trim();
             }
         });
     }

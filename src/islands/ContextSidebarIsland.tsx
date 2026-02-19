@@ -56,6 +56,9 @@ interface DocumentInfo {
   };
   customFields?: Array<Record<string, unknown>>;
   currentUser?: string;
+  visOcrPages?: Array<{ pageNumber: number; text: string; success?: boolean }>;
+  visOcrSource?: string | null;
+  visOcrQuality?: number | null;
   [key: string]: unknown;
 }
 
@@ -122,6 +125,7 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
 
       // Map API response to DocumentInfo interface
       const updatedDoc: DocumentInfo = {
+        ...docData,
         id: docData.id,
         title: docData.title,
         correspondent: docData.correspondent,
@@ -133,6 +137,15 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
         fieldProfile: docData.fieldProfile,
         customFields: docData.customFields || [],
         currentUser: docData.currentUser || currentDocument?.currentUser,
+        visOcrPages: Array.isArray(docData.visOcrPages)
+          ? docData.visOcrPages
+          : [],
+        visOcrSource: typeof docData.visOcrSource === 'string'
+          ? docData.visOcrSource
+          : null,
+        visOcrQuality: Number.isFinite(docData.visOcrQuality)
+          ? docData.visOcrQuality
+          : null,
       };
 
       setCurrentDocument(updatedDoc);

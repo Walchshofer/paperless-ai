@@ -116,7 +116,6 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
   const [isLoadingDocs, setIsLoadingDocs] = useState(false);
   const [docError, setDocError] = useState<string | null>(null);
   const [testMode, setTestMode] = useState<'validate' | 'execute'>('validate');
-  const [testImage, setTestImage] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const closeTestModal = () => {
@@ -125,9 +124,9 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
     setPipelineExecuting(false);
     setIsLoadingDocs(false);
     setDocError(null);
-    setTestImage(null);
     setPipelineError(null);
     setShowErrorDetails(false);
+    setLockedVariables(new Set());
     
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -247,20 +246,28 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
     setSelectedDocumentId(String(docId));
     setPipelineExecuting(true);
     setDocError(null);
-    setTestImage(null);
     setPipelineError(null);
+    setShowErrorDetails(false);
     setTestVariables({});
+    setLockedVariables(new Set());
     
     try {
-      const [contextRes, imageRes] = await Promise.all([
+      const [contextRes, statusRes] = await Promise.all([
         fetch('/api/prompts-runtime/context', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ documentId: docId, promptId: activePromptId }),
           signal: controller.signal
         }),
-        fetch(`/api/documents/${docId}/preview-image`, { signal: controller.signal })
+        fetch(`/api/documents/${docId}/status`, { signal: controller.signal })
+          .catch(() => null)
       ]);
+
+      let documentStatus: string | null = null;
+      if (statusRes && statusRes.ok) {
+        const statusData = await statusRes.json().catch(() => null);
+        documentStatus = statusData?.status || null;
+      }
 
       if (contextRes.status === 429) {
         const data = await contextRes.json();
@@ -277,7 +284,8 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
             id: data.documentMetadata.id,
             title: data.documentMetadata.title,
             filename: data.documentMetadata.filename,
-            content: data.variables?.ocr_text || data.variables?.content || ''
+            content: data.variables?.ocr_text || data.variables?.content || '',
+            status: documentStatus
           });
         }
 
@@ -285,29 +293,47 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
         if (data.variables) {
           setTestVariables(data.variables);
           // Lock all populated variables by default
-          setLockedVariables(new Set(Object.keys(data.variables)));
+          setLockedVariables(
+            new Set(
+              Object.keys(data.variables).filter(
+                (key) => !key.startsWith('__')
+              )
+            )
+          );
         }
 
         // Handle pipeline errors
         if (!data.success) {
-          if (data.pipelineMetadata?.stages) {
+          const stages = Array.isArray(data.pipelineMetadata?.stages)
+            ? data.pipelineMetadata.stages
+            : [];
+          if (stages.length > 0) {
             setPipelineError({
               message: data.error || 'Pipeline execution failed',
-              stages: data.pipelineMetadata.stages
+              stages
             });
             setShowErrorDetails(true);
           } else {
-            setDocError(data.error || 'Pipeline execution failed (no metadata)');
+            setDocError(
+              data.error || 'Pipeline execution failed with no stage details'
+            );
           }
+        } else if (data.warning) {
+          setDocError(data.warning);
         }
       } else {
-        setDocError(`Context fetch failed: ${contextRes.status}`);
+        let errorMessage = `Context fetch failed: ${contextRes.status}`;
+        try {
+          const contextError = await contextRes.json();
+          if (contextError?.error) {
+            errorMessage = contextError.error;
+          }
+        } catch (_err) {
+          // Preserve status-based fallback message when response has no JSON.
+        }
+        setDocError(errorMessage);
       }
 
-      if (imageRes.ok) {
-        const { image_data } = await imageRes.json();
-        setTestImage(image_data);
-      }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         return;
@@ -457,7 +483,6 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
           body: JSON.stringify({
             variables: {
               ...testVariables,
-              ...(testImage ? { __image_data: testImage } : {}),
             },
             systemPrompt: editSystemPrompt,
             userTemplate: editUserTemplate,
@@ -489,7 +514,6 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
         body: JSON.stringify({
           variables: {
             ...testVariables,
-            ...(testImage ? { __image_data: testImage } : {}),
           },
           systemPrompt: editSystemPrompt,
           userTemplate: editUserTemplate,
@@ -497,7 +521,13 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
       });
 
       if (!response.ok) {
-        setTestResult({ success: false, error: `Stream failed: ${response.status}` });
+        const errData = await response
+          .json()
+          .catch(() => ({ error: `Stream failed: ${response.status}` }));
+        setTestResult({
+          success: false,
+          error: errData.error || `Stream failed: ${response.status}`
+        });
         setIsTesting(false);
         return;
       }
@@ -558,12 +588,12 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
   const openTestModal = () => {
     // Reset test state
     setTestVariables({});
+    setLockedVariables(new Set());
     setTestResult(null);
     setPipelineError(null);
     setShowErrorDetails(false);
     setSelectedDocumentId(null);
     setSelectedDocumentData(null);
-    setTestImage(null);
     setShowTestModal(true);
   };
 
@@ -623,6 +653,9 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
   const editorVars = activePromptId
     ? [...new Set([...extractVars(editSystemPrompt), ...extractVars(editUserTemplate)])]
     : [];
+  const visibleVariableEntries = Object.entries(testVariables).filter(
+    ([key]) => !key.startsWith('__')
+  );
 
   // Chevron SVG helper
   const Chevron = ({ open }: { open: boolean }) => (
@@ -1220,26 +1253,28 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                       <i className="fas fa-eye text-[8px]"></i>
                       Extraction Subject Preview
                     </h4>
-                    <button
-                      onClick={() => handleDocumentSelect(Number(selectedDocumentId))}
-                      disabled={pipelineExecuting}
-                      className="px-3 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold uppercase tracking-widest hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-all disabled:opacity-50"
-                      data-testid="test-lab-process-btn"
-                    >
-                      {pipelineExecuting ? (
-                        <i className="fas fa-circle-notch animate-spin mr-1"></i>
-                      ) : (
-                        <i className="fas fa-wand-magic-sparkles mr-1"></i>
-                      )}
-                      {pipelineExecuting ? 'Processing...' : 'Reprocess Document'}
-                    </button>
+                    {selectedDocumentData.status === 'never_processed' && (
+                      <button
+                        onClick={() => handleDocumentSelect(Number(selectedDocumentId))}
+                        disabled={pipelineExecuting}
+                        className="px-3 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold uppercase tracking-widest hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-all disabled:opacity-50"
+                        data-testid="test-lab-process-btn"
+                      >
+                        {pipelineExecuting ? (
+                          <i className="fas fa-circle-notch animate-spin mr-1"></i>
+                        ) : (
+                          <i className="fas fa-wand-magic-sparkles mr-1"></i>
+                        )}
+                        {pipelineExecuting ? 'Processing...' : 'Process Document'}
+                      </button>
+                    )}
                   </div>
                   <div className={`rounded-xl border transition-colors ${pipelineExecuting ? 'border-indigo-500/30 bg-indigo-500/5' : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50'} p-3 space-y-2 relative`}>
                     {pipelineExecuting && (
                       <div className="absolute inset-0 flex items-center justify-center bg-white/40 dark:bg-slate-900/40 backdrop-blur-[1px] z-10 rounded-xl">
                         <div className="flex flex-col items-center gap-2">
                           <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                          <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Preparing Context...</span>
+                          <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Processing document...</span>
                         </div>
                       </div>
                     )}
@@ -1272,7 +1307,9 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                             {pipelineError.message || 'Pipeline Completed with Errors'}
                           </h5>
                           <p className="text-[10px] text-red-600 dark:text-red-400/70 font-medium">
-                            {pipelineError.stages.filter((s: any) => s.status === 'error').length} of {pipelineError.stages.length} stages failed
+                            {pipelineError.stages.length > 0
+                              ? `${pipelineError.stages.filter((s: any) => s.status === 'error').length} of ${pipelineError.stages.length} stages failed`
+                              : 'No stage diagnostics available'}
                           </p>
                         </div>
                       </div>
@@ -1315,22 +1352,22 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                   <i className="fas fa-brackets-curly text-[8px]"></i>
                   Runtime Variables
                 </h4>
-                {Object.keys(testVariables).length === 0 ? (
+                {visibleVariableEntries.length === 0 ? (
                   <div className="py-8 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-2xl">
                     <div className="text-[10px] text-slate-400 uppercase font-bold tracking-widest flex flex-col items-center gap-3">
                       {pipelineExecuting ? (
                         <>
                           <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                          <span>Preparing Context...</span>
+                          <span>Processing document...</span>
                         </>
                       ) : (
-                        <span>{selectedDocumentId ? 'Processing document...' : 'Select a document to populate runtime variables'}</span>
+                        <span>{selectedDocumentId ? 'No runtime variables returned for this document.' : 'Select a document to populate runtime variables'}</span>
                       )}
                     </div>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {Object.entries(testVariables).map(([key, val]) => {
+                    {visibleVariableEntries.map(([key, val]) => {
                       const isLocked = lockedVariables.has(key);
                       return (
                         <div key={key} className="flex flex-col gap-1.5 group/var">
@@ -1429,7 +1466,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
               <div className="flex items-center gap-4 py-4 border-y border-slate-100 dark:border-slate-800">
                 <button
                   onClick={handleTest}
-                  disabled={isTesting}
+                  disabled={isTesting || pipelineExecuting}
                   className={`px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg flex items-center gap-2 text-white ${
                     testMode === 'execute' 
                       ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-500/20' 
@@ -1443,7 +1480,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                   {isTesting ? 'Simulating...' : 'Execute Test Run'}
                 </button>
                 <div className="flex-1 text-[10px] text-slate-400 font-medium">
-                  {isTesting ? 'Synthesizing output using mock context and active template logic...' : 'Ready for simulation. No changes will be persisted.'}
+                  {isTesting ? 'Synthesizing output using runtime context and active template logic...' : 'Ready for simulation. No changes will be persisted.'}
                 </div>
               </div>
 

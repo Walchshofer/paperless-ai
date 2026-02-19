@@ -668,6 +668,9 @@ router.get('/doc/:id', async (req, res) => {
     let visualFields = [];
     let formattedOverlays = [];
     let overlayCount = 0;
+    let visOcrPages = [];
+    let visOcrSource = null;
+    let visOcrQuality = null;
     if (visualOverlayRepository) {
       try {
         const overlays = await visualOverlayRepository.getByDocId(documentId);
@@ -716,6 +719,24 @@ router.get('/doc/:id', async (req, res) => {
             paperlessField: data.paperlessField || data.paperlessMapping || null
           };
         });
+
+        const expertKnowledge = await visualOverlayRepository
+          .getExpertKnowledge(documentId);
+        const expertMetadata = expertKnowledge?.expertMetadata || {};
+        if (Array.isArray(expertMetadata.vis_ocr_pages)) {
+          visOcrPages = expertMetadata.vis_ocr_pages
+            .filter((page) => page && typeof page === 'object')
+            .map((page) => ({
+              pageNumber: Number(page.pageNumber) || 0,
+              text: typeof page.text === 'string' ? page.text : '',
+              success: page.success !== false
+            }))
+            .filter((page) => page.pageNumber > 0);
+        }
+        visOcrSource = expertMetadata.vis_ocr_source || null;
+        visOcrQuality = Number.isFinite(expertMetadata.vis_ocr_quality)
+          ? expertMetadata.vis_ocr_quality
+          : null;
       } catch (e) {
         console.warn('[Unified Workspace] Could not fetch visual overlays:', e.message);
       }
@@ -764,6 +785,9 @@ router.get('/doc/:id', async (req, res) => {
         normalizationStatus: normalizationStatus,
         normalizedUrl: persistedNormalizedUrl || `/api/normalized/${document.id}/1`,
         customFields: normalizedCustomFields,
+        visOcrPages,
+        visOcrSource,
+        visOcrQuality,
         status: 'saved',
       },
       availableDocuments: availableDocs.map(d => ({
@@ -994,6 +1018,9 @@ router.get('/api/doc/:id', async (req, res) => {
     let visualFields = [];
     let formattedOverlays = [];
     let overlayCount = 0;
+    let visOcrPages = [];
+    let visOcrSource = null;
+    let visOcrQuality = null;
     if (visualOverlayRepository) {
       try {
         const overlays = await visualOverlayRepository.getByDocId(documentId);
@@ -1041,6 +1068,24 @@ router.get('/api/doc/:id', async (req, res) => {
             paperlessField: data.paperlessField || data.paperlessMapping || null
           };
         });
+
+        const expertKnowledge = await visualOverlayRepository
+          .getExpertKnowledge(documentId);
+        const expertMetadata = expertKnowledge?.expertMetadata || {};
+        if (Array.isArray(expertMetadata.vis_ocr_pages)) {
+          visOcrPages = expertMetadata.vis_ocr_pages
+            .filter((page) => page && typeof page === 'object')
+            .map((page) => ({
+              pageNumber: Number(page.pageNumber) || 0,
+              text: typeof page.text === 'string' ? page.text : '',
+              success: page.success !== false
+            }))
+            .filter((page) => page.pageNumber > 0);
+        }
+        visOcrSource = expertMetadata.vis_ocr_source || null;
+        visOcrQuality = Number.isFinite(expertMetadata.vis_ocr_quality)
+          ? expertMetadata.vis_ocr_quality
+          : null;
       } catch (e) { /* ignore */ }
     }
 
@@ -1077,7 +1122,10 @@ router.get('/api/doc/:id', async (req, res) => {
         overlays: formattedOverlays,
         overlayCount
       },
-      currentUser: req.user?.username || null
+      currentUser: req.user?.username || null,
+      visOcrPages,
+      visOcrSource,
+      visOcrQuality
     });
 
   } catch (error) {

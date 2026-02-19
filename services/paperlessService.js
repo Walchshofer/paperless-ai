@@ -179,35 +179,22 @@ class PaperlessService {
     if (!this.client) {
       let apiUrl = config.paperless?.apiUrl || process.env.PAPERLESS_API_URL;
       let apiToken = config.paperless?.apiToken || process.env.PAPERLESS_API_TOKEN;
+      if (!apiUrl || !apiToken) {
+        console.error(
+          '[PaperlessService] Missing PAPERLESS_API_URL or '
+          + 'PAPERLESS_API_TOKEN. Configure docker-compose.env.'
+        );
+        return;
+      }
 
-      // Fallback: read runtime.env if config lacks values (useful for setup bootstrap)
-      const envPaths = [
-        require('path').join(process.cwd(), 'data', 'runtime.env'),
-        require('path').join(process.cwd(), 'data', '.env')
-      ];
-      
-      for (const p of envPaths) {
-        if ((!apiUrl || !apiToken) && require('fs').existsSync(p)) {
-          try {
-            const envText = require('fs').readFileSync(p, 'utf8');
-            const mUrl = envText.match(/PAPERLESS_API_URL=(.+)/);
-            const mToken = envText.match(/PAPERLESS_API_TOKEN=(.+)/);
-            if (mUrl && mUrl[1]) apiUrl = apiUrl || mUrl[1].trim();
-            if (mToken && mToken[1]) apiToken = apiToken || mToken[1].trim();
-          } catch (e) { /* ignore */ }
+      const baseApiUrl = apiUrl.endsWith('/') ? apiUrl : `${apiUrl}/`;
+      this.client = axios.create({
+        baseURL: baseApiUrl,
+        headers: {
+          'Authorization': `Token ${apiToken}`,
+          'Content-Type': 'application/json'
         }
-      }
-
-      if (apiUrl && apiToken) {
-        const baseApiUrl = apiUrl.endsWith('/') ? apiUrl : `${apiUrl}/`;
-        this.client = axios.create({
-          baseURL: baseApiUrl,
-          headers: {
-            'Authorization': `Token ${apiToken}`,
-            'Content-Type': 'application/json'
-          }
-        });
-      }
+      });
     }
   }
 
@@ -360,11 +347,9 @@ class PaperlessService {
     const pageImages = [];
     try {
       const docMeta = await this.getDocumentMetadata(documentId);
-      if (docMeta?.mime_type !== 'application/pdf') {
-          logger.debug(`[PAPERLESS] Skipping page image extraction for non-PDF document ${documentId} (${docMeta?.mime_type})`);
-          return [];
-      }
-      const pageCount = docMeta?.page_count || 1;
+      const pageCount = Number.isInteger(docMeta?.page_count)
+        ? docMeta.page_count
+        : 1;
       const maxPages = config.duplicateDetection?.maxPagesToCompare || 10;
       const pagesToFetch = Math.min(pageCount, maxPages);
       for (let page = 1; page <= pagesToFetch; page++) {
@@ -375,7 +360,32 @@ class PaperlessService {
             timeout: 30000
           });
           pageImages.push(Buffer.from(response.data));
-        } catch (e) {}
+        } catch (error) {
+          logger.debug({
+            event: 'paperless_preview_page_fetch_failed',
+            documentId,
+            page,
+            error: error.message
+          });
+        }
+      }
+
+      if (pageImages.length === 0) {
+        try {
+          const response = await this.client.get(`documents/${documentId}/preview/`, {
+            responseType: 'arraybuffer',
+            timeout: 30000
+          });
+          if (response?.data) {
+            pageImages.push(Buffer.from(response.data));
+          }
+        } catch (error) {
+          logger.debug({
+            event: 'paperless_preview_default_fetch_failed',
+            documentId,
+            error: error.message
+          });
+        }
       }
       return pageImages;
     } catch (error) {
@@ -762,14 +772,6 @@ class PaperlessService {
       const response = await this.client.get(`documents/${documentId}/`);
       return !!response.data; 
     } catch (e) { return false; }
-  }
-
-  async getThumbnailImage(documentId) {
-    this.initialize();
-    try {
-      const response = await this.client.get(`documents/${documentId}/thumb/`, { responseType: 'arraybuffer' });
-      return Buffer.from(response.data);
-    } catch (e) { return null; }
   }
 
   async checkHealth() {

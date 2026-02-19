@@ -8,11 +8,14 @@ try {
     SqliteDatabase = null;
 }
 
-function readEnvFallback(key) {
-    if (process.env[key] !== undefined && process.env[key] !== '') return process.env[key];
-    try {
-        const envPath = path.join(process.cwd(), 'data', '.env');
-        if (!fs.existsSync(envPath)) return undefined;
+function readFallbackEnvFiles() {
+    const env = {};
+    const envPaths = [
+        path.join(process.cwd(), 'docker-compose.env'),
+        path.join(process.cwd(), '.env')
+    ];
+    for (const envPath of envPaths) {
+        if (!fs.existsSync(envPath)) continue;
         const content = fs.readFileSync(envPath, 'utf8');
         const lines = content.split(/\r?\n/);
         for (const line of lines) {
@@ -20,11 +23,23 @@ function readEnvFallback(key) {
             if (!trimmed || trimmed.startsWith('#')) continue;
             const idx = trimmed.indexOf('=');
             if (idx === -1) continue;
-            const k = trimmed.substring(0, idx);
-            const v = trimmed.substring(idx + 1);
-            if (k === key) return v;
+            const key = trimmed.slice(0, idx).trim();
+            const value = trimmed.slice(idx + 1).trim();
+            if (env[key] === undefined) {
+                env[key] = value;
+            }
         }
-    } catch (e) { /* ignore */ }
+    }
+    return env;
+}
+
+const fallbackEnv = readFallbackEnvFiles();
+
+function readEnvFallback(key) {
+    if (process.env[key] !== undefined && process.env[key] !== '') return process.env[key];
+    if (fallbackEnv[key] !== undefined && fallbackEnv[key] !== '') {
+        return fallbackEnv[key];
+    }
     return undefined;
 }
 

@@ -11,6 +11,7 @@
 ## Environment variables (local development)
 
 - Keep `docker-compose.env` (repo root) as the authoritative source of truth for multi-container runs.
+- Do not store infrastructure/secrets in `data/runtime.env` (`PAPERLESS_API_*`, `POSTGRES_*`, `QDRANT_*`, service URLs/tokens).
 - To generate a legacy-compatible `.env` (for older `docker-compose` clients on Windows) run:
 
 ```bash
@@ -21,6 +22,8 @@ npm run env:sync  # generates ./ .env from docker-compose.env (or creates a safe
 
 ```bash
 npm run env:validate  # runs Python validator (scripts/validate_env_py.py)
+npm run env:audit     # checks parity + protected-key conflicts
+npm run env:sanitize  # removes protected keys from data/runtime.env (with backup)
 ```
 
 

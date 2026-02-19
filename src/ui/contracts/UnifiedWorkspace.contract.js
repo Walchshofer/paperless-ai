@@ -79,6 +79,13 @@ const UnifiedWorkspaceSchema = z.object({
     normalizedUrl: z.string().nullable(),
     persistedNormalizedUrl: z.string().nullable().optional(),
     normalizationStatus: z.enum(['pending', 'processing', 'completed', 'failed', 'skipped']).nullable().optional(),
+    visOcrPages: z.array(z.object({
+      pageNumber: z.coerce.number().int().positive(),
+      text: z.string(),
+      success: z.boolean().optional(),
+    })).optional().default([]),
+    visOcrSource: z.string().nullable().optional(),
+    visOcrQuality: z.coerce.number().nullable().optional(),
     status: z.enum(['saved', 'unsaved', 'processing', 'error']).default('saved'),
     currentUser: z.string().optional(),
   }).nullable(),

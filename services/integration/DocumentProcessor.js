@@ -37,6 +37,7 @@
  */
 
 const fs = require('fs').promises;
+const os = require('os');
 const path = require('path');
 const axios = require('axios');
 const { parse, parseISO, isValid, format } = require('date-fns');
@@ -1184,9 +1185,28 @@ class DocumentProcessor {
                 stack: error.stack
             });
             
-            // Attempt fallback if enabled
-            if (this.config.features.enableFallbackToLegacy && 
-                processingMode !== ProcessorConfig.modes.LEGACY_TEXT) {
+            const hardVisualFailureCodes = new Set([
+                'VISUAL_INPUT_MISSING',
+                'VISUAL_ATTACHMENT_FAILED',
+                'VISUAL_OCR_REQUIRED'
+            ]);
+            const isHardVisualFailure = hardVisualFailureCodes.has(error?.code);
+
+            if (isHardVisualFailure) {
+                logger.error({
+                    event: 'document_processing_hard_visual_failure',
+                    documentId: document.id,
+                    code: error.code,
+                    message: error.message
+                });
+            }
+
+            // Attempt fallback if enabled, except for strict visual-input failures.
+            if (
+                this.config.features.enableFallbackToLegacy
+                && processingMode !== ProcessorConfig.modes.LEGACY_TEXT
+                && !isHardVisualFailure
+            ) {
                 logger.info('Attempting legacy text fallback');
                 try {
                     const fallbackResult = await this._processLegacyText(document, options);
@@ -1210,8 +1230,10 @@ class DocumentProcessor {
             return {
                 success: false,
                 error: error.message,
+                errorCode: error.code || null,
                 metadata: {
                     processingMode: processingMode,
+                    errorCode: error.code || null,
                     processingTimeMs: Date.now() - startTime
                 }
             };
@@ -1229,7 +1251,22 @@ class DocumentProcessor {
             const pdfPath = resolvePdfPathForRender(document.pdf_path, document.pdf_path_abs);
             const documentId = document.id || document.filename;
             const dpi = 300; // Enforce high-res for expert pipeline
-            const maxPages = config.visualRag?.maxVisionPages || 4;
+            const configuredMaxPages = Number(config.visualOCR?.maxPages);
+            const declaredPageCount = Number(
+                document.page_count
+                || document.pageCount
+                || document.pages
+                || 0
+            );
+            const maxPages = (
+                Number.isFinite(configuredMaxPages) && configuredMaxPages > 0
+            )
+                ? configuredMaxPages
+                : (
+                    Number.isFinite(declaredPageCount) && declaredPageCount > 0
+                        ? declaredPageCount
+                        : (config.visualRag?.maxVisionPages || 4)
+                );
             const renderDocId = document.id || document.filename || Date.now();
 
             try {
@@ -1345,17 +1382,138 @@ class DocumentProcessor {
                 return null;
             }
         };
+        const stripImageDataUrl = (value) => {
+            if (typeof value !== 'string') {
+                return '';
+            }
+            return value.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
+        };
+
+        const persistPromptPngPages = async (base64Images, source) => {
+            const images = Array.isArray(base64Images)
+                ? base64Images.filter(Boolean)
+                : [];
+            if (images.length === 0) {
+                return [];
+            }
+
+            const docKeyRaw = document.id
+                || document.filename
+                || document.title
+                || `doc-${Date.now()}`;
+            const docKey = String(docKeyRaw).replace(/[^a-zA-Z0-9._-]/g, '_');
+            const docDir = path.join(
+                os.tmpdir(),
+                'paperless-ai',
+                'expert-pipeline-images',
+                docKey
+            );
+
+            await fs.mkdir(docDir, { recursive: true });
+            const pageImagePaths = [];
+            for (let i = 0; i < images.length; i += 1) {
+                const cleanBase64 = stripImageDataUrl(images[i]);
+                if (!cleanBase64) {
+                    continue;
+                }
+
+                const filePath = path.join(docDir, `page_${i + 1}.png`);
+                await fs.writeFile(filePath, Buffer.from(cleanBase64, 'base64'));
+                pageImagePaths.push(filePath);
+            }
+
+            if (pageImagePaths.length === 0) {
+                const err = new Error(
+                    'Failed to persist PNG page images for multimodal pipeline'
+                );
+                err.code = 'VISUAL_ATTACHMENT_FAILED';
+                err.context = { source, docKey, images: images.length };
+                throw err;
+            }
+
+            return pageImagePaths;
+        };
+
+        const assignPreparedImages = async (base64Images, source) => {
+            const images = Array.isArray(base64Images)
+                ? base64Images.filter(Boolean)
+                : [];
+            const firstImage = images[0] || null;
+            const pageImagePaths = await persistPromptPngPages(images, source);
+
+            document.base64Images = images;
+            document.image_data = firstImage;
+            document.page_image_paths = pageImagePaths;
+            document.image_path = pageImagePaths[0] || null;
+            document.image_path_abs = pageImagePaths[0] || null;
+
+            return { base64Images: images, image_data: firstImage };
+        };
+
+        const convertBuffersToBase64Images = async (buffers, source) => {
+            if (!Array.isArray(buffers) || buffers.length === 0) {
+                return [];
+            }
+
+            const images = [];
+            for (const buffer of buffers) {
+                try {
+                    if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+                        continue;
+                    }
+                    const prepared = await ImagePreparator.prepare(buffer);
+                    if (prepared?.base64) {
+                        images.push(prepared.base64);
+                    }
+                } catch (conversionError) {
+                    logger.warn({
+                        event: 'image_buffer_prepare_failed',
+                        documentId: document.id || document.filename,
+                        source,
+                        error: conversionError.message
+                    });
+                }
+            }
+            return images;
+        };
+
+        const loadPreviewFallbackImages = async () => {
+            if (!document.id) {
+                return [];
+            }
+
+            const pageBuffers = await paperlessService
+                .getDocumentPageImages(document.id)
+                .catch(() => []);
+            const previewImages = await convertBuffersToBase64Images(
+                pageBuffers,
+                'paperless_preview'
+            );
+            if (previewImages.length > 0) {
+                return previewImages;
+            }
+
+            const thumbnailBuffer = await paperlessService
+                .getThumbnailImage(document.id)
+                .catch(() => null);
+            if (!thumbnailBuffer) {
+                return [];
+            }
+
+            return convertBuffersToBase64Images(
+                [thumbnailBuffer],
+                'paperless_thumbnail'
+            );
+        };
+
         const prepareImages = async (refreshOptions = {}) => {
-            if (refreshOptions.forcePdf && document.pdf_path) {
+            if (
+                refreshOptions.forcePdf
+                && (document.pdf_path || document.pdfPath || document.id)
+            ) {
                 const pdfImages = await renderPdfImages('refresh');
                 if (pdfImages && pdfImages.length > 0) {
-                    document.base64Images = pdfImages;
-                    document.image_data = pdfImages[0];
-                    return { base64Images: pdfImages, image_data: pdfImages[0] };
-                }
-                const fallbackSource = resolveImageSource();
-                if (!fallbackSource) {
-                    return { base64Images: [], image_data: null };
+                    return assignPreparedImages(pdfImages, 'pdf_refresh');
                 }
                 logger.warn({
                     event: 'image_refresh_pdf_fallback',
@@ -1363,30 +1521,74 @@ class DocumentProcessor {
                     reason: 'pdf_render_unavailable'
                 });
             }
+
             const imageSource = resolveImageSource();
-            if (!imageSource) {
-                 // Try PDF path as fallback
-                 if (document.pdf_path || document.pdfPath) {
-                    const source = document.pdf_path || document.pdfPath;
-                    const pdfImages = await renderPdfImages(source);
-                    if (pdfImages && pdfImages.length > 0) {
-                        document.base64Images = pdfImages;
-                        document.image_data = pdfImages[0];
-                        return { base64Images: pdfImages, image_data: pdfImages[0] };
+            if (imageSource) {
+                try {
+                    const prepared = await ImagePreparator.prepare(imageSource);
+                    if (prepared?.base64) {
+                        return assignPreparedImages(
+                            [prepared.base64],
+                            'image_source'
+                        );
                     }
-                 }
-                return { base64Images: [], image_data: null };
+                } catch (imageSourceError) {
+                    logger.warn({
+                        event: 'image_source_prepare_failed',
+                        documentId: document.id || document.filename,
+                        error: imageSourceError.message
+                    });
+                }
             }
-            const prepared = await ImagePreparator.prepare(imageSource);
-            const base64Image = prepared.base64;
-            const base64Images = [base64Image];
-            document.image_data = base64Image;
-            document.base64Images = base64Images;
-            return { base64Images, image_data: base64Image };
+
+            if (document.pdf_path || document.pdfPath || document.id) {
+                const source = document.pdf_path || document.pdfPath || 'download';
+                const pdfImages = await renderPdfImages(source);
+                if (pdfImages && pdfImages.length > 0) {
+                    return assignPreparedImages(pdfImages, 'pdf_render');
+                }
+            }
+
+            const previewImages = await loadPreviewFallbackImages();
+            if (previewImages.length > 0) {
+                logger.info({
+                    event: 'image_refresh_preview_fallback',
+                    documentId: document.id || document.filename,
+                    pages: previewImages.length
+                });
+                return assignPreparedImages(previewImages, 'paperless_preview');
+            }
+
+            return assignPreparedImages([], 'none');
         };
-        if (document.image_path || document.image_data || document.pdf_path || document.pdfPath) {
+
+        if (
+            document.id
+            || document.image_path
+            || document.image_data
+            || document.pdf_path
+            || document.pdfPath
+        ) {
             const prepared = await prepareImages();
             preparedImages = prepared.base64Images;
+        }
+
+        if (!Array.isArray(preparedImages) || preparedImages.length === 0) {
+            const err = new Error(
+                'No PNG page image available for multimodal expert stages'
+            );
+            err.code = 'VISUAL_INPUT_MISSING';
+            throw err;
+        }
+        if (
+            !Array.isArray(document.page_image_paths)
+            || document.page_image_paths.length === 0
+        ) {
+            const err = new Error(
+                'PNG page files were not created for multimodal expert stages'
+            );
+            err.code = 'VISUAL_ATTACHMENT_FAILED';
+            throw err;
         }
 
         // ====================================================================
@@ -1498,6 +1700,54 @@ class DocumentProcessor {
             });
         }
 
+        const domain =
+            result.result?.classification?.classification?.primary_domain
+                ?.toLowerCase() || 'general';
+        const visOcrPages = Array.isArray(document._vis_ocr_metadata?.vis_ocr_pages)
+            ? document._vis_ocr_metadata.vis_ocr_pages
+            : [];
+
+        // Persist VIS OCR metadata (including per-page text) for workspace
+        // inspection and comparison with Paperless OCR.
+        if (document.id && document._vis_ocr_metadata) {
+            try {
+                const persistResult =
+                    await this.pipelineExecutor.storeExpertKnowledge(
+                        document.id,
+                        {
+                            domain,
+                            enhancedOcrText:
+                                document.enhanced_ocr_text ||
+                                document.ocr_text ||
+                                '',
+                            expertMetadata: {
+                                vis_ocr_source:
+                                    document._ocr_metadata?.source || null,
+                                vis_ocr_quality:
+                                    document._ocr_metadata?.quality_score ??
+                                    null,
+                                vis_ocr_pages: visOcrPages,
+                                classification: result.result?.classification
+                            }
+                        }
+                    );
+
+                if (!persistResult.success) {
+                    logger.warn({
+                        event: 'vis_ocr_metadata_persist_failed',
+                        docId: document.id,
+                        error: persistResult.error || 'unknown'
+                    });
+                }
+            } catch (persistError) {
+                logger.warn({
+                    event: 'vis_ocr_metadata_persist_exception',
+                    docId: document.id,
+                    error: persistError.message
+                });
+            }
+        }
+
         // Trigger Visual RAG ingestion if images available and enabled
         const orchestration = result?.metadata?.orchestration;
         const allowIngestion = normalizeBoolean(
@@ -1514,7 +1764,6 @@ class DocumentProcessor {
         if (ingestionImages.length > 0 && document.id && allowIngestion &&
             config.visualRagSidecar?.enabled === 'yes' && !options.skipRag) {
             try {
-                const domain = result.result?.classification?.classification?.primary_domain?.toLowerCase();
                 const ingestionPdfPath = resolvePdfPathForIngestion(
                     document.pdf_path,
                     document.filename

@@ -17,6 +17,7 @@
  */
 
 const assert = require('assert');
+const os = require('os');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -249,6 +250,121 @@ describe('Prompts API - Template Testing and Validation', function() {
         jsonResponse.renderedTemplate.length;
       const expectedTokens = Math.ceil(totalChars / 4);
       assert.strictEqual(jsonResponse.tokenEstimate, expectedTokens);
+    });
+
+    it('should execute multimodal test using PNG path attachments', async function() {
+      const layer = promptsRouter.stack.find(
+        (l) => l.route && l.route.path === '/:id/test' && l.route.methods.post
+      );
+      const handler = layer.route.stack[layer.route.stack.length - 1].handle;
+
+      const aiFactory = require('../../services/aiServiceFactory');
+      const originalGetService = aiFactory.getService;
+      let capturedImages = null;
+      aiFactory.getService = () => ({
+        _callOllamaVisionAPI: async (_prompt, images) => {
+          capturedImages = images;
+          return {
+            response: '{"classification":{"primary_domain":"General","confidence":0.9}}',
+            model: 'qwen3-vl:8b',
+            eval_count: 128
+          };
+        }
+      });
+
+      const tmpImagePath = path.join(
+        os.tmpdir(),
+        `prompts-api-test-${Date.now()}.png`
+      );
+      const png1x1 =
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAF+wJ/lq0w5gAAAABJRU5ErkJggg==';
+      await fs.writeFile(tmpImagePath, Buffer.from(png1x1, 'base64'));
+
+      const req = {
+        params: { id: 'SYS_ROUTER_V1' },
+        body: {
+          mode: 'execute',
+          variables: {
+            source_system: 'test-lab',
+            filename: 'vision-test.png',
+            resolution: '300 DPI',
+            file_size: '12345',
+            __image_path: tmpImagePath
+          }
+        },
+        user: { id: 1, username: 'admin', role: 'admin' }
+      };
+
+      let statusCode = 200;
+      let jsonResponse = null;
+      const res = {
+        status(code) {
+          statusCode = code;
+          return this;
+        },
+        json(data) {
+          jsonResponse = data;
+        }
+      };
+
+      try {
+        await handler(req, res);
+      } finally {
+        aiFactory.getService = originalGetService;
+        await fs.unlink(tmpImagePath).catch(() => {});
+      }
+
+      assert.strictEqual(statusCode, 200);
+      assert.strictEqual(jsonResponse.success, true);
+      assert.strictEqual(jsonResponse.source, 'ollama-vision');
+      assert.ok(Array.isArray(capturedImages), 'vision payload should be an array');
+      assert.strictEqual(capturedImages.length, 1);
+      assert.ok(
+        typeof capturedImages[0] === 'string' && capturedImages[0].length > 20,
+        'expected non-empty base64 payload derived from PNG path'
+      );
+      assert.ok(!capturedImages[0].startsWith('data:image/'));
+    });
+
+    it('should return 422 for multimodal execute without image attachment', async function() {
+      const layer = promptsRouter.stack.find(
+        (l) => l.route && l.route.path === '/:id/test' && l.route.methods.post
+      );
+      const handler = layer.route.stack[layer.route.stack.length - 1].handle;
+
+      const req = {
+        params: { id: 'SYS_ROUTER_V1' },
+        body: {
+          mode: 'execute',
+          variables: {
+            source_system: 'test-lab',
+            filename: 'missing-image.png'
+          }
+        },
+        user: { id: 1, username: 'admin', role: 'admin' }
+      };
+
+      let statusCode = 200;
+      let jsonResponse = null;
+      const res = {
+        status(code) {
+          statusCode = code;
+          return this;
+        },
+        json(data) {
+          jsonResponse = data;
+        }
+      };
+
+      await handler(req, res);
+
+      assert.strictEqual(statusCode, 422);
+      assert.strictEqual(jsonResponse.success, false);
+      assert.strictEqual(jsonResponse.code, 'VISUAL_INPUT_MISSING');
+      assert.ok(
+        String(jsonResponse.error).toLowerCase().includes('multimodal'),
+        'expected explicit multimodal missing image error'
+      );
     });
 
     it('should return template-render source when guidance unavailable', async function() {

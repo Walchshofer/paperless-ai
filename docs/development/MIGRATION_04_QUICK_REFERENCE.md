@@ -150,7 +150,7 @@ isAvailable: true
 
 ## Environment Requirements
 
-### Required Variables (in data/runtime.env or docker-compose.env)
+### Required Variables (from docker-compose.env / generated .env)
 ```env
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432

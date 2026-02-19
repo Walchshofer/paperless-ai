@@ -6,15 +6,43 @@ This document provides a complete reference for all environment variables used i
 The authoritative environment file for the multi-container setup is:
 - `C:\Users\pwalc\MyApps\paperless-ai\docker-compose.env` (repo root)
 
-> A compatibility `.env` (repo root `./.env`) is auto-generated from `docker-compose.env` for legacy `docker-compose` clients.
+Use this policy:
+1. `docker-compose.env` is the only human-edited source of truth.
+2. `./.env` is compatibility-only and generated from `docker-compose.env`.
+3. `data/runtime.env` is app-managed runtime settings only.
+4. Protected infra/secrets (Paperless/DB/Qdrant/sidecar endpoints and tokens)
+   must not be stored in `data/runtime.env`.
+5. `data/.env` is legacy and no longer part of the runtime loader path.
 
-All runtime variables for Paperless-NGX + paperless-ai should live there. Other
-`.env` files are pointers only to avoid duplication. Always run Compose with:
+Always run Compose with:
 `docker compose --env-file docker-compose.env ...`
 
-> Compatibility note: some environments (notably older `docker-compose`/`docker-compose` hyphen clients on Windows) automatically load a `.env` file from the compose directory. To keep `docker-compose.env` as the single source of truth, we provide `scripts/sync_dotenv_from_compose_env.sh` (and a PowerShell variant) which generates `paperless-ngx/.env` from `docker-compose.env` as-needed. Run `scripts/sync_dotenv_from_compose_env.sh` to create/update the compatibility `.env` file. The generated `.env` is ignored by Git (see `.gitignore`).
+### Recommended Workflow (VS Code local + Docker runtime)
+1. Edit infrastructure variables and secrets in `docker-compose.env`.
+2. Regenerate compatibility `.env`:
+   - `npm run env:sync`
+3. Start/refresh containers from repo root (`paperless-ai/`) with Docker
+   Compose.
+4. Use the app settings UI only for runtime-safe values that belong in
+   `data/runtime.env`.
+5. If runtime env drift appears, clean it:
+   - `npm run env:sanitize`
+   - `npm run env:audit`
+
+Compatibility note:
+- Older `docker-compose` clients auto-load `./.env`.
+- Generate/update it with `npm run env:sync`.
+- `npm run env:sync` now writes only `./.env` and does not populate
+  `data/runtime.env`.
+- The generated `./.env` is git-ignored.
 
 > If the source `docker-compose.env` is missing (for example on hosted CI runners), the sync scripts now emit a warning and create a **minimal, safe fallback** `.env` (containing test DB credentials and translation test defaults) so validation workflows can proceed. This fallback is intended for CI/testing only and should not be used in production.
+
+Validation and hygiene commands:
+- `npm run env:validate` checks required environment variables.
+- `npm run env:audit` checks SOT parity and protected-key violations.
+- `npm run env:sanitize` removes protected keys from `data/runtime.env`
+  and writes a timestamped backup.
 
 ## Gaps found between docs and compose files (summary) ⚠️
 

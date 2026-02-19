@@ -1,36 +1,130 @@
+const fs = require('fs');
 const path = require('path');
+const dotenv = require('dotenv');
+const {
+  findProtectedRuntimeKeys,
+  isProtectedRuntimeKey
+} = require('./envPolicy');
+
 const currentDir = decodeURIComponent(process.cwd());
 
-// Environment Source of Truth (SOT) Priority:
-// 1. Authoritative: repo-root/docker-compose.env
-// 2. Compatibility: repo-root/.env (generated from docker-compose.env)
-// 3. Runtime Persisted: data/runtime.env (app-managed configuration)
-// 4. Legacy: data/.env (backward compatibility)
-
-// Environment Source of Truth (SOT) Priority:
-// 1. Authoritative: repo-root/docker-compose.env (Infrastructure)
-// 2. Compatibility: repo-root/.env (Tools/Legacy)
-// 3. Runtime: data/runtime.env (App Settings/Volume)
+// Environment Source of Truth (SOT) order:
+// 1) docker-compose.env (authoritative, human-edited)
+// 2) .env (compatibility copy generated from docker-compose.env)
+// 3) data/runtime.env (app-managed runtime settings only)
 const envPriority = [
-  path.join(currentDir, 'docker-compose.env'),
-  path.join(currentDir, '.env'),
-  path.join(currentDir, 'data', 'runtime.env'),
-  path.join(currentDir, 'data', '.env') // Legacy fallback
+  {
+    role: 'authoritative',
+    path: path.join(currentDir, 'docker-compose.env')
+  },
+  {
+    role: 'compatibility',
+    path: path.join(currentDir, '.env')
+  },
+  {
+    role: 'runtime',
+    path: path.join(currentDir, 'data', 'runtime.env')
+  }
 ];
 
+function parseEnvFile(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    const content = fs.readFileSync(filePath, 'utf8');
+    return dotenv.parse(content);
+  } catch (error) {
+    throw new Error(
+      `[CONFIG] Failed to parse environment file: ${filePath}\n`
+      + `${error.message}`
+    );
+  }
+}
+
+function assertNoProtectedRuntimeKeys(envMap, sourcePath) {
+  if (!envMap) return;
+  const invalidKeys = findProtectedRuntimeKeys(Object.keys(envMap));
+  if (invalidKeys.length === 0) return;
+  throw new Error(
+    `[CONFIG] Invalid keys in ${sourcePath}: `
+    + `${invalidKeys.join(', ')}\n`
+    + 'These keys are infrastructure/secrets and must be defined only in '
+    + 'docker-compose.env. Remove them from runtime env and run '
+    + '`npm run env:sanitize`.'
+  );
+}
+
+function assertCompatibilityParity(authoritativeEnv, compatibilityEnv) {
+  if (!authoritativeEnv || !compatibilityEnv) return;
+  const mismatched = [];
+  const keys = new Set([
+    ...Object.keys(authoritativeEnv),
+    ...Object.keys(compatibilityEnv)
+  ]);
+
+  for (const key of keys) {
+    if (!isProtectedRuntimeKey(key)) continue;
+    const authoritativeValue = authoritativeEnv[key];
+    const compatibilityValue = compatibilityEnv[key];
+    if (
+      authoritativeValue !== undefined
+      && compatibilityValue !== undefined
+      && authoritativeValue !== compatibilityValue
+    ) {
+      mismatched.push(key);
+    }
+  }
+
+  if (mismatched.length > 0) {
+    throw new Error(
+      '[CONFIG] Protected key mismatch between docker-compose.env and .env: '
+      + `${mismatched.join(', ')}\n`
+      + 'Regenerate .env from docker-compose.env via `npm run env:sync`.'
+    );
+  }
+}
+
+const strictEnvSotEnforcement = process.env.NODE_ENV !== 'test';
+const parsedEnvByRole = new Map();
+for (const source of envPriority) {
+  const parsed = parseEnvFile(source.path);
+  if (parsed) {
+    parsedEnvByRole.set(source.role, parsed);
+  }
+}
+
+if (strictEnvSotEnforcement) {
+  assertCompatibilityParity(
+    parsedEnvByRole.get('authoritative'),
+    parsedEnvByRole.get('compatibility')
+  );
+  assertNoProtectedRuntimeKeys(
+    parsedEnvByRole.get('runtime'),
+    path.join('data', 'runtime.env')
+  );
+}
+
 let loadedEnv = false;
-for (const p of envPriority) {
-  const result = require('dotenv').config({ path: p });
+for (const source of envPriority) {
+  const result = dotenv.config({ path: source.path });
   if (!result.error) {
-    console.log(`[CONFIG] Loaded environment from: ${p}`);
+    console.log(`[CONFIG] Loaded environment from: ${source.path}`);
     loadedEnv = true;
-    // We don't break here because dotenv does not overwrite existing process.env variables.
-    // Multiple calls allow us to fill in gaps from lower-priority files if needed.
   }
 }
 
 if (!loadedEnv) {
-  console.warn('[CONFIG] No .env or docker-compose.env file found. Relying on system environment variables.');
+  console.warn(
+    '[CONFIG] No env file found. Relying on system environment variables.'
+  );
+}
+
+if (
+  !parsedEnvByRole.get('authoritative')
+  && parsedEnvByRole.get('compatibility')
+) {
+  console.warn(
+    '[CONFIG] docker-compose.env not found. Using compatibility .env only.'
+  );
 }
 
 // Helper function to parse boolean-like env vars

@@ -23,6 +23,28 @@ test.describe('Prompt Test Lab Runtime Context', () => {
       });
     });
 
+    await page.route('**/api/documents/*/status', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          status: 'processed'
+        })
+      });
+    });
+
+    await page.route('**/api/documents/*/preview-image', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          image_data: 'data:image/png;base64,'
+        })
+      });
+    });
+
     // Navigate to Prompts category
     await page.goto('/settings#prompts', { waitUntil: 'domcontentloaded' });
     
@@ -102,7 +124,7 @@ test.describe('Prompt Test Lab Runtime Context', () => {
     await selectTestDocument(page, fixture.docId);
 
     // Verify loading message
-    const processingMsg = page.locator('text=Executing Pipeline...');
+    const processingMsg = page.locator('text=Processing document...');
     await expect(processingMsg).toBeVisible({ timeout: 5000 });
     await page.screenshot({ path: 'test-results/screenshots/test-lab-runtime-executing.png' });
 
@@ -240,7 +262,18 @@ test.describe('Prompt Test Lab Runtime Context', () => {
     await page.screenshot({ path: 'test-results/screenshots/test-lab-results.png' });
   });
 
-  test('Scenario 6: Manual Reprocessing Trigger', async ({ page }) => {
+  test('Scenario 6: Inline Process Document for unprocessed docs', async ({ page }) => {
+    await page.route('**/api/documents/*/status', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          status: 'never_processed'
+        })
+      });
+    });
+
     await page.route('**/api/prompts-runtime/context', async route => {
       await route.fulfill({
         status: 200,
@@ -256,6 +289,8 @@ test.describe('Prompt Test Lab Runtime Context', () => {
 
     await selectTestDocument(page, fixture.docId);
     await expect(page.locator('[data-testid="test-var-ocr_text"]')).toHaveValue('Initial execution', { timeout: 15000 });
+    await expect(page.locator('[data-testid="test-lab-process-btn"]')).toBeVisible();
+    await expect(page.locator('[data-testid="test-lab-process-btn"]')).toContainText('Process Document');
 
     await page.route('**/api/prompts-runtime/context', async route => {
       await route.fulfill({

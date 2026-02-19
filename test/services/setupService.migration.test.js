@@ -19,8 +19,13 @@ describe('setupService migration - data/.env -> data/runtime.env', function () {
     await fs.rm(tmpRoot, { recursive: true, force: true });
   });
 
-  it('copies legacy .env to runtime.env and renames legacy to .env.migrated', async () => {
-    const content = 'PAPERLESS_API_URL=http://localhost:8000/api\nPAPERLESS_API_TOKEN=token123\n';
+  it('migrates legacy .env, strips protected keys, and renames legacy file', async () => {
+    const content = [
+      'PAPERLESS_API_URL=http://localhost:8000/api',
+      'PAPERLESS_API_TOKEN=token123',
+      'TOKEN_LIMIT=128000',
+      ''
+    ].join('\n');
     await fs.writeFile(legacyPath, content, 'utf8');
 
     // Ensure runtime doesn't exist
@@ -30,7 +35,9 @@ describe('setupService migration - data/.env -> data/runtime.env', function () {
     assert.strictEqual(migrated, true, 'Expected migration to have occurred');
 
     const runtimeContent = await fs.readFile(runtimePath, 'utf8');
-    assert.ok(runtimeContent.includes('PAPERLESS_API_URL=http://localhost:8000/api'));
+    assert.ok(runtimeContent.includes('TOKEN_LIMIT=128000'));
+    assert.ok(!runtimeContent.includes('PAPERLESS_API_URL='));
+    assert.ok(!runtimeContent.includes('PAPERLESS_API_TOKEN='));
 
     // legacy should be renamed
     let legacyRenamed = false;

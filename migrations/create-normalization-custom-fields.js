@@ -21,10 +21,9 @@
 const path = require('path');
 const fs = require('fs');
 
-// Load environment from data/runtime.env or docker-compose.env if present
+// Load authoritative environment sources for protected connection settings.
 function loadEnv() {
   const envPaths = [
-    path.join(process.cwd(), 'data', 'runtime.env'),
     path.join(process.cwd(), 'docker-compose.env'),
     path.join(process.cwd(), '.env')
   ];

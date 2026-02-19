@@ -14,8 +14,6 @@ const { expertRegistry } = require('../services/experts/ExpertRegistry');
 const config = require('../config/config.js');
 const dashboardService = require('../src/services/dashboardService.js');
 const { authenticate, authenticateApi, requireAdmin, ROLES } = require('../middleware/auth');
-// Load runtime env persisted by setup (renamed to data/runtime.env)
-require('dotenv').config({ path: '../data/runtime.env' });
 
 // Simple in-memory cache for expert models to avoid frequent registry scans
 const _expertModelsCache = {
@@ -598,7 +596,7 @@ router.get('/setup', async (req, res) => {
 
     // Load saved config if it exists
     if (isEnvConfigured) {
-      const savedConfig = await setupService.loadConfig();
+      const savedConfig = (await setupService.loadConfig()) || {};
       if (savedConfig.PAPERLESS_API_URL) {
         savedConfig.PAPERLESS_API_URL = savedConfig.PAPERLESS_API_URL.replace(/\/api$/, '');
       }

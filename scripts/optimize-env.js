@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
-const envPath = path.join(__dirname, '..', '.env');
+const envPath = path.join(__dirname, '..', 'docker-compose.env');
 const settings = {
   POSTGRES_HOST: 'paperless_db',
   VISUAL_RAG_QUERY_TIMEOUT: '10000',
@@ -12,6 +13,10 @@ const settings = {
 };
 
 try {
+  if (!fs.existsSync(envPath)) {
+    throw new Error(`Missing authoritative env file: ${envPath}`);
+  }
+
   let content = fs.readFileSync(envPath, 'utf8');
   let lines = content.split('\n');
   
@@ -27,8 +32,10 @@ try {
   });
 
   fs.writeFileSync(envPath, lines.join('\n'), 'utf8');
-  console.log('Successfully updated .env with correct container hostnames and timeouts.');
+  console.log('Successfully updated docker-compose.env with optimized settings.');
+  execSync('npm run -s env:sync', { stdio: 'inherit' });
+  console.log('Regenerated compatibility .env from docker-compose.env.');
 } catch (err) {
-  console.error('Failed to update .env:', err.message);
+  console.error('Failed to optimize environment settings:', err.message);
   process.exit(1);
 }

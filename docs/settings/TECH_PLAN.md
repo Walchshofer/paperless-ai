@@ -437,7 +437,8 @@ interface RestartBannerState {
 
 **Existing Data Storage**:
 
-- **Primary**: `data/runtime.env` file (environment variables)
+- **Primary runtime overrides**: `data/runtime.env` (runtime-safe environment
+  keys only)
 - **Runtime**: `config/config.js` in-memory object
 - **Client**: localStorage for UI state (theme, developer mode, sidebar state)
 
@@ -918,7 +919,8 @@ module.exports = {
 
 **Backend → .env File**:
 
-- All settings written to `data/runtime.env` via `setupService.updateEnvFile()`
+- Only runtime-safe settings written to `data/runtime.env`; protected
+  infrastructure/secrets remain in `docker-compose.env`
 - Existing mechanism preserved
 
 **Backend → config/config.js**:

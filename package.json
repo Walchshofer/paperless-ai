@@ -25,6 +25,8 @@
     "check:island-runtime": "node scripts/check-island-runtime.js",
     "check:suppressions": "node scripts/check-no-suppressions.js",
     "env:sync": "bash scripts/sync_dotenv_from_compose_env.sh || pwsh -NoProfile -File scripts/sync_dotenv_from_compose_env.ps1",
+    "env:sanitize": "node scripts/sanitize_runtime_env.js",
+    "env:audit": "node scripts/audit_env_sot.js",
     "env:validate": "python scripts/validate_env_py.py",
     "reindex:visual": "node scripts/batch-reindex-visual.js"
   },

@@ -14,6 +14,10 @@ const crypto = require('crypto');
 const { authenticateApi, requireAdmin } = require('../../middleware/auth');
 const setupService = require('../../services/setupService');
 const configFile = require('../../config/config');
+const {
+    findProtectedRuntimeKeys,
+    isProtectedRuntimeKey
+} = require('../../config/envPolicy');
 
 // Environment file path
 const ENV_FILE_PATH = path.join(__dirname, '../../data/runtime.env');
@@ -25,6 +29,29 @@ function isEnabled(value, fallback = false) {
     }
 
     return TRUTHY_VALUES.has(String(value).trim().toLowerCase());
+}
+
+function getSettingValue(envContent, key, fallback = '') {
+    if (isProtectedRuntimeKey(key)) {
+        return process.env[key] || fallback;
+    }
+    return envContent[key] || process.env[key] || fallback;
+}
+
+function hasSettingValue(envContent, key) {
+    return Boolean(getSettingValue(envContent, key));
+}
+
+function rejectProtectedRuntimeUpdates(updates, res) {
+    const blockedKeys = findProtectedRuntimeKeys(Object.keys(updates));
+    if (blockedKeys.length === 0) return false;
+    res.status(400).json({
+        success: false,
+        error: 'Protected environment keys are read-only via settings API. '
+            + 'Edit docker-compose.env and run npm run env:sync.',
+        blockedKeys
+    });
+    return true;
 }
 
 /**
@@ -47,45 +74,49 @@ router.get('/config', authenticateApi, requireAdmin, async (req, res) => {
             logger.warn('[Settings API] Could not read env file:', e.message);
         }
 
-        const activeProvider = envContent.AI_PROVIDER || process.env.AI_PROVIDER || 'ollama';
+        const activeProvider = getSettingValue(
+            envContent,
+            'AI_PROVIDER',
+            'ollama'
+        );
 
         res.json({
             connection: {
                 // Active Sync
                 activeProvider,
                 // Paperless
-                paperlessApiUrl: envContent.PAPERLESS_API_URL || process.env.PAPERLESS_API_URL || '',
-                paperlessApiToken: (envContent.PAPERLESS_API_TOKEN || process.env.PAPERLESS_API_TOKEN) ? '***hidden***' : '',
-                paperlessUsername: envContent.PAPERLESS_USERNAME || process.env.PAPERLESS_USERNAME || '',
+                paperlessApiUrl: getSettingValue(envContent, 'PAPERLESS_API_URL', ''),
+                paperlessApiToken: hasSettingValue(envContent, 'PAPERLESS_API_TOKEN') ? '***hidden***' : '',
+                paperlessUsername: getSettingValue(envContent, 'PAPERLESS_USERNAME', ''),
                 
                 // AI Providers
-                ollamaApiUrl: envContent.OLLAMA_API_URL || process.env.OLLAMA_API_URL || 'http://localhost:11434',
-                openaiApiKey: (envContent.PAPERLESS_OPENAI_API_KEY || process.env.PAPERLESS_OPENAI_API_KEY) ? '***hidden***' : '',
-                azureEndpoint: envContent.AZURE_ENDPOINT || process.env.AZURE_ENDPOINT || '',
-                azureApiKey: (envContent.AZURE_API_KEY || process.env.AZURE_API_KEY) ? '***hidden***' : '',
-                customApiUrl: envContent.CUSTOM_BASE_URL || process.env.CUSTOM_BASE_URL || '',
-                customApiKey: (envContent.CUSTOM_API_KEY || process.env.CUSTOM_API_KEY) ? '***hidden***' : '',
+                ollamaApiUrl: getSettingValue(envContent, 'OLLAMA_API_URL', 'http://localhost:11434'),
+                openaiApiKey: hasSettingValue(envContent, 'PAPERLESS_OPENAI_API_KEY') ? '***hidden***' : '',
+                azureEndpoint: getSettingValue(envContent, 'AZURE_ENDPOINT', ''),
+                azureApiKey: hasSettingValue(envContent, 'AZURE_API_KEY') ? '***hidden***' : '',
+                customApiUrl: getSettingValue(envContent, 'CUSTOM_BASE_URL', ''),
+                customApiKey: hasSettingValue(envContent, 'CUSTOM_API_KEY') ? '***hidden***' : '',
 
                 // Sidecar Services
-                visualRagUrl: envContent.VISUAL_RAG_URL || process.env.VISUAL_RAG_URL || 'http://visual-rag:8001',
-                textRagUrl: envContent.TEXT_RAG_URL || process.env.TEXT_RAG_URL || 'http://text-rag:8004',
-                guidanceServiceUrl: envContent.GUIDANCE_SERVICE_URL || process.env.GUIDANCE_SERVICE_URL || 'http://guidance_service:8002',
-                biasEngineUrl: envContent.BIAS_ENGINE_URL || process.env.BIAS_ENGINE_URL || 'bias-engine:50051',
-                redisUrl: envContent.REDIS_URL || process.env.REDIS_URL || 'redis://broker:6379',
+                visualRagUrl: getSettingValue(envContent, 'VISUAL_RAG_URL', 'http://visual-rag:8001'),
+                textRagUrl: getSettingValue(envContent, 'TEXT_RAG_URL', 'http://text-rag:8004'),
+                guidanceServiceUrl: getSettingValue(envContent, 'GUIDANCE_SERVICE_URL', 'http://guidance_service:8002'),
+                biasEngineUrl: getSettingValue(envContent, 'BIAS_ENGINE_URL', 'bias-engine:50051'),
+                redisUrl: getSettingValue(envContent, 'REDIS_URL', 'redis://broker:6379'),
 
                 // Vector Store
-                qdrantHost: envContent.QDRANT_HOST || process.env.QDRANT_HOST || 'qdrant',
-                qdrantPort: envContent.QDRANT_PORT || process.env.QDRANT_PORT || '6333',
-                qdrantApiKey: (envContent.QDRANT_API_KEY || process.env.QDRANT_API_KEY) ? '***hidden***' : '',
+                qdrantHost: getSettingValue(envContent, 'QDRANT_HOST', 'qdrant'),
+                qdrantPort: getSettingValue(envContent, 'QDRANT_PORT', '6333'),
+                qdrantApiKey: hasSettingValue(envContent, 'QDRANT_API_KEY') ? '***hidden***' : '',
 
                 // External API
-                externalApiEnabled: (envContent.EXTERNAL_API_ENABLED || process.env.EXTERNAL_API_ENABLED) === 'yes',
-                externalApiUrl: envContent.EXTERNAL_API_URL || process.env.EXTERNAL_API_URL || '',
-                externalApiMethod: envContent.EXTERNAL_API_METHOD || process.env.EXTERNAL_API_METHOD || 'GET',
-                externalApiHeaders: envContent.EXTERNAL_API_HEADERS || process.env.EXTERNAL_API_HEADERS || '{}',
-                externalApiBody: envContent.EXTERNAL_API_BODY || process.env.EXTERNAL_API_BODY || '{}',
-                externalApiTimeout: parseInt(envContent.EXTERNAL_API_TIMEOUT || process.env.EXTERNAL_API_TIMEOUT || '5000', 10),
-                externalApiTransform: envContent.EXTERNAL_API_TRANSFORM || process.env.EXTERNAL_API_TRANSFORM || ''
+                externalApiEnabled: getSettingValue(envContent, 'EXTERNAL_API_ENABLED') === 'yes',
+                externalApiUrl: getSettingValue(envContent, 'EXTERNAL_API_URL', ''),
+                externalApiMethod: getSettingValue(envContent, 'EXTERNAL_API_METHOD', 'GET'),
+                externalApiHeaders: getSettingValue(envContent, 'EXTERNAL_API_HEADERS', '{}'),
+                externalApiBody: getSettingValue(envContent, 'EXTERNAL_API_BODY', '{}'),
+                externalApiTimeout: parseInt(getSettingValue(envContent, 'EXTERNAL_API_TIMEOUT', '5000'), 10),
+                externalApiTransform: getSettingValue(envContent, 'EXTERNAL_API_TRANSFORM', '')
             },
             aiProvider: {
                 provider: activeProvider,
@@ -327,6 +358,9 @@ router.post('/save', express.json(), authenticateApi, requireAdmin, async (req, 
 
         if (!updates || typeof updates !== 'object') {
             return res.status(400).json({ error: 'Invalid request body' });
+        }
+        if (rejectProtectedRuntimeUpdates(updates, res)) {
+            return;
         }
 
         // Read current env file
@@ -724,6 +758,9 @@ router.post('/presets/:name', authenticateApi, requireAdmin, async (req, res) =>
         }
         
         const presetValues = presetData.settings || {};
+        if (rejectProtectedRuntimeUpdates(presetValues, res)) {
+            return;
+        }
         
         // Read current env file for diff
         let currentEnv = {};
@@ -755,7 +792,7 @@ router.post('/presets/:name', authenticateApi, requireAdmin, async (req, res) =>
                     newValue,
                     category: key.split('_')[0] || 'General'
                 });
-                if (restartKeys.some(rk => key.startsWith(restartKeys))) {
+                if (restartKeys.some(rk => key.startsWith(rk))) {
                     requiresRestart = true;
                 }
             }
@@ -844,6 +881,9 @@ router.post('/import', express.json(), authenticateApi, requireAdmin, async (req
                 importedValues[match[1]] = match[2].trim();
             }
         });
+        if (rejectProtectedRuntimeUpdates(importedValues, res)) {
+            return;
+        }
         
         // Read current
         let currentEnv = {};
