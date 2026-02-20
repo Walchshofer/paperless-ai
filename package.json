@@ -26,6 +26,7 @@
     "check:suppressions": "node scripts/check-no-suppressions.js",
     "env:sync": "node scripts/sync_dotenv_from_compose_env.js",
     "env:sanitize": "node scripts/sanitize_runtime_env.js",
+    "env:sanitize:mounted": "node scripts/sanitize_runtime_env.js --root . --path ../paperless-ngx/data/paperless-ai/runtime.env",
     "env:audit": "node scripts/audit_env_sot.js",
     "env:validate": "python scripts/validate_env_py.py",
     "reindex:visual": "node scripts/batch-reindex-visual.js"

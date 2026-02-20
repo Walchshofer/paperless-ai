@@ -40,17 +40,33 @@ function parseEnvFile(filePath) {
   }
 }
 
-function assertNoProtectedRuntimeKeys(envMap, sourcePath) {
-  if (!envMap) return;
+function sanitizeRuntimeEnvMap(envMap, sourcePath) {
+  if (!envMap) return envMap;
   const invalidKeys = findProtectedRuntimeKeys(Object.keys(envMap));
-  if (invalidKeys.length === 0) return;
-  throw new Error(
-    `[CONFIG] Invalid keys in ${sourcePath}: `
-    + `${invalidKeys.join(', ')}\n`
-    + 'These keys are infrastructure/secrets and must be defined only in '
-    + 'docker-compose.env. Remove them from runtime env and run '
-    + '`npm run env:sanitize`.'
+  if (invalidKeys.length === 0) return envMap;
+
+  const sanitized = { ...envMap };
+  for (const key of invalidKeys) {
+    delete sanitized[key];
+  }
+
+  console.warn(
+    `[CONFIG] Ignoring protected keys in ${sourcePath}: `
+    + invalidKeys.join(', ')
   );
+  console.warn('[CONFIG] Cleanup recommended: `npm run env:sanitize`.');
+  return sanitized;
+}
+
+function applyEnvMap(envMap, sourcePath) {
+  if (!envMap) return false;
+  for (const [key, value] of Object.entries(envMap)) {
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+  console.log(`[CONFIG] Loaded environment from: ${sourcePath}`);
+  return true;
 }
 
 function assertCompatibilityParity(authoritativeEnv, compatibilityEnv) {
@@ -87,9 +103,11 @@ const strictEnvSotEnforcement = process.env.NODE_ENV !== 'test';
 const parsedEnvByRole = new Map();
 for (const source of envPriority) {
   const parsed = parseEnvFile(source.path);
-  if (parsed) {
-    parsedEnvByRole.set(source.role, parsed);
-  }
+  if (!parsed) continue;
+  const sanitized = source.role === 'runtime'
+    ? sanitizeRuntimeEnvMap(parsed, path.join('data', 'runtime.env'))
+    : parsed;
+  parsedEnvByRole.set(source.role, sanitized);
 }
 
 if (strictEnvSotEnforcement) {
@@ -97,19 +115,12 @@ if (strictEnvSotEnforcement) {
     parsedEnvByRole.get('authoritative'),
     parsedEnvByRole.get('compatibility')
   );
-  assertNoProtectedRuntimeKeys(
-    parsedEnvByRole.get('runtime'),
-    path.join('data', 'runtime.env')
-  );
 }
 
 let loadedEnv = false;
 for (const source of envPriority) {
-  const result = dotenv.config({ path: source.path });
-  if (!result.error) {
-    console.log(`[CONFIG] Loaded environment from: ${source.path}`);
-    loadedEnv = true;
-  }
+  const sourceEnv = parsedEnvByRole.get(source.role);
+  loadedEnv = applyEnvMap(sourceEnv, source.path) || loadedEnv;
 }
 
 if (!loadedEnv) {

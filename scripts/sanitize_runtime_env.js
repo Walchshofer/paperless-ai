@@ -4,21 +4,92 @@ const fs = require('fs');
 const path = require('path');
 const { isProtectedRuntimeKey } = require('../config/envPolicy');
 
-const rootDir = path.resolve(__dirname, '..');
-const runtimePath = path.join(rootDir, 'data', 'runtime.env');
+const DEFAULT_RUNTIME_RELATIVE_PATH = path.join('data', 'runtime.env');
 
 function timestamp() {
   const now = new Date();
   return now.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
 }
 
-function run() {
-  if (!fs.existsSync(runtimePath)) {
-    console.log('[env:sanitize] data/runtime.env not found. Nothing to do.');
-    return;
+function getArgValue(args, flagName) {
+  const equalsPrefix = `${flagName}=`;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === flagName) {
+      return args[index + 1] || null;
+    }
+    if (arg.startsWith(equalsPrefix)) {
+      return arg.slice(equalsPrefix.length) || null;
+    }
+  }
+  return null;
+}
+
+function getPositionalArg(args) {
+  for (const arg of args) {
+    if (!arg.startsWith('-')) {
+      return arg;
+    }
+  }
+  return null;
+}
+
+function formatPathLabel(rootDir, filePath) {
+  const relative = path.relative(rootDir, filePath);
+  if (!relative || relative === '') return '.';
+  return relative.split(path.sep).join('/');
+}
+
+function resolveCliOptions(argv = process.argv.slice(2), env = process.env) {
+  const rootArg = getArgValue(argv, '--root');
+  let pathArg = getArgValue(argv, '--path');
+  if (
+    !pathArg
+    && env
+    && env.npm_lifecycle_event === 'env:sanitize'
+    && argv.length === 1
+  ) {
+    pathArg = getPositionalArg(argv);
+  }
+  const rootDir = rootArg ? path.resolve(rootArg) : path.resolve(__dirname, '..');
+  const runtimePath = pathArg
+    ? path.resolve(rootDir, pathArg)
+    : path.resolve(rootDir, DEFAULT_RUNTIME_RELATIVE_PATH);
+  return {
+    rootDir,
+    runtimePath,
+    runtimePathLabel: formatPathLabel(rootDir, runtimePath)
+  };
+}
+
+function sanitizeRuntimeEnvFile(options = {}) {
+  const resolvedOptions = {
+    rootDir: options.rootDir || path.resolve(__dirname, '..'),
+    runtimePath: options.runtimePath
+      || path.resolve(options.rootDir || path.resolve(__dirname, '..'),
+        DEFAULT_RUNTIME_RELATIVE_PATH),
+    runtimePathLabel: options.runtimePathLabel || null
+  };
+  if (!resolvedOptions.runtimePathLabel) {
+    resolvedOptions.runtimePathLabel = formatPathLabel(
+      resolvedOptions.rootDir,
+      resolvedOptions.runtimePath
+    );
   }
 
-  const original = fs.readFileSync(runtimePath, 'utf8');
+  if (!fs.existsSync(resolvedOptions.runtimePath)) {
+    console.log(
+      `[env:sanitize] ${resolvedOptions.runtimePathLabel} not found. `
+      + 'Nothing to do.'
+    );
+    return {
+      changed: false,
+      removedKeys: [],
+      backupPath: null
+    };
+  }
+
+  const original = fs.readFileSync(resolvedOptions.runtimePath, 'utf8');
   const lines = original.split('\n');
   const removedKeys = [];
   const sanitizedLines = [];
@@ -39,19 +110,49 @@ function run() {
   }
 
   if (removedKeys.length === 0) {
-    console.log('[env:sanitize] No protected keys found in data/runtime.env.');
-    return;
+    console.log(
+      '[env:sanitize] No protected keys found in '
+      + `${resolvedOptions.runtimePathLabel}.`
+    );
+    return {
+      changed: false,
+      removedKeys: [],
+      backupPath: null
+    };
   }
 
-  const backupPath = `${runtimePath}.bak-${timestamp()}`;
-  fs.copyFileSync(runtimePath, backupPath);
-  fs.writeFileSync(runtimePath, sanitizedLines.join('\n'), 'utf8');
+  const backupPath = `${resolvedOptions.runtimePath}.bak-${timestamp()}`;
+  fs.copyFileSync(resolvedOptions.runtimePath, backupPath);
+  fs.writeFileSync(resolvedOptions.runtimePath, sanitizedLines.join('\n'), 'utf8');
 
-  console.log('[env:sanitize] Removed protected keys from data/runtime.env:');
+  console.log(
+    '[env:sanitize] Removed protected keys from '
+    + `${resolvedOptions.runtimePathLabel}:`
+  );
   for (const key of removedKeys) {
     console.log(`  - ${key}`);
   }
   console.log(`[env:sanitize] Backup created: ${backupPath}`);
+
+  return {
+    changed: true,
+    removedKeys,
+    backupPath
+  };
 }
 
-run();
+function run() {
+  const options = resolveCliOptions();
+  sanitizeRuntimeEnvFile(options);
+}
+
+if (require.main === module) {
+  run();
+}
+
+module.exports = {
+  DEFAULT_RUNTIME_RELATIVE_PATH,
+  resolveCliOptions,
+  sanitizeRuntimeEnvFile,
+  formatPathLabel
+};

@@ -9,10 +9,12 @@ The authoritative environment file for the multi-container setup is:
 Use this policy:
 1. `docker-compose.env` is the only human-edited source of truth.
 2. `./.env` is compatibility-only and generated from `docker-compose.env`.
-3. `data/runtime.env` is app-managed runtime settings only.
-4. Protected infra/secrets (Paperless/DB/Qdrant/sidecar endpoints and tokens)
-   must not be stored in `data/runtime.env`.
-5. `data/.env` is legacy and no longer part of the runtime loader path.
+3. `data/runtime.env` is app-managed runtime settings only (repo-local runs).
+4. `../paperless-ngx/data/paperless-ai/runtime.env` is the mounted runtime
+   env file used by the compose volume (`../paperless-ngx/data/paperless-ai:/app/data`).
+5. Protected infra/secrets (Paperless/DB/Qdrant/sidecar endpoints and tokens)
+   must not be stored in runtime env files.
+6. `data/.env` is legacy and no longer part of the runtime loader path.
 
 Always run Compose with:
 `docker compose --env-file docker-compose.env ...`
@@ -27,7 +29,18 @@ Always run Compose with:
    `data/runtime.env`.
 5. If runtime env drift appears, clean it:
    - `npm run env:sanitize`
+   - `npm run env:sanitize:mounted`
    - `npm run env:audit`
+
+Mounted-runtime command context (authoritative):
+- Intended context is host repo root:
+  `C:\\Users\\pwalc\\MyApps\\paperless-ai`
+- Canonical command path is:
+  `npm run env:sanitize:mounted`
+- This targets exactly:
+  `../paperless-ngx/data/paperless-ai/runtime.env`
+- Do not run this command as a container path command (`/app/...` semantics);
+  it is a host-path workflow.
 
 Compatibility note:
 - Older `docker-compose` clients auto-load `./.env`.
@@ -40,9 +53,13 @@ Compatibility note:
 
 Validation and hygiene commands:
 - `npm run env:validate` checks required environment variables.
-- `npm run env:audit` checks SOT parity and protected-key violations.
+- `npm run env:audit` checks SOT parity and protected-key violations,
+  including `../paperless-ngx/data/paperless-ai/runtime.env`.
 - `npm run env:sanitize` removes protected keys from `data/runtime.env`
   and writes a timestamped backup.
+- `npm run env:sanitize:mounted` removes protected keys from the mounted
+  runtime env (`../paperless-ngx/data/paperless-ai/runtime.env`) and writes a
+  timestamped backup next to that file.
 
 ## Gaps found between docs and compose files (summary) ⚠️
 
