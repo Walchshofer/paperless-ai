@@ -215,12 +215,32 @@
       return;
     }
 
-    container.innerHTML = topQueries.map((q, i) => `
-      <div class="top-query-item" data-testid="top-query-${i}">
+    container.innerHTML = topQueries.map((q) => `
+      <div class="top-query-item" data-testid="${buildStableQueryTestId(q.query)}">
         <span class="query-text" title="${escapeHtml(q.query)}">${escapeHtml(q.query) || '&lt;empty&gt;'}</span>
         <span class="query-count">${q.count}</span>
       </div>
     `).join('');
+  }
+
+  /**
+   * Build deterministic test IDs for top-query rows.
+   */
+  function buildStableQueryTestId(query) {
+    const normalized = String(query || 'empty').trim().toLowerCase();
+    const slug = normalized
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || 'empty';
+
+    let hash = 0;
+    for (let index = 0; index < normalized.length; index += 1) {
+      hash = ((hash << 5) - hash) + normalized.charCodeAt(index);
+      hash |= 0;
+    }
+
+    const suffix = Math.abs(hash).toString(36).slice(0, 6) || '0';
+    return `top-query-${slug}-${suffix}`;
   }
 
   /**

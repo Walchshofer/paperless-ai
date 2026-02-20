@@ -6,6 +6,9 @@
     <title>Visual Query Analytics - Paperless-AI</title>
     <script src="https://cdn.tailwindcss.com/3.4.16"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/dashboard.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
@@ -242,8 +245,21 @@
                             <% if (vm.snapshot.topQueries.length === 0) { %>
                                 <div class="text-gray-400 text-center py-8">No queries recorded yet</div>
                             <% } else { %>
-                                <% vm.snapshot.topQueries.forEach((q, i) => { %>
-                                    <div class="top-query-item" data-testid="top-query-<%= i %>">
+                                <% vm.snapshot.topQueries.forEach((q) => {
+                                    const normalizedQuery = String(q.query || 'empty').trim().toLowerCase();
+                                    const querySlug = normalizedQuery
+                                        .replace(/[^a-z0-9]+/g, '-')
+                                        .replace(/^-+|-+$/g, '')
+                                        .slice(0, 40) || 'empty';
+                                    let queryHash = 0;
+                                    for (let index = 0; index < normalizedQuery.length; index += 1) {
+                                        queryHash = ((queryHash << 5) - queryHash) + normalizedQuery.charCodeAt(index);
+                                        queryHash |= 0;
+                                    }
+                                    const querySuffix = Math.abs(queryHash).toString(36).slice(0, 6) || '0';
+                                    const queryTestId = `top-query-${querySlug}-${querySuffix}`;
+                                %>
+                                    <div class="top-query-item" data-testid="<%= queryTestId %>">
                                         <span class="query-text" title="<%= q.query %>"><%= q.query || '<empty>' %></span>
                                         <span class="query-count"><%= q.count %></span>
                                     </div>

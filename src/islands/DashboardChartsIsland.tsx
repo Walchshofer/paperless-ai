@@ -48,24 +48,38 @@ const useDashboardMetrics = (initialData: DashboardMetrics | null | undefined) =
         const response = await fetch('/api/dashboard/metrics');
         if (!response.ok) throw new Error('Failed to fetch metrics');
         const data = await response.json();
-        
-        // The API returns a wrapper, likely { lastUpdated, paperless_data: {...}, ... } 
-        // We need to map it to our DashboardMetrics structure if it differs, 
-        // or ensure the API returns exactly what we need.
-        // Based on DashboardService.js, it returns:
-        // { 
-        //   lastUpdated, 
-        //   paperless_data: { documentCount, processedDocumentCount, tokenDistribution, documentTypes, ... }, 
-        //   processingStatus 
-        // }
-        
-        // We map it here to be safe and consistent
+
+        const normalizeNonNegative = (value: unknown): number => {
+          const parsed = Number(value);
+          if (!Number.isFinite(parsed) || parsed < 0) {
+            return 0;
+          }
+          return parsed;
+        };
+
+        // Support the current API contract ({ timestamp, metrics }) and
+        // legacy contract ({ lastUpdated, paperless_data }) during migrations.
+        const rawMetrics = data.metrics || data.paperless_data || {};
+        const timestamp = (
+          typeof data.lastUpdated === 'string'
+            ? data.lastUpdated
+            : typeof data.timestamp === 'string'
+              ? data.timestamp
+              : new Date().toISOString()
+        );
+
         const mappedMetrics: DashboardMetrics = {
-          lastUpdated: data.lastUpdated,
-          documentCount: data.paperless_data?.documentCount || 0,
-          processedCount: data.paperless_data?.processedDocumentCount || 0,
-          tokenDistribution: data.paperless_data?.tokenDistribution || [],
-          documentTypes: data.paperless_data?.documentTypes || [],
+          lastUpdated: timestamp,
+          documentCount: normalizeNonNegative(rawMetrics.documentCount),
+          processedCount: normalizeNonNegative(
+            rawMetrics.processedDocumentCount ?? rawMetrics.processedCount
+          ),
+          tokenDistribution: Array.isArray(rawMetrics.tokenDistribution)
+            ? rawMetrics.tokenDistribution
+            : [],
+          documentTypes: Array.isArray(rawMetrics.documentTypes)
+            ? rawMetrics.documentTypes
+            : [],
           processingStatus: data.processingStatus
         };
 

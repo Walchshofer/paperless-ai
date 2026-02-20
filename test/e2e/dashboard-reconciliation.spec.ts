@@ -9,8 +9,8 @@ interface DashboardData {
 }
 
 interface DashboardMetricsResponse {
-  lastUpdated: string;
-  paperless_data: {
+  timestamp: string;
+  metrics: {
     documentCount: number;
     processedDocumentCount: number;
     tokenDistribution: Array<{ range: string; count: number }>;
@@ -72,8 +72,8 @@ test.describe('Dashboard Reconciliation', () => {
       const pendingCount = Math.max(0, newDocumentCount - newProcessedCount);
 
       mockedMetrics = {
-        lastUpdated: newTimestamp,
-        paperless_data: {
+        timestamp: newTimestamp,
+        metrics: {
           documentCount: newDocumentCount,
           processedDocumentCount: newProcessedCount,
           tokenDistribution: [
