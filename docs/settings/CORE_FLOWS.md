@@ -4,6 +4,28 @@ This document defines the user flows for the modernized Settings Page with Islan
 
 ---
 
+## Route Synchronization Rules (Settings Sidebar)
+
+The settings route-state contract is:
+
+1. `/settings` (no hash):
+  - Resolve initial category from `localStorage.settings:lastCategory`.
+  - If missing or invalid, default to `overview`.
+2. `/settings#prompts`:
+  - Always render the Prompts section when Developer Mode is enabled.
+3. `/settings#prompts/<promptId>`:
+  - Normalize sidebar category to `prompts` while preserving nested hash for
+    prompt-level focus.
+4. Developer-only category guard:
+  - If Developer Mode is disabled and hash targets `developer` or `prompts`,
+    fall back to `overview`.
+5. Sidebar interaction rule:
+  - Clicking an already-active category must still emit a
+    `settings:category-changed` event to keep section visibility synchronized
+    with persisted state.
+
+---
+
 ## Flow 1: Initial Settings Access & Overview Dashboard
 
 **Description**: User navigates to settings and sees an overview dashboard with quick actions.

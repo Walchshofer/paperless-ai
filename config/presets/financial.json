@@ -11,6 +11,7 @@
     "FINANCIAL_VISION_MODEL": "llm-pro-finance-8b",
     "FINANCIAL_VAT_EXPERT_MODEL": "llm-pro-finance-8b",
     "ENABLE_VISUAL_RAG": "yes",
+    "ENABLE_VISUAL_RAG_SIDECAR": "yes",
     "GUIDANCE_SERVICE_ENABLED": "yes",
     "ENABLE_MODEL_METRICS": "yes",
     "DUPLICATE_DETECTION_ENABLED": "yes",

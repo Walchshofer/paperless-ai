@@ -9,6 +9,7 @@
     "LEGAL_VISION_MODEL": "qwen3-vl:8b",
     "LEGAL_ANALYSIS_MODEL": "gpt-oss",
     "ENABLE_VISUAL_RAG": "yes",
+    "ENABLE_VISUAL_RAG_SIDECAR": "yes",
     "GUIDANCE_SERVICE_ENABLED": "yes",
     "ENABLE_MODEL_METRICS": "yes",
     "TOKEN_LIMIT": "128000",

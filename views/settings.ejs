@@ -194,11 +194,32 @@
     <script>
         // Simple client-side routing for settings sections
         document.addEventListener('DOMContentLoaded', () => {
-            const sections = document.querySelectorAll('.settings-section');
+            const sections = Array.from(document.querySelectorAll('.settings-section'));
+            const DEFAULT_CATEGORY = 'overview';
+
+            function normalizeHashCategory(hashValue) {
+                const normalized = String(hashValue || '').replace(/^#/, '').trim();
+                if (!normalized) return '';
+                return normalized.split('/')[0];
+            }
+
+            function hasSection(categoryId) {
+                return sections.some(section =>
+                    section.id === categoryId || section.dataset.settingsCategory === categoryId
+                );
+            }
+
+            function resolveCategory(categoryId) {
+                if (!categoryId || !hasSection(categoryId)) {
+                    return DEFAULT_CATEGORY;
+                }
+                return categoryId;
+            }
             
             function showSection(categoryId) {
+                const resolvedCategory = resolveCategory(categoryId);
                 sections.forEach(section => {
-                    if (section.id === categoryId || section.dataset.settingsCategory === categoryId) {
+                    if (section.id === resolvedCategory || section.dataset.settingsCategory === resolvedCategory) {
                         section.classList.remove('hidden');
                         section.classList.add('active');
                     } else {
@@ -215,10 +236,26 @@
                 }
             });
 
-            // Initial section from hash
-            const initialHash = window.location.hash.slice(1);
-            if (initialHash) {
-                showSection(initialHash);
+            // Keep sections in sync for manual hash navigation.
+            window.addEventListener('hashchange', () => {
+                const hashCategory = normalizeHashCategory(window.location.hash);
+                if (hashCategory) {
+                    showSection(hashCategory);
+                }
+            });
+
+            // Initial section from hash or persisted sidebar category.
+            const hashCategory = normalizeHashCategory(window.location.hash);
+            if (hashCategory) {
+                showSection(hashCategory);
+                return;
+            }
+
+            try {
+                const storedCategory = localStorage.getItem('settings:lastCategory');
+                showSection(storedCategory || DEFAULT_CATEGORY);
+            } catch {
+                showSection(DEFAULT_CATEGORY);
             }
         });
     </script>

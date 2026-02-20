@@ -5,6 +5,7 @@ import { SettingsSidebarSchema } from '../ui/contracts/Settings.Sidebar.contract
 
 const STORAGE_KEY_DEVELOPER_MODE = 'settings:developerMode';
 const STORAGE_KEY_LAST_CATEGORY = 'settings:lastCategory';
+const DEFAULT_CATEGORY = 'overview';
 
 interface Category {
   id: string;
@@ -14,13 +15,31 @@ interface Category {
 }
 
 const CATEGORIES: Category[] = [
-  { id: 'overview', label: 'Overview', icon: 'fa-chart-pie' },
+  { id: DEFAULT_CATEGORY, label: 'Overview', icon: 'fa-chart-pie' },
   { id: 'connection', label: 'Connection', icon: 'fa-plug-circle-bolt' },
   { id: 'ai-provider', label: 'AI Provider', icon: 'fa-microchip' },
   { id: 'advanced', label: 'Advanced', icon: 'fa-sliders' },
   { id: 'developer', label: 'Developer', icon: 'fa-code-branch', requiresDeveloperMode: true },
   { id: 'prompts', label: 'Prompts', icon: 'fa-terminal', requiresDeveloperMode: true },
 ];
+
+const parseHashCategory = (hashValue: string): string | null => {
+  const normalized = hashValue.replace(/^#/, '').trim();
+  if (!normalized) return null;
+  const [categoryId] = normalized.split('/');
+  return CATEGORIES.some((cat) => cat.id === categoryId) ? categoryId : null;
+};
+
+const resolveCategory = (
+  categoryId: string | null | undefined,
+  developerMode: boolean
+): string => {
+  if (!categoryId) return DEFAULT_CATEGORY;
+  const category = CATEGORIES.find((cat) => cat.id === categoryId);
+  if (!category) return DEFAULT_CATEGORY;
+  if (category.requiresDeveloperMode && !developerMode) return DEFAULT_CATEGORY;
+  return category.id;
+};
 
 /**
  * SettingsSidebarIsland - Navigation sidebar for settings page
@@ -40,11 +59,21 @@ export default function SettingsSidebarIsland(
     return stored ? stored === 'true' : Boolean(validated.developerModeEnabled || false);
   });
 
-  // Initialize active category from localStorage or props
+  // Initialize active category from hash, localStorage, or props
   const [activeCategory, setActiveCategory] = useState(() => {
-    if (typeof localStorage === 'undefined') return validated.activeCategory || 'overview';
-    const stored = localStorage.getItem(STORAGE_KEY_LAST_CATEGORY);
-    return stored || validated.activeCategory || 'overview';
+    if (typeof window !== 'undefined') {
+      const hashCategory = parseHashCategory(window.location.hash);
+      if (hashCategory) {
+        return resolveCategory(hashCategory, developerMode);
+      }
+    }
+    if (typeof localStorage !== 'undefined') {
+      const stored = localStorage.getItem(STORAGE_KEY_LAST_CATEGORY);
+      if (stored) {
+        return resolveCategory(stored, developerMode);
+      }
+    }
+    return resolveCategory(validated.activeCategory, developerMode);
   });
 
   const toggleRef = useRef(null as HTMLButtonElement | null);
@@ -82,25 +111,34 @@ export default function SettingsSidebarIsland(
     const handleNavigate = (e: Event) => {
       const customEvent = e as CustomEvent;
       const categoryId = customEvent.detail?.category;
+      if (!categoryId) return;
+      const resolvedCategory = resolveCategory(categoryId, developerMode);
       
-      // OPTIMIZATION: Only update and re-dispatch if category actually changes
-      // to prevent "UI getting stuck" due to rapid event cycles.
-      if (categoryId && categoryId !== activeCategory) {
-        setActiveCategory(categoryId);
-        
-        // Use a short delay to prevent event loops and allow state to settle
-        setTimeout(() => {
-          dispatchSettingsEvent('settings:category-changed', { 
-            category: categoryId,
-            focus: customEvent.detail.focus 
-          });
-        }, 50);
+      // Update state only when category changes, but always emit the
+      // category event to keep section visibility synchronized.
+      if (resolvedCategory !== activeCategory) {
+        setActiveCategory(resolvedCategory);
       }
+
+      if (typeof window !== 'undefined') {
+        const nextHash = `#${resolvedCategory}`;
+        if (window.location.hash !== nextHash) {
+          window.location.hash = resolvedCategory;
+        }
+      }
+
+      // Use a short delay to prevent event loops and allow state to settle
+      setTimeout(() => {
+        dispatchSettingsEvent('settings:category-changed', { 
+          category: resolvedCategory,
+          focus: customEvent.detail.focus 
+        });
+      }, 50);
     };
 
     document.addEventListener('settings:navigate', handleNavigate);
     return () => document.removeEventListener('settings:navigate', handleNavigate);
-  }, []);
+  }, [activeCategory, developerMode]);
 
   // Listen to URL hash changes for direct navigation
   useEffect(() => {
@@ -108,10 +146,19 @@ export default function SettingsSidebarIsland(
 
     const win = window;
     const handleHashChange = () => {
-      const hash = win.location.hash.slice(1);
-      if (hash && CATEGORIES.some((cat) => cat.id === hash)) {
-        setActiveCategory(hash);
+      const hashCategory = parseHashCategory(win.location.hash);
+      if (!hashCategory) return;
+      const resolvedCategory = resolveCategory(hashCategory, developerMode);
+      if (resolvedCategory !== activeCategory) {
+        setActiveCategory(resolvedCategory);
       }
+      if (resolvedCategory !== hashCategory) {
+        const nextHash = `#${resolvedCategory}`;
+        if (win.location.hash !== nextHash) {
+          win.location.hash = resolvedCategory;
+        }
+      }
+      dispatchSettingsEvent('settings:category-changed', { category: resolvedCategory });
     };
 
     win.addEventListener('hashchange', handleHashChange);
@@ -120,21 +167,35 @@ export default function SettingsSidebarIsland(
     handleHashChange();
 
     return () => win.removeEventListener('hashchange', handleHashChange);
-  }, []);
+  }, [activeCategory, developerMode]);
+
+  // Keep initial no-hash route in sync with persisted sidebar state.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (parseHashCategory(window.location.hash)) return;
+    dispatchSettingsEvent('settings:category-changed', { category: activeCategory });
+  }, [activeCategory]);
 
   const handleCategoryClick = (categoryId: string) => {
-    if (categoryId === activeCategory) return;
-    
-    setActiveCategory(categoryId);
+    const resolvedCategory = resolveCategory(categoryId, developerMode);
+
+    if (resolvedCategory !== activeCategory) {
+      setActiveCategory(resolvedCategory);
+    }
 
     // Update URL hash immediately for UI feedback
     if (typeof window !== 'undefined') {
-      window.location.hash = categoryId;
+      const nextHash = `#${resolvedCategory}`;
+      if (window.location.hash !== nextHash) {
+        window.location.hash = resolvedCategory;
+      }
     }
 
     // Delay event to allow Preact state to settle and prevent synchronous loops
     setTimeout(() => {
-      dispatchSettingsEvent('settings:category-changed', { category: categoryId });
+      dispatchSettingsEvent('settings:category-changed', {
+        category: resolvedCategory
+      });
     }, 50);
   };
 

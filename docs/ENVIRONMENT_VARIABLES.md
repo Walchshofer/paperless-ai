@@ -349,12 +349,18 @@ Below are the advanced variables (section 20 in `docker-compose.env`) with recom
 - `CUSTOM_FIELDS` — Optional JSON string (e.g., `{"custom_fields":[]}`) used by prompt templates.
 - `DEFAULT_INDEX_NAME` — Default: `paperless_visual`. Index name used when none provided.
 - `ENABLE_EXPERT_PIPELINE` — `yes|no`. Enable expert orchestration pipelines.
+- `ENABLE_VISUAL_RAG` — Recommended: `yes` as the visual-first enrichment
+  baseline. Keep text retrieval fallback enabled by policy for sidecar
+  unavailability and `503 Initializing` recovery.
 - `ENABLE_LEGACY_FALLBACK` — `no` by default. When `yes`, try legacy behaviors for backward compatibility.
 - `ENABLE_MEDICAL_PIPELINE` — `no` by default. Enable medical domain-specific steps and models.
 - `ENABLE_METRICS` — `yes` to emit metrics to Prometheus/Grafana.
 - `ENABLE_OVERLAY_EXTRACTION` — `yes` to extract overlay metadata during ingestion.
 - `ENABLE_VAT_RAG` — `no` by default; enable only for VAT-specific workflows.
 - `ENABLE_VISUAL_RAG_SIDECAR` — Recommended: `yes` to start sidecar in compose stacks.
+- `FORCE_VISUAL_RAG` — Recommended: `no` for normal operation. Use only for
+  diagnostic forcing; default policy is visual-first with explicit text
+  fallback, not hard-force mode.
 - `EXPERT_MODELS_CACHE_TTL_MS` — Optional: TTL for caching expert models (ms), e.g., `86400000`.
 - `EXTERNAL_API_BODY` — Optional: body template for external API calls.
 - `EXTERNAL_API_ENABLED` — `yes|no`. Enable external webhook calls or integrations.

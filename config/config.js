@@ -577,7 +577,7 @@ module.exports = {
   useExistingData: process.env.USE_EXISTING_DATA || 'no',
   // Visual RAG configuration
   visualRag: {
-    enabled: parseEnvBoolean(process.env.ENABLE_VISUAL_RAG, 'no'),
+    enabled: parseEnvBoolean(process.env.ENABLE_VISUAL_RAG, 'yes'),
     textQualityThreshold: parseInt(process.env.TEXT_QUALITY_THRESHOLD || '60', 10),
     forceVision: parseEnvBoolean(process.env.FORCE_VISUAL_RAG, 'no'),
     visionRenderDpi: parseInt(process.env.VISION_RENDER_DPI || '300', 10),
@@ -596,7 +596,7 @@ module.exports = {
   },
   // Visual RAG Sidecar configuration (Tomoro/ColQwen3)
   visualRagSidecar: {
-    enabled: parseEnvBoolean(process.env.ENABLE_VISUAL_RAG_SIDECAR, 'no'),
+    enabled: parseEnvBoolean(process.env.ENABLE_VISUAL_RAG_SIDECAR, 'yes'),
     url: process.env.VISUAL_RAG_URL || 'http://visual-rag:8001',
     timeout: parseInt(process.env.VISUAL_RAG_TIMEOUT || '30000', 10),
     queryTimeout: parseInt(process.env.VISUAL_RAG_QUERY_TIMEOUT || '500', 10),

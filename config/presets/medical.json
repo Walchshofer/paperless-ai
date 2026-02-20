@@ -10,6 +10,7 @@
     "MEDICAL_ANALYSIS_MODEL": "medtext-llama3",
     "MEDICAL_RADIOLOGY_MODEL": "llava-med-v1.6",
     "ENABLE_VISUAL_RAG": "yes",
+    "ENABLE_VISUAL_RAG_SIDECAR": "yes",
     "GUIDANCE_SERVICE_ENABLED": "yes",
     "ENABLE_MODEL_METRICS": "yes",
     "TOKEN_LIMIT": "128000",

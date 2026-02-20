@@ -1,14 +1,14 @@
 {
   "name": "production",
   "displayName": "Production",
-  "description": "Production-optimized configuration with OpenAI, minimal logging, and stable features only",
+  "description": "Production-optimized configuration with OpenAI and visual-first enrichment with explicit text fallback",
   "category": "production",
   "icon": "🚀",
   "settings": {
     "AI_PROVIDER": "openai",
     "EXPERT_PIPELINE_ENABLED": "yes",
-    "ENABLE_VISUAL_RAG": "no",
-    "ENABLE_VISUAL_RAG_SIDECAR": "no",
+    "ENABLE_VISUAL_RAG": "yes",
+    "ENABLE_VISUAL_RAG_SIDECAR": "yes",
     "FORCE_VISUAL_RAG": "no",
     "GUIDANCE_SERVICE_ENABLED": "yes",
     "ENABLE_MODEL_METRICS": "yes",
