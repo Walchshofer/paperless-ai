@@ -1321,7 +1321,14 @@ class ExpertPipelineExecutor {
     try {
       // Guard: Check if already normalized (prevent re-normalization)
       const isAlreadyNormalized = await this.normalizationStore.isNormalized(docId);
-      if (isAlreadyNormalized) {
+      
+      // Fetch user settings (e.g. manual rotation) from repository
+      this._initVisualRag();
+      const expertKnowledge = await this._visualOverlayRepository?.getExpertKnowledge(docId);
+      const visualSettings = expertKnowledge?.expertMetadata?.visual_settings || null;
+      const hasRotationOverride = visualSettings && Number.isFinite(visualSettings.rotation);
+
+      if (isAlreadyNormalized && !hasRotationOverride) {
         const timing = Date.now() - stageStart;
         context.skipStage(stage.id, 'Already normalized');
         this._recordStageLatency(stage, timing);
@@ -1352,14 +1359,16 @@ class ExpertPipelineExecutor {
 
       logger.info({
         event: 'stage3_normalization_processing',
-        documentId: docId
+        documentId: docId,
+        hasRotationOverride
       });
 
       // Execute normalization analysis and transformation
       const analysisStart = Date.now();
       const normalizationResult = await this.preVisionNormalizer.analyzeAndNormalize(
         docId,
-        stage.normalizationOptions || {}
+        stage.normalizationOptions || {},
+        visualSettings // Pass overrides (rotation etc)
       );
       const analysisLatency = (Date.now() - analysisStart) / 1000;
 

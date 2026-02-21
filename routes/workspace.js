@@ -14,6 +14,7 @@ const { authenticate } = require('../middleware/auth');
 const { fieldMappingService } = require('../services/experts/FieldMappingService');
 const { domainResolver } = require('../services/visual-rag-client/DomainResolver');
 const { normalizeOverlayBoundingBox } = require('../services/visual-rag-client/overlayCoordinates');
+const { isSupportedImageMimeType } = require('../services/visual-rag-client/PDFRenderer');
 const modelResolutionService = require('../services/ModelResolutionService');
 
 // All workspace routes require authentication
@@ -742,6 +743,18 @@ router.get('/doc/:id', async (req, res) => {
       }
     }
 
+    // Extract saved rotation from visual settings
+    let savedRotation = 0;
+    try {
+      if (visualOverlayRepository) {
+        const knowledge = await visualOverlayRepository.getExpertKnowledge(documentId);
+        const settings = knowledge?.expertMetadata?.visual_settings || {};
+        savedRotation = Number.isFinite(settings.rotation) ? settings.rotation : 0;
+      }
+    } catch (e) {
+      console.warn('[Unified Workspace] Could not fetch visual settings:', e.message);
+    }
+
     // Build VM
     const normalizedCustomFields = normalizeCustomFieldsForWorkspace(
       document.custom_fields
@@ -751,6 +764,10 @@ router.get('/doc/:id', async (req, res) => {
 
     const persistedNormalizedUrl = getCustomField('ai_normalized_url');
     const normalizationStatus = getCustomField('ai_normalization_status') || 'pending';
+
+    // Determine if document is visual (supported image or PDF) for preview fallback
+    const isVisual = isSupportedImageMimeType(document.mime_type) || 
+                    String(document.mime_type).toLowerCase() === 'application/pdf';
 
     const vm = {
       version: configFile.PAPERLESS_AI_VERSION || '1.0.0',
@@ -780,7 +797,10 @@ router.get('/doc/:id', async (req, res) => {
           document.id,
           '/download/original/'
         ),
-        previewUrl: buildPaperlessProxyPreviewUrl(document.id),
+        // Use thumbnail as fallback for non-visual documents (ticket:009.1)
+        previewUrl: isVisual 
+          ? buildPaperlessProxyPreviewUrl(document.id)
+          : buildPaperlessProxyUrl(document.id, '/thumb/'),
         persistedNormalizedUrl: persistedNormalizedUrl,
         normalizationStatus: normalizationStatus,
         normalizedUrl: persistedNormalizedUrl || `/api/normalized/${document.id}/1`,
@@ -804,6 +824,7 @@ router.get('/doc/:id', async (req, res) => {
         fields: visualFields,
         overlays: formattedOverlays,
         overlayCount: overlayCount,
+        rotation: savedRotation
       },
       ui: {
         activeTab: activeTab,
@@ -993,6 +1014,10 @@ router.get('/api/doc/:id', async (req, res) => {
     const persistedNormalizedUrl = getCustomField('ai_normalized_url');
     const normalizationStatus = getCustomField('ai_normalization_status') || 'pending';
 
+    // Determine if document is visual (supported image or PDF) for preview fallback
+    const isVisual = isSupportedImageMimeType(document.mime_type) || 
+                    String(document.mime_type).toLowerCase() === 'application/pdf';
+
     let documentDomain = 'general';
     try {
       documentDomain = await domainResolver.resolveDomain(documentId, {
@@ -1113,7 +1138,10 @@ router.get('/api/doc/:id', async (req, res) => {
         document.id,
         '/download/original/'
       ),
-      previewUrl: buildPaperlessProxyPreviewUrl(document.id),
+      // Use thumbnail as fallback for non-visual documents (ticket:009.1)
+      previewUrl: isVisual 
+        ? buildPaperlessProxyPreviewUrl(document.id)
+        : buildPaperlessProxyUrl(document.id, '/thumb/'),
       persistedNormalizedUrl: persistedNormalizedUrl,
       normalizationStatus: normalizationStatus,
       normalizedUrl: persistedNormalizedUrl || `/api/normalized/${document.id}/1`,

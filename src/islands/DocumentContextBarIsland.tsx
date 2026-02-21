@@ -178,7 +178,10 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
     window.addEventListener('workspace:save-failed', onSaveFailed as EventListener);
 
     try {
-      window.dispatchEvent(new CustomEvent('workspace:save-request', { detail: { documentId: currentDocumentId } }));
+      const saveId = `save-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+      window.dispatchEvent(new CustomEvent('workspace:save-request', { 
+        detail: { documentId: currentDocumentId, saveId } 
+      }));
     } catch (err) { /* ignore */ }
 
     // Timeout fallback: if save doesn't complete in 30s, stop showing saving state
@@ -267,7 +270,10 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
     window.addEventListener('workspace:save-failed', onSaveFailed as EventListener);
 
     try {
-      window.dispatchEvent(new CustomEvent('workspace:save-request', { detail: { documentId: currentDocumentId } }));
+      const saveId = `save-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+      window.dispatchEvent(new CustomEvent('workspace:save-request', { 
+        detail: { documentId: currentDocumentId, saveId } 
+      }));
     } catch (err) { /* ignore */ }
 
     // Timeout fallback: if save doesn't complete in 30s, stop showing saving state

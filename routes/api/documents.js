@@ -1124,10 +1124,27 @@ router.post('/:id/ocr/regenerate', async (req, res) => {
 
     // 2. Render images at high-res (300 DPI)
     const { pdfRenderer: renderer } = require('../../services/visual-rag-client/PDFRenderer');
-    const images = await renderer.renderBuffer(pdfBuffer, {
-        dpi: config.visualRag?.visionRenderDpi || 300,
-        docId: documentId
-    });
+    let images = [];
+    
+    try {
+      images = await renderer.renderBuffer(pdfBuffer, {
+          dpi: config.visualRag?.visionRenderDpi || 300,
+          docId: documentId
+      });
+    } catch (renderErr) {
+      // Fallback: If original is not renderable (e.g. text file), try to use the Paperless thumbnail (ticket:009.1)
+      logger.info(`[Documents API] Document ${documentId} is not renderable; attempting thumbnail fallback for OCR`);
+      const thumbBuffer = await paperlessService.getThumbnailImage(documentId);
+      if (thumbBuffer) {
+        images = [{
+          page: 1,
+          base64: thumbBuffer.toString('base64'),
+          format: 'webp' // Standard for Paperless thumbnails
+        }];
+      } else {
+        throw renderErr; // Re-throw if no thumbnail fallback possible
+      }
+    }
 
     if (!images || images.length === 0) {
       throw new Error('Failed to render document images for OCR');

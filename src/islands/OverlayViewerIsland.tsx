@@ -176,6 +176,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     suggestions: initialSuggestions = [],
     persistedNormalizedUrl,
     normalizationStatus,
+    rotation: initialRotation = 0,
   } = props;
 
   const containerRef = useRef(null as HTMLDivElement | null);
@@ -202,6 +203,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     setPersistedNormalizedUrl(props.persistedNormalizedUrl ?? null);
     setNormalizationStatus(props.normalizationStatus ?? null);
     setSuggestions(props.suggestions ?? []);
+    if (props.rotation !== undefined) setRotationDeg(props.rotation);
   }, [
     props.documentId,
     props.page,
@@ -210,7 +212,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     props.previewUrl,
     props.persistedNormalizedUrl,
     props.normalizationStatus,
-    props.suggestions
+    props.suggestions,
+    props.rotation
   ]);
 
   // Listen for global document change events (essential for SPA-like navigation without full reload)
@@ -328,7 +331,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const scaleRef = useRef(1);
   const [fitMode, setFitMode] = useState<'width' | 'height' | 'manual'>('width');
   const fitModeRef = useRef<'width' | 'height' | 'manual'>('width');
-  const [rotationDeg, setRotationDeg] = useState(0);
+  const [rotationDeg, setRotationDeg] = useState(initialRotation);
   const [panMode, setPanMode] = useState(false);
   const panActiveRef = useRef(false);
   const lastPanPointRef = useRef(null as { x: number; y: number } | null);
@@ -493,6 +496,62 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     };
   }, []);
 
+  // Save Coordinator Participation
+  useEffect(() => {
+    const participantId = 'overlay-viewer';
+
+    const onSaveRequest = async (e: Event) => {
+      const detail = (e as CustomEvent<{ saveId?: string; documentId?: number | null }>)?.detail || {};
+      const { saveId, documentId } = detail;
+      
+      if (documentId !== null && String(documentId) !== String(docId)) return;
+
+      const willSave = rotationDeg !== initialRotation;
+      
+      console.debug(`[OverlayViewerIsland] onSaveRequest: saveId=${saveId}, willSave=${willSave}`);
+
+      // 1. Ack immediately to tell coordinator we are participating (if we have changes)
+      window.dispatchEvent(new CustomEvent('workspace:save-ack', { 
+        detail: { saveId, participantId, willSave } 
+      }));
+
+      if (!willSave) return;
+
+      // 2. Perform actual persistence
+      // We do this immediately in the request handler to avoid missing save-begin race conditions
+      console.info(`[OverlayViewerIsland] Persisting rotation: ${rotationDeg} for doc ${docId} (saveId: ${saveId})`);
+
+      try {
+        // Save rotation settings to PostgreSQL
+        const response = await fetch(`/api/visual-overlays/settings/${docId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rotation: rotationDeg })
+        });
+
+        if (!response.ok) throw new Error('Failed to save visual settings');
+
+        // Trigger re-ingestion (as requested: "documents needs to be reingested (visual and text)")
+        window.dispatchEvent(new CustomEvent('workspace:reprocess-request', {
+          detail: { documentId: docId }
+        }));
+
+        // Notify coordinator of success
+        window.dispatchEvent(new CustomEvent('workspace:save-partial-complete', {
+          detail: { saveId, participantId, success: true }
+        }));
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        window.dispatchEvent(new CustomEvent('workspace:save-partial-complete', {
+          detail: { saveId, participantId, success: false, message: msg }
+        }));
+      }
+    };
+
+    window.addEventListener('workspace:save-request', onSaveRequest as EventListener);
+    return () => window.removeEventListener('workspace:save-request', onSaveRequest as EventListener);
+  }, [docId, rotationDeg, initialRotation]);
+
   const getFitScale = useCallback(
     (axis: 'width' | 'height') => {
       const container = containerRef.current;
@@ -547,7 +606,26 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   }, [getFitScale, applyScale]);
 
   const rotateClockwise = useCallback(() => {
-    setRotationDeg((prev) => (prev + 90) % 360);
+    const nextRotation = (rotationDeg + 90) % 360;
+    setRotationDeg(nextRotation);
+    
+    // Mark workspace as dirty when rotation changes
+    const isDirty = nextRotation !== initialRotation;
+    try {
+      if (typeof window !== 'undefined') {
+        (window as any).__workspaceState = (window as any).__workspaceState || {};
+        const key = String(docId);
+        (window as any).__workspaceState[key] = (window as any).__workspaceState[key] || {};
+        (window as any).__workspaceState[key].isDirty = isDirty;
+      }
+    } catch (e) { /* ignore */ }
+
+    if (isDirty) {
+      window.dispatchEvent(new CustomEvent('workspace:dirty', { 
+        detail: { documentId: docId } 
+      }));
+    }
+
     if (drawModeRef.current) {
       drawModeRef.current = false;
       setIsDrawMode(false);
@@ -562,7 +640,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     setBoxes([]);
     setSelectedRegion(null);
     setShowExportBtn(false);
-  }, []);
+  }, [rotationDeg, initialRotation, docId]);
 
   const resetView = useCallback(() => {
     setFitMode('manual');

@@ -943,6 +943,51 @@ class VisualOverlayRepository {
     }
 
     /**
+     * Save specific visual settings (e.g. rotation) for a document.
+     * These settings persist across re-ingestions and guide the normalization process.
+     * 
+     * @param {number} docId - Paperless document ID
+     * @param {Object} settings - Settings to merge (e.g. { rotation: 90 })
+     * @returns {Promise<boolean>} Success status
+     */
+    async saveVisualSettings(docId, settings) {
+        if (!this.pool) {
+            throw new Error('PostgreSQL not available');
+        }
+
+        try {
+            // Fetch current knowledge to preserve existing metadata
+            const current = await this.getExpertKnowledge(docId) || {};
+            const expertMetadata = current.expertMetadata || {};
+            
+            // Merge new settings into the visual_settings bucket
+            expertMetadata.visual_settings = {
+                ...(expertMetadata.visual_settings || {}),
+                ...settings,
+                updated_at: new Date().toISOString()
+            };
+
+            logger.info({
+                event: 'visual_settings_update',
+                docId,
+                settings: Object.keys(settings)
+            });
+
+            return await this.saveExpertKnowledge(docId, {
+                ...current,
+                expertMetadata
+            });
+        } catch (error) {
+            logger.error({
+                event: 'visual_settings_save_failed',
+                docId,
+                error: error.message
+            });
+            throw this._wrapError('Failed to save visual settings', error);
+        }
+    }
+
+    /**
      * Update expert knowledge (fallback for upsert)
      * @private
      */

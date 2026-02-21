@@ -184,7 +184,17 @@ const resolveEnvAlias = (canonicalKey, aliases = []) => {
 };
 
 resolveEnvAlias('ENABLE_VISUAL_RAG', ['VISUAL_RAG_ENABLED']);
-resolveEnvAlias('PAPERLESS_OCR_LANGUAGES', ['PAPERLESS_OCR_LANGUAGE']);
+
+/**
+ * Consolidate OCR Language SOT
+ * PAPERLESS_OCR_LANGUAGES is the modern standard (plural).
+ * We silently prioritize it and fallback to the singular version without warning
+ * to allow for a smooth migration.
+ */
+const ocrLanguages = process.env.PAPERLESS_OCR_LANGUAGES || process.env.PAPERLESS_OCR_LANGUAGE || 'eng';
+// Ensure the plural version is set in process.env for any direct consumers/dependencies
+process.env.PAPERLESS_OCR_LANGUAGES = ocrLanguages;
+
 const resolvedOllamaModel = resolveEnvAlias('OLLAMA_MODEL', ['AI_MODEL']);
 
 const _requireEnv = (key, fallbackKeys = []) => {
@@ -444,7 +454,8 @@ module.exports = {
   externalApiConfig: externalApiConfig,
   paperless: {
     apiUrl: process.env.PAPERLESS_API_URL,
-    apiToken: process.env.PAPERLESS_API_TOKEN
+    apiToken: process.env.PAPERLESS_API_TOKEN,
+    ocrLanguages: ocrLanguages || 'eng'
   },
   openai: {
     apiKey: process.env.PAPERLESS_OPENAI_API_KEY

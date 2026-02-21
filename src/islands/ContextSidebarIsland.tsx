@@ -167,6 +167,12 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
       if (detail.chat) {
         setCurrentChat(detail.chat);
       }
+
+      // ⚠️ CRITICAL: Update activeTab if provided in the switch event (deep-link precedence)
+      if (detail.activeTab) {
+        console.info('[ContextSidebarIsland] Forcing activeTab from event:', detail.activeTab);
+        setActiveTab(detail.activeTab as TabKey);
+      }
     };
 
     window.addEventListener('workspace:document-switched', handler as EventListener);

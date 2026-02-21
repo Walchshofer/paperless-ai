@@ -26,6 +26,7 @@ export const OverlayViewerSchema = z.object({
   allowSelection: z.boolean().optional().default(true),
   mode: z.enum(['view', 'draw', 'locate', 'visual-search']).optional().default('visual-search'),
   suggestions: z.array(OverlayItemSchema).optional().default([]),
+  rotation: z.number().int().optional().default(0),
 
   // Visual Overlays payloads (optional)
   images: ImagesSchema.optional(),

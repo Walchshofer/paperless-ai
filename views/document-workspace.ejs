@@ -149,10 +149,12 @@
                         page: 1,
                         pageCount: (doc && doc.pageCount) ? doc.pageCount : 1,
                         originalUrl: (doc && doc.originalUrl) ? doc.originalUrl : null,
+                        previewUrl: (doc && doc.previewUrl) ? doc.previewUrl : null,
                         mode: 'view',
                         overlayMode: 'document',
                         showLegend: false,
                         allowSelection: true,
+                        rotation: (vm.visual && vm.visual.rotation) ? vm.visual.rotation : 0,
                         persistedNormalizedUrl: (doc && doc.persistedNormalizedUrl) ? doc.persistedNormalizedUrl : null,
                         normalizationStatus: (doc && doc.normalizationStatus) ? doc.normalizationStatus : null
                     }) %>"

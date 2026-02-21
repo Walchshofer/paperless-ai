@@ -310,6 +310,48 @@ router.post('/expert-knowledge/:documentId', async (req, res) => {
 });
 
 /**
+ * POST /api/visual-overlays/settings/:documentId
+ * Updates visual settings (e.g. rotation) for a document.
+ */
+router.post('/settings/:documentId', async (req, res) => {
+  try {
+    const documentId = parseInt(req.params.documentId, 10);
+    const { rotation } = req.body;
+
+    if (isNaN(documentId) || documentId <= 0) {
+      return res.status(400).json({ error: 'Invalid document ID' });
+    }
+
+    if (!visualOverlayRepository) {
+      return res.status(503).json({ error: 'Visual RAG service not available' });
+    }
+
+    const settings = {};
+    if (rotation !== undefined) {
+      settings.rotation = parseInt(rotation, 10);
+    }
+
+    await visualOverlayRepository.saveVisualSettings(documentId, settings);
+
+    logger.info({
+      event: 'visual_settings_saved',
+      documentId,
+      settings: Object.keys(settings),
+      user: req.user?.username
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error({
+      event: 'visual_settings_update_error',
+      documentId: req.params.documentId,
+      error: error.message
+    });
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * @swagger
  * /api/visual-overlays:
  *   post:

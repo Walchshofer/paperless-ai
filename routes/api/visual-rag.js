@@ -1140,9 +1140,19 @@ router.get('/normalized/:docId', authenticateApi, async (req, res) => {
     const isImage = isSupportedImageMimeType(mimeType);
 
     if (!isPdf && !isImage) {
-      logger.warn(`[Visual-RAG API] Document ${docId} is not renderable (mime: ${mimeType})`);
+      // Fallback: Try to use Paperless-ngx thumbnail as the "scan" for non-visual documents (ticket:009.1)
+      logger.info(`[Visual-RAG API] Document ${docId} is non-visual (${mimeType}); attempting thumbnail fallback`);
+      const thumbBuffer = await paperlessService.getThumbnailImage(docId);
+      if (thumbBuffer) {
+        // Most Paperless-ngx thumbnails are webp or png
+        res.setHeader('Content-Type', 'image/webp');
+        res.setHeader('Cache-Control', 'private, max-age=60');
+        return res.send(thumbBuffer);
+      }
+
+      logger.warn(`[Visual-RAG API] Document ${docId} is not renderable and has no thumbnail (mime: ${mimeType})`);
       return res.status(415).json({
-        error: 'Document type not supported for visual rendering',
+        error: 'Document type not supported for visual rendering and no thumbnail available',
         mimeType
       });
     }

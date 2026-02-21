@@ -130,6 +130,7 @@ const UnifiedWorkspaceSchema = z.object({
       overlayId: z.string().nullable().optional(),
     })).optional().default([]),
     overlayCount: z.coerce.number().int().default(0),
+    rotation: z.coerce.number().int().default(0),
   }),
 
   ui: z.object({

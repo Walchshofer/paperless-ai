@@ -309,9 +309,10 @@ class PreVisionNormalizer {
      * Main entry point for document normalization workflow
      * @param {number} docId - Document ID
      * @param {Object} options - Analysis options (overrides instance options)
+     * @param {Object} [overrides=null] - Direct geometry overrides (skips AI analysis)
      * @returns {Promise<Object>} Normalization result
      */
-    async analyzeAndNormalize(docId, options = {}) {
+    async analyzeAndNormalize(docId, options = {}, overrides = null) {
         this.stats.totalAnalyses += 1;
 
         const result = {
@@ -334,7 +335,8 @@ class PreVisionNormalizer {
             logger.info({
                 event: 'normalization_start',
                 documentId: docId,
-                optionsProvided: Object.keys(options).length > 0
+                optionsProvided: Object.keys(options).length > 0,
+                hasOverrides: !!overrides
             });
 
             // MIME type check: Only normalize PDFs
@@ -384,49 +386,70 @@ class PreVisionNormalizer {
                 throw new Error('Failed to render document for analysis');
             }
 
-            const analysisImage = rendered[0].base64;
             const pageGeometry = {
                 width: rendered[0].width || 2480,
                 height: rendered[0].height || 3508
             };
 
-            // Load normalization template
-            const promptTemplate = await this._loadTemplate();
-            if (!promptTemplate) {
-                result.metadata.warnings.push('Template not found, skipping normalization');
-                result.success = true;
+            let geometry = null;
+
+            // Priority 1: User overrides (manual rotation/crop from UI)
+            if (overrides) {
                 logger.info({
-                    event: 'normalization_skipped_no_template',
-                    documentId: docId
+                    event: 'normalization_using_overrides',
+                    documentId: docId,
+                    overrides
                 });
-                return result;
+                geometry = this._validateGeometry({
+                    rotate: overrides.rotation ?? overrides.rotate ?? 0,
+                    needs_crop: overrides.needs_crop ?? overrides.needsCrop ?? false,
+                    crop_box: overrides.crop_box ?? overrides.cropBox ?? null,
+                    target_dpi: overrides.target_dpi ?? overrides.targetDpi ?? mergedOptions.targetDpi,
+                    confidence: 1.0,
+                    reasoning: 'User-provided overrides from workspace'
+                });
+            } else {
+                // Priority 2: AI analysis
+                const analysisImage = rendered[0].base64;
+
+                // Load normalization template
+                const promptTemplate = await this._loadTemplate();
+                if (!promptTemplate) {
+                    result.metadata.warnings.push('Template not found, skipping normalization');
+                    result.success = true;
+                    logger.info({
+                        event: 'normalization_skipped_no_template',
+                        documentId: docId
+                    });
+                    return result;
+                }
+
+                // Analyze document geometry
+                const analyzeStart = Date.now();
+                const geometryAnalysisResult = await this._analyzeGeometry(
+                    analysisImage,
+                    promptTemplate,
+                    mergedOptions.maxRetries
+                );
+                const analyzeLatency = Date.now() - analyzeStart;
+                this.stats.stageLatencies.analyzing.push(analyzeLatency);
+
+                // Parse geometry analysis response
+                geometry = this._parseGeometryAnalysis(geometryAnalysisResult);
             }
-
-            // Analyze document geometry
-            const analyzeStart = Date.now();
-            const geometryAnalysisResult = await this._analyzeGeometry(
-                analysisImage,
-                promptTemplate,
-                mergedOptions.maxRetries
-            );
-            const analyzeLatency = Date.now() - analyzeStart;
-            this.stats.stageLatencies.analyzing.push(analyzeLatency);
-
-            // Parse geometry analysis response
-            const geometry = this._parseGeometryAnalysis(geometryAnalysisResult);
 
             if (!geometry) {
-                result.metadata.warnings.push('Failed to parse geometry analysis');
+                result.metadata.warnings.push('Failed to resolve geometry');
                 result.success = true;
                 logger.info({
-                    event: 'normalization_parse_failed',
+                    event: 'normalization_resolution_failed',
                     documentId: docId
                 });
                 return result;
             }
 
-            // Check confidence threshold
-            if (geometry.confidence < mergedOptions.minConfidence) {
+            // Check confidence threshold (only for non-overrides)
+            if (!overrides && geometry.confidence < mergedOptions.minConfidence) {
                 result.metadata.warnings.push(
                     `Low confidence analysis (${geometry.confidence}), skipping normalization`
                 );
@@ -555,6 +578,19 @@ class PreVisionNormalizer {
                         documentId: docId,
                         imageCount: imageCount
                     });
+
+                    // Clear rotation override after successful application to prevent double-rotation
+                    if (overrides && Number.isFinite(overrides.rotation)) {
+                        try {
+                            const { visualOverlayRepository } = require('../../visual-rag-client/VisualOverlayRepository');
+                            if (visualOverlayRepository) {
+                                await visualOverlayRepository.saveVisualSettings(docId, { rotation: 0 });
+                                logger.info(`[PreVisionNormalizer] Cleared rotation override for doc ${docId} after application`);
+                            }
+                        } catch (clearErr) {
+                            logger.warn(`[PreVisionNormalizer] Failed to clear rotation override: ${clearErr.message}`);
+                        }
+                    }
                 } catch (reingestError) {
                     result.metadata.warnings.push(`Re-ingestion failed: ${reingestError.message}`);
                     logger.warn({
