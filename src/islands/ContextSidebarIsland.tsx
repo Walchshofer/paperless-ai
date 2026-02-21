@@ -99,7 +99,8 @@ export interface ContextSidebarProps {
 }
 
 export default function ContextSidebarIsland(props: ContextSidebarProps) {
-  const initial = (typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem(STORAGE_KEY)) || props.activeTab || 'metadata';
+  // Deep-link (props.activeTab) should take precedence over localStorage for external navigation stability
+  const initial = props.activeTab || (typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem(STORAGE_KEY)) || 'metadata';
   const [activeTab, setActiveTab] = useState(initial as TabKey);
 
   // Local state for document data to support inline switching
@@ -172,35 +173,13 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
     return () => window.removeEventListener('workspace:document-switched', handler as EventListener);
   }, []);
 
-  // Refs for tab buttons so we can set string attributes for ARIA at runtime (axe-friendly)
+  // Tab refs preserved only for focus management if needed, but attributes handled declaratively.
   const tabRefs = useRef({} as Record<TabKey, HTMLButtonElement | null>);
-
-  // Sync selected state to DOM attributes (string) for accessibility
-  useEffect(() => {
-    tabs.forEach((t) => {
-      const el = tabRefs.current[t.key];
-      if (el) {
-        el.setAttribute('aria-selected', String(activeTab === t.key));
-        el.setAttribute('tabindex', activeTab === t.key ? '0' : '-1');
-      }
-    });
-  }, [activeTab]);
 
   // Allow tests to override admin state via global for deterministic E2E checks
   const isAdmin = Boolean(props.isAdmin || (typeof window !== 'undefined' && window.__TEST_IS_ADMIN === true));
 
-  useEffect(() => {
-    try {
-      if (window && window.localStorage) {
-        const stored = window.localStorage.getItem(STORAGE_KEY);
-        if (stored) setActiveTab(stored as TabKey);
-      }
-    } catch (err: unknown) {
-      // localStorage may be disabled in some environments (e.g., browser privacy mode)
-      const msg = err instanceof Error ? err.message : String(err);
-      console.warn('[ContextSidebarIsland] Unable to read from localStorage:', msg);
-    }
-  }, []);
+  // Hydration logic handled in useState initializer to ensure precedence logic applies immediately.
 
   useEffect(() => {
     try {
@@ -252,6 +231,8 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
             id={`tab-${t.key}`}
             role="tab"
             aria-controls={`panel-${t.key}`}
+            aria-selected={activeTab === t.key}
+            tabIndex={activeTab === t.key ? 0 : -1}
             title={tabTooltips[t.key]}
             data-testid={t.testid}
             ref={(el: HTMLButtonElement | null) => { tabRefs.current[t.key] = el; }}

@@ -823,6 +823,13 @@ class VisualOverlayRepository {
                 WHERE retrieval_quality_score >= 0.7
             `);
 
+            // Ensure unique constraint for expert knowledge to support upsert (ON CONFLICT)
+            await this.pool.query(`
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_expert_knowledge_unique 
+                ON visual_overlays (doc_id, page_number) 
+                WHERE page_number = 0 AND semantic_label = 'expert_knowledge'
+            `);
+
             // Note: Vector indexes (HNSW, IVFFLAT) removed - using Qdrant instead
 
             logger.info({
@@ -892,7 +899,7 @@ class VisualOverlayRepository {
             INSERT INTO visual_overlays (doc_id, page_number, overlay_data, semantic_label,
                 enhanced_ocr_text, expert_metadata, domain_view, domain_signals,
                 retrieval_quality_score, expert_routing_weights)
-            VALUES ($1, 0, '{}', 'expert_knowledge', $2, $3, $4, $5, $6, $7)
+            VALUES ($1, 0, '{"label": "expert_knowledge", "box": [0,0,0,0]}', 'expert_knowledge', $2, $3, $4, $5, $6, $7)
             ON CONFLICT (doc_id, page_number) WHERE page_number = 0 AND semantic_label = 'expert_knowledge'
             DO UPDATE SET
                 enhanced_ocr_text = EXCLUDED.enhanced_ocr_text,

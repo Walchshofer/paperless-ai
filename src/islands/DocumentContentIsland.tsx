@@ -27,6 +27,16 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [useRegex, setUseRegex] = useState(false);
 
+  // Memoize the effective content based on the selected mode
+  const effectiveContent = useMemo(() => {
+    if (ocrMode === 'high-res' && visOcrPages.length > 0) {
+      return visOcrPages
+        .map(p => `--- Page ${p.pageNumber} ---\n${p.text}`)
+        .join('\n\n');
+    }
+    return content;
+  }, [ocrMode, content, visOcrPages]);
+
   // Hydrate initial values from props to avoid passing type assertions into the hook call
   useEffect(() => {
     if (props.documentId !== undefined && props.documentId !== null) {
@@ -239,16 +249,6 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
       return next;
     });
   };
-
-  // Memoize the effective content based on the selected mode
-  const effectiveContent = useMemo(() => {
-    if (ocrMode === 'high-res' && visOcrPages.length > 0) {
-      return visOcrPages
-        .map(p => `--- Page ${p.pageNumber} ---\n${p.text}`)
-        .join('\n\n');
-    }
-    return content;
-  }, [ocrMode, content, visOcrPages]);
 
   const handleStartEditing = () => {
     setEditedContent(effectiveContent);
