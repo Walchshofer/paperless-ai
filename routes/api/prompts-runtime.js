@@ -508,38 +508,31 @@ router.post('/context', express.json(), authenticateApi, requireAdmin, async (re
               );
             }
 
-            const isImage = preparedDocument.mime_type
-              && preparedDocument.mime_type.startsWith('image/');
-
-            if (isImage) {
-              logger.info(
-                `[Prompts Runtime] Loading image directly for doc ${parsedDocumentId} (${preparedDocument.mime_type})`
-              );
-              const imageBuffer = await paperlessService.downloadDocument(
-                parsedDocumentId
-              );
-              if (imageBuffer) {
-                const preparedImage = await ImagePreparator.prepare(imageBuffer);
+            const { pdfRenderer } = require('../../services/visual-rag-client/PDFRenderer');
+            const downloadBuffer = await paperlessService.downloadDocument(parsedDocumentId);
+            
+            if (downloadBuffer) {
+              const detectedFormat = ImagePreparator._detectImageFormat(downloadBuffer);
+              logger.info(`[Prompts Runtime] Downloaded doc ${parsedDocumentId}, detected format: ${detectedFormat}`);
+              
+              if (detectedFormat !== 'pdf' && detectedFormat !== 'unknown') {
+                // It's a supported image format, use it directly
+                logger.info(`[Prompts Runtime] Using image directly for doc ${parsedDocumentId} (${detectedFormat})`);
+                const preparedImage = await ImagePreparator.prepare(downloadBuffer);
                 if (preparedImage?.base64) {
                   preparedDocument.image_data = preparedImage.base64;
                   preparedDocument.base64Images = [preparedImage.base64];
                 }
                 preparedDocument.page_count = 1;
-              }
-            } else {
-              logger.info(
-                `[Prompts Runtime] Rendering full PNG set for doc ${parsedDocumentId} at 300 DPI (pages=${expectedPages})`
-              );
-              const { pdfRenderer } = require('../../services/visual-rag-client/PDFRenderer');
-              const pdfBuffer = await paperlessService.downloadDocument(
-                parsedDocumentId
-              );
-              if (pdfBuffer) {
-                const images = await pdfRenderer.renderBuffer(pdfBuffer, {
+              } else {
+                // It's a PDF or something that needs rendering (or fallback to render attempt)
+                logger.info(`[Prompts Runtime] Rendering doc ${parsedDocumentId} at 300 DPI (pages=${expectedPages})`);
+                const images = await pdfRenderer.renderBuffer(downloadBuffer, {
                   dpi: 300,
                   maxPages: expectedPages,
                   docId: parsedDocumentId
                 });
+                
                 if (images && images.length > 0) {
                   const runtimeImages = images
                     .map((image) => toPngDataUrl(image.base64))
@@ -573,11 +566,15 @@ router.post('/context', express.json(), authenticateApi, requireAdmin, async (re
           }
         } catch (imgErr) {
           logger.warn(`[Prompts Runtime] Failed to load images for doc ${parsedDocumentId}:`, imgErr.message);
-          if (isCriticalVisualErrorCode(imgErr.code)) {
+          const mustFailForPrompt = needsMultimodal === true;
+          if (isCriticalVisualErrorCode(imgErr.code) || mustFailForPrompt) {
+            const errorCode = isCriticalVisualErrorCode(imgErr.code)
+              ? imgErr.code
+              : 'VISUAL_INPUT_MISSING';
             return res.status(422).json({
               success: false,
               error: imgErr.message,
-              code: imgErr.code
+              code: errorCode
             });
           }
         }

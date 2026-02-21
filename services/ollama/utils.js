@@ -43,12 +43,57 @@ async function writePromptToFile(content) {
 
 function extractJsonFromResponse(responseText) {
     if (!responseText || typeof responseText !== 'string') return null;
-    try { return JSON.parse(responseText); } catch (e) {}
-    const match = responseText.match(/\{[\s\S]*\}/);
+    
+    // 1) Handle closed/unclosed thinking tags
+    let cleaned = responseText;
+    cleaned = cleaned.replace(/<(think|thinking|reasoning)>[\s\S]*?<\/\1>/gi, '');
+    if (cleaned.includes('<think>') && !cleaned.includes('</think>')) {
+        cleaned = cleaned.split('<think>')[0];
+    } else if (cleaned.includes('<thinking>') && !cleaned.includes('</thinking>')) {
+        cleaned = cleaned.split('<thinking>')[0];
+    } else if (cleaned.includes('<reasoning>') && !cleaned.includes('</reasoning>')) {
+        cleaned = cleaned.split('<reasoning>')[0];
+    }
+    cleaned = cleaned.trim();
+    if (!cleaned) return null;
+
+    // 2) Try direct parse
+    try { return JSON.parse(cleaned); } catch (e) {}
+
+    // 3) Try Markdown code fences
+    const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fenceMatch && fenceMatch[1]) {
+        const content = fenceMatch[1].trim();
+        try { return JSON.parse(content); } catch (e) {
+            const innerBraceMatch = content.match(/\{[\s\S]*\}/);
+            if (innerBraceMatch) {
+                try { return JSON.parse(innerBraceMatch[0]); } catch (e2) { /* fallthrough */ }
+            }
+        }
+    }
+
+    // 4) Try braced JSON extraction
+    const match = cleaned.match(/\{[\s\S]*\}/);
     if (match) {
         try { return JSON.parse(match[0]); } catch (e) {}
     }
     return null;
+}
+
+function stripThinkingTags(text) {
+    if (!text || typeof text !== 'string') return '';
+    let cleaned = text;
+    // Strip closed tags
+    cleaned = cleaned.replace(/<(think|thinking|reasoning)>[\s\S]*?<\/\1>/gi, '');
+    // Handle unclosed tags (truncation during thinking)
+    if (cleaned.includes('<think>') && !cleaned.includes('</think>')) {
+        cleaned = cleaned.split('<think>')[0];
+    } else if (cleaned.includes('<thinking>') && !cleaned.includes('</thinking>')) {
+        cleaned = cleaned.split('<thinking>')[0];
+    } else if (cleaned.includes('<reasoning>') && !cleaned.includes('</reasoning>')) {
+        cleaned = cleaned.split('<reasoning>')[0];
+    }
+    return cleaned.trim();
 }
 
 module.exports = {
@@ -56,5 +101,6 @@ module.exports = {
     truncateToTokenLimit,
     validateDocumentContent,
     writePromptToFile,
-    extractJsonFromResponse
+    extractJsonFromResponse,
+    stripThinkingTags
 };

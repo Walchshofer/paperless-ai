@@ -320,7 +320,13 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
                 <p className="text-[9px] font-bold text-indigo-600/70 dark:text-indigo-400/70 uppercase">Immutable Tesseract extraction layer</p>
               </div>
             </div>
-            <DocumentContentIsland documentId={currentDocument?.id} content={currentDocument?.content || ''} />
+            <DocumentContentIsland 
+              documentId={currentDocument?.id} 
+              content={currentDocument?.content || ''}
+              visOcrPages={currentDocument?.visOcrPages}
+              visOcrSource={currentDocument?.visOcrSource}
+              visOcrQuality={currentDocument?.visOcrQuality}
+            />
           </div>
         )}
 

@@ -60,12 +60,22 @@ test.describe('Prompt Test Lab Runtime Context', () => {
     const promptsIsland = page.locator('[data-island="prompts-settings-island"]');
     await expect(promptsIsland).toHaveAttribute('data-mounted', 'true', { timeout: 60000 });
 
+    // Ensure the Prompts category is active (hash-only navigation is unreliable).
+    const promptsCategory = page.locator('[data-testid="category-prompts"]');
+    await expect(promptsCategory).toBeVisible({ timeout: 15000 });
+    await promptsCategory.click();
+    await expect(page.locator('[data-testid="settings-section-prompts"]')).toBeVisible({
+      timeout: 15000
+    });
+
     // Open any prompt editor (e.g., first one in System domain)
     const domainHeader = page.locator('[data-testid="domain-header-system"]');
     if (await domainHeader.getAttribute('aria-expanded') === 'false') {
       await domainHeader.click();
     }
     const firstRow = page.locator('[data-testid^="prompt-row-"]').first();
+    await firstRow.scrollIntoViewIfNeeded();
+    await expect(firstRow).toBeVisible({ timeout: 10000 });
     await firstRow.click();
 
     // Open Test Lab

@@ -7,6 +7,7 @@
 
 const config = require('../../config/config');
 const logger = require('../logger');
+const { stripThinkingTags } = require('../ollama/utils');
 const { promptRegistry, MODEL_NAMES } = require('../prompts/PromptRegistry');
 const { resolveDocumentImages } = require('./utils');
 const { CircuitBreaker, CircuitState } = require('./CircuitBreaker');
@@ -315,16 +316,7 @@ class VisualTriageService {
     }
 
     // 1) Handle closed/unclosed thinking tags
-    let cleaned = raw;
-    cleaned = cleaned.replace(/<(think|thinking|reasoning)>[\s\S]*?<\/\1>/gi, '');
-    if (cleaned.includes('<think>') && !cleaned.includes('</think>')) {
-      cleaned = cleaned.split('<think>')[0];
-    } else if (cleaned.includes('<thinking>') && !cleaned.includes('</thinking>')) {
-      cleaned = cleaned.split('<thinking>')[0];
-    } else if (cleaned.includes('<reasoning>') && !cleaned.includes('</reasoning>')) {
-      cleaned = cleaned.split('<reasoning>')[0];
-    }
-    cleaned = cleaned.trim();
+    const cleaned = stripThinkingTags(raw);
     if (!cleaned) return null;
 
     // 2) Try direct parse

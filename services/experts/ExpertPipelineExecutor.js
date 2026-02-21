@@ -13,7 +13,7 @@ const axios = require('axios');
 const logger = require('../logger');
 const config = require('../../config/config');
 
-const { calculateTokens, truncateToTokenLimit } = require('../ollama/utils');
+const { calculateTokens, truncateToTokenLimit, stripThinkingTags } = require('../ollama/utils');
 const truncationMetrics = require('../ollama/truncationMetrics');
 
 const { metricsCollector } = require('../metrics/PrometheusMetrics');
@@ -3922,8 +3922,33 @@ class ExpertPipelineExecutor {
       timeout
     );
 
-    const content =
+    let content =
       typeof response === 'string' ? response : response?.message?.content || response?.response || '';
+
+    // Strip monologue and thinking tags from production extraction
+    content = stripThinkingTags(content);
+
+    // If guidance is available and it's a multimodal OCR call, apply the secondary purification pass
+    // to match the quality and stability confirmed in the Test Lab.
+    if (content && content.length > 0 && guidanceClient) {
+      try {
+        // Note: text_cleaner is a lightweight Guidance template that removes 
+        // conversational preamble and post-generation chatter.
+        const cleaned = await guidanceClient.generate('text_cleaner', { text: content });
+        if (cleaned.success && cleaned.generated?.output) {
+          content = cleaned.generated.output;
+          logger.debug({
+            event: 'production_ocr_text_purified',
+            page: pageNumber
+          });
+        }
+      } catch (cleanErr) {
+        logger.warn({
+          event: 'production_ocr_purification_failed',
+          error: cleanErr.message
+        });
+      }
+    }
 
     return content.trim();
   }

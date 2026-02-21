@@ -359,16 +359,13 @@ const VIS_OCR_V1 = {
     model: MODEL_NAMES.multimodalVision,
     modelType: ModelType.MULTIMODAL,
     
-    systemPrompt: `EXTRACT ALL TEXT FROM THE IMAGE. MAINTAIN LAYOUT. 
-NO INTERNAL MONOLOGUE. NO THINKING TAGS. NO CONVERSATION.
-PROVIDE THE EXTRACTION DIRECTLY WITHOUT INTERNAL MONOLOGUE.`,
+    systemPrompt: `Extract all text from the image. Maintain layout. No monologue.`,
 
-    userTemplate: `TEXT EXTRACTION:
-PAGE {{page_number}}/{{total_pages}}`,
+    userTemplate: `PAGE {{page_number}}/{{total_pages}}`,
 
     config: {
         temperature: 0.0,
-        maxTokens: config.expertModels?.legal?.vision?.limits?.maxResponseTokens || 32768,
+        maxTokens: config.expertModels?.system?.vision?.limits?.maxResponseTokens || 32768,
         topK: 1,
         topP: 1.0
     }

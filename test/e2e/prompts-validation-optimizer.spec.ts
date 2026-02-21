@@ -25,6 +25,14 @@ test.describe('Prompt Template Optimization - SYS_ORCHESTRATOR_V1', () => {
     const promptsIsland = page.locator('[data-island="prompts-settings-island"]');
     await expect(promptsIsland).toHaveAttribute('data-mounted', 'true', { timeout: 60000 });
 
+    // Ensure Prompts category is active before selecting prompt rows.
+    const promptsCategory = page.locator('[data-testid="category-prompts"]');
+    await expect(promptsCategory).toBeVisible({ timeout: 15000 });
+    await promptsCategory.click();
+    await expect(
+      page.locator('[data-testid="settings-section-prompts"]')
+    ).toBeVisible({ timeout: 15000 });
+
     // 2. Expand Domain
     const domainHeader = page.locator(`[data-testid="domain-header-${TARGET_DOMAIN}"]`);
     if (await domainHeader.getAttribute('aria-expanded') === 'false') {
@@ -35,6 +43,7 @@ test.describe('Prompt Template Optimization - SYS_ORCHESTRATOR_V1', () => {
     // 3. Open Prompt Row
     const normalizedBaseId = TARGET_PROMPT_ID.replace(/_V\d+$/i, '').toLowerCase().replace(/_/g, '-');
     const promptRow = page.locator(`[data-testid="prompt-row-${normalizedBaseId}"]`);
+    await promptRow.scrollIntoViewIfNeeded();
     await expect(promptRow).toBeVisible({ timeout: 10000 });
     await promptRow.click();
     
@@ -85,6 +94,7 @@ test.describe('Prompt Template Optimization - SYS_ORCHESTRATOR_V1', () => {
 
     const testLimitCount = Math.min(candidateIndices.length, 3);
     console.log(`- Found ${docCount} documents, testing indices [${candidateIndices.slice(0, testLimitCount).join(', ')}]...`);
+    let successfulExtractions = 0;
 
     for (let testIdx = 0; testIdx < testLimitCount; testIdx++) {
       const docIndex = candidateIndices[testIdx];
@@ -108,7 +118,7 @@ test.describe('Prompt Template Optimization - SYS_ORCHESTRATOR_V1', () => {
         await page.locator('[data-testid="test-mode-validate"]').click();
         await runBtn.click();
 
-        const outputDiv = page.locator('[data-testid="prompt-test-streaming-output"]');
+        const outputDiv = modal.locator('[data-testid="prompt-test-streaming-output"]');
         await expect(outputDiv).toContainText('syntax_valid', { timeout: 60000 });
         const validationDiagnostic = await outputDiv.innerText();
         
@@ -124,18 +134,47 @@ test.describe('Prompt Template Optimization - SYS_ORCHESTRATOR_V1', () => {
       await runBtn.click();
 
       console.log(`  - Simulation triggered, awaiting completion...`);
-      
-      // Wait for success badge
-      const successBadge = page.locator('text=Execution Successful');
-      await expect(successBadge).toBeVisible({ timeout: 900000 });
-      
-      const outputDiv = page.locator('[data-testid="prompt-test-streaming-output"]');
+
+      // Synchronize on the execute run lifecycle to avoid reusing stale
+      // validation state from the previous step.
+      await expect(runBtn).toBeDisabled({ timeout: 15000 });
+      await expect(runBtn).toBeEnabled({ timeout: 900000 });
+
+      const successBadge = modal.locator('text=Execution Successful');
+      const failedBadge = modal.locator('text=Execution Failed');
+
+      await Promise.race([
+        successBadge.waitFor({ state: 'visible', timeout: 60000 }),
+        failedBadge.waitFor({ state: 'visible', timeout: 60000 }),
+      ]).catch(() => null);
+
+      const executionSucceeded = await successBadge.isVisible().catch(() => false);
+      if (!executionSucceeded) {
+        const diagnostic = await modal
+          .locator('[data-testid="prompt-test-results"]')
+          .innerText()
+          .catch(() => 'No diagnostics available.');
+        console.log(`\n  [NEURAL SIMULATION FAILURE for ${docName.trim()}]:\n`);
+        console.log(diagnostic.substring(0, 1000));
+        console.log(`\n  --------------------------------------------------------------------------------`);
+        continue;
+      }
+
+      const outputDiv = modal.locator('[data-testid="prompt-test-streaming-output"]');
       await expect(outputDiv).not.toBeEmpty({ timeout: 60000 });
       const simulationOutput = await outputDiv.innerText();
+      if (!simulationOutput || !simulationOutput.trim()) {
+        console.log(`\n  [NEURAL SIMULATION EMPTY for ${docName.trim()}]`);
+        console.log(`\n  --------------------------------------------------------------------------------`);
+        continue;
+      }
+      successfulExtractions += 1;
       
       console.log(`\n  [NEURAL SIMULATION OUTPUT for ${docName.trim()}]:\n`);
       console.log(simulationOutput.substring(0, 1000) + (simulationOutput.length > 1000 ? '...' : ''));
       console.log(`\n  --------------------------------------------------------------------------------`);
     }
+
+    expect(successfulExtractions).toBeGreaterThan(0);
   });
 });

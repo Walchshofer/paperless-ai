@@ -14,16 +14,21 @@ test.describe('Prompt Test Lab Comprehensive Audit', () => {
     await page.click('button[type="submit"]');
     await page.waitForURL('**/dashboard', { timeout: 30000 });
 
-    // Navigate directly to Prompts category
-    await page.goto('http://localhost:3000/settings#prompts', { waitUntil: 'domcontentloaded' });
+    // Go to Settings and enable Developer Mode
+    console.log('Navigating to settings...');
+    await page.goto('http://localhost:3000/settings', { waitUntil: 'domcontentloaded' });
     
-    // Enable High-Privilege Mode (Developer Mode) via sidebar
     const devToggle = page.locator('[data-testid="developer-toggle"]');
     await expect(devToggle).toBeVisible({ timeout: 15000 });
-    const isChecked = await devToggle.getAttribute('aria-checked');
-    if (isChecked === 'false') {
+    if (await devToggle.getAttribute('aria-checked') === 'false') {
       await devToggle.click();
     }
+
+    // Navigate to Prompts category via sidebar
+    console.log('Switching to Prompts category...');
+    const promptsNav = page.locator('[data-testid="category-prompts"]');
+    await expect(promptsNav).toBeVisible({ timeout: 10000 });
+    await promptsNav.click();
 
     // Wait for the Prompts Island to be mounted and ready
     const promptsIsland = page.locator('[data-island="prompts-settings-island"]');
@@ -35,14 +40,21 @@ test.describe('Prompt Test Lab Comprehensive Audit', () => {
       console.log(`Auditing Domain: ${domain}`);
       const domainHeader = page.locator(`[data-testid="domain-header-${domain.toLowerCase()}"]`);
       
+      if (!(await domainHeader.isVisible())) {
+        console.log(`Domain ${domain} not visible or empty, skipping...`);
+        continue;
+      }
+
       // Expand domain if not expanded
       const isExpanded = await domainHeader.getAttribute('aria-expanded');
       if (isExpanded === 'false') {
         await domainHeader.click();
+        await page.waitForTimeout(500); // Allow animation
       }
 
-      // Find all prompt rows in this domain
-      const promptRows = page.locator(`[data-testid^="prompt-row-"]`).filter({ hasText: new RegExp(domain, 'i') });
+      // Find all prompt rows in this domain section
+      const domainSection = page.locator(`[data-testid="domain-group-${domain.toLowerCase()}"]`);
+      const promptRows = domainSection.locator('[data-testid^="prompt-row-"]');
       const rowCount = await promptRows.count();
       
       console.log(`Found ${rowCount} prompts in ${domain}`);

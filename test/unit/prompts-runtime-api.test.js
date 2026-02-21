@@ -429,5 +429,71 @@ describe('Prompts Runtime API - Variable Mapping and Execution Tracking', functi
       assert.strictEqual(jsonResponse.success, false);
       assert.ok(jsonResponse.error.includes('Document not found'));
     });
+
+    it('should return 422 for multimodal prompts when runtime image load fails', async function() {
+      const layer = promptsRuntimeRouter.stack.find(
+        (l) => l.route && l.route.path === '/context' && l.route.methods.post
+      );
+      const handler = layer.route.stack[layer.route.stack.length - 1].handle;
+      const paperlessService = require('../../services/paperlessService');
+      const { pdfRenderer } = require('../../services/visual-rag-client/PDFRenderer');
+      const helpers = require('../../routes/api/prompts-runtime')._helpers;
+
+      const originalGetDocument = paperlessService.getDocument;
+      const originalGetDocumentContent = paperlessService.getDocumentContent;
+      const originalDownloadDocument = paperlessService.downloadDocument;
+      const originalIsAvailableAsync = pdfRenderer.isAvailableAsync;
+      const originalRenderBuffer = pdfRenderer.renderBuffer;
+
+      helpers.activeExecutions.clear();
+      paperlessService.getDocument = async () => ({
+        id: 321,
+        title: 'Invalid Runtime PDF',
+        original_file_name: 'invalid.pdf',
+        mime_type: 'application/pdf',
+        page_count: 1,
+        created: '2026-01-01'
+      });
+      paperlessService.getDocumentContent = async () => '';
+      paperlessService.downloadDocument = async () => Buffer.from(
+        'ORDENSKLINIKUM LINZ',
+        'utf8'
+      );
+      pdfRenderer.isAvailableAsync = async () => true;
+      pdfRenderer.renderBuffer = async () => {
+        throw new Error('File is not a valid PDF document');
+      };
+
+      const req = {
+        body: { documentId: 321, promptId: 'VIS_OCR_V1' },
+        user: { id: 77, username: 'admin', role: 'admin' }
+      };
+      let statusCode = 200;
+      let jsonResponse = null;
+      const res = {
+        status(code) {
+          statusCode = code;
+          return this;
+        },
+        json(data) {
+          jsonResponse = data;
+        }
+      };
+
+      try {
+        await handler(req, res);
+      } finally {
+        paperlessService.getDocument = originalGetDocument;
+        paperlessService.getDocumentContent = originalGetDocumentContent;
+        paperlessService.downloadDocument = originalDownloadDocument;
+        pdfRenderer.isAvailableAsync = originalIsAvailableAsync;
+        pdfRenderer.renderBuffer = originalRenderBuffer;
+        helpers.activeExecutions.clear();
+      }
+
+      assert.strictEqual(statusCode, 422);
+      assert.strictEqual(jsonResponse.success, false);
+      assert.strictEqual(jsonResponse.code, 'VISUAL_INPUT_MISSING');
+    });
   });
 });

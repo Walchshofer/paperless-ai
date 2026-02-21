@@ -537,46 +537,125 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
 
       let currentText = '';
       let currentThinking = '';
-      let metadata = null;
+      let metadata: any = null;
       const decoder = new TextDecoder();
+      let buffer = '';
+      let activeEvent = 'message';
+      let terminalEventReceived = false;
+
+      const updateStreamingState = () => {
+        setTestStreamingResult({
+          fullText: currentText,
+          thinking: currentThinking,
+          metadata
+        });
+      };
+
+      const processEvent = (eventName: string, payload: string) => {
+        let data: any = null;
+        try {
+          data = JSON.parse(payload);
+        } catch (_parseErr) {
+          return;
+        }
+
+        if (eventName === 'metadata') {
+          metadata = data;
+          return;
+        }
+
+        if (eventName === 'token') {
+          currentText += typeof data.text === 'string' ? data.text : '';
+          updateStreamingState();
+          return;
+        }
+
+        if (eventName === 'thinking') {
+          currentThinking += typeof data.text === 'string' ? data.text : '';
+          updateStreamingState();
+          return;
+        }
+
+        if (eventName === 'done') {
+          if (!currentText && typeof data.testResult === 'string') {
+            currentText = data.testResult;
+          }
+          updateStreamingState();
+          setTestResult({
+            success: true,
+            ...(metadata || {}),
+            ...data,
+            testResult: currentText || data.testResult
+          });
+          terminalEventReceived = true;
+          setIsTesting(false);
+          return;
+        }
+
+        if (eventName === 'error') {
+          setTestResult({
+            success: false,
+            error: data.error || 'Streaming failed'
+          });
+          terminalEventReceived = true;
+          setIsTesting(false);
+        }
+      };
+
+      const processBuffer = () => {
+        let frameBoundary = buffer.indexOf('\n\n');
+        while (frameBoundary !== -1) {
+          const frame = buffer.slice(0, frameBoundary);
+          buffer = buffer.slice(frameBoundary + 2);
+          frameBoundary = buffer.indexOf('\n\n');
+
+          if (!frame.trim()) {
+            continue;
+          }
+
+          const lines = frame.split('\n');
+          let eventName = activeEvent;
+          const dataLines: string[] = [];
+
+          for (const rawLine of lines) {
+            const line = rawLine.replace(/\r$/, '');
+            if (line.startsWith('event:')) {
+              eventName = line.slice(6).trim() || activeEvent;
+              activeEvent = eventName;
+              continue;
+            }
+            if (line.startsWith('data:')) {
+              dataLines.push(line.slice(5).trimStart());
+            }
+          }
+
+          if (dataLines.length > 0) {
+            processEvent(eventName || 'message', dataLines.join('\n'));
+          }
+        }
+      };
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (value) {
+          buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, '\n');
+          processBuffer();
+        }
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-        
-        let currentEvent = '';
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            currentEvent = line.replace('event: ', '').trim();
-          } else if (line.startsWith('data: ')) {
-            const dataStr = line.replace('data: ', '').trim();
-            try {
-              const data = JSON.parse(dataStr);
-              if (currentEvent === 'metadata') {
-                metadata = data;
-              } else if (currentEvent === 'token') {
-                currentText += data.text;
-                setTestStreamingResult({ fullText: currentText, thinking: currentThinking, metadata });
-              } else if (currentEvent === 'thinking') {
-                currentThinking += data.text;
-                setTestStreamingResult({ fullText: currentText, thinking: currentThinking, metadata });
-              } else if (currentEvent === 'done') {
-                setTestResult({
-                  success: true,
-                  ...metadata,
-                  ...data,
-                  testResult: currentText || data.testResult // Use streaming text or final result
-                });
-                setIsTesting(false);
-              } else if (currentEvent === 'error') {
-                setTestResult({ success: false, error: data.error });
-                setIsTesting(false);
-              }
-            } catch (e) { /* ignore parse errors for partial chunks */ }
+        if (done) {
+          buffer += decoder.decode().replace(/\r\n/g, '\n');
+          if (buffer.trim()) {
+            buffer += '\n\n';
+            processBuffer();
           }
+          if (!terminalEventReceived) {
+            setTestResult({
+              success: false,
+              error: 'Streaming ended before completion event'
+            });
+            setIsTesting(false);
+          }
+          break;
         }
       }
     } catch (err) {
@@ -1533,7 +1612,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                       </div>
                     )}
 
-                    {testResult && testResult.jsonValid !== null && (
+                    {typeof testResult?.jsonValid === 'boolean' && (
                       <div className={`px-3 py-1.5 rounded-full border flex items-center gap-2 ${
                         testResult.jsonValid ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400'
                       }`}>

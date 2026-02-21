@@ -296,9 +296,7 @@ def create_app():
     #
     # WORKAROUND (from https://github.com/BerriAI/litellm/issues/6683):
     # Direct Ollama API call with images in separate array
-    # NOTE: raw_prompt removed from here to allow it to use standard Guidance path (3)
-    # which has better variable handling for arbitrary prompts.
-    VISION_TEMPLATES = {'normalization_geometry'}
+    VISION_TEMPLATES = {'normalization_geometry', 'raw_prompt'}
 
     def strip_base64_header(image_b64: str) -> str:
         """Strip data URI header from base64 image (Header Trap fix).
@@ -455,23 +453,45 @@ Example output for a sideways document:
 
         result = response.json()
         content = result.get("message", {}).get("content", "")
+        thinking = result.get("message", {}).get("thinking", "")
 
         app.logger.debug(
             f"Vision response: content_len={len(content)}, "
             f"preview={content[:200] if content else 'EMPTY'}"
         )
 
-        if not content or not content.strip():
+        if thinking:
+            app.logger.info(f"Vision thinking (explicit): {thinking[:100]}...")
+
+        # Parse thinking parts from content
+        parts = parse_thinking_parts(content)
+        clean_content = "".join([p[1] for p in parts if p[0] == "response"])
+
+        if not clean_content or not clean_content.strip():
+            clean_content = content
+
+        if not clean_content or not clean_content.strip():
             raise ValueError(
                 "Vision model returned empty response. "
                 "Check image validity and model vision support."
             )
 
+        # If no schema requested, return as raw output
+        if not schema_json:
+            return {"output": clean_content}
+
         try:
-            return json.loads(content)
+            return json.loads(clean_content)
         except json.JSONDecodeError as e:
+            import re
+            json_match = re.search(r'\{.*\}', clean_content, re.DOTALL)
+            if json_match:
+                try:
+                    return json.loads(json_match.group(0))
+                except Exception:
+                    pass
             app.logger.error(
-                f"Invalid JSON from vision model: {content[:500]}"
+                f"Invalid JSON from vision model: {clean_content[:500]}"
             )
             raise ValueError(f"Vision model output not valid JSON: {e}")
 
@@ -552,6 +572,7 @@ Example output for a sideways document:
         # System tools
         'prompt_validator',
         'raw_prompt',
+        'text_cleaner',
     }
 
     def get_template_func(template_name: str):
@@ -644,6 +665,9 @@ Example output for a sideways document:
         elif template_name == 'raw_prompt':
             from templates.system_tools import SystemToolsTemplates
             return SystemToolsTemplates.get_raw_prompt_executor()
+        elif template_name == 'text_cleaner':
+            from templates.system_tools import SystemToolsTemplates
+            return SystemToolsTemplates.get_text_cleaner()
         else:
             raise ValueError(f"Unknown template: {template_name}")
 

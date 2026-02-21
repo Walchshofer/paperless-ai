@@ -10,7 +10,19 @@ type Match = {
 
 export default function DocumentContentIsland(props: DocumentContentContract) {
   const [documentId, setDocumentId] = useState(null as number | null);
+  const [ocrMode, setOcrMode] = useState('original' as 'original' | 'high-res');
   const [content, setContent] = useState('' as string);
+  const [visOcrPages, setVisOcrPages] = useState(props.visOcrPages || []);
+  const [visOcrSource, setVisOcrSource] = useState(props.visOcrSource || null);
+  const [visOcrQuality, setVisOcrQuality] = useState(props.visOcrQuality || null);
+  
+  // Editing and Feedback state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null as 'success' | 'error' | null);
+  const [feedbackGiven, setFeedbackGiven] = useState(null as 'accurate' | 'correction' | null);
+
   const [searchQuery, setSearchQuery] = useState('' as string);
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [useRegex, setUseRegex] = useState(false);
@@ -23,10 +35,19 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
     if (props.content !== undefined) {
       setContent(props.content);
     }
+    if (props.visOcrPages !== undefined) {
+      setVisOcrPages(props.visOcrPages || []);
+    }
+    if (props.visOcrSource !== undefined) {
+      setVisOcrSource(props.visOcrSource || null);
+    }
+    if (props.visOcrQuality !== undefined) {
+      setVisOcrQuality(props.visOcrQuality || null);
+    }
     if (props.initialQuery !== undefined) {
       setSearchQuery(props.initialQuery);
     }
-  }, [props.documentId, props.content, props.initialQuery]);
+  }, [props.documentId, props.content, props.initialQuery, props.visOcrPages, props.visOcrSource, props.visOcrQuality]);
   const [matches, setMatches] = useState([] as Match[]);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(-1);
   const [regexError, setRegexError] = useState(null as string | null);
@@ -98,12 +119,19 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent)?.detail || {};
       if (detail.documentId !== undefined) setDocumentId(detail.documentId);
-      if (detail.content !== undefined) {
-        setContent(detail.content);
+      if (detail.content !== undefined) setContent(detail.content);
+      if (detail.visOcrPages !== undefined) setVisOcrPages(detail.visOcrPages || []);
+      if (detail.visOcrSource !== undefined) setVisOcrSource(detail.visOcrSource || null);
+      if (detail.visOcrQuality !== undefined) setVisOcrQuality(detail.visOcrQuality || null);
+      
+      if (detail.content !== undefined || detail.visOcrPages !== undefined) {
         // Reset search on new document
         setSearchQuery('');
         setMatches([]);
         setCurrentMatchIndex(-1);
+        setOcrMode('original');
+        setIsEditing(false);
+        setFeedbackGiven(null);
       }
     };
     window.addEventListener('document:selected', handler as EventListener);
@@ -119,10 +147,16 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
       if (newDocId != null && newDocId !== documentId) {
         setDocumentId(newDocId);
         setContent(document?.content || '');
+        setVisOcrPages(document?.visOcrPages || []);
+        setVisOcrSource(document?.visOcrSource || null);
+        setVisOcrQuality(document?.visOcrQuality || null);
         // Reset search on new document
         setSearchQuery('');
         setMatches([]);
         setCurrentMatchIndex(-1);
+        setOcrMode('original');
+        setIsEditing(false);
+        setFeedbackGiven(null);
         console.log(`[DocumentContent] Document switched to ${newDocId}`);
       }
     };
@@ -159,7 +193,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
         let count = 0;
         const maxMatches = 1000; 
 
-        while ((match = regex.exec(content)) !== null && count < maxMatches) {
+        while ((match = regex.exec(effectiveContent)) !== null && count < maxMatches) {
           newMatches.push({
             index: count,
             start: match.index,
@@ -183,7 +217,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [content, searchQuery, caseSensitive, useRegex]);
+  }, [effectiveContent, searchQuery, caseSensitive, useRegex]);
 
   // Scroll to match
   useEffect(() => {
@@ -206,10 +240,102 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
     });
   };
 
+  // Memoize the effective content based on the selected mode
+  const effectiveContent = useMemo(() => {
+    if (ocrMode === 'high-res' && visOcrPages.length > 0) {
+      return visOcrPages
+        .map(p => `--- Page ${p.pageNumber} ---\n${p.text}`)
+        .join('\n\n');
+    }
+    return content;
+  }, [ocrMode, content, visOcrPages]);
+
+  const handleStartEditing = () => {
+    setEditedContent(effectiveContent);
+    setIsEditing(true);
+    setSaveStatus(null);
+  };
+
+  const handleCancelEditing = () => {
+    setIsEditing(false);
+    setEditedContent('');
+  };
+
+  const handleSave = async () => {
+    if (!documentId) return;
+    setIsSaving(true);
+    setSaveStatus(null);
+
+    try {
+      // 1. Update backend (metadata/expert knowledge)
+      const response = await fetch(`/api/visual-overlays/expert-knowledge/${documentId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enhancedOcrText: editedContent,
+          originalOcrText: effectiveContent,
+          feedback: {
+            rating: 3, // neutral initial rating for edits
+            comments: 'User edited text in OCR tab'
+          }
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to save changes');
+
+      // 2. Update local state
+      if (ocrMode === 'high-res') {
+        // For simplicity, we store the edited content as a single page or update enhancedOcrText
+        // The next refresh will fetch the unified enhancedOcrText
+        // Here we just update the UI state to reflect the change
+        setVisOcrPages([{ pageNumber: 1, text: editedContent, success: true }]);
+      } else {
+        setContent(editedContent);
+      }
+
+      setSaveStatus('success');
+      setFeedbackGiven('correction');
+      setTimeout(() => {
+        setIsEditing(false);
+        setSaveStatus(null);
+      }, 1500);
+
+    } catch (err) {
+      console.error('[DocumentContent] Save failed:', err);
+      setSaveStatus('error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleVoteAccurate = async () => {
+    if (!documentId) return;
+    try {
+      const response = await fetch('/api/feedback/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          doc_id: documentId,
+          event_type: 'ocr_rating',
+          field_name: 'enhanced_ocr_text',
+          original_value: effectiveContent,
+          corrected_value: 'accurate',
+          context: { source: 'user_vote', ocr_mode: ocrMode }
+        })
+      });
+
+      if (response.ok) {
+        setFeedbackGiven('accurate');
+      }
+    } catch (err) {
+      console.error('[DocumentContent] Feedback failed:', err);
+    }
+  };
+
   // Render content with highlights
   const renderedContent = useMemo(() => {
-    if (!content) return <div className="text-gray-400 italic p-4">No content available.</div>;
-    if (matches.length === 0) return <div className="font-mono text-sm whitespace-pre-wrap">{content}</div>;
+    if (!effectiveContent) return <div className="text-gray-400 italic p-4">No content available.</div>;
+    if (matches.length === 0) return <div className="font-mono text-sm whitespace-pre-wrap">{effectiveContent}</div>;
 
     const parts = [];
     let lastIndex = 0;
@@ -245,8 +371,101 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
 
   return (
     <div data-testid="document-content-island-root" className="h-full flex flex-col">
+      {/* Mode Toggle and Info Bar */}
+      <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => { setOcrMode('original'); setMatches([]); setCurrentMatchIndex(-1); }}
+              className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${ocrMode === 'original' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              data-testid="ocr-mode-original"
+            >
+              Tesseract OCR
+            </button>
+            <button
+              onClick={() => { setOcrMode('high-res'); setMatches([]); setCurrentMatchIndex(-1); }}
+              disabled={visOcrPages.length === 0}
+              className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${ocrMode === 'high-res' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'} ${visOcrPages.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+              data-testid="ocr-mode-high-res"
+              title={visOcrPages.length === 0 ? 'High-res AI extraction not available for this document' : 'Switch to purified AI extraction'}
+            >
+              High Res AI OCR
+            </button>
+          </div>
+
+          {!isEditing && (
+            <div className="flex items-center gap-2 border-l border-gray-200 pl-4">
+              <button
+                onClick={handleStartEditing}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-slate-200 hover:border-indigo-200"
+                data-testid="ocr-start-edit"
+              >
+                <i className="fas fa-edit"></i>
+                Edit
+              </button>
+              
+              {ocrMode === 'high-res' && !feedbackGiven && (
+                <button
+                  onClick={handleVoteAccurate}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-200"
+                  data-testid="ocr-vote-accurate"
+                  title="Mark as Accurate"
+                >
+                  <i className="fas fa-thumbs-up"></i>
+                  Accurate
+                </button>
+              )}
+
+              {feedbackGiven === 'accurate' && (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-200 animate-pulse">
+                  <i className="fas fa-check-circle"></i>
+                  Verified Accurate
+                </span>
+              )}
+            </div>
+          )}
+
+          {isEditing && (
+            <div className="flex items-center gap-2 border-l border-gray-200 pl-4">
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className={`flex items-center gap-1.5 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-white rounded-lg transition-all shadow-sm ${saveStatus === 'success' ? 'bg-emerald-500' : 'bg-indigo-600 hover:bg-indigo-700'} ${isSaving ? 'opacity-70 cursor-wait' : ''}`}
+                data-testid="ocr-save-edit"
+              >
+                {isSaving ? <i className="fas fa-circle-notch fa-spin"></i> : (saveStatus === 'success' ? <i className="fas fa-check"></i> : <i className="fas fa-save"></i>)}
+                {saveStatus === 'success' ? 'Saved' : (isSaving ? 'Saving...' : 'Save Changes')}
+              </button>
+              <button
+                onClick={handleCancelEditing}
+                disabled={isSaving}
+                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                data-testid="ocr-cancel-edit"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+        
+        {ocrMode === 'high-res' && !isEditing && (
+          <div className="flex items-center gap-3" data-testid="ocr-ai-info-bar">
+            <div className="flex items-center gap-1.5 bg-indigo-50 px-2 py-1 rounded border border-indigo-100" data-testid="ocr-ai-source-badge">
+              <span className="text-[10px] font-black uppercase text-indigo-400">Source</span>
+              <span className="text-[10px] font-bold text-indigo-700">{visOcrSource || 'Neural Engine'}</span>
+            </div>
+            {visOcrQuality !== null && (
+              <div className="flex items-center gap-1.5 bg-emerald-50 px-2 py-1 rounded border border-emerald-100" data-testid="ocr-ai-quality-badge">
+                <span className="text-[10px] font-black uppercase text-emerald-400">Quality</span>
+                <span className="text-[10px] font-bold text-emerald-700">{Math.round(visOcrQuality * 100)}%</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Search Toolbar */}
-      <div className="bg-gray-50 border-b border-gray-200 p-2 flex flex-wrap gap-2 items-center text-sm sticky top-0 z-10">
+      {!isEditing && <div className="bg-gray-50 border-b border-gray-200 p-2 flex flex-wrap gap-2 items-center text-sm sticky top-0 z-10">
         <div className="relative flex-1 min-w-[200px]">
           <input 
             type="text"
@@ -303,7 +522,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
           <button
             onClick={() => {
               if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('export:text-requested', { detail: { text: content } }));
+                window.dispatchEvent(new CustomEvent('export:text-requested', { detail: { text: effectiveContent } }));
               }
             }}
             className="px-2 py-1 border rounded text-xs bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
@@ -314,7 +533,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
           </button>
           <button
             onClick={() => {
-              const context = { type: 'text', data: { text: content.substring(0, 5000) }, documentId }; // Limit text size
+              const context = { type: 'text', data: { text: effectiveContent.substring(0, 5000) }, documentId }; // Limit text size
               window.location.href = `/workspace/doc/${documentId}?tab=chat&context=${encodeURIComponent(JSON.stringify(context))}`;
             }}
             className="px-2 py-1 border rounded text-xs bg-white border-gray-300 hover:bg-gray-50 text-green-600"
@@ -324,7 +543,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
             <i className="fas fa-comment-dots"></i>
           </button>
         </div>
-      </div>
+      </div>}
 
       {regexError && (
         <div className="bg-red-50 text-red-700 text-xs px-3 py-1 border-b border-red-100">
@@ -336,9 +555,27 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
       <div 
         ref={contentRef}
         data-testid="document-content-area"
-        className="flex-1 overflow-auto p-4 bg-white"
+        className="flex-1 overflow-auto bg-white flex flex-col min-h-0"
       >
-        {renderedContent}
+        {isEditing ? (
+          <div className="flex-1 flex flex-col p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Editing {ocrMode === 'high-res' ? 'Expert' : 'Tesseract'} Extraction</span>
+              <span className="text-[10px] font-mono text-slate-400">{editedContent.length} characters</span>
+            </div>
+            <textarea
+              value={editedContent}
+              onInput={(e) => setEditedContent((e.target as HTMLTextAreaElement).value)}
+              className="flex-1 w-full p-4 font-mono text-sm border-2 border-indigo-100 rounded-xl focus:border-indigo-300 focus:ring-0 resize-none outline-none bg-slate-50/30"
+              data-testid="ocr-edit-textarea"
+              placeholder="Correct the extracted text here..."
+            ></textarea>
+          </div>
+        ) : (
+          <div className="p-4 flex-1">
+            {renderedContent}
+          </div>
+        )}
       </div>
 
       {/* Export Toolbar (floating) */}

@@ -326,6 +326,133 @@ describe('Prompts API - Template Testing and Validation', function() {
       assert.ok(!capturedImages[0].startsWith('data:image/'));
     });
 
+    it('should set jsonValid to null for VIS_OCR_V1 plain-text output', async function() {
+      const layer = promptsRouter.stack.find(
+        (l) => l.route && l.route.path === '/:id/test' && l.route.methods.post
+      );
+      const handler = layer.route.stack[layer.route.stack.length - 1].handle;
+
+      const aiFactory = require('../../services/aiServiceFactory');
+      const originalGetService = aiFactory.getService;
+      aiFactory.getService = () => ({
+        _callOllamaVisionAPI: async () => ({
+          response: 'Plain OCR text line 1\nPlain OCR text line 2',
+          model: 'qwen3-vl:8b',
+          eval_count: 128
+        })
+      });
+
+      const tmpImagePath = path.join(
+        os.tmpdir(),
+        `prompts-api-test-${Date.now()}-vis-ocr.png`
+      );
+      const png1x1 =
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAF+wJ/lq0w5gAAAABJRU5ErkJggg==';
+      await fs.writeFile(tmpImagePath, Buffer.from(png1x1, 'base64'));
+
+      const req = {
+        params: { id: 'VIS_OCR_V1' },
+        body: {
+          mode: 'execute',
+          variables: {
+            page_number: '1',
+            total_pages: '1',
+            __image_path: tmpImagePath
+          }
+        },
+        user: { id: 1, username: 'admin', role: 'admin' }
+      };
+
+      let statusCode = 200;
+      let jsonResponse = null;
+      const res = {
+        status(code) {
+          statusCode = code;
+          return this;
+        },
+        json(data) {
+          jsonResponse = data;
+        }
+      };
+
+      try {
+        await handler(req, res);
+      } finally {
+        aiFactory.getService = originalGetService;
+        await fs.unlink(tmpImagePath).catch(() => {});
+      }
+
+      assert.strictEqual(statusCode, 200);
+      assert.strictEqual(jsonResponse.success, true);
+      assert.strictEqual(jsonResponse.source, 'ollama-vision');
+      assert.strictEqual(jsonResponse.jsonValid, null);
+      assert.ok(
+        String(jsonResponse.testResult || '').includes('Plain OCR text line 1')
+      );
+    });
+
+    it('should fail multimodal execute when vision call errors', async function() {
+      const layer = promptsRouter.stack.find(
+        (l) => l.route && l.route.path === '/:id/test' && l.route.methods.post
+      );
+      const handler = layer.route.stack[layer.route.stack.length - 1].handle;
+
+      const aiFactory = require('../../services/aiServiceFactory');
+      const originalGetService = aiFactory.getService;
+      aiFactory.getService = () => ({
+        _callOllamaVisionAPI: async () => {
+          throw new Error('Request failed with status code 500');
+        }
+      });
+
+      const tmpImagePath = path.join(
+        os.tmpdir(),
+        `prompts-api-test-${Date.now()}-vis-fail.png`
+      );
+      const png1x1 =
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAF+wJ/lq0w5gAAAABJRU5ErkJggg==';
+      await fs.writeFile(tmpImagePath, Buffer.from(png1x1, 'base64'));
+
+      const req = {
+        params: { id: 'VIS_OCR_V1' },
+        body: {
+          mode: 'execute',
+          variables: {
+            page_number: '1',
+            total_pages: '1',
+            __image_path: tmpImagePath
+          }
+        },
+        user: { id: 1, username: 'admin', role: 'admin' }
+      };
+
+      let statusCode = 200;
+      let jsonResponse = null;
+      const res = {
+        status(code) {
+          statusCode = code;
+          return this;
+        },
+        json(data) {
+          jsonResponse = data;
+        }
+      };
+
+      try {
+        await handler(req, res);
+      } finally {
+        aiFactory.getService = originalGetService;
+        await fs.unlink(tmpImagePath).catch(() => {});
+      }
+
+      assert.strictEqual(statusCode, 502);
+      assert.strictEqual(jsonResponse.success, false);
+      assert.strictEqual(jsonResponse.code, 'VISION_EXECUTION_FAILED');
+      assert.ok(
+        String(jsonResponse.error).includes('Vision test call failed')
+      );
+    });
+
     it('should return 422 for multimodal execute without image attachment', async function() {
       const layer = promptsRouter.stack.find(
         (l) => l.route && l.route.path === '/:id/test' && l.route.methods.post

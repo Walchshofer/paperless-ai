@@ -11,16 +11,30 @@ test.describe('SYS_ROUTER_V1 Multimodal Verification', () => {
     await page.click('button[type="submit"]');
     await page.waitForURL('**/dashboard', { timeout: 60000 });
 
-    // Go to Prompts settings
-    console.log('Navigating to prompts settings...');
-    await page.goto('http://localhost:3000/settings#prompts', { timeout: 60000, waitUntil: 'domcontentloaded' });
+    // Go to Settings and enable Developer Mode
+    console.log('Navigating to settings...');
+    await page.goto('http://localhost:3000/settings', { timeout: 60000, waitUntil: 'domcontentloaded' });
     
-    // Wait for the root element to ensure page hydration
-    await page.waitForSelector('[data-testid="prompts-settings-root"]', { timeout: 30000 });
+    const devToggle = page.locator('[data-testid="developer-toggle"]');
+    await expect(devToggle).toBeVisible({ timeout: 15000 });
+    if (await devToggle.getAttribute('aria-checked') === 'false') {
+      await devToggle.click();
+    }
 
-    // Expand System domain
+    // Navigate to Prompts category via sidebar
+    console.log('Switching to Prompts category...');
+    const promptsNav = page.locator('[data-testid="category-prompts"]');
+    await expect(promptsNav).toBeVisible({ timeout: 10000 });
+    await promptsNav.click();
+
+    // Wait for the Prompts Island to be mounted and ready
+    const promptsIsland = page.locator('[data-island="prompts-settings-island"]');
+    await expect(promptsIsland).toHaveAttribute('data-mounted', 'true', { timeout: 60000 });
+
+    // Expand System domain if not expanded
     console.log('Expanding System domain...');
     const systemHeader = page.locator('[data-testid="domain-header-system"]');
+    await expect(systemHeader).toBeVisible({ timeout: 20000 });
     await systemHeader.scrollIntoViewIfNeeded();
     if (await systemHeader.getAttribute('aria-expanded') === 'false') {
         await systemHeader.click();
@@ -30,7 +44,7 @@ test.describe('SYS_ROUTER_V1 Multimodal Verification', () => {
     // Find SYS_ROUTER row button
     console.log('Opening SYS_ROUTER group...');
     const routerBtn = page.locator('[data-testid="prompt-row-btn-sys-router"]');
-    await expect(routerBtn).toBeVisible({ timeout: 10000 });
+    await expect(routerBtn).toBeVisible({ timeout: 15000 });
     await routerBtn.click();
 
     // Verify editor panel is open

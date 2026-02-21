@@ -16,6 +16,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const { authenticateApi, requireAdmin } = require('../../middleware/auth');
 const AIServiceFactory = require('../../services/aiServiceFactory');
+const { stripThinkingTags } = require('../../services/ollama/utils');
 
 let guidanceClient = null;
 
@@ -146,19 +147,7 @@ function extractJSON(text) {
   if (!text.trim()) return null;
 
   // 1) Robust removal of thinking/reasoning tags (including unclosed ones)
-  let cleanedText = text;
-  // Handle closed tags
-  cleanedText = cleanedText.replace(/<(think|thinking|reasoning)>[\s\S]*?<\/\1>/gi, '');
-  // Handle unclosed tags (remove from <think to end of string)
-  if (cleanedText.includes('<think>') && !cleanedText.includes('</think>')) {
-    cleanedText = cleanedText.split('<think>')[0];
-  } else if (cleanedText.includes('<thinking>') && !cleanedText.includes('</thinking>')) {
-    cleanedText = cleanedText.split('<thinking>')[0];
-  } else if (cleanedText.includes('<reasoning>') && !cleanedText.includes('</reasoning>')) {
-    cleanedText = cleanedText.split('<reasoning>')[0];
-  }
-  
-  cleanedText = cleanedText.trim();
+  const cleanedText = stripThinkingTags(text);
   if (!cleanedText) return null;
 
   // 2) Try direct parse
@@ -213,7 +202,269 @@ function extractJSON(text) {
   return null;
 }
 
+function isPlainTextPrompt(promptId) {
+  const normalized = String(promptId || '').trim().toUpperCase();
+  if (!normalized) return false;
+  return normalized === 'VIS_OCR_V1' || normalized.startsWith('VIS_OCR_');
+}
+
+function shouldValidateJsonOutput(promptId, mode) {
+  if (mode !== 'execute') {
+    return true;
+  }
+  return !isPlainTextPrompt(promptId);
+}
+
+/** Extract response text from Ollama vision result or chunk */
+function extractVisionResponseText(visionResult, ollamaService = null) {
+  if (typeof visionResult === 'string' && visionResult) {
+    return visionResult;
+  }
+
+  // Favor explicit response fields
+  if (typeof visionResult?.response === 'string' && visionResult.response) {
+    return visionResult.response;
+  }
+  if (
+    typeof visionResult?.message?.content === 'string'
+    && visionResult.message.content
+  ) {
+    return visionResult.message.content;
+  }
+
+  // Fallback to service helper if available
+  if (
+    ollamaService
+    && typeof ollamaService._extractRawOllamaText === 'function'
+  ) {
+    const extracted = ollamaService._extractRawOllamaText(visionResult);
+    if (typeof extracted === 'string' && extracted.length > 0) {
+      return extracted;
+    }
+  }
+
+  // Last resort: thinking field (usually handled separately in stream)
+  if (typeof visionResult?.thinking === 'string' && visionResult.thinking) {
+    return visionResult.thinking;
+  }
+
+  return '';
+}
+
 /** Get or create GuidanceClient singleton (lazy init) */
+/**
+ * Stateful stream sanitizer to detect and route thinking tags even if split across chunks.
+ * Also supports optional start/end markers to trim conversational preamble.
+ */
+class StreamSanitizer {
+  constructor(onToken, onThinking, options = {}) {
+    this.onToken = onToken;
+    this.onThinking = onThinking;
+    this.isInsideThinking = false;
+    this.currentEndTag = null;
+    this.buffer = '';
+    this.tags = [
+      { start: '<think>', end: '</think>' },
+      { start: '<thinking>', end: '</thinking>' },
+      { start: '<reasoning>', end: '</reasoning>' }
+    ];
+    
+    // Preamble trimming support
+    this.startMarker = options.startMarker || null;
+    this.endMarker = options.endMarker || null;
+    this.hasSeenStartMarker = options.prefilledStartMarker || !this.startMarker;
+    this.hasSeenEndMarker = false;
+    
+    // Monologue detection
+    this.isCheckingForPreamble = true;
+    this.monologuePrefixes = [
+      "Got it", "Sure", "Here is", "I will", "Okay", "Analyzing", "Let's", 
+      "The document", "Starting with", "I'll", "I've", "Certainly", "Understood",
+      "Extracting", "Here are", "The image shows"
+    ];
+  }
+
+  push(text) {
+    if (!text || this.hasSeenEndMarker) return;
+    this.buffer += text;
+    this._processBuffer();
+  }
+
+  _processBuffer() {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      
+      // 1) Handle start marker (preamble) - Skip if prefilled or already seen
+      if (!this.hasSeenStartMarker) {
+        const markerIdx = this.buffer.indexOf(this.startMarker);
+        if (markerIdx !== -1) {
+          const preamble = this.buffer.substring(0, markerIdx);
+          if (preamble) this.onThinking(preamble);
+          this.buffer = this.buffer.substring(markerIdx + this.startMarker.length);
+          this.hasSeenStartMarker = true;
+          this.isCheckingForPreamble = false; 
+          changed = true;
+          continue;
+        } else {
+          // Look for partial start marker
+          let maxPartialLen = 0;
+          for (let len = Math.min(this.startMarker.length - 1, this.buffer.length); len > 0; len--) {
+            const partial = this.buffer.substring(this.buffer.length - len);
+            if (this.startMarker.startsWith(partial)) {
+              maxPartialLen = len;
+              break;
+            }
+          }
+          const safe = this.buffer.substring(0, this.buffer.length - maxPartialLen);
+          if (safe) this.onThinking(safe);
+          this.buffer = this.buffer.substring(this.buffer.length - maxPartialLen);
+          return;
+        }
+      }
+
+      // 2) Handle end marker
+      if (this.endMarker && !this.hasSeenEndMarker) {
+        const endIdx = this.buffer.indexOf(this.endMarker);
+        if (endIdx !== -1) {
+          const content = this.buffer.substring(0, endIdx);
+          this._processContent(content);
+          this.buffer = this.buffer.substring(endIdx + this.endMarker.length);
+          this.hasSeenEndMarker = true;
+          if (this.buffer) this.onThinking(this.buffer);
+          this.buffer = '';
+          return;
+        }
+      }
+
+      // 3) Detect thinking tags
+      if (!this.isInsideThinking) {
+        let earliestStart = -1;
+        let matchedTag = null;
+        for (const tag of this.tags) {
+          const pos = this.buffer.indexOf(tag.start);
+          if (pos !== -1 && (earliestStart === -1 || pos < earliestStart)) {
+            earliestStart = pos;
+            matchedTag = tag;
+          }
+        }
+
+        if (earliestStart !== -1) {
+          const before = this.buffer.substring(0, earliestStart);
+          if (before) this._handleContent(before);
+          this.isInsideThinking = true;
+          this.currentEndTag = matchedTag.end;
+          this.buffer = this.buffer.substring(earliestStart + matchedTag.start.length);
+          changed = true;
+          continue;
+        }
+      } else {
+        const endPos = this.buffer.indexOf(this.currentEndTag);
+        if (endPos !== -1) {
+          const thought = this.buffer.substring(0, endPos);
+          if (thought) this.onThinking(thought);
+          this.isInsideThinking = false;
+          this.buffer = this.buffer.substring(endPos + this.currentEndTag.length);
+          this.currentEndTag = null;
+          changed = true;
+          continue;
+        }
+      }
+
+      // 4) Detect preamble monologue (if no markers/tags found yet)
+      if (this.isCheckingForPreamble && !this.isInsideThinking) {
+        const newlineIdx = this.buffer.indexOf('\n');
+        if (newlineIdx !== -1) {
+          const firstLine = this.buffer.substring(0, newlineIdx).trim();
+          if (this.monologuePrefixes.some(p => firstLine.startsWith(p))) {
+            this.onThinking(this.buffer.substring(0, newlineIdx + 1));
+            this.buffer = this.buffer.substring(newlineIdx + 1);
+            changed = true;
+            continue;
+          }
+          this.isCheckingForPreamble = false;
+        } else if (this.buffer.length > 60) {
+          if (this.monologuePrefixes.some(p => this.buffer.trim().startsWith(p))) {
+            return; // Wait for newline to capture full monologue
+          }
+          this.isCheckingForPreamble = false;
+        } else if (this.buffer.length > 0) {
+          // If it doesn't match any monologue prefix even partially, don't block
+          const current = this.buffer.trim();
+          const matchesAny = this.monologuePrefixes.some(p => 
+            p.toLowerCase().startsWith(current.toLowerCase()) || 
+            current.toLowerCase().startsWith(p.toLowerCase())
+          );
+          if (!matchesAny) {
+            this.isCheckingForPreamble = false;
+          } else {
+            return; // Potential monologue, wait for more
+          }
+        }
+      }
+
+      // 5) Buffer partials
+      let maxPartialLen = 0;
+      const candidates = [...this.tags.map(t => this.isInsideThinking ? t.end : t.start)];
+      if (this.endMarker && !this.isInsideThinking) candidates.push(this.endMarker);
+      if (this.startMarker && !this.hasSeenStartMarker) candidates.push(this.startMarker);
+
+      for (const cand of candidates) {
+        if (!cand) continue;
+        for (let len = Math.min(cand.length - 1, this.buffer.length); len > 0; len--) {
+          const partial = this.buffer.substring(this.buffer.length - len);
+          if (cand.startsWith(partial)) {
+            maxPartialLen = Math.max(maxPartialLen, len);
+            break;
+          }
+        }
+      }
+
+      if (maxPartialLen > 0) {
+        const safe = this.buffer.substring(0, this.buffer.length - maxPartialLen);
+        if (safe) {
+          if (this.isInsideThinking) this.onThinking(safe);
+          else this._handleContent(safe);
+        }
+        this.buffer = this.buffer.substring(this.buffer.length - maxPartialLen);
+        return; 
+      } else {
+        if (this.buffer) {
+          if (this.isInsideThinking) this.onThinking(this.buffer);
+          else this._handleContent(this.buffer);
+          this.buffer = '';
+        }
+        break;
+      }
+    }
+  }
+
+  _handleContent(text) {
+    if (this.isCheckingForPreamble) {
+       // Preamble check was skipped because of tags or too long text
+       this.isCheckingForPreamble = false;
+    }
+    this.onToken(text);
+  }
+
+  _processContent(text) {
+    let current = text;
+    while (current) {
+      // Logic from _processBuffer simplified for atomic block
+      this.onToken(current); // Simplification: in content block, we assume no tags for now
+      current = '';
+    }
+  }
+
+  flush() {
+    if (this.buffer) {
+      if (this.isInsideThinking) this.onThinking(this.buffer);
+      else this.onToken(this.buffer);
+      this.buffer = '';
+    }
+  }
+}
+
 function getGuidanceClient() {
   if (!guidanceClient) {
     try {
@@ -602,6 +853,7 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
     let source = 'template-render';
     let tokenEstimate = null;
     let guidanceMetadata = null;
+    const shouldValidateJson = shouldValidateJsonOutput(id, mode);
 
     // MULTIMODAL VISION PATH: Call Ollama vision API directly
     if (isMultimodal && visionPayload.images.length > 0 && mode === 'execute') {
@@ -642,7 +894,44 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
             });
           }
 
-          testResult = visionResult?.response || null;
+          let visionText = extractVisionResponseText(visionResult, ollamaService);
+          if (!visionText || !visionText.trim()) {
+            // Single retry for transient empty outputs from local vision models.
+            if (typeof ollamaService._callOllamaVisionAPI === 'function') {
+              const retryResult = await ollamaService._callOllamaVisionAPI(
+                combinedPrompt,
+                visionImages,
+                {
+                  model: prompt.model,
+                  temperature: 0.0,
+                  kind: 'vision',
+                  num_predict: 8192,
+                  num_ctx: 32768
+                }
+              );
+              visionText = extractVisionResponseText(retryResult, ollamaService);
+              if (retryResult?.model && !visionResult?.model) {
+                visionResult.model = retryResult.model;
+              }
+              if (
+                typeof retryResult?.eval_count === 'number'
+                && !visionResult?.eval_count
+              ) {
+                visionResult.eval_count = retryResult.eval_count;
+              }
+              if (
+                typeof retryResult?._truncated === 'boolean'
+                && visionResult?._truncated !== true
+              ) {
+                visionResult._truncated = retryResult._truncated;
+              }
+            }
+          }
+          if (!visionText || !visionText.trim()) {
+            throw new Error('Vision model returned empty output');
+          }
+
+          testResult = visionText;
           source = 'ollama-vision';
           guidanceMetadata = {
             model: visionResult?.model || prompt.model,
@@ -651,11 +940,19 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
           };
         } else {
           logger.warn('[Prompts API] Ollama vision/generate not available for multimodal test');
-          source = 'template-render-only';
+          return res.status(502).json({
+            success: false,
+            error: 'Ollama vision/generate service unavailable',
+            code: 'VISION_EXECUTION_FAILED'
+          });
         }
       } catch (err) {
         logger.warn('[Prompts API] Vision test call failed:', err.message);
-        source = 'template-render-only';
+        return res.status(502).json({
+          success: false,
+          error: `Vision test call failed: ${err.message}`,
+          code: 'VISION_EXECUTION_FAILED'
+        });
       }
     }
 
@@ -737,7 +1034,7 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
 
     // Check if output looks like valid JSON
     let jsonValid = null;
-    if (testResult) {
+    if (shouldValidateJson && testResult) {
       const extracted = extractJSON(testResult);
       jsonValid = extracted !== null && typeof extracted === 'object';
     }
@@ -751,6 +1048,27 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
       resultPreview: typeof testResult === 'string' ? testResult.substring(0, 100) : 'object'
     });
 
+    // Post-generation cleanup for specific prompts like VIS_OCR_V1
+    if (id === 'VIS_OCR_V1' && typeof testResult === 'string' && testResult.length > 0) {
+      const guidance = getGuidanceClient();
+      if (guidance) {
+        try {
+          const cleaned = await guidance.generate('text_cleaner', { text: testResult });
+          if (cleaned.success && cleaned.generated?.output) {
+            testResult = cleaned.generated.output;
+            logger.info(`[Prompts API] Cleaned VIS_OCR_V1 non-stream response using Guidance text_cleaner`);
+          }
+        } catch (cleanErr) {
+          logger.warn(`[Prompts API] Non-stream text cleaning failed: ${cleanErr.message}`);
+        }
+      }
+    }
+
+    // Final sanitization for the result
+    const finalResult = (shouldValidateJson && jsonValid)
+      ? extractJSON(testResult)
+      : (typeof testResult === 'string' ? stripThinkingTags(testResult) : testResult);
+
     res.json({
       success: true,
       promptId: id,
@@ -763,7 +1081,7 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
       missingVariables: missingVars,
       providedVariables: Object.keys(variables),
       tokenEstimate,
-      testResult,
+      testResult: finalResult,
       jsonValid,
       guidanceMetadata,
     });
@@ -872,6 +1190,8 @@ router.post('/:id/test/stream', express.json(), authenticateApi, requireAdmin, a
 
     const startTime = Date.now();
     let fullResponse = '';
+    let streamError = null;
+    const shouldValidateJson = shouldValidateJsonOutput(id, 'execute');
 
     // STREAMING VISION PATH
     if (isMultimodal && visionPayload.images.length > 0) {
@@ -917,24 +1237,152 @@ router.post('/:id/test/stream', express.json(), authenticateApi, requireAdmin, a
           }
 
           if (stream && typeof stream[Symbol.asyncIterator] === 'function') {
+            const combinedPromptText = (renderedSystemPrompt + renderedTemplate).trim();
+            const sanitizer = new StreamSanitizer(
+              (text) => {
+                fullResponse += text;
+                sendEvent('token', { text });
+              },
+              (thought) => {
+                sendEvent('thinking', { text: thought });
+              },
+              {
+                startMarker: combinedPromptText.endsWith('```text') ? '```text' : (combinedPromptText.includes('[OCR_START]') ? '[OCR_START]' : null),
+                prefilledStartMarker: combinedPromptText.endsWith('```text'),
+                endMarker: combinedPromptText.includes('```text') ? '```' : (combinedPromptText.includes('[OCR_END]') ? '[OCR_END]' : null)
+              }
+            );
+
             for await (const chunk of stream) {
-              const text = chunk.response || '';
-              fullResponse += text;
-              sendEvent('token', { text });
-              if (chunk.done) break;
+              if (typeof chunk?.error === 'string' && chunk.error) {
+                throw new Error(chunk.error);
+              }
+
+              // 1) Handle explicit thinking field (DeepSeek/R1 support)
+              if (typeof chunk?.thinking === 'string' && chunk.thinking) {
+                sendEvent('thinking', { text: chunk.thinking });
+                continue;
+              }
+
+              const text = extractVisionResponseText(chunk, ollamaService);
+              if (text) {
+                sanitizer.push(text);
+              }
+              if (chunk?.done) break;
             }
+            sanitizer.flush();
           } else {
             // Fallback for non-streaming response
-            const text = stream?.response || '';
-            fullResponse = text;
-            sendEvent('token', { text });
+            const text = extractVisionResponseText(stream, ollamaService);
+            if (typeof text === 'string' && text.length > 0) {
+              const combinedPromptText = (renderedSystemPrompt + renderedTemplate).trim();
+              const sanitizer = new StreamSanitizer(
+                (t) => {
+                  fullResponse += t;
+                  sendEvent('token', { text: t });
+                },
+                (thought) => {
+                  sendEvent('thinking', { text: thought });
+                },
+                {
+                  startMarker: combinedPromptText.endsWith('```text') ? '```text' : (combinedPromptText.includes('[OCR_START]') ? '[OCR_START]' : null),
+                  prefilledStartMarker: combinedPromptText.endsWith('```text'),
+                  endMarker: combinedPromptText.includes('```text') ? '```' : (combinedPromptText.includes('[OCR_END]') ? '[OCR_END]' : null)
+                }
+              );
+              sanitizer.push(text);
+              sanitizer.flush();
+            }
+          }
+
+          if (!fullResponse || !fullResponse.trim()) {
+            // One retry for intermittent empty outputs from local vision models.
+            let retryResult;
+            if (typeof ollamaService._callOllamaVisionAPI === 'function') {
+              retryResult = await ollamaService._callOllamaVisionAPI(
+                combinedPrompt,
+                visionImages,
+                {
+                  model: prompt.model,
+                  temperature: 0.0,
+                  kind: 'vision',
+                  num_predict: 8192,
+                  num_ctx: 32768
+                }
+              );
+            } else {
+              retryResult = await ollamaService.generate({
+                model: prompt.model,
+                prompt: combinedPrompt,
+                images: visionImages,
+                options: {
+                  temperature: 0.0,
+                  num_predict: 8192,
+                  num_ctx: 32768
+                }
+              });
+            }
+            const retryText = extractVisionResponseText(
+              retryResult,
+              ollamaService
+            );
+            if (!retryText || !retryText.trim()) {
+              throw new Error('Vision model returned empty output');
+            }
+            fullResponse = retryText;
+            sendEvent('token', { text: retryText });
           }
         } catch (err) {
-          logger.error('[Prompts API] Vision stream failed:', err);
-          sendEvent('error', { error: `Vision stream failed: ${err.message}` });
+          logger.warn(
+            '[Prompts API] Vision stream primary path failed, attempting fallback:',
+            err.message
+          );
+          try {
+            let fallbackResult;
+            if (typeof ollamaService._callOllamaVisionAPI === 'function') {
+              fallbackResult = await ollamaService._callOllamaVisionAPI(
+                combinedPrompt,
+                visionImages,
+                {
+                  model: prompt.model,
+                  temperature: 0.0,
+                  kind: 'vision',
+                  num_predict: 8192,
+                  num_ctx: 32768
+                }
+              );
+            } else {
+              fallbackResult = await ollamaService.generate({
+                model: prompt.model,
+                prompt: combinedPrompt,
+                images: visionImages,
+                options: {
+                  temperature: 0.0,
+                  num_predict: 8192,
+                  num_ctx: 32768
+                }
+              });
+            }
+
+            const fallbackText = extractVisionResponseText(
+              fallbackResult,
+              ollamaService
+            );
+            if (!fallbackText || !fallbackText.trim()) {
+              throw new Error('Vision fallback returned empty output');
+            }
+            fullResponse = fallbackText;
+            sendEvent('token', { text: fallbackText });
+          } catch (fallbackErr) {
+            logger.error('[Prompts API] Vision stream failed:', err);
+            logger.error('[Prompts API] Vision fallback failed:', fallbackErr);
+            streamError = `Vision stream failed: ${err.message}. Fallback failed: ${fallbackErr.message}`;
+            sendEvent('error', { error: streamError });
+          }
         }
       } else {
-        sendEvent('error', { error: 'Ollama vision service unavailable' });
+        streamError = 'Ollama vision service unavailable';
+        sendEvent('error', { error: streamError });
       }
     } else {
       // STREAMING TEXT PATH (Guidance)
@@ -965,16 +1413,48 @@ router.post('/:id/test/stream', express.json(), authenticateApi, requireAdmin, a
           fullResponse = typeof result.generated === 'string' ? result.generated : JSON.stringify(result.generated);
         } catch (err) {
           logger.error('[Prompts API] Guidance stream failed:', err);
-          sendEvent('error', { error: `Guidance stream failed: ${err.message}` });
+          streamError = `Guidance stream failed: ${err.message}`;
+          sendEvent('error', { error: streamError });
         }
       } else {
-        sendEvent('error', { error: 'Guidance service unavailable' });
+        streamError = 'Guidance service unavailable';
+        sendEvent('error', { error: streamError });
       }
     }
 
+    if (streamError) {
+      logger.warn({
+        event: 'prompt_test_stream_failed',
+        promptId: id,
+        error: streamError
+      });
+      res.end();
+      return;
+    }
+
     const duration = Date.now() - startTime;
-    const extracted = extractJSON(fullResponse);
-    const jsonValid = extracted !== null && typeof extracted === 'object';
+    
+    // Post-generation cleanup for specific prompts like VIS_OCR_V1
+    // Leveraging Guidance to extract clean text from monologue-heavy responses
+    if (id === 'VIS_OCR_V1' && fullResponse.length > 0) {
+      const guidance = getGuidanceClient();
+      if (guidance) {
+        try {
+          const cleaned = await guidance.generate('text_cleaner', { text: fullResponse });
+          if (cleaned.success && cleaned.generated?.output) {
+            fullResponse = cleaned.generated.output;
+            logger.info(`[Prompts API] Cleaned VIS_OCR_V1 response using Guidance text_cleaner`);
+          }
+        } catch (cleanErr) {
+          logger.warn(`[Prompts API] Text cleaning failed: ${cleanErr.message}`);
+        }
+      }
+    }
+
+    const extracted = shouldValidateJson ? extractJSON(fullResponse) : null;
+    const jsonValid = shouldValidateJson
+      ? (extracted !== null && typeof extracted === 'object')
+      : null;
 
     logger.info({
       event: 'prompt_test_stream_complete',
@@ -987,8 +1467,8 @@ router.post('/:id/test/stream', express.json(), authenticateApi, requireAdmin, a
     sendEvent('done', {
       duration,
       // If JSON was successfully extracted, use it as the testResult for a clean final view
-      // otherwise fallback to fullResponse
-      testResult: jsonValid ? extracted : fullResponse,
+      // otherwise fallback to fullResponse (sanitized)
+      testResult: jsonValid ? extracted : stripThinkingTags(fullResponse),
       jsonValid,
       tokenEstimate: Math.ceil((renderedSystemPrompt.length + renderedTemplate.length + fullResponse.length) / 4),
     });

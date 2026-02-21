@@ -20,6 +20,7 @@ const router = express.Router();
 const { authenticateApi } = require('../../middleware/auth');
 const { normalizeOverlayBoundingBox } = require('../../services/visual-rag-client/overlayCoordinates');
 const logger = require('../../services/logger');
+const feedbackService = require('../../services/feedback/FeedbackService');
 
 // Visual RAG client - lazy loaded
 let visualOverlayRepository = null;
@@ -237,6 +238,70 @@ router.get('/document/:documentId', async (req, res) => {
   } catch (error) {
     logger.error({
       event: 'document_overlays_error',
+      documentId: req.params.documentId,
+      error: error.message
+    });
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/visual-overlays/expert-knowledge/:documentId
+ * Updates the expert knowledge (OCR text) and records feedback.
+ */
+router.post('/expert-knowledge/:documentId', async (req, res) => {
+  try {
+    const documentId = parseInt(req.params.documentId, 10);
+    const { enhancedOcrText, originalOcrText, feedback } = req.body;
+
+    if (isNaN(documentId) || documentId <= 0) {
+      return res.status(400).json({ error: 'Invalid document ID' });
+    }
+
+    if (!visualOverlayRepository) {
+      return res.status(503).json({ error: 'Visual RAG service not available' });
+    }
+
+    // 1. Fetch current expert knowledge to preserve other fields
+    const currentKnowledge = await visualOverlayRepository.getExpertKnowledge(documentId) || {};
+    
+    // 2. Update knowledge
+    const updatedKnowledge = {
+      ...currentKnowledge,
+      enhancedOcrText: enhancedOcrText
+    };
+
+    await visualOverlayRepository.saveExpertKnowledge(documentId, updatedKnowledge);
+
+    // 3. Record feedback if provided
+    if (feedback || (enhancedOcrText !== originalOcrText)) {
+      const event = {
+        type: 'ocr_correction',
+        field: 'enhanced_ocr_text',
+        original: originalOcrText || currentKnowledge.enhancedOcrText,
+        corrected: enhancedOcrText,
+        context: {
+          source: 'user_edit',
+          ocr_mode: 'high-res',
+          rating: feedback?.rating || null,
+          comments: feedback?.comments || 'Manual user correction'
+        },
+        user_id: req.user?.id || null
+      };
+
+      await feedbackService.recordGranularFeedback(documentId, [event], { transactional: true });
+    }
+
+    logger.info({
+      event: 'expert_knowledge_updated',
+      documentId,
+      user: req.user?.username
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error({
+      event: 'expert_knowledge_update_error',
       documentId: req.params.documentId,
       error: error.message
     });

@@ -46,4 +46,49 @@
 
 ---
 
+---
+
+## Document Content Island (OCR Text View)
+
+- Island anchor: `data-island="document-content-island"`
+- Root: `data-testid="document-content-island-root"`
+- Search Input: `data-testid="search-input"`
+- Search Navigation:
+  - Previous: `data-testid="search-prev"`
+  - Next: `data-testid="search-next"`
+  - Match Count: `data-testid="search-count"`
+- Action Buttons:
+  - Case Sensitive: `data-testid="search-case-sensitive"`
+  - Regex Toggle: `data-testid="search-regex"`
+  - Export Text: `data-testid="export-text"`
+  - Send to Chat: `data-testid="send-to-chat"`
+- Mode Toggle (New):
+  - Original OCR (Tesseract): `data-testid="ocr-mode-original"`
+  - High Res AI OCR (Expert): `data-testid="ocr-mode-high-res"`
+- Editing & Feedback (New):
+  - Start Editing: `data-testid="ocr-start-edit"`
+  - Save Changes: `data-testid="ocr-save-edit"`
+  - Cancel Editing: `data-testid="ocr-cancel-edit"`
+  - Mark Accurate (Feedback): `data-testid="ocr-vote-accurate"`
+  - Edit Textarea: `data-testid="ocr-edit-textarea"`
+- Info Bar (New):
+  - Container: `data-testid="ocr-ai-info-bar"`
+  - Source Badge: `data-testid="ocr-ai-source-badge"`
+  - Quality Badge: `data-testid="ocr-ai-quality-badge"`
+- Content Area: `data-testid="document-content-area"`
+
+### Props (DocumentContentContract)
+- `documentId`: number | null
+- `content`: string (Tesseract OCR)
+- `visOcrPages`: array of page objects (AI OCR)
+- `visOcrSource`: string | null
+- `visOcrQuality`: number | null
+
+### Events
+- Listens for: `document:selected` (Manual Workspace)
+- Listens for: `workspace:document-switched` (Global Workspace)
+- Dispatches: `export:text-requested` (for downloading/sending to chat)
+
+---
+
 If you add or rename any `data-testid` used in tests, update this document and mention the change in the PR description and reviewers list (frontend-design-auditor + qa). ✅

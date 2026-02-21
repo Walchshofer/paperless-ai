@@ -208,3 +208,39 @@ class SystemToolsTemplates:
             return lm
 
         return raw_prompt_executor
+
+    @staticmethod
+    def get_text_cleaner() -> Callable:
+        """Return a @guidance decorated text cleaner.
+
+        Extracts the document text from an AI response, removing conversational
+        preamble, internal monologues, and "thinking" text.
+        """
+
+        @guidance
+        def text_cleaner(
+            lm: Any,
+            text: str = "",
+            **kwargs: Any,
+        ) -> Any:
+            with system():
+                lm += (
+                    "You are a high-precision text extraction cleaner. "
+                    "Your task is to extract ONLY the document text from the provided AI response. "
+                    "Remove all conversational filler, preambles (e.g., 'Got it', 'Sure'), "
+                    "and internal monologues. Preserve the document's original layout and "
+                    "line breaks exactly. Output ONLY the clean extracted text."
+                )
+
+            with user():
+                lm += f"=== AI RESPONSE START ===\n{text}\n=== AI RESPONSE END ===\n\nClean the response above and return only the extracted document text:"
+
+            with assistant():
+                lm += gen(
+                    name="output",
+                    temperature=0.0
+                )
+
+            return lm
+
+        return text_cleaner
