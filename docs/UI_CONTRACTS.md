@@ -71,6 +71,8 @@
   - Cancel Editing: `data-testid="ocr-cancel-edit"`
   - Mark Accurate (Feedback): `data-testid="ocr-vote-accurate"`
   - Edit Textarea: `data-testid="ocr-edit-textarea"`
+  - Regenerate AI OCR: `data-testid="ocr-regenerate"`
+  - Regenerating State: `data-testid="ocr-regenerating-state"`
 - Info Bar (New):
   - Container: `data-testid="ocr-ai-info-bar"`
   - Source Badge: `data-testid="ocr-ai-source-badge"`
