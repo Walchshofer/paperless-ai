@@ -11,6 +11,7 @@ const express = require('express');
 const path = require('path');
 const router = express.Router();
 const { authenticateApi, requireAdmin } = require('../../middleware/auth');
+const config = require('../../config/config');
 const AIServiceFactory = require('../../services/aiServiceFactory');
 const paperlessService = require('../../services/paperlessService');
 const { DocumentProcessor } = require('../../services/integration/DocumentProcessor');
@@ -25,6 +26,7 @@ const {
   REPROCESS_STAGE_DEFINITIONS,
   reprocessProgressBroker
 } = require('../../services/reprocess/ReprocessProgressBroker');
+const { ExpertPipelineExecutor } = require('../../services/experts/ExpertPipelineExecutor');
 
 // Single-flight guard to avoid overlapping heavy reprocess runs per document.
 const inFlightReprocessJobs = new Map();
@@ -1084,6 +1086,135 @@ router.get('/:id/preview-image', requireAdmin, async (req, res) => {
     }
   } catch (error) {
     logger.error('[Documents API] Image preview failed:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/documents/:id/ocr/regenerate
+ * Targeted OCR regeneration for a document using VIS_OCR_V1.
+ */
+router.post('/:id/ocr/regenerate', async (req, res) => {
+  const documentId = parseInt(req.params.id, 10);
+  if (isNaN(documentId)) {
+    return res.status(400).json({ success: false, error: 'Invalid document ID' });
+  }
+
+  try {
+    const doc = await paperlessService.getDocument(documentId);
+    if (!doc) {
+      return res.status(404).json({ success: false, error: 'Document not found' });
+    }
+
+    const ollamaService = AIServiceFactory.getService();
+    const executor = new ExpertPipelineExecutor(ollamaService);
+    
+    // Preparation for OCR (matches production flow)
+    const preparedDoc = buildPreparedDocument(doc, documentId);
+    
+    logger.info({ event: 'ocr_regeneration_start', documentId });
+
+    // 1. Download document
+    const pdfBuffer = await paperlessService.downloadOriginalDocument(documentId)
+        || await paperlessService.downloadDocument(documentId);
+
+    if (!pdfBuffer) {
+      throw new Error(`Unable to download document ${documentId}`);
+    }
+
+    // 2. Render images at high-res (300 DPI)
+    const { pdfRenderer: renderer } = require('../../services/visual-rag-client/PDFRenderer');
+    const images = await renderer.renderBuffer(pdfBuffer, {
+        dpi: config.visualRag?.visionRenderDpi || 300,
+        docId: documentId
+    });
+
+    if (!images || images.length === 0) {
+      throw new Error('Failed to render document images for OCR');
+    }
+
+    // 3. Attach base64 images to preparedDoc so _executeVisualOCR can find them
+    preparedDoc.base64Images = images.map(img => img.base64);
+
+    // Execute OCR
+    const ocrResult = await executor._executeVisualOCR(preparedDoc, { forceAllPages: true });
+    
+    // Mirror result to document object for buildVisOcrMetadata
+    preparedDoc.enhanced_ocr_text = ocrResult.text;
+    preparedDoc._ocr_metadata = ocrResult.metadata;
+    
+    // Re-use logic for metadata building and Paperless-ngx sync
+    const { 
+      buildVisOcrMetadata, 
+      ensureOcrCustomFields, 
+      normalizeCustomFieldValue 
+    } = require('../../services/experts/utils');
+    
+    // Require translator lazily to avoid circular require issues
+    let LocalTranslatorCtor;
+    try {
+      LocalTranslatorCtor = require('../../services/experts/translation/LocalTranslator');
+    } catch (e) {
+      const tm = require('../../services/experts/translation');
+      LocalTranslatorCtor = tm.LocalTranslator || tm;
+    }
+    const translator = new LocalTranslatorCtor({ ollamaService });
+    
+    const visualPageTexts = ocrResult.metadata?.visual_pages || [];
+    const ocrMetadata = await buildVisOcrMetadata(
+      ocrResult.text,
+      doc.language,
+      translator,
+      {
+        includeTranslations: config.ocrCheckpoint?.includeTranslations !== 'no',
+        skipEmptyText: true,
+        pageTexts: visualPageTexts
+      }
+    );
+
+    // Update Paperless-ngx Custom Fields
+    if (config.ocrCheckpoint?.enabled === 'yes') {
+      const checkpointResult = await ensureOcrCustomFields({ continueOnPartialSuccess: true });
+      if (checkpointResult.success || (checkpointResult.fields?.length > 0)) {
+        const customFields = {};
+        if (ocrMetadata.vis_ocr_text) customFields.vis_ocr_text = ocrMetadata.vis_ocr_text;
+        if (ocrMetadata.vis_ocr_text_de) customFields.vis_ocr_text_de = ocrMetadata.vis_ocr_text_de;
+        if (ocrMetadata.vis_ocr_text_en) customFields.vis_ocr_text_en = ocrMetadata.vis_ocr_text_en;
+
+        const normalizedFields = {};
+        const { normalizeCustomFieldValue: normVal } = require('../../services/customFieldUtils');
+        for (const k of Object.keys(customFields)) {
+          normalizedFields[k] = normVal(customFields[k]);
+        }
+        await paperlessService.updateDocument(documentId, { custom_fields: normalizedFields });
+      }
+    }
+
+    // Save to expert knowledge repository (PostgreSQL)
+    const { visualOverlayRepository } = require('../../services/visual-rag-client/VisualOverlayRepository');
+    await visualOverlayRepository.saveExpertKnowledge(documentId, {
+      enhancedOcrText: ocrResult.text,
+      expertMetadata: ocrResult.metadata,
+      qualityScore: ocrResult.quality_score
+    });
+
+    logger.info({ 
+      event: 'ocr_regeneration_complete', 
+      documentId, 
+      source: ocrResult.source, 
+      quality: ocrResult.quality_score 
+    });
+
+    res.json({
+      success: true,
+      text: ocrResult.text,
+      pages: visualPageTexts,
+      source: ocrResult.source,
+      quality: ocrResult.quality_score
+    });
+
+  } catch (error) {
+    logger.error({ event: 'ocr_regeneration_failed', documentId, error: error.message });
     res.status(500).json({ success: false, error: error.message });
   }
 });

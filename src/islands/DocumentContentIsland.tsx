@@ -22,6 +22,8 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null as 'success' | 'error' | null);
   const [feedbackGiven, setFeedbackGiven] = useState(null as 'accurate' | 'correction' | null);
+  
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('' as string);
   const [caseSensitive, setCaseSensitive] = useState(false);
@@ -332,6 +334,37 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
     }
   };
 
+  const handleRegenerate = async () => {
+    if (!documentId || isRegenerating) return;
+    
+    setIsRegenerating(true);
+    setOcrMode('high-res');
+    
+    try {
+      const response = await fetch(`/api/documents/${documentId}/ocr/regenerate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setVisOcrPages(data.pages || []);
+        setVisOcrSource(data.source);
+        setVisOcrQuality(data.quality);
+        setFeedbackGiven(null);
+        setMatches([]);
+        setCurrentMatchIndex(-1);
+      } else {
+        throw new Error(data.error || 'Regeneration failed');
+      }
+    } catch (err) {
+      console.error('[DocumentContent] Regeneration failed:', err);
+      // Fallback: alert or show error in UI
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
   // Render content with highlights
   const renderedContent = useMemo(() => {
     if (!effectiveContent) return <div className="text-gray-400 italic p-4">No content available.</div>;
@@ -415,6 +448,17 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
                   Accurate
                 </button>
               )}
+
+              <button
+                onClick={handleRegenerate}
+                disabled={isRegenerating}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all border border-indigo-200 ${isRegenerating ? 'opacity-70 cursor-wait' : ''}`}
+                data-testid="ocr-regenerate"
+                title="Regenerate high-resolution AI extraction"
+              >
+                <i className={`fas fa-sync ${isRegenerating ? 'fa-spin' : ''}`}></i>
+                {isRegenerating ? 'Regenerating...' : 'Regenerate'}
+              </button>
 
               {feedbackGiven === 'accurate' && (
                 <span className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-200 animate-pulse">
@@ -557,7 +601,19 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
         data-testid="document-content-area"
         className="flex-1 overflow-auto bg-white flex flex-col min-h-0"
       >
-        {isEditing ? (
+        {isRegenerating ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center" data-testid="ocr-regenerating-state">
+            <div className="relative mb-6">
+              <div className="absolute inset-0 bg-indigo-500/20 blur-xl rounded-full animate-pulse"></div>
+              <i className="fas fa-brain text-5xl text-indigo-600 relative z-10"></i>
+            </div>
+            <h3 className="font-['Fraunces'] text-lg font-bold text-slate-800 mb-2">Engaging Neural Engine</h3>
+            <p className="text-sm text-slate-500 max-w-xs mx-auto">Re-analyzing document at 300 DPI for high-precision text extraction...</p>
+            <div className="mt-8 w-48 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full bg-indigo-600 animate-pulse" style={{ width: '100%' }}></div>
+            </div>
+          </div>
+        ) : isEditing ? (
           <div className="flex-1 flex flex-col p-4">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Editing {ocrMode === 'high-res' ? 'Expert' : 'Tesseract'} Extraction</span>
