@@ -208,6 +208,20 @@ Visual OCR and Tesseract outputs are reconciled using:
 - `ocr_metadata` = Source attribution, conflict rate, latency
 - `visual_elements` = Tables, images, layout structure
 
+**VIS_OCR page result contract**
+Each entry in `expert_metadata.vis_ocr_pages` uses the following shape:
+```json
+{
+  "pageNumber": 1,
+  "text": "...",
+  "success": true
+}
+```
+`success` is `true` only when `text` is non-empty after extraction.
+When `text` is empty, `success` is `false` and `note: "no_text_extracted"` is
+added.  This replaces the previous behaviour where `success` was always `true`.
+Implementation: `services/experts/ExpertPipelineExecutor.js:3855`.
+
 **Implementation Notes**
 - Invoke Stage 4 via a `TEXT_EXTRACTION` stage with `useParallelOcr: true` (or an explicit `parallel-ocr` stage) so the executor routes to `ParallelOcrExecutor`.
 - Executor must persist `document.enhanced_ocr_text` and `document._ocr_metadata` (or equivalent) and store `ocr_metadata` in the stage output for downstream stages.
@@ -454,6 +468,36 @@ ColQwen3 locates relevant regions; Qwen3-VL/Guidance decide actions.
 - Guidance is optional optimization
 - Fallback is mandatory
 - Relaxed fallback = Standard Ollama execution + JsonRepair
+
+---
+
+## Prompt Language Policy (T0)
+
+**Domain extraction prompts** (all eight prompts below) append a mandatory
+German language instruction as the final system-prompt line:
+
+> "Always respond in German (Deutsch). All extracted values, labels, and text
+> output must be in German unless the source document is in English."
+
+Affected prompts:
+| Prompt ID | Domain |
+|-----------|--------|
+| `MED_RADIOLOGY_V1` | Medical imaging |
+| `MED_DOCTOR_V1` | General medical |
+| `MED_INTEGRATOR_V1` | Medical integration |
+| `GEN_FALLBACK_V1` | General fallback |
+| `FIN_EXTRACT_V1` | Financial extraction |
+| `FIN_REASONER_V1` | Financial reasoning |
+| `FIN_VAT_EXPERT_V1` | VAT compliance |
+| `LEGAL_ORCHESTRATOR_V1` | Legal orchestration |
+| `LEGAL_EXTRACTOR_V1` | Legal extraction |
+
+**Intentionally language-neutral** (no German instruction):
+- `SYS_ROUTER_V1` — classification only; language-independent JSON output
+- `VIS_OCR_V1` — verbatim text extraction; must preserve source language
+
+Implementation: `services/prompts/PromptRegistry.js` (lines 422, 552, 613,
+742, 1002, 1085, 1194, 1240).
 
 ---
 

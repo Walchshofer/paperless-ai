@@ -581,6 +581,16 @@ Example output for a sideways document:
         This avoids pickling issues by importing the @guidance decorated
         function fresh for each request, rather than storing it globally.
 
+        LANGUAGE NOTE — German template selection:
+        All domain templates are imported exclusively from the *_de variants
+        (medical_de, financial_de, legal_de, general_de). This means German
+        output is enforced unconditionally at the Guidance layer for all
+        domain templates, regardless of document language.  There is NO
+        language-parameter gate here; the _de modules always produce German
+        output.  If per-language routing is needed in the future, add a
+        ``language`` variable to the request payload and branch here on
+        ``template_name`` + ``variables.get('document_language', 'de')``.
+
         Args:
             template_name: Name of the template to get
 

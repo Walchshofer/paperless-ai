@@ -21,6 +21,8 @@ const { authenticateApi } = require('../../middleware/auth');
 const { normalizeOverlayBoundingBox } = require('../../services/visual-rag-client/overlayCoordinates');
 const logger = require('../../services/logger');
 const feedbackService = require('../../services/feedback/FeedbackService');
+const config = require('../../config/config');
+const paperlessService = require('../../services/paperlessService');
 
 // Visual RAG client - lazy loaded
 let visualOverlayRepository = null;
@@ -272,6 +274,26 @@ router.post('/expert-knowledge/:documentId', async (req, res) => {
     };
 
     await visualOverlayRepository.saveExpertKnowledge(documentId, updatedKnowledge);
+
+    // 2.5 Mirror to Paperless-ngx custom fields (ticket:009.1)
+    if (enhancedOcrText && config.ocrCheckpoint?.enabled === 'yes') {
+      try {
+        const { ensureOcrCustomFields } = require('../../services/experts/utils');
+        const checkpointResult = await ensureOcrCustomFields({ continueOnPartialSuccess: true });
+        
+        if (checkpointResult.success || (checkpointResult.fields?.length > 0)) {
+          const { normalizeCustomFieldValue: normVal } = require('../../services/customFieldUtils');
+          await paperlessService.updateDocument(documentId, { 
+            custom_fields: {
+              vis_ocr_text: normVal(enhancedOcrText)
+            }
+          });
+          logger.info(`[Visual Overlays API] Mirrored edited OCR text to Paperless-ngx for doc ${documentId}`);
+        }
+      } catch (mirrorErr) {
+        logger.warn(`[Visual Overlays API] Failed to mirror edited OCR text: ${mirrorErr.message}`);
+      }
+    }
 
     // 3. Record feedback if provided
     if (feedback || (enhancedOcrText !== originalOcrText)) {

@@ -314,8 +314,8 @@ async function ensureOcrCustomFields(options = {}) {
 
     for (const field of fields) {
         try {
-            // Paperless-ngx uses 'string' for text fields, not 'text'
-            const result = await paperlessService.createCustomFieldSafely(field, 'string');
+            // Use 'longtext' for OCR fields to avoid the 128-character limit of 'string'
+            const result = await paperlessService.createCustomFieldSafely(field, 'longtext');
 
             // Support both old-style (field object) and new structured responses
             if (result && result.id) {

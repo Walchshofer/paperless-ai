@@ -110,6 +110,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^1.2.1",
     "cross-env": "^7.0.3",
+    "esbuild": "^0.27.3",
     "eslint": "^9.22.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-jsdoc": "^50.6.3",

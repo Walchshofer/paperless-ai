@@ -673,38 +673,91 @@ class PaperlessService {
     return response.data.content;
   }
 
-  async updateDocument(documentId, updates, options = { triggerFilenameReprocess: true, requestId: null }) {
+  async updateDocument(documentId, updates, options = { triggerFilenameReprocess: true, requestId: null, overwrite: false }) {
     this.initialize();
     if (!this.client) return;
     try {
       const currentDoc = await this.getDocument(documentId);
       let updateData = { ...updates };
-      if (updates.tags) updateData.tags = [...new Set([...currentDoc.tags, ...updates.tags])];
-      if (currentDoc.correspondent && updates.correspondent) delete updateData.correspondent;
+
+      // Handle tags: merge by default, overwrite if requested
+      if (updates.tags) {
+        if (options.overwrite) {
+          updateData.tags = [...new Set(updates.tags)];
+        } else {
+          updateData.tags = [...new Set([...(currentDoc.tags || []), ...updates.tags])];
+        }
+      }
+
+      // Handle correspondent: overwrite if requested or if not set
+      if (updates.correspondent !== undefined) {
+        if (!options.overwrite && currentDoc.correspondent && updates.correspondent) {
+          // Legacy behavior: don't overwrite existing correspondent unless requested
+          delete updateData.correspondent;
+        }
+      }
+
       if (updateData.custom_fields) {
         try {
+          // Paperless-ngx PATCH for custom_fields is additive unless we clear first or send full set.
           await this.client.patch(`documents/${documentId}/`, { custom_fields: [] });
+          
+          let fieldsToProcess = [];
+          if (Array.isArray(updateData.custom_fields)) {
+            fieldsToProcess = updateData.custom_fields;
+          } else if (typeof updateData.custom_fields === 'object' && updateData.custom_fields !== null) {
+            fieldsToProcess = Object.entries(updateData.custom_fields).map(([name, value]) => ({ name, value }));
+          }
+
           const normalized = [];
-          for (const cf of updateData.custom_fields) {
-            if (cf.field) normalized.push({ field: cf.field, value: normalizeCustomFieldValue(cf.value) });
-            else if (cf.name) {
+          for (const cf of fieldsToProcess) {
+            if (cf.field) {
+              normalized.push({ 
+                field: cf.field, 
+                value: normalizeCustomFieldValue(cf.value) 
+              });
+            } else if (cf.name) {
               const existing = await this.findExistingCustomField(cf.name);
-              if (existing) normalized.push({ field: existing.id, value: normalizeCustomFieldValue(cf.value) });
+              if (existing) {
+                normalized.push({ 
+                  field: existing.id, 
+                  value: normalizeCustomFieldValue(cf.value) 
+                });
+              }
             }
           }
           updateData.custom_fields = normalized;
-        } catch (err) { delete updateData.custom_fields; }
+        } catch (err) { 
+          logger.warn(`[PaperlessService] Custom field update failed for doc ${documentId}:`, err.message);
+          delete updateData.custom_fields; 
+        }
       }
+
       const apiPayload = {};
       for (const [key, value] of Object.entries(updateData)) {
-        if (!key.startsWith('_') && key !== 'document_id' && value !== null && value !== undefined) apiPayload[key] = value;
+        if (!key.startsWith('_') && key !== 'document_id' && value !== null && value !== undefined) {
+          apiPayload[key] = value;
+        }
       }
+
       if (Object.keys(apiPayload).length === 0) return currentDoc;
+
       const headers = options.requestId ? { 'X-Request-Id': options.requestId } : {};
+      logger.info(`[PaperlessService] PATCH doc ${documentId}`, { apiPayload });
       await this.client.patch(`documents/${documentId}/`, apiPayload, { headers });
-      if (options.triggerFilenameReprocess !== false) await this.reprocessDocuments([documentId]);
+
+      if (options.triggerFilenameReprocess !== false) {
+        await this.reprocessDocuments([documentId]);
+      }
+
       return await this.getDocument(documentId);
-    } catch (error) { return null; }
+    } catch (error) { 
+      if (error.response && error.response.data) {
+        logger.error(`[PaperlessService] updateDocument detail: ${JSON.stringify(error.response.data)}`);
+      }
+      logger.error(`[PaperlessService] updateDocument failed for doc ${documentId}:`, error.message);
+      return null; 
+    }
   }
 
   async downloadOriginalDocument(documentId, retryCount = 0) {

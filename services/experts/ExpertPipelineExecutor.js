@@ -3852,7 +3852,8 @@ class ExpertPipelineExecutor {
         visualPages.push({
           pageNumber: i + 1,
           text: pageText,
-          success: true
+          success: pageText.length > 0,
+          ...(pageText.length === 0 && { note: 'no_text_extracted' })
         });
         pageTexts.push(`--- Page ${i + 1} ---\n${pageText}`);
       } catch (pageError) {

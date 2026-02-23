@@ -24,6 +24,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
   const [feedbackGiven, setFeedbackGiven] = useState(null as 'accurate' | 'correction' | null);
   
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [autoGenerateBanner, setAutoGenerateBanner] = useState<'idle' | 'running' | 'done'>('idle');
 
   const [searchQuery, setSearchQuery] = useState('' as string);
   const [caseSensitive, setCaseSensitive] = useState(false);
@@ -33,7 +34,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
   const effectiveContent = useMemo(() => {
     if (ocrMode === 'high-res' && visOcrPages.length > 0) {
       return visOcrPages
-        .map(p => `--- Page ${p.pageNumber} ---\n${p.text}`)
+        .map(p => `--- Page ${p.pageNumber} ---\n${p.text || '[No text extracted for this page]'}`)
         .join('\n\n');
     }
     return content;
@@ -305,6 +306,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
     } catch (err) {
       console.error('[DocumentContent] Save failed:', err);
       setSaveStatus('error');
+      throw err;
     } finally {
       setIsSaving(false);
     }
@@ -334,18 +336,65 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
     }
   };
 
-  const handleRegenerate = async () => {
+  // Coordinated Save Participation
+  useEffect(() => {
+    const participantId = 'ocr-content';
+
+    const onSaveRequest = (e: Event) => {
+      const detail = (e as CustomEvent<{ saveId?: string; documentId?: number | null }>)?.detail || {};
+      const { saveId, documentId: reqDocId } = detail;
+      if (reqDocId !== null && String(reqDocId) !== String(documentId)) return;
+
+      const willSave = isEditing && editedContent !== effectiveContent;
+
+      window.dispatchEvent(new CustomEvent('workspace:save-ack', { 
+        detail: { saveId, participantId, willSave } 
+      }));
+
+      if (!willSave) return;
+
+      const onSaveBegin = async (beginEvent: Event) => {
+        const beginDetail = (beginEvent as CustomEvent<{ saveId?: string }>)?.detail || {};
+        if (beginDetail.saveId !== saveId) return;
+
+        try {
+          await handleSave(); // Trigger existing save logic
+          // handleSave already dispatches progress via its own effects if needed, 
+          // but we must notify the coordinator specifically.
+          window.dispatchEvent(new CustomEvent('workspace:save-partial-complete', {
+            detail: { saveId, participantId, success: true }
+          }));
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          window.dispatchEvent(new CustomEvent('workspace:save-partial-complete', {
+            detail: { saveId, participantId, success: false, message: msg }
+          }));
+        } finally {
+          window.removeEventListener('workspace:save-begin', onSaveBegin as EventListener);
+        }
+      };
+
+      window.addEventListener('workspace:save-begin', onSaveBegin as EventListener);
+    };
+
+    window.addEventListener('workspace:save-request', onSaveRequest as EventListener);
+    return () => window.removeEventListener('workspace:save-request', onSaveRequest as EventListener);
+  }, [documentId, isEditing, editedContent, effectiveContent, handleSave]);
+
+  const handleRegenerate = async (silent = false) => {
     if (!documentId || isRegenerating) return;
-    
+
     setIsRegenerating(true);
-    setOcrMode('high-res');
-    
+    if (!silent) {
+      setOcrMode('high-res');
+    }
+
     try {
       const response = await fetch(`/api/documents/${documentId}/ocr/regenerate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
-      
+
       const data = await response.json();
       if (data.success) {
         setVisOcrPages(data.pages || []);
@@ -354,16 +403,71 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
         setFeedbackGiven(null);
         setMatches([]);
         setCurrentMatchIndex(-1);
+
+        // Notify other islands that vis-ocr data is available
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('vis-ocr:updated', {
+            detail: {
+              pages: data.pages || [],
+              source: data.source || 'vis_ocr',
+              quality: data.quality || null
+            }
+          }));
+        }
+
+        // Persist guard so auto-generation does not fire again for this document
+        if (typeof window !== 'undefined' && documentId != null) {
+          localStorage.setItem(`vis_ocr_generated_${documentId}`, '1');
+        }
+
+        if (silent) {
+          setAutoGenerateBanner('done');
+          setTimeout(() => setAutoGenerateBanner('idle'), 4000);
+        }
       } else {
         throw new Error(data.error || 'Regeneration failed');
       }
     } catch (err) {
       console.error('[DocumentContent] Regeneration failed:', err);
       // Fallback: alert or show error in UI
+      if (silent) {
+        setAutoGenerateBanner('idle');
+      }
     } finally {
       setIsRegenerating(false);
     }
   };
+
+  // Auto-generate high-res OCR on first visit (once per document, guarded by localStorage)
+  useEffect(() => {
+    if (!documentId) return;
+    const guardKey = `vis_ocr_generated_${documentId}`;
+    if (localStorage.getItem(guardKey)) return;
+
+    // If the server already provided vis-ocr pages, mark as done and skip
+    if (visOcrPages && visOcrPages.length > 0) {
+      localStorage.setItem(guardKey, '1');
+      return;
+    }
+
+    // Set guard immediately to prevent double-firing (e.g. StrictMode or re-renders)
+    localStorage.setItem(guardKey, '1');
+    setAutoGenerateBanner('running');
+    handleRegenerate(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentId]);
+
+  // Listen for external requests to trigger regeneration (non-silent)
+  useEffect(() => {
+    const handleRequestGenerate = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      if (detail.documentId != null && String(detail.documentId) !== String(documentId)) return;
+      handleRegenerate(false);
+    };
+    window.addEventListener('vis-ocr:request-generate', handleRequestGenerate as EventListener);
+    return () => window.removeEventListener('vis-ocr:request-generate', handleRequestGenerate as EventListener);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentId]);
 
   // Render content with highlights
   const renderedContent = useMemo(() => {
@@ -376,7 +480,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
     matches.forEach((m: Match, i: number) => {
       // Text before match
       if (m.start > lastIndex) {
-        parts.push(content.substring(lastIndex, m.start));
+        parts.push(effectiveContent.substring(lastIndex, m.start));
       }
       
       // Match highlight
@@ -387,7 +491,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
           key={`match-${i}`}
           className={`${isCurrent ? 'bg-yellow-400 ring-2 ring-yellow-600' : 'bg-yellow-200'}`}
         >
-          {content.substring(m.start, m.end)}
+          {effectiveContent.substring(m.start, m.end)}
         </mark>
       );
       
@@ -395,12 +499,12 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
     });
 
     // Remaining text
-    if (lastIndex < content.length) {
-      parts.push(content.substring(lastIndex));
+    if (lastIndex < effectiveContent.length) {
+      parts.push(effectiveContent.substring(lastIndex));
     }
 
     return <div className="font-mono text-sm whitespace-pre-wrap">{parts}</div>;
-  }, [content, matches, currentMatchIndex]);
+  }, [effectiveContent, matches, currentMatchIndex]);
 
   return (
     <div data-testid="document-content-island-root" className="h-full flex flex-col">
@@ -596,11 +700,25 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
       )}
 
       {/* Content Area */}
-      <div 
+      <div
         ref={contentRef}
         data-testid="document-content-area"
         className="flex-1 overflow-auto bg-white flex flex-col min-h-0"
       >
+        {autoGenerateBanner === 'running' && (
+          <div data-testid="auto-ocr-banner" className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px] text-indigo-700 font-bold">
+            <i className="fas fa-spinner fa-spin"></i>
+            <span>Generating high-res visual analysis for the first time...</span>
+          </div>
+        )}
+        {autoGenerateBanner === 'done' && (
+          <div data-testid="auto-ocr-banner-done" className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-emerald-50 border border-emerald-200 text-[10px] text-emerald-700 font-bold">
+            <i className="fas fa-check-circle"></i>
+            <span>High-res visual analysis complete — see Visual Insights in the sidebar</span>
+            <button onClick={() => setAutoGenerateBanner('idle')} className="ml-auto text-emerald-500 hover:text-emerald-700">x</button>
+          </div>
+        )}
+
         {isRegenerating ? (
           <div className="flex-1 flex flex-col items-center justify-center p-12 text-center" data-testid="ocr-regenerating-state">
             <div className="relative mb-6">
@@ -621,7 +739,22 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
             </div>
             <textarea
               value={editedContent}
-              onInput={(e) => setEditedContent((e.target as HTMLTextAreaElement).value)}
+              onInput={(e) => {
+                const val = (e.target as HTMLTextAreaElement).value;
+                setEditedContent(val);
+                // Mark workspace as dirty
+                if (val !== effectiveContent) {
+                  try {
+                    if (typeof window !== 'undefined') {
+                      (window as any).__workspaceState = (window as any).__workspaceState || {};
+                      const key = String(documentId);
+                      (window as any).__workspaceState[key] = (window as any).__workspaceState[key] || {};
+                      (window as any).__workspaceState[key].isDirty = true;
+                    }
+                  } catch (err) { /* ignore */ }
+                  window.dispatchEvent(new CustomEvent('workspace:dirty', { detail: { documentId } }));
+                }
+              }}
               className="flex-1 w-full p-4 font-mono text-sm border-2 border-indigo-100 rounded-xl focus:border-indigo-300 focus:ring-0 resize-none outline-none bg-slate-50/30"
               data-testid="ocr-edit-textarea"
               placeholder="Correct the extracted text here..."

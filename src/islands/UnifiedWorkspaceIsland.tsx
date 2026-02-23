@@ -144,7 +144,16 @@ function resolveLocateTarget(
     matchesLookup(tokens, item.paperlessField) ||
     matchesLookup(tokens, item.label)
   ));
-  if (!overlay) return null;
+  if (!overlay) {
+    // T7 fallback: field found with a direct bbox (e.g. user-drawn custom fields that have no overlay yet)
+    if (field && field.bbox) {
+      return {
+        bbox: field.bbox,
+        page: field.pageNumber || field.page || 1
+      };
+    }
+    return null;
+  }
   const bbox = getBboxFromOverlay(overlay);
   if (!bbox) return null;
   const page = overlay.pageNumber || overlay.page || 1;
@@ -316,6 +325,10 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
         window.dispatchEvent(new CustomEvent('overlay:highlight-region', {
           detail: { bbox: resolved.bbox, page: resolved.page }
         }));
+        // T7: also navigate the viewer to the correct page
+        window.dispatchEvent(new CustomEvent('overlay:navigate-to-page', {
+          detail: { page: resolved.page, documentId: activeDocumentId }
+        }));
         try {
           wnd.__last_metadata_locate = {
             fieldId: fieldId as string,
@@ -445,42 +458,8 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
     };
   }, [props.document?.id]);
 
-  // Handle workspace:save-request events from DocumentContextBarIsland
-  useEffect(() => {
-    const handleSaveRequest = async (e: Event) => {
-      const detail = (e as CustomEvent<{ documentId?: number | string }>)?.detail || {};
-      const { documentId } = detail;
-      // Only handle if this workspace instance is showing the same document
-      if (String(documentId) !== String(props.document?.id)) return;
-
-      try {
-        // Call the save API
-        const response = await fetch('/api/processing/update-document', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            documentId,
-            // Include metadata from current state if available via global workspace state
-          }),
-        });
-
-        if (response.ok) {
-          window.dispatchEvent(new CustomEvent('workspace:save-complete', {
-            detail: { documentId, success: true }
-          }));
-        } else {
-          throw new Error('Save failed');
-        }
-      } catch (err) {
-        window.dispatchEvent(new CustomEvent('workspace:save-failed', {
-          detail: { documentId, error: (err as Error).message }
-        }));
-      }
-    };
-
-    window.addEventListener('workspace:save-request', handleSaveRequest as EventListener);
-    return () => window.removeEventListener('workspace:save-request', handleSaveRequest as EventListener);
-  }, [props.document?.id]);
+  // Save logic removed: delegation to individual participants (Metadata, OCR, Viewer) 
+  // managed by SaveCoordinatorIsland for atomic multi-island consistency.
 
   // Handle workspace:reprocess-request events from DocumentContextBarIsland
   useEffect(() => {

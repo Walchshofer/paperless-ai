@@ -1,4 +1,5 @@
 import { h } from 'preact';
+import { createPortal } from 'preact/compat';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'preact/hooks';
 
 interface DocumentSummary {
@@ -24,6 +25,7 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
   const [isDropdownOpen, setIsDropdownOpen] = useState(() => (props.documentId == null));
   const [searchTerm, setSearchOpen] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [status, setStatus] = useState(props.status || 'saved');
 
   // Update local state when props change (e.g., on initial load or URL-based navigation)
   useEffect(() => {
@@ -51,6 +53,74 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
     if (!currentDocumentId) return -1;
     return props.availableDocuments.findIndex(doc => doc.id === currentDocumentId);
   }, [props.availableDocuments, currentDocumentId]);
+
+  // Listen for workspace-wide events to update a visual unsaved indicator
+  useEffect(() => {
+    const onDirty = (e: Event) => {
+      const d = (e as CustomEvent)?.detail || {};
+      if (d && (d.documentId === currentDocumentId || currentDocumentId == null)) {
+        setStatus('unsaved');
+      }
+    };
+    const onSaved = (e: Event) => {
+      const d = (e as CustomEvent)?.detail || {};
+      if (d && (d.documentId === currentDocumentId || currentDocumentId == null)) {
+        setStatus((prev) => {
+          if (prev === 'processing' && e.type === 'workspace:save-complete') {
+            return 'processing';
+          }
+          return 'saved';
+        });
+        if (e.type === 'workspace:reprocess-complete') {
+          setIsReprocessing(false);
+        }
+      }
+    };
+    const onReprocessStarted = (e: Event) => {
+      const d = (e as CustomEvent)?.detail || {};
+      if (d && (d.documentId === currentDocumentId || currentDocumentId == null)) {
+        setStatus('processing');
+        setIsReprocessing(true);
+      }
+    };
+    const onReprocessFailed = (e: Event) => {
+      const d = (e as CustomEvent)?.detail || {};
+      if (d && (d.documentId === currentDocumentId || currentDocumentId == null)) {
+        setStatus('error');
+        setIsReprocessing(false);
+      }
+    };
+
+    window.addEventListener('workspace:dirty', onDirty as EventListener);
+    window.addEventListener('workspace:save-complete', onSaved as EventListener);
+    window.addEventListener('sync:success', onSaved as EventListener);
+    window.addEventListener('workspace:reprocess-started', onReprocessStarted as EventListener);
+    window.addEventListener('workspace:reprocess-complete', onSaved as EventListener);
+    window.addEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
+
+    return () => {
+      window.removeEventListener('workspace:dirty', onDirty as EventListener);
+      window.removeEventListener('workspace:save-complete', onSaved as EventListener);
+      window.removeEventListener('sync:success', onSaved as EventListener);
+      window.removeEventListener('workspace:reprocess-started', onReprocessStarted as EventListener);
+      window.removeEventListener('workspace:reprocess-complete', onSaved as EventListener);
+      window.removeEventListener('workspace:reprocess-failed', onReprocessFailed as EventListener);
+    };
+  }, [currentDocumentId]);
+
+  const getStatusBadge = () => {
+    switch (status) {
+      case 'processing':
+        return <span className="flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full border border-blue-100" data-testid="status-processing"><i class="fas fa-circle-notch fa-spin"></i> Processing</span>;
+      case 'unsaved':
+        return <span className="flex items-center gap-1.5 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-100" data-testid="status-unsaved"><i class="fas fa-circle text-[8px]"></i> Unsaved Changes</span>;
+      case 'error':
+        return <span className="flex items-center gap-1.5 text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded-full border border-red-100" data-testid="status-error"><i class="fas fa-exclamation-circle"></i> Error</span>;
+      case 'saved':
+      default:
+        return <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100" data-testid="status-saved"><i class="fas fa-check-circle"></i> Saved</span>;
+    }
+  };
 
   // Use navigation helper for detecting dirty state only; modal UI handles confirmation.
   const isDocumentDirty = useCallback((docId?: number | null) => {
@@ -178,7 +248,7 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
     window.addEventListener('workspace:save-failed', onSaveFailed as EventListener);
 
     try {
-      const saveId = `save-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+      const saveId = `save-${currentDocumentId}-${Date.now()}`;
       window.dispatchEvent(new CustomEvent('workspace:save-request', { 
         detail: { documentId: currentDocumentId, saveId } 
       }));
@@ -242,12 +312,8 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
     const onSaveComplete = (e: Event) => {
       const detail = (e as CustomEvent)?.detail || {};
       const savedDocId = detail.documentId ?? currentDocumentId;
-      console.log('DEBUG: onSaveComplete', savedDocId, currentDocumentId, navModal ? navModal.targetId : 'no-modal');
       if (String(savedDocId) === String(currentDocumentId)) {
         setIsSaving(false);
-        // Update status badge to saved
-        const root = document.querySelector('[data-testid="document-context-bar-root"]');
-        if (root) root.setAttribute('data-status', 'saved');
         window.removeEventListener('workspace:save-complete', onSaveComplete as EventListener);
         window.removeEventListener('workspace:save-failed', onSaveFailed as EventListener);
       }
@@ -258,9 +324,6 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
       const failedDocId = detail.documentId ?? currentDocumentId;
       if (String(failedDocId) === String(currentDocumentId)) {
         setIsSaving(false);
-        // Update status badge to error
-        const root = document.querySelector('[data-testid="document-context-bar-root"]');
-        if (root) root.setAttribute('data-status', 'error');
         window.removeEventListener('workspace:save-complete', onSaveComplete as EventListener);
         window.removeEventListener('workspace:save-failed', onSaveFailed as EventListener);
       }
@@ -270,7 +333,7 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
     window.addEventListener('workspace:save-failed', onSaveFailed as EventListener);
 
     try {
-      const saveId = `save-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+      const saveId = `save-${currentDocumentId}-${Date.now()}`;
       window.dispatchEvent(new CustomEvent('workspace:save-request', { 
         detail: { documentId: currentDocumentId, saveId } 
       }));
@@ -331,45 +394,6 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
       });
     }, 60000);
   }, [currentDocumentId, isReprocessing]);
-
-  // Listen for workspace-wide events to update a visual unsaved indicator
-  useEffect(() => {
-    const onDirty = (e: Event) => {
-      const d = (e as CustomEvent)?.detail || {};
-      if (d && (d.documentId === currentDocumentId || currentDocumentId == null)) {
-        const root = document.querySelector('[data-testid="document-context-bar-root"]');
-        if (root) root.setAttribute('data-status', 'unsaved');
-      }
-    };
-    const onSaved = (_e: Event) => {
-      const root = document.querySelector('[data-testid="document-context-bar-root"]');
-      if (root) root.setAttribute('data-status', 'saved');
-    };
-
-    window.addEventListener('workspace:dirty', onDirty as EventListener);
-    window.addEventListener('workspace:save-complete', onSaved as EventListener);
-    window.addEventListener('sync:success', onSaved as EventListener);
-
-    return () => {
-      window.removeEventListener('workspace:dirty', onDirty as EventListener);
-      window.removeEventListener('workspace:save-complete', onSaved as EventListener);
-      window.removeEventListener('sync:success', onSaved as EventListener);
-    };
-  }, [currentDocumentId]);
-
-  const getStatusBadge = () => {
-    switch (props.status) {
-      case 'processing':
-        return <span className="flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full border border-blue-100" data-testid="status-processing"><i class="fas fa-circle-notch fa-spin"></i> Processing</span>;
-      case 'unsaved':
-        return <span className="flex items-center gap-1.5 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-100" data-testid="status-unsaved"><i class="fas fa-circle text-[8px]"></i> Unsaved Changes</span>;
-      case 'error':
-        return <span className="flex items-center gap-1.5 text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded-full border border-red-100" data-testid="status-error"><i class="fas fa-exclamation-circle"></i> Error</span>;
-      case 'saved':
-      default:
-        return <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100" data-testid="status-saved"><i class="fas fa-check-circle"></i> Saved</span>;
-    }
-  };
 
   return (
     <div className="flex items-center gap-4 w-full max-w-4xl" data-testid="document-context-bar-root">
@@ -457,7 +481,7 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
 
       {/* Status & Actions Group */}
       <div className="flex items-center gap-3 ml-auto">
-        <div className="hidden sm:block">
+        <div className="block">
           {getStatusBadge()}
         </div>
 
@@ -493,9 +517,9 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
         ></div>
       )}
 
-      {/* Navigation confirmation modal (in-page, accessible) */}
-      {navModal.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" aria-hidden="false">
+      {/* Navigation confirmation modal — rendered via portal at document.body to escape panel stacking contexts */}
+      {navModal.show && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center" aria-hidden="false">
           <div className="absolute inset-0 bg-black opacity-50" aria-hidden="true"></div>
           <div role="dialog" aria-modal="true" aria-labelledby="nav-confirm-title" className="relative z-10 bg-white rounded-lg shadow-xl max-w-lg w-full p-6" data-testid="nav-confirm-modal">
             <h2 id="nav-confirm-title" className="text-lg font-semibold">You have unsaved changes</h2>
@@ -515,7 +539,7 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
                 data-testid="nav-confirm-discard"
                 className="px-4 py-2 rounded-md border border-red-200 bg-white text-sm text-red-700"
                 onClick={handleModalDiscard}
-                aria-label="Discard changes and navigate"
+                aria-label="Discard changes and leave"
               >
                 Discard Changes and Leave
               </button>
@@ -532,7 +556,8 @@ export default function DocumentContextBarIsland(props: DocumentContextBarProps)
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Reprocess notification toast */}

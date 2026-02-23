@@ -41,6 +41,7 @@ export const SmartTagSchema = z.object({
   id: z.number().int(),
   name: z.string(),
   color: z.string().optional(),
+  document_count: z.number().optional(),
 });
 
 export const VisOcrPageSchema = z.object({
@@ -70,6 +71,7 @@ export const SmartMetadataSchema = z.object({
       visOcrPages: z.array(VisOcrPageSchema).optional(),
       visOcrSource: z.string().nullable().optional(),
       visOcrQuality: z.number().nullable().optional(),
+      ocrContent: z.string().optional(), // First 600 chars of OCR text for correspondent suggestion
     })
     .passthrough()
     .optional(),

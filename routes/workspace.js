@@ -620,7 +620,8 @@ router.get('/doc/:id', async (req, res) => {
       availableTags = allTags.map(tag => ({
         id: tag.id,
         name: tag.name,
-        color: tag.color || tag.colour || null
+        color: tag.color || tag.colour || null,
+        document_count: typeof tag.document_count === 'number' ? tag.document_count : 0
       }));
       if (document.tags && document.tags.length > 0) {
         tagItems = document.tags
@@ -808,6 +809,7 @@ router.get('/doc/:id', async (req, res) => {
         visOcrPages,
         visOcrSource,
         visOcrQuality,
+        ocrContent: (content || '').substring(0, 600),
         status: 'saved',
       },
       availableDocuments: availableDocs.map(d => ({
@@ -986,7 +988,8 @@ router.get('/api/doc/:id', async (req, res) => {
       availableTags = allTags.map(tag => ({
         id: tag.id,
         name: tag.name,
-        color: tag.color || tag.colour || null
+        color: tag.color || tag.colour || null,
+        document_count: typeof tag.document_count === 'number' ? tag.document_count : 0
       }));
       if (document.tags && document.tags.length > 0) {
         tagItems = document.tags
@@ -1153,7 +1156,8 @@ router.get('/api/doc/:id', async (req, res) => {
       currentUser: req.user?.username || null,
       visOcrPages,
       visOcrSource,
-      visOcrQuality
+      visOcrQuality,
+      ocrContent: (content || '').substring(0, 600)
     });
 
   } catch (error) {

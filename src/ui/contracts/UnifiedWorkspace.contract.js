@@ -71,6 +71,7 @@ const UnifiedWorkspaceSchema = z.object({
       id: z.coerce.number().int(),
       name: z.string(),
       color: z.string().nullable().optional(),
+      document_count: z.number().optional(),
     })).optional().default([]),
     pageCount: z.coerce.number().int().nullable(),
     currentPage: z.coerce.number().int().default(1),

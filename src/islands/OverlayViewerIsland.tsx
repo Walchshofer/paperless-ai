@@ -349,9 +349,9 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const [isResizing, setIsResizing] = useState(false);
   const [highlightedRegion, setHighlightedRegion] = useState(null as BoundingBox | null);
 
-  // Draw context for Visual Tab integration (label-field or visual-search)
-  const [drawContext, setDrawContext] = useState(null as { fieldId?: string; purpose?: string } | null);
-  const drawContextRef = useRef(null as { fieldId?: string; purpose?: string } | null);
+  // Draw context for Visual Tab integration (label-field, visual-search, or custom-field draw)
+  const [drawContext, setDrawContext] = useState(null as { fieldId?: string; tempFieldId?: string; purpose?: string } | null);
+  const drawContextRef = useRef(null as { fieldId?: string; tempFieldId?: string; purpose?: string } | null);
 
   // Export functionality state
   const [selectedRegion, setSelectedRegion] = useState(null as BoundingBox | null);
@@ -454,6 +454,35 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     return () => window.removeEventListener('overlay:highlight-region', handler as EventListener);
   }, [page, applyScale, imageDimensions.width, imageDimensions.height]);
 
+  // Listen for page navigation requests from workspace (e.g. metadata:locate-field resolution)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ page: number; documentId: number | string }>).detail || {};
+      const targetPage = detail.page !== undefined && detail.page !== null ? Number(detail.page) : null;
+      if (targetPage === null || !Number.isFinite(targetPage)) return;
+      // Only navigate if this event is for the currently displayed document
+      if (detail.documentId !== undefined && String(detail.documentId) !== String(docId)) return;
+      setPage(targetPage);
+    };
+    window.addEventListener('overlay:navigate-to-page', handler as EventListener);
+    return () => window.removeEventListener('overlay:navigate-to-page', handler as EventListener);
+  }, [docId]);
+
+  // Listen for metadata refresh (e.g. after re-ingestion) to reset rotation UI state
+  useEffect(() => {
+    const handleRefresh = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      if (String(detail.documentId) === String(docId)) {
+        console.debug(`[OverlayViewerIsland] Resetting rotation UI state after metadata refresh for doc ${docId}`);
+        setRotationDeg(0);
+        // We also need to update initialRotation if we want 'willSave' to be false again
+        // But since this is a functional component, we'd need to track it in state
+      }
+    };
+    window.addEventListener('metadata:refresh', handleRefresh as EventListener);
+    return () => window.removeEventListener('metadata:refresh', handleRefresh as EventListener);
+  }, [docId]);
+
   // Listen for draw mode activation from Visual Tab
   useEffect(() => {
     const handleActivateDrawMode = (e: Event) => {
@@ -496,11 +525,37 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     };
   }, []);
 
+  // Listen for custom-field draw requests from SmartMetadata / CustomFieldsIsland (T6)
+  useEffect(() => {
+    const handleCustomFieldDrawRequest = (e: Event) => {
+      const detail = (e as CustomEvent<{ tempFieldId?: string }>)?.detail || {};
+      const { tempFieldId } = detail;
+      if (!tempFieldId) return;
+
+      const ctx = { tempFieldId, purpose: 'custom_field' };
+      setDrawContext(ctx);
+      drawContextRef.current = ctx;
+
+      // Ensure draw interactions happen in unrotated coordinates
+      setRotationDeg(0);
+
+      // Activate draw mode
+      drawModeRef.current = true;
+      setIsDrawMode(true);
+
+      // Disable pan mode if active
+      setPanMode(false);
+    };
+
+    window.addEventListener('custom-field:draw-request', handleCustomFieldDrawRequest as EventListener);
+    return () => window.removeEventListener('custom-field:draw-request', handleCustomFieldDrawRequest as EventListener);
+  }, []);
+
   // Save Coordinator Participation
   useEffect(() => {
     const participantId = 'overlay-viewer';
 
-    const onSaveRequest = async (e: Event) => {
+    const onSaveRequest = (e: Event) => {
       const detail = (e as CustomEvent<{ saveId?: string; documentId?: number | null }>)?.detail || {};
       const { saveId, documentId } = detail;
       
@@ -517,35 +572,43 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
       if (!willSave) return;
 
-      // 2. Perform actual persistence
-      // We do this immediately in the request handler to avoid missing save-begin race conditions
-      console.info(`[OverlayViewerIsland] Persisting rotation: ${rotationDeg} for doc ${docId} (saveId: ${saveId})`);
+      // 2. Register listener for the actual save signal
+      const onSaveBegin = async (beginEvent: Event) => {
+        const beginDetail = (beginEvent as CustomEvent<{ saveId?: string }>)?.detail || {};
+        if (beginDetail.saveId !== saveId) return;
 
-      try {
-        // Save rotation settings to PostgreSQL
-        const response = await fetch(`/api/visual-overlays/settings/${docId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rotation: rotationDeg })
-        });
+        console.info(`[OverlayViewerIsland] Persisting rotation: ${rotationDeg} for doc ${docId} (saveId: ${saveId})`);
 
-        if (!response.ok) throw new Error('Failed to save visual settings');
+        try {
+          // Save rotation settings to PostgreSQL
+          const response = await fetch(`/api/visual-overlays/settings/${docId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rotation: rotationDeg })
+          });
 
-        // Trigger re-ingestion (as requested: "documents needs to be reingested (visual and text)")
-        window.dispatchEvent(new CustomEvent('workspace:reprocess-request', {
-          detail: { documentId: docId }
-        }));
+          if (!response.ok) throw new Error('Failed to save visual settings');
 
-        // Notify coordinator of success
-        window.dispatchEvent(new CustomEvent('workspace:save-partial-complete', {
-          detail: { saveId, participantId, success: true }
-        }));
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        window.dispatchEvent(new CustomEvent('workspace:save-partial-complete', {
-          detail: { saveId, participantId, success: false, message: msg }
-        }));
-      }
+          // Trigger re-ingestion (as requested: "documents needs to be reingested (visual and text)")
+          window.dispatchEvent(new CustomEvent('workspace:reprocess-request', {
+            detail: { documentId: docId }
+          }));
+
+          // Notify coordinator of success
+          window.dispatchEvent(new CustomEvent('workspace:save-partial-complete', {
+            detail: { saveId, participantId, success: true }
+          }));
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          window.dispatchEvent(new CustomEvent('workspace:save-partial-complete', {
+            detail: { saveId, participantId, success: false, message: msg }
+          }));
+        } finally {
+          window.removeEventListener('workspace:save-begin', onSaveBegin as EventListener);
+        }
+      };
+
+      window.addEventListener('workspace:save-begin', onSaveBegin as EventListener);
     };
 
     window.addEventListener('workspace:save-request', onSaveRequest as EventListener);
@@ -1239,6 +1302,23 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         }
 
         if (eventName === 'overlay:draw-complete') {
+          // T6: If this draw was triggered by a custom-field:draw-request, also emit the paired completion event
+          if (context.purpose === 'custom_field' && context.tempFieldId) {
+            const normalizedBbox = {
+              x: box.x / naturalWidth,
+              y: box.y / naturalHeight,
+              width: box.width / naturalWidth,
+              height: box.height / naturalHeight
+            };
+            window.dispatchEvent(new CustomEvent('custom-field:draw-complete', {
+              detail: {
+                tempFieldId: context.tempFieldId,
+                bbox: normalizedBbox,
+                page,
+                imageBase64: base64 || null
+              }
+            }));
+          }
           setDrawContext(null);
           drawContextRef.current = null;
         }
@@ -1888,6 +1968,39 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             onTouchStart={handleMouseDownFallback as (e: TouchEvent) => void}
             onTouchMove={handleMouseMoveFallback as (e: TouchEvent) => void}
             onTouchEnd={handleMouseUpFallback as (e: TouchEvent) => void}
+            onDragOver={(e: DragEvent) => {
+              e.preventDefault();
+              if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+            }}
+            onDrop={(e: DragEvent) => {
+              e.preventDefault();
+              const raw = e.dataTransfer?.getData('application/paperless-tag');
+              if (!raw) return;
+              try {
+                const tag = JSON.parse(raw) as { id?: unknown; name?: unknown; color?: unknown };
+                const target = e.currentTarget as HTMLDivElement;
+                const rect = target.getBoundingClientRect();
+                const relX = (e.clientX - rect.left) / rect.width;
+                const relY = (e.clientY - rect.top) / rect.height;
+                const bbox = {
+                  x: Math.max(0, relX - 0.05),
+                  y: Math.max(0, relY - 0.05),
+                  width: 0.1,
+                  height: 0.06
+                };
+                window.dispatchEvent(new CustomEvent('tag:drag-dropped', {
+                  detail: {
+                    tagId: tag.id,
+                    tagName: tag.name,
+                    color: tag.color,
+                    bbox,
+                    page
+                  }
+                }));
+              } catch (err) {
+                console.error('[OverlayViewer] tag drop parse error:', err);
+              }
+            }}
           >
             <div
               ref={viewportRef}

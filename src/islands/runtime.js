@@ -336,6 +336,10 @@ const UnifiedWorkspaceSchema = z.object({
   }).optional(),
 }).optional();
 
+const SaveCoordinatorSchema = z.object({
+  documentId: z.number().int().nullable().optional(),
+}).optional();
+
 // Document Context Bar Schema
 const DocumentContextBarSchema = z.object({
   documentId: z.number().int().nullable().optional(),
@@ -390,6 +394,7 @@ const schemaMap = {
   'history-manager-island': HistoryManagerSchema,
   'playground-island': PlaygroundSchema,
   'unified-workspace-island': UnifiedWorkspaceSchema,
+  'save-coordinator-island': SaveCoordinatorSchema,
   'document-context-bar-island': DocumentContextBarSchema,
   'context-sidebar-island': ContextSidebarSchema,
   // Base settings islands scaffolding (P1.3)

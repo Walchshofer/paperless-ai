@@ -28,21 +28,26 @@ export default function SaveCoordinatorIsland(_props: { documentId?: number }) {
 
     function onBegin(e: Event) {
       const detail = (e as CustomEvent<BeginDetail>)?.detail || {};
+      console.debug(`[SaveCoordinator] onBegin: saveId=${detail.saveId}, total=${detail.total}`);
       setActive(true);
       setStatus('saving');
       setProgress({ completed: 0, total: detail.total || 0 });
     }
     function onProgress(e: Event) {
       const detail = (e as CustomEvent<ProgressDetail>)?.detail || {};
+      console.debug(`[SaveCoordinator] onProgress: ${detail.completed}/${detail.total}`);
       setProgress({ completed: detail.completed || 0, total: detail.total || 0 });
     }
-    function onComplete(_e: Event) {
+    function onComplete(e: Event) {
+      const detail = (e as CustomEvent) ?.detail || {};
+      console.debug(`[SaveCoordinator] onComplete: doc=${detail.documentId}`);
       setStatus('success');
       setActive(false);
       setTimeout(() => setStatus('idle'), 1500);
     }
     function onFailed(e: Event) {
       const detail = (e as CustomEvent<FailedDetail>)?.detail || {};
+      console.debug(`[SaveCoordinator] onFailed:`, detail.errors);
       setStatus('failed');
       setLastError(JSON.stringify(detail.errors || {}));
       setActive(false);

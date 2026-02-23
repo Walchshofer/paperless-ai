@@ -46,27 +46,34 @@ async function normalizeManualUpdatePayload(rawUpdates, requestId, deps = {}) {
 
   if (updates.correspondent !== undefined && updates.correspondent !== null) {
     const corrRaw = updates.correspondent;
-    let corrId = null;
-    if (typeof corrRaw === 'object') {
-      if (typeof corrRaw.name === 'string' && corrRaw.name.trim()) {
-        const corr = await paperlessService.getOrCreateCorrespondent(corrRaw.name.trim());
-        corrId = corr && corr.id ? Number(corr.id) : null;
-      } else if (corrRaw.id !== undefined && corrRaw.id !== null) {
-        corrId = Number(corrRaw.id);
-      }
-    } else if (typeof corrRaw === 'string' && Number.isNaN(Number(corrRaw))) {
-      const corr = await paperlessService.getOrCreateCorrespondent(corrRaw.trim());
-      corrId = corr && corr.id ? Number(corr.id) : null;
+    // Empty string means "no correspondent" — skip the update rather than failing
+    const corrEmpty = (typeof corrRaw === 'string' && corrRaw.trim() === '') ||
+      (typeof corrRaw === 'number' && corrRaw === 0);
+    if (corrEmpty) {
+      delete updates.correspondent;
     } else {
-      corrId = Number(corrRaw);
-    }
+      let corrId = null;
+      if (typeof corrRaw === 'object') {
+        if (typeof corrRaw.name === 'string' && corrRaw.name.trim()) {
+          const corr = await paperlessService.getOrCreateCorrespondent(corrRaw.name.trim());
+          corrId = corr && corr.id ? Number(corr.id) : null;
+        } else if (corrRaw.id !== undefined && corrRaw.id !== null) {
+          corrId = Number(corrRaw.id);
+        }
+      } else if (typeof corrRaw === 'string' && Number.isNaN(Number(corrRaw))) {
+        const corr = await paperlessService.getOrCreateCorrespondent(corrRaw.trim());
+        corrId = corr && corr.id ? Number(corr.id) : null;
+      } else {
+        corrId = Number(corrRaw);
+      }
 
-    if (!corrId || Number.isNaN(corrId)) {
-      const err = new Error('Invalid correspondent update');
-      err.statusCode = 400;
-      throw err;
+      if (!corrId || Number.isNaN(corrId)) {
+        const err = new Error('Invalid correspondent update');
+        err.statusCode = 400;
+        throw err;
+      }
+      updates.correspondent = corrId;
     }
-    updates.correspondent = corrId;
   }
 
   if (removed.length > 0) {

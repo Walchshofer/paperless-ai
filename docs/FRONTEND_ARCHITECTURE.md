@@ -112,6 +112,12 @@ Displays system overview, recent documents, and stats. Uses `DashboardChartsIsla
 | **`ExportPanelIsland`** | Event-driven modal export utility for regions, text, and annotations. **Wired in:** [document-workspace.ejs](../views/document-workspace.ejs). **Endpoints:** Not yet implemented (see [EXPORT_PANEL_FEATURE.md](./EXPORT_PANEL_FEATURE.md)). | `<div data-island="export-panel-island" ...>` |
 | **`VisualAnnotationIsland`** | Legacy or specific annotation tool for drawing regions with labels. | `<div data-island="visual-annotation-island" ...>` |
 | **`DashboardChartsIsland`** | Reactive Preact charts (Bar/Doughnut) and task runner status for the Dashboard. | `<div data-island="dashboard-charts-island" ...>` |
+| **`SmartMetadataIsland`** | AI-extracted metadata editor with correspondent suggestions, tag pills, draw-to-custom-field, and VIS_OCR Visual Insights accordion. | `<div data-island="smart-metadata-island" ...>` |
+| **`UnifiedWorkspaceIsland`** | Workspace orchestrator: resolves `metadata:locate-field` to overlay bbox and dispatches `overlay:highlight-region` + `overlay:navigate-to-page`. | `<div data-island="unified-workspace-island" ...>` |
+| **`DocumentContextBarIsland`** | Authoritative document selector in workspace header. Dispatches `workspace:document-switched` and `overlay:document-changed` on selection. | `<div data-island="document-context-bar-island" ...>` |
+
+> Cross-island event contracts are documented in
+> [docs/CROSS_ISLAND_EVENTS.md](./CROSS_ISLAND_EVENTS.md).
 
 ## New Features (Epic 4c9b7999)
 
@@ -125,7 +131,37 @@ Integrated into `OverlayViewerIsland`, this feature allows users to draw a regio
 ### 3. In-Document Search & Highlighting
 The `DocumentContentIsland` provides a robust search bar for text-heavy documents, featuring regex support, case-sensitivity toggles, and "scroll-to-match" navigation.
 
-$1
+### 4. v2 Workspace Intelligence (2026-02-23)
+
+#### Auto-generate high-res OCR
+`DocumentContentIsland` silently calls VIS_OCR on first visit for a document.
+A `localStorage` guard key `vis_ocr_generated_{documentId}` prevents repeat
+calls.  On success it emits `vis-ocr:updated`; `SmartMetadataIsland` displays
+the pages in the Visual Insights accordion.
+
+#### Correspondent suggestions
+`SmartMetadataIsland` fetches correspondent candidates from
+`GET /api/documents/correspondents` (returns `{ success, correspondents: [{name, id, document_count}] }`)
+and surfaces them as suggestion chips alongside the correspondent field.
+
+#### Draw-to-custom-field
+Users can click "Add Field from Document" in `SmartMetadataIsland` to activate
+draw mode in `OverlayViewerIsland` via `custom-field:draw-request`.  When the
+draw is complete, `custom-field:draw-complete` returns the normalised bbox and
+a base64 crop to `SmartMetadataIsland`, which creates a pending custom field.
+
+#### Tag drag-and-drop to document regions
+Tags can be dragged from `SmartMetadataIsland` and dropped onto the
+`OverlayViewerIsland` drop zone.  The viewer emits `tag:drag-dropped` with the
+approximate drop region; `SmartMetadataIsland` associates the tag with that
+region.
+
+#### Locate-field page navigation
+`SmartMetadataIsland` emits `metadata:locate-field` when a user clicks the
+locate icon on a field.  `UnifiedWorkspaceIsland` resolves the field to a bbox
+(via saved overlays or a direct `field.bbox` fallback) and dispatches both
+`overlay:highlight-region` and `overlay:navigate-to-page` to bring the correct
+page into view.
 
 ### 5. Shared Utilities (`public/js/shared-utilities.js`)
 To reduce duplication across EJS templates (like `manual.ejs`, `settings.ejs`), common UI logic has been consolidated into a single lightweight utility script:

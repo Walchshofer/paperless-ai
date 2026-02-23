@@ -13,6 +13,7 @@ const distDir = path.join(projectRoot, 'public', 'js', 'dist');
 const entries = {
   'island-runtime': 'src/islands/runtime.browser.tsx',
   'unified-workspace': 'src/islands/UnifiedWorkspaceIsland.tsx',
+  'save-coordinator': 'src/islands/SaveCoordinatorIsland.tsx',
   'document-context-bar': 'src/islands/DocumentContextBarIsland.tsx',
   'context-sidebar': 'src/islands/ContextSidebarIsland.tsx',
   'manual-editor': 'src/islands/ManualEditorIsland.tsx',

@@ -419,6 +419,7 @@ UNCERTAINTY HANDLING:
 - Recommend additional views or modalities when findings are equivocal
 
 You must respond ONLY with valid JSON following the specified schema.
+Always respond in German (Deutsch). All extracted values, labels, and text output must be in German unless the source document is in English.
 <|eot_id|>`,
 
     userTemplate: `<|start_header_id|>user<|end_header_id|>
@@ -548,6 +549,7 @@ You are an expert Medical Document Analyst AI. Your role is to parse medical tex
   "quality_flags": { "requires_human_review": false },
   "summary": { "brief_summary": "string", "key_findings": [] }
 }
+Always respond in German (Deutsch). All extracted values, labels, and text output must be in German unless the source document is in English.
 <|eot_id|>`,
 
     userTemplate: `<|start_header_id|>user<|end_header_id|>
@@ -608,6 +610,7 @@ OUTPUT REQUIREMENTS:
 - Clear provenance tracking (which source provided what)
 - Aggregated confidence scores
 - Human review queue for uncertain items
+Always respond in German (Deutsch). All extracted values, labels, and text output must be in German unless the source document is in English.
 <|eot_id|>`,
 
     userTemplate: `<|start_header_id|>user<|end_header_id|>
@@ -736,6 +739,7 @@ OUTPUT APPROACH:
 - Preserve original text for key extractions
 - Flag uncertain extractions with confidence scores
 - Suggest appropriate tags/categories for filing
+Always respond in German (Deutsch). All extracted values, labels, and text output must be in German unless the source document is in English.
 <|eot_id|>`,
 
     userTemplate: `<|start_header_id|>user<|end_header_id|>
@@ -995,6 +999,7 @@ OUTPUT RULES:
 - Return valid JSON only.
 - Extract amounts, dates, parties, and tax/VAT details when present.
 - Do not invent values; use null when missing.
+Always respond in German (Deutsch). All extracted values, labels, and text output must be in German unless the source document is in English.
 <|eot_id|>`,
 
     userTemplate: `<|start_header_id|>user<|end_header_id|>
@@ -1077,6 +1082,7 @@ OUTPUT RULES:
 - Return valid JSON only.
 - Verify arithmetic (subtotal + tax = total, etc.).
 - Highlight inconsistencies and provide corrected calculations if possible.
+Always respond in German (Deutsch). All extracted values, labels, and text output must be in German unless the source document is in English.
 <|eot_id|>`,
 
     userTemplate: `<|start_header_id|>user<|end_header_id|>
@@ -1185,6 +1191,7 @@ OUTPUT RULES:
 - USE DOUBLE QUOTES FOR ALL KEYS AND VALUES.
 - EXAMPLE JSON: {"extracted_clauses": [{"clause": "Sample", "risks": [], "confidence": 0.9}], "risks": [], "citations": {}, "confidence": 0.9}
 - YOU MAY USE <think> TAGS FOR REASONING, BUT THE FINAL OUTPUT MUST BE VALID JSON OUTSIDE THE TAGS.
+Always respond in German (Deutsch). All extracted values, labels, and text output must be in German unless the source document is in English.
 <|eot_id|>`,
 
     userTemplate: `<|start_header_id|>user<|end_header_id|>
@@ -1230,6 +1237,7 @@ Focus on applying VAT rules to the document at hand.
 OUTPUT RULES:
 - Return valid JSON only.
 - Provide VAT-related findings and flags relevant to the document.
+Always respond in German (Deutsch). All extracted values, labels, and text output must be in German unless the source document is in English.
 <|eot_id|>`,
 
     userTemplate: `<|start_header_id|>user<|end_header_id|>

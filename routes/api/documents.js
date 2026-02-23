@@ -361,6 +361,20 @@ function publishReprocessProgress(documentId, update = {}) {
 }
 
 /**
+ * GET /api/documents/correspondents
+ * Returns the list of correspondent names from Paperless-ngx.
+ */
+router.get('/correspondents', async (req, res) => {
+  try {
+    const correspondents = await paperlessService.listCorrespondentsNames();
+    res.json({ success: true, correspondents });
+  } catch (error) {
+    logger.error('[Documents API] Failed to list correspondents:', error.message);
+    res.status(500).json({ success: false, correspondents: [], error: error.message });
+  }
+});
+
+/**
  * @swagger
  * /api/documents/{id}/reprocess:
  *   post:
