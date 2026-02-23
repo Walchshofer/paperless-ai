@@ -1,14 +1,14 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Route, type Response as PlaywrightResponse } from '@playwright/test';
 const { getTestDocId } = require('../helpers/fixtures');
 const { navigateToWorkspace, switchTab } = require('../helpers/workspace-fixtures');
 
-const waitForEvent = async (page, eventName) => {
-  return page.evaluate((name) => {
+const waitForEvent = async (page: import('@playwright/test').Page, eventName: string) => {
+  return page.evaluate((name: string) => {
     return new Promise((resolve) => {
-      const handler = (e) => {
+      const handler = (e: Event) => {
         document.removeEventListener(name, handler);
         window.removeEventListener(name, handler);
-        resolve(e.detail || null);
+        resolve((e as CustomEvent).detail || null);
       };
       document.addEventListener(name, handler, { once: true });
       window.addEventListener(name, handler, { once: true });
@@ -25,7 +25,7 @@ test.describe('Workspace UI - Complete User Flow', () => {
   test('metadata edit, tab switch, visual draw mode, save', async ({ page }) => {
     const docId = getTestDocId();
 
-    await page.route('**/api/processing/update-document', async (route) => {
+    await page.route('**/api/processing/update-document', async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -76,7 +76,7 @@ test.describe('Workspace UI - Complete User Flow', () => {
   test('feedback:sent event dispatches on thumbs up', async ({ page }) => {
     const docId = getTestDocId();
 
-    await page.route('**/api/feedback/field-vote', async (route) => {
+    await page.route('**/api/feedback/field-vote', async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -93,7 +93,7 @@ test.describe('Workspace UI - Complete User Flow', () => {
       return;
     }
 
-    let feedbackResp = null;
+    let feedbackResp: PlaywrightResponse | null = null;
     const eventPromise = waitForEvent(page, 'feedback:sent');
 
     if (await feedbackBtn.count() > 0) {
@@ -128,7 +128,7 @@ test.describe('Cross-Island Event Communication', () => {
   test('workspace:save-complete fires on save', async ({ page }) => {
     const docId = getTestDocId();
 
-    await page.route('**/api/processing/update-document', async (route) => {
+    await page.route('**/api/processing/update-document', async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

@@ -19,7 +19,7 @@ export default function ExpertModelsIsland(props: Partial<ExpertModelsSettings>)
   const [saveMessage, setSaveMessage] = useState(null as string | null);
 
   // Expert pipeline toggle
-  const [expertPipelineEnabled, setExpertPipelineEnabled] = useState(validated.expertPipelineEnabled || true);
+  const [expertPipelineEnabled, setExpertPipelineEnabled] = useState<boolean>(validated.expertPipelineEnabled ?? true);
 
   // Medical models
   const [medicalVision, setMedicalVision] = useState(validated.medical?.vision || 'llava-med-v1.6');

@@ -102,7 +102,7 @@ export default function ExportPanelIsland(props: ExportPanelContract) {
   const handleCopy = async () => {
     try {
       if (exportType === 'text') {
-        await navigator.clipboard.writeText(data);
+        await navigator.clipboard.writeText(typeof data === 'string' ? data : '');
         alert('Copied to clipboard!');
       } else if (exportType === 'annotations') {
         await navigator.clipboard.writeText(JSON.stringify(data, null, 2));

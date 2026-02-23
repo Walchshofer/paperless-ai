@@ -111,7 +111,7 @@ type IslandPropsMap = {
 // Runtime component shape (using a lightweight functional type for islands)
 // Use a generic functional signature so we can enforce per-island props at compile time without importing Preact internals.
 
-type IslandComponent<P = unknown> = (props: P) => unknown;
+type IslandComponent<P = any> = (props: P) => any;
 
 type IslandRegistry = Record<string, IslandComponent>;
 const registry: IslandRegistry = {};

@@ -5,7 +5,7 @@ const TARGET_PROMPT_ID = 'VIS_OCR_V1';
 const TARGET_DOMAIN = 'system';
 
 test.describe('Prompt Template Optimization - SYS_ORCHESTRATOR_V1', () => {
-  let fixture;
+  let fixture: { docId: number; historyDocId: number; title: string; correspondentId: number | null; tagIds: number[]; created: string | null; source: string; paperlessApiUrl: string };
 
   test.beforeAll(async () => {
     fixture = loadFixtureData();
@@ -68,7 +68,7 @@ test.describe('Prompt Template Optimization - SYS_ORCHESTRATOR_V1', () => {
     const docCount = await docLocators.count();
     
     // Filter documents by type using more specific keywords for better targeting
-    const domainKeywords = {
+    const domainKeywords: Record<string, string[]> = {
       'medical': ['labor', 'arzt', 'befund', 'doctor', 'medical', 'patient'],
       'financial': ['invoice', 'rechnung', 'receipt', 'quittung', 'bill', 'chf', 'eur', 'usd'],
       'legal': ['contract', 'vertrag', 'legal', 'law', 'agreement', 'clause'],
@@ -76,11 +76,11 @@ test.describe('Prompt Template Optimization - SYS_ORCHESTRATOR_V1', () => {
     };
     
     const targetKeywords = domainKeywords[TARGET_DOMAIN.toLowerCase()] || [TARGET_DOMAIN.toLowerCase()];
-    const candidateIndices = [];
+    const candidateIndices: number[] = [];
     
     for (let i = 0; i < docCount; i++) {
       const text = (await docLocators.nth(i).innerText()).toLowerCase();
-      if (targetKeywords.some(k => text.includes(k))) {
+      if (targetKeywords.some((k: string) => text.includes(k))) {
         candidateIndices.push(i);
       }
     }

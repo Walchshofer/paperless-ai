@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 const { loadFixtureData } = require('../helpers/fixtures');
 
 test.describe('Prompt Test Lab Runtime Context', () => {
-  let fixture;
+  let fixture: { docId: number; historyDocId: number; title: string; correspondentId: number | null; tagIds: number[]; created: string | null; source: string; paperlessApiUrl: string };
 
   test.beforeAll(async () => {
     fixture = loadFixtureData();
@@ -88,7 +88,7 @@ test.describe('Prompt Test Lab Runtime Context', () => {
     await expect(modal).toBeVisible({ timeout: 15000 });
   });
 
-  async function selectTestDocument(page, docId) {
+  async function selectTestDocument(page: import('@playwright/test').Page, docId: number | string) {
     const modal = page.locator('[data-testid="prompt-test-modal"]');
     const docItem = modal.locator(`[data-testid="test-subject-doc-${docId}"]`);
     

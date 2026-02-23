@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator } from '@playwright/test';
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 const USERNAME = 'elfman';
@@ -101,7 +101,7 @@ test.describe('Workspace Document Viewer Verification', () => {
     ];
 
     let viewerFound = false;
-    let viewerElement = null;
+    let viewerElement: Locator | null = null;
     let foundSelector = '';
 
     console.log('Searching for document viewer element...');

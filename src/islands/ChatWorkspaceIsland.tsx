@@ -790,7 +790,7 @@ export default function ChatWorkspaceIsland(
       
       // In document mode with a vision model, auto-attach document image if not present
       if (chatMode === 'document' && isVisionCapable && selectedDocumentId) {
-        const hasImage = multimodalContext.some(ctx => ctx.type === 'visual' && ctx.imageBase64);
+        const hasImage = multimodalContext.some(ctx => ctx.type === 'visual' && ctx.data?.imageBase64);
         if (!hasImage) {
           try {
             // Fetch document image context

@@ -2,8 +2,7 @@ import { vi } from 'vitest';
 
 // Mock Canvas API for JSDOM to prevent "Not implemented" errors
 if (typeof HTMLCanvasElement !== 'undefined') {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  HTMLCanvasElement.prototype.getContext = vi.fn((): any => {
+  HTMLCanvasElement.prototype.getContext = (vi.fn(() => {
     return {
       fillRect: vi.fn(),
       clearRect: vi.fn(),
@@ -32,7 +31,7 @@ if (typeof HTMLCanvasElement !== 'undefined') {
       getContextAttributes: vi.fn(() => ({})),
       strokeRect: vi.fn(),
     } as unknown as CanvasRenderingContext2D;
-  });
+  }) as unknown as typeof HTMLCanvasElement.prototype.getContext);
 
   HTMLCanvasElement.prototype.toDataURL = vi.fn(() => "");
 }

@@ -2,7 +2,7 @@
  * @file E2E tests for chat model filtering by provider
  * @description Tests for ticket d3fea95f: Filter Model Selection by Active Provider
  */
-import { test, expect } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 const { navigateToWorkspace, switchTab, waitForIslandMount } = require('../helpers/workspace-fixtures');
 const { getTestDocId } = require('../helpers/fixtures');
 
@@ -34,7 +34,7 @@ test.describe('Chat Model Filtering by Provider', () => {
   });
 
   test('hides expert models for non-ollama provider payloads', async ({ page }) => {
-    await page.route('**/workspace/doc/*', async (route) => {
+    await page.route('**/workspace/doc/*', async (route: Route) => {
       const response = await route.fetch();
       let body = await response.text();
       body = body.replace(

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 
 const { waitForIsland } = require('../helpers/island-waits');
 
@@ -92,7 +92,7 @@ test.describe('ConnectionSettingsIsland smoke test', () => {
   test('test connection button shows loading state', async ({ page }) => {
     await openConnectionSettings(page);
 
-    await page.route('**/api/settings/test-connection', async (route) => {
+    await page.route('**/api/settings/test-connection', async (route: Route) => {
       await new Promise((resolve) => setTimeout(resolve, 500));
       await route.fulfill({
         status: 200,
@@ -122,7 +122,7 @@ test.describe('ConnectionSettingsIsland smoke test', () => {
   test('test connection shows error feedback on failure', async ({ page }) => {
     await openConnectionSettings(page);
 
-    await page.route('**/api/settings/test-connection', async (route) => {
+    await page.route('**/api/settings/test-connection', async (route: Route) => {
       await route.fulfill({
         status: 500,
         contentType: 'application/json',
@@ -167,7 +167,7 @@ test.describe('ConnectionSettingsIsland smoke test', () => {
         });
       });
 
-      await page.route('**/api/settings/save', async (route) => {
+      await page.route('**/api/settings/save', async (route: Route) => {
         await new Promise((resolve) => setTimeout(resolve, 300));
         await route.fulfill({
           status: 200,

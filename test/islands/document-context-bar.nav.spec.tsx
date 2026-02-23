@@ -3,11 +3,7 @@ import { render, fireEvent } from '@testing-library/preact';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import DocumentContextBarIsland from '../../src/islands/DocumentContextBarIsland';
 
-declare global {
-  interface Window {
-    __workspaceState?: Record<string, { isDirty?: boolean }>;
-  }
-}
+
 
 describe('DocumentContextBarIsland - navigation blocking when dirty', () => {
   let originalConfirm: (message?: string) => boolean;

@@ -19,7 +19,7 @@ async function openConnection(page: import('@playwright/test').Page) {
 }
 
 async function triggerConnectionSaveWithRestart(page: import('@playwright/test').Page) {
-  await page.route('**/api/settings/save', async (route) => {
+  await page.route('**/api/settings/save', async (route: any) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -93,7 +93,7 @@ test.describe('Settings Integration (Current IA)', () => {
   test('paperless connection test action works', async ({ page }) => {
     await openConnection(page);
 
-    await page.route('**/api/settings/test-connection', async (route) => {
+    await page.route('**/api/settings/test-connection', async (route: any) => {
       await new Promise((resolve) => setTimeout(resolve, 150));
       await route.fulfill({
         status: 200,
@@ -200,7 +200,7 @@ test.describe('Settings Integration (Current IA)', () => {
       });
     });
 
-    await page.route('**/api/settings/save', async (route) => {
+    await page.route('**/api/settings/save', async (route: any) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

@@ -676,10 +676,10 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
     const isDirty = nextRotation !== initialRotation;
     try {
       if (typeof window !== 'undefined') {
-        (window as any).__workspaceState = (window as any).__workspaceState || {};
+        window.__workspaceState = window.__workspaceState ?? {};
         const key = String(docId);
-        (window as any).__workspaceState[key] = (window as any).__workspaceState[key] || {};
-        (window as any).__workspaceState[key].isDirty = isDirty;
+        window.__workspaceState[key] = window.__workspaceState[key] ?? {};
+        window.__workspaceState[key].isDirty = isDirty;
       }
     } catch (e) { /* ignore */ }
 
@@ -1031,7 +1031,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       };
     }
 
-    window.addEventListener('resize', schedule);
+    (window as Window).addEventListener('resize', schedule);
     return () => {
       if (frame) cancelAnimationFrame(frame);
       window.removeEventListener('resize', schedule);

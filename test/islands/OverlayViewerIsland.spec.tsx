@@ -280,7 +280,7 @@ describe('OverlayViewerIsland (Visual Search Result Normalization)', () => {
 
   it('normalizes camelCase result payloads and avoids undefined labels', async () => {
     (global.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      (input: RequestInfo | URL) => {
+      (input: Parameters<typeof fetch>[0]) => {
         const url = String(input);
         if (url.includes('/api/visual-rag/search/visual')) {
           return Promise.resolve({

@@ -39,6 +39,10 @@ const OllamaSchema = z.object({
   imageTokenOverhead: z.number().int().nonnegative().optional().default(1024),
 });
 
+
+const OpenAISchema = z.object({
+  model: ModelEntrySchema.optional(),
+});
 const CustomSchema = z.object({
   model: ModelEntrySchema.optional(),
 });
@@ -74,6 +78,7 @@ export const AIProviderSettingsSchema = z.object({
   provider: z.enum(['openai', 'ollama', 'azure', 'custom']).optional().default('openai'),
 
   // Provider-specific configurations (non-connection settings only)
+  openai: OpenAISchema.optional(),
   ollama: OllamaSchema.optional(),
   custom: CustomSchema.optional(),
   azure: AzureSchema.optional(),
@@ -107,7 +112,10 @@ export const AIProviderSettingsSchema = z.object({
 
   // Factory defaults for reset functionality
   defaults: z.object({
+    openai: OpenAISchema.optional(),
     ollama: OllamaSchema.optional(),
+    custom: CustomSchema.optional(),
+    azure: AzureSchema.optional(),
     expert: z.object({
       medical: ExpertMedicalSchema.optional(),
       financial: ExpertFinancialSchema.optional(),

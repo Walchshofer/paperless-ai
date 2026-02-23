@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page, type Route } from '@playwright/test';
 import { getHistoryDocId } from '../helpers/fixtures';
 const { switchTab, navigateToWorkspace, waitForIslandMount } = require('../helpers/workspace-fixtures');
 
@@ -117,7 +117,7 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
 
     // Track API request
     let apiRequestPayload: Record<string, unknown> | null = null;
-    await page.route('**/api/visual-rag/search/visual', async (route) => {
+    await page.route('**/api/visual-rag/search/visual', async (route: Route) => {
       const request = route.request();
       apiRequestPayload = JSON.parse(request.postData() || '{}');
 
@@ -212,7 +212,7 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     let requestPayload: Record<string, unknown> | null = null;
     let responseData: Record<string, unknown> | null = null;
 
-    await page.route('**/api/visual-rag/search/visual', async (route) => {
+    await page.route('**/api/visual-rag/search/visual', async (route: Route) => {
       requestPayload = JSON.parse(route.request().postData() || '{}');
 
       responseData = {
@@ -284,7 +284,7 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
 
     let requestPayload: unknown = null;
 
-    await page.route('**/api/visual-rag/search/visual', async (route) => {
+    await page.route('**/api/visual-rag/search/visual', async (route: Route) => {
       requestPayload = JSON.parse(route.request().postData() || '{}') as unknown;
 
       await route.fulfill({
@@ -355,7 +355,7 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     let requestStartTime = 0;
     let requestEndTime = 0;
 
-    await page.route('**/api/visual-rag/search/visual', async (route) => {
+    await page.route('**/api/visual-rag/search/visual', async (route: Route) => {
       requestStartTime = Date.now();
 
       // Simulate some processing time
@@ -418,7 +418,7 @@ test.describe('Alpha-9 Full Pipeline E2E', () => {
     }
 
     // Mock API to return error
-    await page.route('**/api/visual-rag/search/visual', async (route) => {
+    await page.route('**/api/visual-rag/search/visual', async (route: Route) => {
       await route.fulfill({
         status: 500,
         contentType: 'application/json',

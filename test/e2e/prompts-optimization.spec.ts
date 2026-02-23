@@ -54,7 +54,7 @@ test.describe('Prompt Optimization & Real Document Validation', () => {
         
         const buttons = page.locator(`[data-testid^="prompt-row-btn-"]`);
         const count = await buttons.count();
-        const names = [];
+        const names: string[] = [];
         for (let i=0; i<count; i++) {
             const btn = buttons.nth(i);
             if (await btn.isVisible()) {
@@ -100,7 +100,7 @@ test.describe('Prompt Optimization & Real Document Validation', () => {
             await expect(promptBtn).toBeVisible({ timeout: 10000 });
             await promptBtn.click({ force: true });
             
-            const editor = page.locator(`[id^="prompt-editor-panel-"]`).filter({ isVisible: true });
+            const editor = page.locator(`[id^="prompt-editor-panel-"]`).filter({ visible: true });
             await expect(editor).toBeVisible({ timeout: 15000 });
             
             const activePromptId = await editor.locator('span.font-mono.tracking-tight').innerText();
@@ -185,7 +185,7 @@ test.describe('Prompt Optimization & Real Document Validation', () => {
             await modal.locator('button:has-text("Close Lab")').click();
             await expect(modal).toBeHidden();
         } catch (e) {
-            console.error(`    - [CRITICAL ERROR] Audit failed for ${baseId}: ${e.message}`);
+            console.error(`    - [CRITICAL ERROR] Audit failed for ${baseId}: ${e instanceof Error ? e.message : String(e)}`);
         } finally {
             // Ensure Lab Modal is closed before moving to next prompt or domain
             const modal = page.locator('[data-testid="prompt-test-modal"]');

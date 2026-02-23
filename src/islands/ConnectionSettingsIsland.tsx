@@ -1,4 +1,5 @@
 import { h } from 'preact';
+import type { ComponentChildren } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import type { ConnectionSettings } from '../ui/contracts/Settings.Connection.contract';
 import { ConnectionSettingsSchema } from '../ui/contracts/Settings.Connection.contract';
@@ -63,11 +64,11 @@ function CollapsibleSection({
   title: string;
   expanded: boolean;
   onToggle: () => void;
-  children: any;
+  children: ComponentChildren;
   testId: string;
   icon?: string;
   disabled?: boolean;
-  badge?: any;
+  badge?: ComponentChildren;
 }) {
   return (
     <div className={`ollama-collapsible-section mb-4 ${disabled ? 'opacity-50 grayscale-[0.5]' : ''}`} data-testid={testId}>
@@ -392,7 +393,7 @@ export default function ConnectionSettingsIsland(props: Partial<ConnectionSettin
     );
   };
 
-  const ProviderBox = ({ id, label, icon, active, children }: { id: string, label: string, icon?: any, active: boolean, children: any }) => (
+  const ProviderBox = ({ id, label, icon, active, children }: { id: string, label: string, icon?: ComponentChildren, active: boolean, children: ComponentChildren }) => (
     <div className={`p-4 rounded-lg border transition-all ${active ? 'border-blue-200 bg-blue-50/20 dark:border-blue-900/40 dark:bg-blue-900/10 shadow-sm' : 'border-gray-200 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-900/20 opacity-60 grayscale-[0.3]'}`}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -417,7 +418,7 @@ export default function ConnectionSettingsIsland(props: Partial<ConnectionSettin
   );
 
   /** Sidecar service card (reuses ProviderBox styling but always active) */
-  const SidecarCard = ({ id, label, icon, children }: { id: string, label: string, icon: any, children: any }) => (
+  const SidecarCard = ({ id, label, icon, children }: { id: string, label: string, icon: ComponentChildren, children: ComponentChildren }) => (
     <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-800/30 shadow-sm">
       <div className="flex items-center gap-2 mb-3">
         {icon}
@@ -985,7 +986,7 @@ export default function ConnectionSettingsIsland(props: Partial<ConnectionSettin
                 </label>
                 <select
                   value={extMethod}
-                  onChange={(e) => { setExtMethod((e.target as HTMLSelectElement).value as any); markDirty(); }}
+                  onChange={(e) => { setExtMethod((e.target as HTMLSelectElement).value); markDirty(); }}
                   className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
                 >
                   <option value="GET">GET</option>

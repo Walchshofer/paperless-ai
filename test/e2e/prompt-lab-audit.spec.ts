@@ -59,7 +59,7 @@ async function openPromptTestModal(
 }
 
 async function stubPromptValidateEndpoint(page: import('@playwright/test').Page) {
-  await page.route('**/api/prompts/*/test', async (route) => {
+  await page.route('**/api/prompts/*/test', async (route: any) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -170,7 +170,7 @@ test.describe('Prompt Lab Full Audit (Current Contracts)', () => {
       return;
     }
 
-    await page.route('**/api/documents/recent', async (route) => {
+    await page.route('**/api/documents/recent', async (route: any) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -181,7 +181,7 @@ test.describe('Prompt Lab Full Audit (Current Contracts)', () => {
         })
       });
     });
-    await page.route('**/api/documents/*/content', async (route) => {
+    await page.route('**/api/documents/*/content', async (route: any) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -195,7 +195,7 @@ test.describe('Prompt Lab Full Audit (Current Contracts)', () => {
         })
       });
     });
-    await page.route('**/api/documents/*/preview-image', async (route) => {
+    await page.route('**/api/documents/*/preview-image', async (route: any) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

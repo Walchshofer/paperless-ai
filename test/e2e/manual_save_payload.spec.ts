@@ -6,7 +6,7 @@ test.describe('Workspace - Smart Metadata Save', () => {
   test('smart metadata mounts and save triggers update API', async ({ page }) => {
     const docId = getTestDocId();
 
-    await page.route('**/api/processing/update-document', async (route) => {
+    await page.route('**/api/processing/update-document', async (route: any) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

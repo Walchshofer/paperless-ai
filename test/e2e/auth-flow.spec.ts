@@ -1,4 +1,4 @@
-import { test, expect, request as playwrightRequest } from '@playwright/test';
+import { test, expect, request as playwrightRequest, type Page } from '@playwright/test';
 
 const fs = require('fs');
 const path = require('path');
@@ -29,12 +29,12 @@ function resolveJwtSecret() {
   return 'your-secret-key';
 }
 
-async function login(page) {
+async function login(page: Page) {
   await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
   await page.fill('#username', USERNAME);
   await page.fill('#password', PASSWORD);
   await page.click('[data-testid="login-submit-btn"]');
-  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 });
+  await page.waitForURL((url: URL) => !url.pathname.includes('/login'), { timeout: 15000 });
 }
 
 test.describe('Authentication flow', () => {
@@ -137,7 +137,7 @@ test.describe('Authentication flow', () => {
 
     await login(page);
     await page.goto(`${BASE}/logout`, { waitUntil: 'domcontentloaded' });
-    await page.waitForURL((url) => url.pathname.includes('/login'), { timeout: 10000 });
+    await page.waitForURL((url: URL) => url.pathname.includes('/login'), { timeout: 10000 });
 
     const cookies = await context.cookies();
     const jwt = cookies.find((c) => c.name === 'jwt');

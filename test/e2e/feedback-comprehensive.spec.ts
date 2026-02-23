@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 
 const {
   navigateToHistoryDoc
@@ -27,9 +27,9 @@ test.describe('Feedback comprehensive flow', () => {
     await navigateToHistoryDoc(page, docId);
 
     try {
-      let captured = null;
-      await page.route('**/api/feedback', async (route) => {
-        captured = route.request().postDataJSON();
+      const capturedRef: { value: { documentId?: unknown; corrections?: unknown } | null } = { value: null };
+      await page.route('**/api/feedback', async (route: Route) => {
+        capturedRef.value = route.request().postDataJSON() as { documentId?: unknown; corrections?: unknown };
         await route.continue();
       });
 
@@ -42,6 +42,7 @@ test.describe('Feedback comprehensive flow', () => {
 
       await expect(page.locator('#feedback-success')).toBeVisible({ timeout: 15000 });
 
+      const captured = capturedRef.value;
       expect(captured).toBeTruthy();
       if (captured) {
         expect(captured.documentId).toBe(String(docId));

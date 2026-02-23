@@ -454,7 +454,6 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
     localStorage.setItem(guardKey, '1');
     setAutoGenerateBanner('running');
     handleRegenerate(true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId]);
 
   // Listen for external requests to trigger regeneration (non-silent)
@@ -466,7 +465,6 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
     };
     window.addEventListener('vis-ocr:request-generate', handleRequestGenerate as EventListener);
     return () => window.removeEventListener('vis-ocr:request-generate', handleRequestGenerate as EventListener);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId]);
 
   // Render content with highlights
@@ -554,7 +552,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
               )}
 
               <button
-                onClick={handleRegenerate}
+                onClick={() => void handleRegenerate(false)}
                 disabled={isRegenerating}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all border border-indigo-200 ${isRegenerating ? 'opacity-70 cursor-wait' : ''}`}
                 data-testid="ocr-regenerate"
@@ -746,10 +744,10 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
                 if (val !== effectiveContent) {
                   try {
                     if (typeof window !== 'undefined') {
-                      (window as any).__workspaceState = (window as any).__workspaceState || {};
+                      window.__workspaceState = window.__workspaceState ?? {};
                       const key = String(documentId);
-                      (window as any).__workspaceState[key] = (window as any).__workspaceState[key] || {};
-                      (window as any).__workspaceState[key].isDirty = true;
+                      window.__workspaceState[key] = window.__workspaceState[key] ?? {};
+                      window.__workspaceState[key].isDirty = true;
                     }
                   } catch (err) { /* ignore */ }
                   window.dispatchEvent(new CustomEvent('workspace:dirty', { detail: { documentId } }));

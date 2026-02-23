@@ -98,7 +98,7 @@ test.describe('Visual Chat UI Test in Workspace', () => {
       'textarea'
     ];
 
-    let chatInput = null;
+    let chatInput: import('@playwright/test').Locator | null = null;
     for (const selector of chatInputSelectors) {
       const element = page.locator(selector).first();
       if (await element.count() > 0 && await element.isVisible()) {

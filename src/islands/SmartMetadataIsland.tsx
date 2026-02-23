@@ -30,7 +30,22 @@ interface ReprocessProgressDetail {
   details?: Record<string, unknown> | null;
 }
 
+interface RawClassification {
+  primary_domain?: string;
+  domain?: string;
+  classification?: {
+    primary_domain?: string;
+  };
+}
 type MatchType = 'exact' | 'fuzzy' | 'none';
+
+interface DocumentUpdates {
+  title: string;
+  correspondent: string | null;
+  created: string | null;
+  tags: number[];
+  custom_fields: Array<{ name: string; value: SmartField['value'] }>;
+}
 
 const DOMAIN_FALLBACKS: Record<string, { icon: string; label: string; badge: string }> = {
   financial: {
@@ -443,11 +458,13 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
   const [validationErrors, setValidationErrors] = useState(() => new Map<string, string>());
   const [requiredFields, setRequiredFields] = useState([] as SmartField[]);
   const [optionalFields, setOptionalFields] = useState([] as SmartField[]);
-  const setRequiredFieldsAndRef = (next: SmartField[]) => {
+  const setRequiredFieldsAndRef = (next: SmartField[] | ((prev: SmartField[]) => SmartField[])) => {
+    if (typeof next === 'function') { next = next(requiredFieldsRef.current); }
     requiredFieldsRef.current = next;
     setRequiredFields(next);
   };
-  const setOptionalFieldsAndRef = (next: SmartField[]) => {
+  const setOptionalFieldsAndRef = (next: SmartField[] | ((prev: SmartField[]) => SmartField[])) => {
+    if (typeof next === 'function') { next = next(optionalFieldsRef.current); }
     optionalFieldsRef.current = next;
     setOptionalFields(next);
   };
@@ -469,22 +486,21 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
   const [correctionValue, setCorrectionValue] = useState('');
 
   const resolvedProfile = useMemo(() => {
-    const profile = props.fieldProfile || {};
+    const profile = props.fieldProfile;
     const domain = normalizeDomain(
-      domainOverride ||
+      ((domainOverride as string | null) ||
       props.documentDomain ||
-      profile.domain ||
+      profile?.domain ||
       props.metadata?.documentType ||
       props.visualFields?.[0]?.domain ||
-      'general'
-    );
+      'general') as string);
     const fallback = resolveDomainMeta(domain);
     return {
       domain,
-      displayName: profileOverride?.displayName || profile.displayName || fallback.label,
-      icon: profileOverride?.icon || profile.icon || fallback.icon,
-      requiredFields: Array.isArray(profile.requiredFields) ? profile.requiredFields : [],
-      optionalFields: Array.isArray(profile.optionalFields) ? profile.optionalFields : []
+      displayName: profileOverride?.displayName || profile?.displayName || fallback.label,
+      icon: profileOverride?.icon || profile?.icon || fallback.icon,
+      requiredFields: Array.isArray(profile?.requiredFields) ? profile?.requiredFields : [],
+      optionalFields: Array.isArray(profile?.optionalFields) ? profile?.optionalFields : []
     };
   }, [
     domainOverride,
@@ -529,10 +545,10 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     try { 
       window.__smart_metadata_dirty = true; 
       if (typeof window !== 'undefined') {
-        (window as any).__workspaceState = (window as any).__workspaceState || {};
+        window.__workspaceState = window.__workspaceState ?? {};
         const key = String(currentDocumentId);
-        (window as any).__workspaceState[key] = (window as any).__workspaceState[key] || {};
-        (window as any).__workspaceState[key].isDirty = true;
+        window.__workspaceState[key] = window.__workspaceState[key] ?? {};
+        window.__workspaceState[key].isDirty = true;
       }
     } catch (e) { /* ignore */ }
     dispatchEventSafe('workspace:dirty', { documentId: currentDocumentId } as WorkspaceDirtyDetail);
@@ -695,7 +711,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     const { normalized, byPaperless, byLabel } = buildVisualMaps(visualFieldsRaw);
     const matchedIds = new Set<string>();
 
-    const requiredMetadata = (profile.requiredFields || [])
+    const requiredMetadata = (profile?.requiredFields || [])
       .map((field: SmartField) => normalizePaperlessKey(field.paperlessField || field.paperlessMapping || ''))
       .filter((key) => key.startsWith('metadata:'));
 
@@ -743,13 +759,13 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
             validationRules: field.validationRules || {},
             type: field.type,
             enum: Array.isArray(field.enum) ? field.enum : undefined,
-            domain: profile.domain
+            domain: profile?.domain
           } as SmartField;
         });
     };
 
-    let nextRequired = mapFields(profile.requiredFields as SmartField[], true);
-    let nextOptional = mapFields(profile.optionalFields as SmartField[], false);
+    let nextRequired = mapFields(profile?.requiredFields as SmartField[], true);
+    let nextOptional = mapFields(profile?.optionalFields as SmartField[], false);
 
     nextRequired = mergeFieldValues(nextRequired, requiredFields);
     nextOptional = mergeFieldValues(nextOptional, optionalFields);
@@ -831,11 +847,10 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
 
   useEffect(() => {
     syncDomainFields();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    resolvedProfile.domain,
-    resolvedProfile.displayName,
-    resolvedProfile.icon,
+    resolvedProfile?.domain,
+    resolvedProfile?.displayName,
+    resolvedProfile?.icon,
     props.fieldProfile,
     props.visualFields,
     props.customFields,
@@ -1054,7 +1069,6 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     };
     window.addEventListener('tag:drag-dropped', handleTagDragDropped as EventListener);
     return () => window.removeEventListener('tag:drag-dropped', handleTagDragDropped as EventListener);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDocumentId]);
 
   // D3: custom-field:draw-complete — add user-drawn field from document (T6)
@@ -1086,7 +1100,6 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     };
     window.addEventListener('custom-field:draw-complete', handleDrawComplete as EventListener);
     return () => window.removeEventListener('custom-field:draw-complete', handleDrawComplete as EventListener);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onLocate = (fieldId: string | number): void => {
@@ -1246,7 +1259,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
 
       const allNames: string[] = data.correspondents
         .map((c: unknown) => (typeof c === 'string' ? c : (c as Record<string, unknown>)?.name as string))
-        .filter((n): n is string => Boolean(n));
+        .filter((n: string | null | undefined): n is string => Boolean(n));
 
       // Analyze OCR content + title for domain-specific patterns
       const ocrText = (props.metadata?.ocrContent || '') +
@@ -1254,7 +1267,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
       const domain = normalizeDomain(
         (props.metadata as Record<string, unknown>)?.domain as string ||
         (props.metadata as Record<string, unknown>)?.documentDomain as string ||
-        resolvedProfile.domain
+        resolvedProfile?.domain
       );
 
       let patterns: RegExp[] = [];
@@ -1335,10 +1348,10 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
       if (String(documentId) !== String(currentDocumentId)) return;
 
       if (Array.isArray(newFields) && newFields.length > 0) {
-        const normalizedFields = newFields.map((f: SmartField & { confidence?: number }) => ({
+        const normalizedFields = newFields.map((f: SmartField) => ({
           ...f,
           isAiGenerated: true,
-          confidence: f.confidence || 0.5
+          confidence: f.confidence ?? 0.5
         }));
         syncDomainFields(normalizedFields);
       }
@@ -1364,7 +1377,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
         const rawDomain =
           (classification as Record<string, unknown>)?.primary_domain ||
           (classification as Record<string, unknown>)?.domain ||
-          (classification as Record<string, unknown>)?.classification?.['primary_domain'];
+          (classification as RawClassification)?.classification?.primary_domain;
         if (rawDomain) {
           const normalized = normalizeDomain(String(rawDomain));
           const fallback = resolveDomainMeta(normalized);
@@ -1412,7 +1425,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
           const currentOptionalFields = optionalFieldsRef.current;
 
           // 1. Format updates for the orchestrator
-          const document_updates: any = {
+          const document_updates: DocumentUpdates = {
             title: currentMetadata.title,
             correspondent: currentMetadata.correspondent || null,
             created: currentMetadata.createdDate || null,
@@ -1437,7 +1450,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',
-              'X-Request-Id': saveId
+              'X-Request-Id': saveId || ''
             },
             body: JSON.stringify({
               documentId: currentDocumentId,
@@ -1456,10 +1469,10 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
           try { 
             window.__smart_metadata_dirty = false; 
             if (typeof window !== 'undefined') {
-              (window as any).__workspaceState = (window as any).__workspaceState || {};
+              window.__workspaceState = window.__workspaceState ?? {};
               const key = String(currentDocumentId);
-              (window as any).__workspaceState[key] = (window as any).__workspaceState[key] || {};
-              (window as any).__workspaceState[key].isDirty = false;
+              window.__workspaceState[key] = window.__workspaceState[key] ?? {};
+              window.__workspaceState[key].isDirty = false;
             }
           } catch (err) { /* ignore */ }
           dispatchEventSafe('workspace:save-partial-complete', { saveId, participantId, success: true });
@@ -1480,20 +1493,20 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     return () => window.removeEventListener('workspace:save-request', onSaveRequest as EventListener);
   }, [currentDocumentId, props.saveDelayMs, validationError]);
 
-  const domainMeta = resolveDomainMeta(resolvedProfile.domain);
+  const domainMeta = resolveDomainMeta(resolvedProfile?.domain);
   const availableTags: SmartTag[] = Array.isArray(availableTagsState) ? availableTagsState : [];
   const cappedAvailableTags = useMemo(
-    () => selectTop20Tags(availableTags, localTags, resolvedProfile.domain),
-    [availableTags, localTags, resolvedProfile.domain]
+    () => selectTop20Tags(availableTags, localTags, resolvedProfile?.domain),
+    [availableTags, localTags, resolvedProfile?.domain]
   );
   const domainHintCount = useMemo(
     () => {
-      const priorities = getDomainPriorities(resolvedProfile.domain);
+      const priorities = getDomainPriorities(resolvedProfile?.domain);
       return cappedAvailableTags.filter(t =>
         priorities.some(kw => t.name.toLowerCase().includes(kw.toLowerCase()))
       ).length;
     },
-    [cappedAvailableTags, resolvedProfile.domain]
+    [cappedAvailableTags, resolvedProfile?.domain]
   );
   const hiddenOptionalCount = Math.max(optionalFields.length - 4, 0);
   const optionalPreview = optionalExpanded ? optionalFields : optionalFields.slice(0, 4);
@@ -1623,8 +1636,8 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
               data-testid="document-domain-badge"
               className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${domainMeta.badge}`}
             >
-              <i className={`fas ${resolvedProfile.icon || domainMeta.icon}`}></i>
-              <span>{resolvedProfile.displayName || domainMeta.label}</span>
+              <i className={`fas ${resolvedProfile?.icon || domainMeta.icon}`}></i>
+              <span>{resolvedProfile?.displayName || domainMeta.label}</span>
             </div>
             <button
               type="button"
@@ -1806,7 +1819,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
                   data-testid="tag-cloud-domain-hint"
                   className="text-[9px] text-slate-400 dark:text-slate-500 mb-0.5 font-medium"
                 >
-                  {domainHintCount} tag{domainHintCount !== 1 ? "s" : ""} for {resolvedProfile.displayName || resolvedProfile.domain || "this domain"}
+                  {domainHintCount} tag{domainHintCount !== 1 ? "s" : ""} for {resolvedProfile?.displayName || resolvedProfile?.domain || "this domain"}
                 </div>
               )}
               {/* Available tags as pill cloud */}
@@ -1829,9 +1842,9 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
                 }
                 {/* Ghost chip domain default when no tags selected */}
                 {localTags.length === 0 && (() => {
-                  const ghostName = resolvedProfile.domain === 'financial' ? 'Rechnung'
-                    : resolvedProfile.domain === 'medical' ? 'Attest'
-                    : resolvedProfile.domain === 'legal' ? 'Vertrag'
+                  const ghostName = resolvedProfile?.domain === 'financial' ? 'Rechnung'
+                    : resolvedProfile?.domain === 'medical' ? 'Attest'
+                    : resolvedProfile?.domain === 'legal' ? 'Vertrag'
                     : 'Dokument';
                   const ghostTag = availableTags.find((t: SmartTag) => t.name === ghostName);
                   if (!ghostTag || localTags.some((lt: SmartTag) => lt.id === ghostTag.id)) return null;
@@ -2300,3 +2313,5 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     </div>
   );
 }
+
+

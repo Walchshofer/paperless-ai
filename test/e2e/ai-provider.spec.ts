@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 const { waitForIsland } = require('../helpers/island-waits');
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL || process.env.PAPERLESS_BASE_URL || 'http://localhost:3000';
@@ -125,15 +125,15 @@ test.describe('AIProviderIsland smoke test', () => {
 
     await page.evaluate(() => {
       document.addEventListener('settings:changed', () => {
-        (window as any).logEvent('settings:changed');
+        (window as { logEvent: (event: string) => void } & typeof window).logEvent('settings:changed');
       });
       document.addEventListener('settings:saved', () => {
-        (window as any).logEvent('settings:saved');
+        (window as { logEvent: (event: string) => void } & typeof window).logEvent('settings:saved');
       });
     });
 
     // Intercept save API call
-    await page.route('**/api/settings/save', async (route) => {
+    await page.route('**/api/settings/save', async (route: Route) => {
       await new Promise(resolve => setTimeout(resolve, 300));
       await route.fulfill({
         status: 200,

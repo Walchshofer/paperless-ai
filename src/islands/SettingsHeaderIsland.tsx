@@ -2,7 +2,7 @@ import { h } from 'preact';
 import { useState } from 'preact/hooks';
 import type { SettingsHeaderProps } from '../ui/contracts/Settings.Header.contract';
 
-export default function SettingsHeaderIsland({ apiKey: initialApiKey, isAdmin }: SettingsHeaderProps) {
+export default function SettingsHeaderIsland({ apiKey: initialApiKey = '', isAdmin = false }: Partial<SettingsHeaderProps>) {
   const [apiKey, setApiKey] = useState(initialApiKey);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [showCopySuccess, setShowCopyNotification] = useState(false);

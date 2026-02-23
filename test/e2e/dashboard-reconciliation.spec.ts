@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 
 interface DashboardData {
   lastUpdated: string;
@@ -39,7 +39,7 @@ test.describe('Dashboard Reconciliation', () => {
 
       let mockedMetrics: DashboardMetricsResponse | null = null;
       let mockedRequestCount = 0;
-      await page.route('**/api/dashboard/metrics', async (route) => {
+      await page.route('**/api/dashboard/metrics', async (route: Route) => {
         if (!mockedMetrics) {
           await route.continue();
           return;

@@ -13,10 +13,10 @@ describe('Settings Zod Contracts (smoke tests)', () => {
   });
 
   it('validates AIProviderSettings sample', () => {
-    const sample = { provider: 'ollama', ollama: { apiUrl: 'http://localhost:11434', model: 'qwen3-vl:8b' } };
+    const sample = { provider: 'ollama', ollama: { model: 'qwen3-vl:8b' } };
     const parsed = AIProviderSettingsSchema.parse(sample);
     expect(parsed.provider).toBe('ollama');
-    expect(parsed.ollama?.apiUrl).toBe(sample.ollama.apiUrl);
+    expect(parsed.ollama?.model).toBe(sample.ollama.model);
   });
 
   it('validates ExpertModelsSettings sample', () => {

@@ -1,5 +1,7 @@
 import { h } from 'preact';
 
+import type { JSX } from 'preact';
+
 interface PipelineNode {
   id: string;
   label: string;

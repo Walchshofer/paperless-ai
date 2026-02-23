@@ -26,8 +26,8 @@ test.describe('Workspace toolbar', () => {
 
     const currentMatch = page.url().match(/\/workspace\/doc\/(\d+)/);
     const currentId = currentMatch ? Number(currentMatch[1]) : docId;
-    let targetId = null;
-    let targetLocator = null;
+    let targetId: number | null = null;
+    let targetLocator: import('@playwright/test').Locator | null = null;
 
     for (let i = 0; i < count; i += 1) {
       const option = options.nth(i);
@@ -118,7 +118,7 @@ test.describe('Workspace toolbar', () => {
 
     const beforeUrl = page.url();
     await nextBtn.click();
-    await page.waitForURL((url) => url.toString() !== beforeUrl, {
+    await page.waitForURL((url: URL) => url.toString() !== beforeUrl, {
       timeout: 20000
     });
   });

@@ -4,6 +4,7 @@ import SmartMetadataIsland from './SmartMetadataIsland';
 import DocumentContentIsland from './DocumentContentIsland';
 import ChatWorkspaceIsland from './ChatWorkspaceIsland';
 import VisualTabIsland from './VisualTabIsland';
+import type { SmartField, SmartMetadataContract } from '../ui/contracts/SmartMetadata.contract';
 
 type TabKey = 'metadata' | 'content' | 'chat' | 'visual' | 'debug';
 
@@ -35,7 +36,7 @@ interface SmartFieldLike {
 interface TagItem {
   id: number;
   name: string;
-  color?: string | null;
+  color?: string;
 }
 
 interface DocumentInfo {
@@ -288,9 +289,9 @@ export default function ContextSidebarIsland(props: ContextSidebarProps) {
               metadata={currentDocument}
               selectedTags={currentDocument?.tagItems}
               availableTags={currentDocument?.availableTags}
-              customFields={currentDocument?.customFields}
-              visualFields={currentVisual?.fields}
-              fieldProfile={currentDocument?.fieldProfile}
+              customFields={currentDocument?.customFields as SmartField[] | undefined}
+              visualFields={currentVisual?.fields as SmartField[] | undefined}
+              fieldProfile={currentDocument?.fieldProfile as SmartMetadataContract['fieldProfile']}
               documentDomain={currentDocument?.documentDomain}
             />
           </div>

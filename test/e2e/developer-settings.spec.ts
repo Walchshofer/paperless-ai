@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page, type Route } from '@playwright/test';
 const { waitForIsland } = require('../helpers/island-waits');
 
 const BASE =
@@ -96,7 +96,7 @@ test.describe('DeveloperSettingsIsland E2E Tests', () => {
     );
 
     const savedPayloads: Array<Record<string, string>> = [];
-    await page.route('**/api/settings/save', async (route) => {
+    await page.route('**/api/settings/save', async (route: Route) => {
       const body = route.request().postDataJSON() as Record<string, string>;
       if (body && typeof body === 'object') {
         const keys = Object.keys(body);
@@ -214,8 +214,8 @@ test.describe('DeveloperSettingsIsland E2E Tests', () => {
       });
     });
 
-    let saveBody: Record<string, string> | null = null;
-    await page.route('**/api/settings/save', async (route) => {
+    let saveBody: Record<string, unknown> | null = null;
+    await page.route('**/api/settings/save', async (route: Route) => {
       saveBody = route.request().postDataJSON() as Record<string, string>;
       await route.fulfill({
         status: 200,
@@ -240,7 +240,7 @@ test.describe('DeveloperSettingsIsland E2E Tests', () => {
     await openDeveloperSettings(page);
     await expandIfCollapsed(page, 'env-vars-header', 'env-vars-content');
 
-    await page.route('**/api/settings/save', async (route) => {
+    await page.route('**/api/settings/save', async (route: Route) => {
       await new Promise((resolve) => setTimeout(resolve, 500));
       await route.fulfill({
         status: 200,

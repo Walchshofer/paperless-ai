@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 const { waitForIsland } = require('../helpers/island-waits');
 
 const BASE =
@@ -111,7 +111,7 @@ test.describe('AI Provider Expert Labs', () => {
       });
     });
 
-    await page.route('**/api/settings/save', async (route) => {
+    await page.route('**/api/settings/save', async (route: Route) => {
       await new Promise((resolve) => setTimeout(resolve, 150));
       await route.fulfill({
         status: 200,

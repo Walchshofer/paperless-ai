@@ -5,14 +5,23 @@ import path from 'path';
 const { getTestDocId, loadFixtureData } = require('../helpers/fixtures');
 const { navigateToWorkspace, switchTab } = require('../helpers/workspace-fixtures');
 
-const writeArtifacts = async (page) => {
+interface PageNode {
+  tag: string;
+  id: string | null;
+  class: string | null;
+  'data-island': string | null;
+  'data-testid': string | null;
+  text: string;
+}
+
+const writeArtifacts = async (page: import('@playwright/test').Page) => {
   const outDir = path.join(process.cwd(), 'test-output');
   fs.mkdirSync(outDir, { recursive: true });
   const screenshotPath = path.join(outDir, 'workspace-enum.png');
   await page.screenshot({ path: screenshotPath, fullPage: true });
 
   const enumeration = await page.evaluate(() => {
-    const elements = [];
+    const elements: PageNode[] = [];
     document.querySelectorAll('*').forEach(el => {
       const node = {
         tag: el.tagName.toLowerCase(),

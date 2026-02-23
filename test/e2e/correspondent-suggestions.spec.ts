@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 const fixtures = require('../helpers/fixtures');
 const { navigateToWorkspace, waitForIslandMount } = require('../helpers/workspace-fixtures');
 
@@ -20,7 +20,7 @@ test.describe('Correspondent suggestion wand (T2c)', () => {
   test.beforeEach(async ({ page }) => {
     docId = fixtures.getTestDocId();
     // Intercept the correspondents API call to return predictable suggestions
-    await page.route('**/api/documents/correspondents', async (route) => {
+    await page.route('**/api/documents/correspondents', async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -95,7 +95,7 @@ test.describe('Correspondent suggestion wand (T2c)', () => {
 
   test('wand button is disabled while the fetch is in progress', async ({ page }) => {
     // Arrange: use a slow route to ensure we can capture the disabled state
-    await page.route('**/api/documents/correspondents', async (route) => {
+    await page.route('**/api/documents/correspondents', async (route: Route) => {
       await new Promise<void>((resolve) => setTimeout(resolve, 1500));
       await route.fulfill({
         status: 200,
@@ -115,7 +115,7 @@ test.describe('Correspondent suggestion wand (T2c)', () => {
 
   test('wand does not populate chips when API returns empty list', async ({ page }) => {
     // Arrange: override route to return no correspondents
-    await page.route('**/api/documents/correspondents', async (route) => {
+    await page.route('**/api/documents/correspondents', async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -135,7 +135,7 @@ test.describe('Correspondent suggestion wand (T2c)', () => {
 
   test('wand shows error-tolerant fallback when API call fails', async ({ page }) => {
     // Arrange: override route to return a 500
-    await page.route('**/api/documents/correspondents', async (route) => {
+    await page.route('**/api/documents/correspondents', async (route: Route) => {
       await route.fulfill({ status: 500, body: 'Internal Server Error' });
     });
     const wandBtn = page.locator('[data-testid="suggest-correspondent-btn"]');

@@ -1,0 +1,51 @@
+You are a Senior Principal Quality Engineer taking over a TypeScript Zero-Debt mission from a previous agent (Gemini). Your job is to orchestrate this using sub-agents for parallel micro-tasks.
+
+### 0. HANDOVER — READ STATE FIRST
+- Read 'LINT_PROGRESS.md' for current counts (TSC errors, lint problems, explicit 'any', 'as any').
+- Read 'HANDOFF.md' if it exists for session notes from the previous agent.
+- Run 'npx tsc --noEmit 2>&1 | tail -20' and 'npm run lint 2>&1 | tail -20' to establish ground truth NOW.
+- Record these baseline numbers. They override any stale values in docs.
+
+### 1. PHASE GATE LOGIC
+- IF TSC errors > 0 OR lint problems > 0: Execute PHASE P0 first, then P1.
+- IF TSC errors = 0 AND lint problems = 0: Skip P0, go straight to P1.
+
+### 2. PHASE P0: BLOCKER CLEARANCE (sub-agents)
+Spawn a sub-agent for EACH TSC/lint error cluster (group by file):
+- TASK: Fix root cause — missing props, index signatures, type mismatches.
+- CONSTRAINT: No '@ts-ignore', no 'as any' escapes, no suppression comments.
+- VERIFY: Each sub-agent must run 'npx tsc --noEmit' after its fix and confirm error count decreased.
+- REVERT: If error count does not decrease or new errors appear, revert via 'git checkout -- <file>' and try an alternative approach.
+- GATE: Do NOT proceed to P1 until 'npx tsc --noEmit' and 'npm run lint' both return 0 errors.
+
+### 3. PHASE P1: SYSTEMATIC HARDENING (sub-agents, batches of 5 files)
+Scan the codebase: grep -rn ': any' src/ --include='*.ts' --include='*.tsx' | head -60
+Also run: grep -rn 'as any' src/ --include='*.ts' --include='*.tsx' | head -60
+Group results by directory. For each batch of 5 files, spawn a sub-agent:
+- TASK: Replace 'any' with precise types:
+  - Preact components: use 'ComponentChildren', 'JSX.Element', 'VNode'
+  - Event handlers: use 'TargetedEvent<HTMLInputElement, Event>'
+  - Props/State: define local 'interface' or use contracts from 'src/ui/contracts/'
+  - API responses: define typed response interfaces
+  - Catch blocks: use 'unknown' with type narrowing
+- REGRESSION GUARD: Each sub-agent runs 'npx tsc --noEmit' AND 'npm run lint' after edits. If ANY new error, revert that file immediately.
+- QUALITY GATE: 'as unknown as T' double-casts are forbidden. 'unknown' alone is acceptable ONLY in catch blocks.
+
+### 4. VERIFICATION LOOP
+After each batch:
+1. Run 'npx tsc --noEmit 2>&1 | grep -c error' to count remaining errors.
+2. Update 'LINT_PROGRESS.md' with: date, TSC count, lint count, any count, as-any count.
+3. If any count did NOT decrease vs previous batch: STOP, analyze why, propose architectural fix before continuing.
+
+### 5. COMPLETION CRITERIA AND HANDOFF
+- TSC Errors: 0
+- Lint Problems: 0
+- Explicit 'any': 0
+- 'as any': 0
+Write final state to 'HANDOFF.md' with:
+- Final counts confirmed by tool output
+- List of files modified
+- Any unresolved items that need human review
+- Timestamp
+
+Begin by reading state (Step 0), then execute the appropriate phase.

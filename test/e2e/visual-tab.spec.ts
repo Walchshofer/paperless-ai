@@ -168,7 +168,7 @@ test.describe('Visual Tab - API Integration', () => {
   test('should call missing-fields API', async ({ page }) => {
     let apiCalled = false;
 
-    await page.route('**/api/visual-overlays/missing-fields/**', async (route) => {
+    await page.route('**/api/visual-overlays/missing-fields/**', async (route: any) => {
       apiCalled = true;
       await route.fulfill({
         status: 200,
@@ -195,7 +195,7 @@ test.describe('Visual Tab - API Integration', () => {
   test('should call document overlays API', async ({ page }) => {
     let apiCalled = false;
 
-    await page.route('**/api/visual-overlays/document/**', async (route) => {
+    await page.route('**/api/visual-overlays/document/**', async (route: any) => {
       apiCalled = true;
       await route.fulfill({
         status: 200,

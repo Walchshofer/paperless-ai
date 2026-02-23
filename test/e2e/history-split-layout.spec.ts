@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page, type Route } from '@playwright/test';
 import { getHistoryDocId } from '../helpers/fixtures';
 
 /**
@@ -233,7 +233,7 @@ test.describe('History Split Layout - Islands', () => {
     }
 
     // Mock the fetch API to return 503 initializing
-    await page.route('**/api/visual-rag/search/visual', async (route) => {
+    await page.route('**/api/visual-rag/search/visual', async (route: Route) => {
       await route.fulfill({
         status: 503,
         contentType: 'application/json',

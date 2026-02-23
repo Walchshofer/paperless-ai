@@ -99,7 +99,8 @@ describe('routes/workspace.js — ocrContent in document vm (A2)', () => {
     const shortOcr = (shortContent || '').substring(0, 600);
     assert.strictEqual(shortOcr, 'short text', 'ocrContent must equal content when content < 600 chars');
 
-    const nullContent = (null || '').substring(0, 600);
+    let input;
+    const nullContent = (input || '').substring(0, 600);
     assert.strictEqual(nullContent, '', 'ocrContent must be empty string when content is null');
   });
 });

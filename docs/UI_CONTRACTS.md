@@ -28,9 +28,6 @@
 - Navigation buttons:
   - Previous page: `data-testid="overlay-prev-page"` (disabled when on first page)
   - Next page: `data-testid="overlay-next-page"` (disabled when `pageCount` reached)
-- Transformation Controls:
-  - Rotate Clockwise: `data-testid="overlay-rotate-cw"` — rotates document 90°
-  - Rotation Indicator: `data-testid="overlay-rotation-degrees"` — shows current rotation (e.g. `90°`)
 - Image element: `data-testid="document-image"` — the image element (may be test-injected by E2E helpers).
 
 ### Events
@@ -93,30 +90,6 @@
 - Listens for: `document:selected` (Manual Workspace)
 - Listens for: `workspace:document-switched` (Global Workspace)
 - Dispatches: `export:text-requested` (for downloading/sending to chat)
-
----
-
----
-
-## Save Coordination System (Multi-Island Consistency)
-
-The workspace uses an event-driven coordination system to ensure all modified data across different islands is saved atomically.
-
-- **Coordinator**: `SaveCoordinatorIsland.tsx` (using `workspace-save-coordinator.js` logic)
-- **Status Overlay**: `data-testid="save-coordinator-overlay"`
-
-### Coordinated Save Flow
-1. **Request**: `DocumentContextBarIsland` dispatches `workspace:save-request { documentId, saveId }`.
-2. **Acknowledge**: Participants (Metadata, OCR, Overlay Viewer) listen for `save-request`. If they have unsaved changes (dirty), they dispatch `workspace:save-ack { saveId, participantId, willSave: true }`.
-3. **Begin**: Coordinator dispatches `workspace:save-begin { saveId, documentId }`.
-4. **Execute**: Participants perform their respective API calls.
-5. **Partial Complete**: Each participant dispatches `workspace:save-partial-complete { saveId, participantId, success }` when finished.
-6. **Final Complete**: Once all acked participants finish, Coordinator dispatches `workspace:save-complete { saveId, documentId }`.
-
-### Participants
-- **Smart Metadata**: Persists title, correspondent, date, tags, and custom fields to Paperless-ngx.
-- **OCR Tab**: Persists user-corrected OCR text to PostgreSQL.
-- **Overlay Viewer**: Persists visual transformations (e.g. **Rotation**) to PostgreSQL and triggers document re-ingestion.
 
 ---
 

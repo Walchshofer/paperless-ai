@@ -262,7 +262,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
   }, [isDrawing]);
 
   const getLocalCoords = (evt: MouseEvent) => {
-    if (!canvasRef.current) return { x: 0, y: 0 };
+    if (!canvasRef.current) return { x: 0, y: 0, w: 0, h: 0 };
     const rect = canvasRef.current.getBoundingClientRect();
     return {
       x: evt.clientX - rect.left,
@@ -299,6 +299,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
     const height = Math.abs(y - startRef.current.y);
 
     // Normalize
+    if (!cw || !ch) return;
     const nx = left / cw;
     const ny = top / ch;
     const nw = width / cw;
@@ -493,7 +494,7 @@ export default function VisualAnnotationIsland(props: Partial<VisualAnnotationCo
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
       window.dispatchEvent(event);
     }
-  }, [annotations, documentId]);
+  }, [annotations, props.documentId]);
 
   // Listen for workspace save requests and participate
   useEffect(() => {

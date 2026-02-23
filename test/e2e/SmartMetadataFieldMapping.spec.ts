@@ -72,7 +72,7 @@ test.describe('SmartMetadata Field Mapping E2E', () => {
     });
 
     expect(locateState).toBeTruthy();
-    expect(locateState.fieldId).toBeTruthy();
+    expect(locateState?.fieldId).toBeTruthy();
   });
 
   test('validation banner appears when required field cleared', async ({ page }, testInfo) => {

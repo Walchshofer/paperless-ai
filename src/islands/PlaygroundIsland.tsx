@@ -492,7 +492,7 @@ export default function PlaygroundIsland(props: PlaygroundProps) {
             id="collection-select"
             data-testid="collection-select"
             value={collection}
-            onChange={(e: Event) => setCollection((e.target as HTMLSelectElement).value)}
+            onChange={(e: Event) => setCollection((e.target as HTMLSelectElement).value as 'visual_pages' | 'visual_overlays')}
             className="w-full p-2 border rounded"
           >
             {COLLECTIONS.map(c => (

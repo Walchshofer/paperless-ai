@@ -1,8 +1,17 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Dialog, type Route } from '@playwright/test';
 const { getTestDocId } = require('../helpers/fixtures');
 const { navigateToWorkspace, switchTab } = require('../helpers/workspace-fixtures');
 
-const drawBoxOnViewer = async (page) => {
+interface Overlay {
+  id?: string;
+  label: string;
+  pageNumber?: number;
+  confidence?: number;
+  bbox?: { x: number; y: number; width: number; height: number };
+  [key: string]: unknown;
+}
+
+const drawBoxOnViewer = async (page: import('@playwright/test').Page) => {
   const container = page.locator('[data-testid="overlay-container"]');
   const box = await container.boundingBox();
   if (!box) throw new Error('Overlay container bounding box not found');
@@ -16,10 +25,10 @@ test.describe('Workspace - Visual overlay persistence', () => {
   test('label field creates overlay and delete removes it', async ({ page }) => {
     const docId = getTestDocId();
     const fieldId = 'invoice_number';
-    let overlays = [];
+    let overlays: Overlay[] = [];
 
-    await page.route(`**/api/visual-overlays/missing-fields/${docId}`, async (route) => {
-      const mapped = overlays.some((o) => o.label === fieldId);
+    await page.route(`**/api/visual-overlays/missing-fields/${docId}`, async (route: Route) => {
+      const mapped = overlays.some((o: Overlay) => o.label === fieldId);
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -31,7 +40,7 @@ test.describe('Workspace - Visual overlay persistence', () => {
       });
     });
 
-    await page.route(`**/api/visual-overlays/document/${docId}`, async (route) => {
+    await page.route(`**/api/visual-overlays/document/${docId}`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -39,7 +48,7 @@ test.describe('Workspace - Visual overlay persistence', () => {
       });
     });
 
-    await page.route('**/api/visual-overlays', async (route) => {
+    await page.route('**/api/visual-overlays', async (route: Route) => {
       if (route.request().method() !== 'POST') {
         await route.continue();
         return;
@@ -58,7 +67,7 @@ test.describe('Workspace - Visual overlay persistence', () => {
       });
     });
 
-    await page.route('**/api/visual-overlays/ov-1', async (route) => {
+    await page.route('**/api/visual-overlays/ov-1', async (route: Route) => {
       if (route.request().method() !== 'DELETE') {
         await route.continue();
         return;
@@ -104,7 +113,7 @@ test.describe('Workspace - Visual overlay persistence', () => {
 
   const deleteButton = page.locator('[data-testid="delete-overlay-ov-1"]');
   await expect(deleteButton).toBeVisible();
-  page.once('dialog', async (dialog) => {
+  page.once('dialog', async (dialog: Dialog) => {
     await dialog.accept();
   });
   const deleteOverlay = page.waitForResponse(resp =>
@@ -120,10 +129,10 @@ test.describe('Workspace - Visual overlay persistence', () => {
   test('missing fields list updates when overlay is mapped', async ({ page }) => {
     const docId = getTestDocId();
     const fieldId = 'invoice_number';
-    let overlays = [];
+    let overlays: Overlay[] = [];
 
-    await page.route(`**/api/visual-overlays/missing-fields/${docId}`, async (route) => {
-      const mapped = overlays.some((o) => o.label === fieldId);
+    await page.route(`**/api/visual-overlays/missing-fields/${docId}`, async (route: Route) => {
+      const mapped = overlays.some((o: Overlay) => o.label === fieldId);
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -135,7 +144,7 @@ test.describe('Workspace - Visual overlay persistence', () => {
       });
     });
 
-    await page.route(`**/api/visual-overlays/document/${docId}`, async (route) => {
+    await page.route(`**/api/visual-overlays/document/${docId}`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -143,7 +152,7 @@ test.describe('Workspace - Visual overlay persistence', () => {
       });
     });
 
-    await page.route('**/api/visual-overlays', async (route) => {
+    await page.route('**/api/visual-overlays', async (route: Route) => {
       if (route.request().method() !== 'POST') {
         await route.continue();
         return;

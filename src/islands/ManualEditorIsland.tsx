@@ -161,7 +161,7 @@ export default function ManualEditorIsland(props: Partial<ManualEditorContract>)
           } else if (document.customFields) {
             // Map raw customFields array to {name, value} if provided in that format
             const normalized = Array.isArray(document.customFields) 
-              ? document.customFields.map((cf: any) => ({
+              ? document.customFields.map((cf: Record<string, unknown>) => ({
                   name: cf.name || cf.field_name || String(cf.field || ''),
                   value: cf.value != null ? String(cf.value) : ''
                 }))

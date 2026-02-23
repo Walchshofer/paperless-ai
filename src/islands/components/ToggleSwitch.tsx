@@ -11,9 +11,12 @@ interface ToggleSwitchProps {
 
 /**
  * Reusable toggle switch with spring-snap animation.
- * Uses CSS classes from settings.css (.toggle-track, .toggle-knob).
  */
 export function ToggleSwitch({ id, label, description, checked, onChange, testId }: ToggleSwitchProps) {
+  const handleClick = () => {
+    onChange(!checked);
+  };
+
   return (
     <div className="flag-row">
       <div className="flex-1 min-w-0">
@@ -25,10 +28,9 @@ export function ToggleSwitch({ id, label, description, checked, onChange, testId
       <button
         id={id}
         role="switch"
-        aria-checked={String(checked)}
+        aria-checked={checked ? "true" : "false"}
         className="toggle-track"
-        data-checked={String(checked)}
-        onClick={() => onChange(!checked)}
+        onClick={handleClick}
         data-testid={testId}
       >
         <span className="toggle-knob" />

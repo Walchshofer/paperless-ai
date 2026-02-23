@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Response } from '@playwright/test';
 const { waitForIsland } = require('../helpers/island-waits');
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
@@ -21,7 +21,7 @@ test.describe('Settings routes - full visual verification', () => {
 
     // Intercept /api/settings/config to see the response
     let apiResponse: { status: number; body: string } | null = null;
-    page.on('response', async (response) => {
+    page.on('response', async (response: Response) => {
       if (response.url().includes('/api/settings/config')) {
         apiResponse = {
           status: response.status(),

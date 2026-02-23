@@ -257,7 +257,7 @@ test.describe('Red Pen Visual Search Flow', () => {
     }
 
     // Mock API to return 503 initializing
-    await page.route('**/api/visual-rag/search/visual', async (route) => {
+    await page.route('**/api/visual-rag/search/visual', async (route: any) => {
       await route.fulfill({
         status: 503,
         contentType: 'application/json',
@@ -322,7 +322,7 @@ test.describe('Red Pen Visual Search Flow', () => {
     }
 
     // Mock successful API response
-    await page.route('**/api/visual-rag/search/visual', async (route) => {
+    await page.route('**/api/visual-rag/search/visual', async (route: any) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -391,7 +391,7 @@ test.describe('Red Pen Visual Search Flow', () => {
     }
 
     // Mock successful API response
-    await page.route('**/api/visual-rag/search/visual', async (route) => {
+    await page.route('**/api/visual-rag/search/visual', async (route: any) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

@@ -1,4 +1,4 @@
-import { h, ComponentChildren } from 'preact';
+import { h } from 'preact';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import type { PromptsSettings, PromptEntry, PromptConfig } from '../ui/contracts/Settings.Prompts.contract';
 import { PromptsSettingsSchema } from '../ui/contracts/Settings.Prompts.contract';
@@ -59,6 +59,54 @@ function PlaceholderPill({
   );
 }
 
+interface PipelineStageResult {
+  name: string;
+  status: 'success' | 'error' | 'warning' | 'skipped';
+  duration: number;
+  error?: string;
+}
+
+interface PipelineError {
+  message: string;
+  stages: PipelineStageResult[];
+}
+
+
+interface PromptStreamEvent {
+  text?: string;
+  testResult?: string | Record<string, unknown>;
+  error?: string;
+  [key: string]: unknown;
+}
+
+interface TestResult {
+  success: boolean;
+  error?: string;
+  testResult?: string | Record<string, unknown>;
+  model?: string;
+  source?: string;
+  duration?: number;
+  tokenEstimate?: number;
+  jsonValid?: boolean;
+  renderedSystemPrompt?: string;
+  renderedTemplate?: string;
+  missingVariables?: string[];
+  guidanceMetadata?: { source: string };
+  [key: string]: unknown;
+}
+
+interface DocumentMetadata {
+  id: number;
+  title: string;
+  filename: string;
+  created: string;
+}
+
+interface SelectedDocumentData extends DocumentMetadata {
+  content: string;
+  status: string | null;
+}
+
 export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
   const [prompts, setPrompts] = useState<PromptEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -97,22 +145,43 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
   } | null>(null);
 
   // Test modal state
+
+interface TestResult {
+  success: boolean;
+  rawResponse?: string;
+  parsedResponse?: unknown;
+  error?: string;
+  latencyMs?: number;
+  tokensUsed?: number;
+  missingVariables?: string[];
+  model?: string;
+  source?: string;
+  duration?: number;
+  tokenEstimate?: number;
+  renderedSystemPrompt?: string;
+  renderedTemplate?: string;
+  testResult?: unknown;
+  jsonValid?: boolean;
+  guidanceMetadata?: {
+    source?: string;
+  };
+}
   const [showTestModal, setShowTestModal] = useState(false);
   const [testVariables, setTestVariables] = useState<Record<string, string>>({});
   const [lockedVariables, setLockedVariables] = useState<Set<string>>(new Set());
-  const [pipelineError, setPipelineError] = useState<any | null>(null);
+  const [pipelineError, setPipelineError] = useState<PipelineError | null>(null);
   const [showErrorDetails, setShowErrorDetails] = useState(false);
-  const [testResult, setTestResult] = useState<any>(null);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [testStreamingResult, setTestStreamingResult] = useState<{
     fullText: string;
     thinking: string;
-    metadata: any;
+    metadata: Record<string, unknown> | null;
   } | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [pipelineExecuting, setPipelineExecuting] = useState(false);
-  const [recentDocuments, setRecentDocuments] = useState<any[]>([]);
+  const [recentDocuments, setRecentDocuments] = useState<DocumentMetadata[]>([]);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
-  const [selectedDocumentData, setSelectedDocumentData] = useState<any>(null);
+  const [selectedDocumentData, setSelectedDocumentData] = useState<SelectedDocumentData | null>(null);
   const [isLoadingDocs, setIsLoadingDocs] = useState(false);
   const [docError, setDocError] = useState<string | null>(null);
   const [testMode, setTestMode] = useState<'validate' | 'execute'>('validate');
@@ -281,7 +350,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
         // Populate document metadata
         if (data.documentMetadata) {
           setSelectedDocumentData({
-            id: data.documentMetadata.id,
+            id: data.documentMetadata.id, created: data.documentMetadata.created || '',
             title: data.documentMetadata.title,
             filename: data.documentMetadata.filename,
             content: data.variables?.ocr_text || data.variables?.content || '',
@@ -537,7 +606,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
 
       let currentText = '';
       let currentThinking = '';
-      let metadata: any = null;
+      let metadata: Record<string, unknown> | null = null;
       const decoder = new TextDecoder();
       let buffer = '';
       let activeEvent = 'message';
@@ -552,9 +621,9 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
       };
 
       const processEvent = (eventName: string, payload: string) => {
-        let data: any = null;
+        let data: PromptStreamEvent | null = null;
         try {
-          data = JSON.parse(payload);
+          data = JSON.parse(payload) as PromptStreamEvent;
         } catch (_parseErr) {
           return;
         }
@@ -565,7 +634,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
         }
 
         if (eventName === 'token') {
-          currentText += typeof data.text === 'string' ? data.text : '';
+          if (data) { currentText += typeof data.text === 'string' ? data.text : ''; }
           updateStreamingState();
           return;
         }
@@ -1061,7 +1130,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                                             min={0}
                                             max={2}
                                             step={0.05}
-                                            onChange={(v) => { setEditConfig(prev => ({ ...prev, temperature: v })); markEditorDirty(); }}
+                                            onChange={(v: number) => { setEditConfig(prev => ({ ...prev, temperature: v })); markEditorDirty(); }}
                                             testId={`prompt-temperature-${activePromptId.toLowerCase().replace(/_/g, '-')}`}
                                           />
                                           <RangeNumberInput
@@ -1073,7 +1142,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                                             max={8192}
                                             step={128}
                                             unit="tokens"
-                                            onChange={(v) => { setEditConfig(prev => ({ ...prev, maxTokens: v })); markEditorDirty(); }}
+                                            onChange={(v: number) => { setEditConfig(prev => ({ ...prev, maxTokens: v })); markEditorDirty(); }}
                                             testId={`prompt-max-tokens-${activePromptId.toLowerCase().replace(/_/g, '-')}`}
                                           />
                                           <RangeNumberInput
@@ -1084,7 +1153,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                                             min={1}
                                             max={100}
                                             step={1}
-                                            onChange={(v) => { setEditConfig(prev => ({ ...prev, topK: v })); markEditorDirty(); }}
+                                            onChange={(v: number) => { setEditConfig(prev => ({ ...prev, topK: v })); markEditorDirty(); }}
                                             testId={`prompt-top-k-${activePromptId.toLowerCase().replace(/_/g, '-')}`}
                                           />
                                           <RangeNumberInput
@@ -1095,7 +1164,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                                             min={0}
                                             max={1}
                                             step={0.05}
-                                            onChange={(v) => { setEditConfig(prev => ({ ...prev, topP: v })); markEditorDirty(); }}
+                                            onChange={(v: number) => { setEditConfig(prev => ({ ...prev, topP: v })); markEditorDirty(); }}
                                             testId={`prompt-top-p-${activePromptId.toLowerCase().replace(/_/g, '-')}`}
                                           />
                                         </div>
@@ -1387,7 +1456,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                           </h5>
                           <p className="text-[10px] text-red-600 dark:text-red-400/70 font-medium">
                             {pipelineError.stages.length > 0
-                              ? `${pipelineError.stages.filter((s: any) => s.status === 'error').length} of ${pipelineError.stages.length} stages failed`
+                              ? `${pipelineError.stages.filter((s: PipelineStageResult) => s.status === 'error').length} of ${pipelineError.stages.length} stages failed`
                               : 'No stage diagnostics available'}
                           </p>
                         </div>
@@ -1397,7 +1466,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
 
                     {showErrorDetails && (
                       <div className="px-4 pb-4 space-y-2 border-t border-red-100 dark:border-red-900/30 pt-4" data-testid="pipeline-error-details">
-                        {pipelineError.stages.map((stage: any, idx: number) => (
+                        {pipelineError.stages.map((stage: PipelineStageResult, idx: number) => (
                           <div key={idx} className="flex items-start gap-3 p-2 rounded-lg bg-white/50 dark:bg-black/20 border border-red-100/50 dark:border-red-900/20" data-testid={`pipeline-stage-${stage.name}`}>
                             <div className={`mt-0.5 ${stage.status === 'error' ? 'text-red-500' : 'text-emerald-500'}`}>
                               <i className={`fas ${stage.status === 'error' ? 'fa-circle-xmark' : 'fa-circle-check'}`}></i>
@@ -1594,7 +1663,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                       <div className="px-3 py-1.5 rounded-full border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 flex items-center gap-2 shadow-sm">
                         <i className="fas fa-microchip text-xs"></i>
                         <span className="text-[10px] font-mono font-bold tracking-tighter">
-                          {testResult?.model || testStreamingResult?.metadata?.model}
+                          {testResult?.model || (testStreamingResult?.metadata?.model as string | undefined)}
                         </span>
                       </div>
                     )}
@@ -1678,7 +1747,7 @@ export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
                     <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 flex items-center gap-3">
                       <i className="fas fa-triangle-exclamation text-amber-500"></i>
                       <span className="text-[11px] text-amber-800 dark:text-amber-200 font-medium">
-                        Unresolved Placeholders: {testResult.missingVariables.map(v => `{{${v}}}`).join(', ')}
+                        Unresolved Placeholders: {testResult.missingVariables.map((v: string) => `{{${v}}}`).join(', ')}
                       </span>
                     </div>
                   )}
