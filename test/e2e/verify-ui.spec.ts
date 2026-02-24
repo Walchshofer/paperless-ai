@@ -8,7 +8,7 @@ test('Verify UI changes - no duplicate dropdown, document title visible', async 
   await page.fill('input[name="username"]', 'elfman');
   await page.fill('input[name="password"]', 'P2tr3ck!1976');
   await page.click('button[type="submit"]');
-  await page.waitForURL((url: any) => !url.pathname.includes('/login'), { timeout: 15000 });
+  await page.waitForURL((url: URL) => !url.pathname.includes('/login'), { timeout: 15000 });
 
   // Navigate to workspace and switch to chat tab
   await page.goto(`${BASE}/workspace/doc/latest`, { waitUntil: 'domcontentloaded' });

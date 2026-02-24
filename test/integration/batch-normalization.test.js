@@ -8,8 +8,6 @@
 
 const assert = require('assert');
 const { BatchNormalizationJob } = require('../../services/normalization/BatchNormalizationJob');
-const { PreVisionNormalizer } = require('../../services/experts/normalization/PreVisionNormalizer');
-const { NormalizationStore } = require('../../services/normalization/NormalizationStore');
 
 describe('Batch Normalization Integration', () => {
     let mockPaperlessService;
@@ -76,10 +74,10 @@ describe('Batch Normalization Integration', () => {
                     isNormalized: documentStatuses[docId] === 'completed'
                 };
             },
-            updatePaperlessMetadata: async (docId, status, error) => {
+            updatePaperlessMetadata: async (docId, status, _error) => {
                 documentStatuses[docId] = status;
             },
-            store: async (docId, pages) => {
+            store: async (docId, _pages) => {
                 documentStatuses[docId] = 'completed';
             },
             isNormalized: async (docId) => {
@@ -168,7 +166,7 @@ describe('Batch Normalization Integration', () => {
             let concurrentCalls = 0;
             let maxConcurrent = 0;
 
-            mockNormalizer.analyzeAndNormalize = async (docId) => {
+            mockNormalizer.analyzeAndNormalize = async (_docId) => {
                 concurrentCalls++;
                 maxConcurrent = Math.max(maxConcurrent, concurrentCalls);
                 

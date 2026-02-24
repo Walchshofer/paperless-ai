@@ -43,7 +43,7 @@ describe('workspace-save-coordinator', () => {
       }, 10);
     });
 
-    window.addEventListener('workspace:save-complete', function onComplete(e) {
+    window.addEventListener('workspace:save-complete', function onComplete(_e) {
       saved = true;
       assert.ok(saved);
     });

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 const fixtures = require('../helpers/fixtures');
 const { waitForIslandMount } = require('../helpers/workspace-fixtures');
 
@@ -9,7 +9,7 @@ test.describe('Metadata locate -> Overlay highlight', () => {
     const docId = fixtures.getTestDocId();
     const fieldId = 'e2e_locate_total_amount';
     const bbox = { x: 0.78, y: 0.76, width: 0.14, height: 0.1 };
-    await page.route(`**/api/visual-overlays/document/${docId}*`, async (route: any) => {
+    await page.route(`**/api/visual-overlays/document/${docId}*`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

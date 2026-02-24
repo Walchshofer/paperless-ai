@@ -13,14 +13,11 @@
  *   vi.mock('@radix-ui/react-tabs', mockRadixTabs);
  */
 
-import { h } from 'preact';
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyChildren = any;
+import { h, type ComponentChildren } from 'preact';
 
 /** Common props type for Radix mock components */
 interface MockRadixProps extends Record<string, unknown> {
-  children?: AnyChildren;
+  children?: ComponentChildren;
   checked?: boolean;
   'aria-selected'?: boolean;
   'aria-expanded'?: boolean;

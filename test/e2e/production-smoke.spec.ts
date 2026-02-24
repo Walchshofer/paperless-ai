@@ -16,7 +16,7 @@ test.describe('Production Smoke Tests', () => {
 
   test('Dashboard loads and shows correct metrics', async ({ page }) => {
     await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('[data-page=\"dashboard\"]', { timeout: 20000 });
+    await page.waitForSelector('[data-page="dashboard"]', { timeout: 20000 });
     
     // Check main heading
     const heading = page.locator('h1, [data-testid="dashboard-heading"]');
@@ -32,7 +32,7 @@ test.describe('Production Smoke Tests', () => {
 
   test('Workspace navigation and document selector works', async ({ page }) => {
     await page.goto(`${BASE}/workspace`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('[data-page=\"workspace\"]', { timeout: 20000 });
+    await page.waitForSelector('[data-page="workspace"]', { timeout: 20000 });
     
     console.log('Workspace URL:', page.url());
     await page.screenshot({ path: 'test-results/smoke-02-workspace.png', fullPage: true });
@@ -79,7 +79,7 @@ test.describe('Production Smoke Tests', () => {
   test('Selected document shows metadata panel', async ({ page }) => {
     // Go directly to a document
     await page.goto(`${BASE}/workspace/doc/9`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('[data-page=\"document-workspace\"]', { timeout: 20000 });
+    await page.waitForSelector('[data-page="document-workspace"]', { timeout: 20000 });
     
     console.log('Document workspace URL:', page.url());
     
@@ -115,7 +115,7 @@ test.describe('Production Smoke Tests', () => {
 
   test('History page loads', async ({ page }) => {
     await page.goto(`${BASE}/history`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('[data-page=\"history\"]', { timeout: 20000 });
+    await page.waitForSelector('[data-page="history"]', { timeout: 20000 });
     
     console.log('History URL:', page.url());
     
@@ -144,7 +144,7 @@ test.describe('Production Smoke Tests', () => {
 
   test('Sidebar navigation works', async ({ page }) => {
     await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('[data-page=\"dashboard\"]', { timeout: 20000 });
+    await page.waitForSelector('[data-page="dashboard"]', { timeout: 20000 });
     
     // Check sidebar links
     const navLinks = page.locator('.sidebar-nav a, nav a[href]');
@@ -165,13 +165,13 @@ test.describe('Production Smoke Tests', () => {
     if (await workspaceLink.count() > 0) {
       await workspaceLink.first().click();
       await page.waitForURL('**/workspace*', { timeout: 20000 });
-      await page.waitForSelector('[data-page=\"workspace\"]', { timeout: 20000 });
+      await page.waitForSelector('[data-page="workspace"]', { timeout: 20000 });
       console.log('After clicking workspace:', page.url());
       expect(page.url()).toContain('/workspace');
     }
   });
 
-  test('AI analyze endpoint is accessible', async ({ page, request }) => {
+  test('AI analyze endpoint is accessible', async ({ page: _page, request }) => {
     // Check if AI analyze endpoint exists
     const response = await request.get(`${BASE}/api/status`);
     console.log('API status response:', response.status());

@@ -5,7 +5,7 @@
  */
 
 const assert = require('assert');
-const { processVisualIndexingJob } = require('../../workers/visual-indexing-worker');
+require('../../workers/visual-indexing-worker');
 
 describe('Visual Indexing Worker', function() {
     // Mock job object

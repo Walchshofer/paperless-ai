@@ -67,7 +67,7 @@ describe('Normalization Pipeline Integration', function () {
 
     // Mock PreVisionNormalizer
     mockPreVisionNormalizer = {
-      analyzeAndNormalize: async (docId, options) => ({
+      analyzeAndNormalize: async (docId, _options) => ({
         success: true,
         document_id: docId,
         normalized_pages: [

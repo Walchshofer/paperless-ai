@@ -5,10 +5,10 @@ const TARGET_PROMPT_ID = 'VIS_OCR_V1';
 const TARGET_DOMAIN = 'system';
 
 test.describe('Prompt Template Optimization - SYS_ORCHESTRATOR_V1', () => {
-  let fixture: { docId: number; historyDocId: number; title: string; correspondentId: number | null; tagIds: number[]; created: string | null; source: string; paperlessApiUrl: string };
+  let _fixture: { docId: number; historyDocId: number; title: string; correspondentId: number | null; tagIds: number[]; created: string | null; source: string; paperlessApiUrl: string };
 
   test.beforeAll(async () => {
-    fixture = loadFixtureData();
+    _fixture = loadFixtureData();
   });
 
   test(`Full Optimization Flow for ${TARGET_PROMPT_ID}`, async ({ page }) => {

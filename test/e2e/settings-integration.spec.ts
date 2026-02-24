@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 const { waitForIsland } = require('../helpers/island-waits');
 
 const BASE =
@@ -19,7 +19,7 @@ async function openConnection(page: import('@playwright/test').Page) {
 }
 
 async function triggerConnectionSaveWithRestart(page: import('@playwright/test').Page) {
-  await page.route('**/api/settings/save', async (route: any) => {
+  await page.route('**/api/settings/save', async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -93,7 +93,7 @@ test.describe('Settings Integration (Current IA)', () => {
   test('paperless connection test action works', async ({ page }) => {
     await openConnection(page);
 
-    await page.route('**/api/settings/test-connection', async (route: any) => {
+    await page.route('**/api/settings/test-connection', async (route: Route) => {
       await new Promise((resolve) => setTimeout(resolve, 150));
       await route.fulfill({
         status: 200,
@@ -200,7 +200,7 @@ test.describe('Settings Integration (Current IA)', () => {
       });
     });
 
-    await page.route('**/api/settings/save', async (route: any) => {
+    await page.route('**/api/settings/save', async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

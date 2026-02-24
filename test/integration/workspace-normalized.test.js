@@ -12,7 +12,7 @@
 
 const assert = require('assert');
 const request = require('supertest');
-const express = require('express');
+
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 const jwt = require('jsonwebtoken');
 const paperlessService = require('../../services/paperlessService');

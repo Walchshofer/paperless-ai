@@ -45,8 +45,8 @@ function buildApp(paperlessServiceMock, user = { id: 1, username: 'testuser', ro
 
   const savedPaperless = require.cache[paperlessServicePath];
   const savedLogger = require.cache[loggerPath];
-  const savedConfig = require.cache[configPath];
-  const savedDocModel = require.cache[docModelPath];
+  const _savedConfig = require.cache[configPath];
+  const _savedDocModel = require.cache[docModelPath];
 
   // Minimal mocks for heavy dependencies so the route loads cleanly
   if (!savedLogger) {

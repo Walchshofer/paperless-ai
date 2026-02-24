@@ -153,7 +153,7 @@ test.describe('Prompt Optimization & Real Document Validation', () => {
                 { timeout: 180000 }
             );
             await runBtn.click();
-            const response = await responsePromise;
+            const _response = await responsePromise;
             
             const results = modal.locator('[data-testid^="prompt-test-results"]');
             await expect(results).toBeVisible({ timeout: 30000 });

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 const fixtures = require('../helpers/fixtures');
 const { navigateToWorkspace, switchTab, waitForIslandMount } = require('../helpers/workspace-fixtures');
 
@@ -168,7 +168,7 @@ test.describe('Visual Tab - API Integration', () => {
   test('should call missing-fields API', async ({ page }) => {
     let apiCalled = false;
 
-    await page.route('**/api/visual-overlays/missing-fields/**', async (route: any) => {
+    await page.route('**/api/visual-overlays/missing-fields/**', async (route: Route) => {
       apiCalled = true;
       await route.fulfill({
         status: 200,
@@ -195,7 +195,7 @@ test.describe('Visual Tab - API Integration', () => {
   test('should call document overlays API', async ({ page }) => {
     let apiCalled = false;
 
-    await page.route('**/api/visual-overlays/document/**', async (route: any) => {
+    await page.route('**/api/visual-overlays/document/**', async (route: Route) => {
       apiCalled = true;
       await route.fulfill({
         status: 200,

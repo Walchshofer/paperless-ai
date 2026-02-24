@@ -148,7 +148,7 @@ describe('VisualIndexingQueue', function() {
 
     describe('Job Data Validation', function() {
         it('should reject null document', function() {
-            const queue = new VisualIndexingQueue({
+            const _queue = new VisualIndexingQueue({
                 queueName: 'test-queue',
                 redisUrl: 'redis://localhost:6379'
             });
@@ -160,7 +160,7 @@ describe('VisualIndexingQueue', function() {
         });
 
         it('should reject document without id', function() {
-            const queue = new VisualIndexingQueue({
+            const _queue = new VisualIndexingQueue({
                 queueName: 'test-queue',
                 redisUrl: 'redis://localhost:6379'
             });
@@ -171,7 +171,7 @@ describe('VisualIndexingQueue', function() {
         });
 
         it('should accept valid document', function() {
-            const queue = new VisualIndexingQueue({
+            const _queue = new VisualIndexingQueue({
                 queueName: 'test-queue',
                 redisUrl: 'redis://localhost:6379'
             });

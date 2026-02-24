@@ -121,7 +121,7 @@ describe('Prompts API - Template Testing and Validation', function() {
       };
       let jsonResponse = null;
       const res = {
-        status(code) {
+        status(_code) {
           return this;
         },
         json(data) {
@@ -163,7 +163,7 @@ describe('Prompts API - Template Testing and Validation', function() {
       };
       let jsonResponse = null;
       const res = {
-        status(code) {
+        status(_code) {
           return this;
         },
         json(data) {
@@ -230,7 +230,7 @@ describe('Prompts API - Template Testing and Validation', function() {
       };
       let jsonResponse = null;
       const res = {
-        status(code) {
+        status(_code) {
           return this;
         },
         json(data) {
@@ -512,7 +512,7 @@ describe('Prompts API - Template Testing and Validation', function() {
       };
       let jsonResponse = null;
       const res = {
-        status(code) {
+        status(_code) {
           return this;
         },
         json(data) {
@@ -549,7 +549,7 @@ describe('Prompts API - Template Testing and Validation', function() {
       };
       let jsonResponse = null;
       const res = {
-        status(code) {
+        status(_code) {
           return this;
         },
         json(data) {

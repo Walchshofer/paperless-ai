@@ -17,7 +17,7 @@ async function login(page: Page) {
   await page.fill('#username', USERNAME);
   await page.fill('#password', PASSWORD);
   await page.click('[data-testid="login-submit-btn"]');
-  await page.waitForURL((url: any) => !url.pathname.includes('/login'), {
+  await page.waitForURL((url: URL) => !url.pathname.includes('/login'), {
     timeout: 15_000
   });
 }

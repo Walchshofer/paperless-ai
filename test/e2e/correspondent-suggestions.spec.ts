@@ -2,7 +2,7 @@ import { test, expect, type Route } from '@playwright/test';
 const fixtures = require('../helpers/fixtures');
 const { navigateToWorkspace, waitForIslandMount } = require('../helpers/workspace-fixtures');
 
-const BASE = process.env.PLAYWRIGHT_BASE_URL || process.env.PAPERLESS_BASE_URL || 'http://localhost:3000';
+const _BASE = process.env.PLAYWRIGHT_BASE_URL || process.env.PAPERLESS_BASE_URL || 'http://localhost:3000';
 
 // Mock API response for correspondent suggestions
 const MOCK_CORRESPONDENTS_RESPONSE = {

@@ -241,7 +241,7 @@ describe('OverlayViewerIsland (Image Loading Priority)', () => {
   it('should handle retry after error', async () => {
     shouldFailAll = true;
     
-    const { rerender } = render(
+    const { rerender: _rerender } = render(
       <OverlayViewerIsland documentId={333} />
     );
     

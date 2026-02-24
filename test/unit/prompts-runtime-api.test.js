@@ -1,6 +1,6 @@
 /* eslint-env mocha */
 const assert = require('assert');
-const express = require('express');
+
 const fs = require('fs').promises;
 const os = require('os');
 const path = require('path');

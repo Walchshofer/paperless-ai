@@ -20,7 +20,7 @@ describe('VisualQueryCache', () => {
                 return this.data.get(key) || null;
             },
 
-            async set(key, value, options) {
+            async set(key, value, _options) {
                 this.data.set(key, value);
                 return 'OK';
             },

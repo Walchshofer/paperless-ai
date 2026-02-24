@@ -125,10 +125,10 @@ test.describe('AIProviderIsland smoke test', () => {
 
     await page.evaluate(() => {
       document.addEventListener('settings:changed', () => {
-        (window as { logEvent: (event: string) => void } & typeof window).logEvent('settings:changed');
+        (window as { logEvent: (_e: string) => void } & typeof window).logEvent('settings:changed');
       });
       document.addEventListener('settings:saved', () => {
-        (window as { logEvent: (event: string) => void } & typeof window).logEvent('settings:saved');
+        (window as { logEvent: (_e: string) => void } & typeof window).logEvent('settings:saved');
       });
     });
 

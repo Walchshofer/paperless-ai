@@ -1,39 +1,30 @@
 import { describe, it, expect } from 'vitest';
 import config from '../../config/config';
 
-interface TestableConfig {
-  tokenLimit: number;
-  ollama: { apiUrl: string };
-  updateRuntime(key: string, value: unknown): void;
-  clearRuntimeOverrides(): void;
-  getRuntimeOverrides(): Record<string, unknown>;
-}
-
-const cfg = config as unknown as TestableConfig;
-
 describe('Config hot-reload foundation', () => {
   it('applies flat runtime overrides', () => {
-    const original = cfg.tokenLimit;
-    cfg.updateRuntime('tokenLimit', 999999);
-    expect(cfg.tokenLimit).toBe(999999);
-    cfg.clearRuntimeOverrides();
-    expect(cfg.tokenLimit).toBe(original);
+    const original = config.tokenLimit;
+    config.updateRuntime('tokenLimit', 999999);
+    expect(config.tokenLimit).toBe(999999);
+    config.clearRuntimeOverrides();
+    expect(config.tokenLimit).toBe(original);
   });
 
   it('applies nested runtime overrides', () => {
-    const original = cfg.ollama.apiUrl;
-    cfg.updateRuntime('ollama.apiUrl', 'http://localhost:11435');
-    expect(cfg.ollama.apiUrl).toBe('http://localhost:11435');
-    cfg.clearRuntimeOverrides();
-    expect(cfg.ollama.apiUrl).toBe(original);
+    const ollamaApiUrl = () => (config.ollama as { apiUrl: string }).apiUrl;
+    const original = ollamaApiUrl();
+    config.updateRuntime('ollama.apiUrl', 'http://localhost:11435');
+    expect(ollamaApiUrl()).toBe('http://localhost:11435');
+    config.clearRuntimeOverrides();
+    expect(ollamaApiUrl()).toBe(original);
   });
 
   it('getRuntimeOverrides returns a copy', () => {
-    cfg.updateRuntime('developer.featureFlags.newFlag', true);
-    const overrides = cfg.getRuntimeOverrides();
+    config.updateRuntime('developer.featureFlags.newFlag', true);
+    const overrides = config.getRuntimeOverrides();
     expect(overrides).toBeDefined();
     const devOverrides = overrides['developer'] as Record<string, Record<string, unknown>>;
     expect(devOverrides['featureFlags']['newFlag']).toBe(true);
-    cfg.clearRuntimeOverrides();
+    config.clearRuntimeOverrides();
   });
 });

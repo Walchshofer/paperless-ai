@@ -14,8 +14,8 @@ test('Check history page links', async ({ page }) => {
 
   // Go to history
   await page.goto(`${BASE}/history`, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('[data-page=\"history\"]', { timeout: 20000 });
-  await page.waitForSelector('table, [data-testid=\"history-manager-island\"], [data-island=\"history-manager-island\"]', { timeout: 20000 });
+  await page.waitForSelector('[data-page="history"]', { timeout: 20000 });
+  await page.waitForSelector('table, [data-testid="history-manager-island"], [data-island="history-manager-island"]', { timeout: 20000 });
 
   // Get all links on the page
   const allLinks = page.locator('a');

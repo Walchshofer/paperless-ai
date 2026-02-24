@@ -75,7 +75,7 @@ test.describe('Export Feature UI Tests', () => {
     }
   });
 
-  test('Export API routes should be accessible', async ({ page, request }) => {
+  test('Export API routes should be accessible', async ({ page: _page, request }) => {
     // Test that export endpoints exist (they'll return 401 without auth, but that proves they exist)
     const endpoints = [
       '/api/export/region',

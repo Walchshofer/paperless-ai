@@ -195,7 +195,7 @@ describe('Stage 8 image property harmonization', function () {
     };
 
     const stage = { id: 'visual_execution', outputKey: 'visual_execution' };
-    const result = await executor._executeVisualQueryExecutionStage(
+    await executor._executeVisualQueryExecutionStage(
       stage,
       context,
       Date.now()
@@ -251,7 +251,7 @@ describe('Stage 8 image property harmonization', function () {
     };
 
     const stage = { id: 'visual_execution', outputKey: 'visual_execution' };
-    const result = await executor._executeVisualQueryExecutionStage(
+    await executor._executeVisualQueryExecutionStage(
       stage,
       context,
       Date.now()

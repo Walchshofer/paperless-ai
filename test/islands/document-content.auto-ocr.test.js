@@ -20,7 +20,7 @@ require('ts-node').register({
   compilerOptions: { module: 'CommonJS', jsx: 'react-jsx', jsxImportSource: 'preact' }
 });
 const { h, render } = require('preact');
-const { act } = require('preact/test-utils');
+
 const DocumentContentIsland = require('../../src/islands/DocumentContentIsland.tsx').default;
 
 // Minimal fetch stub that returns a success response with pages

@@ -92,7 +92,7 @@ test.describe('Prompt Test Lab Comprehensive Audit', () => {
         await expect(modelBadge).toBeVisible();
         console.log(`Model Verified: ${await modelBadge.innerText()}`);
 
-        const guidanceStatus = results.locator('.fa-shield-halved').locator('xpath=..');
+        const _guidanceStatus = results.locator('.fa-shield-halved').locator('xpath=..');
         // Guidance might not be active in all test environments, but we check if source is guidance-service
         const sourceText = await page.evaluate(() => {
             // Check the response from the last /test call if possible, or just look for the badge

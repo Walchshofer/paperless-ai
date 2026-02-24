@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 const { getTestDocId } = require('../helpers/fixtures');
 const { navigateToWorkspace } = require('../helpers/workspace-fixtures');
 
@@ -6,7 +6,7 @@ test.describe('Workspace - Smart Metadata Save', () => {
   test('smart metadata mounts and save triggers update API', async ({ page }) => {
     const docId = getTestDocId();
 
-    await page.route('**/api/processing/update-document', async (route: any) => {
+    await page.route('**/api/processing/update-document', async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

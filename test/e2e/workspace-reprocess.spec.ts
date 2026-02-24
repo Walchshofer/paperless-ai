@@ -137,7 +137,7 @@ test.describe('Workspace Reprocess E2E', () => {
   test('should update metadata panel after successful reprocess', async ({ page }) => {
     // Get initial title value (if visible)
     const titleInput = page.locator('[data-testid="smart-title-input"]');
-    const initialTitle = await titleInput.inputValue().catch(() => '');
+    const _initialTitle = await titleInput.inputValue().catch(() => '');
 
     const reprocessBtn = page.locator('[data-testid="reprocess-btn"]');
 
@@ -175,7 +175,7 @@ test.describe('Workspace Reprocess E2E', () => {
 });
 
 test.describe('Reprocess API Integration', () => {
-  test('should make POST request to correct endpoint', async ({ page, request }) => {
+  test('should make POST request to correct endpoint', async ({ page: _page, request }) => {
     // Test the API directly
     const response = await request.post('/api/documents/74/reprocess', {
       timeout: REPROCESS_API_TIMEOUT_MS

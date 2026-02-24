@@ -214,9 +214,12 @@ test.describe('DeveloperSettingsIsland E2E Tests', () => {
       });
     });
 
-    let saveBody: Record<string, unknown> | null = null;
+    interface EnvSavePayload { SCAN_INTERVAL?: string; [key: string]: unknown }
+    // Definite-assignment (!) tells TypeScript the route callback will assign this
+    // before the expect assertions run, bypassing spurious null-narrowing in async closures.
+    let saveBody!: EnvSavePayload;
     await page.route('**/api/settings/save', async (route: Route) => {
-      saveBody = route.request().postDataJSON() as Record<string, string>;
+      saveBody = (route.request().postDataJSON() ?? {}) as EnvSavePayload;
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -229,7 +232,7 @@ test.describe('DeveloperSettingsIsland E2E Tests', () => {
     await page.waitForTimeout(500);
 
     expect(saveBody).toBeTruthy();
-    expect(saveBody?.SCAN_INTERVAL).toBe('*/20 * * * *');
+    expect(saveBody.SCAN_INTERVAL).toBe('*/20 * * * *');
     expect(events).toContain('settings:restart-required');
     expect(events).toContain('settings:saved');
     await expect(page.locator('[data-testid="save-message"]'))

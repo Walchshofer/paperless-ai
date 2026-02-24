@@ -11,7 +11,7 @@ interface Overlay {
   [key: string]: unknown;
 }
 
-const drawBoxOnViewer = async (page: import('@playwright/test').Page) => {
+const _drawBoxOnViewer = async (page: import('@playwright/test').Page) => {
   const container = page.locator('[data-testid="overlay-container"]');
   const box = await container.boundingBox();
   if (!box) throw new Error('Overlay container bounding box not found');

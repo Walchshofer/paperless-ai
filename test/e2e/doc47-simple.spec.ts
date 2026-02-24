@@ -25,7 +25,7 @@ test.describe('Document 47 Simple Persistence Test', () => {
     // 2. Modify Title
     console.log('✏️ Modifying title...');
     const titleInput = page.locator('[data-testid="smart-title-input"]');
-    const originalTitle = await titleInput.inputValue();
+    const _originalTitle = await titleInput.inputValue();
     const testTitle = `Einzelfahrt Simple Test ${Date.now()}`;
     await titleInput.fill(testTitle);
     await titleInput.blur();

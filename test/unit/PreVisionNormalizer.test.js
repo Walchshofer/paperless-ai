@@ -31,7 +31,7 @@ describe('PreVisionNormalizer', function() {
                     if (docId === 999) return null;
                     return Buffer.from('mock-pdf-buffer');
                 },
-                downloadDocument: async (docId) => {
+                downloadDocument: async (_docId) => {
                     return Buffer.from('mock-pdf-buffer');
                 },
                 getDocumentMetadata: async (docId) => {
@@ -49,7 +49,7 @@ describe('PreVisionNormalizer', function() {
                 }
             },
             pdfRenderer: {
-                renderBuffer: async (buffer, options) => {
+                renderBuffer: async (_buffer, _options) => {
                     return [{
                         base64: 'mock-base64-image-data',
                         width: 2480,
@@ -59,7 +59,7 @@ describe('PreVisionNormalizer', function() {
                 }
             },
             guidanceClient: {
-                generate: async (templateName, variables, options) => {
+                generate: async (_templateName, _variables, _options) => {
                     // Default success response
                     return {
                         geometry: {
@@ -74,7 +74,7 @@ describe('PreVisionNormalizer', function() {
                 }
             },
             ingestionManager: {
-                ingestDocument: async (docId, pdfPath, options) => {
+                ingestDocument: async (docId, _pdfPath, _options) => {
                     return { success: true, docId };
                 }
             }

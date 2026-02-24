@@ -99,7 +99,7 @@ test.describe('SYS_ROUTER_V1 Multimodal Verification', () => {
     );
     
     await runBtn.click();
-    const response = await responsePromise;
+    const _response = await responsePromise;
     console.log('Response received.');
     
     // Verify results

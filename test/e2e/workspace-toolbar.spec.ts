@@ -8,7 +8,7 @@ const {
 
 const { getTestDocId } = require('../helpers/fixtures');
 
-const BASE = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
+const _BASE = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
 
 test.describe('Workspace toolbar', () => {
   test('document selector switches documents', async ({ page }) => {
