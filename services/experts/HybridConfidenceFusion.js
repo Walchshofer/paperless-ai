@@ -216,7 +216,7 @@ class HybridConfidenceFusion {
             return null;
         }
 
-        let normalized = raw.replace(/[^\d,.\-]/g, '');
+        let normalized = raw.replace(/[^\d,.-]/g, '');
         if (!normalized || normalized === '.' || normalized === '-') {
             return null;
         }

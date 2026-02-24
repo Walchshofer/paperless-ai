@@ -1,9 +1,7 @@
 import { h } from 'preact';
 import { createPortal } from 'preact/compat';
-/* global describe, it, before, after, beforeEach, afterEach, expect, assert, sinon, page, browser, context, test */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import {
-  SmartMetadataSchema,
   SmartMetadataContract,
   SmartField,
   SmartTag
@@ -631,7 +629,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     return true;
   };
 
-  const validateAndMarkDirty = (meta: { title: string; correspondent: string; createdDate: string }, nextRequired: SmartField[], nextOptional: SmartField[], tags: SmartTag[]) => {
+  const validateAndMarkDirty = (meta: { title: string; correspondent: string; createdDate: string }, nextRequired: SmartField[], nextOptional: SmartField[], _tags: SmartTag[]) => {
     // skip zod validation for debugging
     const valid = runValidation(meta, nextRequired, nextOptional);
     if (!valid) return false;
@@ -807,21 +805,17 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     });
 
     const nextMetadata = { ...localMetadata };
-    let metadataUpdated = false;
 
     const aiTitle = metadataCandidates.get('metadata:title');
     if (!nextMetadata.title && aiTitle) {
       nextMetadata.title = aiTitle;
-      metadataUpdated = true;
     }
     const aiCorrespondent = metadataCandidates.get('metadata:correspondent');
     if (!nextMetadata.correspondent) {
       if (aiCorrespondent) {
         nextMetadata.correspondent = aiCorrespondent;
-        metadataUpdated = true;
       } else if (!correspondentManuallyEdited.current && props.metadata?.currentUser && nextMetadata.title.toLowerCase().includes('personal note')) {
         nextMetadata.correspondent = props.metadata.currentUser;
-        metadataUpdated = true;
       }
     }
     const aiDate = normalizeDateInput(
@@ -830,7 +824,6 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
     );
     if (!nextMetadata.createdDate && aiDate) {
       nextMetadata.createdDate = aiDate;
-      metadataUpdated = true;
     }
 
     setRequiredMetadataKeys(requiredMetadata);
@@ -1037,7 +1030,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
   useEffect(() => {
     const handleTagDragDropped = async (e: Event) => {
       const detail = (e as CustomEvent)?.detail || {};
-      const { tagId, tagName, color, bbox, page } = detail as {
+      const { tagId, tagName, color: _color, bbox, page } = detail as {
         tagId?: number;
         tagName?: string;
         color?: string;
@@ -1793,7 +1786,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
                     data-testid={`tag-remove-${tag.id}`}
                     onClick={(e: MouseEvent) => { e.stopPropagation(); handleRemoveTag(tag.id); }}
                     onMouseDown={(e: MouseEvent) => e.stopPropagation()}
-                    className="hidden group-hover:inline text-slate-400 hover:text-rose-500 ml-0.5 leading-none transition-colors"
+                    className="opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto text-slate-400 hover:text-rose-500 ml-0.5 leading-none transition-opacity"
                     title={`Remove ${tag.name}`}
                   >×</button>
                 </div>
@@ -1830,7 +1823,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
                     <button
                       key={t.id}
                       type="button"
-                      data-testid={`add-tag-pill-${t.id}`}
+                      data-testid={`tag-available-${t.id}`}
                       onClick={() => handleAddTag(t.id)}
                       className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] border border-slate-200 bg-white hover:border-current transition-colors dark:bg-slate-900 dark:border-slate-700"
                       style={{ color: t.color || '#64748b' }}
@@ -1998,7 +1991,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
                     </div>
                   </div>
                   <button
-                    data-testid={`locate-required-${toTestId(fieldKey)}`}
+                    data-testid={`locate-btn-${toTestId(fieldKey)}`}
                     className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-cyan-500 transition-colors"
                     title="Locate spatial coordinates"
                     onClick={() => onLocate(field.paperlessField || field.id)}
@@ -2130,7 +2123,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
                     </div>
                   </div>
                   <button
-                    data-testid={`locate-optional-${toTestId(fieldKey)}`}
+                    data-testid={`locate-btn-${toTestId(fieldKey)}`}
                     className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-cyan-500 transition-colors"
                     title="Locate spatial coordinates"
                     onClick={() => onLocate(field.paperlessField || field.id)}
@@ -2172,8 +2165,8 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
         </div>
         
         <div className="p-5 space-y-4">
-          {/* K: Empty state — when no visual fields AND no vis-ocr pages, show CTA */}
-          {mappedVisualFields.length === 0 && visOcrPages.length === 0 && (
+          {/* K: Empty state — when no vis-ocr pages exist, show CTA to generate them */}
+          {visOcrPages.length === 0 && (
             <div data-testid="no-visual-fields" className="text-center py-6 space-y-3">
               <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">No visual analysis available</div>
               <button
@@ -2189,8 +2182,8 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
             </div>
           )}
 
-          {/* K: VIS_OCR accordion when vis-ocr pages exist but no overlay fields */}
-          {mappedVisualFields.length === 0 && visOcrPages.length > 0 && (
+          {/* K: VIS_OCR accordion when vis-ocr pages exist */}
+          {visOcrPages.length > 0 && (
             <div data-testid="vis-ocr-inline-pages" className="space-y-2 max-h-72 overflow-y-auto pr-1">
               {visOcrPages.map(page => (
                 <details
@@ -2265,7 +2258,7 @@ export default function SmartMetadataIsland(props: Partial<SmartMetadataContract
                     </button>
                   </div>
                   <button
-                    data-testid={`locate-visual-${toTestId(fieldKey)}`}
+                    data-testid={`locate-btn-${toTestId(fieldKey)}`}
                     className="flex-shrink-0 px-3 py-1.5 rounded-lg flex items-center gap-2 bg-slate-100 dark:bg-slate-800 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-cyan-500 transition-colors"
                     onClick={() => onLocate(field.paperlessField || field.id)}
                   >

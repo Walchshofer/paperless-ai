@@ -66,11 +66,10 @@ paperlessService.listTagNames = async () => {
 setupService.isConfigured = async () => true;
 
 // Mock DocumentModel (History)
-const originalGetHistory = documentModel.getHistory;
 documentModel.getHistory = async (docId, username) => {
     return [{ document_id: docId, username: username || 'elfman', created_at: new Date() }];
 };
-documentModel.getAllHistory = async (username) => {
+documentModel.getAllHistory = async (_username) => {
     return [{ document_id: 74, title: 'Mock Doc 74', created_at: new Date() }];
 };
 

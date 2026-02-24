@@ -41,9 +41,9 @@ export const UnifiedWorkspaceSchema = z.object({
       })).optional()
     }).optional(),
     customFields: z.array(z.object({
-      field: z.any().optional(),
+      field: z.unknown().optional(),
       name: z.string().optional(),
-      value: z.any().optional(),
+      value: z.unknown().optional(),
     }).passthrough()).optional().default([]),
     tags: z.array(z.string()).default([]),
     tagItems: z.array(z.object({

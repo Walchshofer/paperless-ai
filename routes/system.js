@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const documentModel = require('../services/documentModel.js');
-const setupService = require('../services/setupService.js');
 const configFile = require('../config/config');
 const logger = require('../services/logger');
 const { qdrantAdapter } = require('../services/visual-rag-client/QdrantAdapter');

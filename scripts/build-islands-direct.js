@@ -65,7 +65,7 @@ async function run() {
   }
 
   try {
-    const result = await esbuild.build({
+    await esbuild.build({
       entryPoints: Object.entries(entries).map(([name, input]) => ({
         in: path.join(projectRoot, input),
         out: name === 'island-runtime' ? 'island-runtime' : `${name}.island`

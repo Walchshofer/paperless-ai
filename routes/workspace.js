@@ -6,7 +6,6 @@ const documentModel = require('../services/documentModel.js');
 const configFile = require('../config/config.js');
 const { UnifiedWorkspaceSchema } = require('../src/ui/contracts/UnifiedWorkspace.contract.js');
 const {
-  buildPaperlessDocumentUrl,
   buildPaperlessProxyUrl,
   buildPaperlessProxyPreviewUrl
 } = require('../services/utils/paperlessUrl');

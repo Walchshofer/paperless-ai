@@ -1,6 +1,6 @@
 import { h } from 'preact';
 import { useState, useEffect, useRef } from 'preact/hooks';
-import type { PresetsManagerSettings, PresetMetadata, PresetDiff, PresetDiffItem } from '../ui/contracts/Settings.Presets.contract';
+import type { PresetsManagerSettings, PresetMetadata, PresetDiff } from '../ui/contracts/Settings.Presets.contract';
 import { PresetsManagerSettingsSchema } from '../ui/contracts/Settings.Presets.contract';
 import { DiffTable } from './components/DiffTable';
 import { CategoryFilter } from './components/CategoryFilter';
@@ -12,7 +12,7 @@ import { CategoryFilter } from './components/CategoryFilter';
  * Provides preset gallery with category filtering, diff review, and import/export.
  */
 export default function PresetsManagerIsland(props: Partial<PresetsManagerSettings>) {
-  const validated = PresetsManagerSettingsSchema.parse(props);
+  void PresetsManagerSettingsSchema.parse(props); // validate props shape at mount
 
   const [presets, setPresets] = useState([] as PresetMetadata[]);
   const [isLoading, setIsLoading] = useState(false);

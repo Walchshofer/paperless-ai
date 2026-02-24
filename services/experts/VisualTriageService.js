@@ -8,7 +8,7 @@
 const config = require('../../config/config');
 const logger = require('../logger');
 const { stripThinkingTags } = require('../ollama/utils');
-const { promptRegistry, MODEL_NAMES } = require('../prompts/PromptRegistry');
+const { promptRegistry } = require('../prompts/PromptRegistry');
 const { resolveDocumentImages } = require('./utils');
 const { CircuitBreaker, CircuitState } = require('./CircuitBreaker');
 

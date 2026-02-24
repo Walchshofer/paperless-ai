@@ -1175,10 +1175,9 @@ router.post('/:id/ocr/regenerate', async (req, res) => {
     preparedDoc._ocr_metadata = ocrResult.metadata;
     
     // Re-use logic for metadata building and Paperless-ngx sync
-    const { 
-      buildVisOcrMetadata, 
-      ensureOcrCustomFields, 
-      normalizeCustomFieldValue 
+    const {
+      buildVisOcrMetadata,
+      ensureOcrCustomFields
     } = require('../../services/experts/utils');
     
     // Require translator lazily to avoid circular require issues

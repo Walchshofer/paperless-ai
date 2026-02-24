@@ -1,4 +1,5 @@
 import { h, render } from 'preact';
+import type { VNode } from 'preact';
 
 
 
@@ -111,7 +112,7 @@ type IslandPropsMap = {
 // Runtime component shape (using a lightweight functional type for islands)
 // Use a generic functional signature so we can enforce per-island props at compile time without importing Preact internals.
 
-type IslandComponent<P = any> = (props: P) => any;
+type IslandComponent<P = Record<string, unknown>> = (props: P) => VNode | null;
 
 type IslandRegistry = Record<string, IslandComponent>;
 const registry: IslandRegistry = {};

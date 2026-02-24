@@ -23,10 +23,10 @@ const logger = require('../../services/logger');
 const { pdfRenderer } = require('../../services/visual-rag-client/PDFRenderer');
 
 // Expert pipeline components
-const { expertRegistry, StageType, ExecutionMode } = require('../../services/experts/ExpertRegistry');
+const { expertRegistry, StageType } = require('../../services/experts/ExpertRegistry');
 const { ExpertPipelineExecutor } = require('../../services/experts/ExpertPipelineExecutor');
 const { ExecutionContext } = require('../../services/experts/context');
-const { promptRegistry, MODEL_NAMES } = require('../../services/prompts/PromptRegistry');
+// PromptRegistry available if needed for future prompts features
 
 // All routes require admin authentication
 router.use(authenticateApi);

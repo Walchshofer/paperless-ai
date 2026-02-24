@@ -3,8 +3,6 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 
 import type { AIProviderSettings } from '../ui/contracts/Settings.AIProvider.contract';
 
-import { AIProviderSettingsSchema } from '../ui/contracts/Settings.AIProvider.contract';
-
 import { RangeNumberInput } from './components/RangeNumberInput';
 
 
@@ -32,29 +30,17 @@ interface ModelConfig {
   };
 }
 
+/** Shape of a model entry as returned by the factory-defaults API. */
+interface ModelDefaultEntry {
+  name?: string;
+  model?: string;
+  limits?: { contextWindow?: number; maxResponseTokens?: number };
+}
+
 interface AIProviderProps extends Partial<AIProviderSettings> {
   expertModels?: Record<string, unknown>;
 }
 
-
-
-/** Inline tooltip: renders a circled "?" with hover text */
-
-function Tooltip({ text }: { text: string }) {
-
-  return (
-
-    <span className="ai-tooltip-wrapper" data-testid="tooltip">
-
-      <span className="ai-tooltip-icon" tabIndex={0} aria-label={text}>?</span>
-
-      <span className="ai-tooltip-content">{text}</span>
-
-    </span>
-
-  );
-
-}
 
 
 
@@ -280,7 +266,7 @@ function ModelCard({
 
 function CyberLabSection({
 
-  id, title, description, icon, color, expanded, onToggle, children, testId, badge
+  id: _id, title, description, icon, color, expanded, onToggle, children, testId, badge
 
 }: {
 
@@ -659,13 +645,13 @@ export default function AIProviderIsland(props: AIProviderProps) {
 
   // G÷ăG÷ă UI INTERACTION STATE G÷ăG÷ă
 
-  const expertRef = useRef<HTMLDivElement>(null);
+  const _expertRef = useRef<HTMLDivElement>(null);
 
-  const debounceTimerRef = useRef<number | null>(null);
+  const _debounceTimerRef = useRef<number | null>(null);
 
-  const hasPendingAutoSave = useRef(false);
+  const _hasPendingAutoSave = useRef(false);
 
-  const [expertAnnouncement, setExpertAnnouncement] = useState<string | null>(null);
+  const [_expertAnnouncement, setExpertAnnouncement] = useState<string | null>(null);
 
 
 
@@ -987,7 +973,8 @@ export default function AIProviderIsland(props: AIProviderProps) {
   /** Reset expert domain model specifically */
 
     const handleResetExpert = (domain: 'medical' | 'financial' | 'legal', role: string, setter: (v: ModelConfig) => void) => {
-    const defaultData = (configData?.defaults?.expert as Record<string, any>)?.[domain]?.[role];
+    const domainDefaults = configData?.defaults?.expert?.[domain] as Record<string, ModelDefaultEntry | undefined> | undefined;
+    const defaultData = domainDefaults?.[role];
     if (defaultData) {
       setter({ 
         name: defaultData.name || '', 
@@ -1002,9 +989,9 @@ export default function AIProviderIsland(props: AIProviderProps) {
 
 
 
-    const handleResetModel = (modelKey: string, setter: (v: ModelConfig) => void, defaultsSource: Record<string, any> | null | undefined = configData?.defaults?.ollama) => {
+    const handleResetModel = (modelKey: string, setter: (v: ModelConfig) => void, defaultsSource: Record<string, unknown> | null | undefined = configData?.defaults?.ollama as Record<string, unknown> | undefined) => {
     // Handle different nesting structures in defaults
-    const defaultData = (defaultsSource as Record<string, any>)?.[modelKey] || defaultsSource;
+    const defaultData: ModelDefaultEntry | null | undefined = (defaultsSource as Record<string, ModelDefaultEntry> | null | undefined)?.[modelKey] ?? (defaultsSource as ModelDefaultEntry | null | undefined);
     if (defaultData && typeof defaultData === 'object' && ('name' in defaultData || 'model' in defaultData)) {
       setter({ 
         name: defaultData.name || defaultData.model || '', 

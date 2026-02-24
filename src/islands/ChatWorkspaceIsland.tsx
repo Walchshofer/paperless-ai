@@ -170,7 +170,7 @@ export default function ChatWorkspaceIsland(
   const [guidedStep, setGuidedStep] = useState('Select a document to begin.');
   const [statusMessage, setStatusMessage] = useState(null as string | null);
   const [textReingestBusy, setTextReingestBusy] = useState(false);
-  const [textReingestStatus, setTextReingestStatus] = useState(
+  const [_textReingestStatus, setTextReingestStatus] = useState(
     null as string | null
   );
 
@@ -1241,7 +1241,7 @@ export default function ChatWorkspaceIsland(
                     ref={(el: HTMLDivElement | null) => { if (msg.role === 'assistant' && el) highlightBlocks(el); }}
                     dangerouslySetInnerHTML={{
                       __html: msg.role === 'assistant'
-                        ? safeMarkdown(msg.content).replace(/\[visual:(\d+)\/(\d+)\/(.*?)\]/g, (match: string, docId: string, pg: string, bbox: string) => {
+                        ? safeMarkdown(msg.content).replace(/\[visual:(\d+)\/(\d+)\/(.*?)\]/g, (_match: string, docId: string, pg: string, _bbox: string) => {
                             return `<a href="/workspace/doc/${docId}?tab=visual&page=${pg}" class="text-cyan-600 dark:text-cyan-400 hover:underline inline-flex items-center gap-1 font-bold" title="View Spatial Reference"><i class="fas fa-crosshairs"></i> REGION_REF(P${pg})</a>`;
                           })
                         : safeMarkdown(msg.content)

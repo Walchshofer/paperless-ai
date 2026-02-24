@@ -1,11 +1,9 @@
 import { h } from 'preact';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import type { DeveloperSettings } from '../ui/contracts/Settings.Developer.contract';
-import { DeveloperSettingsSchema } from '../ui/contracts/Settings.Developer.contract';
 import { ToggleSwitch } from './components/ToggleSwitch';
 import { ServiceTopology } from './components/ServiceTopology';
 import { UsageBar } from './components/UsageBar';
-import { RangeNumberInput } from './components/RangeNumberInput';
 
 /**
  * DeveloperSettingsIsland - Developer-only settings
@@ -16,6 +14,17 @@ import { RangeNumberInput } from './components/RangeNumberInput';
  */
 
 const STORAGE_KEY_DEVELOPER_MODE = 'settings:developerMode';
+
+// Extended local type that includes legacy token-limit fields still used by this island
+// (Token limits were moved to AI Provider settings in the contract, but the UI retains them)
+type DeveloperSettingsLocal = Omit<Partial<DeveloperSettings>, 'environmentVariables'> & {
+  environmentVariables?: Partial<NonNullable<DeveloperSettings['environmentVariables']>> & {
+    tokenLimit?: string;
+    responseTokens?: string;
+    textQualityThreshold?: string;
+    maxVisionPages?: string;
+  };
+};
 
 // Feature flag groupings for visual organization
 const FEATURE_FLAG_GROUPS = [
@@ -75,7 +84,7 @@ interface RuntimeStateData {
 
 export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings>) {
   const [isLoading, setIsLoading] = useState(!props.featureFlags);
-  const [configData, setConfigData] = useState<any>(null);
+  const [configData, setConfigData] = useState<DeveloperSettingsLocal | null>(null);
 
   useEffect(() => {
     // OPTIMIZATION: Only fetch if we don't have config data yet
@@ -354,7 +363,7 @@ export default function DeveloperSettingsIsland(props: Partial<DeveloperSettings
 
         {featureFlagsExpanded && (
           <div id="feature-flags-content" data-testid="feature-flags-content">
-            {FEATURE_FLAG_GROUPS.map((group, gi) => (
+            {FEATURE_FLAG_GROUPS.map((group, _gi) => (
               <div key={group.id} className="flag-group stagger-child" data-testid={`flag-group-${group.id}`}>
                 <div className="flag-group-label">{group.label}</div>
                 {group.flags.map(flag => (

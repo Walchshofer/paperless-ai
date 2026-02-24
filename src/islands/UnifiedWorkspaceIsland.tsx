@@ -1,5 +1,5 @@
 import { h } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
 import type { UnifiedWorkspaceContract } from '../ui/contracts/UnifiedWorkspace.contract';
 
 // Extend the Window interface to include workspace-related global state
@@ -231,7 +231,7 @@ function resolveReprocessUserMessage(payload: ReprocessApiErrorPayload): string 
 }
 
 export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProps) {
-  const [isDirty, setIsDirty] = useState(false);
+  const isDirtyRef = useRef(false);
   const activeDocumentIdRef = useRef<number | string | null>(
     props.document?.id ?? null
   );
@@ -397,7 +397,7 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
       wnd.__workspaceState = state;
 
       // If this island is showing the same document, update local UI
-      if ((props.document?.id ?? null) && Number(props.document?.id) === Number(documentId)) setIsDirty(true);
+      if ((props.document?.id ?? null) && Number(props.document?.id) === Number(documentId)) isDirtyRef.current = true;
 
       try { wnd.__last_workspace_state_change = { documentId, isDirty: true }; } catch (err) { /* ignore */ }
       dispatchEventSafe('workspace:state-change', { documentId, isDirty: true });
@@ -413,7 +413,7 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
       state[docKey].lastSavedAt = Date.now();
       wnd.__workspaceState = state;
 
-      if ((props.document?.id ?? null) && Number(props.document?.id) === Number(documentId)) setIsDirty(false);
+      if ((props.document?.id ?? null) && Number(props.document?.id) === Number(documentId)) isDirtyRef.current = false;
 
       try { wnd.__last_workspace_state_change = { documentId, isDirty: false }; } catch (err) { /* ignore */ }
       dispatchEventSafe('workspace:state-change', { documentId, isDirty: false });
@@ -426,7 +426,7 @@ export default function UnifiedWorkspaceIsland(props: UnifiedWorkspaceIslandProp
     try {
       const docId = props.document?.id ? String(props.document?.id) : '';
       const initDirty = docId ? wnd.__workspaceState?.[docId]?.isDirty : false;
-      setIsDirty(Boolean(initDirty));
+      isDirtyRef.current = Boolean(initDirty);
     } catch (err) { /* ignore */ }
 
     // Warn on browser unload when dirty

@@ -1,7 +1,6 @@
 // services/paperlessService.js
 const axios = require('axios');
 const config = require('../config/config');
-const { parse, isValid, parseISO, format } = require('date-fns');
 const FieldMatcher = require('./FieldMatcher');
 const logger = require('./logger');
 const { normalizeCustomFieldValue } = require('./customFieldUtils');
@@ -275,12 +274,8 @@ class PaperlessService {
 
   async getDocument(documentId) {
     this.initialize();
-    try {
-      const response = await this.client.get(`documents/${documentId}/`);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
+    const response = await this.client.get(`documents/${documentId}/`);
+    return response.data;
   }
 
   async getDocumentMetadata(documentId) {

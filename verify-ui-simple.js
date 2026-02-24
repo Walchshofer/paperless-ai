@@ -57,7 +57,7 @@ const { chromium } = require('playwright');
     console.log(`Expected: 1 dropdown (main), 0 in sidebar, 1 title display`);
     console.log(`Actual: ${allSelects.length} dropdown(s) total, ${titleDisplay} title display(s)`);
     
-    const sidebarDropdowns = allSelects.filter(async (sel) => {
+    void allSelects.filter(async (sel) => {
       return await sel.evaluate(el => el.closest('[class*="sidebar"]') !== null);
     });
     

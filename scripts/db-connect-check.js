@@ -3,7 +3,7 @@
  */
 const { Pool } = require('pg');
 const http = require('http');
-const path = require('path');
+
 const config = require('../config/config'); // Use unified config loader
 
 function tcpCheck(host, port, timeout = 3000) {

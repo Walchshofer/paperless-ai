@@ -2,7 +2,6 @@ import { h } from 'preact';
 import type { ComponentChildren } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import type { ConnectionSettings } from '../ui/contracts/Settings.Connection.contract';
-import { ConnectionSettingsSchema } from '../ui/contracts/Settings.Connection.contract';
 
 interface TestConnectionResult {
   success: boolean;
@@ -101,7 +100,7 @@ function CollapsibleSection({
 
 export default function ConnectionSettingsIsland(props: Partial<ConnectionSettings>) {
   const [isLoading, setIsLoading] = useState(!props.paperlessApiUrl);
-  const [configData, setConfigData] = useState<any>(null);
+  const [configData, setConfigData] = useState<Partial<ConnectionSettings> | null>(null);
 
   useEffect(() => {
     // OPTIMIZATION: Only fetch if we don't have config data yet
@@ -178,7 +177,7 @@ export default function ConnectionSettingsIsland(props: Partial<ConnectionSettin
   // External API state
   const [extEnabled, setExtEnabled] = useState(validated.externalApiEnabled || false);
   const [extUrl, setExtUrl] = useState(validated.externalApiUrl || '');
-  const [extMethod, setExtMethod] = useState(validated.externalApiMethod || 'GET');
+  const [extMethod, setExtMethod] = useState<string>(validated.externalApiMethod || 'GET');
   const [extHeaders, setExtHeaders] = useState(validated.externalApiHeaders || '{}');
   const [extBody, setExtBody] = useState(validated.externalApiBody || '{}');
   const [extTimeout, setExtTimeout] = useState(validated.externalApiTimeout || 5000);
@@ -329,7 +328,7 @@ export default function ConnectionSettingsIsland(props: Partial<ConnectionSettin
     setSaveMessage(null);
 
     try {
-      const settings: Record<string, any> = {
+      const settings: Record<string, string> = {
         AZURE_ENDPOINT: azureEndpoint,
         CUSTOM_BASE_URL: customApiUrl,
         VISION_KEEP_ALIVE: visionKeepAlive,
@@ -393,7 +392,7 @@ export default function ConnectionSettingsIsland(props: Partial<ConnectionSettin
     );
   };
 
-  const ProviderBox = ({ id, label, icon, active, children }: { id: string, label: string, icon?: ComponentChildren, active: boolean, children: ComponentChildren }) => (
+  const ProviderBox = ({ id: _id, label, icon, active, children }: { id: string, label: string, icon?: ComponentChildren, active: boolean, children: ComponentChildren }) => (
     <div className={`p-4 rounded-lg border transition-all ${active ? 'border-blue-200 bg-blue-50/20 dark:border-blue-900/40 dark:bg-blue-900/10 shadow-sm' : 'border-gray-200 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-900/20 opacity-60 grayscale-[0.3]'}`}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -418,7 +417,7 @@ export default function ConnectionSettingsIsland(props: Partial<ConnectionSettin
   );
 
   /** Sidecar service card (reuses ProviderBox styling but always active) */
-  const SidecarCard = ({ id, label, icon, children }: { id: string, label: string, icon: ComponentChildren, children: ComponentChildren }) => (
+  const SidecarCard = ({ id: _id, label, icon, children }: { id: string, label: string, icon: ComponentChildren, children: ComponentChildren }) => (
     <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-800/30 shadow-sm">
       <div className="flex items-center gap-2 mb-3">
         {icon}

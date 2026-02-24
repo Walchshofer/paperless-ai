@@ -1,7 +1,6 @@
 import { h } from 'preact';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import type { PromptsSettings, PromptEntry, PromptConfig } from '../ui/contracts/Settings.Prompts.contract';
-import { PromptsSettingsSchema } from '../ui/contracts/Settings.Prompts.contract';
 import { RangeNumberInput } from './components/RangeNumberInput';
 
 /**
@@ -72,29 +71,6 @@ interface PipelineError {
 }
 
 
-interface PromptStreamEvent {
-  text?: string;
-  testResult?: string | Record<string, unknown>;
-  error?: string;
-  [key: string]: unknown;
-}
-
-interface TestResult {
-  success: boolean;
-  error?: string;
-  testResult?: string | Record<string, unknown>;
-  model?: string;
-  source?: string;
-  duration?: number;
-  tokenEstimate?: number;
-  jsonValid?: boolean;
-  renderedSystemPrompt?: string;
-  renderedTemplate?: string;
-  missingVariables?: string[];
-  guidanceMetadata?: { source: string };
-  [key: string]: unknown;
-}
-
 interface DocumentMetadata {
   id: number;
   title: string;
@@ -107,7 +83,7 @@ interface SelectedDocumentData extends DocumentMetadata {
   status: string | null;
 }
 
-export default function PromptsSettingsIsland(props: Partial<PromptsSettings>) {
+export default function PromptsSettingsIsland(_props: Partial<PromptsSettings>) {
   const [prompts, setPrompts] = useState<PromptEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -160,11 +136,12 @@ interface TestResult {
   tokenEstimate?: number;
   renderedSystemPrompt?: string;
   renderedTemplate?: string;
-  testResult?: unknown;
+  testResult?: string | Record<string, unknown>;
   jsonValid?: boolean;
   guidanceMetadata?: {
     source?: string;
   };
+  [key: string]: unknown;
 }
   const [showTestModal, setShowTestModal] = useState(false);
   const [testVariables, setTestVariables] = useState<Record<string, string>>({});
@@ -621,9 +598,9 @@ interface TestResult {
       };
 
       const processEvent = (eventName: string, payload: string) => {
-        let data: PromptStreamEvent | null = null;
+        let data: TestResult | null = null;
         try {
-          data = JSON.parse(payload) as PromptStreamEvent;
+          data = JSON.parse(payload);
         } catch (_parseErr) {
           return;
         }
@@ -640,21 +617,21 @@ interface TestResult {
         }
 
         if (eventName === 'thinking') {
-          currentThinking += typeof data.text === 'string' ? data.text : '';
+          if (data) { currentThinking += typeof data.text === 'string' ? data.text : ''; }
           updateStreamingState();
           return;
         }
 
         if (eventName === 'done') {
-          if (!currentText && typeof data.testResult === 'string') {
-            currentText = data.testResult;
+          if (data && !currentText && typeof data.testResult === 'string') {
+            currentText = data.testResult as string;
           }
           updateStreamingState();
           setTestResult({
             success: true,
             ...(metadata || {}),
-            ...data,
-            testResult: currentText || data.testResult
+            ...(data || {}),
+            testResult: currentText || (data?.testResult as string | Record<string, unknown> | undefined)
           });
           terminalEventReceived = true;
           setIsTesting(false);
@@ -664,7 +641,7 @@ interface TestResult {
         if (eventName === 'error') {
           setTestResult({
             success: false,
-            error: data.error || 'Streaming failed'
+            error: (data?.error as string | undefined) || 'Streaming failed'
           });
           terminalEventReceived = true;
           setIsTesting(false);
@@ -898,7 +875,7 @@ interface TestResult {
                 {/* Prompt Rows */}
                 {isExpanded && (
                   <div className="divide-y divide-slate-100 dark:divide-slate-800/50 bg-white dark:bg-slate-900/20" role="region" aria-label={`${domain} prompts`}>
-                    {baseIds.map((baseId, groupIndex) => {
+                    {baseIds.map((baseId, _groupIndex) => {
                       const versions = domainGroups[baseId];
                       const activeInGroup = versions.find(v => v.id === activePromptId) || versions[0];
                       const hasMultipleVersions = versions.length > 1;

@@ -537,7 +537,7 @@ class FieldMappingService {
         return fieldIds.filter((fieldId) => allowedFields.has(fieldId));
     }
 
-    _noMatch(domain, visualLabel, confidence) {
+    _noMatch(domain, _visualLabel, _confidence) {
         return {
             fieldId: null,
             paperlessField: null,

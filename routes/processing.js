@@ -36,7 +36,7 @@ function resolveRelativePdfPath(document, documentId) {
   return path.posix.join('documents', 'originals', originalFileName);
 }
 
-async function triggerUploadVisualIndexing(document) {
+async function _triggerUploadVisualIndexing(document) {
   if (!document?.id || config.visualRagSidecar?.enabled !== 'yes') {
     return;
   }

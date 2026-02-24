@@ -65,7 +65,6 @@ class FieldSuggestionEngine {
             const extractedFieldMap = this._buildExtractedFieldMap(extractedFields);
 
             // Get all field definitions for the domain
-            const allFields = fieldMappingService.getAllFields(domain);
             const requiredFields = fieldMappingService.getRequiredFields(domain);
             const optionalFields = fieldMappingService.getOptionalFields(domain);
 

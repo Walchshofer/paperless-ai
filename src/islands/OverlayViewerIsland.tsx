@@ -188,7 +188,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const [page, setPage] = useState<number>(initialPage);
   const [originalUrl, setOriginalUrl] = useState<string | null>(initialOriginalUrl ?? null);
   const [pageCount, setPageCount] = useState<number | null>(props?.pageCount ?? null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(props?.previewUrl ?? null);
+  const [_previewUrl, setPreviewUrl] = useState<string | null>(props?.previewUrl ?? null);
   const [persistedNormUrl, setPersistedNormalizedUrl] = useState<string | null>(persistedNormalizedUrl ?? null);
   const [normStatus, setNormalizationStatus] = useState<string | null>(normalizationStatus ?? null);
   const [suggestions, setSuggestions] = useState<OverlayItem[]>(initialSuggestions);
@@ -312,7 +312,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const [imageError, setImageError] = useState(null as string | null);
   const [warning, setWarning] = useState(null as string | null);
   // Image loading state: 'loading' | 'loaded' | 'error'
-  const [imageLoadState, setImageLoadState] = useState('loading' as 'loading' | 'loaded' | 'error');
+  const [_imageLoadState, setImageLoadState] = useState('loading' as 'loading' | 'loaded' | 'error');
   // Tracks which URL source is currently being tried: 'normalized' | 'original'
   const [imageSource, setImageSource] = useState('normalized' as 'normalized' | 'original');
   // Retry counter to force re-attempts
@@ -350,7 +350,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
   const [highlightedRegion, setHighlightedRegion] = useState(null as BoundingBox | null);
 
   // Draw context for Visual Tab integration (label-field, visual-search, or custom-field draw)
-  const [drawContext, setDrawContext] = useState(null as { fieldId?: string; tempFieldId?: string; purpose?: string } | null);
+  const [_drawContext, setDrawContext] = useState(null as { fieldId?: string; tempFieldId?: string; purpose?: string } | null);
   const drawContextRef = useRef(null as { fieldId?: string; tempFieldId?: string; purpose?: string } | null);
 
   // Export functionality state
@@ -387,8 +387,8 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         // Zoom to region logic
         const container = containerRef.current;
         if (container) {
-          const cw = container.clientWidth;
-          const ch = container.clientHeight;
+          const _cw = container.clientWidth;
+          const _ch = container.clientHeight;
           
           const w = bbox.width;
           const h = bbox.height;
@@ -549,6 +549,22 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
     window.addEventListener('custom-field:draw-request', handleCustomFieldDrawRequest as EventListener);
     return () => window.removeEventListener('custom-field:draw-request', handleCustomFieldDrawRequest as EventListener);
+  }, []);
+
+  // T6: Reset draw mode on document switch
+  useEffect(() => {
+    const handleDocumentChanged = () => {
+      setIsDrawMode(false);
+      drawModeRef.current = false;
+      setDrawContext(null);
+      drawContextRef.current = null;
+      isDrawingRef.current = false;
+      setIsDrawing(false);
+      setCurrentBox(null);
+      currentBoxRef.current = null;
+    };
+    window.addEventListener('workspace:document-changed', handleDocumentChanged);
+    return () => window.removeEventListener('workspace:document-changed', handleDocumentChanged);
   }, []);
 
   // Save Coordinator Participation
@@ -1720,9 +1736,9 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       className="h-full w-full flex flex-col overflow-hidden min-h-0"
     >
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2 p-2 border-b border-gray-200 bg-white z-10" data-testid="overlay-toolbar">
+      <div className="flex flex-wrap items-center gap-2 p-2 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 z-10" data-testid="overlay-toolbar">
         {/* Pan/Draw Mode Toggle Group */}
-        <div className="flex items-center gap-1 border-r border-gray-200 pr-2">
+        <div className="flex items-center gap-1 border-r border-gray-200 dark:border-slate-700 pr-2">
           <button
             data-testid="pan-mode-btn"
             aria-label="Pan Mode"
@@ -1732,7 +1748,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
               panMode
                 ? 'bg-[#b87333] text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-slate-700'
             }`}
           >
             <i className="fas fa-hand-paper mr-1.5"></i>
@@ -1749,7 +1765,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
               className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                 isDrawMode
                   ? 'bg-[#b87333] text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-slate-700'
               }`}
             >
               <i className={`fas fa-draw-polygon mr-1.5 ${isDrawMode ? 'animate-pulse' : ''}`}></i>
@@ -1765,7 +1781,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
               isMeasureMode
                 ? 'bg-[#b87333] text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-slate-700'
             }`}
           >
             <i className="fas fa-ruler mr-1.5"></i>
@@ -1778,7 +1794,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             data-testid="clear-boxes"
             onClick={clearAllBoxes}
             title="Clear all drawn boxes"
-            className="px-3 py-1.5 text-sm text-gray-600 hover:text-red-600"
+            className="px-3 py-1.5 text-sm text-gray-600 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400"
           >
             <i className="fas fa-trash-alt mr-1"></i>
             Clear ({boxes.length})
@@ -1786,7 +1802,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         )}
 
         {overlayMode === 'document' && (
-          <div className="flex items-center gap-2 text-xs text-gray-500">
+          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400">
             {overlayLoading && <span>Loading overlays...</span>}
             {!overlayLoading && (
               <span data-testid="overlay-count">
@@ -1808,7 +1824,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         )}
 
         {showLegend && legend.length > 0 && (
-          <div data-testid="overlay-legend" className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+          <div data-testid="overlay-legend" className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-slate-300">
             {legend.map((item: { key: string; label: string; color: string; isMandatory?: boolean }) => (
               <div key={item.key} className="flex items-center gap-1">
                 <span className={`${styles.legendDot} [--dot-color:${item.color}]`} aria-hidden="true"></span>
@@ -1818,16 +1834,16 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
           </div>
         )}
 
-        <div className="flex items-center gap-2 px-2 border-l border-gray-200">
-          <button aria-label="Zoom out" data-testid="overlay-zoom-out" onClick={zoomOut} title="Zoom Out (-)" className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">-</button>
-          <span data-testid="overlay-zoom-percentage" className="text-xs text-gray-500 w-12 text-center" aria-live="polite">{Math.round(scale * 100)}%</span>
-          <button aria-label="Zoom in" data-testid="overlay-zoom-in" onClick={zoomIn} title="Zoom In (+)" className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">+</button>
+        <div className="flex items-center gap-2 px-2 border-l border-gray-200 dark:border-slate-700">
+          <button aria-label="Zoom out" data-testid="overlay-zoom-out" onClick={zoomOut} title="Zoom Out (-)" className="px-2 py-1 bg-gray-100 dark:bg-slate-800 rounded hover:bg-gray-200 dark:hover:bg-slate-700">-</button>
+          <span data-testid="overlay-zoom-percentage" className="text-xs text-gray-500 dark:text-slate-400 w-12 text-center" aria-live="polite">{Math.round(scale * 100)}%</span>
+          <button aria-label="Zoom in" data-testid="overlay-zoom-in" onClick={zoomIn} title="Zoom In (+)" className="px-2 py-1 bg-gray-100 dark:bg-slate-800 rounded hover:bg-gray-200 dark:hover:bg-slate-700">+</button>
           <button
             aria-label="Rotate clockwise"
             data-testid="overlay-rotate-cw"
             onClick={rotateClockwise}
             title="Rotate 90° clockwise"
-            className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200"
+            className="px-2 py-1 bg-gray-100 dark:bg-slate-800 rounded hover:bg-gray-200 dark:hover:bg-slate-700"
           >
             <i className="fas fa-rotate-right"></i>
           </button>
@@ -1836,7 +1852,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             data-testid="overlay-fit-width"
             onClick={fitToWidth}
             title="Fit to width"
-            className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200 text-xs"
+            className="px-2 py-1 bg-gray-100 dark:bg-slate-800 rounded hover:bg-gray-200 dark:hover:bg-slate-700 text-xs"
           >
             Fit W
           </button>
@@ -1845,17 +1861,17 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             data-testid="overlay-fit-height"
             onClick={fitToHeight}
             title="Fit to height"
-            className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200 text-xs"
+            className="px-2 py-1 bg-gray-100 dark:bg-slate-800 rounded hover:bg-gray-200 dark:hover:bg-slate-700 text-xs"
           >
             Fit H
           </button>
           <span
             data-testid="overlay-rotation-degrees"
-            className="text-xs text-gray-500"
+            className="text-xs text-gray-500 dark:text-slate-400"
           >
             {rotationDeg}°
           </span>
-          <button aria-label="Reset zoom" data-testid="overlay-zoom-reset" onClick={resetView} title="Reset View (R or 0)" className="px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">Reset</button>
+          <button aria-label="Reset zoom" data-testid="overlay-zoom-reset" onClick={resetView} title="Reset View (R or 0)" className="px-2 py-1 bg-gray-100 dark:bg-slate-800 rounded hover:bg-gray-200 dark:hover:bg-slate-700">Reset</button>
         </div>
         
         {showResults && (
@@ -1875,12 +1891,12 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             onClick={() => changePage(-1)}
             aria-label="Previous page"
             disabled={page <= 1}
-            className="px-2 py-1 bg-gray-100 text-gray-700 rounded border border-gray-300 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-2 py-1 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-200 rounded border border-gray-300 dark:border-slate-600 hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <i className="fas fa-chevron-left"></i>
           </button>
 
-          <span data-testid="overlay-page-indicator" className="text-xs text-gray-500">
+          <span data-testid="overlay-page-indicator" className="text-xs text-gray-500 dark:text-slate-400">
             Page {page}{pageCount ? ` of ${pageCount}` : ''}
           </span>
 
@@ -1889,7 +1905,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
             onClick={() => changePage(1)}
             aria-label="Next page"
             disabled={pageCount ? page >= pageCount : false}
-            className="px-2 py-1 bg-gray-100 text-gray-700 rounded border border-gray-300 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-2 py-1 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-200 rounded border border-gray-300 dark:border-slate-600 hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <i className="fas fa-chevron-right"></i>
           </button>
@@ -1900,9 +1916,9 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       {normStatus && (
         <div 
           data-testid="normalization-status-indicator"
-          className="flex items-center gap-2 px-3 py-1.5 text-xs border-b border-gray-100 bg-gray-50"
+          className="flex items-center gap-2 px-3 py-1.5 text-xs border-b border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-900"
         >
-          <span className="font-medium text-gray-500">Source:</span>
+          <span className="font-medium text-gray-500 dark:text-slate-400">Source:</span>
           {normStatus === 'completed' ? (
             <span className="inline-flex items-center gap-1.5 text-green-700">
               <i className="fas fa-check-circle"></i>
@@ -1934,7 +1950,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
       {warning && (
         <div
-          className="mx-2 my-1 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700"
+          className="mx-2 my-1 p-2 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded text-sm text-yellow-700 dark:text-yellow-300"
           data-testid="selection-warning"
         >
           <i className="fas fa-exclamation-triangle mr-1"></i>
@@ -2116,14 +2132,14 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                   <span className="px-1.5 py-0.5 bg-red-600 text-white text-xs rounded">Region {idx + 1}</span>
                   <button
                     onClick={() => removeBox(box.id)}
-                    className="w-5 h-5 bg-white border border-gray-300 rounded-l-none border-l-0 text-xs text-gray-600 hover:text-red-600 hover:border-red-300"
+                    className="w-5 h-5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-l-none border-l-0 text-xs text-gray-600 dark:text-slate-300 hover:text-red-600 hover:border-red-300 dark:hover:text-red-400 dark:hover:border-red-500"
                     title="Remove this selection"
                   >
                     <i className="fas fa-times"></i>
                   </button>
                   <button
                     onClick={() => captureRegion(box, 'export:region-requested')}
-                    className="w-5 h-5 bg-white border border-gray-300 rounded text-xs text-gray-600 hover:text-blue-600 hover:border-blue-300 ml-1"
+                    className="w-5 h-5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded text-xs text-gray-600 dark:text-slate-300 hover:text-blue-600 hover:border-blue-300 dark:hover:text-blue-400 dark:hover:border-blue-500 ml-1"
                     title="Export this region"
                   >
                     <i className="fas fa-download"></i>
@@ -2138,7 +2154,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                       };
                       window.addEventListener('manual:send-to-chat', onSend, { once: true });
                     }}
-                    className="w-5 h-5 bg-white border border-gray-300 rounded-r border-l-0 text-xs text-gray-600 hover:text-green-600 hover:border-green-300"
+                    className="w-5 h-5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-r border-l-0 text-xs text-gray-600 dark:text-slate-300 hover:text-green-600 hover:border-green-300 dark:hover:text-green-400 dark:hover:border-green-500"
                     title="Send to Chat"
                   >
                     <i className="fas fa-comment-dots"></i>
@@ -2150,7 +2166,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
 
             {isDrawMode && boxes.length === 0 && (
                             <div
-                              className="absolute bottom-2 left-2 right-2 p-2 text-center text-xs text-gray-500 bg-blue-50 rounded pointer-events-none"
+                              className="absolute bottom-2 left-2 right-2 p-2 text-center text-xs text-gray-500 dark:text-slate-300 bg-blue-50 dark:bg-blue-950/40 rounded pointer-events-none"
                               data-testid="selection-instructions"
                             >
                               <i className="fas fa-info-circle mr-1"></i>
@@ -2190,10 +2206,10 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
         {/* Resizer */}
         {showResults && (
            <div
-              className="w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize flex items-center justify-center z-20"
+              className="w-1 bg-gray-200 dark:bg-slate-700 hover:bg-blue-400 dark:hover:bg-blue-500 cursor-col-resize flex items-center justify-center z-20"
               onMouseDown={() => setIsResizing(true)}
            >
-              <div className="h-8 w-1 bg-gray-400 rounded-full"></div>
+              <div className="h-8 w-1 bg-gray-400 dark:bg-slate-500 rounded-full"></div>
            </div>
         )}
 
@@ -2203,30 +2219,30 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
               className={`${styles.resultsPanel} [--panel-width:${100 - splitPos}%]`}
               data-testid="visual-search-results-panel"
            >
-              <div className="p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                 <h3 className="text-sm font-semibold text-gray-700">Visual Search Results</h3>
-                 <button onClick={() => setShowResults(false)} className="text-gray-400 hover:text-gray-600" aria-label="Close results">
+              <div className="p-3 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50 dark:bg-slate-800">
+                 <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-200">Visual Search Results</h3>
+                 <button onClick={() => setShowResults(false)} className="text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300" aria-label="Close results">
                     <i className="fas fa-times"></i>
                  </button>
               </div>
               
               <div className="flex-1 overflow-y-auto p-3 space-y-3">
                  {resultsLoading && (
-                    <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+                    <div className="flex flex-col items-center justify-center py-8 text-gray-500 dark:text-slate-400">
                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
                        <p className="text-xs">Searching visual index...</p>
                     </div>
                  )}
                  
                  {resultsError && (
-                    <div className="p-3 bg-red-50 text-red-700 rounded text-sm border border-red-100">
+                    <div className="p-3 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 rounded text-sm border border-red-100 dark:border-red-900/50">
                        <i className="fas fa-exclamation-circle mr-2"></i>
                        {resultsError}
                     </div>
                  )}
                  
                  {!resultsLoading && !resultsError && results.length === 0 && (
-                    <div className="text-center py-8 text-gray-400 text-sm">
+                    <div className="text-center py-8 text-gray-400 dark:text-slate-500 text-sm">
                        <i className="fas fa-search mb-2 text-2xl opacity-20"></i>
                        <p>No visually similar pages found.</p>
                        <p className="text-xs mt-1">Try selecting a distinct region.</p>
@@ -2245,7 +2261,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                     return (
                       <div
                          key={idx}
-                         className="group border border-gray-200 rounded-lg overflow-hidden hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer bg-white"
+                         className="group border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-sm transition-all cursor-pointer bg-white dark:bg-slate-800"
                          onClick={() => {
                             if (result.document_id === null) {
                                return;
@@ -2266,11 +2282,11 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                             }
                          }}
                       >
-                         <div className="relative aspect-[3/4] bg-gray-100 overflow-hidden border-b border-gray-100">
+                         <div className="relative aspect-[3/4] bg-gray-100 dark:bg-slate-700 overflow-hidden border-b border-gray-100 dark:border-slate-600">
                             {thumbnailSrc ? (
                                <img src={thumbnailSrc} alt="Result" className="w-full h-full object-cover" />
                             ) : (
-                               <div className="w-full h-full flex items-center justify-center text-gray-300">
+                               <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-slate-600">
                                   <i className="fas fa-file-image text-3xl"></i>
                                </div>
                             )}
@@ -2279,15 +2295,15 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
                             </div>
                          </div>
                          <div className="p-2">
-                            <div className="font-medium text-xs text-gray-800 truncate" title={documentLabel}>
+                            <div className="font-medium text-xs text-gray-800 dark:text-slate-100 truncate" title={documentLabel}>
                                {documentLabel}
                             </div>
                             <div className="flex justify-between items-center mt-1">
-                               <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                               <span className="text-[10px] text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
                                   Page {result.page}
                                </span>
                                {!sameDocument && result.document_id !== null && (
-                                  <i className="fas fa-external-link-alt text-[10px] text-gray-400"></i>
+                                  <i className="fas fa-external-link-alt text-[10px] text-gray-400 dark:text-slate-500"></i>
                                )}
                             </div>
                          </div>
@@ -2303,13 +2319,13 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
       {showExportBtn && selectedRegion && (
         <div
           data-testid="export-region-overlay"
-          className="absolute bg-white border-2 border-[#b87333] rounded-lg shadow-lg p-2 flex flex-col gap-2 z-50"
+          className="absolute bg-white dark:bg-slate-800 border-2 border-[#b87333] rounded-lg shadow-lg p-2 flex flex-col gap-2 z-50"
           style={{
             left: `${selectedRegion.x + selectedRegion.width / 2 - 60}px`,
             top: `${selectedRegion.y - 60}px`,
           }}
         >
-          <div className="text-xs font-semibold text-gray-700 mb-1">Export Selection</div>
+          <div className="text-xs font-semibold text-gray-700 dark:text-slate-200 mb-1">Export Selection</div>
           <div className="flex gap-2">
             <button
               data-testid="export-png-btn"
@@ -2334,7 +2350,7 @@ export default function OverlayViewerIsland(props: OverlayViewerProps) {
               setSelectedRegion(null);
               setShowExportBtn(false);
             }}
-            className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+            className="text-xs text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors"
           >
             Cancel
           </button>

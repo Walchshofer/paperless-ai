@@ -469,7 +469,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
 
   // Render content with highlights
   const renderedContent = useMemo(() => {
-    if (!effectiveContent) return <div className="text-gray-400 italic p-4">No content available.</div>;
+    if (!effectiveContent) return <div className="text-gray-400 dark:text-slate-500 italic p-4">No content available.</div>;
     if (matches.length === 0) return <div className="font-mono text-sm whitespace-pre-wrap">{effectiveContent}</div>;
 
     const parts = [];
@@ -507,12 +507,12 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
   return (
     <div data-testid="document-content-island-root" className="h-full flex flex-col">
       {/* Mode Toggle and Info Bar */}
-      <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between">
+      <div className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 py-2 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="flex bg-gray-100 p-1 rounded-lg">
+          <div className="flex bg-gray-100 dark:bg-slate-800 p-1 rounded-lg">
             <button
               onClick={() => { setOcrMode('original'); setMatches([]); setCurrentMatchIndex(-1); }}
-              className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${ocrMode === 'original' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${ocrMode === 'original' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'}`}
               data-testid="ocr-mode-original"
             >
               Tesseract OCR
@@ -520,7 +520,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
             <button
               onClick={() => { setOcrMode('high-res'); setMatches([]); setCurrentMatchIndex(-1); }}
               disabled={visOcrPages.length === 0}
-              className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${ocrMode === 'high-res' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'} ${visOcrPages.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${ocrMode === 'high-res' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'} ${visOcrPages.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
               data-testid="ocr-mode-high-res"
               title={visOcrPages.length === 0 ? 'High-res AI extraction not available for this document' : 'Switch to purified AI extraction'}
             >
@@ -529,7 +529,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
           </div>
 
           {!isEditing && (
-            <div className="flex items-center gap-2 border-l border-gray-200 pl-4">
+            <div className="flex items-center gap-2 border-l border-gray-200 dark:border-slate-700 pl-4">
               <button
                 onClick={handleStartEditing}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-slate-200 hover:border-indigo-200"
@@ -572,7 +572,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
           )}
 
           {isEditing && (
-            <div className="flex items-center gap-2 border-l border-gray-200 pl-4">
+            <div className="flex items-center gap-2 border-l border-gray-200 dark:border-slate-700 pl-4">
               <button
                 onClick={handleSave}
                 disabled={isSaving}
@@ -611,7 +611,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
       </div>
 
       {/* Search Toolbar */}
-      {!isEditing && <div className="bg-gray-50 border-b border-gray-200 p-2 flex flex-wrap gap-2 items-center text-sm sticky top-0 z-10">
+      {!isEditing && <div className="bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 p-2 flex flex-wrap gap-2 items-center text-sm sticky top-0 z-10">
         <div className="relative flex-1 min-w-[200px]">
           <input 
             type="text"
@@ -619,28 +619,28 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
             value={searchQuery}
             onInput={(e: Event) => setSearchQuery((e.target as HTMLInputElement).value)}
             placeholder="Search in document..."
-            className={`w-full pl-8 pr-4 py-1.5 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${regexError ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+            className={`w-full pl-8 pr-4 py-1.5 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-900 dark:text-slate-100 ${regexError ? 'border-red-500 bg-red-50' : 'border-gray-300 dark:border-slate-600'}`}
           />
-          <i className="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+          <i className="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500"></i>
         </div>
 
-        <div className="flex items-center gap-1 bg-white border border-gray-300 rounded-md p-0.5">
+        <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-md p-0.5">
           <button
             onClick={() => navigate(-1)}
             disabled={matches.length === 0}
-            className="p-1 px-2 hover:bg-gray-100 rounded disabled:opacity-50"
+            className="p-1 px-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded disabled:opacity-50"
             title="Previous match"
             data-testid="search-prev"
           >
             <i className="fas fa-chevron-up"></i>
           </button>
-          <span className="text-xs text-gray-500 min-w-[60px] text-center" data-testid="search-count">
+          <span className="text-xs text-gray-500 dark:text-slate-400 min-w-[60px] text-center" data-testid="search-count">
             {matches.length > 0 ? `${currentMatchIndex + 1}/${matches.length}` : '0/0'}
           </span>
           <button
             onClick={() => navigate(1)}
             disabled={matches.length === 0}
-            className="p-1 px-2 hover:bg-gray-100 rounded disabled:opacity-50"
+            className="p-1 px-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded disabled:opacity-50"
             title="Next match"
             data-testid="search-next"
           >
@@ -651,7 +651,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCaseSensitive(!caseSensitive)}
-            className={`px-2 py-1 border rounded text-xs ${caseSensitive ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-white border-gray-300 text-gray-600'}`}
+            className={`px-2 py-1 border rounded text-xs ${caseSensitive ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-300'}`}
             title="Match Case"
             data-testid="search-case-sensitive"
           >
@@ -659,7 +659,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
           </button>
           <button
             onClick={() => setUseRegex(!useRegex)}
-            className={`px-2 py-1 border rounded text-xs ${useRegex ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-white border-gray-300 text-gray-600'}`}
+            className={`px-2 py-1 border rounded text-xs ${useRegex ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-300'}`}
             title="Use Regular Expression"
             data-testid="search-regex"
           >
@@ -671,7 +671,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
                 window.dispatchEvent(new CustomEvent('export:text-requested', { detail: { text: effectiveContent } }));
               }
             }}
-            className="px-2 py-1 border rounded text-xs bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
+            className="px-2 py-1 border rounded text-xs bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700"
             title="Export Document Text"
             data-testid="export-text"
           >
@@ -682,7 +682,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
               const context = { type: 'text', data: { text: effectiveContent.substring(0, 5000) }, documentId }; // Limit text size
               window.location.href = `/workspace/doc/${documentId}?tab=chat&context=${encodeURIComponent(JSON.stringify(context))}`;
             }}
-            className="px-2 py-1 border rounded text-xs bg-white border-gray-300 hover:bg-gray-50 text-green-600"
+            className="px-2 py-1 border rounded text-xs bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 text-green-600"
             title="Send to Chat"
             data-testid="send-to-chat"
           >
@@ -692,7 +692,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
       </div>}
 
       {regexError && (
-        <div className="bg-red-50 text-red-700 text-xs px-3 py-1 border-b border-red-100">
+        <div className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 text-xs px-3 py-1 border-b border-red-100 dark:border-red-900/50">
           Invalid Regex: {regexError}
         </div>
       )}
@@ -701,16 +701,16 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
       <div
         ref={contentRef}
         data-testid="document-content-area"
-        className="flex-1 overflow-auto bg-white flex flex-col min-h-0"
+        className="flex-1 overflow-auto bg-white dark:bg-slate-950 flex flex-col min-h-0"
       >
         {autoGenerateBanner === 'running' && (
-          <div data-testid="auto-ocr-banner" className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px] text-indigo-700 font-bold">
+          <div data-testid="auto-ocr-banner" className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-[10px] text-indigo-700 dark:text-indigo-300 font-bold">
             <i className="fas fa-spinner fa-spin"></i>
             <span>Generating high-res visual analysis for the first time...</span>
           </div>
         )}
         {autoGenerateBanner === 'done' && (
-          <div data-testid="auto-ocr-banner-done" className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-emerald-50 border border-emerald-200 text-[10px] text-emerald-700 font-bold">
+          <div data-testid="auto-ocr-banner-done" className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[10px] text-emerald-700 dark:text-emerald-300 font-bold">
             <i className="fas fa-check-circle"></i>
             <span>High-res visual analysis complete — see Visual Insights in the sidebar</span>
             <button onClick={() => setAutoGenerateBanner('idle')} className="ml-auto text-emerald-500 hover:text-emerald-700">x</button>
@@ -723,9 +723,9 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
               <div className="absolute inset-0 bg-indigo-500/20 blur-xl rounded-full animate-pulse"></div>
               <i className="fas fa-brain text-5xl text-indigo-600 relative z-10"></i>
             </div>
-            <h3 className="font-['Fraunces'] text-lg font-bold text-slate-800 mb-2">Engaging Neural Engine</h3>
-            <p className="text-sm text-slate-500 max-w-xs mx-auto">Re-analyzing document at 300 DPI for high-precision text extraction...</p>
-            <div className="mt-8 w-48 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+            <h3 className="font-['Fraunces'] text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">Engaging Neural Engine</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xs mx-auto">Re-analyzing document at 300 DPI for high-precision text extraction...</p>
+            <div className="mt-8 w-48 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
               <div className="h-full bg-indigo-600 animate-pulse" style={{ width: '100%' }}></div>
             </div>
           </div>
@@ -769,7 +769,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
       {showExportToolbar && (
         <div
           data-testid="text-export-toolbar"
-          className="fixed bg-white border-2 border-[#b87333] rounded-lg shadow-lg p-2 flex gap-2 z-50"
+          className="fixed bg-white dark:bg-slate-800 border-2 border-[#b87333] rounded-lg shadow-lg p-2 flex gap-2 z-50"
           style={{
             top: `${toolbarPos.top}px`,
             left: `${toolbarPos.left}px`,
@@ -799,7 +799,7 @@ export default function DocumentContentIsland(props: DocumentContentContract) {
               setShowExportToolbar(false);
               setSelectedText('');
             }}
-            className="px-2 py-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            className="px-2 py-1.5 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors"
           >
             <i className="fas fa-times"></i>
           </button>

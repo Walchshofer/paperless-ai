@@ -864,7 +864,7 @@ router.post('/:id/test', express.json(), authenticateApi, requireAdmin, async (r
           const combinedPrompt = renderedSystemPrompt + '\n\n' + renderedTemplate;
           const domainKey = prompt.domain?.toLowerCase() || 'general';
           // Reconcile Source of Truth: Pull from config.expertModels, fallback to global vision limits
-          const maxTokens = prompt.config?.maxTokens ||
+          const _maxTokens = prompt.config?.maxTokens ||
                            config.expertModels?.[domainKey]?.vision?.limits?.maxResponseTokens ||
                            config.ollama?.limits?.vision?.maxResponseTokens || 8192;
 
@@ -1201,7 +1201,7 @@ router.post('/:id/test/stream', express.json(), authenticateApi, requireAdmin, a
         const combinedPrompt = renderedSystemPrompt + '\n\n' + renderedTemplate;
         const domainKey = prompt.domain?.toLowerCase() || 'general';
         // Reconcile Source of Truth: Pull from config.expertModels, fallback to global vision limits
-        const maxTokens = prompt.config?.maxTokens || 
+        const _maxTokens2 = prompt.config?.maxTokens ||
                          config.expertModels?.[domainKey]?.vision?.limits?.maxResponseTokens ||
                          config.ollama?.limits?.vision?.maxResponseTokens || 8192;
 
