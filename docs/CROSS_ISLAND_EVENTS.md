@@ -35,7 +35,7 @@ Last updated: 2026-02-23 (v2 Workspace Intelligence additions)
 | Event | Emitter | Listeners | Payload | Notes |
 |-------|---------|-----------|---------|-------|
 | `overlay:highlight-region` | `ManualWorkspaceIsland`, `UnifiedWorkspaceIsland`, `VisualTabIsland` | `OverlayViewerIsland` | `{ bbox: {x,y,width,height}, page: number }` | Pans and highlights a bounding box on the current document page. Coordinates are in 0–1000 normalised scale. |
-| `overlay:navigate-to-page` | `UnifiedWorkspaceIsland` | `OverlayViewerIsland` (intended receiver; listener not yet wired — see notes) | `{ page: number, documentId: string\|number }` | Instructs the overlay viewer to navigate to a specific page. Dispatched alongside `overlay:highlight-region` when `metadata:locate-field` resolves a bbox. **Status**: emitter confirmed in `src/islands/UnifiedWorkspaceIsland.tsx:329`. OverlayViewer listener is pending implementation. |
+| `overlay:navigate-to-page` | `UnifiedWorkspaceIsland` | `OverlayViewerIsland` | `{ page: number, documentId: string\|number }` | Instructs the overlay viewer to navigate to a specific page. Dispatched alongside `overlay:highlight-region` when `metadata:locate-field` resolves a bbox. Both emitter (`src/islands/UnifiedWorkspaceIsland.tsx:329`) and listener (`src/islands/OverlayViewerIsland.tsx:467`) are implemented. |
 
 ### Metadata field events
 
@@ -68,6 +68,18 @@ Last updated: 2026-02-23 (v2 Workspace Intelligence additions)
 | Event | Emitter | Listeners | Payload | Notes |
 |-------|---------|-----------|---------|-------|
 | `tag:drag-dropped` | `OverlayViewerIsland` | `SmartMetadataIsland` | `{ tagId: unknown, tagName: unknown, color: unknown, bbox: {x,y,width,height}, page: number }` | Fired when a tag pill is dropped onto the document overlay drop zone. `bbox` is a computed 10% x 6% region centred on the drop point (normalised 0–1 coordinates). `SmartMetadataIsland` uses this to associate the tag with a document region. |
+
+### Export events
+
+| Event | Emitter | Listeners | Payload | Notes |
+|-------|---------|-----------|---------|-------|
+| `export:text-requested` | `DocumentContentIsland` | `ExportPanelIsland` | `{ documentId: number, text: string, format: 'txt'\|'pdf' }` | Fired when the user selects text in the OCR tab and clicks an export button, or clicks the toolbar export icon (in which case `format` may be omitted and `ExportPanelIsland` presents a format chooser). `ExportPanelIsland` shows the export modal and POSTs to `/api/export/text`. |
+
+### Workspace state events (internal infrastructure)
+
+| Event | Emitter | Listeners | Payload | Notes |
+|-------|---------|-----------|---------|-------|
+| `workspace:dirty` | `DocumentContentIsland`, `SmartMetadataIsland`, `OverlayViewerIsland` | `DocumentContextBarIsland`, `UnifiedWorkspaceIsland` | `{ documentId: number }` | Signals that a participant island has unsaved changes. `DocumentContextBarIsland` activates navigation blocking on receipt. `UnifiedWorkspaceIsland` syncs the flag to `window.__workspaceState`. Not a public cross-island API — consumers must not rely on its payload shape stabilising. |
 
 ### Settings / UI events
 
@@ -106,14 +118,16 @@ interface NormalisedBbox {
 | `workspace:document-switched` | `src/islands/DocumentContextBarIsland.tsx:170`, `src/islands/VisualTabIsland.tsx:767` | `src/islands/SmartMetadataIsland.tsx:867`, `src/islands/DocumentContentIsland.tsx:177`, `src/islands/ManualEditorIsland.tsx:177`, `src/islands/ContextSidebarIsland.tsx:178`, `src/islands/OverlayViewerIsland.tsx:266`, `src/islands/ChatWorkspaceIsland.tsx:399`, `src/islands/UnifiedWorkspaceIsland.tsx:280` |
 | `overlay:document-changed` | `src/islands/DocumentContextBarIsland.tsx:158`, `src/islands/ManualWorkspaceIsland.tsx:74,206`, `src/islands/VisualTabIsland.tsx:760`, `src/islands/OverlayViewerIsland.tsx:1510,2241` | `src/islands/OverlayViewerIsland.tsx:256` |
 | `overlay:highlight-region` | `src/islands/ManualWorkspaceIsland.tsx:66`, `src/islands/UnifiedWorkspaceIsland.tsx:325`, `src/islands/VisualTabIsland.tsx:458,781` | `src/islands/OverlayViewerIsland.tsx:453` |
-| `overlay:navigate-to-page` | `src/islands/UnifiedWorkspaceIsland.tsx:329` | pending (intended: `OverlayViewerIsland`) |
-| `metadata:locate-field` | `src/islands/SmartMetadataIsland.tsx:1062` | `src/islands/UnifiedWorkspaceIsland.tsx:347` |
+| `overlay:navigate-to-page` | `src/islands/UnifiedWorkspaceIsland.tsx:329` | `src/islands/OverlayViewerIsland.tsx:467` |
+| `metadata:locate-field` | `src/islands/SmartMetadataIsland.tsx:1103` | `src/islands/UnifiedWorkspaceIsland.tsx:347` |
 | `ai:analysis-completed` | `src/islands/AIAnalysisIsland.tsx:158,230` | `src/islands/ManualWorkspaceIsland.tsx:450`, `src/islands/TagsManagerIsland.tsx:80` |
-| `vis-ocr:updated` | `src/islands/DocumentContentIsland.tsx:409` | `src/islands/SmartMetadataIsland.tsx:982` |
-| `vis-ocr:request-generate` | `src/islands/SmartMetadataIsland.tsx:2114` | `src/islands/DocumentContentIsland.tsx:467` |
-| `custom-field:draw-request` | `src/islands/SmartMetadataIsland.tsx:2083` | `src/islands/OverlayViewerIsland.tsx:536` |
-| `custom-field:draw-complete` | `src/islands/OverlayViewerIsland.tsx:1299` | `src/islands/SmartMetadataIsland.tsx:1052` |
-| `tag:drag-dropped` | `src/islands/OverlayViewerIsland.tsx:1977` | `src/islands/SmartMetadataIsland.tsx:1020` |
+| `vis-ocr:updated` | `src/islands/DocumentContentIsland.tsx:409` | `src/islands/SmartMetadataIsland.tsx:1025` |
+| `vis-ocr:request-generate` | `src/islands/SmartMetadataIsland.tsx:2175` | `src/islands/DocumentContentIsland.tsx:466` |
+| `custom-field:draw-request` | `src/islands/SmartMetadataIsland.tsx:2144` | `src/islands/OverlayViewerIsland.tsx:550` |
+| `custom-field:draw-complete` | `src/islands/OverlayViewerIsland.tsx:1313` | `src/islands/SmartMetadataIsland.tsx:1094` |
+| `tag:drag-dropped` | `src/islands/OverlayViewerIsland.tsx:1991` | `src/islands/SmartMetadataIsland.tsx:1063` |
+| `export:text-requested` | `src/islands/DocumentContentIsland.tsx:113,671` | `src/islands/ExportPanelIsland.tsx:36` |
+| `workspace:dirty` | `src/islands/DocumentContentIsland.tsx:753`, `src/islands/SmartMetadataIsland.tsx` (multiple), `src/islands/OverlayViewerIsland.tsx` | `src/islands/DocumentContextBarIsland.tsx:94`, `src/islands/UnifiedWorkspaceIsland.tsx:385` |
 | `settings:category-changed` | `src/islands/SettingsSidebarIsland.tsx` | settings page controller |
 
 ---
@@ -127,13 +141,13 @@ prevents double-firing across re-renders and page reloads.  When present, the
 auto-generate effect is skipped; it is only reset if the key is explicitly
 cleared.
 
-### `overlay:navigate-to-page` pending listener
+### `overlay:navigate-to-page` listener
 As of v2 (2026-02-23), `UnifiedWorkspaceIsland` dispatches
-`overlay:navigate-to-page` correctly alongside `overlay:highlight-region`.
-The corresponding listener in `OverlayViewerIsland` is not yet implemented.
-Page navigation currently relies on the caller first emitting
-`overlay:document-changed` with a `page` parameter to move to the target page.
-The `overlay:navigate-to-page` event is reserved for a cleaner future listener.
+`overlay:navigate-to-page` alongside `overlay:highlight-region`.
+`OverlayViewerIsland` listens for this event at line 467 and calls `setPage(targetPage)`
+to navigate to the correct page.  The listener filters by `detail.documentId`
+to ensure it only acts on events for the currently displayed document.
+Both emitter and listener are fully implemented.
 
 ### `custom-field:draw-complete` bbox normalisation
 Coordinates are divided by `naturalWidth` / `naturalHeight` of the loaded image
